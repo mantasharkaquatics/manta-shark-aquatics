@@ -297,7 +297,7 @@ export default function BookingPage() {
           end_time: endTime,
           max_students: selectedCourse.max_students,
           enrolled_count: 0,
-          status: 'scheduled',
+          status: 'open',
         })
         .select('id')
         .single()
