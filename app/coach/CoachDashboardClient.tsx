@@ -96,13 +96,13 @@ export default function CoachDashboardClient({
     // 拿現有進度
     const { data: progressData } = await supabase
       .from('student_skill_progress')
-      .select('skill_id, progress_percentage')
+      .select('skill_id, progress_percent')
       .eq('student_id', student.id)
       .in('skill_id', skillList.map(s => s.id))
 
     const progressMap: Record<string, number> = {}
     progressData?.forEach(p => {
-      progressMap[p.skill_id] = p.progress_percentage
+      progressMap[p.skill_id] = p.progress_percent
     })
 
     const combined = skillList.map(s => ({
@@ -132,8 +132,8 @@ export default function CoachDashboardClient({
         .upsert({
           student_id: selectedStudent.id,
           skill_id: skill.id,
-          progress_percentage: skill.progress,
-          updated_by_coach_id: coach.id,
+          progress_percent: skill.progress,
+          last_updated_by: coach.id,
         }, { onConflict: 'student_id,skill_id' })
     }
 
