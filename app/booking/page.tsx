@@ -313,6 +313,7 @@ export default function BookingPage() {
         class_session_id: sessionId,
         parent_id: parentId,
         lesson_credit_id: availableCredit.id,
+              student_id: selectedStudent.id,
         status: 'confirmed',
       })
 
