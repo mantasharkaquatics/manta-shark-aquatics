@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+icd ~/Documents/manta-shark-aquatics && git add . && git commit -m "fix: booking credits schema update" && git push
+e/client'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -15,7 +14,7 @@ interface Student { id: string; full_name: string; current_level: number }
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
 interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string }
-interface Credit { id: string; remaining_credits: number; course_type_id: string }
+interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string }
 
 const COURSE_COLORS: Record<string, string> = {
   '1on1': GOLD,
@@ -195,7 +194,7 @@ export default function BookingPage() {
         supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true),
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true),
-        supabase.from('lesson_credits').select('id, remaining_credits, course_type_id').eq('parent_id', parent.id).gt('remaining_credits', 0),
+        supabase.from('lesson_credits').select('id, total_credits, used_credits, course_type_id, student_id').filter('total_credits', 'gt', 0),
       ])
 
       setStudents(studs || [])
@@ -267,10 +266,11 @@ export default function BookingPage() {
     setTimeSlots(slots)
   }
 
-  // Check if parent has credit for selected course
-  const availableCredit = selectedCourse
-    ? credits.find(c => c.course_type_id === selectedCourse.id)
+  // Check if selected student has credit for selected course
+  const availableCredit = selectedCourse && selectedStudent
+    ? credits.find(c => c.course_type_id === selectedCourse.id && c.student_id === selectedStudent.id && (c.total_credits - c.used_credits) > 0)
     : null
+  const remainingCredits = availableCredit ? availableCredit.total_credits - availableCredit.used_credits : 0
 
   async function handleConfirm() {
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || !availableCredit) return
@@ -317,10 +317,10 @@ export default function BookingPage() {
 
     if (bookErr) { setSubmitting(false); return }
 
-    // Deduct credit
+    // Deduct credit (increment used_credits)
     await supabase
       .from('lesson_credits')
-      .update({ remaining_credits: availableCredit.remaining_credits - 1 })
+      .update({ used_credits: availableCredit.used_credits + 1 })
       .eq('id', availableCredit.id)
 
     // Increment enrolled_count
@@ -454,8 +454,8 @@ export default function BookingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
-                const credit = credits.find(c => c.course_type_id === ct.id)
-                return (
+                const credit = credits.find(c => c.course_type_id === ct.id && c.student_id === selectedStudent?.id)
+                const remaining = credit ? credit.total_credits - credit.used_credits : 0                return (
                   <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => setSelectedCourse(ct)} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -467,13 +467,13 @@ export default function BookingPage() {
                           </div>
                         </div>
                       </div>
-                      {credit ? (
+                      {remaining > 0 ? (
                         <div style={{
                           background: `${color}20`, border: `1px solid ${color}40`,
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '12px', fontWeight: 700, color,
                         }}>
-                          {credit.remaining_credits} credits
+                          {remaining} credits
                         </div>
                       ) : (
                         <div style={{
@@ -511,7 +511,7 @@ export default function BookingPage() {
               </button>
               <button
                 onClick={() => { if (selectedCourse && availableCredit) setStep(2) }}
-                disabled={!selectedCourse || !availableCredit}
+                disabled={!selectedCourse || !availableCredit || remainingCredits === 0}
                 style={{
                   flex: 2, padding: '14px',
                   background: selectedCourse && availableCredit ? GOLD : 'rgba(255,255,255,0.1)',
@@ -739,7 +739,7 @@ export default function BookingPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Remaining Credits After</span>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>
-                  {availableCredit ? availableCredit.remaining_credits - 1 : 0} credits
+                  {remainingCredits - 1} credits
                 </span>
               </div>
             </div>
