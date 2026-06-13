@@ -25,8 +25,31 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  // 保護 /dashboard 路由（家長）
   if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // 保護 /booking 路由
+  if (!user && request.nextUrl.pathname.startsWith('/booking')) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // 保護 /coach 路由
+  if (request.nextUrl.pathname.startsWith('/coach')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    // 確認是教練
+    const { data: coach } = await supabase
+      .from('coaches')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (!coach) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   return supabaseResponse
