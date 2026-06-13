@@ -23,7 +23,7 @@ interface Credit { id: string; total_credits: number; used_credits: number; cour
 interface Booking {
   id: string; status: string
   session_date: string; start_time: string; end_time: string
-  course_name: string; coach_name: string
+  course_name: string; coach_name: string; student_name?: string
 }
 
 function getAge(dob: string): number {
@@ -130,6 +130,7 @@ export default function DashboardPage() {
         end_time: b.class_sessions?.end_time,
         course_name: b.class_sessions?.course_types?.name,
         coach_name: b.class_sessions?.coaches?.first_name,
+        student_name: b.students?.full_name,
       })).filter(b => b.session_date)
 
     const allUpcoming = parseBookings(upcoming || []).filter(b => b.session_date >= today)
@@ -265,7 +266,7 @@ export default function DashboardPage() {
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                       </div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                        with {booking.coach_name} · {formatTime(booking.start_time)} – {formatTime(booking.end_time)} · {formatDate(booking.session_date)}
+                        with {booking.coach_name} {booking.student_name ? '· ' + booking.student_name : ''} · {formatTime(booking.start_time)} – {formatTime(booking.end_time)} · {formatDate(booking.session_date)}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
