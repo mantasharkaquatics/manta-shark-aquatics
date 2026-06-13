@@ -27,10 +27,9 @@ export default async function CoachDashboardPage() {
 
   if (!coach) redirect('/dashboard')
 
-  // 今日課程（用 LA 時區）
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
-  const { data: todaySessions } = await supabase
+  const { data: rawSessions } = await supabase
     .from('class_sessions')
     .select(`
       id, session_date, start_time, end_time, status,
@@ -45,5 +44,15 @@ export default async function CoachDashboardPage() {
     .neq('status', 'cancelled')
     .order('start_time')
 
-  return <CoachDashboardClient coach={coach} todaySessions={todaySessions || []} today={today} />
+  // normalize course_types from array to object
+  const todaySessions = (rawSessions || []).map((s: any) => ({
+    ...s,
+    course_types: Array.isArray(s.course_types) ? s.course_types[0] : s.course_types,
+    bookings: (s.bookings || []).map((b: any) => ({
+      ...b,
+      students: Array.isArray(b.students) ? b.students[0] : b.students,
+    })),
+  }))
+
+  return <CoachDashboardClient coach={coach} todaySessions={todaySessions} today={today} />
 }
