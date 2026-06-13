@@ -52,11 +52,12 @@ export default function CoachDashboardClient({
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [allComplete, setAllComplete] = useState(false)
+  const [levelName, setLevelName] = useState('')
 
   const formatTime = (t: string) => {
     const [h, m] = t.split(':')
     const hour = parseInt(h)
-    return `${hour > 12 ? hour - 12 : hour}:${m} ${hour >= 12 ? 'PM' : 'AM'}`
+    return `${hour > 12 ? hour - 12 : hour === 0 ? 12 : hour}:${m} ${hour >= 12 ? 'PM' : 'AM'}`
   }
 
   const activeBookings = (session: Session) =>
@@ -66,13 +67,21 @@ export default function CoachDashboardClient({
     setSelectedStudent(student)
     setSkills([])
     setSaveSuccess(false)
+    setAllComplete(false)
+    setLevelName('')
     setLoadingSkills(true)
 
-    // 找 level_id
+    // 用 level_number 轉成 int 查詢
+    const levelNum = parseInt(student.current_level)
+    if (isNaN(levelNum)) {
+      setLoadingSkills(false)
+      return
+    }
+
     const { data: levelData } = await supabase
       .from('levels')
-      .select('id')
-      .eq('level_number', student.current_level)
+      .select('id, name')
+      .eq('level_number', levelNum)
       .single()
 
     if (!levelData) {
@@ -80,7 +89,8 @@ export default function CoachDashboardClient({
       return
     }
 
-    // 拿技能列表
+    setLevelName(levelData.name)
+
     const { data: skillList } = await supabase
       .from('skills')
       .select('id, name, sort_order')
@@ -88,12 +98,11 @@ export default function CoachDashboardClient({
       .eq('is_active', true)
       .order('sort_order')
 
-    if (!skillList) {
+    if (!skillList || skillList.length === 0) {
       setLoadingSkills(false)
       return
     }
 
-    // 拿現有進度
     const { data: progressData } = await supabase
       .from('student_skill_progress')
       .select('skill_id, progress_percent')
@@ -101,9 +110,7 @@ export default function CoachDashboardClient({
       .in('skill_id', skillList.map(s => s.id))
 
     const progressMap: Record<string, number> = {}
-    progressData?.forEach(p => {
-      progressMap[p.skill_id] = p.progress_percent
-    })
+    progressData?.forEach(p => { progressMap[p.skill_id] = p.progress_percent })
 
     const combined = skillList.map(s => ({
       ...s,
@@ -139,15 +146,16 @@ export default function CoachDashboardClient({
 
     setSaving(false)
     setSaveSuccess(true)
-    setAllComplete(skills.every(s => s.progress === 100))
   }
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">
-          Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, Coach {coach.first_name}
+          Good {greeting}, Coach {coach.first_name}
         </h1>
         <p className="text-gray-400 mt-1">
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}
@@ -157,12 +165,12 @@ export default function CoachDashboardClient({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Today's Sessions */}
         <div>
-          <h2 className="text-lg font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider text-sm">
+          <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider">
             Today's Classes
           </h2>
 
           {todaySessions.length === 0 ? (
-            <div className="bg-[#111d38] rounded-xl p-8 text-center">
+            <div className="bg-[#111d38] rounded-xl p-8 text-center border border-[#1e3a6e]">
               <p className="text-gray-400">No classes scheduled for today</p>
             </div>
           ) : (
@@ -171,39 +179,25 @@ export default function CoachDashboardClient({
                 <div
                   key={session.id}
                   className={`bg-[#111d38] rounded-xl p-5 border transition-all cursor-pointer ${
-                    selectedSession?.id === session.id
-                      ? 'border-[#c9a84c]'
-                      : 'border-[#1e3a6e] hover:border-[#c9a84c]/50'
+                    selectedSession?.id === session.id ? 'border-[#c9a84c]' : 'border-[#1e3a6e] hover:border-[#c9a84c]/50'
                   }`}
-                  onClick={() => {
-                    setSelectedSession(session)
-                    setSelectedStudent(null)
-                    setSkills([])
-                    setSaveSuccess(false)
-                  }}
+                  onClick={() => { setSelectedSession(session); setSelectedStudent(null); setSkills([]) }}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-white font-semibold">{session.course_types.name}</p>
-                      <p className="text-[#c9a84c] text-sm">
-                        {formatTime(session.start_time)} – {formatTime(session.end_time)}
-                      </p>
+                      <p className="text-white font-semibold">{session.course_types?.name}</p>
+                      <p className="text-[#c9a84c] text-sm">{formatTime(session.start_time)} – {formatTime(session.end_time)}</p>
                     </div>
                     <span className="bg-[#1e3a6e] text-gray-300 text-xs px-3 py-1 rounded-full">
                       {activeBookings(session).length} student{activeBookings(session).length !== 1 ? 's' : ''}
                     </span>
                   </div>
 
-                  {/* Students in this session */}
                   <div className="space-y-2">
                     {activeBookings(session).map(booking => (
                       <button
                         key={booking.id}
-                        onClick={e => {
-                          e.stopPropagation()
-                          setSelectedSession(session)
-                          loadStudentSkills(booking.students)
-                        }}
+                        onClick={e => { e.stopPropagation(); setSelectedSession(session); loadStudentSkills(booking.students) }}
                         className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
                           selectedStudent?.id === booking.students.id
                             ? 'bg-[#c9a84c]/20 border border-[#c9a84c]/50'
@@ -211,13 +205,11 @@ export default function CoachDashboardClient({
                         }`}
                       >
                         <div className="w-8 h-8 rounded-full bg-[#1e3a6e] flex items-center justify-center flex-shrink-0">
-                          <span className="text-[#c9a84c] text-xs font-bold">
-                            {booking.students.full_name.charAt(0)}
-                          </span>
+                          <span className="text-[#c9a84c] text-xs font-bold">{booking.students.full_name.charAt(0)}</span>
                         </div>
                         <div>
                           <p className="text-white text-sm font-medium">{booking.students.full_name}</p>
-                          <p className="text-gray-400 text-xs">{booking.students.current_level || 'No level assigned'}</p>
+                          <p className="text-gray-400 text-xs">Level {booking.students.current_level}</p>
                         </div>
                         <span className="ml-auto text-gray-500 text-xs">View Progress →</span>
                       </button>
@@ -229,9 +221,9 @@ export default function CoachDashboardClient({
           )}
         </div>
 
-        {/* Right: Skill Progress Panel */}
+        {/* Right: Skill Progress */}
         <div>
-          <h2 className="text-lg font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider text-sm">
+          <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider">
             Skill Progress
           </h2>
 
@@ -246,7 +238,6 @@ export default function CoachDashboardClient({
             </div>
           ) : (
             <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
-              {/* Student header */}
               <div className="p-5 border-b border-[#1e3a6e]">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-[#1e3a6e] flex items-center justify-center">
@@ -254,10 +245,9 @@ export default function CoachDashboardClient({
                   </div>
                   <div>
                     <p className="text-white font-semibold">{selectedStudent.full_name}</p>
-                    <p className="text-gray-400 text-sm">{selectedStudent.current_level}</p>
+                    <p className="text-gray-400 text-sm">{levelName || `Level ${selectedStudent.current_level}`}</p>
                   </div>
                 </div>
-
                 {allComplete && (
                   <div className="mt-3 bg-[#c9a84c]/20 border border-[#c9a84c]/50 rounded-lg p-3 flex items-center gap-2">
                     <span>🏆</span>
@@ -266,53 +256,40 @@ export default function CoachDashboardClient({
                 )}
               </div>
 
-              {/* Skills list */}
               <div className="p-5 space-y-4 max-h-[500px] overflow-y-auto">
                 {skills.length === 0 ? (
                   <p className="text-gray-400 text-sm">No skills found for this level.</p>
-                ) : (
-                  skills.map(skill => (
-                    <div key={skill.id}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-300 text-sm">{skill.name}</span>
-                        <span className={`text-sm font-semibold ${skill.progress === 100 ? 'text-[#c9a84c]' : 'text-gray-400'}`}>
-                          {skill.progress}%
-                        </span>
-                      </div>
-                      {/* Progress bar */}
-                      <div className="w-full bg-[#0d1529] rounded-full h-1.5 mb-2">
-                        <div
-                          className="bg-[#c9a84c] h-1.5 rounded-full transition-all"
-                          style={{ width: `${skill.progress}%` }}
-                        />
-                      </div>
-                      {/* Quick select buttons */}
-                      <div className="flex gap-1">
-                        {PROGRESS_OPTIONS.map(val => (
-                          <button
-                            key={val}
-                            onClick={() => updateSkillProgress(skill.id, val)}
-                            className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
-                              skill.progress === val
-                                ? 'bg-[#c9a84c] text-[#111d38]'
-                                : 'bg-[#0d1529] text-gray-400 hover:bg-[#1e3a6e]'
-                            }`}
-                          >
-                            {val}%
-                          </button>
-                        ))}
-                      </div>
+                ) : skills.map(skill => (
+                  <div key={skill.id}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-gray-300 text-sm">{skill.name}</span>
+                      <span className={`text-sm font-semibold ${skill.progress === 100 ? 'text-[#c9a84c]' : 'text-gray-400'}`}>
+                        {skill.progress}%
+                      </span>
                     </div>
-                  ))
-                )}
+                    <div className="w-full bg-[#0d1529] rounded-full h-1.5 mb-2">
+                      <div className="bg-[#c9a84c] h-1.5 rounded-full transition-all" style={{ width: `${skill.progress}%` }} />
+                    </div>
+                    <div className="flex gap-1">
+                      {PROGRESS_OPTIONS.map(val => (
+                        <button
+                          key={val}
+                          onClick={() => updateSkillProgress(skill.id, val)}
+                          className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
+                            skill.progress === val ? 'bg-[#c9a84c] text-[#111d38]' : 'bg-[#0d1529] text-gray-400 hover:bg-[#1e3a6e]'
+                          }`}
+                        >
+                          {val}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              {/* Save button */}
               {skills.length > 0 && (
                 <div className="p-5 border-t border-[#1e3a6e]">
-                  {saveSuccess && (
-                    <p className="text-green-400 text-sm text-center mb-3">✓ Progress saved successfully!</p>
-                  )}
+                  {saveSuccess && <p className="text-green-400 text-sm text-center mb-3">✓ Progress saved!</p>}
                   <button
                     onClick={saveProgress}
                     disabled={saving}
