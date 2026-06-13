@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-icd ~/Documents/manta-shark-aquatics && git add . && git commit -m "fix: booking credits schema update" && git push
-e/client'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -455,7 +456,8 @@ export default function BookingPage() {
               {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
                 const credit = credits.find(c => c.course_type_id === ct.id && c.student_id === selectedStudent?.id)
-                const remaining = credit ? credit.total_credits - credit.used_credits : 0                return (
+                const remaining = credit ? credit.total_credits - credit.used_credits : 0
+                return (
                   <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => setSelectedCourse(ct)} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -777,3 +779,4 @@ export default function BookingPage() {
     </div>
   )
 }
+
