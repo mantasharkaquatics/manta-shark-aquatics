@@ -107,12 +107,12 @@ export default function DashboardPage() {
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase.from('lesson_credits').select('id, total_credits, used_credits, course_type_id, student_id').gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name))')
+        .select('id, status, student_id, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name)), students(full_name)')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
       supabase.from('bookings')
-        .select('id, status, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name))')
+        .select('id, status, student_id, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name)), students(full_name)')
         .eq('parent_id', parentData.id)
         .order('created_at', { ascending: false })
         .limit(20),
