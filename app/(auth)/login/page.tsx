@@ -21,7 +21,20 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      // 判斷是教練還是家長
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: coach } = await supabase
+          .from('coaches')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .single()
+        if (coach) {
+          router.push('/coach')
+        } else {
+          router.push('/dashboard')
+        }
+      }
     }
   }
 
@@ -39,7 +52,7 @@ export default function LoginPage() {
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="you@example.com"
             />
@@ -50,8 +63,8 @@ export default function LoginPage() {
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="••••••••"
             />
@@ -69,7 +82,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/register" className="text-blue-600 hover:underline font-medium">
             Sign up
           </Link>
