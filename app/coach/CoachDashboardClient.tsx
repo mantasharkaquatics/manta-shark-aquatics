@@ -72,7 +72,7 @@ export default function CoachDashboardClient({
     const { data: levelData } = await supabase
       .from('levels')
       .select('id')
-      .eq('name', student.current_level)
+      .eq('level_number', student.current_level)
       .single()
 
     if (!levelData) {
