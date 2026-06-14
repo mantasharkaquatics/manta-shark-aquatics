@@ -15,19 +15,23 @@ export default async function AdminUpgradesPage() {
   const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
   if (!admin) redirect('/dashboard')
 
-  // 找出所有技能都 100% 的學生
   const { data: readyStudents } = await supabase.rpc('get_students_ready_for_upgrade')
 
-  // 升等歷史記錄
-  const { data: upgradeHistory } = await supabase
+  const { data: rawHistory } = await supabase
     .from('level_upgrades')
     .select('id, from_level, to_level, upgraded_at, notes, students(full_name), admins(first_name, last_name)')
     .order('upgraded_at', { ascending: false })
     .limit(20)
 
-  return <AdminUpgradesClient 
-    readyStudents={readyStudents || []} 
-    upgradeHistory={upgradeHistory || []}
+  const upgradeHistory = (rawHistory || []).map((h: any) => ({
+    ...h,
+    students: Array.isArray(h.students) ? h.students[0] : h.students,
+    admins: Array.isArray(h.admins) ? h.admins[0] : h.admins,
+  }))
+
+  return <AdminUpgradesClient
+    readyStudents={readyStudents || []}
+    upgradeHistory={upgradeHistory}
     adminId={admin.id}
   />
 }
