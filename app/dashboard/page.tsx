@@ -496,15 +496,15 @@ export default function DashboardPage() {
         <section style={{ marginBottom: '36px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Upcoming Lessons</h2>
-            <Link href="/booking" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px' }}>
+            <button onClick={() => window.location.href = '/booking'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
               + Book a Lesson
-            </Link>
+            </button>
           </div>
           {upcomingBookings.length === 0 ? (
             <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '32px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 16px' }}>No upcoming lessons.</p>
-              <Link href="/booking" style={{ display: 'inline-block', padding: '10px 24px', background: GOLD, color: NAVY, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>Book Now</Link>
+              <button onClick={() => window.location.href = '/booking'} style={{ display: 'inline-block', padding: '10px 24px', background: GOLD, color: NAVY, borderRadius: '8px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '1px', textTransform: 'uppercase' }}>Book Now</button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
