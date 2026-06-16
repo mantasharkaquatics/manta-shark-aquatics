@@ -167,7 +167,7 @@ export default function BookingPage() {
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true),
         supabase.from('lesson_credits')
-          .select('id, total_credits, used_credits, course_type_id, student_id')
+          .select('id, total_credits, used_credits, course_type_id, student_id, created_at')
           .eq('parent_id', parent.id)
           .filter('total_credits', 'gt', 0),
       ])
@@ -253,8 +253,12 @@ export default function BookingPage() {
     setTimeSlots(slots)
   }
 
+  // 先用最早購買的 package（credits 需要有 created_at）
   const availableCredit = selectedCourse
-    ? credits.find(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
+    ? [...credits]
+        .filter(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
+        .sort((a, b) => ((a as any).created_at || '').localeCompare((b as any).created_at || ''))
+        [0] || null
     : null
   const totalRemainingCredits = selectedCourse
     ? credits.filter(c => c.course_type_id === selectedCourse.id).reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
@@ -314,9 +318,12 @@ export default function BookingPage() {
 
     // 如果是 reschedule，取消舊課（credit 不動，因為新課已扣）
     if (rescheduleBookingId) {
-      await supabase.from('bookings')
+      const { error: cancelErr } = await supabase.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
         .eq('id', rescheduleBookingId)
+      console.log('Cancel old booking:', rescheduleBookingId, cancelErr)
+    } else {
+      console.log('No rescheduleBookingId, skipping cancel')
     }
 
     setSubmitting(false)
