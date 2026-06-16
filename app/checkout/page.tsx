@@ -22,12 +22,6 @@ const PLANS: Record<string, { name: string; sessions: number; total: number; per
   'team':     { name: 'Swim Team',            sessions: 8,  total: 180,  perSession: 22.5,  courseSlug: 'team' },
 }
 
-interface Student {
-  id: string
-  full_name: string
-  current_level: string | null
-}
-
 function CheckoutContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -36,43 +30,32 @@ function CheckoutContent() {
   const planId = searchParams.get('plan') || ''
   const plan = PLANS[planId]
 
-  const [students, setStudents] = useState<Student[]>([])
-  const [selectedStudent, setSelectedStudent] = useState('')
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
+  const [parentName, setParentName] = useState('')
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login?redirect=/plans'); return }
-
+      if (!user) { router.push(`/login?redirect=/checkout?plan=${planId}`); return }
       const { data: parent } = await supabase
-        .from('parents').select('id').eq('auth_user_id', user.id).single()
+        .from('parents').select('first_name, last_name').eq('auth_user_id', user.id).single()
       if (!parent) { router.push('/login'); return }
-
-      const { data: studs } = await supabase
-        .from('students').select('id, full_name, current_level')
-        .eq('parent_id', parent.id).eq('is_active', true).order('full_name')
-
-      setStudents(studs || [])
-      if (studs && studs.length === 1) setSelectedStudent(studs[0].id)
+      setParentName(`${parent.first_name} ${parent.last_name}`)
       setLoading(false)
     }
     load()
   }, [])
 
   async function handleCheckout() {
-    if (!selectedStudent) { setError('請選擇學生'); return }
     setPaying(true)
     setError('')
-
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId, studentId: selectedStudent }),
+      body: JSON.stringify({ planId }),
     })
-
     const data = await res.json()
     if (data.url) {
       window.location.href = data.url
@@ -104,14 +87,9 @@ function CheckoutContent() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '480px' }}>
 
-        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>
-            確認購買
-          </div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>
-            購買課程包
-          </h1>
+          <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>確認購買</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>購買課程包</h1>
         </div>
 
         {/* Plan Summary */}
@@ -135,45 +113,24 @@ function CheckoutContent() {
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>一次付清</p>
             </div>
           </div>
-
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '16px', paddingTop: '16px' }}>
-            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', flexWrap: 'wrap' }}>
               <span>✓ 付款後立即生效</span>
               <span>✓ 一年內有效</span>
+              <span>✓ 全家共用</span>
               <span>✓ 可彈性預約</span>
             </div>
           </div>
         </div>
 
-        {/* Student Selection */}
-        <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', marginBottom: '16px' }}>
-          <p style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 14px' }}>
-            選擇學生
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {students.map(s => (
-              <button
-                key={s.id}
-                onClick={() => setSelectedStudent(s.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '14px 16px', borderRadius: '10px', cursor: 'pointer',
-                  border: `2px solid ${selectedStudent === s.id ? GOLD : 'rgba(255,255,255,0.1)'}`,
-                  background: selectedStudent === s.id ? `${GOLD}10` : 'transparent',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: selectedStudent === s.id ? GOLD : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: selectedStudent === s.id ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                    {s.full_name.charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>{s.full_name}</span>
-                </div>
-                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>
-                  {s.current_level ? `Lv.${s.current_level}` : 'Pending'}
-                </span>
-              </button>
-            ))}
+        {/* Account Info */}
+        <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px 24px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: `${GOLD}20`, border: `1px solid ${GOLD}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: GOLD, flexShrink: 0 }}>
+            {parentName.charAt(0)}
+          </div>
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: '#fff', margin: '0 0 2px' }}>{parentName}</p>
+            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>課程包將套用到此帳戶，全部學生皆可使用</p>
           </div>
         </div>
 
@@ -183,30 +140,28 @@ function CheckoutContent() {
           </div>
         )}
 
-        {/* Pay Button */}
         <button
           onClick={handleCheckout}
-          disabled={paying || !selectedStudent}
+          disabled={paying}
           style={{
             width: '100%', padding: '16px', borderRadius: '12px', border: 'none',
-            background: paying || !selectedStudent ? 'rgba(201,168,76,0.4)' : GOLD,
+            background: paying ? 'rgba(201,168,76,0.4)' : GOLD,
             color: NAVY, fontSize: '15px', fontWeight: 700,
             letterSpacing: '1px', textTransform: 'uppercase',
-            cursor: paying || !selectedStudent ? 'not-allowed' : 'pointer',
-            transition: 'all 0.15s',
-            marginBottom: '12px',
+            cursor: paying ? 'not-allowed' : 'pointer',
+            transition: 'all 0.15s', marginBottom: '12px',
           }}
         >
           {paying ? '跳轉到付款頁面...' : `前往付款 · $${plan.total.toLocaleString()}`}
         </button>
 
-        <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: 0 }}>
+        <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '0 0 12px' }}>
           🔒 由 Stripe 安全處理付款 · 支援信用卡
         </p>
 
         <button
           onClick={() => router.push('/plans')}
-          style={{ display: 'block', width: '100%', marginTop: '12px', padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer' }}
+          style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer' }}
         >
           ← 返回方案頁面
         </button>

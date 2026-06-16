@@ -25,12 +25,11 @@ export async function POST(req: NextRequest) {
     const session = event.data.object as Stripe.Checkout.Session
     const meta = session.metadata!
 
-    const parent_id     = meta.parent_id
-    const student_id    = meta.student_id
-    const plan_id       = meta.plan_id
-    const sessions      = parseInt(meta.sessions)
+    const parent_id      = meta.parent_id
+    const plan_id        = meta.plan_id
+    const sessions       = parseInt(meta.sessions)
     const course_type_id = meta.course_type_id
-    const amount        = session.amount_total! / 100
+    const amount         = session.amount_total! / 100
 
     // 1. Create purchase record
     const { data: purchase, error: purchaseErr } = await supabase
@@ -50,14 +49,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Purchase failed' }, { status: 500 })
     }
 
-    // 2. Create lesson_credits
+    // 2. Create lesson_credits — 綁 parent，student_id 為 null（全家共用）
     const expiresAt = new Date()
     expiresAt.setFullYear(expiresAt.getFullYear() + 1)
 
     const { error: creditErr } = await supabase
       .from('lesson_credits')
       .insert({
-        student_id,
+        student_id: null,
+        parent_id,
         purchase_id: purchase.id,
         course_type_id,
         total_credits: sessions,
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Credit failed' }, { status: 500 })
     }
 
-    console.log(`✅ Purchase complete: ${plan_id} for student ${student_id}`)
+    console.log(`✅ Purchase complete: ${plan_id} for parent ${parent_id}`)
   }
 
   return NextResponse.json({ received: true })
