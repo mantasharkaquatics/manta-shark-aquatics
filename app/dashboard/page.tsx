@@ -318,6 +318,14 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
+  function isWithin24Hours(sessionDate: string, startTime: string): boolean {
+    const laTime = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })
+    const nowLA = new Date(laTime)
+    const sessionStart = new Date(`${sessionDate}T${startTime}`)
+    const diffMs = sessionStart.getTime() - nowLA.getTime()
+    return diffMs <= 24 * 60 * 60 * 1000
+  }
+
   async function cancelBooking(bookingId: string) {
     setCancellingId(bookingId)
     // 先取得 lesson_credit_id
@@ -551,14 +559,14 @@ export default function DashboardPage() {
                       <div style={{ display: 'flex', gap: '8px' }}>
                           <button
                             onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
-                            disabled={reschedulingId === booking.id}
+                            disabled={reschedulingId === booking.id || isWithin24Hours(booking.class_sessions.session_date, booking.class_sessions.start_time)}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : 'Reschedule'}
                           </button>
                           {daysUntil >= 1 ? (
                             <button
                               onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
-                              disabled={cancellingId === booking.id}
+                              disabled={cancellingId === booking.id || isWithin24Hours(booking.class_sessions.session_date, booking.class_sessions.start_time)}
                               style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                               {cancellingId === booking.id ? '...' : 'Cancel'}
                             </button>
