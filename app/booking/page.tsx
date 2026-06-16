@@ -318,16 +318,32 @@ export default function BookingPage() {
 
     await supabase.rpc('increment_enrolled', { session_id: sessionId })
 
-    // 如果是 reschedule，取消舊課（credit 不動，因為新課已扣）
+    // 如果是 reschedule，取消舊課並退回舊課的 credit
     const rbIdToCancel = rescheduleBookingIdRef.current || rescheduleBookingId
-    console.log('rbIdToCancel:', rbIdToCancel)
     if (rbIdToCancel) {
-      const { error: cancelErr } = await supabase.from('bookings')
+      // 取消舊課
+      await supabase.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
         .eq('id', rbIdToCancel)
-      console.log('Cancel old booking:', rbIdToCancel, cancelErr)
-    } else {
-      console.log('No rescheduleBookingId, skipping cancel')
+      // 退回舊課的 credit（找到舊課用的 credit 並退回）
+      const { data: oldBooking } = await supabase
+        .from('bookings')
+        .select('lesson_credit_id')
+        .eq('id', rbIdToCancel)
+        .single()
+      if (oldBooking?.lesson_credit_id) {
+        const { data: oldCredit } = await supabase
+          .from('lesson_credits')
+          .select('used_credits')
+          .eq('id', oldBooking.lesson_credit_id)
+          .single()
+        if (oldCredit) {
+          await supabase
+            .from('lesson_credits')
+            .update({ used_credits: Math.max(0, oldCredit.used_credits - 1) })
+            .eq('id', oldBooking.lesson_credit_id)
+        }
+      }
     }
 
     setSubmitting(false)
