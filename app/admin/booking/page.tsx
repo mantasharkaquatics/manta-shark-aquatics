@@ -13,7 +13,7 @@ export default async function AdminBookingPage() {
   const [{ data: coaches }, { data: students }, { data: courseTypes }, { data: sessions }] =
     await Promise.all([
       supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true).order('first_name'),
-      supabase.from('students').select('id, full_name, current_level, parent_id, parents(id, first_name, last_name)').eq('is_active', true).order('full_name'),
+      supabase.from('students').select('id, full_name, current_level, parent_id, parents(id, first_name, last_name, email)').eq('is_active', true).order('full_name'),
       supabase.from('course_types').select('id, name, slug, duration_minutes, max_students').eq('is_active', true).order('sort_order'),
       supabase
         .from('class_sessions')

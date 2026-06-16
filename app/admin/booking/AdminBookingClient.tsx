@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Coach {
@@ -14,7 +14,7 @@ interface Student {
   full_name: string
   current_level: string
   parent_id: string
-  parents: { id: string; first_name: string; last_name: string } | { id: string; first_name: string; last_name: string }[]
+  parents: { id: string; first_name: string; last_name: string; email: string } | { id: string; first_name: string; last_name: string; email: string }[]
 }
 
 interface CourseType {
@@ -101,9 +101,7 @@ function getMonthDates(anchor: Date): Date[] {
   const month = anchor.getMonth()
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
-  // pad to start on Sunday
   const startPad = firstDay.getDay()
-  // pad to end on Saturday
   const endPad = 6 - lastDay.getDay()
   const dates: Date[] = []
   for (let i = -startPad; i <= lastDay.getDate() - 1 + endPad; i++) {
@@ -129,7 +127,172 @@ const COURSE_COLORS: Record<string, string> = {
 }
 
 const WEEKDAY_HEADERS = ['日', '一', '二', '三', '四', '五', '六']
+const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
 
+// ══════════════════════════════════════════════════════════════════════
+// Mini Calendar (left sidebar)
+// ══════════════════════════════════════════════════════════════════════
+function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Date) => void }) {
+  const [mini, setMini] = useState(new Date(selected.getFullYear(), selected.getMonth(), 1))
+  const dates = getMonthDates(mini)
+  const todayStr = toDateStr(new Date())
+  const selectedStr = toDateStr(selected)
+
+  return (
+    <div className="w-56 flex-shrink-0 bg-[#111d38] rounded-xl p-3 self-start sticky top-4">
+      {/* Mini header */}
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() - 1, 1))}
+          className="p-1 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">‹</button>
+        <span className="text-xs font-semibold text-white/70">
+          {mini.getFullYear()} {MONTH_NAMES[mini.getMonth()]}
+        </span>
+        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() + 1, 1))}
+          className="p-1 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">›</button>
+      </div>
+      {/* Weekday labels */}
+      <div className="grid grid-cols-7 mb-1">
+        {WEEKDAY_HEADERS.map(d => (
+          <div key={d} className="text-center text-[9px] text-white/20 py-0.5">{d}</div>
+        ))}
+      </div>
+      {/* Days */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {dates.map(date => {
+          const ds = toDateStr(date)
+          const isToday = ds === todayStr
+          const isSelected = ds === selectedStr
+          const isCurrentMonth = date.getMonth() === mini.getMonth()
+          return (
+            <button
+              key={ds}
+              onClick={() => onSelect(date)}
+              className={`h-7 w-full rounded text-[10px] transition-colors ${
+                isSelected
+                  ? 'bg-[#c9a84c] text-[#0d1529] font-bold'
+                  : isToday
+                  ? 'border border-[#c9a84c]/60 text-[#c9a84c]'
+                  : isCurrentMonth
+                  ? 'text-white/60 hover:bg-white/10'
+                  : 'text-white/15 hover:bg-white/5'
+              }`}
+            >
+              {date.getDate()}
+            </button>
+          )
+        })}
+      </div>
+      {/* Today button */}
+      <button
+        onClick={() => {
+          const t = new Date()
+          const today = new Date(t.getFullYear(), t.getMonth(), t.getDate())
+          setMini(new Date(today.getFullYear(), today.getMonth(), 1))
+          onSelect(today)
+        }}
+        className="mt-2 w-full text-[10px] text-white/30 hover:text-[#c9a84c] transition-colors text-center py-1"
+      >
+        回到今天
+      </button>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Student Search
+// ══════════════════════════════════════════════════════════════════════
+function StudentSearch({ students, value, onChange }: {
+  students: Student[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const filtered = query.trim().length < 1 ? [] : students.filter(s => {
+    const parent = Array.isArray(s.parents) ? s.parents[0] : s.parents
+    const q = query.toLowerCase()
+    return (
+      s.full_name.toLowerCase().includes(q) ||
+      (parent?.first_name + ' ' + parent?.last_name).toLowerCase().includes(q) ||
+      parent?.email?.toLowerCase().includes(q)
+    )
+  }).slice(0, 8)
+
+  const selected = students.find(s => s.id === value)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function select(s: Student) {
+    onChange(s.id)
+    const parent = Array.isArray(s.parents) ? s.parents[0] : s.parents
+    setQuery(s.full_name + (parent ? ` (${parent.first_name} ${parent.last_name})` : ''))
+    setOpen(false)
+  }
+
+  function clear() {
+    onChange('')
+    setQuery('')
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={selected && !open ? ((() => {
+            const parent = Array.isArray(selected.parents) ? selected.parents[0] : selected.parents
+            return `${selected.full_name} (${parent?.first_name} ${parent?.last_name})`
+          })()) : query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); if (!e.target.value) onChange('') }}
+          onFocus={() => { setOpen(true); if (selected) setQuery('') }}
+          placeholder="輸入學生姓名、家長姓名或 email..."
+          className="w-full bg-[#111d38] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#c9a84c] transition-colors pr-8"
+        />
+        {(query || selected) && (
+          <button onClick={clear} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-lg leading-none">×</button>
+        )}
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-[#1a2744] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          {filtered.map(s => {
+            const parent = Array.isArray(s.parents) ? s.parents[0] : s.parents
+            return (
+              <button
+                key={s.id}
+                onClick={() => select(s)}
+                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
+              >
+                <div>
+                  <p className="text-sm text-white font-medium">{s.full_name}</p>
+                  <p className="text-xs text-white/40">{parent?.first_name} {parent?.last_name} · {parent?.email}</p>
+                </div>
+                <span className="text-xs text-white/30 ml-2 flex-shrink-0">Lv.{s.current_level}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {open && query.trim().length >= 1 && filtered.length === 0 && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-[#1a2744] border border-white/10 rounded-xl shadow-2xl px-3 py-3">
+          <p className="text-sm text-white/30 text-center">找不到符合的學生</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Main Component
+// ══════════════════════════════════════════════════════════════════════
 export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions }: Props) {
   const supabase = createClient()
   const [view, setView] = useState<'month' | 'day'>('month')
@@ -175,7 +338,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   useEffect(() => { loadSessions() }, [loadSessions])
 
-  function goToDay(date: Date) {
+  function handleMiniSelect(date: Date) {
     setAnchor(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
     setView('day')
   }
@@ -293,12 +456,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const currentMonth = anchor.getMonth()
 
   const headerLabel = view === 'month'
-    ? anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long' })
+    ? `${anchor.getFullYear()} ${MONTH_NAMES[anchor.getMonth()]}`
     : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
   return (
     <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
-
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
@@ -307,13 +469,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex rounded-lg overflow-hidden border border-white/20">
             {(['month', 'day'] as const).map(v => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`px-4 py-1.5 text-sm transition-colors ${
-                  view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'
-                }`}
-              >
+              <button key={v} onClick={() => setView(v)}
+                className={`px-4 py-1.5 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'}`}>
                 {v === 'month' ? '月' : '日'}
               </button>
             ))}
@@ -329,62 +486,70 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                 setView('month')
               }}
               className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-            >
-              今天
-            </button>
+            >今天</button>
           </div>
           {loading && <span className="text-xs text-white/40 animate-pulse">載入中...</span>}
         </div>
       </div>
 
-      {/* Body */}
-      <div className="overflow-auto" style={{ height: 'calc(100vh - 130px)' }}>
-        {view === 'month' ? (
-          <MonthView
-            dates={monthDates}
-            currentMonth={currentMonth}
-            todayStr={todayStr}
-            getSessionsOnDate={getSessionsOnDate}
-            onDayClick={goToDay}
-          />
-        ) : (
-          <DayView
-            date={anchor}
-            coaches={coaches}
-            getSessionAt={getSessionAt}
-            isCoachAvailable={isCoachAvailable}
-            onSlotClick={openBookModal}
-            onSessionClick={openDetailModal}
-          />
-        )}
+      {/* Body: sidebar + main */}
+      <div className="flex gap-4 p-4" style={{ height: 'calc(100vh - 130px)' }}>
+        {/* Left: Mini Calendar */}
+        <MiniCalendar selected={anchor} onSelect={handleMiniSelect} />
+
+        {/* Right: Main Calendar */}
+        <div className="flex-1 overflow-auto">
+          {view === 'month' ? (
+            <MonthView
+              dates={monthDates}
+              currentMonth={currentMonth}
+              todayStr={todayStr}
+              getSessionsOnDate={getSessionsOnDate}
+              onDayClick={(date) => {
+                setAnchor(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
+                setView('day')
+              }}
+            />
+          ) : (
+            <DayView
+              date={anchor}
+              coaches={coaches}
+              getSessionAt={getSessionAt}
+              isCoachAvailable={isCoachAvailable}
+              onSlotClick={openBookModal}
+              onSessionClick={openDetailModal}
+            />
+          )}
+        </div>
       </div>
 
       {/* Book Modal */}
       {modal === 'book' && selectedSlot && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setModal(null) }}>
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-6 border-b border-white/10">
-              <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>新增預約</h2>
-              <p className="text-sm text-white/50 mt-1">
-                {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
-                {' · '}{formatTime(selectedSlot.time)}
-                {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
-              </p>
+            <div className="p-6 border-b border-white/10 flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>新增預約</h2>
+                <p className="text-sm text-white/50 mt-1">
+                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
+                  {' · '}{formatTime(selectedSlot.time)}
+                  {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
+                </p>
+              </div>
+              <button onClick={() => setModal(null)} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
             </div>
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm text-white/60 mb-2">課程類型</label>
                 <div className="grid grid-cols-2 gap-2">
                   {courseTypes.map(ct => (
-                    <button
-                      key={ct.id}
-                      onClick={() => setFormCourse(ct.id)}
+                    <button key={ct.id} onClick={() => setFormCourse(ct.id)}
                       className={`px-3 py-2.5 rounded-lg border text-sm text-left transition-all ${
                         formCourse === ct.id
                           ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]'
                           : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
-                      }`}
-                    >
+                      }`}>
                       <span className="block font-medium">{ct.name}</span>
                       <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} 分鐘 · 最多 {ct.max_students} 人</span>
                     </button>
@@ -393,28 +558,15 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               </div>
               <div>
                 <label className="block text-sm text-white/60 mb-2">選擇學生</label>
-                <select
-                  value={formStudent}
-                  onChange={e => setFormStudent(e.target.value)}
-                  className="w-full bg-[#111d38] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#c9a84c] transition-colors"
-                >
-                  <option value="">— 請選擇學生 —</option>
-                  {students.map(s => {
-                    const parent = Array.isArray(s.parents) ? s.parents[0] : s.parents
-                    return (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name} (Lv.{s.current_level}) — {parent?.first_name} {parent?.last_name}
-                      </option>
-                    )
-                  })}
-                </select>
+                <StudentSearch students={students} value={formStudent} onChange={setFormStudent} />
               </div>
               {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
               {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
             </div>
             <div className="p-6 pt-0 flex gap-3">
               <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">取消</button>
-              <button onClick={handleBook} disabled={saving} className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
+              <button onClick={handleBook} disabled={saving}
+                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                 {saving ? '建立中...' : '確認預約'}
               </button>
             </div>
@@ -447,55 +599,40 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
   onDayClick: (date: Date) => void
 }) {
   return (
-    <div className="p-4">
-      {/* Weekday headers */}
-      <div className="grid grid-cols-7 mb-2">
+    <div>
+      <div className="grid grid-cols-7 mb-1">
         {WEEKDAY_HEADERS.map(d => (
           <div key={d} className="text-center text-xs text-white/30 py-2 font-medium">{d}</div>
         ))}
       </div>
-      {/* Day grid */}
       <div className="grid grid-cols-7 gap-1">
         {dates.map(date => {
           const ds = toDateStr(date)
           const isToday = ds === todayStr
           const isCurrentMonth = date.getMonth() === currentMonth
           const daySessions = getSessionsOnDate(ds)
-
           return (
-            <button
-              key={ds}
-              onClick={() => onDayClick(date)}
+            <button key={ds} onClick={() => onDayClick(date)}
               className={`rounded-xl p-2 text-left transition-all hover:border-[#c9a84c]/50 hover:bg-[#c9a84c]/5 group border min-h-[90px] flex flex-col ${
-                isToday
-                  ? 'border-[#c9a84c]/60 bg-[#c9a84c]/5'
-                  : isCurrentMonth
-                  ? 'border-white/8 bg-[#111d38]/40'
-                  : 'border-white/4 bg-transparent'
-              }`}
-            >
-              {/* Date number */}
-              <p className={`text-sm font-semibold mb-1 ${
-                isToday ? 'text-[#c9a84c]' : isCurrentMonth ? 'text-white/80' : 'text-white/20'
+                isToday ? 'border-[#c9a84c]/60 bg-[#c9a84c]/5'
+                : isCurrentMonth ? 'border-white/8 bg-[#111d38]/40'
+                : 'border-white/4 bg-transparent'
               }`}>
+              <p className={`text-sm font-semibold mb-1 ${isToday ? 'text-[#c9a84c]' : isCurrentMonth ? 'text-white/80' : 'text-white/20'}`}>
                 {date.getDate()}
               </p>
-              {/* Session pills */}
               <div className="flex-1 space-y-0.5">
                 {daySessions.slice(0, 3).map(s => {
                   const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
                   const slug = ct?.slug || ''
-                  const colorClass = COURSE_COLORS[slug] || 'bg-gray-500'
                   return (
-                    <div key={s.id} className={`${colorClass} rounded px-1 py-0.5 flex items-center justify-between`}>
-                      <span className="text-[9px] text-white font-medium truncate">{s.start_time.slice(0, 5)}</span>
+                    <div key={s.id} className={`${COURSE_COLORS[slug] || 'bg-gray-500'} rounded px-1 py-0.5 flex items-center justify-between`}>
+                      <span className="text-[9px] text-white font-medium">{s.start_time.slice(0, 5)}</span>
                       <span className="text-[9px] text-white/70 ml-1">{s.enrolled_count}/{s.max_students}</span>
                     </div>
                   )
                 })}
-                {daySessions.length > 3 && (
-                  <p className="text-[9px] text-white/30 pl-1">+{daySessions.length - 3} 更多</p>
-                )}
+                {daySessions.length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.length - 3} 更多</p>}
               </div>
             </button>
           )
@@ -544,10 +681,8 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                   {session ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} />
                   ) : available ? (
-                    <button
-                      onClick={() => onSlotClick(ds, time, coach.id)}
-                      className="absolute inset-0 hover:bg-[#c9a84c]/10 transition-colors group flex items-center justify-center"
-                    >
+                    <button onClick={() => onSlotClick(ds, time, coach.id)}
+                      className="absolute inset-0 hover:bg-[#c9a84c]/10 transition-colors group flex items-center justify-center">
                       <span className="hidden group-hover:flex items-center gap-1 text-xs text-[#c9a84c]">
                         <span className="text-base leading-none">+</span> 預約
                       </span>
@@ -573,10 +708,8 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   const colorClass = COURSE_COLORS[ct.slug] || 'bg-gray-500'
   const isFull = session.enrolled_count >= session.max_students
   return (
-    <button
-      onClick={onClick}
-      className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-80'} hover:opacity-100 transition-opacity flex flex-col items-start justify-start p-1.5 overflow-hidden`}
-    >
+    <button onClick={onClick}
+      className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-80'} hover:opacity-100 transition-opacity flex flex-col items-start justify-start p-1.5 overflow-hidden`}>
       <span className="text-[10px] font-semibold text-white leading-tight truncate w-full">{ct.name}</span>
       <span className="text-[9px] text-white/80">{session.enrolled_count}/{session.max_students}</span>
     </button>
@@ -617,7 +750,8 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
         <div className="p-6 border-b border-white/10 flex items-start justify-between">
           <div>
@@ -656,7 +790,8 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
           )}
         </div>
         <div className="p-6 pt-0 flex gap-3">
-          <button onClick={cancelSession} disabled={cancelling} className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm disabled:opacity-50">
+          <button onClick={cancelSession} disabled={cancelling}
+            className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm disabled:opacity-50">
             {cancelling ? '取消中...' : '取消這堂課'}
           </button>
           <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
@@ -667,5 +802,3 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
     </div>
   )
 }
-
-const WEEKDAY_HEADERS = ['日', '一', '二', '三', '四', '五', '六']
