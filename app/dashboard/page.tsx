@@ -1,4 +1,3 @@
-cat > ~/Documents/manta-shark-aquatics/app/dashboard/page.tsx << 'EOF'
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
