@@ -35,6 +35,7 @@ interface Booking {
   session_date: string; start_time: string; end_time: string
   course_name: string; coach_name: string; student_name?: string
   lesson_credit_id?: string
+  course_slug?: string
 }
 
 function getAge(dob: string): number {
@@ -247,7 +248,7 @@ export default function DashboardPage() {
   const [greeting, setGreeting] = useState('Good morning')
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
-  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; courseName: string; date: string; time: string } | null>(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; courseName: string; date: string; time: string } | null>(null)
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
@@ -279,7 +280,7 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name)), students(full_name)')
+        .select('id, status, student_id, lesson_credit_id, class_sessions(session_date, start_time, end_time, course_types(name, slug), coaches(first_name)), students(full_name)')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -304,6 +305,7 @@ export default function DashboardPage() {
         coach_name: b.class_sessions?.coaches?.first_name,
         student_name: b.students?.full_name,
         lesson_credit_id: b.lesson_credit_id,
+        course_slug: b.class_sessions?.course_types?.slug,
       })).filter(b => b.session_date)
 
     const allUpcoming = parseBookings(upcoming || []).filter(b => b.session_date >= today)
@@ -324,7 +326,7 @@ export default function DashboardPage() {
   function confirmReschedule() {
     if (!rescheduleTarget) return
     // 只跳到 booking 頁面，帶舊 booking ID，新課確認後才取消舊課
-    window.location.href = `/booking?reschedule_booking_id=${rescheduleTarget.id}&reschedule_credit_id=${rescheduleTarget.creditId}`
+    window.location.href = `/booking?reschedule_booking_id=${rescheduleTarget.id}&reschedule_credit_id=${rescheduleTarget.creditId}&reschedule_slug=${rescheduleTarget.slug}`
   }
 
   if (loading) return (
@@ -535,7 +537,7 @@ export default function DashboardPage() {
                       </span>
                       <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
+                            onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
                             disabled={reschedulingId === booking.id}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : 'Reschedule'}

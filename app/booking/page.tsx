@@ -129,15 +129,17 @@ export default function BookingPage() {
   const router = useRouter()
   const supabase = createClient()
   const [wasRescheduled, setWasRescheduled] = useState(false)
-  const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
-  const [rescheduleCreditId, setRescheduleCreditId] = useState<string | null>(null)
+
+  // 直接從 URL 讀取，不用 state（避免非同步問題）
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const rescheduleBookingId = urlParams?.get('reschedule_booking_id') || null
+  const rescheduleCreditId = urlParams?.get('reschedule_credit_id') || null
+  const rescheduleSlug = urlParams?.get('reschedule_slug') || null
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       if (params.get('rescheduled') === '1') setWasRescheduled(true)
-      if (params.get('reschedule_booking_id')) setRescheduleBookingId(params.get('reschedule_booking_id'))
-      if (params.get('reschedule_credit_id')) setRescheduleCreditId(params.get('reschedule_credit_id'))
     }
   }, [])
 
@@ -443,15 +445,18 @@ export default function BookingPage() {
                 const remaining = credits
                   .filter(c => c.course_type_id === ct.id)
                   .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
+                // ✅ Reschedule 時鎖定課程類型
+                const isLocked = !!rescheduleSlug && ct.slug !== rescheduleSlug
                 return (
-                  <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => setSelectedCourse(ct)} color={color}>
+                  <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => !isLocked && setSelectedCourse(ct)} color={isLocked ? 'rgba(255,255,255,0.2)' : color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
                         <div>
-                          <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{ct.name}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 700, color: isLocked ? 'rgba(255,255,255,0.3)' : '#fff', marginBottom: '2px' }}>{ct.name}</div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
                             {ct.duration_minutes} min · Max {ct.max_students} student{ct.max_students > 1 ? 's' : ''}
+                            {isLocked && <span style={{ marginLeft: '6px', color: 'rgba(255,255,255,0.25)' }}>— not available for reschedule</span>}
                           </div>
                         </div>
                       </div>
