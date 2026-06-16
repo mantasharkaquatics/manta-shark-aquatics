@@ -252,7 +252,11 @@ export default function BookingPage() {
   const availableCredit = selectedCourse
     ? credits.find(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
     : null
-  const remainingCredits = availableCredit ? availableCredit.total_credits - availableCredit.used_credits : 0
+  // 加總所有同課程的剩餘 credits
+  const totalRemainingCredits = selectedCourse
+    ? credits.filter(c => c.course_type_id === selectedCourse.id).reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
+    : 0
+  const remainingCredits = totalRemainingCredits
 
   async function handleConfirm() {
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || !availableCredit) return
