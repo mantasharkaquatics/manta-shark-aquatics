@@ -1,8 +1,9 @@
 'use client'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 const navLinks = [
   { label: 'Services', href: '/services' },
@@ -14,7 +15,42 @@ const navLinks = [
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [firstName, setFirstName] = useState('')
   const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function checkUser() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setIsLoggedIn(true)
+        const { data: parent } = await supabase
+          .from('parents')
+          .select('first_name')
+          .eq('auth_user_id', user.id)
+          .single()
+        if (parent) setFirstName(parent.first_name)
+      } else {
+        setIsLoggedIn(false)
+        setFirstName('')
+      }
+    }
+    checkUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      checkUser()
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    setIsLoggedIn(false)
+    setFirstName('')
+    router.push('/')
+  }
 
   return (
     <nav className="bg-[#1a2744] sticky top-0 z-50 shadow-lg">
@@ -37,12 +73,30 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/login" className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
-              Sign In
-            </Link>
-            <Link href="/register" className="bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-              Create Account
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link href="/dashboard"
+                  className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
+                  Hi, {firstName}
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login"
+                  className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
+                  Sign In
+                </Link>
+                <Link href="/register"
+                  className="bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                  Create Account
+                </Link>
+              </>
+            )}
             <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-white p-1">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {menuOpen
@@ -63,7 +117,14 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-          <Link href="/login" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">Sign In</Link>
+          {isLoggedIn ? (
+            <>
+              <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">My Dashboard</Link>
+              <button onClick={handleSignOut} className="block py-2 text-sm text-gray-300 hover:text-white w-full text-left">Sign Out</button>
+            </>
+          ) : (
+            <Link href="/login" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">Sign In</Link>
+          )}
         </div>
       )}
     </nav>
