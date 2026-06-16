@@ -187,6 +187,54 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   )
 }
 
+function CreditCard({ g, remaining, pct }: {
+  g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null }[] }
+  remaining: number
+  pct: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div style={{ background: '#1a2744', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+        {g.name}
+      </div>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: '#c9a84c', lineHeight: 1 }}>{remaining}</div>
+      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '12px' }}>of {g.total} remaining</div>
+      <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginBottom: '12px' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: '#c9a84c', borderRadius: '2px' }} />
+      </div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          background: 'none', border: 'none', padding: 0,
+          fontSize: '11px', color: 'rgba(255,255,255,0.35)',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+          letterSpacing: '0.5px',
+        }}
+      >
+        <span style={{ fontSize: '9px' }}>{expanded ? '▲' : '▼'}</span>
+        {expanded ? 'Hide' : 'Show'} {g.items.length} package{g.items.length > 1 ? 's' : ''}
+      </button>
+      {expanded && (
+        <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {g.items.map((item, i) => {
+            const itemRemaining = item.credits - item.used
+            const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{dateStr}</div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.2)' }}>
+                  {itemRemaining} / {item.credits} left
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const supabase = createClient()
   const [parent, setParent] = useState<Parent | null>(null)
@@ -450,37 +498,24 @@ export default function DashboardPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
               {(() => {
                 // Group credits by course_type_id and sum them up
-                const grouped: Record<string, { name: string; total: number; used: number; purchasedAt: string | null }> = {}
+                const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null }[] }> = {}
                 credits.forEach(credit => {
                   const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
                   const pur = Array.isArray(credit.purchases) ? credit.purchases[0] : credit.purchases
                   const key = credit.course_type_id
+                  const itemDate = pur?.paid_at || pur?.created_at || credit.created_at || null
                   if (!grouped[key]) {
-                    grouped[key] = { name: ct?.name || 'Lesson Credits', total: 0, used: 0, purchasedAt: pur?.paid_at || pur?.created_at || credit.created_at || null }
+                    grouped[key] = { name: ct?.name || 'Lesson Credits', total: 0, used: 0, items: [] }
                   }
                   grouped[key].total += credit.total_credits
                   grouped[key].used += credit.used_credits
+                  grouped[key].items.push({ credits: credit.total_credits, used: credit.used_credits, date: itemDate })
                 })
                 return Object.entries(grouped).map(([key, g]) => {
                   const remaining = g.total - g.used
                   const pct = Math.round((remaining / g.total) * 100)
-                  const purchaseDate = g.purchasedAt ? new Date(g.purchasedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
                   return (
-                    <div key={key} style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
-                        {g.name}
-                      </div>
-                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: GOLD, lineHeight: 1 }}>{remaining}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '12px' }}>of {g.total} remaining</div>
-                      <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginBottom: '10px' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: GOLD, borderRadius: '2px' }} />
-                      </div>
-                      {purchaseDate && (
-                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.5px' }}>
-                          Purchased {purchaseDate}
-                        </div>
-                      )}
-                    </div>
+                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} />
                   )
                 })
               })()}
