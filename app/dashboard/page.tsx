@@ -320,7 +320,18 @@ export default function DashboardPage() {
 
   async function cancelBooking(bookingId: string) {
     setCancellingId(bookingId)
+    // 先取得 lesson_credit_id
+    const { data: bookingData } = await supabase
+      .from('bookings')
+      .select('lesson_credit_id')
+      .eq('id', bookingId)
+      .single()
+    // 取消 booking
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
+    // 退回 credit
+    if (bookingData?.lesson_credit_id) {
+      await supabase.rpc('increment_credit', { credit_id: bookingData.lesson_credit_id })
+    }
     await fetchAll()
     setCancellingId(null)
   }
