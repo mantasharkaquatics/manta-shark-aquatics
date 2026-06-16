@@ -56,8 +56,9 @@ const WORK_END = 21
 const SLOT_MINUTES = 30
 
 function getWeekDates(anchor: Date): Date[] {
-  const start = new Date(anchor)
-  start.setDate(anchor.getDate() - anchor.getDay())
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())
+  const dow = start.getDay()
+  start.setDate(start.getDate() - dow)
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start)
     d.setDate(start.getDate() + i)
@@ -66,7 +67,10 @@ function getWeekDates(anchor: Date): Date[] {
 }
 
 function toDateStr(d: Date): string {
-  return d.toISOString().split('T')[0]
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function formatTime(t: string): string {
@@ -85,7 +89,7 @@ function minutesToTime(m: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
 
-function isCoachAvailable(coach_id: string, date: Date, time: string): boolean {
+function isCoachAvailable(_coach_id: string, date: Date, time: string): boolean {
   const dow = date.getDay()
   const mins = timeToMinutes(time)
   if (dow >= 1 && dow <= 5) {
@@ -119,10 +123,15 @@ function generateTimeSlots(): string[] {
 }
 const TIME_SLOTS = generateTimeSlots()
 
+const WEEKDAY_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
+
 export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions }: Props) {
   const supabase = createClient()
   const [view, setView] = useState<'week' | 'day'>('week')
-  const [anchor, setAnchor] = useState(new Date())
+  const [anchor, setAnchor] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  })
   const [sessions, setSessions] = useState<Session[]>(initialSessions)
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState<'book' | 'detail' | null>(null)
@@ -135,12 +144,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [success, setSuccess] = useState('')
 
   const weekDates = getWeekDates(anchor)
-  const dayDate = anchor
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
-    const from = view === 'week' ? toDateStr(weekDates[0]) : toDateStr(dayDate)
-    const to = view === 'week' ? toDateStr(weekDates[6]) : toDateStr(dayDate)
+    const from = view === 'week' ? toDateStr(weekDates[0]) : toDateStr(anchor)
+    const to   = view === 'week' ? toDateStr(weekDates[6]) : toDateStr(anchor)
     const { data } = await supabase
       .from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes)')
@@ -154,6 +162,17 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }, [anchor, view]) // eslint-disable-line
 
   useEffect(() => { loadSessions() }, [loadSessions])
+
+  function goToDay(date: Date) {
+    setAnchor(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
+    setView('day')
+  }
+
+  function navigate(dir: number) {
+    const d = new Date(anchor)
+    d.setDate(d.getDate() + (view === 'week' ? dir * 7 : dir))
+    setAnchor(d)
+  }
 
   function openBookModal(date: string, time: string, coachId: string) {
     setSelectedSlot({ date, time, coachId })
@@ -196,7 +215,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .single()
 
     if (sessErr || !sess) {
-      setError('建立課程失敗：' + (sessErr?.message || ''))
+      setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
       setSaving(false)
       return
     }
@@ -238,10 +257,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
     setSuccess('預約成功！')
     await loadSessions()
-    setTimeout(() => {
-      setModal(null)
-      setSuccess('')
-    }, 1200)
+    setTimeout(() => { setModal(null); setSuccess('') }, 1500)
     setSaving(false)
   }
 
@@ -253,78 +269,72 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     ) || null
   }
 
+  function getSessionsOnDate(date: string): Session[] {
+    return sessions.filter(s => s.session_date === date)
+  }
+
+  const todayStr = toDateStr(new Date())
+
   return (
     <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
-      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
+
+      {/* ── Header ── */}
+      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
           Booking Calendar
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* View toggle */}
           <div className="flex rounded-lg overflow-hidden border border-white/20">
             {(['week', 'day'] as const).map(v => (
               <button
                 key={v}
                 onClick={() => setView(v)}
                 className={`px-4 py-1.5 text-sm transition-colors ${
-                  view === v ? 'bg-[#c9a84c] text-[#0d1529] font-medium' : 'text-white/60 hover:text-white'
+                  view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'
                 }`}
               >
                 {v === 'week' ? '週' : '日'}
               </button>
             ))}
           </div>
+          {/* Nav */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                const d = new Date(anchor)
-                d.setDate(d.getDate() - (view === 'week' ? 7 : 1))
-                setAnchor(new Date(d))
-              }}
-              className="p-1.5 rounded hover:bg-white/10 transition-colors text-white/60 hover:text-white text-lg leading-none"
-            >
-              ‹
-            </button>
-            <span className="text-sm text-white/80 min-w-[160px] text-center">
+            <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">‹</button>
+            <span className="text-sm text-white/80 min-w-[180px] text-center">
               {view === 'week'
                 ? `${weekDates[0].toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} – ${weekDates[6].toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}`
-                : dayDate.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })
+                : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
               }
             </span>
+            <button onClick={() => navigate(1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">›</button>
             <button
               onClick={() => {
-                const d = new Date(anchor)
-                d.setDate(d.getDate() + (view === 'week' ? 7 : 1))
-                setAnchor(new Date(d))
+                const today = new Date()
+                setAnchor(new Date(today.getFullYear(), today.getMonth(), today.getDate()))
               }}
-              className="p-1.5 rounded hover:bg-white/10 transition-colors text-white/60 hover:text-white text-lg leading-none"
-            >
-              ›
-            </button>
-            <button
-              onClick={() => setAnchor(new Date())}
-              className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+              className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
             >
               今天
             </button>
           </div>
-          {loading && <span className="text-xs text-white/40">載入中...</span>}
+          {loading && <span className="text-xs text-white/40 animate-pulse">載入中...</span>}
         </div>
       </div>
 
+      {/* ── Calendar Body ── */}
       <div className="overflow-auto" style={{ height: 'calc(100vh - 130px)' }}>
         {view === 'week' ? (
           <WeekView
             dates={weekDates}
-            coaches={coaches}
             sessions={sessions}
-            getSessionAt={getSessionAt}
-            isCoachAvailable={isCoachAvailable}
-            onSlotClick={openBookModal}
-            onSessionClick={openDetailModal}
+            todayStr={todayStr}
+            getSessionsOnDate={getSessionsOnDate}
+            onDayClick={goToDay}
           />
         ) : (
           <DayView
-            date={dayDate}
+            date={anchor}
             coaches={coaches}
             sessions={sessions}
             getSessionAt={getSessionAt}
@@ -335,19 +345,16 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         )}
       </div>
 
+      {/* ── Book Modal ── */}
       {modal === 'book' && selectedSlot && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
             <div className="p-6 border-b border-white/10">
-              <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>
-                新增預約
-              </h2>
+              <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>新增預約</h2>
               <p className="text-sm text-white/50 mt-1">
                 {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
-                {' · '}
-                {formatTime(selectedSlot.time)}
-                {' · '}
-                Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
+                {' · '}{formatTime(selectedSlot.time)}
+                {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
               </p>
             </div>
             <div className="p-6 space-y-4">
@@ -392,17 +399,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
             </div>
             <div className="p-6 pt-0 flex gap-3">
-              <button
-                onClick={() => setModal(null)}
-                className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 transition-colors text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleBook}
-                disabled={saving}
-                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50"
-              >
+              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">取消</button>
+              <button onClick={handleBook} disabled={saving} className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                 {saving ? '建立中...' : '確認預約'}
               </button>
             </div>
@@ -410,6 +408,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         </div>
       )}
 
+      {/* ── Detail Modal ── */}
       {modal === 'detail' && selectedSession && (
         <DetailModal
           session={selectedSession}
@@ -423,79 +422,81 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   )
 }
 
-function WeekView({ dates, coaches, sessions, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick }: {
+// ══════════════════════════════════════════════════════════════════════
+// Week View — 7 columns, one per day, click to go to Day View
+// ══════════════════════════════════════════════════════════════════════
+function WeekView({ dates, sessions, todayStr, getSessionsOnDate, onDayClick }: {
   dates: Date[]
-  coaches: Coach[]
   sessions: Session[]
-  getSessionAt: (date: string, time: string, coachId: string) => Session | null
-  isCoachAvailable: (id: string, date: Date, time: string) => boolean
-  onSlotClick: (date: string, time: string, coachId: string) => void
-  onSessionClick: (s: Session) => void
+  todayStr: string
+  getSessionsOnDate: (date: string) => Session[]
+  onDayClick: (date: Date) => void
 }) {
-  const today = toDateStr(new Date())
-  const colCount = dates.length * coaches.length
-
   return (
-    <div className="relative min-w-max">
-      <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
-        <div className="grid" style={{ gridTemplateColumns: `64px repeat(${colCount}, 120px)` }}>
-          <div className="h-16" />
-          {dates.map(date =>
-            coaches.map(coach => (
-              <div
-                key={`${toDateStr(date)}-${coach.id}`}
-                className={`h-16 flex flex-col items-center justify-center border-l border-white/5 ${
-                  toDateStr(date) === today ? 'bg-[#c9a84c]/10' : ''
-                }`}
-              >
-                <span className="text-xs text-white/40">
-                  {date.toLocaleDateString('zh-TW', { weekday: 'short' })}
-                </span>
-                <span className={`text-sm font-medium ${toDateStr(date) === today ? 'text-[#c9a84c]' : 'text-white/70'}`}>
+    <div className="p-6">
+      <div className="grid grid-cols-7 gap-3">
+        {dates.map(date => {
+          const ds = toDateStr(date)
+          const isToday = ds === todayStr
+          const daySessions = getSessionsOnDate(ds)
+          const dow = date.getDay()
+          const isWeekend = dow === 0 || dow === 6
+
+          return (
+            <button
+              key={ds}
+              onClick={() => onDayClick(date)}
+              className={`rounded-xl border p-3 text-left transition-all hover:border-[#c9a84c]/50 hover:bg-[#c9a84c]/5 group min-h-[140px] flex flex-col ${
+                isToday
+                  ? 'border-[#c9a84c]/60 bg-[#c9a84c]/5'
+                  : isWeekend
+                  ? 'border-white/10 bg-white/[0.02]'
+                  : 'border-white/8 bg-[#111d38]/40'
+              }`}
+            >
+              {/* Day header */}
+              <div className="mb-2">
+                <p className="text-xs text-white/40">{WEEKDAY_NAMES[date.getDay()]}</p>
+                <p className={`text-xl font-semibold leading-tight ${isToday ? 'text-[#c9a84c]' : 'text-white/80'}`}>
                   {date.getDate()}
-                </span>
-                <span className="text-[10px] text-white/30">{coach.first_name}</span>
+                </p>
               </div>
-            ))
-          )}
-        </div>
-      </div>
-      <div className="grid" style={{ gridTemplateColumns: `64px repeat(${colCount}, 120px)` }}>
-        {TIME_SLOTS.map(time => (
-          <div key={time} className="contents">
-            <div className="h-10 flex items-center justify-end pr-2 text-[10px] text-white/25 border-t border-white/5">
-              {time.endsWith(':00') ? formatTime(time) : ''}
-            </div>
-            {dates.map(date =>
-              coaches.map(coach => {
-                const ds = toDateStr(date)
-                const session = getSessionAt(ds, time, coach.id)
-                const available = isCoachAvailable(coach.id, date, time)
-                return (
-                  <div key={`${ds}-${coach.id}-${time}`} className="h-10 border-t border-l border-white/5 relative">
-                    {session ? (
-                      <SessionChip session={session} onClick={() => onSessionClick(session)} compact />
-                    ) : available ? (
-                      <button
-                        onClick={() => onSlotClick(ds, time, coach.id)}
-                        className="absolute inset-0 hover:bg-[#c9a84c]/10 transition-colors group flex items-center justify-center"
-                      >
-                        <span className="hidden group-hover:block text-[10px] text-[#c9a84c]">+ 預約</span>
-                      </button>
-                    ) : (
-                      <div className="absolute inset-0 bg-white/[0.015]" />
-                    )}
-                  </div>
-                )
-              })
-            )}
-          </div>
-        ))}
+
+              {/* Session pills */}
+              <div className="flex-1 space-y-1">
+                {daySessions.length === 0 ? (
+                  <p className="text-[10px] text-white/20 italic">無課程</p>
+                ) : (
+                  daySessions.slice(0, 5).map(s => {
+                    const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
+                    const slug = ct?.slug || ''
+                    const colorClass = COURSE_COLORS[slug] || 'bg-gray-500'
+                    return (
+                      <div key={s.id} className={`${colorClass} rounded px-1.5 py-0.5 flex items-center justify-between`}>
+                        <span className="text-[9px] text-white font-medium truncate">{s.start_time.slice(0, 5)}</span>
+                        <span className="text-[9px] text-white/70">{s.enrolled_count}/{s.max_students}</span>
+                      </div>
+                    )
+                  })
+                )}
+                {daySessions.length > 5 && (
+                  <p className="text-[9px] text-white/30">+{daySessions.length - 5} 更多</p>
+                )}
+              </div>
+
+              {/* Click hint */}
+              <p className="text-[9px] text-white/20 group-hover:text-[#c9a84c]/50 mt-2 transition-colors">點擊查看 →</p>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// Day View — per coach columns, time grid
+// ══════════════════════════════════════════════════════════════════════
 function DayView({ date, coaches, sessions, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick }: {
   date: Date
   coaches: Coach[]
@@ -508,17 +509,20 @@ function DayView({ date, coaches, sessions, getSessionAt, isCoachAvailable, onSl
   const ds = toDateStr(date)
   return (
     <div className="relative">
+      {/* Sticky coach header */}
       <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
         <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
           <div className="h-14" />
           {coaches.map(coach => (
             <div key={coach.id} className="h-14 flex flex-col items-center justify-center border-l border-white/5">
-              <span className="text-sm font-medium text-white/80">{coach.first_name}</span>
+              <span className="text-sm font-semibold text-white/80">{coach.first_name}</span>
               <span className="text-xs text-white/30">{coach.last_name}</span>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Time grid */}
       <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
         {TIME_SLOTS.map(time => (
           <div key={time} className="contents">
@@ -554,31 +558,27 @@ function DayView({ date, coaches, sessions, getSessionAt, isCoachAvailable, onSl
   )
 }
 
-function SessionChip({ session, onClick, compact = false }: {
-  session: Session
-  onClick: () => void
-  compact?: boolean
-}) {
+// ══════════════════════════════════════════════════════════════════════
+// Session Chip
+// ══════════════════════════════════════════════════════════════════════
+function SessionChip({ session, onClick }: { session: Session; onClick: () => void }) {
   const ct = getSessionCourseType(session)
   const colorClass = COURSE_COLORS[ct.slug] || 'bg-gray-500'
   const isFull = session.enrolled_count >= session.max_students
   return (
     <button
       onClick={onClick}
-      className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-75'} hover:opacity-100 transition-opacity flex flex-col items-start justify-start p-1 overflow-hidden`}
+      className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-80'} hover:opacity-100 transition-opacity flex flex-col items-start justify-start p-1.5 overflow-hidden`}
     >
-      {!compact && (
-        <span className="text-[10px] font-semibold text-white leading-tight truncate w-full">
-          {ct.name}
-        </span>
-      )}
-      <span className="text-[9px] text-white/80">
-        {session.enrolled_count}/{session.max_students}
-      </span>
+      <span className="text-[10px] font-semibold text-white leading-tight truncate w-full">{ct.name}</span>
+      <span className="text-[9px] text-white/80">{session.enrolled_count}/{session.max_students}</span>
     </button>
   )
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// Detail Modal
+// ══════════════════════════════════════════════════════════════════════
 function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   session: Session
   coaches: Coach[]
@@ -614,7 +614,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
       <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
         <div className="p-6 border-b border-white/10 flex items-start justify-between">
           <div>
-            <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${COURSE_COLORS[ct.slug] || 'bg-gray-500'} bg-opacity-20 text-white`}>
+            <div className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${COURSE_COLORS[ct.slug] || 'bg-gray-500'} text-white`}>
               {ct.name}
             </div>
             <p className="text-white font-medium">
@@ -622,8 +622,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
             </p>
             <p className="text-sm text-white/50 mt-0.5">
               {formatTime(session.start_time)} – {formatTime(session.end_time)}
-              {' · '}
-              Coach {coach?.first_name} {coach?.last_name}
+              {' · '}Coach {coach?.first_name} {coach?.last_name}
             </p>
           </div>
           <button onClick={onClose} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
@@ -638,7 +637,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
             <div className="space-y-2">
               {bookings.map(b => {
                 const student = Array.isArray(b.students) ? b.students[0] : b.students
-                const parent = Array.isArray(b.parents) ? b.parents[0] : b.parents
+                const parent  = Array.isArray(b.parents)  ? b.parents[0]  : b.parents
                 return (
                   <div key={b.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2.5">
                     <span className="text-sm text-white font-medium">{student?.full_name}</span>
@@ -657,10 +656,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
           >
             {cancelling ? '取消中...' : '取消這堂課'}
           </button>
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white"
-          >
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
             關閉
           </button>
         </div>
