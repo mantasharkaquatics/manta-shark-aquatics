@@ -18,7 +18,7 @@ const LEVEL_NAMES: Record<number, string> = {
 }
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
-interface Student { id: string; full_name: string; date_of_birth: string; current_level: number; gender: string }
+interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string }
 interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string }
 interface Booking {
   id: string; status: string
@@ -105,7 +105,10 @@ export default function DashboardPage() {
 
     const [{ data: studs }, { data: crds }, { data: upcoming }, { data: past }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
-      supabase.from('lesson_credits').select('id, total_credits, used_credits, course_type_id, student_id').gt('total_credits', 0),
+      // ✅ 只撈這位家長的學生的 credits
+      supabase.from('lesson_credits')
+        .select('id, total_credits, used_credits, course_type_id, student_id')
+        .in('student_id', []),  // placeholder, replaced below
       supabase.from('bookings')
         .select('id, status, student_id, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name)), students(full_name)')
         .eq('parent_id', parentData.id)
@@ -119,7 +122,19 @@ export default function DashboardPage() {
     ])
 
     setStudents(studs || [])
-    setCredits(crds || [])
+
+    // ✅ 用學生 ID 篩選 credits
+    const studentIds = (studs || []).map((s: any) => s.id)
+    if (studentIds.length > 0) {
+      const { data: credData } = await supabase
+        .from('lesson_credits')
+        .select('id, total_credits, used_credits, course_type_id, student_id')
+        .in('student_id', studentIds)
+        .gt('total_credits', 0)
+      setCredits(credData || [])
+    } else {
+      setCredits([])
+    }
 
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => ({
@@ -197,9 +212,10 @@ export default function DashboardPage() {
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>My Swimmers</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {students.map((student) => {
-              const levelColor = LEVEL_COLORS[student.current_level] || GOLD
-              const levelName = LEVEL_NAMES[student.current_level] || 'Unknown'
-              const age = getAge(student.date_of_birth)
+              const hasLevel = student.current_level && Number(student.current_level) >= 1
+              const levelColor = hasLevel ? (LEVEL_COLORS[Number(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
+              const levelName = hasLevel ? LEVEL_NAMES[Number(student.current_level)] : null
+              const age = student.date_of_birth ? getAge(student.date_of_birth) : null
               return (
                 <div key={student.id} style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: levelColor }} />
@@ -209,17 +225,28 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{student.full_name}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Age {age} · {student.gender === 'male' ? '👦' : student.gender === 'female' ? '👧' : '🧒'}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                        {age !== null ? `Age ${age}` : 'Age unknown'}
+                        {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ marginTop: '16px', background: `${levelColor}18`, border: `1px solid ${levelColor}35`, borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ marginTop: '16px', background: hasLevel ? `${levelColor}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${hasLevel ? levelColor + '35' : 'rgba(255,255,255,0.1)'}`, borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
                       <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>Current Level</div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>Level {student.current_level} · {levelName}</div>
+                      {hasLevel ? (
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>Level {student.current_level} · {levelName}</div>
+                      ) : (
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>Pending Assessment</div>
+                      )}
                     </div>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                      {student.current_level}
-                    </div>
+                    {hasLevel ? (
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#fff' }}>
+                        {student.current_level}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '20px' }}>📋</div>
+                    )}
                   </div>
                 </div>
               )
@@ -235,7 +262,6 @@ export default function DashboardPage() {
               + Book a Lesson
             </Link>
           </div>
-
           {upcomingBookings.length === 0 ? (
             <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '32px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
