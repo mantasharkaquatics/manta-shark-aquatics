@@ -129,11 +129,15 @@ export default function BookingPage() {
   const router = useRouter()
   const supabase = createClient()
   const [wasRescheduled, setWasRescheduled] = useState(false)
+  const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
+  const [rescheduleCreditId, setRescheduleCreditId] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       if (params.get('rescheduled') === '1') setWasRescheduled(true)
+      if (params.get('reschedule_booking_id')) setRescheduleBookingId(params.get('reschedule_booking_id'))
+      if (params.get('reschedule_credit_id')) setRescheduleCreditId(params.get('reschedule_credit_id'))
     }
   }, [])
 
@@ -299,6 +303,11 @@ export default function BookingPage() {
 
     await supabase.rpc('increment_enrolled', { session_id: sessionId })
 
+    // 如果是 reschedule，取消舊課（credit 不動，因為新課已扣）
+    if (rescheduleBookingId) {
+      await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', rescheduleBookingId)
+    }
+
     setSubmitting(false)
     setSuccess(true)
   }
@@ -331,7 +340,7 @@ export default function BookingPage() {
       }}>
         <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
         <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
-          Lesson Booked!
+          {rescheduleBookingId ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
         </h2>
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '8px' }}>
           <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> is booked for
@@ -374,9 +383,9 @@ export default function BookingPage() {
       </div>
 
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
-        {wasRescheduled && (
+        {(wasRescheduled || rescheduleBookingId) && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>📅</span> Your previous lesson has been cancelled. Please book a new time below.
+            <span>📅</span> Rescheduling your lesson — please pick a new date and time below.
           </div>
         )}
         <Steps current={step} />

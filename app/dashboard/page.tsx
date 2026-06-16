@@ -248,6 +248,7 @@ export default function DashboardPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; courseName: string; date: string; time: string } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
   useEffect(() => {
@@ -320,17 +321,10 @@ export default function DashboardPage() {
     setCancellingId(null)
   }
 
-  async function confirmReschedule() {
+  function confirmReschedule() {
     if (!rescheduleTarget) return
-    setReschedulingId(rescheduleTarget.id)
-    setRescheduleTarget(null)
-    await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', rescheduleTarget.id)
-    const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', rescheduleTarget.creditId).single()
-    if (credit) {
-      await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', rescheduleTarget.creditId)
-    }
-    setReschedulingId(null)
-    window.location.href = '/booking?rescheduled=1'
+    // 只跳到 booking 頁面，帶舊 booking ID，新課確認後才取消舊課
+    window.location.href = `/booking?reschedule_booking_id=${rescheduleTarget.id}&reschedule_credit_id=${rescheduleTarget.creditId}`
   }
 
   if (loading) return (
@@ -347,6 +341,31 @@ export default function DashboardPage() {
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
+      {/* Cancel Confirm Modal */}
+      {cancelTarget && (
+        <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>Cancel Lesson</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>Cancel this booking?</div>
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{cancelTarget.courseName}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
+            </div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
+              This lesson will be cancelled and your credit will be returned to your account.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                Keep Lesson
+              </button>
+              <button onClick={async () => { await cancelBooking(cancelTarget.id); setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reschedule Confirm Modal */}
       {rescheduleTarget && (
         <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
@@ -358,7 +377,7 @@ export default function DashboardPage() {
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
-              This lesson will be cancelled and your credit will be returned. You'll be taken to the booking page to pick a new time.
+              You'll be taken to the booking page to pick a new time. Your current lesson will only be cancelled after you confirm the new booking.
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setRescheduleTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -514,20 +533,26 @@ export default function DashboardPage() {
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
                         {booking.status}
                       </span>
-                      {daysUntil >= 1 && (
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
                           <button
                             onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
                             disabled={reschedulingId === booking.id}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : 'Reschedule'}
                           </button>
-                          <button onClick={() => cancelBooking(booking.id)} disabled={cancellingId === booking.id}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                            {cancellingId === booking.id ? '...' : 'Cancel'}
-                          </button>
+                          {daysUntil >= 1 ? (
+                            <button
+                              onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
+                              disabled={cancellingId === booking.id}
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                              {cancellingId === booking.id ? '...' : 'Cancel'}
+                            </button>
+                          ) : (
+                            <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
+                              Cancel
+                            </div>
+                          )}
                         </div>
-                      )}
                     </div>
                   </div>
                 )
