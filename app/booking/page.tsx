@@ -9,32 +9,22 @@ const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
-// ── TYPES ────────────────────────────────────────────────────────────────────
-
 interface Student { id: string; full_name: string; current_level: number }
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
 interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string }
-interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string }
+interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string | null }
 
 const COURSE_COLORS: Record<string, string> = {
-  '1on1': GOLD,
-  '1on2': '#4a90c4',
-  '1on4': '#4caf72',
-  'team': '#e05a4a',
+  '1on1': GOLD, '1on2': '#4a90c4', '1on4': '#4caf72', 'team': '#e05a4a',
 }
-
 const COURSE_ICONS: Record<string, string> = {
-  '1on1': '👤',
-  '1on2': '👥',
-  '1on4': '👨‍👩‍👧‍👦',
-  'team': '🏊',
+  '1on1': '👤', '1on2': '👥', '1on4': '👨‍👩‍👧‍👦', 'team': '🏊',
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-// Generate time slots from start to end (30-min intervals, last slot = end - 30min)
 function generateSlots(start: string, end: string): string[] {
   const slots: string[] = []
   const [sh, sm] = start.split(':').map(Number)
@@ -57,8 +47,6 @@ function formatTime(t: string): string {
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`
 }
 
-// ── STEP INDICATOR ───────────────────────────────────────────────────────────
-
 function Steps({ current }: { current: number }) {
   const steps = ['Select Student', 'Course Type', 'Choose Coach', 'Pick Date & Time', 'Confirm']
   return (
@@ -80,9 +68,7 @@ function Steps({ current }: { current: number }) {
               fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px',
               color: i === current ? '#fff' : i < current ? GOLD : 'rgba(255,255,255,0.3)',
               whiteSpace: 'nowrap',
-            }}>
-              {s}
-            </span>
+            }}>{s}</span>
           </div>
           {i < steps.length - 1 && (
             <div style={{
@@ -95,8 +81,6 @@ function Steps({ current }: { current: number }) {
     </div>
   )
 }
-
-// ── SECTION TITLE ─────────────────────────────────────────────────────────────
 
 function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
@@ -113,31 +97,21 @@ function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
         fontFamily: "'Playfair Display', serif",
         fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 900,
         color: '#fff', margin: 0,
-      }}>
-        {title}
-      </h2>
+      }}>{title}</h2>
     </div>
   )
 }
 
-// ── CARD ─────────────────────────────────────────────────────────────────────
-
-function SelectCard({
-  selected, onClick, color = GOLD, children,
-}: {
+function SelectCard({ selected, onClick, color = GOLD, children }: {
   selected: boolean; onClick: () => void; color?: string; children: React.ReactNode
 }) {
   return (
-    <div
-      onClick={onClick}
-      style={{
-        background: selected ? `${color}18` : NAVY,
-        border: `2px solid ${selected ? color : 'rgba(255,255,255,0.08)'}`,
-        borderRadius: '14px', padding: '20px', cursor: 'pointer',
-        transition: 'all 0.15s',
-        position: 'relative',
-      }}
-    >
+    <div onClick={onClick} style={{
+      background: selected ? `${color}18` : NAVY,
+      border: `2px solid ${selected ? color : 'rgba(255,255,255,0.08)'}`,
+      borderRadius: '14px', padding: '20px', cursor: 'pointer',
+      transition: 'all 0.15s', position: 'relative',
+    }}>
       {selected && (
         <div style={{
           position: 'absolute', top: '12px', right: '12px',
@@ -151,8 +125,6 @@ function SelectCard({
   )
 }
 
-// ── MAIN PAGE ────────────────────────────────────────────────────────────────
-
 export default function BookingPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -162,14 +134,12 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
 
-  // Data
   const [parentId, setParentId] = useState<string | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([])
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
 
-  // Selections
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<CourseType | null>(null)
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
@@ -177,7 +147,6 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
 
-  // Calendar
   const today = new Date()
   const [calMonth, setCalMonth] = useState(today.getMonth())
   const [calYear, setCalYear] = useState(today.getFullYear())
@@ -195,19 +164,23 @@ export default function BookingPage() {
         supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true),
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true),
-        supabase.from('lesson_credits').select('id, total_credits, used_credits, course_type_id, student_id').filter('total_credits', 'gt', 0),
+        // ✅ 用 parent_id 查，不用 student_id
+        supabase.from('lesson_credits')
+          .select('id, total_credits, used_credits, course_type_id, student_id')
+          .eq('parent_id', parent.id)
+          .filter('total_credits', 'gt', 0),
       ])
 
       setStudents(studs || [])
       setCourseTypes(cts || [])
       setCoaches(coachs || [])
-      setCredits(crds || [])
+      // ✅ 只保留還有剩餘 credits 的
+      setCredits((crds || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
       setLoading(false)
     }
     init()
   }, [])
 
-  // Load time slots when date + coach + course selected
   useEffect(() => {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
     loadTimeSlots()
@@ -219,7 +192,6 @@ export default function BookingPage() {
     const dow = selectedDate.getDay()
     const dateStr = selectedDate.toISOString().split('T')[0]
 
-    // Get coach availability for this day
     const { data: avail } = await supabase
       .from('coach_availability')
       .select('start_time, end_time')
@@ -229,13 +201,11 @@ export default function BookingPage() {
 
     if (!avail || avail.length === 0) { setTimeSlots([]); return }
 
-    // Generate all possible slots
     const allSlots: string[] = []
     for (const a of avail) {
       allSlots.push(...generateSlots(a.start_time, a.end_time))
     }
 
-    // Get existing sessions for this date + coach
     const { data: sessions } = await supabase
       .from('class_sessions')
       .select('id, start_time, enrolled_count, max_students, status')
@@ -253,12 +223,9 @@ export default function BookingPage() {
       const maxStudents = selectedCourse.max_students
       if (existing) {
         return {
-          time: t,
-          label: formatTime(t),
+          time: t, label: formatTime(t),
           available: existing.enrolled_count < existing.max_students && existing.status !== 'cancelled',
-          enrolled: existing.enrolled_count,
-          max: existing.max_students,
-          session_id: existing.id,
+          enrolled: existing.enrolled_count, max: existing.max_students, session_id: existing.id,
         }
       }
       return { time: t, label: formatTime(t), available: true, enrolled: 0, max: maxStudents }
@@ -267,9 +234,9 @@ export default function BookingPage() {
     setTimeSlots(slots)
   }
 
-  // Check if selected student has credit for selected course
-  const availableCredit = selectedCourse && selectedStudent
-    ? credits.find(c => c.course_type_id === selectedCourse.id && c.student_id === selectedStudent.id && (c.total_credits - c.used_credits) > 0)
+  // ✅ 修正：只比對 course_type_id，不比對 student_id（全家共用）
+  const availableCredit = selectedCourse
+    ? credits.find(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
     : null
   const remainingCredits = availableCredit ? availableCredit.total_credits - availableCredit.used_credits : 0
 
@@ -285,7 +252,6 @@ export default function BookingPage() {
 
     let sessionId = selectedSlot.session_id
 
-    // Create session if not exists
     if (!sessionId) {
       const { data: newSession, error } = await supabase
         .from('class_sessions')
@@ -306,39 +272,34 @@ export default function BookingPage() {
       sessionId = newSession.id
     }
 
-    // Create booking
     const { error: bookErr } = await supabase
       .from('bookings')
       .insert({
         class_session_id: sessionId,
         parent_id: parentId,
         lesson_credit_id: availableCredit.id,
-              student_id: selectedStudent.id,
+        student_id: selectedStudent.id,
         status: 'confirmed',
       })
 
     if (bookErr) { setSubmitting(false); return }
 
-    // Deduct credit (increment used_credits)
     await supabase
       .from('lesson_credits')
       .update({ used_credits: availableCredit.used_credits + 1 })
       .eq('id', availableCredit.id)
 
-    // Increment enrolled_count
     await supabase.rpc('increment_enrolled', { session_id: sessionId })
 
     setSubmitting(false)
     setSuccess(true)
   }
 
-  // Calendar helpers
   function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate() }
   function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay() }
 
   function isDateAvailable(date: Date): boolean {
     if (date < today) return false
-    // Check within 60 days
     const maxDate = new Date(today)
     maxDate.setDate(maxDate.getDate() + 60)
     return date <= maxDate
@@ -371,7 +332,7 @@ export default function BookingPage() {
           {selectedCourse?.name} with {selectedCoach?.first_name}
         </p>
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '32px' }}>
-          {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {selectedSlot?.label}
+          {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {selectedSlot?.label}
         </p>
         <Link href="/dashboard" style={{
           display: 'inline-block', padding: '13px 32px',
@@ -387,8 +348,6 @@ export default function BookingPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
-
-      {/* Top bar */}
       <div style={{
         background: NAVY, borderBottom: '1px solid rgba(255,255,255,0.08)',
         padding: '16px clamp(20px,5vw,48px)',
@@ -409,7 +368,7 @@ export default function BookingPage() {
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
         <Steps current={step} />
 
-        {/* ── STEP 0: Select Student ── */}
+        {/* STEP 0: Select Student */}
         {step === 0 && (
           <div>
             <SectionTitle eyebrow="Step 1" title="Who is this lesson for?" />
@@ -426,7 +385,9 @@ export default function BookingPage() {
                     </div>
                     <div>
                       <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Level {s.current_level}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                        {s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'}
+                      </div>
                     </div>
                   </div>
                 </SelectCard>
@@ -449,14 +410,15 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* ── STEP 1: Course Type ── */}
+        {/* STEP 1: Course Type */}
         {step === 1 && (
           <div>
             <SectionTitle eyebrow="Step 2" title="What type of lesson?" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
-                const credit = credits.find(c => c.course_type_id === ct.id && c.student_id === selectedStudent?.id)
+                // ✅ 只比對 course_type_id，credits 全家共用
+                const credit = credits.find(c => c.course_type_id === ct.id && (c.total_credits - c.used_credits) > 0)
                 const remaining = credit ? credit.total_credits - credit.used_credits : 0
                 return (
                   <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => setSelectedCourse(ct)} color={color}>
@@ -509,12 +471,10 @@ export default function BookingPage() {
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>
-                ← Back
-              </button>
+              }}>← Back</button>
               <button
                 onClick={() => { if (selectedCourse && availableCredit) setStep(2) }}
-                disabled={!selectedCourse || !availableCredit || remainingCredits === 0}
+                disabled={!selectedCourse || !availableCredit}
                 style={{
                   flex: 2, padding: '14px',
                   background: selectedCourse && availableCredit ? GOLD : 'rgba(255,255,255,0.1)',
@@ -523,14 +483,12 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: selectedCourse && availableCredit ? 'pointer' : 'not-allowed',
                 }}
-              >
-                Continue →
-              </button>
+              >Continue →</button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 2: Choose Coach ── */}
+        {/* STEP 2: Choose Coach */}
         {step === 2 && (
           <div>
             <SectionTitle eyebrow="Step 3" title="Choose your coach" />
@@ -562,9 +520,7 @@ export default function BookingPage() {
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>
-                ← Back
-              </button>
+              }}>← Back</button>
               <button
                 onClick={() => { if (selectedCoach) setStep(3) }}
                 disabled={!selectedCoach}
@@ -576,62 +532,42 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: selectedCoach ? 'pointer' : 'not-allowed',
                 }}
-              >
-                Continue →
-              </button>
+              >Continue →</button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 3: Date & Time ── */}
+        {/* STEP 3: Date & Time */}
         {step === 3 && (
           <div>
             <SectionTitle eyebrow="Step 4" title="Pick a date & time" />
-
-            {/* Calendar */}
             <div style={{ background: NAVY, borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
-              {/* Month nav */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <button onClick={() => {
                   if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) }
                   else setCalMonth(calMonth - 1)
                 }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer' }}>‹</button>
-                <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>
-                  {MONTHS[calMonth]} {calYear}
-                </span>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{MONTHS[calMonth]} {calYear}</span>
                 <button onClick={() => {
                   if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) }
                   else setCalMonth(calMonth + 1)
                 }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer' }}>›</button>
               </div>
-
-              {/* Day headers */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
                 {DAYS.map(d => (
                   <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', padding: '4px 0' }}>{d}</div>
                 ))}
               </div>
-
-              {/* Dates */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
-                {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => (
-                  <div key={`e-${i}`} />
-                ))}
+                {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
                 {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, i) => {
                   const date = new Date(calYear, calMonth, i + 1)
                   const available = isDateAvailable(date)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isToday = date.toDateString() === today.toDateString()
                   return (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        if (available) {
-                          setSelectedDate(date)
-                          setSelectedSlot(null)
-                          setTimeSlots([])
-                        }
-                      }}
+                    <button key={i}
+                      onClick={() => { if (available) { setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]) } }}
                       style={{
                         padding: '8px 4px', borderRadius: '8px', border: 'none',
                         background: isSelected ? GOLD : isToday ? 'rgba(255,255,255,0.08)' : 'transparent',
@@ -640,32 +576,25 @@ export default function BookingPage() {
                         cursor: available ? 'pointer' : 'not-allowed',
                         outline: isToday && !isSelected ? `1px solid ${GOLD}40` : 'none',
                       }}
-                    >
-                      {i + 1}
-                    </button>
+                    >{i + 1}</button>
                   )
                 })}
               </div>
             </div>
 
-            {/* Time slots */}
             {selectedDate && (
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
                   Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
                 {timeSlots.length === 0 ? (
-                  <div style={{
-                    background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center',
-                    border: '1px dashed rgba(255,255,255,0.12)',
-                  }}>
+                  <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>No available slots for this day.</p>
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                     {timeSlots.map(slot => (
-                      <button
-                        key={slot.time}
+                      <button key={slot.time}
                         onClick={() => { if (slot.available) setSelectedSlot(slot) }}
                         disabled={!slot.available}
                         style={{
@@ -679,9 +608,7 @@ export default function BookingPage() {
                       >
                         {slot.label}
                         {selectedCourse && selectedCourse.max_students > 1 && (
-                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
-                            {slot.max - slot.enrolled} left
-                          </div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{slot.max - slot.enrolled} left</div>
                         )}
                       </button>
                     ))}
@@ -695,9 +622,7 @@ export default function BookingPage() {
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>
-                ← Back
-              </button>
+              }}>← Back</button>
               <button
                 onClick={() => { if (selectedSlot) setStep(4) }}
                 disabled={!selectedSlot}
@@ -709,18 +634,15 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: selectedSlot ? 'pointer' : 'not-allowed',
                 }}
-              >
-                Continue →
-              </button>
+              >Continue →</button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 4: Confirm ── */}
+        {/* STEP 4: Confirm */}
         {step === 4 && (
           <div>
             <SectionTitle eyebrow="Step 5" title="Confirm your booking" />
-
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
               {[
                 { label: 'Swimmer', value: selectedStudent?.full_name },
@@ -741,20 +663,15 @@ export default function BookingPage() {
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Remaining Credits After</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>
-                  {remainingCredits - 1} credits
-                </span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{remainingCredits - 1} credits</span>
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setStep(3)} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>
-                ← Back
-              </button>
+              }}>← Back</button>
               <button
                 onClick={handleConfirm}
                 disabled={submitting}
@@ -766,18 +683,12 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
-              >
-                {submitting ? 'Booking...' : 'Confirm Booking ✓'}
-              </button>
+              >{submitting ? 'Booking...' : 'Confirm Booking ✓'}</button>
             </div>
           </div>
         )}
       </div>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');
-      `}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
     </div>
   )
 }
-
