@@ -1,8 +1,10 @@
+cat > ~/Documents/manta-shark-aquatics/app/dashboard/page.tsx << 'EOF'
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import QRCode from 'qrcode'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -65,6 +67,11 @@ function getDaysUntil(d: string): number {
   return Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+// QR payload: base64 encode of student_id so it's not raw UUID
+function makeQRPayload(studentId: string): string {
+  return `MSA:${btoa(studentId)}`
+}
+
 const QUICK_LINKS = [
   { label: 'Book a Lesson', icon: '📅', href: '/booking', color: GOLD, desc: 'Schedule your next session' },
   { label: 'Swim Levels', icon: '🏊', href: '/levels', color: '#4a90c4', desc: 'View curriculum & progress' },
@@ -79,6 +86,106 @@ const STATUS_COLORS: Record<string, string> = {
   pending: GOLD,
 }
 
+// QR Modal Component
+function QRModal({ student, onClose }: { student: Student; onClose: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [qrDataUrl, setQrDataUrl] = useState<string>('')
+
+  useEffect(() => {
+    const payload = makeQRPayload(student.id)
+    QRCode.toDataURL(payload, {
+      width: 280,
+      margin: 2,
+      color: { dark: '#1a2744', light: '#ffffff' },
+      errorCorrectionLevel: 'H',
+    }).then(setQrDataUrl)
+  }, [student.id])
+
+  const handleDownload = () => {
+    if (!qrDataUrl) return
+    const a = document.createElement('a')
+    a.href = qrDataUrl
+    a.download = `${student.full_name.replace(/\s+/g, '_')}_QR.png`
+    a.click()
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: '20px',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: NAVY, borderRadius: '20px',
+          border: '1px solid rgba(255,255,255,0.12)',
+          padding: '36px', maxWidth: '360px', width: '100%',
+          textAlign: 'center', position: 'relative',
+        }}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: '16px', right: '16px',
+            background: 'rgba(255,255,255,0.08)', border: 'none',
+            borderRadius: '50%', width: '32px', height: '32px',
+            color: 'rgba(255,255,255,0.6)', fontSize: '16px',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >×</button>
+
+        {/* Header */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
+            Check-in QR Code
+          </div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+            {student.full_name}
+          </div>
+        </div>
+
+        {/* QR Code */}
+        <div style={{
+          background: '#fff', borderRadius: '16px', padding: '20px',
+          display: 'inline-block', marginBottom: '20px',
+          boxShadow: `0 0 0 4px ${GOLD}30`,
+        }}>
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt="QR Code" style={{ display: 'block', width: '200px', height: '200px' }} />
+          ) : (
+            <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+              Loading...
+            </div>
+          )}
+        </div>
+
+        {/* Instructions */}
+        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', margin: '0 0 20px', lineHeight: 1.6 }}>
+          Show this QR code at the front desk to check in for today's lesson.
+        </p>
+
+        {/* Download button */}
+        <button
+          onClick={handleDownload}
+          style={{
+            width: '100%', padding: '12px', borderRadius: '10px',
+            background: GOLD, color: NAVY, border: 'none',
+            fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+            letterSpacing: '0.5px',
+          }}
+        >
+          Download QR Code
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const supabase = createClient()
   const [parent, setParent] = useState<Parent | null>(null)
@@ -89,6 +196,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('Good morning')
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -170,6 +278,9 @@ export default function DashboardPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
+      {/* QR Modal */}
+      {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
+
       <div style={{ background: NAVY, borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '16px clamp(20px,5vw,48px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
@@ -244,6 +355,23 @@ export default function DashboardPage() {
                       <div style={{ fontSize: '20px' }}>📋</div>
                     )}
                   </div>
+
+                  {/* QR Code Button */}
+                  <button
+                    onClick={() => setQrStudent(student)}
+                    style={{
+                      marginTop: '12px', width: '100%', padding: '10px',
+                      borderRadius: '10px', border: `1px solid ${GOLD}40`,
+                      background: 'transparent', color: GOLD,
+                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      letterSpacing: '0.5px',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${GOLD}15` }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    <span style={{ fontSize: '14px' }}>⊞</span> View Check-in QR Code
+                  </button>
                 </div>
               )
             })}
@@ -385,3 +513,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+EOF
