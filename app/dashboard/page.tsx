@@ -247,6 +247,7 @@ export default function DashboardPage() {
   const [greeting, setGreeting] = useState('Good morning')
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; courseName: string; date: string; time: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
   useEffect(() => {
@@ -319,17 +320,16 @@ export default function DashboardPage() {
     setCancellingId(null)
   }
 
-  async function rescheduleBooking(bookingId: string, lessonCreditId: string) {
-    setReschedulingId(bookingId)
-    // Cancel the current booking
-    await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', bookingId)
-    // Return the credit
-    const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', lessonCreditId).single()
+  async function confirmReschedule() {
+    if (!rescheduleTarget) return
+    setReschedulingId(rescheduleTarget.id)
+    setRescheduleTarget(null)
+    await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', rescheduleTarget.id)
+    const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', rescheduleTarget.creditId).single()
     if (credit) {
-      await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', lessonCreditId)
+      await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', rescheduleTarget.creditId)
     }
     setReschedulingId(null)
-    // Redirect to booking page
     window.location.href = '/booking?rescheduled=1'
   }
 
@@ -346,6 +346,31 @@ export default function DashboardPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
+
+      {/* Reschedule Confirm Modal */}
+      {rescheduleTarget && (
+        <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>Reschedule Lesson</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>Change this booking?</div>
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{rescheduleTarget.courseName}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
+            </div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
+              This lesson will be cancelled and your credit will be returned. You'll be taken to the booking page to pick a new time.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setRescheduleTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                Keep Lesson
+              </button>
+              <button onClick={confirmReschedule} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#c9a84c', color: '#1a2744', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                Yes, Reschedule
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ background: NAVY, borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '16px clamp(20px,5vw,48px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -492,7 +517,7 @@ export default function DashboardPage() {
                       {daysUntil >= 1 && (
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            onClick={() => booking.lesson_credit_id && rescheduleBooking(booking.id, booking.lesson_credit_id)}
+                            onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
                             disabled={reschedulingId === booking.id}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : 'Reschedule'}
