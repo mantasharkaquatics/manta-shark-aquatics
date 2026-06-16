@@ -55,17 +55,6 @@ const WORK_START = 8
 const WORK_END = 21
 const SLOT_MINUTES = 30
 
-function getWeekDates(anchor: Date): Date[] {
-  const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())
-  const dow = start.getDay()
-  start.setDate(start.getDate() - dow)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(start)
-    d.setDate(start.getDate() + i)
-    return d
-  })
-}
-
 function toDateStr(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -89,7 +78,7 @@ function minutesToTime(m: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
 
-function isCoachAvailable(_coach_id: string, date: Date, time: string): boolean {
+function isCoachAvailable(_id: string, date: Date, time: string): boolean {
   const dow = date.getDay()
   const mins = timeToMinutes(time)
   if (dow >= 1 && dow <= 5) {
@@ -107,11 +96,20 @@ function getSessionCourseType(s: Session): { name: string; slug: string } {
   return ct || { name: '', slug: '' }
 }
 
-const COURSE_COLORS: Record<string, string> = {
-  '1on1': 'bg-blue-500',
-  '1on2': 'bg-purple-500',
-  '1on4': 'bg-green-500',
-  'team': 'bg-amber-500',
+function getMonthDates(anchor: Date): Date[] {
+  const year = anchor.getFullYear()
+  const month = anchor.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  // pad to start on Sunday
+  const startPad = firstDay.getDay()
+  // pad to end on Saturday
+  const endPad = 6 - lastDay.getDay()
+  const dates: Date[] = []
+  for (let i = -startPad; i <= lastDay.getDate() - 1 + endPad; i++) {
+    dates.push(new Date(year, month, 1 + i))
+  }
+  return dates
 }
 
 function generateTimeSlots(): string[] {
@@ -123,11 +121,18 @@ function generateTimeSlots(): string[] {
 }
 const TIME_SLOTS = generateTimeSlots()
 
-const WEEKDAY_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
+const COURSE_COLORS: Record<string, string> = {
+  '1on1': 'bg-blue-500',
+  '1on2': 'bg-purple-500',
+  '1on4': 'bg-green-500',
+  'team': 'bg-amber-500',
+}
+
+const WEEKDAY_HEADERS = ['日', '一', '二', '三', '四', '五', '六']
 
 export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions }: Props) {
   const supabase = createClient()
-  const [view, setView] = useState<'week' | 'day'>('week')
+  const [view, setView] = useState<'month' | 'day'>('month')
   const [anchor, setAnchor] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -143,12 +148,19 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const weekDates = getWeekDates(anchor)
+  const monthDates = getMonthDates(anchor)
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
-    const from = view === 'week' ? toDateStr(weekDates[0]) : toDateStr(anchor)
-    const to   = view === 'week' ? toDateStr(weekDates[6]) : toDateStr(anchor)
+    let from: string, to: string
+    if (view === 'month') {
+      const dates = getMonthDates(anchor)
+      from = toDateStr(dates[0])
+      to = toDateStr(dates[dates.length - 1])
+    } else {
+      from = toDateStr(anchor)
+      to = toDateStr(anchor)
+    }
     const { data } = await supabase
       .from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes)')
@@ -169,9 +181,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }
 
   function navigate(dir: number) {
-    const d = new Date(anchor)
-    d.setDate(d.getDate() + (view === 'week' ? dir * 7 : dir))
-    setAnchor(d)
+    if (view === 'month') {
+      setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1))
+    } else {
+      const d = new Date(anchor)
+      d.setDate(d.getDate() + dir)
+      setAnchor(d)
+    }
   }
 
   function openBookModal(date: string, time: string, coachId: string) {
@@ -274,19 +290,23 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }
 
   const todayStr = toDateStr(new Date())
+  const currentMonth = anchor.getMonth()
+
+  const headerLabel = view === 'month'
+    ? anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long' })
+    : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
   return (
     <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
           Booking Calendar
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
-          {/* View toggle */}
           <div className="flex rounded-lg overflow-hidden border border-white/20">
-            {(['week', 'day'] as const).map(v => (
+            {(['month', 'day'] as const).map(v => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -294,24 +314,19 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'
                 }`}
               >
-                {v === 'week' ? '週' : '日'}
+                {v === 'month' ? '月' : '日'}
               </button>
             ))}
           </div>
-          {/* Nav */}
           <div className="flex items-center gap-2">
             <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">‹</button>
-            <span className="text-sm text-white/80 min-w-[180px] text-center">
-              {view === 'week'
-                ? `${weekDates[0].toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} – ${weekDates[6].toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}`
-                : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
-              }
-            </span>
+            <span className="text-sm text-white/80 min-w-[200px] text-center">{headerLabel}</span>
             <button onClick={() => navigate(1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">›</button>
             <button
               onClick={() => {
-                const today = new Date()
-                setAnchor(new Date(today.getFullYear(), today.getMonth(), today.getDate()))
+                const t = new Date()
+                setAnchor(new Date(t.getFullYear(), t.getMonth(), t.getDate()))
+                setView('month')
               }}
               className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
             >
@@ -322,12 +337,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         </div>
       </div>
 
-      {/* ── Calendar Body ── */}
+      {/* Body */}
       <div className="overflow-auto" style={{ height: 'calc(100vh - 130px)' }}>
-        {view === 'week' ? (
-          <WeekView
-            dates={weekDates}
-            sessions={sessions}
+        {view === 'month' ? (
+          <MonthView
+            dates={monthDates}
+            currentMonth={currentMonth}
             todayStr={todayStr}
             getSessionsOnDate={getSessionsOnDate}
             onDayClick={goToDay}
@@ -336,7 +351,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           <DayView
             date={anchor}
             coaches={coaches}
-            sessions={sessions}
             getSessionAt={getSessionAt}
             isCoachAvailable={isCoachAvailable}
             onSlotClick={openBookModal}
@@ -345,7 +359,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         )}
       </div>
 
-      {/* ── Book Modal ── */}
+      {/* Book Modal */}
       {modal === 'book' && selectedSlot && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
@@ -408,7 +422,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         </div>
       )}
 
-      {/* ── Detail Modal ── */}
+      {/* Detail Modal */}
       {modal === 'detail' && selectedSession && (
         <DetailModal
           session={selectedSession}
@@ -423,69 +437,66 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Week View — 7 columns, one per day, click to go to Day View
+// Month View
 // ══════════════════════════════════════════════════════════════════════
-function WeekView({ dates, sessions, todayStr, getSessionsOnDate, onDayClick }: {
+function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClick }: {
   dates: Date[]
-  sessions: Session[]
+  currentMonth: number
   todayStr: string
   getSessionsOnDate: (date: string) => Session[]
   onDayClick: (date: Date) => void
 }) {
   return (
-    <div className="p-6">
-      <div className="grid grid-cols-7 gap-3">
+    <div className="p-4">
+      {/* Weekday headers */}
+      <div className="grid grid-cols-7 mb-2">
+        {WEEKDAY_HEADERS.map(d => (
+          <div key={d} className="text-center text-xs text-white/30 py-2 font-medium">{d}</div>
+        ))}
+      </div>
+      {/* Day grid */}
+      <div className="grid grid-cols-7 gap-1">
         {dates.map(date => {
           const ds = toDateStr(date)
           const isToday = ds === todayStr
+          const isCurrentMonth = date.getMonth() === currentMonth
           const daySessions = getSessionsOnDate(ds)
-          const dow = date.getDay()
-          const isWeekend = dow === 0 || dow === 6
 
           return (
             <button
               key={ds}
               onClick={() => onDayClick(date)}
-              className={`rounded-xl border p-3 text-left transition-all hover:border-[#c9a84c]/50 hover:bg-[#c9a84c]/5 group min-h-[140px] flex flex-col ${
+              className={`rounded-xl p-2 text-left transition-all hover:border-[#c9a84c]/50 hover:bg-[#c9a84c]/5 group border min-h-[90px] flex flex-col ${
                 isToday
                   ? 'border-[#c9a84c]/60 bg-[#c9a84c]/5'
-                  : isWeekend
-                  ? 'border-white/10 bg-white/[0.02]'
-                  : 'border-white/8 bg-[#111d38]/40'
+                  : isCurrentMonth
+                  ? 'border-white/8 bg-[#111d38]/40'
+                  : 'border-white/4 bg-transparent'
               }`}
             >
-              {/* Day header */}
-              <div className="mb-2">
-                <p className="text-xs text-white/40">{WEEKDAY_NAMES[date.getDay()]}</p>
-                <p className={`text-xl font-semibold leading-tight ${isToday ? 'text-[#c9a84c]' : 'text-white/80'}`}>
-                  {date.getDate()}
-                </p>
-              </div>
-
+              {/* Date number */}
+              <p className={`text-sm font-semibold mb-1 ${
+                isToday ? 'text-[#c9a84c]' : isCurrentMonth ? 'text-white/80' : 'text-white/20'
+              }`}>
+                {date.getDate()}
+              </p>
               {/* Session pills */}
-              <div className="flex-1 space-y-1">
-                {daySessions.length === 0 ? (
-                  <p className="text-[10px] text-white/20 italic">無課程</p>
-                ) : (
-                  daySessions.slice(0, 5).map(s => {
-                    const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
-                    const slug = ct?.slug || ''
-                    const colorClass = COURSE_COLORS[slug] || 'bg-gray-500'
-                    return (
-                      <div key={s.id} className={`${colorClass} rounded px-1.5 py-0.5 flex items-center justify-between`}>
-                        <span className="text-[9px] text-white font-medium truncate">{s.start_time.slice(0, 5)}</span>
-                        <span className="text-[9px] text-white/70">{s.enrolled_count}/{s.max_students}</span>
-                      </div>
-                    )
-                  })
-                )}
-                {daySessions.length > 5 && (
-                  <p className="text-[9px] text-white/30">+{daySessions.length - 5} 更多</p>
+              <div className="flex-1 space-y-0.5">
+                {daySessions.slice(0, 3).map(s => {
+                  const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
+                  const slug = ct?.slug || ''
+                  const colorClass = COURSE_COLORS[slug] || 'bg-gray-500'
+                  return (
+                    <div key={s.id} className={`${colorClass} rounded px-1 py-0.5 flex items-center justify-between`}>
+                      <span className="text-[9px] text-white font-medium truncate">{s.start_time.slice(0, 5)}</span>
+                      <span className="text-[9px] text-white/70 ml-1">{s.enrolled_count}/{s.max_students}</span>
+                    </div>
+                  )
+                })}
+                {daySessions.length > 3 && (
+                  <p className="text-[9px] text-white/30 pl-1">+{daySessions.length - 3} 更多</p>
                 )}
               </div>
-
-              {/* Click hint */}
-              <p className="text-[9px] text-white/20 group-hover:text-[#c9a84c]/50 mt-2 transition-colors">點擊查看 →</p>
             </button>
           )
         })}
@@ -495,12 +506,11 @@ function WeekView({ dates, sessions, todayStr, getSessionsOnDate, onDayClick }: 
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Day View — per coach columns, time grid
+// Day View
 // ══════════════════════════════════════════════════════════════════════
-function DayView({ date, coaches, sessions, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick }: {
+function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick }: {
   date: Date
   coaches: Coach[]
-  sessions: Session[]
   getSessionAt: (date: string, time: string, coachId: string) => Session | null
   isCoachAvailable: (id: string, date: Date, time: string) => boolean
   onSlotClick: (date: string, time: string, coachId: string) => void
@@ -509,7 +519,6 @@ function DayView({ date, coaches, sessions, getSessionAt, isCoachAvailable, onSl
   const ds = toDateStr(date)
   return (
     <div className="relative">
-      {/* Sticky coach header */}
       <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
         <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
           <div className="h-14" />
@@ -521,8 +530,6 @@ function DayView({ date, coaches, sessions, getSessionAt, isCoachAvailable, onSl
           ))}
         </div>
       </div>
-
-      {/* Time grid */}
       <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
         {TIME_SLOTS.map(time => (
           <div key={time} className="contents">
@@ -649,11 +656,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
           )}
         </div>
         <div className="p-6 pt-0 flex gap-3">
-          <button
-            onClick={cancelSession}
-            disabled={cancelling}
-            className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm disabled:opacity-50"
-          >
+          <button onClick={cancelSession} disabled={cancelling} className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm disabled:opacity-50">
             {cancelling ? '取消中...' : '取消這堂課'}
           </button>
           <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
@@ -664,3 +667,5 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
     </div>
   )
 }
+
+const WEEKDAY_HEADERS = ['日', '一', '二', '三', '四', '五', '六']
