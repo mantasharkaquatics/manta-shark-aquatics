@@ -1,23 +1,22 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/client'
 
 const PRIVATE_PACKAGES = [
-  { id: '1on1-10', ratio: '1-on-1', sessions: 10, total: 650, perSession: 65, savings: null, badge: null },
-  { id: '1on1-20', ratio: '1-on-1', sessions: 20, total: 1260, perSession: 63, savings: 40, badge: null },
-  { id: '1on1-30', ratio: '1-on-1', sessions: 30, total: 1850, perSession: 61.67, savings: 100, badge: 'Most Popular' },
-  { id: '1on1-50', ratio: '1-on-1', sessions: 50, total: 3000, perSession: 60, savings: 250, badge: 'Best Value' },
+  { id: '1on1-10', sessions: 10, total: 650,  perSession: 65,    savings: null, badge: null },
+  { id: '1on1-20', sessions: 20, total: 1260, perSession: 63,    savings: 40,   badge: null },
+  { id: '1on1-30', sessions: 30, total: 1850, perSession: 61.67, savings: 100,  badge: 'Most Popular' },
+  { id: '1on1-50', sessions: 50, total: 3000, perSession: 60,    savings: 250,  badge: 'Best Value' },
 ]
 
 const SEMI_PACKAGES = [
-  { id: '1on2-10', ratio: '1-on-2', sessions: 10, total: 1050, perSession: 105, savings: null, badge: null },
-  { id: '1on2-20', ratio: '1-on-2', sessions: 20, total: 2000, perSession: 100, savings: 100, badge: null },
-  { id: '1on2-30', ratio: '1-on-2', sessions: 30, total: 2850, perSession: 95, savings: 300, badge: 'Most Popular' },
-  { id: '1on2-50', ratio: '1-on-2', sessions: 50, total: 4500, perSession: 90, savings: 500, badge: 'Best Value' },
+  { id: '1on2-10', sessions: 10, total: 1050, perSession: 105, savings: null, badge: null },
+  { id: '1on2-20', sessions: 20, total: 2000, perSession: 100, savings: 100,  badge: null },
+  { id: '1on2-30', sessions: 30, total: 2850, perSession: 95,  savings: 300,  badge: 'Most Popular' },
+  { id: '1on2-50', sessions: 50, total: 4500, perSession: 90,  savings: 500,  badge: 'Best Value' },
 ]
 
 const GROUP_OPTIONS = [
@@ -55,10 +54,11 @@ function Divider({ center = false }: { center?: boolean }) {
   )
 }
 
-function GetStartedButton({ accentColor, isFeatured, label = 'Get Started' }: {
+function GetStartedButton({ accentColor, isFeatured, label = 'Get Started', planId = '' }: {
   accentColor: string
   isFeatured: boolean
   label?: string
+  planId?: string
 }) {
   const router = useRouter()
   const supabase = createClient()
@@ -68,9 +68,9 @@ function GetStartedButton({ accentColor, isFeatured, label = 'Get Started' }: {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      router.push('/dashboard')
+      router.push(`/checkout?plan=${planId}`)
     } else {
-      router.push('/register')
+      router.push(`/login?redirect=/checkout?plan=${planId}`)
     }
     setLoading(false)
   }
@@ -153,7 +153,7 @@ function PackageCard({ pkg, accentColor }: { pkg: typeof PRIVATE_PACKAGES[0]; ac
         </div>
       ) : <div style={{ height: '26px', marginTop: '6px' }} />}
       <div style={{ borderTop: `1px solid ${isFeatured ? 'rgba(255,255,255,0.1)' : '#eef1f7'}`, margin: '12px 0' }} />
-      <GetStartedButton accentColor={accentColor} isFeatured={isFeatured} />
+      <GetStartedButton accentColor={accentColor} isFeatured={isFeatured} planId={pkg.id} />
     </div>
   )
 }
@@ -242,8 +242,7 @@ export default function PlansPage() {
       <section style={{ background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '28px' }}>
-            {/* Group */}
-            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px' }}>
               <SectionEyebrow>Group Lessons</SectionEyebrow>
               <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.2vw,28px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>1-on-4 Group</h2>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>30 minutes · Max 4 students per coach</p>
@@ -264,11 +263,10 @@ export default function PlansPage() {
                   </div>
                 ))}
               </div>
-              <GetStartedButton accentColor="#4caf72" isFeatured={true} label="Enroll Now" />
+              <GetStartedButton accentColor="#4caf72" isFeatured={true} label="Enroll Now" planId="1on4-4" />
             </div>
 
-            {/* Swim Team */}
-            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px' }}>
               <SectionEyebrow>Competitive</SectionEyebrow>
               <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.2vw,28px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>Swim Team</h2>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>90 minutes · Mon & Wed 6:00–7:30 PM · Max 24 swimmers</p>
@@ -290,7 +288,7 @@ export default function PlansPage() {
                   </div>
                 ))}
               </div>
-              <GetStartedButton accentColor="#e05a4a" isFeatured={true} label="Join the Team" />
+              <GetStartedButton accentColor="#e05a4a" isFeatured={true} label="Join the Team" planId="team" />
             </div>
           </div>
         </div>
@@ -329,7 +327,7 @@ export default function PlansPage() {
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '32px' }}>
             Create your free account and book your first lesson today. No commitment required to get started.
           </p>
-          <GetStartedButton accentColor={GOLD} isFeatured={true} label="Create Free Account" />
+          <GetStartedButton accentColor={GOLD} isFeatured={true} label="Create Free Account" planId="" />
         </div>
       </section>
 
