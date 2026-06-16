@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -135,6 +135,7 @@ export default function BookingPage() {
   const [success, setSuccess] = useState(false)
   const [isReschedule, setIsReschedule] = useState(false)
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
+  const rescheduleBookingIdRef = useRef<string | null>(null)
 
   const [parentId, setParentId] = useState<string | null>(null)
   const [students, setStudents] = useState<Student[]>([])
@@ -186,6 +187,7 @@ export default function BookingPage() {
       if (rbId && rSlug) {
         setIsReschedule(true)
         setRescheduleBookingId(rbId)
+          rescheduleBookingIdRef.current = rbId
         const matchCourse = (cts || []).find((c: any) => c.slug === rSlug) || null
         const matchStudent = (studs || []).find((s: any) => s.id === rStudentId) || (studs || [])[0] || null
         if (matchCourse) setSelectedCourse(matchCourse as any)
@@ -317,11 +319,13 @@ export default function BookingPage() {
     await supabase.rpc('increment_enrolled', { session_id: sessionId })
 
     // 如果是 reschedule，取消舊課（credit 不動，因為新課已扣）
-    if (rescheduleBookingId) {
+    const rbIdToCancel = rescheduleBookingIdRef.current || rescheduleBookingId
+    console.log('rbIdToCancel:', rbIdToCancel)
+    if (rbIdToCancel) {
       const { error: cancelErr } = await supabase.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
-        .eq('id', rescheduleBookingId)
-      console.log('Cancel old booking:', rescheduleBookingId, cancelErr)
+        .eq('id', rbIdToCancel)
+      console.log('Cancel old booking:', rbIdToCancel, cancelErr)
     } else {
       console.log('No rescheduleBookingId, skipping cancel')
     }
