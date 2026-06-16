@@ -19,7 +19,14 @@ const LEVEL_NAMES: Record<number, string> = {
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
 interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string }
-interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string }
+interface Credit {
+  id: string
+  total_credits: number
+  used_credits: number
+  course_type_id: string
+  student_id: string | null
+  course_types?: { name: string } | { name: string }[]
+}
 interface Booking {
   id: string; status: string
   session_date: string; start_time: string; end_time: string
@@ -103,12 +110,13 @@ export default function DashboardPage() {
 
     const today = new Date().toISOString().split('T')[0]
 
-    const [{ data: studs }, { data: crds }, { data: upcoming }, { data: past }] = await Promise.all([
+    const [{ data: studs }, { data: credData }, { data: upcoming }, { data: past }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
-      // ✅ 只撈這位家長的學生的 credits
-      supabase.from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id')
-        .in('student_id', []),  // placeholder, replaced below
+      supabase
+        .from('lesson_credits')
+        .select('id, total_credits, used_credits, course_type_id, student_id, course_types(name)')
+        .eq('parent_id', parentData.id)
+        .gt('total_credits', 0),
       supabase.from('bookings')
         .select('id, status, student_id, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name)), students(full_name)')
         .eq('parent_id', parentData.id)
@@ -122,19 +130,7 @@ export default function DashboardPage() {
     ])
 
     setStudents(studs || [])
-
-    // ✅ 用學生 ID 篩選 credits
-    const studentIds = (studs || []).map((s: any) => s.id)
-    if (studentIds.length > 0) {
-      const { data: credData } = await supabase
-        .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id')
-        .in('student_id', studentIds)
-        .gt('total_credits', 0)
-      setCredits(credData || [])
-    } else {
-      setCredits([])
-    }
+    setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
 
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => ({
@@ -326,9 +322,12 @@ export default function DashboardPage() {
               {credits.map((credit, i) => {
                 const remaining = credit.total_credits - credit.used_credits
                 const pct = Math.round((remaining / credit.total_credits) * 100)
+                const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
                 return (
                   <div key={i} style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>Lesson Credits</div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+                      {ct?.name || 'Lesson Credits'}
+                    </div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: GOLD, lineHeight: 1 }}>{remaining}</div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '12px' }}>of {credit.total_credits} remaining</div>
                     <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
