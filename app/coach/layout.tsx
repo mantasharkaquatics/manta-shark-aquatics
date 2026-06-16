@@ -44,6 +44,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
             <Link href="/coach" className="text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Today</Link>
             <Link href="/coach/schedule" className="text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Schedule</Link>
             <Link href="/coach/time-off" className="text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Time Off</Link>
+            <Link href="/coach/checkin" className="text-gray-300 hover:text-[#c9a84c] text-sm transition-colors font-semibold">Check-in</Link>
             <form action="/auth/signout" method="post">
               <button className="text-gray-400 hover:text-white text-sm transition-colors">Sign Out</button>
             </form>
