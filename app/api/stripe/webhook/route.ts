@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const plan_id        = meta.plan_id
     const sessions       = parseInt(meta.sessions)
     const course_type_id = meta.course_type_id
-    const amount         = session.amount_total! / 100
+    const amount_cents   = session.amount_total!
 
     // 1. Create purchase record
     const { data: purchase, error: purchaseErr } = await supabase
@@ -37,9 +37,10 @@ export async function POST(req: NextRequest) {
       .insert({
         parent_id,
         lesson_package_id: null,
-        amount,
-        status: 'completed',
+        amount_cents,
+        status: 'paid',
         stripe_session_id: session.id,
+        paid_at: new Date().toISOString(),
       })
       .select()
       .single()
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Purchase failed' }, { status: 500 })
     }
 
-    // 2. Create lesson_credits — 綁 parent，student_id 為 null（全家共用）
+    // 2. Create lesson_credits
     const expiresAt = new Date()
     expiresAt.setFullYear(expiresAt.getFullYear() + 1)
 
