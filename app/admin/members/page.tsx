@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import AdminMembersClient from './AdminMembersClient'
 
 export default async function AdminMembersPage() {
@@ -10,15 +9,15 @@ export default async function AdminMembersPage() {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
   )
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
-  if (!admin) redirect('/dashboard')
 
   const { data: parents } = await supabase
     .from('parents')
-    .select('id, first_name, last_name, email, phone, students(id, full_name, current_level, is_active)')
-    .order('last_name')
+    .select(`
+      id, first_name, last_name, email, phone,
+      registered_at, terms_accepted_at, last_login_at, newsletter_subscribed,
+      students(id, full_name, current_level, is_active, date_of_birth)
+    `)
+    .order('first_name')
 
   return <AdminMembersClient parents={parents || []} />
 }
