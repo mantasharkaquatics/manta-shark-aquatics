@@ -128,25 +128,13 @@ function SelectCard({ selected, onClick, color = GOLD, children }: {
 export default function BookingPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [wasRescheduled, setWasRescheduled] = useState(false)
-
-  // 直接從 URL 讀取，不用 state（避免非同步問題）
-  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-  const rescheduleBookingId = urlParams?.get('reschedule_booking_id') || null
-  const rescheduleCreditId = urlParams?.get('reschedule_credit_id') || null
-  const rescheduleSlug = urlParams?.get('reschedule_slug') || null
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      if (params.get('rescheduled') === '1') setWasRescheduled(true)
-    }
-  }, [])
 
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [isReschedule, setIsReschedule] = useState(false)
+  const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
 
   const [parentId, setParentId] = useState<string | null>(null)
   const [students, setStudents] = useState<Student[]>([])
@@ -178,7 +166,6 @@ export default function BookingPage() {
         supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true),
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true),
-        // ✅ 用 parent_id 查，不用 student_id
         supabase.from('lesson_credits')
           .select('id, total_credits, used_credits, course_type_id, student_id')
           .eq('parent_id', parent.id)
@@ -188,8 +175,26 @@ export default function BookingPage() {
       setStudents(studs || [])
       setCourseTypes(cts || [])
       setCoaches(coachs || [])
-      // ✅ 只保留還有剩餘 credits 的
       setCredits((crds || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
+
+      // 讀取 URL params，判斷是否為 reschedule
+      const params = new URLSearchParams(window.location.search)
+      const rbId = params.get('reschedule_booking_id')
+      const rSlug = params.get('reschedule_slug')
+      const rStudentId = params.get('reschedule_student_id')
+
+      if (rbId && rSlug) {
+        setIsReschedule(true)
+        setRescheduleBookingId(rbId)
+        const matchCourse = (cts || []).find((c: any) => c.slug === rSlug) || null
+        const matchStudent = (studs || []).find((s: any) => s.id === rStudentId) || (studs || [])[0] || null
+        if (matchCourse) setSelectedCourse(matchCourse as any)
+        if (matchStudent) setSelectedStudent(matchStudent as any)
+        setLoading(false)
+        setStep(2)
+        return
+      }
+
       setLoading(false)
     }
     init()
@@ -248,11 +253,9 @@ export default function BookingPage() {
     setTimeSlots(slots)
   }
 
-  // ✅ 修正：只比對 course_type_id，不比對 student_id（全家共用）
   const availableCredit = selectedCourse
     ? credits.find(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
     : null
-  // 加總所有同課程的剩餘 credits
   const totalRemainingCredits = selectedCourse
     ? credits.filter(c => c.course_type_id === selectedCourse.id).reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
     : 0
@@ -311,7 +314,9 @@ export default function BookingPage() {
 
     // 如果是 reschedule，取消舊課（credit 不動，因為新課已扣）
     if (rescheduleBookingId) {
-      await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', rescheduleBookingId)
+      await supabase.from('bookings')
+        .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
+        .eq('id', rescheduleBookingId)
     }
 
     setSubmitting(false)
@@ -346,7 +351,7 @@ export default function BookingPage() {
       }}>
         <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
         <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
-          {rescheduleBookingId ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
+          {isReschedule ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
         </h2>
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '8px' }}>
           <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> is booked for
@@ -381,7 +386,9 @@ export default function BookingPage() {
             <img src="/logo.png" alt="Manta Shark" style={{ height: '32px' }} />
           </Link>
           <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.12)' }} />
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>Book a Lesson</span>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
+            {isReschedule ? 'Reschedule Lesson' : 'Book a Lesson'}
+          </span>
         </div>
         <Link href="/dashboard" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>
           ← Dashboard
@@ -389,11 +396,13 @@ export default function BookingPage() {
       </div>
 
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
-        {(wasRescheduled || rescheduleBookingId) && (
+
+        {isReschedule && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>📅</span> Rescheduling your lesson — please pick a new date and time below.
+            <span>📅</span> Rescheduling — pick a new coach, date and time below. Your current lesson will be cancelled only after you confirm.
           </div>
         )}
+
         <Steps current={step} />
 
         {/* STEP 0: Select Student */}
@@ -432,9 +441,7 @@ export default function BookingPage() {
                 fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                 textTransform: 'uppercase', cursor: selectedStudent ? 'pointer' : 'not-allowed',
               }}
-            >
-              Continue →
-            </button>
+            >Continue →</button>
           </div>
         )}
 
@@ -445,22 +452,18 @@ export default function BookingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
-                // ✅ 加總同課程所有 credits
                 const remaining = credits
                   .filter(c => c.course_type_id === ct.id)
                   .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
-                // ✅ Reschedule 時鎖定課程類型
-                const isLocked = !!rescheduleSlug && ct.slug !== rescheduleSlug
                 return (
-                  <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => !isLocked && setSelectedCourse(ct)} color={isLocked ? 'rgba(255,255,255,0.2)' : color}>
+                  <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => setSelectedCourse(ct)} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
                         <div>
-                          <div style={{ fontSize: '15px', fontWeight: 700, color: isLocked ? 'rgba(255,255,255,0.3)' : '#fff', marginBottom: '2px' }}>{ct.name}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{ct.name}</div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
                             {ct.duration_minutes} min · Max {ct.max_students} student{ct.max_students > 1 ? 's' : ''}
-                            {isLocked && <span style={{ marginLeft: '6px', color: 'rgba(255,255,255,0.25)' }}>— not available for reschedule</span>}
                           </div>
                         </div>
                       </div>
@@ -469,17 +472,13 @@ export default function BookingPage() {
                           background: `${color}20`, border: `1px solid ${color}40`,
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '12px', fontWeight: 700, color,
-                        }}>
-                          {remaining} credits
-                        </div>
+                        }}>{remaining} credits</div>
                       ) : (
                         <div style={{
                           background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '11px', color: 'rgba(255,255,255,0.3)',
-                        }}>
-                          No credits
-                        </div>
+                        }}>No credits</div>
                       )}
                     </div>
                   </SelectCard>
@@ -548,11 +547,11 @@ export default function BookingPage() {
               })}
             </div>
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => setStep(1)} style={{
+              <button onClick={() => isReschedule ? window.location.href = '/dashboard' : setStep(1)} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>← Back</button>
+              }}>{isReschedule ? '← Cancel' : '← Back'}</button>
               <button
                 onClick={() => { if (selectedCoach) setStep(3) }}
                 disabled={!selectedCoach}
@@ -715,7 +714,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
-              >{submitting ? 'Booking...' : 'Confirm Booking ✓'}</button>
+              >{submitting ? 'Booking...' : isReschedule ? 'Confirm Reschedule ✓' : 'Confirm Booking ✓'}</button>
             </div>
           </div>
         )}
