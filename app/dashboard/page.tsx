@@ -26,7 +26,9 @@ interface Credit {
   used_credits: number
   course_type_id: string
   student_id: string | null
+  created_at?: string
   course_types?: { name: string } | { name: string }[]
+  purchases?: { paid_at: string | null; created_at: string } | { paid_at: string | null; created_at: string }[]
 }
 interface Booking {
   id: string; status: string
@@ -221,7 +223,7 @@ export default function DashboardPage() {
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
         .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id, course_types(name)')
+        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, course_types(name), purchases(paid_at, created_at)')
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
@@ -446,23 +448,42 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-              {credits.map((credit, i) => {
-                const remaining = credit.total_credits - credit.used_credits
-                const pct = Math.round((remaining / credit.total_credits) * 100)
-                const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
-                return (
-                  <div key={i} style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
-                      {ct?.name || 'Lesson Credits'}
+              {(() => {
+                // Group credits by course_type_id and sum them up
+                const grouped: Record<string, { name: string; total: number; used: number; purchasedAt: string | null }> = {}
+                credits.forEach(credit => {
+                  const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
+                  const pur = Array.isArray(credit.purchases) ? credit.purchases[0] : credit.purchases
+                  const key = credit.course_type_id
+                  if (!grouped[key]) {
+                    grouped[key] = { name: ct?.name || 'Lesson Credits', total: 0, used: 0, purchasedAt: pur?.paid_at || pur?.created_at || credit.created_at || null }
+                  }
+                  grouped[key].total += credit.total_credits
+                  grouped[key].used += credit.used_credits
+                })
+                return Object.entries(grouped).map(([key, g]) => {
+                  const remaining = g.total - g.used
+                  const pct = Math.round((remaining / g.total) * 100)
+                  const purchaseDate = g.purchasedAt ? new Date(g.purchasedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
+                  return (
+                    <div key={key} style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+                        {g.name}
+                      </div>
+                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: GOLD, lineHeight: 1 }}>{remaining}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '12px' }}>of {g.total} remaining</div>
+                      <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginBottom: '10px' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: GOLD, borderRadius: '2px' }} />
+                      </div>
+                      {purchaseDate && (
+                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.5px' }}>
+                          Purchased {purchaseDate}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: GOLD, lineHeight: 1 }}>{remaining}</div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '12px' }}>of {credit.total_credits} remaining</div>
-                    <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: GOLD, borderRadius: '2px' }} />
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              })()}
             </div>
           )}
         </section>
