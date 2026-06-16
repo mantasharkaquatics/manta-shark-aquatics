@@ -417,9 +417,10 @@ export default function BookingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
-                // ✅ 只比對 course_type_id，credits 全家共用
-                const credit = credits.find(c => c.course_type_id === ct.id && (c.total_credits - c.used_credits) > 0)
-                const remaining = credit ? credit.total_credits - credit.used_credits : 0
+                // ✅ 加總同課程所有 credits
+                const remaining = credits
+                  .filter(c => c.course_type_id === ct.id)
+                  .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
                 return (
                   <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => setSelectedCourse(ct)} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
