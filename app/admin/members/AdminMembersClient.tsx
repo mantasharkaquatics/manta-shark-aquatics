@@ -81,13 +81,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Members</h1>
-          <p className="text-gray-400 mt-1">
-            {parents.length} families · {parents.reduce((a, p) => a + p.students.length, 0)} students
-          </p>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Members</h1>
+        <p className="text-gray-400 mt-1">
+          {parents.length} families · {parents.reduce((a, p) => a + p.students.length, 0)} students
+        </p>
       </div>
 
       <div className="mb-6">
@@ -103,6 +101,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       <div className="space-y-3">
         {filtered.map(parent => (
           <div key={parent.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
+            {/* Row header */}
             <button
               onClick={() => setExpanded(expanded === parent.id ? null : parent.id)}
               className="w-full flex items-center justify-between p-5 text-left hover:bg-[#1e3a6e]/30 transition-all"
@@ -117,26 +116,15 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {/* Newsletter badge */}
-                <button
-                  onClick={e => { e.stopPropagation(); toggleNewsletter(parent.id, parent.newsletter_subscribed) }}
-                  className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                    parent.newsletter_subscribed ? 'bg-green-500' : 'bg-gray-600'
-                  }`}
-                  title={parent.newsletter_subscribed ? 'Subscribed to newsletter' : 'Not subscribed'}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                    parent.newsletter_subscribed ? 'translate-x-4' : 'translate-x-0'
-                  }`} />
-                </button>
                 <span className="text-gray-500 text-sm">{parent.students.length} student{parent.students.length !== 1 ? 's' : ''}</span>
                 <span className="text-gray-500">{expanded === parent.id ? '▲' : '▼'}</span>
               </div>
             </button>
 
+            {/* Expanded content */}
             {expanded === parent.id && (
               <div className="border-t border-[#1e3a6e] p-5 space-y-4">
-                {/* Contact info */}
+                {/* Contact + dates */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Phone</p>
@@ -160,7 +148,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Terms Accepted</p>
-                    <p className="text-gray-300 text-sm">
+                    <p className="text-sm">
                       {parent.terms_accepted_at
                         ? <span className="text-green-400">✓ {formatDateTime(parent.terms_accepted_at)}</span>
                         : <span className="text-red-400">✗ Not accepted</span>
