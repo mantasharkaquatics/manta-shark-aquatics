@@ -128,6 +128,14 @@ function SelectCard({ selected, onClick, color = GOLD, children }: {
 export default function BookingPage() {
   const router = useRouter()
   const supabase = createClient()
+  const [wasRescheduled, setWasRescheduled] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('rescheduled') === '1') setWasRescheduled(true)
+    }
+  }, [])
 
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -366,6 +374,11 @@ export default function BookingPage() {
       </div>
 
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
+        {wasRescheduled && (
+          <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>📅</span> Your previous lesson has been cancelled. Please book a new time below.
+          </div>
+        )}
         <Steps current={step} />
 
         {/* STEP 0: Select Student */}

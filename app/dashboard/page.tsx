@@ -34,6 +34,7 @@ interface Booking {
   id: string; status: string
   session_date: string; start_time: string; end_time: string
   course_name: string; coach_name: string; student_name?: string
+  lesson_credit_id?: string
 }
 
 function getAge(dob: string): number {
@@ -245,6 +246,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('Good morning')
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
   useEffect(() => {
@@ -275,7 +277,7 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name)), students(full_name)')
+        .select('id, status, student_id, lesson_credit_id, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name)), students(full_name)')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -299,6 +301,7 @@ export default function DashboardPage() {
         course_name: b.class_sessions?.course_types?.name,
         coach_name: b.class_sessions?.coaches?.first_name,
         student_name: b.students?.full_name,
+        lesson_credit_id: b.lesson_credit_id,
       })).filter(b => b.session_date)
 
     const allUpcoming = parseBookings(upcoming || []).filter(b => b.session_date >= today)
@@ -314,6 +317,20 @@ export default function DashboardPage() {
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
     await fetchAll()
     setCancellingId(null)
+  }
+
+  async function rescheduleBooking(bookingId: string, lessonCreditId: string) {
+    setReschedulingId(bookingId)
+    // Cancel the current booking
+    await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', bookingId)
+    // Return the credit
+    const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', lessonCreditId).single()
+    if (credit) {
+      await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', lessonCreditId)
+    }
+    setReschedulingId(null)
+    // Redirect to booking page
+    window.location.href = '/booking?rescheduled=1'
   }
 
   if (loading) return (
@@ -473,10 +490,18 @@ export default function DashboardPage() {
                         {booking.status}
                       </span>
                       {daysUntil >= 1 && (
-                        <button onClick={() => cancelBooking(booking.id)} disabled={cancellingId === booking.id}
-                          style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                          {cancellingId === booking.id ? '...' : 'Cancel'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => booking.lesson_credit_id && rescheduleBooking(booking.id, booking.lesson_credit_id)}
+                            disabled={reschedulingId === booking.id}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                            {reschedulingId === booking.id ? '...' : 'Reschedule'}
+                          </button>
+                          <button onClick={() => cancelBooking(booking.id)} disabled={cancellingId === booking.id}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                            {cancellingId === booking.id ? '...' : 'Cancel'}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
