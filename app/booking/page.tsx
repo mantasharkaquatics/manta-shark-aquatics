@@ -321,10 +321,19 @@ export default function BookingPage() {
     // 如果是 reschedule，取消舊課並退回舊課的 credit
     const rbIdToCancel = rescheduleBookingIdRef.current || rescheduleBookingId
     if (rbIdToCancel) {
-      // 取消舊課
+      // 取消舊課，並退回 enrolled_count
+      const { data: oldBookingData } = await supabase
+        .from('bookings')
+        .select('lesson_credit_id, class_session_id')
+        .eq('id', rbIdToCancel)
+        .single()
       await supabase.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
         .eq('id', rbIdToCancel)
+      // 退回舊課的 enrolled_count
+      if (oldBookingData?.class_session_id) {
+        await supabase.rpc('decrement_enrolled', { session_id: oldBookingData.class_session_id })
+      }
       // 退回舊課的 credit（找到舊課用的 credit 並退回）
       const { data: oldBooking } = await supabase
         .from('bookings')
@@ -721,7 +730,7 @@ export default function BookingPage() {
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Remaining Credits After</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{remainingCredits - 1} credits</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{isReschedule ? remainingCredits : remainingCredits - 1} credits</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
