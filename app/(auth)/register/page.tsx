@@ -93,7 +93,7 @@ export default function RegisterPage() {
         parent_id: parent.id,
         full_name: s.fullName.trim(),
         date_of_birth: s.dateOfBirth || null,
-        current_level: '1',
+        current_level: null,
         is_active: true,
       })
     }
