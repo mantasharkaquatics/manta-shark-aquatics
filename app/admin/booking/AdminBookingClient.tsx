@@ -656,7 +656,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                     </div>
                   )
                 })}
-                {daySessions.length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.length - 3} 更多</p>}
+                {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.filter(s => s.enrolled_count > 0).length - 3} 更多</p>}
               </div>
             </button>
           )
