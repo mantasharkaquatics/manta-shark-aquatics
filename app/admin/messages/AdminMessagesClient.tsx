@@ -72,15 +72,26 @@ export default function AdminMessagesClient() {
   const unreadCount = threads.filter(t => t.unread_by_admin).length
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARKER, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div style={{
+      fontFamily: "'DM Sans', sans-serif",
+      background: DARKER,
+      position: 'fixed',
+      top: 73,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
         <h1 style={{ fontFamily: "'Playfair Display', serif", color: '#fff', fontSize: '24px', fontWeight: 900, margin: 0 }}>Messages</h1>
         {unreadCount > 0 && (
-          <span style={{ background: RED, color: '#fff', borderRadius: '999px', fontSize: '12px', fontWeight: 700, padding: '2px 8px', lineHeight: '18px' }}>{unreadCount}</span>
+          <span style={{ background: RED, color: '#fff', borderRadius: '999px', fontSize: '12px', fontWeight: 700, padding: '2px 8px' }}>{unreadCount}</span>
         )}
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Thread List */}
         <div style={{
           width: isMobile ? '100%' : '320px',
           display: isMobile && mobileView === 'chat' ? 'none' : 'flex',
@@ -115,14 +126,15 @@ export default function AdminMessagesClient() {
           ))}
         </div>
 
-        <div style={{ flex: 1, display: isMobile && mobileView === 'list' ? 'none' : 'flex', flexDirection: 'column' }}>
+        {/* Chat Area */}
+        <div style={{ flex: 1, display: isMobile && mobileView === 'list' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!selectedThread ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
               Select a conversation
             </div>
           ) : (
             <>
-              <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                 {isMobile && (
                   <button onClick={() => setMobileView('list')} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '20px', cursor: 'pointer' }}>←</button>
                 )}
@@ -152,7 +164,7 @@ export default function AdminMessagesClient() {
                 <div ref={bottomRef} />
               </div>
 
-              <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '10px', background: NAVY }}>
+              <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '10px', background: NAVY, flexShrink: 0 }}>
                 <input
                   value={input}
                   onChange={e => setInput(e.target.value)}
