@@ -19,6 +19,7 @@ const navLinks = [
     { href: '/admin/members', label: 'Members' },
     { href: '/admin/upgrades', label: 'Upgrades' },
     { href: '/admin/time-off', label: 'Time Off' },
+    { href: '/admin/messages', label: 'Messages' },
     { href: '/admin/booking', label: 'Booking' },
     { href: '/admin/schedule', label: 'Schedule' },
     { href: '/admin/sales', label: 'Sales' },
