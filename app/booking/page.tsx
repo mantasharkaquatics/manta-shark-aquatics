@@ -668,6 +668,16 @@ export default function BookingPage() {
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
                   Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
+              {isNextDayBlocked(selectedDate) && (
+                <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <span style={{ fontSize: '16px' }}>⚠️</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Advance Booking Required</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Bookings for the next day must be made through us after 7:30 PM. Please contact us and we'll reserve your spot.</div>
+                    <a href="mailto:info@mantasharkaquatics.net" style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, textDecoration: 'none' }}>📧 Contact Us →</a>
+                  </div>
+                </div>
+              )}
                 {timeSlots.length === 0 ? (
                   <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>No available slots for this day.</p>
