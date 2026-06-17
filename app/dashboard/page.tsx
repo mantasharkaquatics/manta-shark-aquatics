@@ -189,6 +189,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
       </div>
     </div>
     {parentData && <ChatWidget parentId={parentData.id} />}
+    </>
   )
 }
 
@@ -374,6 +375,7 @@ export default function DashboardPage() {
   )
 
   return (
+    <>
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
