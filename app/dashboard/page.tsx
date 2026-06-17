@@ -572,14 +572,14 @@ export default function DashboardPage() {
                           <button
                             onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time)}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? 'not-allowed' : 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : 'Reschedule'}
                           </button>
                           {daysUntil >= 1 ? (
                             <button
                               onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
                               disabled={cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time)}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? 'rgba(255,255,255,0.2)' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? 'not-allowed' : 'pointer' }}>
                               {cancellingId === booking.id ? '...' : 'Cancel'}
                             </button>
                           ) : (
