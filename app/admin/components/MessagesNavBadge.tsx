@@ -31,7 +31,7 @@ export default function MessagesNavBadge() {
   const isActive = pathname === '/admin/messages'
 
   return (
-    <Link href="/admin/messages"
+    <Link href="/admin/messages" scroll={false}
       className={`relative text-gray-300 hover:text-[#c9a84c] hover:bg-[#1e3a6e] px-3 py-2 rounded-lg text-sm transition-all ${isActive ? 'text-[#c9a84c] bg-[#1e3a6e]' : ''}`}>
       Messages
       {unreadCount > 0 && (
