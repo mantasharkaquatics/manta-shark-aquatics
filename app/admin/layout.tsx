@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import MessagesNavBadge from './components/MessagesNavBadge'
+import SignOutButton from './components/SignOutButton'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
@@ -49,9 +50,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <MessagesNavBadge />
             </div>
           </div>
-          <form action="/auth/signout" method="post">
-            <button className="text-gray-400 hover:text-white text-sm transition-colors">Sign Out</button>
-          </form>
+          <SignOutButton />
         </div>
       </nav>
       <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
