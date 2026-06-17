@@ -3,54 +3,58 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import MessagesNavBadge from './components/MessagesNavBadge'
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-const cookieStore = await cookies()
-const supabase = createServerClient(
-process.env.NEXT_PUBLIC_SUPABASE_URL!,
-process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
   )
-const { data: { user } } = await supabase.auth.getUser()
-if (!user) redirect('/login')
-const { data: admin } = await supabase.from('admins').select('id, first_name, last_name, role').eq('auth_user_id', user.id).single()
-if (!admin) redirect('/dashboard')
-const navLinks = [
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  const { data: admin } = await supabase.from('admins').select('id, first_name, last_name, role').eq('auth_user_id', user.id).single()
+  if (!admin) redirect('/dashboard')
+
+  const navLinks = [
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/members', label: 'Members' },
     { href: '/admin/upgrades', label: 'Upgrades' },
     { href: '/admin/time-off', label: 'Time Off' },
-    { href: '/admin/messages', label: 'Messages' },
     { href: '/admin/booking', label: 'Booking' },
     { href: '/admin/schedule', label: 'Schedule' },
     { href: '/admin/sales', label: 'Sales' },
   ]
-return (
-<div className="min-h-screen bg-[#0d1529]">
-<nav className="bg-[#111d38] border-b border-[#1e3a6e] px-6 py-4">
-<div className="max-w-7xl mx-auto flex items-center justify-between">
-<div className="flex items-center gap-6">
-<div className="flex items-center gap-3">
-<Image src="/logo.png" alt="Manta Shark" width={36} height={36} />
-<div>
-<p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
-<p className="text-white text-sm font-semibold">{admin.first_name} {admin.last_name}</p>
-</div>
-</div>
-<div className="hidden md:flex items-center gap-1">
-{navLinks.map(link => (
-<Link key={link.href} href={link.href}
-className="text-gray-300 hover:text-[#c9a84c] hover:bg-[#1e3a6e] px-3 py-2 rounded-lg text-sm transition-all">
-{link.label}
-</Link>
+
+  return (
+    <div className="min-h-screen bg-[#0d1529]">
+      <nav className="bg-[#111d38] border-b border-[#1e3a6e] px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="Manta Shark" width={36} height={36} />
+              <div>
+                <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
+                <p className="text-white text-sm font-semibold">{admin.first_name} {admin.last_name}</p>
+              </div>
+            </div>
+            <div className="hidden md:flex items-center gap-1">
+              {navLinks.map(link => (
+                <Link key={link.href} href={link.href}
+                  className="text-gray-300 hover:text-[#c9a84c] hover:bg-[#1e3a6e] px-3 py-2 rounded-lg text-sm transition-all">
+                  {link.label}
+                </Link>
               ))}
-</div>
-</div>
-<form action="/auth/signout" method="post">
-<button className="text-gray-400 hover:text-white text-sm transition-colors">Sign Out</button>
-</form>
-</div>
-</nav>
-<main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
-</div>
+              <MessagesNavBadge />
+            </div>
+          </div>
+          <form action="/auth/signout" method="post">
+            <button className="text-gray-400 hover:text-white text-sm transition-colors">Sign Out</button>
+          </form>
+        </div>
+      </nav>
+      <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
+    </div>
   )
 }
