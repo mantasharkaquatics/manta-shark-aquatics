@@ -356,6 +356,27 @@ export default function BookingPage() {
       }
     }
 
+    // 寄送 email 通知
+    try {
+      const { data: parentData } = await supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).single()
+      if (parentData) {
+        await fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: rbIdToCancel ? 'booking_rescheduled' : 'booking_confirmed',
+            to: parentData.email,
+            parentName: parentData.first_name,
+            studentName: selectedStudent.full_name,
+            courseName: selectedCourse.name,
+            coachName: `${selectedCoach.first_name} ${selectedCoach.last_name}`,
+            date: dateStr,
+            time: `${startTime} – ${endTime}`,
+          }),
+        })
+      }
+    } catch (e) { console.error('Email error:', e) }
+
     setSubmitting(false)
     setSuccess(true)
   }
