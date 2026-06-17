@@ -52,9 +52,10 @@ export default function CheckinClient() {
   const [coachId, setCoachId] = useState<string | null>(null)
   const [manualInput, setManualInput] = useState('')
   const [cameraError, setCameraError] = useState(false)
+  const [showLevelModal, setShowLevelModal] = useState(false)
+  const [assigningLevel, setAssigningLevel] = useState(false)
 
   useEffect(() => {
-    // Get current coach
     async function getCoach() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -105,7 +106,6 @@ export default function CheckinClient() {
       if (!ctx) return
       ctx.drawImage(video, 0, 0)
 
-      // Use BarcodeDetector if available
       if ('BarcodeDetector' in window) {
         try {
           const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
@@ -149,7 +149,6 @@ export default function CheckinClient() {
   }
 
   async function lookupStudent(studentId: string) {
-    // Get student info
     const { data: student, error: sErr } = await supabase
       .from('students')
       .select('id, full_name, current_level')
@@ -164,7 +163,6 @@ export default function CheckinClient() {
     const today = new Date().toISOString().split('T')[0]
     const now = new Date()
 
-    // Find today's booking
     const { data: bookings } = await supabase
       .from('bookings')
       .select('id, class_session_id, status, class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name))')
@@ -172,7 +170,6 @@ export default function CheckinClient() {
       .neq('status', 'cancelled')
       .limit(10)
 
-    // Find today's booking
     const todayBooking = (bookings || []).find((b: any) => {
       const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
       return cs?.session_date === today
@@ -199,18 +196,14 @@ export default function CheckinClient() {
         status: todayBooking.status,
       }
 
-      // Check if within 30 minutes before class
       const [h, m] = cs.start_time.split(':').map(Number)
       const classTime = new Date()
       classTime.setHours(h, m, 0, 0)
       const diffMs = classTime.getTime() - now.getTime()
       const diffMin = Math.round(diffMs / 60000)
       minutes_until_class = diffMin
-
-      // Allow check-in from 30 min before to 30 min after start
       check_in_allowed = diffMin <= 30 && diffMin >= -30
 
-      // Check if already checked in
       const { data: existing } = await supabase
         .from('attendance')
         .select('id')
@@ -250,8 +243,21 @@ export default function CheckinClient() {
     } else {
       setCheckedIn(true)
       setStudentInfo(prev => prev ? { ...prev, already_checked_in: true } : prev)
+      // 若是第一次上課（current_level = null），彈出 level 選擇 modal
+      if (studentInfo.current_level === null) {
+        setShowLevelModal(true)
+      }
     }
     setLoading(false)
+  }
+
+  async function assignLevel(level: number) {
+    if (!studentInfo) return
+    setAssigningLevel(true)
+    await supabase.from('students').update({ current_level: level }).eq('id', studentInfo.id)
+    setStudentInfo(prev => prev ? { ...prev, current_level: level } : prev)
+    setAssigningLevel(false)
+    setShowLevelModal(false)
   }
 
   async function handleManualSubmit() {
@@ -269,6 +275,7 @@ export default function CheckinClient() {
     setStudentInfo(null)
     setError(null)
     setCheckedIn(false)
+    setShowLevelModal(false)
   }
 
   return (
@@ -404,7 +411,6 @@ export default function CheckinClient() {
                     with {studentInfo.booking.coach_name} · {formatTime(studentInfo.booking.start_time)} – {formatTime(studentInfo.booking.end_time)}
                   </div>
 
-                  {/* Time warning */}
                   {studentInfo.minutes_until_class !== null && (
                     <div style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '8px', background: studentInfo.check_in_allowed ? 'rgba(76,175,114,0.1)' : 'rgba(224,90,74,0.1)', border: `1px solid ${studentInfo.check_in_allowed ? 'rgba(76,175,114,0.3)' : 'rgba(224,90,74,0.3)'}` }}>
                       <span style={{ fontSize: '12px', fontWeight: 600, color: studentInfo.check_in_allowed ? '#4caf72' : '#e05a4a' }}>
@@ -436,6 +442,13 @@ export default function CheckinClient() {
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>
                     {studentInfo.already_checked_in && !checkedIn ? 'Already checked in earlier' : 'Check-in recorded successfully'}
                   </div>
+                  {checkedIn && studentInfo.current_level !== null && (
+                    <div style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: '8px' }}>
+                      <span style={{ fontSize: '12px', color: GOLD }}>
+                        Level assigned: {studentInfo.current_level} · {LEVEL_NAMES[studentInfo.current_level]}
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={reset}
                     style={{ width: '100%', padding: '12px', borderRadius: '10px', background: GOLD, color: NAVY, border: 'none', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
@@ -464,6 +477,61 @@ export default function CheckinClient() {
         )}
 
       </div>
+
+      {/* Level Assignment Modal */}
+      {showLevelModal && studentInfo && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '20px',
+        }}>
+          <div style={{
+            background: NAVY, borderRadius: '20px', padding: '32px',
+            maxWidth: '420px', width: '100%',
+            border: `1px solid ${GOLD}30`,
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🏊</div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 900, color: '#fff', margin: '0 0 8px' }}>
+                First Lesson!
+              </h2>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+                Assign a starting level for <strong style={{ color: '#fff' }}>{studentInfo.full_name}</strong>
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' }}>
+              {[1,2,3,4,5,6,7,8,9].map(level => (
+                <button
+                  key={level}
+                  onClick={() => assignLevel(level)}
+                  disabled={assigningLevel}
+                  style={{
+                    padding: '14px 8px', borderRadius: '10px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#fff', cursor: assigningLevel ? 'not-allowed' : 'pointer',
+                    textAlign: 'center', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = `${GOLD}20`, e.currentTarget.style.borderColor = GOLD)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)', e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')}
+                >
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: GOLD }}>{level}</div>
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', lineHeight: 1.2 }}>{LEVEL_NAMES[level]}</div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowLevelModal(false)}
+              style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Skip for now
+            </button>
+          </div>
+        </div>
+      )}
+
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
     </div>
   )
