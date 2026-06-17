@@ -10,6 +10,6 @@ export async function POST(request: Request) {
     { cookies: { getAll() { return cookieStore.getAll() }, setAll(cookiesToSet) { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } } }
   )
   await supabase.auth.signOut()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'
-  return NextResponse.redirect(`${appUrl}/`)
+  const origin = new URL(request.url).origin
+  return NextResponse.redirect(`${origin}/`)
 }
