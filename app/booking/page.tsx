@@ -363,7 +363,9 @@ export default function BookingPage() {
   function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay() }
 
   function isDateAvailable(date: Date): boolean {
-    if (date < today) return false
+    const todayMidnight = new Date(today)
+    todayMidnight.setHours(0, 0, 0, 0)
+    if (date < todayMidnight) return false
     const maxDate = new Date(today)
     maxDate.setDate(maxDate.getDate() + 60)
     if (date > maxDate) return false
