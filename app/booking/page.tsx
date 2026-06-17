@@ -383,6 +383,19 @@ export default function BookingPage() {
     return true
   }
 
+
+  function isNextDayBlocked(date: Date): boolean {
+    const nowLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+    const isPastCutoff = nowLA.getHours() > 19 || (nowLA.getHours() === 19 && nowLA.getMinutes() >= 30)
+    if (!isPastCutoff) return false
+    const tomorrow = new Date(nowLA)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(0, 0, 0, 0)
+    const tomorrowEnd = new Date(tomorrow)
+    tomorrowEnd.setHours(23, 59, 59, 999)
+    return date >= tomorrow && date <= tomorrowEnd
+  }
+
   if (loading) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
