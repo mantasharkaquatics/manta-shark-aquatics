@@ -684,7 +684,7 @@ export default function BookingPage() {
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Same-Day Booking</div>
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Same-day bookings must be made through us. Please contact us and we'll reserve your spot.</div>
-                  <a href="mailto:info@mantasharkaquatics.net" style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, textDecoration: 'none' }}>📧 Contact Us →</a>
+                  <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
                 </div>
               </div>
             )}
@@ -694,7 +694,7 @@ export default function BookingPage() {
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Advance Booking Required</div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Bookings for the next day must be made through us after 7:30 PM. Please contact us and we'll reserve your spot.</div>
-                    <a href="mailto:info@mantasharkaquatics.net" style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, textDecoration: 'none' }}>📧 Contact Us →</a>
+                    <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
                   </div>
                 </div>
               )}

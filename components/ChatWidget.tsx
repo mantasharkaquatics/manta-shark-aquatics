@@ -97,7 +97,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
     <>
       {/* FAB Button */}
       {!open && (
-        <button onClick={() => setOpen(true)} style={{
+        <button data-chat-toggle onClick={() => setOpen(true)} style={{
           position: 'fixed', bottom: '20px', right: '20px', zIndex: 999,
           width: '56px', height: '56px', borderRadius: '50%',
           background: GOLD, border: 'none', cursor: 'pointer',
