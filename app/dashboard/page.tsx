@@ -188,7 +188,6 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
         </button>
       </div>
     </div>
-    {parentData && <ChatWidget parentId={parentData.id} />}
   )
 }
 
