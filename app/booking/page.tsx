@@ -137,6 +137,7 @@ export default function BookingPage() {
   const [isReschedule, setIsReschedule] = useState(false)
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
   const rescheduleBookingIdRef = useRef<string | null>(null)
+  const [countdown, setCountdown] = useState(30)
 
   const [parentId, setParentId] = useState<string | null>(null)
   const [students, setStudents] = useState<Student[]>([])
@@ -179,7 +180,6 @@ export default function BookingPage() {
       setCoaches(coachs || [])
       setCredits((crds || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
 
-      // 讀取 URL params，判斷是否為 reschedule
       const params = new URLSearchParams(window.location.search)
       const rbId = params.get('reschedule_booking_id')
       const rSlug = params.get('reschedule_slug')
@@ -188,7 +188,7 @@ export default function BookingPage() {
       if (rbId && rSlug) {
         setIsReschedule(true)
         setRescheduleBookingId(rbId)
-          rescheduleBookingIdRef.current = rbId
+        rescheduleBookingIdRef.current = rbId
         const matchCourse = (cts || []).find((c: any) => c.slug === rSlug) || null
         const matchStudent = (studs || []).find((s: any) => s.id === rStudentId) || (studs || [])[0] || null
         if (matchCourse) setSelectedCourse(matchCourse as any)
@@ -202,6 +202,18 @@ export default function BookingPage() {
     }
     init()
   }, [])
+
+  useEffect(() => {
+    if (!success) return
+    setCountdown(30)
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { clearInterval(interval); router.push('/dashboard'); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [success])
 
   useEffect(() => {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
@@ -256,7 +268,6 @@ export default function BookingPage() {
     setTimeSlots(slots)
   }
 
-  // 先用最早購買的 package（credits 需要有 created_at）
   const availableCredit = selectedCourse
     ? [...credits]
         .filter(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
@@ -319,10 +330,8 @@ export default function BookingPage() {
 
     await supabase.rpc('increment_enrolled', { session_id: sessionId })
 
-    // 如果是 reschedule，取消舊課並退回舊課的 credit
     const rbIdToCancel = rescheduleBookingIdRef.current || rescheduleBookingId
     if (rbIdToCancel) {
-      // 取消舊課，並退回 enrolled_count
       const { data: oldBookingData } = await supabase
         .from('bookings')
         .select('lesson_credit_id, class_session_id')
@@ -331,11 +340,9 @@ export default function BookingPage() {
       await supabase.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
         .eq('id', rbIdToCancel)
-      // 退回舊課的 enrolled_count
       if (oldBookingData?.class_session_id) {
         await supabase.rpc('decrement_enrolled', { session_id: oldBookingData.class_session_id })
       }
-      // 退回舊課的 credit（找到舊課用的 credit 並退回）
       const { data: oldBooking } = await supabase
         .from('bookings')
         .select('lesson_credit_id')
@@ -356,7 +363,6 @@ export default function BookingPage() {
       }
     }
 
-    // 寄送 email 通知
     try {
       const { data: parentData } = await supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).single()
       if (parentData) {
@@ -393,7 +399,6 @@ export default function BookingPage() {
     if (date > maxDate) return false
     return true
   }
-
 
   function isToday(date: Date): boolean {
     const todayMidnight = new Date(today)
@@ -435,33 +440,38 @@ export default function BookingPage() {
         <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
           {isReschedule ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
         </h2>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '8px' }}>
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
           <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> is booked for
         </p>
-        <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '8px' }}>
+        <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
           {selectedCourse?.name} with {selectedCoach?.first_name}
         </p>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '32px' }}>
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
           {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {selectedSlot?.label}
         </p>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)',
+          borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
+        }}>
+          <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+            A confirmation email has been sent to your inbox.
+          </p>
+        </div>
+
         <Link href="/dashboard" style={{
-          display: 'inline-block', padding: '13px 32px',
+          display: 'block', padding: '13px 32px',
           background: GOLD, color: NAVY, borderRadius: '8px',
           fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-          textTransform: 'uppercase', textDecoration: 'none',
+          textTransform: 'uppercase', textDecoration: 'none', marginBottom: '12px',
         }}>
-          <div style={{
-            background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)',
-            borderRadius: '10px', padding: '12px 16px', marginBottom: '24px',
-            display: 'flex', alignItems: 'center', gap: '10px',
-          }}>
-            <span style={{ fontSize: '18px' }}>📧</span>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
-              A confirmation email has been sent to your inbox.
-            </p>
-          </div>
           Back to Dashboard
         </Link>
+        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
+          Redirecting in {countdown}s...
+        </p>
       </div>
     </div>
   )
@@ -497,7 +507,6 @@ export default function BookingPage() {
 
         <Steps current={step} />
 
-        {/* STEP 0: Select Student */}
         {step === 0 && (
           <div>
             <SectionTitle eyebrow="Step 1" title="Who is this lesson for?" />
@@ -537,7 +546,6 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* STEP 1: Course Type */}
         {step === 1 && (
           <div>
             <SectionTitle eyebrow="Step 2" title="What type of lesson?" />
@@ -611,7 +619,6 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* STEP 2: Choose Coach */}
         {step === 2 && (
           <div>
             <SectionTitle eyebrow="Step 3" title="Choose your coach" />
@@ -660,7 +667,6 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* STEP 3: Date & Time */}
         {step === 3 && (
           <div>
             <SectionTitle eyebrow="Step 4" title="Pick a date & time" />
@@ -687,17 +693,17 @@ export default function BookingPage() {
                   const date = new Date(calYear, calMonth, i + 1)
                   const available = isDateAvailable(date)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
-                  const isToday = date.toDateString() === today.toDateString()
+                  const isTodayDate = date.toDateString() === today.toDateString()
                   return (
                     <button key={i}
                       onClick={() => { if (available) { setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]) } }}
                       style={{
                         padding: '8px 4px', borderRadius: '8px', border: 'none',
-                        background: isSelected ? GOLD : isToday ? 'rgba(255,255,255,0.08)' : 'transparent',
+                        background: isSelected ? GOLD : isTodayDate ? 'rgba(255,255,255,0.08)' : 'transparent',
                         color: isSelected ? NAVY : available ? '#fff' : 'rgba(255,255,255,0.2)',
                         fontSize: '13px', fontWeight: isSelected ? 700 : 400,
                         cursor: available ? 'pointer' : 'not-allowed',
-                        outline: isToday && !isSelected ? `1px solid ${GOLD}40` : 'none',
+                        outline: isTodayDate && !isSelected ? `1px solid ${GOLD}40` : 'none',
                       }}
                     >{i + 1}</button>
                   )
@@ -710,26 +716,26 @@ export default function BookingPage() {
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
                   Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
-              {isToday(selectedDate) && (
-              <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                <span style={{ fontSize: '16px' }}>📅</span>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Same-Day Booking</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Same-day bookings must be made through us. Please contact us and we'll reserve your spot.</div>
-                  <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
-                </div>
-              </div>
-            )}
-          {isNextDayBlocked(selectedDate) && (
-                <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <span style={{ fontSize: '16px' }}>⚠️</span>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Advance Booking Required</div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Bookings for the next day must be made through us after 7:30 PM. Please contact us and we'll reserve your spot.</div>
-                    <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
+                {isToday(selectedDate) && (
+                  <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <span style={{ fontSize: '16px' }}>📅</span>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Same-Day Booking</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Same-day bookings must be made through us. Please contact us and we'll reserve your spot.</div>
+                      <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+                {isNextDayBlocked(selectedDate) && (
+                  <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <span style={{ fontSize: '16px' }}>⚠️</span>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Advance Booking Required</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Bookings for the next day must be made through us after 7:30 PM. Please contact us and we'll reserve your spot.</div>
+                      <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
+                    </div>
+                  </div>
+                )}
                 {timeSlots.length === 0 ? (
                   <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>No available slots for this day.</p>
@@ -782,7 +788,6 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* STEP 4: Confirm */}
         {step === 4 && (
           <div>
             <SectionTitle eyebrow="Step 5" title="Confirm your booking" />
