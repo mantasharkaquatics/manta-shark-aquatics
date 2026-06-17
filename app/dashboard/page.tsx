@@ -189,7 +189,6 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
       </div>
     </div>
     {parentData && <ChatWidget parentId={parentData.id} />}
-    </>
   )
 }
 
@@ -200,7 +199,6 @@ function CreditCard({ g, remaining, pct }: {
 }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <>
     <div style={{ background: '#1a2744', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
         {g.name}
