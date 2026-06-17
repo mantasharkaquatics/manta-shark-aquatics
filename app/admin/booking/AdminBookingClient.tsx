@@ -728,6 +728,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
 // Session Chip
 // ══════════════════════════════════════════════════════════════════════
 function SessionChip({ session, onClick }: { session: Session; onClick: () => void }) {
+  if (session.enrolled_count === 0) return null
   const ct = getSessionCourseType(session)
   const colorClass = COURSE_COLORS[ct.slug] || 'bg-gray-500'
   const isFull = session.enrolled_count >= session.max_students
