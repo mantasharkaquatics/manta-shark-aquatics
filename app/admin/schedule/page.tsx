@@ -38,6 +38,8 @@ export default async function AdminSchedulePage() {
 
   const grouped: Record<string, typeof sessions> = {}
   sessions.forEach(s => {
+    const active = s.bookings.filter((b: any) => b.status !== 'cancelled')
+    if (active.length === 0) return
     if (!grouped[s.session_date]) grouped[s.session_date] = []
     grouped[s.session_date].push(s)
   })

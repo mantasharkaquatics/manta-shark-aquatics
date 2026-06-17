@@ -646,7 +646,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                 {date.getDate()}
               </p>
               <div className="flex-1 space-y-0.5">
-                {daySessions.slice(0, 3).map(s => {
+                {daySessions.filter(s => s.enrolled_count > 0).slice(0, 3).map(s => {
                   const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
                   const slug = ct?.slug || ''
                   return (
