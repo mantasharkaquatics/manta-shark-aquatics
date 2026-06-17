@@ -715,8 +715,8 @@ export default function BookingPage() {
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>← Back</button>
               <button
-                onClick={() => { if (selectedSlot) setStep(4) }}
-                disabled={!selectedSlot}
+                onClick={() => { if (selectedSlot && !isNextDayBlocked(selectedDate!)) setStep(4) }}
+                disabled={!selectedSlot || isNextDayBlocked(selectedDate!)}
                 style={{
                   flex: 2, padding: '14px',
                   background: selectedSlot ? GOLD : 'rgba(255,255,255,0.1)',
