@@ -319,8 +319,20 @@ export default function DashboardPage() {
   }
 
   function isWithin24Hours(sessionDate: string, startTime: string): boolean {
-    const laTime = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })
-    const nowLA = new Date(laTime)
+    const nowUTC = new Date()
+    // 把課程時間當作 LA 時間，轉換成 UTC
+    const sessionLAString = `${sessionDate}T${startTime}`
+    const sessionUTC = new Date(new Date(sessionLAString).toLocaleString('en-US', { timeZone: 'UTC' }))
+    const sessionLA = new Date(new Date(sessionLAString + ' America/Los_Angeles').toLocaleString('en-US', { timeZone: 'UTC' }))
+    // 用 Intl 正確解析 LA 時間
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    })
+    const parts = formatter.formatToParts(nowUTC)
+    const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0'
+    const nowLA = new Date(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`)
     const sessionStart = new Date(`${sessionDate}T${startTime}`)
     const diffMs = sessionStart.getTime() - nowLA.getTime()
     return diffMs <= 24 * 60 * 60 * 1000
