@@ -3,9 +3,9 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const NAVY = '#1a2744'
-const DARK = '#111d38'
 const DARKER = '#0d1529'
 const GOLD = '#c9a84c'
+const RED = '#ef4444'
 
 export default function AdminMessagesClient() {
   const supabase = createClient()
@@ -49,6 +49,7 @@ export default function AdminMessagesClient() {
       .order('created_at', { ascending: true })
     setMessages(data || [])
     await supabase.from('chat_threads').update({ unread_by_admin: false }).eq('id', threadId)
+    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, unread_by_admin: false } : t))
   }
 
   async function selectThread(thread: any) {
@@ -68,15 +69,18 @@ export default function AdminMessagesClient() {
   }
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const unreadCount = threads.filter(t => t.unread_by_admin).length
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARKER, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <h1 style={{ fontFamily: "'Playfair Display', serif", color: '#fff', fontSize: '24px', fontWeight: 900, margin: 0 }}>Messages</h1>
+        {unreadCount > 0 && (
+          <span style={{ background: RED, color: '#fff', borderRadius: '999px', fontSize: '12px', fontWeight: 700, padding: '2px 8px', lineHeight: '18px' }}>{unreadCount}</span>
+        )}
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Thread List */}
         <div style={{
           width: isMobile ? '100%' : '320px',
           display: isMobile && mobileView === 'chat' ? 'none' : 'flex',
@@ -94,9 +98,11 @@ export default function AdminMessagesClient() {
               borderLeft: selectedThread?.id === thread.id ? `3px solid ${GOLD}` : '3px solid transparent',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <div style={{ fontWeight: 700, color: '#fff', fontSize: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#fff', fontSize: '14px' }}>
                   {thread.parents?.first_name} {thread.parents?.last_name}
-                  {thread.unread_by_admin && <span style={{ marginLeft: '8px', background: GOLD, borderRadius: '50%', width: '8px', height: '8px', display: 'inline-block' }} />}
+                  {thread.unread_by_admin && (
+                    <span style={{ background: RED, borderRadius: '50%', width: '8px', height: '8px', display: 'inline-block', flexShrink: 0 }} />
+                  )}
                 </div>
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
                   {thread.last_message_at ? new Date(thread.last_message_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
@@ -109,19 +115,13 @@ export default function AdminMessagesClient() {
           ))}
         </div>
 
-        {/* Chat Area */}
-        <div style={{
-          flex: 1,
-          display: isMobile && mobileView === 'list' ? 'none' : 'flex',
-          flexDirection: 'column',
-        }}>
+        <div style={{ flex: 1, display: isMobile && mobileView === 'list' ? 'none' : 'flex', flexDirection: 'column' }}>
           {!selectedThread ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
               Select a conversation
             </div>
           ) : (
             <>
-              {/* Chat Header */}
               <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 {isMobile && (
                   <button onClick={() => setMobileView('list')} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '20px', cursor: 'pointer' }}>←</button>
@@ -132,7 +132,6 @@ export default function AdminMessagesClient() {
                 </div>
               </div>
 
-              {/* Messages */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {messages.map(msg => (
                   <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'admin' ? 'flex-end' : 'flex-start' }}>
@@ -153,7 +152,6 @@ export default function AdminMessagesClient() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* Input */}
               <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '10px', background: NAVY }}>
                 <input
                   value={input}
