@@ -1,4 +1,5 @@
 'use client'
+import ChatWidget from '@/components/ChatWidget'
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
@@ -187,6 +188,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
         </button>
       </div>
     </div>
+    {parentData && <ChatWidget parentId={parentData.id} />}
   )
 }
 
