@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import ChatWidget from '@/components/ChatWidget'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -800,6 +801,7 @@ export default function BookingPage() {
         )}
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+      {parent && <ChatWidget parentId={parent.id} />}
     </div>
   )
 }
