@@ -373,6 +373,14 @@ export default function BookingPage() {
   }
 
 
+  function isToday(date: Date): boolean {
+    const todayMidnight = new Date(today)
+    todayMidnight.setHours(0, 0, 0, 0)
+    const dateMidnight = new Date(date)
+    dateMidnight.setHours(0, 0, 0, 0)
+    return dateMidnight.getTime() === todayMidnight.getTime()
+  }
+
   function isNextDayBlocked(date: Date): boolean {
     const nowLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
     const isPastCutoff = nowLA.getHours() > 19 || (nowLA.getHours() === 19 && nowLA.getMinutes() >= 30)
@@ -670,7 +678,17 @@ export default function BookingPage() {
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
                   Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
-              {isNextDayBlocked(selectedDate) && (
+              {isToday(selectedDate) && (
+              <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ fontSize: '16px' }}>📅</span>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Same-Day Booking</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Same-day bookings must be made through us. Please contact us and we'll reserve your spot.</div>
+                  <a href="mailto:info@mantasharkaquatics.net" style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, textDecoration: 'none' }}>📧 Contact Us →</a>
+                </div>
+              </div>
+            )}
+          {isNextDayBlocked(selectedDate) && (
                 <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                   <span style={{ fontSize: '16px' }}>⚠️</span>
                   <div>
@@ -717,15 +735,15 @@ export default function BookingPage() {
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>← Back</button>
               <button
-                onClick={() => { if (selectedSlot && !isNextDayBlocked(selectedDate!)) setStep(4) }}
-                disabled={!selectedSlot || isNextDayBlocked(selectedDate!)}
+                onClick={() => { if (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) setStep(4) }}
+                disabled={!selectedSlot || isNextDayBlocked(selectedDate!) || isToday(selectedDate!)}
                 style={{
                   flex: 2, padding: '14px',
-                  background: (selectedSlot && !isNextDayBlocked(selectedDate!)) ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: (selectedSlot && !isNextDayBlocked(selectedDate!)) ? NAVY : 'rgba(255,255,255,0.3)',
+                  background: (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) ? GOLD : 'rgba(255,255,255,0.1)',
+                  color: (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) ? NAVY : 'rgba(255,255,255,0.3)',
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: (selectedSlot && !isNextDayBlocked(selectedDate!)) ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase', cursor: (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) ? 'pointer' : 'not-allowed',
                 }}
               >Continue →</button>
             </div>
