@@ -719,11 +719,11 @@ export default function BookingPage() {
                 disabled={!selectedSlot || isNextDayBlocked(selectedDate!)}
                 style={{
                   flex: 2, padding: '14px',
-                  background: selectedSlot ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: selectedSlot ? NAVY : 'rgba(255,255,255,0.3)',
+                  background: (selectedSlot && !isNextDayBlocked(selectedDate!)) ? GOLD : 'rgba(255,255,255,0.1)',
+                  color: (selectedSlot && !isNextDayBlocked(selectedDate!)) ? NAVY : 'rgba(255,255,255,0.3)',
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: selectedSlot ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase', cursor: (selectedSlot && !isNextDayBlocked(selectedDate!)) ? 'pointer' : 'not-allowed',
                 }}
               >Continue →</button>
             </div>
