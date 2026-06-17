@@ -450,6 +450,16 @@ export default function BookingPage() {
           fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
           textTransform: 'uppercase', textDecoration: 'none',
         }}>
+          <div style={{
+            background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)',
+            borderRadius: '10px', padding: '12px 16px', marginBottom: '24px',
+            display: 'flex', alignItems: 'center', gap: '10px',
+          }}>
+            <span style={{ fontSize: '18px' }}>📧</span>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+              A confirmation email has been sent to your inbox.
+            </p>
+          </div>
           Back to Dashboard
         </Link>
       </div>
