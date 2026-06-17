@@ -374,7 +374,6 @@ export default function DashboardPage() {
   )
 
   return (
-    <>
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
@@ -678,6 +677,7 @@ export default function DashboardPage() {
 
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+      {parent && <ChatWidget parentId={parent.id} />}
     </div>
   )
 }
