@@ -115,6 +115,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   }
 
   return (
+    <>
     <div
       onClick={onClose}
       style={{
