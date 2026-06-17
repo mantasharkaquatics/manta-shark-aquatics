@@ -341,10 +341,10 @@ export default function DashboardPage() {
 
   async function cancelBooking(bookingId: string) {
     setCancellingId(bookingId)
-    // 先取得 lesson_credit_id
+    // 先取得 booking 詳細資料（含課程、學生、教練）
     const { data: bookingData } = await supabase
       .from('bookings')
-      .select('lesson_credit_id')
+      .select('lesson_credit_id, student_id, class_session_id, students(full_name), class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name, last_name))')
       .eq('id', bookingId)
       .single()
     // 取消 booking
@@ -353,6 +353,31 @@ export default function DashboardPage() {
     if (bookingData?.lesson_credit_id) {
       await supabase.rpc('increment_credit', { credit_id: bookingData.lesson_credit_id })
     }
+    // 寄送取消 email
+    try {
+      if (bookingData && parent) {
+        const session = Array.isArray(bookingData.class_sessions) ? bookingData.class_sessions[0] : bookingData.class_sessions
+        const student = Array.isArray(bookingData.students) ? bookingData.students[0] : bookingData.students
+        const courseType = session ? (Array.isArray(session.course_types) ? session.course_types[0] : session.course_types) : null
+        const coach = session ? (Array.isArray(session.coaches) ? session.coaches[0] : session.coaches) : null
+        if (session && student && courseType && coach) {
+          await fetch('/api/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'booking_cancelled',
+              to: parent.email,
+              parentName: parent.first_name,
+              studentName: student.full_name,
+              courseName: courseType.name,
+              coachName: `${coach.first_name} ${coach.last_name}`,
+              date: session.session_date,
+              time: `${session.start_time} – ${session.end_time}`,
+            }),
+          })
+        }
+      }
+    } catch (e) { console.error('Cancel email error:', e) }
     await fetchAll()
     setCancellingId(null)
   }
