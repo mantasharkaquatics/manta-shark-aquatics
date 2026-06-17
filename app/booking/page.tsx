@@ -366,7 +366,21 @@ export default function BookingPage() {
     if (date < today) return false
     const maxDate = new Date(today)
     maxDate.setDate(maxDate.getDate() + 60)
-    return date <= maxDate
+    if (date > maxDate) return false
+    // 每天 7:30 PM (LA 時間) 之後，隔天整天不能預訂
+    const nowLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+    const cutoffHour = 19
+    const cutoffMinute = 30
+    const isPastCutoff = nowLA.getHours() > cutoffHour || (nowLA.getHours() === cutoffHour && nowLA.getMinutes() >= cutoffMinute)
+    if (isPastCutoff) {
+      const tomorrow = new Date(nowLA)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      tomorrow.setHours(0, 0, 0, 0)
+      const tomorrowEnd = new Date(tomorrow)
+      tomorrowEnd.setHours(23, 59, 59, 999)
+      if (date >= tomorrow && date <= tomorrowEnd) return false
+    }
+    return true
   }
 
   if (loading) return (
