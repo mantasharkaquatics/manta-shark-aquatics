@@ -16,20 +16,31 @@ export default function AdminMessagesClient() {
   const [sending, setSending] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const selectedThreadRef = useRef<any>(null)
 
   useEffect(() => { loadThreads() }, [])
 
   useEffect(() => {
-    if (!selectedThread) return
-    loadMessages(selectedThread.id)
+    selectedThreadRef.current = selectedThread
+  }, [selectedThread])
+
+  useEffect(() => {
     const channel = supabase
-      .channel(`admin:chat:${selectedThread.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${selectedThread.id}` }, (payload) => {
-        setMessages(prev => [...prev, payload.new])
+      .channel('admin:chat:all')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
+        const msg = payload.new as any
+        const current = selectedThreadRef.current
+        if (current && msg.thread_id === current.id) {
+          setMessages(prev => [...prev, msg])
+          // 收到新訊息，標記為未讀（不管是否在此對話）
+          setThreads(prev => prev.map(t => t.id === current.id ? { ...t, unread_by_admin: true, last_message_preview: msg.body } : t))
+        } else {
+          loadThreads()
+        }
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [selectedThread])
+  }, [])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
@@ -48,13 +59,28 @@ export default function AdminMessagesClient() {
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true })
     setMessages(data || [])
-    await supabase.from('chat_threads').update({ unread_by_admin: false }).eq('id', threadId)
-    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, unread_by_admin: false } : t))
   }
 
   async function selectThread(thread: any) {
     setSelectedThread(thread)
     setMobileView('chat')
+    await loadMessages(thread.id)
+    // 點開對話 → 標記已讀
+    await markRead(thread.id)
+  }
+
+  async function markRead(threadId: string) {
+    await supabase.from('chat_threads').update({ unread_by_admin: false }).eq('id', threadId)
+    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, unread_by_admin: false } : t))
+  }
+
+  async function handleChatClick() {
+    const current = selectedThreadRef.current
+    if (!current) return
+    const thread = threads.find(t => t.id === current.id)
+    if (thread?.unread_by_admin) {
+      await markRead(current.id)
+    }
   }
 
   async function sendMessage() {
@@ -91,7 +117,6 @@ export default function AdminMessagesClient() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Thread List */}
         <div style={{
           width: isMobile ? '100%' : '320px',
           display: isMobile && mobileView === 'chat' ? 'none' : 'flex',
@@ -126,8 +151,9 @@ export default function AdminMessagesClient() {
           ))}
         </div>
 
-        {/* Chat Area */}
-        <div style={{ flex: 1, display: isMobile && mobileView === 'list' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div
+          onClick={handleChatClick}
+          style={{ flex: 1, display: isMobile && mobileView === 'list' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!selectedThread ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
               Select a conversation
@@ -136,7 +162,7 @@ export default function AdminMessagesClient() {
             <>
               <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                 {isMobile && (
-                  <button onClick={() => setMobileView('list')} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '20px', cursor: 'pointer' }}>←</button>
+                  <button onClick={(e) => { e.stopPropagation(); setMobileView('list') }} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '20px', cursor: 'pointer' }}>←</button>
                 )}
                 <div>
                   <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents?.first_name} {selectedThread.parents?.last_name}</div>
@@ -169,13 +195,14 @@ export default function AdminMessagesClient() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  onClick={e => e.stopPropagation()}
                   placeholder="Reply..."
                   style={{
                     flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none',
                   }}
                 />
-                <button onClick={sendMessage} disabled={!input.trim() || sending} style={{
+                <button onClick={(e) => { e.stopPropagation(); sendMessage() }} disabled={!input.trim() || sending} style={{
                   background: input.trim() ? GOLD : 'rgba(255,255,255,0.1)',
                   border: 'none', borderRadius: '10px', padding: '0 20px',
                   cursor: input.trim() ? 'pointer' : 'not-allowed',
