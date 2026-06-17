@@ -434,6 +434,30 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         .eq('id', validCredit.id)
     }
 
+    // 寄送預約確認 email
+    try {
+      const { data: parentData } = await supabase.from('parents').select('first_name, email').eq('id', parentId).single()
+      const coach = coaches.find(c => c.id === selectedSlot.coachId)
+      if (parentData && coach) {
+        const endMinsForEmail = timeToMinutes(selectedSlot.time) + ct.duration_minutes
+        const endTimeForEmail = minutesToTime(endMinsForEmail)
+        await fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'booking_confirmed',
+            to: parentData.email,
+            parentName: parentData.first_name,
+            studentName: student.full_name,
+            courseName: ct.name,
+            coachName: `${coach.first_name} ${coach.last_name}`,
+            date: selectedSlot.date,
+            time: `${selectedSlot.time} – ${endTimeForEmail}`,
+          }),
+        })
+      }
+    } catch (e) { console.error('Email error:', e) }
+
     setSuccess('預約成功！')
     await loadSessions()
     setTimeout(() => { setModal(null); setSuccess('') }, 1500)
