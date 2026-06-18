@@ -136,7 +136,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="Manta Shark Aquatics" width={48} height={48} className="rounded-full object-cover" />
+              <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="rounded-full object-cover" />
               <div>
                 <p className="text-white font-bold text-sm">Manta Shark Aquatics</p>
                 <p className="text-xs">Southern California</p>

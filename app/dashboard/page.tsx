@@ -455,7 +455,7 @@ export default function DashboardPage() {
       <div style={{ background: NAVY, borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '16px clamp(20px,5vw,48px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
-            <img src="/logo.png" alt="Manta Shark Aquatics" style={{ height: '48px' }} />
+            <img src="/logo.png" alt="Manta Shark Aquatics" style={{ height: '64px' }} />
           </Link>
           <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.12)' }} />
           <a href="/" style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>← Home</a>

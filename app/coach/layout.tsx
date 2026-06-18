@@ -22,7 +22,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
       <nav className="bg-[#111d38] border-b border-[#1e3a6e] px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Image src="/logo.png" alt="Manta Shark" width={48} height={48} />
+            <Image src="/logo.png" alt="Manta Shark" width={64} height={64} />
             <div>
               <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Coach Portal</p>
               <p className="text-white font-semibold">{coach.first_name} {coach.last_name}</p>
