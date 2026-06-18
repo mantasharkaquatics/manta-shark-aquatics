@@ -108,7 +108,7 @@ export default function HomePage() {
 
         {/* Bubbles */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '200px', overflow: 'hidden', pointerEvents: 'none' }}>
-          {[{w:12,l:'10%',d:'6s',del:'0s'},{w:8,l:'25%',d:'8s',del:'2s'},{w:16,l:'60%',d:'7s',del:'1s'},{w:10,l:'80%',d:'9s',del:'3s'},{w:6,l:'45%',d:'5s',del:'4s'}].map((b,i) => (
+          {[{w:12,l:'5%',d:'6s',del:'0s'},{w:8,l:'12%',d:'8s',del:'1s'},{w:16,l:'22%',d:'7s',del:'2s'},{w:10,l:'32%',d:'9s',del:'0.5s'},{w:6,l:'42%',d:'5s',del:'3s'},{w:14,l:'52%',d:'7.5s',del:'1.5s'},{w:9,l:'62%',d:'6.5s',del:'2.5s'},{w:12,l:'72%',d:'8.5s',del:'0s'},{w:7,l:'82%',d:'6s',del:'3.5s'},{w:11,l:'91%',d:'9s',del:'1s'}].map((b,i) => (
             <div key={i} className="bubble" style={{ width: b.w, height: b.w, left: b.l, bottom: '20px', animationDuration: b.d, animationDelay: b.del }} />
           ))}
         </div>
