@@ -115,58 +115,64 @@ export default function HomePage() {
       </section>
 
       {/* SWIM LANES */}
-      <div style={{ background: '#0d1529', padding: '0', overflow: 'hidden' }}>
+      <div style={{ background: '#0a2540', overflow: 'hidden' }}>
         <style>{`
-          @keyframes swim-a { 0% { left: -80px; } 100% { left: 110%; } }
-          @keyframes swim-b { 0% { left: -80px; } 100% { left: 110%; } }
-          @keyframes swim-c { 0% { left: -80px; } 100% { left: 110%; } }
-          .sw { position: absolute; top: 50%; transform: translateY(-50%); }
-          .sw-a { animation: swim-a 6s linear infinite; }
-          .sw-b { animation: swim-b 8s linear infinite; animation-delay: -3s; }
-          .sw-c { animation: swim-c 10s linear infinite; animation-delay: -6s; }
-          .lane-rope { height: 3px; background: repeating-linear-gradient(90deg,#c9a84c 0,#c9a84c 12px,#1a3a5c 12px,#1a3a5c 20px); opacity: 0.6; }
-          .lane-water { background: #0a2540; position: relative; height: 44px; overflow: hidden; }
+          @keyframes ma6{0%{left:-130px}100%{left:110%}}
+          @keyframes mb6{0%{left:-130px}100%{left:110%}}
+          @keyframes mc6{0%{left:-130px}100%{left:110%}}
+          .s6{position:absolute;top:50%;transform:translateY(-50%);}
+          .sa{animation:ma6 7s linear infinite;}
+          .sb{animation:mb6 9s linear infinite;animation-delay:-4s;}
+          .sc{animation:mc6 11s linear infinite;animation-delay:-7s;}
+          .r6{height:3px;background:repeating-linear-gradient(90deg,#c9a84c 0,#c9a84c 12px,#1a3a5c 12px,#1a3a5c 20px);opacity:0.7;}
+          .w6{background:#0a2540;position:relative;height:60px;overflow:hidden;}
         `}</style>
-        <div className="lane-rope" />
-        <div className="lane-water">
-          <div className="sw sw-a">
-            <svg width="72" height="28" viewBox="0 0 72 28">
-              <circle cx="14" cy="10" r="5" fill="#f5c5a0"/>
-              <rect x="8" y="13" width="20" height="8" rx="4" fill="#c9a84c"/>
-              <line x1="28" y1="14" x2="48" y2="10" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="10;18;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="x2" values="48;44;48" dur="0.6s" repeatCount="indefinite"/></line>
-              <line x1="28" y1="16" x2="50" y2="20" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="20;12;20" dur="0.6s" repeatCount="indefinite"/></line>
-              <ellipse cx="60" cy="14" rx="10" ry="4" fill="#4ab3e8" opacity="0.5"><animate attributeName="rx" values="10;14;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.2;0.5" dur="0.6s" repeatCount="indefinite"/></ellipse>
-            </svg>
-          </div>
-        </div>
-        <div className="lane-rope" />
-        <div className="lane-water">
-          <div className="sw sw-b">
-            <svg width="72" height="28" viewBox="0 0 72 28">
-              <circle cx="14" cy="10" r="5" fill="#f5c5a0" opacity="0.85"/>
-              <rect x="8" y="13" width="20" height="8" rx="4" fill="#2255aa" opacity="0.85"/>
-              <line x1="28" y1="14" x2="48" y2="10" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="10;18;10" dur="0.8s" repeatCount="indefinite"/></line>
-              <line x1="28" y1="16" x2="50" y2="20" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="20;12;20" dur="0.8s" repeatCount="indefinite"/></line>
-              <ellipse cx="60" cy="14" rx="10" ry="4" fill="#4ab3e8" opacity="0.4"><animate attributeName="rx" values="10;13;10" dur="0.8s" repeatCount="indefinite"/></ellipse>
-            </svg>
-          </div>
-        </div>
-        <div className="lane-rope" />
-        <div className="lane-water">
-          <div className="sw sw-c">
-            <svg width="72" height="28" viewBox="0 0 72 28">
-              <circle cx="14" cy="10" r="5" fill="#f5c5a0" opacity="0.65"/>
-              <rect x="8" y="13" width="20" height="8" rx="4" fill="#aa2255" opacity="0.65"/>
-              <line x1="28" y1="14" x2="48" y2="10" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="10;18;10" dur="1s" repeatCount="indefinite"/></line>
-              <line x1="28" y1="16" x2="50" y2="20" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="20;12;20" dur="1s" repeatCount="indefinite"/></line>
-              <ellipse cx="60" cy="14" rx="10" ry="4" fill="#4ab3e8" opacity="0.3"><animate attributeName="rx" values="10;12;10" dur="1s" repeatCount="indefinite"/></ellipse>
-            </svg>
-          </div>
-        </div>
-        <div className="lane-rope" />
+        <div className="r6"/>
+        <div className="w6"><div className="s6 sa">
+          <svg width="120" height="48" viewBox="0 0 120 48">
+            <circle cx="108" cy="22" r="7" fill="#f5a87a"/>
+            <ellipse cx="107" cy="24" rx="3" ry="2.5" fill="#222"/>
+            <rect x="70" y="19" width="34" height="10" rx="5" fill="#e8a070"/>
+            <rect x="70" y="20" width="17" height="8" rx="4" fill="#2255aa"/>
+            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" values="0;360" dur="1s" repeatCount="indefinite"/></line></g>
+            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.5"><animateTransform attributeName="transform" type="rotate" values="180;540" dur="1s" repeatCount="indefinite"/></line></g>
+            <line x1="72" y1="21" x2="58" y2="16" stroke="#e8a070" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="16;26;16" dur="0.35s" repeatCount="indefinite"/><animate attributeName="x2" values="58;61;58" dur="0.35s" repeatCount="indefinite"/></line>
+            <line x1="70" y1="25" x2="54" y2="30" stroke="#e8a070" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="30;20;30" dur="0.35s" repeatCount="indefinite"/></line>
+            <ellipse cx="22" cy="26" rx="18" ry="6" fill="#4ab3e8" opacity="0.45"><animate attributeName="rx" values="18;25;18" dur="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.45;0.15;0.45" dur="1s" repeatCount="indefinite"/></ellipse>
+          </svg>
+        </div></div>
+        <div className="r6"/>
+        <div className="w6"><div className="s6 sb">
+          <svg width="120" height="48" viewBox="0 0 120 48">
+            <circle cx="108" cy="22" r="7" fill="#f5a87a" opacity="0.85"/>
+            <ellipse cx="107" cy="24" rx="3" ry="2.5" fill="#222" opacity="0.85"/>
+            <rect x="70" y="19" width="34" height="10" rx="5" fill="#e8a070" opacity="0.85"/>
+            <rect x="70" y="20" width="17" height="8" rx="4" fill="#c9a84c" opacity="0.85"/>
+            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.85"><animateTransform attributeName="transform" type="rotate" values="0;360" dur="1.2s" repeatCount="indefinite"/></line></g>
+            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.5"><animateTransform attributeName="transform" type="rotate" values="180;540" dur="1.2s" repeatCount="indefinite"/></line></g>
+            <line x1="72" y1="21" x2="58" y2="16" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="16;26;16" dur="0.4s" repeatCount="indefinite"/></line>
+            <line x1="70" y1="25" x2="54" y2="30" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="30;20;30" dur="0.4s" repeatCount="indefinite"/></line>
+            <ellipse cx="22" cy="26" rx="18" ry="6" fill="#4ab3e8" opacity="0.35"><animate attributeName="rx" values="18;23;18" dur="1.2s" repeatCount="indefinite"/></ellipse>
+          </svg>
+        </div></div>
+        <div className="r6"/>
+        <div className="w6"><div className="s6 sc">
+          <svg width="120" height="48" viewBox="0 0 120 48">
+            <circle cx="108" cy="22" r="7" fill="#f5a87a" opacity="0.65"/>
+            <ellipse cx="107" cy="24" rx="3" ry="2.5" fill="#222" opacity="0.65"/>
+            <rect x="70" y="19" width="34" height="10" rx="5" fill="#e8a070" opacity="0.65"/>
+            <rect x="70" y="20" width="17" height="8" rx="4" fill="#aa2255" opacity="0.65"/>
+            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.65"><animateTransform attributeName="transform" type="rotate" values="0;360" dur="1.5s" repeatCount="indefinite"/></line></g>
+            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.4"><animateTransform attributeName="transform" type="rotate" values="180;540" dur="1.5s" repeatCount="indefinite"/></line></g>
+            <line x1="72" y1="21" x2="58" y2="16" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="16;26;16" dur="0.5s" repeatCount="indefinite"/></line>
+            <line x1="70" y1="25" x2="54" y2="30" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="30;20;30" dur="0.5s" repeatCount="indefinite"/></line>
+            <ellipse cx="22" cy="26" rx="18" ry="6" fill="#4ab3e8" opacity="0.25"><animate attributeName="rx" values="18;21;18" dur="1.5s" repeatCount="indefinite"/></ellipse>
+          </svg>
+        </div></div>
+        <div className="r6"/>
       </div>
 
-      {/* PROGRAMS */}
+            {/* PROGRAMS */}
       <section className="section-pad" style={{ background: 'white', padding: '64px 48px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>What We Offer</div>
