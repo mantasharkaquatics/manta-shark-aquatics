@@ -57,7 +57,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={44} height={44} className="rounded-full object-cover" />
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="rounded-full object-cover" />
             <span className="text-white font-bold text-lg leading-tight hidden sm:block">
               Manta Shark<br /><span className="text-[#c9a84c] font-normal text-sm">Aquatics</span>
             </span>
