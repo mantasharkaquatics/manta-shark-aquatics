@@ -485,7 +485,7 @@ export default function BookingPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
-            <img src="/logo.png" alt="Manta Shark" style={{ height: '32px' }} />
+            <img src="/logo.png" alt="Manta Shark" style={{ height: '48px' }} />
           </Link>
           <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.12)' }} />
           <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>

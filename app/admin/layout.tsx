@@ -34,7 +34,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="Manta Shark" width={36} height={36} />
+              <Image src="/logo.png" alt="Manta Shark" width={48} height={48} />
               <div>
                 <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
                 <p className="text-white text-sm font-semibold">{admin.first_name} {admin.last_name}</p>
