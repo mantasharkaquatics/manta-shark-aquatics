@@ -169,7 +169,7 @@ export default function HomePage() {
             [
               { text: 'Coaches are very professional. My kids love to go to swim lessons, and her swimming speed has obviously improved.', name: 'Jocelyn', sub: 'Verified parent' },
               { text: 'The coaches are very patient and professional. If your kids want to become professional swimmers, these coaches are the best.', name: 'Parent', sub: 'Mom of swimmer' },
-              { text: 'Coaches have the experience and knowledge to teach students how to swim correctly — they attend to each student's needs. Even students afraid at first eventually adjust and have fun in the water.', name: 'Amy', sub: 'Verified parent' },
+              { text: `Coaches have the experience and knowledge to teach students how to swim correctly — they attend to each student's needs. Even students afraid at first eventually adjust and have fun in the water.`, name: 'Amy', sub: 'Verified parent' },
             ],
             [
               { text: 'Students are taught with clear and precise technique. Time is used very efficiently throughout the lesson. All coaches are well qualified, professional, and so kind. My daughter looks forward to swim lessons and is excited to see her coach.', name: 'Parent', sub: 'Mom of one swimmer' },
