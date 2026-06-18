@@ -115,12 +115,55 @@ export default function HomePage() {
       </section>
 
       {/* SWIM LANES */}
-      <div style={{ background: '#0d1529', padding: '18px 48px' }}>
-        {[{d:'3s',del:'0s',op:1},{d:'4.5s',del:'-2s',op:0.6},{d:'5.5s',del:'-1s',op:0.4}].map((l,i) => (
-          <div key={i} style={{ height: '2px', background: `rgba(201,168,76,${0.15-i*0.04})`, position: 'relative', overflow: 'hidden', borderRadius: '1px', marginBottom: i < 2 ? '10px' : 0 }}>
-            <div className="swimmer-dot" style={{ animationDuration: l.d, animationDelay: l.del, opacity: l.op }} />
+      <div style={{ background: '#0d1529', padding: '0', overflow: 'hidden' }}>
+        <style>{`
+          @keyframes swim-a { 0% { left: -80px; } 100% { left: 110%; } }
+          @keyframes swim-b { 0% { left: -80px; } 100% { left: 110%; } }
+          @keyframes swim-c { 0% { left: -80px; } 100% { left: 110%; } }
+          .sw { position: absolute; top: 50%; transform: translateY(-50%); }
+          .sw-a { animation: swim-a 6s linear infinite; }
+          .sw-b { animation: swim-b 8s linear infinite; animation-delay: -3s; }
+          .sw-c { animation: swim-c 10s linear infinite; animation-delay: -6s; }
+          .lane-rope { height: 3px; background: repeating-linear-gradient(90deg,#c9a84c 0,#c9a84c 12px,#1a3a5c 12px,#1a3a5c 20px); opacity: 0.6; }
+          .lane-water { background: #0a2540; position: relative; height: 44px; overflow: hidden; }
+        `}</style>
+        <div className="lane-rope" />
+        <div className="lane-water">
+          <div className="sw sw-a">
+            <svg width="72" height="28" viewBox="0 0 72 28">
+              <circle cx="14" cy="10" r="5" fill="#f5c5a0"/>
+              <rect x="8" y="13" width="20" height="8" rx="4" fill="#c9a84c"/>
+              <line x1="28" y1="14" x2="48" y2="10" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="10;18;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="x2" values="48;44;48" dur="0.6s" repeatCount="indefinite"/></line>
+              <line x1="28" y1="16" x2="50" y2="20" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="20;12;20" dur="0.6s" repeatCount="indefinite"/></line>
+              <ellipse cx="60" cy="14" rx="10" ry="4" fill="#4ab3e8" opacity="0.5"><animate attributeName="rx" values="10;14;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.2;0.5" dur="0.6s" repeatCount="indefinite"/></ellipse>
+            </svg>
           </div>
-        ))}
+        </div>
+        <div className="lane-rope" />
+        <div className="lane-water">
+          <div className="sw sw-b">
+            <svg width="72" height="28" viewBox="0 0 72 28">
+              <circle cx="14" cy="10" r="5" fill="#f5c5a0" opacity="0.85"/>
+              <rect x="8" y="13" width="20" height="8" rx="4" fill="#2255aa" opacity="0.85"/>
+              <line x1="28" y1="14" x2="48" y2="10" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="10;18;10" dur="0.8s" repeatCount="indefinite"/></line>
+              <line x1="28" y1="16" x2="50" y2="20" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="20;12;20" dur="0.8s" repeatCount="indefinite"/></line>
+              <ellipse cx="60" cy="14" rx="10" ry="4" fill="#4ab3e8" opacity="0.4"><animate attributeName="rx" values="10;13;10" dur="0.8s" repeatCount="indefinite"/></ellipse>
+            </svg>
+          </div>
+        </div>
+        <div className="lane-rope" />
+        <div className="lane-water">
+          <div className="sw sw-c">
+            <svg width="72" height="28" viewBox="0 0 72 28">
+              <circle cx="14" cy="10" r="5" fill="#f5c5a0" opacity="0.65"/>
+              <rect x="8" y="13" width="20" height="8" rx="4" fill="#aa2255" opacity="0.65"/>
+              <line x1="28" y1="14" x2="48" y2="10" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="10;18;10" dur="1s" repeatCount="indefinite"/></line>
+              <line x1="28" y1="16" x2="50" y2="20" stroke="#f5c5a0" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="20;12;20" dur="1s" repeatCount="indefinite"/></line>
+              <ellipse cx="60" cy="14" rx="10" ry="4" fill="#4ab3e8" opacity="0.3"><animate attributeName="rx" values="10;12;10" dur="1s" repeatCount="indefinite"/></ellipse>
+            </svg>
+          </div>
+        </div>
+        <div className="lane-rope" />
       </div>
 
       {/* PROGRAMS */}
