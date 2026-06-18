@@ -129,7 +129,7 @@ export default function HomePage() {
           <h2 style={{ fontSize: '32px', fontWeight: 700, color: '#111d38', textAlign: 'center', marginBottom: '40px' }}>Our Programs</h2>
           <div className="program-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }} id="program-grid">
             {[
-              { icon: '🏊', name: '1-on-1 Lessons', desc: '30-minute private sessions tailored entirely to your child's pace and goals.' },
+              { icon: '🏊', name: '1-on-1 Lessons', desc: '30-minute private sessions tailored entirely to your child's pace and goals." },
               { icon: '👫', name: '1-on-2 Lessons', desc: '30-minute semi-private sessions — parent-arranged pairs for a shared experience.' },
               { icon: '👥', name: 'Group (1-on-4)', desc: '30-minute group classes with real-time availability. Book online, limited spots.' },
               { icon: '🏅', name: 'Swim Team', desc: '90-minute competitive training. Mon & Wed 6–7:30 PM. Max 24 swimmers.' },
