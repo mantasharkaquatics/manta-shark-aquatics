@@ -16,8 +16,8 @@ export default function HomePage() {
         .wave3 { animation: wave-move 6s linear infinite; opacity: 0.08; bottom: 20px; }
         @keyframes wave-move { 0% { transform: translateX(0); } 100% { transform: translateX(33.33%); } }
 
-        .bubble { position: absolute; border-radius: 50%; background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.2); animation: float-up linear infinite; }
-        @keyframes float-up { 0% { transform: translateY(0) scale(1); opacity: 0.6; } 100% { transform: translateY(-300px) scale(0.3); opacity: 0; } }
+        .bubble { position: absolute; border-radius: 50%; background: rgba(201,168,76,0.25); border: 2px solid rgba(201,168,76,0.5); animation: float-up linear infinite; }
+        @keyframes float-up { 0% { transform: translateY(0) scale(1); opacity: 0.9; } 100% { transform: translateY(-520px) scale(0.2); opacity: 0; } }
 
         .swimmer-dot { position: absolute; width: 24px; height: 14px; border-radius: 7px; top: -6px; background: #c9a84c; animation: swim linear infinite; }
         @keyframes swim { 0% { left: -5%; } 100% { left: 105%; } }
