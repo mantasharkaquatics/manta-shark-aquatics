@@ -733,7 +733,7 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   const isFull = session.enrolled_count >= session.max_students
   return (
     <button onClick={onClick}
-      className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-80'} hover:opacity-100 transition-opacity flex flex-col items-start justify-start p-1.5 overflow-hidden`}>
+      className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-100'} hover:opacity-70 transition-opacity flex flex-col items-start justify-start p-1.5 overflow-hidden`}>
       <span className="text-xs font-semibold text-white leading-tight truncate w-full">{ct.name}</span>
       <span className="text-[11px] text-white/80">{session.enrolled_count}/{session.max_students}</span>
       {session.bookings && session.bookings.map(b => {
