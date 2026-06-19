@@ -734,13 +734,13 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   return (
     <button onClick={onClick}
       className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-80'} hover:opacity-100 transition-opacity flex flex-col items-start justify-start p-1.5 overflow-hidden`}>
-      <span className="text-[10px] font-semibold text-white leading-tight truncate w-full">{ct.name}</span>
-      <span className="text-[9px] text-white/80">{session.enrolled_count}/{session.max_students}</span>
+      <span className="text-xs font-semibold text-white leading-tight truncate w-full">{ct.name}</span>
+      <span className="text-[11px] text-white/80">{session.enrolled_count}/{session.max_students}</span>
       {session.bookings && session.bookings.map(b => {
         const st = Array.isArray(b.students) ? b.students[0] : b.students
         const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
         return st ? (
-          <span key={b.id} className="text-[9px] text-white/90 truncate w-full leading-tight block">
+          <span key={b.id} className="text-[11px] text-white/90 truncate w-full leading-tight block">
             {pa ? `${pa.first_name} ${pa.last_name}` : ''} · {st.full_name}
           </span>
         ) : null
