@@ -51,8 +51,8 @@ interface Props {
   initialSessions: Session[]
 }
 
-const WORK_START = 8
-const WORK_END = 21
+const WORK_START = 6
+const WORK_END = 22
 const SLOT_MINUTES = 30
 
 function toDateStr(d: Date): string {
