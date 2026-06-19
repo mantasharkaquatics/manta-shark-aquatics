@@ -206,9 +206,15 @@ export default function HomePage() {
             </div>
             <div>
               <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>Links</div>
-              {['Services', 'Swim Levels', 'Swim Plans', 'About Us', 'Policies'].map(l => (
-                <div key={l} style={{ marginBottom: '8px' }}>
-                  <Link href={`/${l.toLowerCase().replace(/ /g, '-')}`} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{l}</Link>
+              {[
+                { label: 'Services', href: '/services' },
+                { label: 'Swim Levels', href: '/levels' },
+                { label: 'Swim Plans', href: '/plans' },
+                { label: 'About Us', href: '/about' },
+                { label: 'Policies', href: '/policies' },
+              ].map(l => (
+                <div key={l.label} style={{ marginBottom: '8px' }}>
+                  <Link href={l.href} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{l.label}</Link>
                 </div>
               ))}
             </div>
