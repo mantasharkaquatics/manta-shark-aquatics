@@ -114,65 +114,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SWIM LANES */}
-      <div style={{ background: '#0a2540', overflow: 'hidden' }}>
-        <style>{`
-          @keyframes ma6{0%{left:-130px}100%{left:110%}}
-          @keyframes mb6{0%{left:-130px}100%{left:110%}}
-          @keyframes mc6{0%{left:-130px}100%{left:110%}}
-          .s6{position:absolute;top:50%;transform:translateY(-50%);}
-          .sa{animation:ma6 7s linear infinite;}
-          .sb{animation:mb6 9s linear infinite;animation-delay:-4s;}
-          .sc{animation:mc6 11s linear infinite;animation-delay:-7s;}
-          .r6{height:3px;background:repeating-linear-gradient(90deg,#c9a84c 0,#c9a84c 12px,#1a3a5c 12px,#1a3a5c 20px);opacity:0.7;}
-          .w6{background:#0a2540;position:relative;height:60px;overflow:hidden;}
-        `}</style>
-        <div className="r6"/>
-        <div className="w6"><div className="s6 sa">
-          <svg width="120" height="48" viewBox="0 0 120 48">
-            <circle cx="108" cy="22" r="7" fill="#f5a87a"/>
-            <ellipse cx="107" cy="24" rx="3" ry="2.5" fill="#222"/>
-            <rect x="70" y="19" width="34" height="10" rx="5" fill="#e8a070"/>
-            <rect x="70" y="20" width="17" height="8" rx="4" fill="#2255aa"/>
-            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" values="0;360" dur="1s" repeatCount="indefinite"/></line></g>
-            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.5"><animateTransform attributeName="transform" type="rotate" values="180;540" dur="1s" repeatCount="indefinite"/></line></g>
-            <line x1="72" y1="21" x2="58" y2="16" stroke="#e8a070" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="16;26;16" dur="0.35s" repeatCount="indefinite"/><animate attributeName="x2" values="58;61;58" dur="0.35s" repeatCount="indefinite"/></line>
-            <line x1="70" y1="25" x2="54" y2="30" stroke="#e8a070" strokeWidth="3" strokeLinecap="round"><animate attributeName="y2" values="30;20;30" dur="0.35s" repeatCount="indefinite"/></line>
-            <ellipse cx="22" cy="26" rx="18" ry="6" fill="#4ab3e8" opacity="0.45"><animate attributeName="rx" values="18;25;18" dur="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.45;0.15;0.45" dur="1s" repeatCount="indefinite"/></ellipse>
-          </svg>
-        </div></div>
-        <div className="r6"/>
-        <div className="w6"><div className="s6 sb">
-          <svg width="120" height="48" viewBox="0 0 120 48">
-            <circle cx="108" cy="22" r="7" fill="#f5a87a" opacity="0.85"/>
-            <ellipse cx="107" cy="24" rx="3" ry="2.5" fill="#222" opacity="0.85"/>
-            <rect x="70" y="19" width="34" height="10" rx="5" fill="#e8a070" opacity="0.85"/>
-            <rect x="70" y="20" width="17" height="8" rx="4" fill="#c9a84c" opacity="0.85"/>
-            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.85"><animateTransform attributeName="transform" type="rotate" values="0;360" dur="1.2s" repeatCount="indefinite"/></line></g>
-            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.5"><animateTransform attributeName="transform" type="rotate" values="180;540" dur="1.2s" repeatCount="indefinite"/></line></g>
-            <line x1="72" y1="21" x2="58" y2="16" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="16;26;16" dur="0.4s" repeatCount="indefinite"/></line>
-            <line x1="70" y1="25" x2="54" y2="30" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.85"><animate attributeName="y2" values="30;20;30" dur="0.4s" repeatCount="indefinite"/></line>
-            <ellipse cx="22" cy="26" rx="18" ry="6" fill="#4ab3e8" opacity="0.35"><animate attributeName="rx" values="18;23;18" dur="1.2s" repeatCount="indefinite"/></ellipse>
-          </svg>
-        </div></div>
-        <div className="r6"/>
-        <div className="w6"><div className="s6 sc">
-          <svg width="120" height="48" viewBox="0 0 120 48">
-            <circle cx="108" cy="22" r="7" fill="#f5a87a" opacity="0.65"/>
-            <ellipse cx="107" cy="24" rx="3" ry="2.5" fill="#222" opacity="0.65"/>
-            <rect x="70" y="19" width="34" height="10" rx="5" fill="#e8a070" opacity="0.65"/>
-            <rect x="70" y="20" width="17" height="8" rx="4" fill="#aa2255" opacity="0.65"/>
-            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.65"><animateTransform attributeName="transform" type="rotate" values="0;360" dur="1.5s" repeatCount="indefinite"/></line></g>
-            <g transform="translate(95,22)"><line x1="0" y1="0" x2="20" y2="0" stroke="#e8a070" strokeWidth="4" strokeLinecap="round" opacity="0.4"><animateTransform attributeName="transform" type="rotate" values="180;540" dur="1.5s" repeatCount="indefinite"/></line></g>
-            <line x1="72" y1="21" x2="58" y2="16" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="16;26;16" dur="0.5s" repeatCount="indefinite"/></line>
-            <line x1="70" y1="25" x2="54" y2="30" stroke="#e8a070" strokeWidth="3" strokeLinecap="round" opacity="0.65"><animate attributeName="y2" values="30;20;30" dur="0.5s" repeatCount="indefinite"/></line>
-            <ellipse cx="22" cy="26" rx="18" ry="6" fill="#4ab3e8" opacity="0.25"><animate attributeName="rx" values="18;21;18" dur="1.5s" repeatCount="indefinite"/></ellipse>
-          </svg>
-        </div></div>
-        <div className="r6"/>
-      </div>
-
-            {/* PROGRAMS */}
+      {/* PROGRAMS */}
       <section className="section-pad" style={{ background: 'white', padding: '64px 48px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>What We Offer</div>
