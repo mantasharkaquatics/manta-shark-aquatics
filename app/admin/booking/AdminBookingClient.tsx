@@ -113,10 +113,10 @@ function generateTimeSlots(): string[] {
 const TIME_SLOTS = generateTimeSlots()
 
 const COURSE_COLORS: Record<string, string> = {
-  '1on1': '#0ea5e9',
-  '1on2': '#8b5cf6',
-  '1on4': '#10b981',
-  'team': '#f97316',
+  '1on1': '#38bdf8',
+  '1on2': '#c084fc',
+  '1on4': '#4ade80',
+  'team': '#fb923c',
 }
 
 const WEEKDAY_HEADERS = ['日', '一', '二', '三', '四', '五', '六']
