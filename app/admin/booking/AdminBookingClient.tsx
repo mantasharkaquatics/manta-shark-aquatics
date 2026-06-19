@@ -477,7 +477,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
   return (
-    <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
+    <div className="min-h-screen bg-white text-[#0d1529] -mx-6 -my-8">
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
