@@ -643,7 +643,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                   const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
                   const slug = ct?.slug || ''
                   return (
-                    <div key={s.id} className={`${COURSE_COLORS[slug] || 'bg-gray-500'} rounded px-1 py-0.5`}>
+                    <div key={s.id} className="rounded px-1 py-0.5" style={{ backgroundColor: COURSE_COLORS[slug] || '#6b7280' }}>
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] text-white font-medium">{s.start_time.slice(0, 5)}</span>
                         <span className="text-[9px] text-white/70 ml-1">{s.enrolled_count}/{s.max_students}</span>
@@ -789,7 +789,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
       <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
         <div className="p-6 border-b border-white/10 flex items-start justify-between">
           <div>
-            <div className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${COURSE_COLORS[ct.slug] || 'bg-gray-500'} text-white`}>
+            <div className="inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2 text-white" style={{ backgroundColor: COURSE_COLORS[ct.slug] || '#6b7280' }}>
               {ct.name}
             </div>
             <p className="text-white font-medium">
