@@ -43,9 +43,7 @@ export default function HomePage() {
         .carousel-btn:hover { background: #c9a84c; border-color: #c9a84c; color: #111d38; }
 
         @media (max-width: 768px) {
-          .hero-nav-links { display: none; }
-          .mobile-menu-btn { display: flex !important; }
-          .hero-title { font-size: 32px !important; }
+                    .hero-title { font-size: 32px !important; }
           .hero-sub { font-size: 14px !important; }
           .hero-stats { flex-wrap: wrap; gap: 10px !important; }
           .hero-stat { flex: 1; min-width: 120px; }
@@ -56,7 +54,6 @@ export default function HomePage() {
           .footer-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
           .hero-content { padding: 32px 20px 100px !important; }
           .section-pad { padding: 48px 20px !important; }
-          .nav-pad { padding: 14px 20px !important; }
         }
       `}</style>
       <Navbar />
