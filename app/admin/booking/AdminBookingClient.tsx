@@ -652,7 +652,6 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                       return st ? <div key={b.id} className="text-[8px] text-white/90 truncate leading-tight">{st.full_name}</div> : null
                     })}
                   </div>
-                })}
                 {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.filter(s => s.enrolled_count > 0).length - 3} 更多</p>}
               </div>
             </button>
