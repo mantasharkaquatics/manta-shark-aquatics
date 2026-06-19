@@ -100,7 +100,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                 return (
                   <button
                     key={s.id}
-                    onClick={() => checkin(s)}
+                    onClick={() => { if (confirm(`確認要幫 ${s.full_name} Check-in 嗎？`)) checkin(s) }}
                     disabled={loading === s.id}
                     className="w-full flex items-center justify-between bg-[#1a2744] hover:bg-[#c9a84c]/10 border border-white/10 hover:border-[#c9a84c]/40 rounded-xl px-4 py-3 transition-all disabled:opacity-50"
                   >
