@@ -67,7 +67,7 @@ export default function Navbar() {
 
   return (
     <nav className="bg-[#1a2744] sticky top-0 z-50 shadow-lg">
-      <div className="max-w-7xl mx-auto px-8 sm:px-12 lg:px-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-3">
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="rounded-full object-cover" />
