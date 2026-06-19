@@ -36,7 +36,7 @@ interface Session {
   status: string
   course_type_id: string
   course_types: { name: string; slug: string; duration_minutes: number } | { name: string; slug: string; duration_minutes: number }[]
-  bookings?: { id: string; students?: { full_name: string } | { full_name: string }[] | null }[]
+  bookings?: { id: string; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
 }
 
 interface BookingSlot {
@@ -738,7 +738,12 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
       <span className="text-[9px] text-white/80">{session.enrolled_count}/{session.max_students}</span>
       {session.bookings && session.bookings.map(b => {
         const st = Array.isArray(b.students) ? b.students[0] : b.students
-        return st ? <span key={b.id} className="text-[9px] text-white/90 truncate w-full leading-tight">{st.full_name}</span> : null
+        const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
+        return st ? (
+          <span key={b.id} className="text-[9px] text-white/90 truncate w-full leading-tight block">
+            {pa ? `${pa.first_name} ${pa.last_name}` : ''} · {st.full_name}
+          </span>
+        ) : null
       })}
     </button>
   )
