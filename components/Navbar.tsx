@@ -23,14 +23,13 @@ export default function Navbar() {
   const supabase = createClient()
 
   useEffect(() => {
-    async function checkUser() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
         setIsLoggedIn(true)
         const { data: parent } = await supabase
           .from('parents')
           .select('first_name')
-          .eq('auth_user_id', user.id)
+          .eq('auth_user_id', session.user.id)
           .single()
         if (parent) setFirstName(parent.first_name)
       } else {
@@ -38,11 +37,6 @@ export default function Navbar() {
         setFirstName('')
       }
       setAuthLoading(false)
-    }
-    checkUser()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkUser()
     })
     return () => subscription.unsubscribe()
   }, [])
