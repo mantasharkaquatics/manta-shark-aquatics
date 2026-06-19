@@ -17,6 +17,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [firstName, setFirstName] = useState('')
+  const [authLoading, setAuthLoading] = useState(true)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -36,6 +37,7 @@ export default function Navbar() {
         setIsLoggedIn(false)
         setFirstName('')
       }
+      setAuthLoading(false)
     }
     checkUser()
 
@@ -73,7 +75,7 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            {isLoggedIn ? (
+            {authLoading ? <div className="w-24 h-8" /> : isLoggedIn ? (
               <>
                 <Link href="/dashboard"
                   className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
