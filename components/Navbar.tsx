@@ -56,7 +56,7 @@ export default function Navbar() {
       }
     })
     return () => subscription.unsubscribe()
-  }, [])
+  }, [pathname])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
