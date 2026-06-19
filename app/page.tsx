@@ -1,4 +1,5 @@
 'use client'
+import Navbar from '@/components/Navbar'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -58,27 +59,7 @@ export default function HomePage() {
           .nav-pad { padding: 14px 20px !important; }
         }
       `}</style>
-
-      {/* NAVBAR */}
-      <nav style={{ background: '#111d38', borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div className="nav-pad" style={{ padding: '14px 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', margin: '0 auto' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={56} height={56} />
-            <div>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: 700, color: 'white', lineHeight: 1.2 }}>Manta Shark</div>
-              <div style={{ fontSize: '10px', fontWeight: 600, color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase' }}>Aquatics</div>
-            </div>
-          </Link>
-          <div className="hero-nav-links" style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-            <Link href="/services" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Services</Link>
-              <Link href="/levels" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Swim Levels</Link>
-              <Link href="/plans" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Swim Plans</Link>
-              <Link href="/about" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>About Us</Link>
-              <Link href="/policies" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Policies</Link>
-            <Link href="/login" style={{ background: '#c9a84c', color: '#111d38', padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, textDecoration: 'none' }}>Sign In</Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* HERO */}
       <section style={{ background: '#111d38', position: 'relative', minHeight: '500px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
