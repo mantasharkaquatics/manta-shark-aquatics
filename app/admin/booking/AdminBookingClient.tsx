@@ -642,16 +642,18 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                   const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
                   const slug = ct?.slug || ''
                   return (
-                  <div key={s.id} className={`${COURSE_COLORS[slug] || 'bg-gray-500'} rounded px-1 py-0.5`}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] text-white font-medium">{s.start_time.slice(0, 5)}</span>
-                      <span className="text-[9px] text-white/70 ml-1">{s.enrolled_count}/{s.max_students}</span>
+                    <div key={s.id} className={`${COURSE_COLORS[slug] || 'bg-gray-500'} rounded px-1 py-0.5`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-white font-medium">{s.start_time.slice(0, 5)}</span>
+                        <span className="text-[9px] text-white/70 ml-1">{s.enrolled_count}/{s.max_students}</span>
+                      </div>
+                      {(s as any).bookings && (s as any).bookings.map((b: any) => {
+                        const st = Array.isArray(b.students) ? b.students[0] : b.students
+                        return st ? <div key={b.id} className="text-[8px] text-white/90 truncate leading-tight">{st.full_name}</div> : null
+                      })}
                     </div>
-                    {s.bookings && s.bookings.map(b => {
-                      const st = Array.isArray(b.students) ? b.students[0] : b.students
-                      return st ? <div key={b.id} className="text-[8px] text-white/90 truncate leading-tight">{st.full_name}</div> : null
-                    })}
-                  </div>
+                  )
+                })}
                 {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.filter(s => s.enrolled_count > 0).length - 3} 更多</p>}
               </div>
             </button>
