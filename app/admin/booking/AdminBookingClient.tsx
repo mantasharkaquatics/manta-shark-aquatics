@@ -477,35 +477,35 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
   return (
-    <div className="min-h-screen bg-white text-[#1a2744] -mx-6 -my-8">
+    <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
       {/* Header */}
-      <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-semibold text-[#1a2744]" style={{ fontFamily: 'Playfair Display, serif' }}>
+      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
           Booking Calendar
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex rounded-lg overflow-hidden border border-white/20">
             {(['month', 'day'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
-                className={`px-4 py-1.5 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#1a2744] font-semibold' : 'text-gray-500 hover:text-[#1a2744]'}`}>
+                className={`px-4 py-1.5 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'}`}>
                 {v === 'month' ? '月' : '日'}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-[#1a2744] text-lg leading-none transition-colors">‹</button>
-            <span className="text-sm text-[#1a2744] font-medium min-w-[200px] text-center">{headerLabel}</span>
-            <button onClick={() => navigate(1)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-[#1a2744] text-lg leading-none transition-colors">›</button>
+            <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">‹</button>
+            <span className="text-sm text-white/80 min-w-[200px] text-center">{headerLabel}</span>
+            <button onClick={() => navigate(1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">›</button>
             <button
               onClick={() => {
                 const t = new Date()
                 setAnchor(new Date(t.getFullYear(), t.getMonth(), t.getDate()))
                 setView('month')
               }}
-              className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 text-gray-500 hover:text-[#1a2744] transition-colors"
+              className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
             >今天</button>
           </div>
-          {loading && <span className="text-xs text-gray-400 animate-pulse">載入中...</span>}
+          {loading && <span className="text-xs text-white/40 animate-pulse">載入中...</span>}
         </div>
       </div>
 
@@ -619,7 +619,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
     <div>
       <div className="grid grid-cols-7 mb-1">
         {WEEKDAY_HEADERS.map(d => (
-          <div key={d} className="text-center text-xs text-gray-400 py-2 font-medium">{d}</div>
+          <div key={d} className="text-center text-xs text-white/30 py-2 font-medium">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
@@ -630,12 +630,12 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
           const daySessions = getSessionsOnDate(ds)
           return (
             <button key={ds} onClick={() => onDayClick(date)}
-              className={`rounded-xl p-2 text-left transition-all hover:border-[#c9a84c]/60 hover:bg-[#fffbf0] group border min-h-[90px] flex flex-col ${
-                isToday ? 'border-[#c9a84c] bg-[#fffbf0]'
-                : isCurrentMonth ? 'border-gray-200 bg-gray-50'
-                : 'border-gray-100 bg-white'
+              className={`rounded-xl p-2 text-left transition-all hover:border-[#c9a84c]/50 hover:bg-[#c9a84c]/5 group border min-h-[90px] flex flex-col ${
+                isToday ? 'border-[#c9a84c]/60 bg-[#c9a84c]/5'
+                : isCurrentMonth ? 'border-white/8 bg-[#111d38]/40'
+                : 'border-white/4 bg-transparent'
               }`}>
-              <p className={`text-sm font-semibold mb-1 ${isToday ? 'text-[#c9a84c]' : isCurrentMonth ? 'text-[#1a2744]' : 'text-gray-300'}`}>
+              <p className={`text-sm font-semibold mb-1 ${isToday ? 'text-[#c9a84c]' : isCurrentMonth ? 'text-white/80' : 'text-white/20'}`}>
                 {date.getDate()}
               </p>
               <div className="flex-1 space-y-0.5">
@@ -679,13 +679,13 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
   const ds = toDateStr(date)
   return (
     <div className="relative">
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+      <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
         <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
           <div className="h-14" />
           {coaches.map(coach => (
-            <div key={coach.id} className="h-14 flex flex-col items-center justify-center border-l border-gray-100">
-              <span className="text-sm font-semibold text-[#1a2744]">{coach.first_name}</span>
-              <span className="text-xs text-gray-400">{coach.last_name}</span>
+            <div key={coach.id} className="h-14 flex flex-col items-center justify-center border-l border-white/5">
+              <span className="text-sm font-semibold text-white/80">{coach.first_name}</span>
+              <span className="text-xs text-white/30">{coach.last_name}</span>
             </div>
           ))}
         </div>
@@ -693,14 +693,14 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
       <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
         {TIME_SLOTS.map(time => (
           <div key={time} className="contents">
-            <div className="h-14 flex items-start justify-end pr-3 pt-1.5 text-xs text-gray-400 border-t border-gray-100">
+            <div className="h-14 flex items-start justify-end pr-3 pt-1.5 text-xs text-white/25 border-t border-white/5">
               {time.endsWith(':00') ? formatTime(time) : ''}
             </div>
             {coaches.map(coach => {
               const session = getSessionAt(ds, time, coach.id)
               const available = isCoachAvailable(coach.id, date, time)
               return (
-                <div key={`${coach.id}-${time}`} className="h-14 border-t border-l border-gray-100 relative">
+                <div key={`${coach.id}-${time}`} className="h-14 border-t border-l border-white/5 relative">
                   {session ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} />
                   ) : available ? (
