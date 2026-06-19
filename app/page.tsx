@@ -70,9 +70,11 @@ export default function HomePage() {
             </div>
           </Link>
           <div className="hero-nav-links" style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-            {['Services', 'Swim Levels', 'Swim Plans', 'About Us', 'Policies'].map(item => (
-              <Link key={item} href={`/${item.toLowerCase().replace(/ /g, '-')}`} style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>{item}</Link>
-            ))}
+            <Link href="/services" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Services</Link>
+              <Link href="/levels" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Swim Levels</Link>
+              <Link href="/plans" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Swim Plans</Link>
+              <Link href="/about" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>About Us</Link>
+              <Link href="/policies" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>Policies</Link>
             <Link href="/login" style={{ background: '#c9a84c', color: '#111d38', padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, textDecoration: 'none' }}>Sign In</Link>
           </div>
         </div>
