@@ -729,11 +729,12 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
 function SessionChip({ session, onClick }: { session: Session; onClick: () => void }) {
   if (session.enrolled_count === 0) return null
   const ct = getSessionCourseType(session)
-  const colorClass = COURSE_COLORS[ct.slug] || 'bg-gray-500'
+  const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
   const isFull = session.enrolled_count >= session.max_students
   return (
     <button onClick={onClick}
-      className={`absolute inset-0.5 rounded ${colorClass} ${isFull ? 'opacity-50' : 'opacity-100'} flex flex-col items-start justify-start p-1.5 overflow-hidden`}>
+      className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
+      style={{ backgroundColor: colorClass }}>
       <span className="text-xs font-semibold text-white leading-tight truncate w-full">{ct.name}</span>
       <span className="text-[11px] text-white/80">{session.enrolled_count}/{session.max_students}</span>
       {session.bookings && session.bookings.map(b => {
