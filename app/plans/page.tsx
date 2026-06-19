@@ -160,8 +160,9 @@ function PackageCard({ pkg, accentColor }: { pkg: typeof PRIVATE_PACKAGES[0]; ac
 
 export default function PlansPage() {
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh' }}>
       <Navbar />
+      <div style={{ background: DARK }}>
 
       {/* HERO */}
       <div style={{ background: NAVY, position: 'relative', overflow: 'hidden', padding: 'clamp(80px,10vw,100px) clamp(24px,5vw,72px) clamp(40px,5vw,60px)' }}>
@@ -332,6 +333,7 @@ export default function PlansPage() {
       </section>
 
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+      </div>
     </div>
   )
 }
