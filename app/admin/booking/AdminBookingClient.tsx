@@ -78,17 +78,9 @@ function minutesToTime(m: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
 
-function isCoachAvailable(_id: string, date: Date, time: string): boolean {
-  const dow = date.getDay()
-  const mins = timeToMinutes(time)
-  if (dow >= 1 && dow <= 5) {
-    return mins >= timeToMinutes('15:30') && mins < timeToMinutes('19:30')
-  } else {
-    return (
-      (mins >= timeToMinutes('08:00') && mins < timeToMinutes('12:00')) ||
-      (mins >= timeToMinutes('14:30') && mins < timeToMinutes('20:30'))
-    )
-  }
+function isCoachAvailable(_id: string, _date: Date, _time: string): boolean {
+  // Admin can book any time slot
+  return true
 }
 
 function getSessionCourseType(s: Session): { name: string; slug: string } {
