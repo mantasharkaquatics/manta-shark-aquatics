@@ -8,7 +8,6 @@ export default function HomePage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=DM+Sans:wght@400;500;600;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DM Sans', sans-serif; background: #111d38; }
 
         .wave { position: absolute; bottom: 0; left: -100%; width: 300%; height: 100%; }
         .wave1 { animation: wave-move 8s linear infinite; opacity: 0.15; }
