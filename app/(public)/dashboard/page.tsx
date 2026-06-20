@@ -452,27 +452,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div style={{ background: NAVY, borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '8px clamp(20px,5vw,48px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <img src="/logo.png" alt="Manta Shark Aquatics" style={{ height: '80px' }} />
-          </Link>
-          <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.12)' }} />
-          <a href="/" style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>← Home</a>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{parent?.first_name} {parent?.last_name}</div>
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{parent?.email}</div>
-          </div>
-          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
-            style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-            Sign Out
-          </button>
-        </div>
-      </div>
-
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
+<div style={{ maxWidth: '1100px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
 
         {/* GREETING */}
         <div style={{ marginBottom: '36px' }}>
