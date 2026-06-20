@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import Navbar from '@/components/Navbar'
 
 const levels = [
   {
@@ -152,7 +151,6 @@ export default function LevelsPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: '#111d38' }}>
-      <Navbar />
 
       {/* ── TOP BANNER ── */}
       <div

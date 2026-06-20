@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Navbar from '@/components/Navbar'
 
 const privatePackages = [
   { lessons: 10, price: 650, perLesson: 65, savings: 0 },
@@ -23,7 +22,6 @@ const groupOptions = [
 export default function ServicesPage() {
   return (
     <div className="min-h-screen bg-white">
-      <Navbar />
 
       <section className="bg-[#1a2744] text-white py-16 text-center">
         <p className="text-[#c9a84c] text-sm font-semibold tracking-widest uppercase mb-3">What We Offer</p>

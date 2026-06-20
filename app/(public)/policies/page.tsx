@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Navbar from '@/components/Navbar'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -475,7 +474,6 @@ export default function PoliciesPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
-      <Navbar />
 
       {/* ── HERO ── */}
       <div style={{

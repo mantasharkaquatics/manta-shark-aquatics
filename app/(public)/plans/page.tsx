@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/client'
 
 const PRIVATE_PACKAGES = [
@@ -161,7 +160,6 @@ function PackageCard({ pkg, accentColor }: { pkg: typeof PRIVATE_PACKAGES[0]; ac
 export default function PlansPage() {
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh' }}>
-      <Navbar />
       <div style={{ background: DARK }}>
 
       {/* HERO */}

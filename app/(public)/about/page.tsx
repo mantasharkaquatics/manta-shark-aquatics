@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Navbar from '@/components/Navbar'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -96,7 +95,6 @@ const differentiators = [
 export default function AboutPage() {
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: DARK }}>
-      <Navbar />
 
       {/* ── HERO ── */}
       <div style={{

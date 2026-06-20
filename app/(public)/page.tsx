@@ -1,5 +1,4 @@
 'use client'
-import Navbar from '@/components/Navbar'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -56,7 +55,6 @@ export default function HomePage() {
           .section-pad { padding: 48px 20px !important; }
         }
       `}</style>
-      <Navbar />
 
       {/* HERO */}
       <section style={{ background: '#111d38', position: 'relative', minHeight: '500px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
