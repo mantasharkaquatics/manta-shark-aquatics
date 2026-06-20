@@ -95,7 +95,7 @@ const differentiators = [
 
 export default function AboutPage() {
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: DARK }}>
       <Navbar />
 
       {/* ── HERO ── */}

@@ -151,7 +151,7 @@ export default function LevelsPage() {
   const current = levels[activeLevel]
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#111d38', minHeight: '100vh' }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: '#111d38' }}>
       <Navbar />
 
       {/* ── TOP BANNER ── */}
