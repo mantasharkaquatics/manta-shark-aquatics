@@ -20,7 +20,7 @@ const LEVEL_NAMES: Record<number, string> = {
 }
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
-interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string }
+interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string; trial_used_at: string | null }
 interface Credit {
   id: string
   total_credits: number
@@ -605,7 +605,7 @@ export default function DashboardPage() {
         {/* CREDITS */}
         <section style={{ marginBottom: '36px' }}>
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Lesson Credits</h2>
-          {credits.length === 0 ? (
+          {credits.length === 0 && students.filter(s => s.trial_used_at).length === 0 ? (
             <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '28px', textAlign: 'center' }}>
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 14px' }}>No active lesson credits.</p>
               <Link href="/plans" style={{ display: 'inline-block', padding: '9px 20px', background: 'transparent', color: GOLD, border: `1px solid ${GOLD}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>Browse Plans</Link>
@@ -635,6 +635,14 @@ export default function DashboardPage() {
                   )
                 })
               })()}
+              {students.filter(s => s.trial_used_at).map(s => (
+                <CreditCard
+                  key={`trial-${s.id}`}
+                  g={{ name: `1-on-1 Private · ${s.full_name} 單堂課程`, total: 1, used: 1, items: [{ credits: 1, used: 1, date: s.trial_used_at }] }}
+                  remaining={0}
+                  pct={0}
+                />
+              ))}
             </div>
           )}
         </section>
