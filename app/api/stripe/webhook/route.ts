@@ -25,6 +25,33 @@ export async function POST(req: NextRequest) {
     const session = event.data.object as Stripe.Checkout.Session
     const meta = session.metadata!
 
+    if (meta.type === 'trial_lesson') {
+      const booking_id = meta.booking_id
+      const student_id = meta.student_id
+
+      const { error: bookingErr } = await supabase
+        .from('bookings')
+        .update({ status: 'confirmed' })
+        .eq('id', booking_id)
+
+      if (bookingErr) {
+        console.error('Trial booking confirm error:', bookingErr)
+        return NextResponse.json({ error: 'Trial booking confirm failed' }, { status: 500 })
+      }
+
+      const { error: studentErr } = await supabase
+        .from('students')
+        .update({ trial_used_at: new Date().toISOString() })
+        .eq('id', student_id)
+
+      if (studentErr) {
+        console.error('Trial student update error:', studentErr)
+      }
+
+      console.log(`✅ Trial lesson confirmed: booking ${booking_id} for student ${student_id}`)
+      return NextResponse.json({ received: true })
+    }
+
     const parent_id      = meta.parent_id
     const plan_id        = meta.plan_id
     const sessions       = parseInt(meta.sessions)
@@ -72,6 +99,53 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`✅ Purchase complete: ${plan_id} for parent ${parent_id}`)
+  }
+
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as Stripe.Checkout.Session
+    const meta = session.metadata!
+
+    if (meta.type === 'trial_lesson') {
+      const booking_id = meta.booking_id
+      const class_session_id = meta.class_session_id
+
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('status')
+        .eq('id', booking_id)
+        .single()
+
+      if (booking?.status === 'pending_payment') {
+        await supabase
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .eq('id', booking_id)
+
+        const { data: sess } = await supabase
+          .from('class_sessions')
+          .select('enrolled_count')
+          .eq('id', class_session_id)
+          .single()
+
+        if (sess) {
+          const newCount = Math.max(0, sess.enrolled_count - 1)
+          await supabase
+            .from('class_sessions')
+            .update({ enrolled_count: newCount })
+            .eq('id', class_session_id)
+
+          if (newCount === 0) {
+            await supabase
+              .from('class_sessions')
+              .delete()
+              .eq('id', class_session_id)
+              .eq('enrolled_count', 0)
+          }
+        }
+
+        console.log(`⏰ Trial lesson payment expired, released slot: booking ${booking_id}`)
+      }
+    }
   }
 
   return NextResponse.json({ received: true })

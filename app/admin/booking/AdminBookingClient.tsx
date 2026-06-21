@@ -346,10 +346,16 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     }
   }
 
+  const [isTrial, setIsTrial] = useState(false)
+  const [trialUrl, setTrialUrl] = useState('')
+  const [trialSaving, setTrialSaving] = useState(false)
+
   function openBookModal(date: string, time: string, coachId: string) {
     setSelectedSlot({ date, time, coachId })
     setFormStudent('')
     setFormCourse(courseTypes[0]?.id || '')
+    setIsTrial(false)
+    setTrialUrl('')
     setError('')
     setSuccess('')
     setModal('book')
@@ -490,6 +496,40 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     setSaving(false)
   }
 
+  async function handleTrialBook() {
+    if (!formStudent || !selectedSlot) {
+      setError('請選擇學生')
+      return
+    }
+    setTrialSaving(true)
+    setError('')
+    setTrialUrl('')
+
+    try {
+      const res = await fetch('/api/stripe/trial-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: formStudent,
+          coachId: selectedSlot.coachId,
+          date: selectedSlot.date,
+          time: selectedSlot.time,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || '建立體驗課付款連結失敗')
+        setTrialSaving(false)
+        return
+      }
+      setTrialUrl(data.url)
+      await loadSessions()
+    } catch (e: any) {
+      setError('建立體驗課付款連結失敗：' + e.message)
+    }
+    setTrialSaving(false)
+  }
+
   function getSessionAt(date: string, time: string, coachId: string): Session | null {
     return sessions.find(s =>
       s.session_date === date &&
@@ -590,35 +630,72 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               <button onClick={() => setModal(null)} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
             </div>
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm text-white/60 mb-2">課程類型</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {courseTypes.map(ct => (
-                    <button key={ct.id} onClick={() => setFormCourse(ct.id)}
-                      className={`px-3 py-2.5 rounded-lg border text-sm text-left transition-all ${
-                        formCourse === ct.id
-                          ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]'
-                          : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
-                      }`}>
-                      <span className="block font-medium">{ct.name}</span>
-                      <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} 分鐘 · 最多 {ct.max_students} 人</span>
-                    </button>
-                  ))}
+              {trialUrl ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-white/60">付款連結已建立，複製後傳給家長：</p>
+                  <div className="flex gap-2">
+                    <input readOnly value={trialUrl}
+                      className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
+                      onFocus={(e) => e.target.select()} />
+                    <button onClick={() => navigator.clipboard.writeText(trialUrl)}
+                      className="px-3 py-2 rounded-lg bg-[#c9a84c] text-[#0d1529] text-xs font-semibold">複製</button>
+                  </div>
+                  <p className="text-xs text-white/30">付款完成後預約會自動確認；連結過期會自動釋放時段。</p>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm text-white/60 mb-2">選擇學生</label>
-                <StudentSearch students={students} value={formStudent} onChange={setFormStudent} />
-              </div>
-              {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
-              {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5">
+                    <input type="checkbox" id="isTrialCheckbox" checked={isTrial}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setIsTrial(checked)
+                        if (checked) {
+                          const trialCt = courseTypes.find(ct => ct.slug === '1on1')
+                          if (trialCt) setFormCourse(trialCt.id)
+                        }
+                      }}
+                      className="w-4 h-4" />
+                    <label htmlFor="isTrialCheckbox" className="text-sm text-white/80 cursor-pointer">
+                      單堂體驗課（$85，僅限 1-on-1，需家長線上付款）
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-white/60 mb-2">課程類型</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {courseTypes.map(ct => (
+                        <button key={ct.id}
+                          onClick={() => { if (!isTrial) setFormCourse(ct.id) }}
+                          disabled={isTrial && ct.slug !== '1on1'}
+                          className={`px-3 py-2.5 rounded-lg border text-sm text-left transition-all ${
+                            formCourse === ct.id
+                              ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]'
+                              : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
+                          } ${isTrial && ct.slug !== '1on1' ? 'opacity-30 cursor-not-allowed' : ''}`}>
+                          <span className="block font-medium">{ct.name}</span>
+                          <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} 分鐘 · 最多 {ct.max_students} 人</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-white/60 mb-2">選擇學生</label>
+                    <StudentSearch students={students} value={formStudent} onChange={setFormStudent} />
+                  </div>
+                  {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
+                  {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
+                </>
+              )}
             </div>
             <div className="p-6 pt-0 flex gap-3">
-              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">取消</button>
-              <button onClick={handleBook} disabled={saving}
-                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
-                {saving ? '建立中...' : '確認預約'}
+              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">
+                {trialUrl ? '完成' : '取消'}
               </button>
+              {!trialUrl && (
+                <button onClick={isTrial ? handleTrialBook : handleBook} disabled={saving || trialSaving}
+                  className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
+                  {isTrial ? (trialSaving ? '建立付款連結中...' : '產生付款連結') : (saving ? '建立中...' : '確認預約')}
+                </button>
+              )}
             </div>
           </div>
         </div>
