@@ -14,6 +14,7 @@ interface Student {
   full_name: string
   current_level: string
   parent_id: string
+  trial_used_at: string | null
   parents: { id: string; first_name: string; last_name: string; email: string } | { id: string; first_name: string; last_name: string; email: string }[]
 }
 
@@ -350,6 +351,30 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [trialUrl, setTrialUrl] = useState('')
   const [trialSaving, setTrialSaving] = useState(false)
   const [trialCopied, setTrialCopied] = useState(false)
+  const [trialCreditStatus, setTrialCreditStatus] = useState<'none' | 'checking' | 'available' | 'active'>('none')
+
+  useEffect(() => {
+    if (!isTrial || !formStudent) {
+      setTrialCreditStatus('none')
+      return
+    }
+    const student = students.find(s => s.id === formStudent)
+    if (!student?.trial_used_at) {
+      setTrialCreditStatus('none')
+      return
+    }
+    setTrialCreditStatus('checking')
+    supabase
+      .from('bookings')
+      .select('id')
+      .eq('student_id', formStudent)
+      .eq('is_trial', true)
+      .neq('status', 'cancelled')
+      .maybeSingle()
+      .then(({ data }) => {
+        setTrialCreditStatus(data ? 'active' : 'available')
+      })
+  }, [isTrial, formStudent]) // eslint-disable-line
 
   function openBookModal(date: string, time: string, coachId: string) {
     setSelectedSlot({ date, time, coachId })
@@ -531,6 +556,116 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     setTrialSaving(false)
   }
 
+  async function handleTrialCreditBook() {
+    if (!formStudent || !selectedSlot) {
+      setError('請選擇學生')
+      return
+    }
+    setSaving(true)
+    setError('')
+    const ct = courseTypes.find(c => c.slug === '1on1')!
+    const student = students.find(s => s.id === formStudent)!
+    const parentId = student.parent_id
+
+    const endMins = timeToMinutes(selectedSlot.time) + ct.duration_minutes
+    const endTime = minutesToTime(endMins)
+
+    const { data: existingSession } = await supabase
+      .from('class_sessions')
+      .select('id, enrolled_count, max_students')
+      .eq('coach_id', selectedSlot.coachId)
+      .eq('session_date', selectedSlot.date)
+      .eq('start_time', selectedSlot.time)
+      .eq('status', 'open')
+      .maybeSingle()
+
+    let sessId: string
+    let currentEnrolled: number
+
+    if (existingSession) {
+      if (existingSession.enrolled_count >= existingSession.max_students) {
+        setError('這個時段已經額滿')
+        setSaving(false)
+        return
+      }
+      sessId = existingSession.id
+      currentEnrolled = existingSession.enrolled_count
+    } else {
+      const { data: newSess, error: sessErr } = await supabase
+        .from('class_sessions')
+        .insert({
+          coach_id: selectedSlot.coachId,
+          course_type_id: ct.id,
+          session_date: selectedSlot.date,
+          start_time: selectedSlot.time,
+          end_time: endTime,
+          max_students: ct.max_students,
+          enrolled_count: 0,
+          status: 'open',
+        })
+        .select()
+        .single()
+
+      if (sessErr || !newSess) {
+        setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
+        setSaving(false)
+        return
+      }
+      sessId = newSess.id
+      currentEnrolled = 0
+    }
+
+    const { error: bookErr } = await supabase
+      .from('bookings')
+      .insert({
+        class_session_id: sessId,
+        parent_id: parentId,
+        student_id: formStudent,
+        lesson_credit_id: null,
+        is_trial: true,
+        status: 'confirmed',
+      })
+
+    if (bookErr) {
+      setError('建立預約失敗：' + bookErr.message)
+      setSaving(false)
+      return
+    }
+
+    await supabase
+      .from('class_sessions')
+      .update({ enrolled_count: currentEnrolled + 1 })
+      .eq('id', sessId)
+
+    try {
+      const { data: parentData } = await supabase.from('parents').select('first_name, email').eq('id', parentId).single()
+      const coach = coaches.find(c => c.id === selectedSlot.coachId)
+      if (parentData && coach) {
+        const endMinsForEmail = timeToMinutes(selectedSlot.time) + ct.duration_minutes
+        const endTimeForEmail = minutesToTime(endMinsForEmail)
+        await fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'booking_confirmed',
+            to: parentData.email,
+            parentName: parentData.first_name,
+            studentName: student.full_name,
+            courseName: ct.name,
+            coachName: `${coach.first_name} ${coach.last_name}`,
+            date: selectedSlot.date,
+            time: `${selectedSlot.time} – ${endTimeForEmail}`,
+          }),
+        })
+      }
+    } catch (e) { console.error('Email error:', e) }
+
+    setSuccess('使用已付款單堂課程，預約成功！')
+    await loadSessions()
+    setTimeout(() => { setModal(null); setSuccess('') }, 1500)
+    setSaving(false)
+  }
+
   function getSessionAt(date: string, time: string, coachId: string): Session | null {
     return sessions.find(s =>
       s.session_date === date &&
@@ -687,6 +822,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   <div>
                     <label className="block text-sm text-white/60 mb-2">選擇學生</label>
                     <StudentSearch students={students} value={formStudent} onChange={setFormStudent} />
+                    {isTrial && trialCreditStatus === 'available' && (
+                      <p className="text-xs text-[#c9a84c] mt-2">✓ 此學生已付款單堂體驗課，尚未使用，可直接安排，無需再次付款</p>
+                    )}
+                    {isTrial && trialCreditStatus === 'active' && (
+                      <p className="text-xs text-red-400 mt-2">此學生目前已有一筆進行中的單堂預約，請先取消該預約才能重新安排</p>
+                    )}
                   </div>
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
@@ -698,9 +839,15 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                 {trialUrl ? '完成' : '取消'}
               </button>
               {!trialUrl && (
-                <button onClick={isTrial ? handleTrialBook : handleBook} disabled={saving || trialSaving}
+                <button
+                  onClick={isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook}
+                  disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active')}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
-                  {isTrial ? (trialSaving ? '建立付款連結中...' : '產生付款連結') : (saving ? '建立中...' : '確認預約')}
+                  {isTrial
+                    ? (trialCreditStatus === 'available'
+                        ? (saving ? '建立中...' : '使用已付款單堂課程')
+                        : (trialSaving ? '建立付款連結中...' : '產生付款連結'))
+                    : (saving ? '建立中...' : '確認預約')}
                 </button>
               )}
             </div>
