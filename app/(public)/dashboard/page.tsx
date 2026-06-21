@@ -191,10 +191,11 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   )
 }
 
-function CreditCard({ g, remaining, pct }: {
+function CreditCard({ g, remaining, pct, note }: {
   g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null }[] }
   remaining: number
   pct: number
+  note?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   return (
@@ -203,7 +204,8 @@ function CreditCard({ g, remaining, pct }: {
         {g.name}
       </div>
       <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: '#c9a84c', lineHeight: 1 }}>{remaining}</div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '12px' }}>of {g.total} remaining</div>
+      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: note ? '2px' : '12px' }}>of {g.total} remaining</div>
+      {note && <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>{note}</div>}
       <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginBottom: '12px' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: '#c9a84c', borderRadius: '2px' }} />
       </div>
@@ -646,6 +648,7 @@ export default function DashboardPage() {
                     g={{ name: `1-on-1 Private · ${s.full_name} 單堂課程`, total: 1, used: isTrialActive ? 1 : 0, items: [{ credits: 1, used: isTrialActive ? 1 : 0, date: s.trial_used_at }] }}
                     remaining={isTrialActive ? 0 : 1}
                     pct={isTrialActive ? 0 : 100}
+                    note="每位學生限購一次"
                   />
                 )
               })}
