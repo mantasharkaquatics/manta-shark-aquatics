@@ -244,6 +244,7 @@ export default function DashboardPage() {
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
+  const [activeTrialStudentIds, setActiveTrialStudentIds] = useState<Set<string>>(new Set())
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
@@ -282,7 +283,7 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, class_sessions(session_date, start_time, end_time, course_types(name, slug), coaches(first_name)), students(full_name)')
+        .select('id, status, student_id, lesson_credit_id, is_trial, class_sessions(session_date, start_time, end_time, course_types(name, slug), coaches(first_name)), students(full_name)')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -295,6 +296,8 @@ export default function DashboardPage() {
 
     setStudents(studs || [])
     setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
+    setActiveTrialStudentIds(new Set((upcoming || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
+    setActiveTrialStudentIds(new Set((upcoming || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
 
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => ({
@@ -635,14 +638,17 @@ export default function DashboardPage() {
                   )
                 })
               })()}
-              {students.filter(s => s.trial_used_at).map(s => (
-                <CreditCard
-                  key={`trial-${s.id}`}
-                  g={{ name: `1-on-1 Private · ${s.full_name} 單堂課程`, total: 1, used: 1, items: [{ credits: 1, used: 1, date: s.trial_used_at }] }}
-                  remaining={0}
-                  pct={0}
-                />
-              ))}
+              {students.filter(s => s.trial_used_at).map(s => {
+                const isTrialActive = activeTrialStudentIds.has(s.id)
+                return (
+                  <CreditCard
+                    key={`trial-${s.id}`}
+                    g={{ name: `1-on-1 Private · ${s.full_name} 單堂課程`, total: 1, used: isTrialActive ? 1 : 0, items: [{ credits: 1, used: isTrialActive ? 1 : 0, date: s.trial_used_at }] }}
+                    remaining={isTrialActive ? 0 : 1}
+                    pct={isTrialActive ? 0 : 100}
+                  />
+                )
+              })}
             </div>
           )}
         </section>
