@@ -371,25 +371,49 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const endMins = timeToMinutes(selectedSlot.time) + ct.duration_minutes
     const endTime = minutesToTime(endMins)
 
-    const { data: sess, error: sessErr } = await supabase
+    const { data: existingSession } = await supabase
       .from('class_sessions')
-      .insert({
-        coach_id: selectedSlot.coachId,
-        course_type_id: formCourse,
-        session_date: selectedSlot.date,
-        start_time: selectedSlot.time,
-        end_time: endTime,
-        max_students: ct.max_students,
-        enrolled_count: 1,
-        status: 'open',
-      })
-      .select()
-      .single()
+      .select('id, enrolled_count, max_students')
+      .eq('coach_id', selectedSlot.coachId)
+      .eq('session_date', selectedSlot.date)
+      .eq('start_time', selectedSlot.time)
+      .eq('status', 'open')
+      .maybeSingle()
 
-    if (sessErr || !sess) {
-      setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
-      setSaving(false)
-      return
+    let sessId: string
+    let currentEnrolled: number
+
+    if (existingSession) {
+      if (existingSession.enrolled_count >= existingSession.max_students) {
+        setError('這個時段已經額滿')
+        setSaving(false)
+        return
+      }
+      sessId = existingSession.id
+      currentEnrolled = existingSession.enrolled_count
+    } else {
+      const { data: newSess, error: sessErr } = await supabase
+        .from('class_sessions')
+        .insert({
+          coach_id: selectedSlot.coachId,
+          course_type_id: formCourse,
+          session_date: selectedSlot.date,
+          start_time: selectedSlot.time,
+          end_time: endTime,
+          max_students: ct.max_students,
+          enrolled_count: 0,
+          status: 'open',
+        })
+        .select()
+        .single()
+
+      if (sessErr || !newSess) {
+        setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
+        setSaving(false)
+        return
+      }
+      sessId = newSess.id
+      currentEnrolled = 0
     }
 
     const student = students.find(s => s.id === formStudent)!
@@ -407,7 +431,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const { error: bookErr } = await supabase
       .from('bookings')
       .insert({
-        class_session_id: sess.id,
+        class_session_id: sessId,
         parent_id: parentId,
         student_id: formStudent,
         lesson_credit_id: validCredit?.id || null,
@@ -419,6 +443,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       setSaving(false)
       return
     }
+
+    await supabase
+      .from('class_sessions')
+      .update({ enrolled_count: currentEnrolled + 1 })
+      .eq('id', sessId)
 
     if (validCredit) {
       await supabase
