@@ -38,6 +38,7 @@ interface Booking {
   lesson_credit_id?: string
   course_slug?: string
   student_id?: string
+  is_trial?: boolean
 }
 
 function getAge(dob: string): number {
@@ -299,7 +300,6 @@ export default function DashboardPage() {
     setStudents(studs || [])
     setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
     setActiveTrialStudentIds(new Set((upcoming || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
-    setActiveTrialStudentIds(new Set((upcoming || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
 
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => ({
@@ -314,6 +314,7 @@ export default function DashboardPage() {
         lesson_credit_id: b.lesson_credit_id,
         course_slug: b.class_sessions?.course_types?.slug,
         student_id: b.student_id,
+        is_trial: b.is_trial,
       })).filter(b => b.session_date)
 
     const allUpcoming = parseBookings(upcoming || []).filter(b => b.session_date >= today)
@@ -568,6 +569,7 @@ export default function DashboardPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.course_name}</span>
+                        {booking.is_trial && <span style={{ fontSize: '10px', fontWeight: 700, background: 'transparent', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: '10px', padding: '2px 8px' }}>單堂</span>}
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                       </div>
