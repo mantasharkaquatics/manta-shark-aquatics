@@ -368,6 +368,24 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     setSaving(true)
     setError('')
     const ct = courseTypes.find(c => c.id === formCourse)!
+    const student = students.find(s => s.id === formStudent)!
+    const parentId = student.parent_id
+
+    const { data: credits } = await supabase
+      .from('lesson_credits')
+      .select('id, used_credits, total_credits')
+      .eq('student_id', formStudent)
+      .eq('course_type_id', formCourse)
+      .order('expires_at', { ascending: true })
+
+    const validCredit = credits?.find(c => c.used_credits < c.total_credits)
+
+    if (!validCredit) {
+      setError(`此學生尚未購買「${ct.name}」方案，或方案堂數已用完，無法安排此堂課`)
+      setSaving(false)
+      return
+    }
+
     const endMins = timeToMinutes(selectedSlot.time) + ct.duration_minutes
     const endTime = minutesToTime(endMins)
 
@@ -416,25 +434,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       currentEnrolled = 0
     }
 
-    const student = students.find(s => s.id === formStudent)!
-    const parentId = student.parent_id
-
-    const { data: credits } = await supabase
-      .from('lesson_credits')
-      .select('id, used_credits, total_credits')
-      .eq('student_id', formStudent)
-      .eq('course_type_id', formCourse)
-      .order('expires_at', { ascending: true })
-
-    const validCredit = credits?.find(c => c.used_credits < c.total_credits)
-
     const { error: bookErr } = await supabase
       .from('bookings')
       .insert({
         class_session_id: sessId,
         parent_id: parentId,
         student_id: formStudent,
-        lesson_credit_id: validCredit?.id || null,
+        lesson_credit_id: validCredit.id,
         status: 'confirmed',
       })
 
@@ -449,12 +455,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .update({ enrolled_count: currentEnrolled + 1 })
       .eq('id', sessId)
 
-    if (validCredit) {
-      await supabase
-        .from('lesson_credits')
-        .update({ used_credits: validCredit.used_credits + 1 })
-        .eq('id', validCredit.id)
-    }
+    await supabase
+      .from('lesson_credits')
+      .update({ used_credits: validCredit.used_credits + 1 })
+      .eq('id', validCredit.id)
 
     // 寄送預約確認 email
     try {
