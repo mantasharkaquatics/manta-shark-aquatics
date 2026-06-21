@@ -4,7 +4,7 @@ import { Resend } from 'resend'
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(req: NextRequest) {
-  const { type, to, parentName, studentName, courseName, coachName, date, time } = await req.json()
+  const { type, to, parentName, studentName, courseName, coachName, date, time, paymentUrl } = await req.json()
 
   let subject = ''
   let html = ''
@@ -29,6 +29,33 @@ export async function POST(req: NextRequest) {
             <tr><td style="padding: 8px 0; color: #666;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr>
             <tr><td style="padding: 8px 0; color: #666;">Time</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr>
           </table>
+        </div>
+        <p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p>
+      </div>
+    `
+  } else if (type === 'trial_payment_link') {
+    subject = `Complete Your Trial Lesson Booking – $85`
+    html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1>
+        </div>
+        <div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;">
+          <h2 style="color: #1a2744; margin-top: 0;">🏊 Trial Lesson Reserved</h2>
+          <p>Hi ${parentName},</p>
+          <p>We've reserved a trial lesson time for ${studentName}. Please complete payment to confirm your spot:</p>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px 0; color: #666;">Student</td><td style="padding: 8px 0; font-weight: 600;">${studentName}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Course</td><td style="padding: 8px 0; font-weight: 600;">${courseName}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${coachName}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Time</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr>
+            <tr><td style="padding: 8px 0; color: #666;">Price</td><td style="padding: 8px 0; font-weight: 600;">$85</td></tr>
+          </table>
+          <div style="text-align: center; margin-top: 24px;">
+            <a href="${paymentUrl}" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Complete Payment</a>
+          </div>
+          <p style="color: #999; font-size: 12px; margin-top: 16px;">This reserved spot will be released automatically if payment is not completed before the link expires.</p>
         </div>
         <p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p>
       </div>
