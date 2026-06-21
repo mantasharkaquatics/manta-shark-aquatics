@@ -36,7 +36,7 @@ interface Session {
   status: string
   course_type_id: string
   course_types: { name: string; slug: string; duration_minutes: number } | { name: string; slug: string; duration_minutes: number }[]
-  bookings?: { id: string; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
+  bookings?: { id: string; lesson_credit_id: string | null; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
 }
 
 interface BookingSlot {
@@ -319,7 +319,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     }
     const { data } = await supabase
       .from('class_sessions')
-      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes), bookings(id, students(full_name), parents(first_name, last_name))')
+      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes), bookings(id, lesson_credit_id, students(full_name), parents(first_name, last_name))')
       .gte('session_date', from)
       .lte('session_date', to)
       .neq('status', 'cancelled')
@@ -848,22 +848,31 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   const ct = getSessionCourseType(session)
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
   const isFull = session.enrolled_count >= session.max_students
+  const isSingleLesson = session.bookings?.some(b => b.lesson_credit_id === null)
   return (
-    <button onClick={onClick}
-      className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
-      style={{ backgroundColor: colorClass }}>
-      <span className="text-sm font-bold text-[#1a2744] leading-tight truncate w-full">{ct.name}</span>
-      <span className="text-xs font-semibold text-[#1a2744]/70">{session.enrolled_count}/{session.max_students}</span>
-      {session.bookings && session.bookings.map(b => {
-        const st = Array.isArray(b.students) ? b.students[0] : b.students
-        const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
-        return st ? (
-          <span key={b.id} className="text-xs font-semibold text-[#1a2744] truncate w-full leading-tight block">
-            {pa ? `${pa.first_name} ${pa.last_name}` : ''} · {st.full_name}
-          </span>
-        ) : null
-      })}
-    </button>
+    <>
+      <button onClick={onClick}
+        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
+        style={{ backgroundColor: colorClass }}>
+        <span className="text-sm font-bold text-[#1a2744] leading-tight truncate w-full">{ct.name}</span>
+        <span className="text-xs font-semibold text-[#1a2744]/70">{session.enrolled_count}/{session.max_students}</span>
+        {session.bookings && session.bookings.map(b => {
+          const st = Array.isArray(b.students) ? b.students[0] : b.students
+          const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
+          return st ? (
+            <span key={b.id} className="text-xs font-semibold text-[#1a2744] truncate w-full leading-tight block">
+              {pa ? `${pa.first_name} ${pa.last_name}` : ''} · {st.full_name}
+            </span>
+          ) : null
+        })}
+      </button>
+      {isSingleLesson && (
+        <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none"
+          style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
+          單堂
+        </span>
+      )}
+    </>
   )
 }
 
@@ -885,7 +894,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('id, status, students(full_name, current_level), parents(first_name, last_name)')
+      .select('id, status, lesson_credit_id, students(full_name, current_level), parents(first_name, last_name)')
       .eq('class_session_id', session.id)
       .neq('status', 'cancelled')
       .then(({ data }) => setBookings(data || []))
@@ -932,7 +941,12 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                 const parent  = Array.isArray(b.parents)  ? b.parents[0]  : b.parents
                 return (
                   <div key={b.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2.5">
-                    <span className="text-sm text-white font-medium">{student?.full_name}</span>
+                    <span className="text-sm text-white font-medium flex items-center gap-1.5">
+                      {student?.full_name}
+                      {b.lesson_credit_id === null && (
+                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>單堂</span>
+                      )}
+                    </span>
                     <span className="text-xs text-white/40">Lv.{student?.current_level} · {parent?.first_name} {parent?.last_name}</span>
                   </div>
                 )
