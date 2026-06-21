@@ -349,6 +349,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [isTrial, setIsTrial] = useState(false)
   const [trialUrl, setTrialUrl] = useState('')
   const [trialSaving, setTrialSaving] = useState(false)
+  const [trialCopied, setTrialCopied] = useState(false)
 
   function openBookModal(date: string, time: string, coachId: string) {
     setSelectedSlot({ date, time, coachId })
@@ -637,8 +638,14 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     <input readOnly value={trialUrl}
                       className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
                       onFocus={(e) => e.target.select()} />
-                    <button onClick={() => navigator.clipboard.writeText(trialUrl)}
-                      className="px-3 py-2 rounded-lg bg-[#c9a84c] text-[#0d1529] text-xs font-semibold">複製</button>
+                    <button onClick={() => {
+                        navigator.clipboard.writeText(trialUrl)
+                        setTrialCopied(true)
+                        setTimeout(() => setTrialCopied(false), 1500)
+                      }}
+                      className="px-3 py-2 rounded-lg bg-[#c9a84c] text-[#0d1529] text-xs font-semibold min-w-[64px]">
+                      {trialCopied ? '已複製 ✓' : '複製'}
+                    </button>
                   </div>
                   <p className="text-xs text-white/30">付款完成後預約會自動確認；連結過期會自動釋放時段。</p>
                 </div>
