@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const { data: parent } = await supabase
       .from('parents')
-      .select('email')
+      .select('first_name, email')
       .eq('id', student.parent_id)
       .single()
 
@@ -57,6 +57,12 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!courseType) return NextResponse.json({ error: '1-on-1 course type not found' }, { status: 500 })
+
+    const { data: coach } = await supabase
+      .from('coaches')
+      .select('first_name, last_name')
+      .eq('id', coachId)
+      .single()
 
     const [h, m] = time.split(':').map(Number)
     const endMins = h * 60 + m + courseType.duration_minutes
@@ -146,6 +152,26 @@ export async function POST(req: NextRequest) {
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/?trial=success`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/?trial=cancelled`,
     })
+
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'trial_payment_link',
+          to: parent?.email,
+          parentName: parent?.first_name || 'there',
+          studentName: student.full_name,
+          courseName: 'Trial 1-on-1 Lesson',
+          coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
+          date,
+          time,
+          paymentUrl: session.url,
+        }),
+      })
+    } catch (e) {
+      console.error('Trial payment email error:', e)
+    }
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
