@@ -271,10 +271,11 @@ export default function BookingPage() {
       }
       const existing = sameTypeSessions[t]
       if (existing) {
+        const isFull = existing.enrolled_count >= existing.max_students
         return {
           time: t, label: formatTime(t),
-          available: existing.enrolled_count < existing.max_students,
-          enrolled: existing.enrolled_count, max: existing.max_students, session_id: existing.id,
+          available: !isFull,
+          enrolled: existing.enrolled_count, max: existing.max_students, session_id: isFull ? undefined : existing.id,
         }
       }
       return { time: t, label: formatTime(t), available: true, enrolled: 0, max: maxStudents }
@@ -309,16 +310,26 @@ export default function BookingPage() {
     // 永遠先檢查教練時段衝突(不限課程類型)
     const { data: conflicts } = await supabase
       .from('class_sessions')
-      .select('id, course_type_id')
+      .select('id, course_type_id, enrolled_count, max_students')
       .eq('coach_id', selectedCoach.id)
       .eq('session_date', dateStr)
       .eq('start_time', startTime)
       .eq('status', 'open')
       .gt('enrolled_count', 0)
 
+    // 如果教練這個時段已有任何課程有人(含同課程類型),且不是可以加入的同課程 session
+    const sameCourseSession = (conflicts || []).find(c => c.course_type_id === selectedCourse.id)
     const otherCourseConflict = (conflicts || []).some(c => c.course_type_id !== selectedCourse.id)
+
     if (otherCourseConflict) {
       alert('此時段教練已有其他課程，請選擇其他時間')
+      setSubmitting(false)
+      return
+    }
+
+    // 同課程類型但已有 session 且已額滿
+    if (sameCourseSession && sameCourseSession.enrolled_count >= sameCourseSession.max_students) {
+      alert('此時段已額滿，請選擇其他時間')
       setSubmitting(false)
       return
     }
