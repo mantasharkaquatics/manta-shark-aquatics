@@ -10,7 +10,8 @@ const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
-interface Student { id: string; full_name: string; current_level: number }
+interface Student { id: string; full_name: string; current_level: number; parent_id?: string }
+interface PartnerStudent { id: string; full_name: string; current_level: number; parent_id: string; isPartner: true; partnerParentId: string; partnershipId: string }
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
 interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string }
@@ -144,6 +145,8 @@ export default function BookingPage() {
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([])
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
+  const [partnerStudents, setPartnerStudents] = useState<PartnerStudent[]>([])
+  const [selectedStudent2, setSelectedStudent2] = useState<Student | PartnerStudent | null>(null)
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<CourseType | null>(null)
@@ -179,6 +182,20 @@ export default function BookingPage() {
       setCourseTypes(cts || [])
       setCoaches(coachs || [])
       setCredits((crds || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
+
+      try {
+        const res = await fetch('/api/partnerships/list')
+        if (res.ok) {
+          const { partnerships, partner_students } = await res.json()
+          const pStudents: PartnerStudent[] = (partner_students || []).map((s: any) => {
+            const p = (partnerships || []).find((pp: any) =>
+              pp.initiator_parent_id === s.parent_id || pp.partner_parent_id === s.parent_id
+            )
+            return { id: s.id, full_name: s.full_name, current_level: s.current_level, parent_id: s.parent_id, isPartner: true as const, partnerParentId: s.parent_id, partnershipId: p?.id || '' }
+          })
+          setPartnerStudents(pStudents)
+        }
+      } catch {}
 
       const params = new URLSearchParams(window.location.search)
       const rbId = params.get('reschedule_booking_id')
@@ -378,6 +395,48 @@ export default function BookingPage() {
       .eq('id', availableCredit.id)
 
     await supabase.rpc('increment_enrolled', { session_id: sessionId })
+
+    // 1-on-2：處理第二位學生
+    if (selectedCourse.slug === '1on2' && selectedStudent2) {
+      const isPartnerS = (selectedStudent2 as any).isPartner === true
+      if (isPartnerS) {
+        // 跨帳戶：建立 pending 預約，時段先鎖定，等對方 12 小時內確認
+        const ps2 = selectedStudent2 as PartnerStudent
+        await supabase.from('bookings').insert({
+          class_session_id: sessionId,
+          parent_id: ps2.partnerParentId,
+          lesson_credit_id: null,
+          student_id: ps2.id,
+          status: 'pending_partner',
+          pending_action: 'confirm',
+          pending_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+          partner_parent_id: parentId,
+          partnership_id: ps2.partnershipId,
+          is_guest: true,
+        })
+        await supabase.rpc('increment_enrolled', { session_id: sessionId })
+      } else {
+        // 同帳戶：扣第二個 credit，建立 confirmed 預約
+        const creditForS2 = [...credits]
+          .sort((a, b) => ((a as any).created_at || '').localeCompare((b as any).created_at || ''))
+          .find(c => {
+            const usedNow = c.id === availableCredit.id ? availableCredit.used_credits + 1 : c.used_credits
+            return (c.total_credits - usedNow) > 0
+          }) || null
+        if (creditForS2) {
+          const usedNow = creditForS2.id === availableCredit.id ? availableCredit.used_credits + 1 : creditForS2.used_credits
+          await supabase.from('bookings').insert({
+            class_session_id: sessionId,
+            parent_id: parentId,
+            lesson_credit_id: creditForS2.id,
+            student_id: selectedStudent2.id,
+            status: 'confirmed',
+          })
+          await supabase.from('lesson_credits').update({ used_credits: usedNow + 1 }).eq('id', creditForS2.id)
+          await supabase.rpc('increment_enrolled', { session_id: sessionId })
+        }
+      }
+    }
 
     const rbIdToCancel = rescheduleBookingIdRef.current || rescheduleBookingId
     if (rbIdToCancel) {
@@ -646,6 +705,62 @@ export default function BookingPage() {
               </div>
             )}
 
+            {/* 1-on-2：選第二位學生 */}
+            {selectedCourse?.slug === '1on2' && availableCredit && (
+              <div style={{ marginTop: '20px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
+                  👥 Select 2nd Student
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {students.filter(s => s.id !== selectedStudent?.id).map(s => (
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => setSelectedStudent2(s)} color="#4a90c4">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4a90c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
+                          {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · Same account</div>
+                        </div>
+                      </div>
+                    </SelectCard>
+                  ))}
+                  {partnerStudents.map(s => (
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => setSelectedStudent2(s)} color="#4a90c4">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#7b61c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
+                          {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
+                            <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>連動</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · 需對方 12 小時內確認</div>
+                        </div>
+                      </div>
+                    </SelectCard>
+                  ))}
+                  {students.filter(s => s.id !== selectedStudent?.id).length === 0 && partnerStudents.length === 0 && (
+                    <div style={{ padding: '16px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
+                      No other students available. Add a student or link an account.
+                    </div>
+                  )}
+                </div>
+                {selectedStudent2 && !(selectedStudent2 as any).isPartner && remainingCredits < 2 && (
+                  <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '12px', color: '#e05a4a' }}>
+                    ⚠️ 1-on-2 需要 2 堂 credit。目前剩餘 {remainingCredits} 堂。{' '}
+                    <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>購買方案 →</Link>
+                  </div>
+                )}
+                {selectedStudent2 && (selectedStudent2 as any).isPartner && (
+                  <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.3)', borderRadius: '8px', fontSize: '12px', color: '#a78bfa' }}>
+                    📋 跨帳戶預約：對方需在 12 小時內確認並扣除其帳戶 1 堂 credit。
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
               <button onClick={() => setStep(0)} style={{
                 flex: 1, padding: '14px', background: 'transparent',
@@ -653,15 +768,26 @@ export default function BookingPage() {
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>← Back</button>
               <button
-                onClick={() => { if (selectedCourse && availableCredit) setStep(2) }}
-                disabled={!selectedCourse || !availableCredit}
+                onClick={() => {
+                  if (!selectedCourse || !availableCredit) return
+                  if (selectedCourse.slug === '1on2') {
+                    if (!selectedStudent2) return
+                    if (!(selectedStudent2 as any).isPartner && remainingCredits < 2) return
+                  }
+                  setStep(2)
+                }}
+                disabled={
+                  !selectedCourse || !availableCredit ||
+                  (selectedCourse?.slug === '1on2' && !selectedStudent2) ||
+                  (selectedCourse?.slug === '1on2' && !(selectedStudent2 as any)?.isPartner && remainingCredits < 2)
+                }
                 style={{
                   flex: 2, padding: '14px',
-                  background: selectedCourse && availableCredit ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: selectedCourse && availableCredit ? NAVY : 'rgba(255,255,255,0.3)',
+                  background: (!selectedCourse || !availableCredit || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
+                  color: (!selectedCourse || !availableCredit || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: selectedCourse && availableCredit ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase', cursor: 'pointer',
                 }}
               >Continue →</button>
             </div>
