@@ -261,28 +261,8 @@ export default function POSClient() {
             <span style={{ backgroundColor: (selectedPlanId || isTrial) ? '#10b981' : GOLD, color: NAVY, borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
             Package
           </h2>
-          <div style={{ maxHeight: 520, overflowY: 'auto' }}>
-            <div style={{ opacity: isTrial ? 0.35 : 1, transition: 'opacity 0.2s', pointerEvents: isTrial ? 'none' : 'auto' }}>
-              {PLAN_GROUPS.map(group => (
-                <div key={group.label} style={{ marginBottom: 14 }}>
-                  <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{group.label}</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-                    {group.keys.map(key => {
-                      const p = PLANS[key]
-                      const sel = selectedPlanId === key
-                      return (
-                        <button key={key} onClick={() => { setSelectedPlanId(key); setIsTrial(false) }}
-                          style={{ padding: '10px 8px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `1px solid ${sel ? GOLD : '#1e3a6e'}`, backgroundColor: sel ? GOLD : '#0d1829' }}>
-                          <p style={{ color: sel ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 500, margin: 0 }}>{p.sessions} sessions</p>
-                          <p style={{ color: sel ? NAVY : 'white', fontSize: 15, fontWeight: 700, margin: 0 }}>${(p.amount / 100).toLocaleString()}</p>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ borderTop: '1px solid #1e3a6e', paddingTop: 14, marginTop: 4 }}>
+          <div style={{ maxHeight: 660, overflowY: 'auto' }}>
+            <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
               <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Trial Lesson</p>
               <button onClick={() => { setIsTrial(!isTrial); setSelectedPlanId(null) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isTrial ? GOLD : '#1e3a6e'}`, backgroundColor: isTrial ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
@@ -323,6 +303,27 @@ export default function POSClient() {
                 </div>
               )}
             </div>
+            <div style={{ opacity: isTrial ? 0.35 : 1, transition: 'opacity 0.2s', pointerEvents: isTrial ? 'none' : 'auto' }}>
+              {PLAN_GROUPS.map(group => (
+                <div key={group.label} style={{ marginBottom: 14 }}>
+                  <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{group.label}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                    {group.keys.map(key => {
+                      const p = PLANS[key]
+                      const sel = selectedPlanId === key
+                      return (
+                        <button key={key} onClick={() => { setSelectedPlanId(key); setIsTrial(false) }}
+                          style={{ padding: '10px 8px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `1px solid ${sel ? GOLD : '#1e3a6e'}`, backgroundColor: sel ? GOLD : '#0d1829' }}>
+                          <p style={{ color: sel ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 500, margin: 0 }}>{p.sessions} sessions</p>
+                          <p style={{ color: sel ? NAVY : 'white', fontSize: 15, fontWeight: 700, margin: 0 }}>${(p.amount / 100).toLocaleString()}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
         <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: 20 }}>
