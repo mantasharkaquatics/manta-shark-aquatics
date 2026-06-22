@@ -364,7 +364,15 @@ export default function BookingPage() {
         status: 'confirmed',
       })
 
-    if (bookErr) { setSubmitting(false); return }
+    if (bookErr) {
+      if (bookErr.message?.includes('coach_timeslot_conflict')) {
+        alert('此時段教練已有其他課程，請選擇其他時間')
+      } else {
+        alert('預約失敗，請稍後再試')
+      }
+      setSubmitting(false)
+      return
+    }
 
     await supabase
       .from('lesson_credits')

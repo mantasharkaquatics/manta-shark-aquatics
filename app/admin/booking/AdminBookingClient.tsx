@@ -492,7 +492,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
 
     if (bookErr) {
-      setError('建立預約失敗：' + bookErr.message)
+      if (bookErr.message?.includes('coach_timeslot_conflict')) {
+        setError('此時段教練已有其他課程，無法安排')
+      } else {
+        setError('建立預約失敗：' + bookErr.message)
+      }
       setSaving(false)
       return
     }
@@ -657,7 +661,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
 
     if (bookErr) {
-      setError('建立預約失敗：' + bookErr.message)
+      if (bookErr.message?.includes('coach_timeslot_conflict')) {
+        setError('此時段教練已有其他課程，無法安排')
+      } else {
+        setError('建立預約失敗：' + bookErr.message)
+      }
       setSaving(false)
       return
     }
