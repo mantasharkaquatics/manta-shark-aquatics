@@ -42,7 +42,17 @@ export async function POST(req: NextRequest) {
 
     const { data: existingSession } = await supabase
       .from('class_sessions').select('id, enrolled_count, max_students')
-      .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time).eq('status', 'open').maybeSingle()
+      .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time).eq('status', 'open')
+      .eq('course_type_id', courseType.id).maybeSingle()
+
+    if (!existingSession) {
+      const { data: conflicts } = await supabase
+        .from('class_sessions').select('id')
+        .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time)
+        .eq('status', 'open').gt('enrolled_count', 0)
+      if (conflicts && conflicts.length > 0)
+        return NextResponse.json({ error: '此時段教練已有其他課程，無法安排' }, { status: 400 })
+    }
 
     let sessId: string
     let currentEnrolled: number
