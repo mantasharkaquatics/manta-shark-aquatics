@@ -428,7 +428,22 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .eq('session_date', selectedSlot.date)
       .eq('start_time', selectedSlot.time)
       .eq('status', 'open')
+      .eq('course_type_id', formCourse)
       .maybeSingle()
+
+    if (!existingSession) {
+      const { data: conflicts } = await supabase
+        .from('class_sessions').select('id')
+        .eq('coach_id', selectedSlot.coachId)
+        .eq('session_date', selectedSlot.date)
+        .eq('start_time', selectedSlot.time)
+        .eq('status', 'open').gt('enrolled_count', 0)
+      if (conflicts && conflicts.length > 0) {
+        setError('此時段教練已有其他課程，無法安排')
+        setSaving(false)
+        return
+      }
+    }
 
     let sessId: string
     let currentEnrolled: number
@@ -577,7 +592,22 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .eq('session_date', selectedSlot.date)
       .eq('start_time', selectedSlot.time)
       .eq('status', 'open')
+      .eq('course_type_id', ct.id)
       .maybeSingle()
+
+    if (!existingSession) {
+      const { data: conflicts } = await supabase
+        .from('class_sessions').select('id')
+        .eq('coach_id', selectedSlot.coachId)
+        .eq('session_date', selectedSlot.date)
+        .eq('start_time', selectedSlot.time)
+        .eq('status', 'open').gt('enrolled_count', 0)
+      if (conflicts && conflicts.length > 0) {
+        setError('此時段教練已有其他課程，無法安排')
+        setSaving(false)
+        return
+      }
+    }
 
     let sessId: string
     let currentEnrolled: number
