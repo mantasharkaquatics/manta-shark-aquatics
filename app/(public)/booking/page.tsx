@@ -292,6 +292,20 @@ export default function BookingPage() {
     let sessionId = selectedSlot.session_id
 
     if (!sessionId) {
+      const { data: conflicts } = await supabase
+        .from('class_sessions')
+        .select('id')
+        .eq('coach_id', selectedCoach.id)
+        .eq('session_date', dateStr)
+        .eq('start_time', startTime)
+        .eq('status', 'open')
+        .gt('enrolled_count', 0)
+      if (conflicts && conflicts.length > 0) {
+        alert('此時段教練已有其他課程，請選擇其他時間')
+        setSubmitting(false)
+        return
+      }
+
       const { data: newSession, error } = await supabase
         .from('class_sessions')
         .insert({
