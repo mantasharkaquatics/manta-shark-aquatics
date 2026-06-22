@@ -258,6 +258,9 @@ export default function DashboardPage() {
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string } | null>(null)
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
+  const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -302,6 +305,17 @@ export default function DashboardPage() {
     setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
     setActiveTrialStudentIds(new Set((upcoming || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
 
+    // 查詢待確認的跨帳戶預約（對方邀請我方學生，等我確認）
+    const { data: pendingRaw } = await supabase
+      .from('bookings')
+      .select('id, student_id, pending_expires_at, partner_parent_id, students(full_name), class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name))')
+      .eq('parent_id', parentData.id)
+      .eq('status', 'pending_partner')
+      .eq('pending_action', 'confirm')
+      .gt('pending_expires_at', new Date().toISOString())
+
+    setPendingPartnerBookings(pendingRaw || [])
+
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => ({
         id: b.id,
@@ -324,6 +338,52 @@ export default function DashboardPage() {
     setUpcomingBookings(allUpcoming.sort((a, b) => a.session_date.localeCompare(b.session_date)))
     setPastBookings(allPast.sort((a, b) => b.session_date.localeCompare(a.session_date)).slice(0, 10))
     setLoading(false)
+  }
+
+  async function confirmPartnerBooking(bookingId: string) {
+    setConfirmingId(bookingId)
+    const booking = pendingPartnerBookings.find(b => b.id === bookingId)
+    if (!booking || !parent) { setConfirmingId(null); return }
+
+    // 找對應課程類型的 credit
+    const cs = Array.isArray(booking.class_sessions) ? booking.class_sessions[0] : booking.class_sessions
+    const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
+
+    const { data: myCredits } = await supabase
+      .from('lesson_credits')
+      .select('id, total_credits, used_credits, course_type_id, course_types(name)')
+      .eq('parent_id', parent.id)
+      .filter('total_credits', 'gt', 0)
+
+    const creditToUse = (myCredits || [])
+      .filter((c: any) => (c.total_credits - c.used_credits) > 0)
+      .sort((a: any, b: any) => (a.created_at || '').localeCompare(b.created_at || ''))[0] || null
+
+    if (!creditToUse) {
+      alert('您沒有足夠的 credit 確認此預約，請先購買方案。')
+      setConfirmingId(null)
+      return
+    }
+
+    await supabase.from('bookings').update({
+      status: 'confirmed',
+      lesson_credit_id: creditToUse.id,
+      pending_action: null,
+      pending_expires_at: null,
+    }).eq('id', bookingId)
+
+    await supabase.from('lesson_credits').update({ used_credits: creditToUse.used_credits + 1 }).eq('id', creditToUse.id)
+    await fetchAll()
+    setConfirmingId(null)
+  }
+
+  async function rejectPartnerBooking(bookingId: string) {
+    setRejectingId(bookingId)
+    const { data: b } = await supabase.from('bookings').select('class_session_id').eq('id', bookingId).single()
+    await supabase.from('bookings').update({ status: 'cancelled', pending_action: null }).eq('id', bookingId)
+    if (b?.class_session_id) await supabase.rpc('decrement_enrolled', { session_id: b.class_session_id })
+    await fetchAll()
+    setRejectingId(null)
   }
 
   function isWithin24Hours(sessionDate: string, startTime: string): boolean {
@@ -535,6 +595,55 @@ export default function DashboardPage() {
             })}
           </div>
         </section>
+
+        {/* PENDING PARTNER BOOKINGS 通知 */}
+        {pendingPartnerBookings.length > 0 && (
+          <section style={{ marginBottom: '28px' }}>
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ 待確認邀請</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {pendingPartnerBookings.map((b: any) => {
+                const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
+                const student = Array.isArray(b.students) ? b.students[0] : b.students
+                const coach = cs ? (Array.isArray(cs.coaches) ? cs.coaches[0] : cs.coaches) : null
+                const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
+                const expiresAt = new Date(b.pending_expires_at)
+                const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000))
+                return (
+                  <div key={b.id} style={{ background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)', borderRadius: '14px', padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 跨帳戶預約邀請</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>
+                          {student?.full_name} 被邀請上課
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>
+                          {ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}
+                        </div>
+                        <div style={{ fontSize: '11px', color: hoursLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
+                          ⏱ 剩餘 {hoursLeft} 小時確認，否則自動取消
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                        <button
+                          onClick={() => rejectPartnerBooking(b.id)}
+                          disabled={rejectingId === b.id || confirmingId === b.id}
+                          style={{ padding: '8px 16px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: '8px', color: '#f87171', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                          {rejectingId === b.id ? '...' : '拒絕'}
+                        </button>
+                        <button
+                          onClick={() => confirmPartnerBooking(b.id)}
+                          disabled={confirmingId === b.id || rejectingId === b.id}
+                          style={{ padding: '8px 16px', background: '#7b61c4', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                          {confirmingId === b.id ? '確認中...' : '確認參加（扣 1 credit）'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {/* UPCOMING LESSONS */}
         <section style={{ marginBottom: '36px' }}>
