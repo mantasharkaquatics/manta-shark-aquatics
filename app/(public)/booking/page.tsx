@@ -240,25 +240,40 @@ export default function BookingPage() {
       allSlots.push(...generateSlots(a.start_time, a.end_time))
     }
 
-    const { data: sessions } = await supabase
+    // 查詢該教練當天所有課程的 session(不限課程類型),用來檢查教練時段衝突
+    const { data: allSessions } = await supabase
       .from('class_sessions')
-      .select('id, start_time, enrolled_count, max_students, status')
+      .select('id, start_time, enrolled_count, max_students, status, course_type_id')
       .eq('coach_id', selectedCoach.id)
       .eq('session_date', dateStr)
-      .eq('course_type_id', selectedCourse.id)
+      .eq('status', 'open')
+      .gt('enrolled_count', 0)
 
-    const sessionMap: Record<string, any> = {}
-    for (const s of sessions || []) {
-      sessionMap[s.start_time.slice(0, 5)] = s
+    // 建立「教練已佔用時段」Set(任何課程類型都算)
+    const blockedTimes = new Set<string>()
+    const sameTypeSessions: Record<string, any> = {}
+    for (const s of allSessions || []) {
+      const t = s.start_time.slice(0, 5)
+      if (s.course_type_id !== selectedCourse.id) {
+        // 其他課程類型佔用 → 整個時段封鎖
+        blockedTimes.add(t)
+      } else {
+        // 同課程類型 → 看還有沒有位置
+        sameTypeSessions[t] = s
+      }
     }
 
     const slots: TimeSlot[] = allSlots.map(t => {
-      const existing = sessionMap[t]
       const maxStudents = selectedCourse.max_students
+      // 教練時段被其他課程佔用 → 不可預約
+      if (blockedTimes.has(t)) {
+        return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
+      }
+      const existing = sameTypeSessions[t]
       if (existing) {
         return {
           time: t, label: formatTime(t),
-          available: existing.enrolled_count < existing.max_students && existing.status !== 'cancelled',
+          available: existing.enrolled_count < existing.max_students,
           enrolled: existing.enrolled_count, max: existing.max_students, session_id: existing.id,
         }
       }
