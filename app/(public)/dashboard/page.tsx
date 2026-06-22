@@ -373,6 +373,34 @@ export default function DashboardPage() {
     }).eq('id', bookingId)
 
     await supabase.from('lesson_credits').update({ used_credits: creditToUse.used_credits + 1 }).eq('id', creditToUse.id)
+    // 寄確認通知給發起方
+    try {
+      const b = pendingPartnerBookings.find(x => x.id === bookingId)
+      const cs = b ? (Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions) : null
+      const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
+      const coach = cs ? (Array.isArray(cs.coaches) ? cs.coaches[0] : cs.coaches) : null
+      const partnerParentId = b?.partner_parent_id
+      const stu = b ? (Array.isArray(b.students) ? b.students[0] : b.students) : null
+      if (partnerParentId && cs && ct && coach && stu) {
+        const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', partnerParentId).single()
+        if (initiatorParent) {
+          await fetch('/api/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'partner_booking_confirmed',
+              to: initiatorParent.email,
+              parentName: initiatorParent.first_name,
+              studentName: stu.full_name,
+              courseName: ct.name,
+              coachName: coach.first_name,
+              date: cs.session_date,
+              time: formatTime(cs.start_time),
+            })
+          })
+        }
+      }
+    } catch {}
     await fetchAll()
     setConfirmingId(null)
   }
@@ -382,6 +410,34 @@ export default function DashboardPage() {
     const { data: b } = await supabase.from('bookings').select('class_session_id').eq('id', bookingId).single()
     await supabase.from('bookings').update({ status: 'cancelled', pending_action: null }).eq('id', bookingId)
     if (b?.class_session_id) await supabase.rpc('decrement_enrolled', { session_id: b.class_session_id })
+
+    // 寄拒絕通知給發起方
+    try {
+      const pending = pendingPartnerBookings.find(x => x.id === bookingId)
+      const cs = pending ? (Array.isArray(pending.class_sessions) ? pending.class_sessions[0] : pending.class_sessions) : null
+      const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
+      const stu = pending ? (Array.isArray(pending.students) ? pending.students[0] : pending.students) : null
+      const partnerParentId = pending?.partner_parent_id
+      if (partnerParentId && cs && ct && stu) {
+        const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', partnerParentId).single()
+        if (initiatorParent) {
+          await fetch('/api/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'partner_booking_rejected',
+              to: initiatorParent.email,
+              parentName: initiatorParent.first_name,
+              studentName: stu.full_name,
+              courseName: ct.name,
+              coachName: '',
+              date: cs.session_date,
+              time: formatTime(cs.start_time),
+            })
+          })
+        }
+      }
+    } catch {}
     await fetchAll()
     setRejectingId(null)
   }

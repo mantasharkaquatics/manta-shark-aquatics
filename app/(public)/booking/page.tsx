@@ -415,6 +415,31 @@ export default function BookingPage() {
           is_guest: true,
         })
         await supabase.rpc('increment_enrolled', { session_id: sessionId })
+
+        // 寄通知信給對方
+        try {
+          const { data: partnerParent } = await supabase
+            .from('parents').select('first_name, last_name, email').eq('id', ps2.partnerParentId).single()
+          const { data: myParent } = await supabase
+            .from('parents').select('first_name, last_name').eq('id', parentId).single()
+          if (partnerParent && myParent) {
+            await fetch('/api/email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'partner_booking_invite',
+                to: partnerParent.email,
+                parentName: partnerParent.first_name,
+                studentName: ps2.full_name,
+                inviterName: `${myParent.first_name} ${myParent.last_name}`,
+                courseName: selectedCourse.name,
+                coachName: selectedCoach.first_name,
+                date: dateStr,
+                time: formatTime(startTime),
+              })
+            })
+          }
+        } catch {}
       } else {
         // 同帳戶：扣第二個 credit，建立 confirmed 預約
         const creditForS2 = [...credits]
