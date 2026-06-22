@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest) {
   try {
-    const { parentId, studentId, coachId, date, time, paymentMethod, paymentIntentId } = await req.json()
+    const { parentId, studentId, paymentMethod, paymentIntentId } = await req.json()
 
     const cookieStore = await cookies()
     const supabaseAuth = createServerClient(
@@ -24,71 +24,15 @@ export async function POST(req: NextRequest) {
     )
 
     const { data: student } = await supabase
-      .from('students').select('id, full_name, parent_id, trial_used_at').eq('id', studentId).single()
+      .from('students').select('id, full_name, trial_used_at').eq('id', studentId).single()
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     if (student.trial_used_at) return NextResponse.json({ error: '此學生已使用過體驗課' }, { status: 400 })
 
     const { data: activeTrial } = await supabase
-      .from('bookings').select('id').eq('student_id', studentId).eq('is_trial', true).neq('status', 'cancelled').maybeSingle()
+      .from('bookings').select('id').eq('student_id', studentId)
+      .eq('is_trial', true).neq('status', 'cancelled').maybeSingle()
     if (activeTrial) return NextResponse.json({ error: '此學生已有進行中的體驗課預約' }, { status: 400 })
 
-    const { data: courseType } = await supabase
-      .from('course_types').select('id, duration_minutes, max_students').eq('slug', '1on1').single()
-    if (!courseType) return NextResponse.json({ error: '1-on-1 course type not found' }, { status: 500 })
-
-    const [h, m] = time.split(':').map(Number)
-    const endMins = h * 60 + m + courseType.duration_minutes
-    const endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`
-
-    const { data: existingSession } = await supabase
-      .from('class_sessions').select('id, enrolled_count, max_students')
-      .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time).eq('status', 'open')
-      .eq('course_type_id', courseType.id).maybeSingle()
-
-    if (!existingSession) {
-      const { data: conflicts } = await supabase
-        .from('class_sessions').select('id')
-        .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time)
-        .eq('status', 'open').gt('enrolled_count', 0)
-      if (conflicts && conflicts.length > 0)
-        return NextResponse.json({ error: '此時段教練已有其他課程，無法安排' }, { status: 400 })
-    }
-
-    let sessId: string
-    let currentEnrolled: number
-
-    if (existingSession) {
-      if (existingSession.enrolled_count >= existingSession.max_students)
-        return NextResponse.json({ error: '這個時段已經額滿' }, { status: 400 })
-      sessId = existingSession.id
-      currentEnrolled = existingSession.enrolled_count
-    } else {
-      const { data: newSess, error: sessErr } = await supabase.from('class_sessions').insert({
-        coach_id: coachId,
-        course_type_id: courseType.id,
-        session_date: date,
-        start_time: time,
-        end_time: endTime,
-        max_students: courseType.max_students,
-        enrolled_count: 0,
-        status: 'open',
-      }).select().single()
-      if (sessErr || !newSess) return NextResponse.json({ error: 'Session creation failed' }, { status: 500 })
-      sessId = newSess.id
-      currentEnrolled = 0
-    }
-
-    const { data: booking, error: bookErr } = await supabase.from('bookings').insert({
-      class_session_id: sessId,
-      parent_id: parentId,
-      student_id: studentId,
-      lesson_credit_id: null,
-      status: 'confirmed',
-      is_trial: true,
-    }).select().single()
-    if (bookErr || !booking) return NextResponse.json({ error: 'Booking creation failed' }, { status: 500 })
-
-    await supabase.from('class_sessions').update({ enrolled_count: currentEnrolled + 1 }).eq('id', sessId)
     await supabase.from('students').update({ trial_used_at: new Date().toISOString() }).eq('id', studentId)
 
     const insertData: Record<string, unknown> = {
@@ -104,8 +48,8 @@ export async function POST(req: NextRequest) {
 
     const { data: purchase } = await supabase.from('purchases').insert(insertData).select().single()
 
-    console.log(`✅ POS trial: student=${studentId} parent=${parentId} booking=${booking.id} method=${paymentMethod}`)
-    return NextResponse.json({ success: true, bookingId: booking.id, purchaseId: purchase?.id })
+    console.log(`\u2705 POS trial purchase: student=${studentId} parent=${parentId} method=${paymentMethod}`)
+    return NextResponse.json({ success: true, purchaseId: purchase?.id })
   } catch (err: any) {
     console.error('POS complete-trial-sale error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })

@@ -38,10 +38,6 @@ export default function POSClient() {
   const [isTrial, setIsTrial] = useState(false)
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
-  const [coaches, setCoaches] = useState<Coach[]>([])
-  const [trialDate, setTrialDate] = useState(new Date().toISOString().split('T')[0])
-  const [trialTime, setTrialTime] = useState('09:00')
-  const [trialCoachId, setTrialCoachId] = useState<string | null>(null)
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,13 +80,6 @@ export default function POSClient() {
   }, [])
 
   useEffect(() => {
-    supabase.from('coaches').select('id, first_name, last_name').then(({ data }) => {
-      setCoaches(data || [])
-      if (data?.length) setTrialCoachId(data[0].id)
-    })
-  }, [])
-
-  useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return }
     const t = setTimeout(async () => {
       const { data } = await supabase.from('parents').select('id, first_name, last_name, email')
@@ -112,12 +101,11 @@ export default function POSClient() {
 
   const plan = selectedPlanId ? PLANS[selectedPlanId] : null
   const selectedStudent = students.find(s => s.id === selectedStudentId)
-  const selectedCoach = coaches.find(c => c.id === trialCoachId)
   const chargeAmount = isTrial ? TRIAL_CENTS : (plan?.amount ?? 0)
 
   const canCharge = !processing && (
     isTrial
-      ? !!selectedParent && !!selectedStudentId && !!trialDate && !!trialTime && !!trialCoachId && (payMethod === 'cash' || readerStatus === 'connected')
+      ? !!selectedParent && !!selectedStudentId && (payMethod === 'cash' || readerStatus === 'connected')
       : !!selectedParent && !!selectedPlanId && (payMethod === 'cash' || readerStatus === 'connected')
   )
 
@@ -127,7 +115,7 @@ export default function POSClient() {
     setProcessing(true)
     try {
       if (isTrial) {
-        if (!selectedStudentId || !trialDate || !trialTime || !trialCoachId) throw new Error('Missing trial details')
+        if (!selectedStudentId) throw new Error('Please select a student')
         let paymentIntentId: string | undefined
         if (payMethod === 'card') {
           if (!terminal || readerStatus !== 'connected') throw new Error('Card reader not connected')
@@ -142,7 +130,7 @@ export default function POSClient() {
         }
         const res = await fetch('/api/pos/complete-trial-sale', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parentId: selectedParent.id, studentId: selectedStudentId, coachId: trialCoachId, date: trialDate, time: trialTime, paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash', ...(paymentIntentId ? { paymentIntentId } : {}) }),
+          body: JSON.stringify({ parentId: selectedParent.id, studentId: selectedStudentId, paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash', ...(paymentIntentId ? { paymentIntentId } : {}) }),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Failed')
@@ -181,7 +169,7 @@ export default function POSClient() {
     setStep('select'); setSelectedParent(null); setSelectedPlanId(null); setIsTrial(false)
     setStudents([]); setSelectedStudentId(null); setPayMethod('card')
     setSearch(''); setSearchResults([]); setError(null); setProcessing(false)
-    setTrialDate(new Date().toISOString().split('T')[0]); setTrialTime('09:00')
+
   }
 
   const readerDot = readerStatus === 'connected' ? '#10b981' : readerStatus === 'init' ? '#f59e0b' : '#6b7280'
@@ -196,9 +184,7 @@ export default function POSClient() {
           <p style={{ color: '#9ca3af', fontSize: 18, marginBottom: 4 }}>{selectedParent?.first_name} {selectedParent?.last_name}</p>
           {isTrial ? (
             <>
-              <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 2 }}>Trial 1-on-1 · {selectedStudent?.full_name}</p>
-              <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 2 }}>{trialDate} · {formatTime(trialTime)}</p>
-              <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 8 }}>Coach: {selectedCoach ? `${selectedCoach.first_name} ${selectedCoach.last_name}` : ''}</p>
+              <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Trial 1-on-1 · {selectedStudent?.full_name}</p>
             </>
           ) : (
             <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{plan?.name}</p>
@@ -283,23 +269,6 @@ export default function POSClient() {
                       </select>
                     )}
                   </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Date</p>
-                    <input type="date" value={trialDate} min={new Date().toISOString().split('T')[0]}
-                      onChange={e => setTrialDate(e.target.value)} style={sel0} />
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Time</p>
-                    <select value={trialTime} onChange={e => setTrialTime(e.target.value)} style={sel0}>
-                      {TIME_SLOTS.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Coach</p>
-                    <select value={trialCoachId || ''} onChange={e => setTrialCoachId(e.target.value)} style={sel0}>
-                      {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-                    </select>
-                  </div>
                 </div>
               )}
             </div>
@@ -338,18 +307,6 @@ export default function POSClient() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
                   <span style={{ color: 'white', fontSize: 13 }}>{selectedStudent?.full_name || '\u2014'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Date</span>
-                  <span style={{ color: 'white', fontSize: 13 }}>{trialDate}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Time</span>
-                  <span style={{ color: 'white', fontSize: 13 }}>{formatTime(trialTime)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Coach</span>
-                  <span style={{ color: 'white', fontSize: 13 }}>{selectedCoach ? `${selectedCoach.first_name} ${selectedCoach.last_name}` : '\u2014'}</span>
                 </div>
               </>
             ) : (
