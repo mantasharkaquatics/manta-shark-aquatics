@@ -317,20 +317,26 @@ export default function DashboardPage() {
     setPendingPartnerBookings(pendingRaw || [])
 
     const parseBookings = (data: any[]): Booking[] =>
-      (data || []).map((b: any) => ({
-        id: b.id,
-        status: b.status,
-        session_date: b.class_sessions?.session_date,
-        start_time: b.class_sessions?.start_time,
-        end_time: b.class_sessions?.end_time,
-        course_name: b.class_sessions?.course_types?.name,
-        coach_name: b.class_sessions?.coaches?.first_name,
-        student_name: b.students?.full_name,
-        lesson_credit_id: b.lesson_credit_id,
-        course_slug: b.class_sessions?.course_types?.slug,
-        student_id: b.student_id,
-        is_trial: b.is_trial,
-      })).filter(b => b.session_date)
+      (data || []).map((b: any) => {
+        const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
+        const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
+        const coach = cs ? (Array.isArray(cs.coaches) ? cs.coaches[0] : cs.coaches) : null
+        const stu = Array.isArray(b.students) ? b.students[0] : b.students
+        return {
+          id: b.id,
+          status: b.status,
+          session_date: cs?.session_date,
+          start_time: cs?.start_time,
+          end_time: cs?.end_time,
+          course_name: ct?.name,
+          coach_name: coach?.first_name,
+          student_name: stu?.full_name,
+          lesson_credit_id: b.lesson_credit_id,
+          course_slug: ct?.slug,
+          student_id: b.student_id,
+          is_trial: b.is_trial,
+        }
+      }).filter(b => b.session_date)
 
     const allUpcoming = parseBookings(upcoming || []).filter(b => b.session_date >= today)
     const allPast = parseBookings(past || []).filter(b => b.session_date < today)
