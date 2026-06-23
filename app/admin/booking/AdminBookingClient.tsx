@@ -352,6 +352,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .neq('status', 'cancelled')
       .order('session_date')
       .order('start_time')
+    console.log("[loadSessions] data count:", data?.length)
     if (data) {
       // 用 server API 取得 bookings（繞過 RLS），只取 enrolled > 0 的 session
       const sessionsWithBookings = await Promise.all(data.map(async (s: any) => {
