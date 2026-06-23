@@ -191,7 +191,7 @@ export default function BookingPage() {
             const p = (partnerships || []).find((pp: any) =>
               pp.initiator_parent_id === s.parent_id || pp.partner_parent_id === s.parent_id
             )
-            return { id: s.id, full_name: s.full_name, current_level: s.current_level, parent_id: s.parent_id, isPartner: true as const, partnerParentId: s.parent_id, partnershipId: p?.id || '' }
+            return { id: s.id, full_name: s.full_name, current_level: s.current_level, parent_id: s.parent_id, isPartner: true as const, partnerParentId: s.parent_id, partnershipId: p?.id || null }
           })
           setPartnerStudents(pStudents)
         }
@@ -411,7 +411,7 @@ export default function BookingPage() {
           pending_action: 'confirm',
           pending_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
           partner_parent_id: parentId,
-          partnership_id: ps2.partnershipId,
+          partnership_id: ps2.partnershipId || null,
           is_guest: true,
         })
         await supabase.rpc('increment_enrolled', { session_id: sessionId })
