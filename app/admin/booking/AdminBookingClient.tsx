@@ -1042,7 +1042,6 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
         className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
         style={{ backgroundColor: colorClass }}>
         <span className="text-sm font-bold text-[#1a2744] leading-tight truncate w-full">{ct.name}</span>
-        <span className="text-xs font-semibold text-[#1a2744]/70">{session.enrolled_count}/{session.max_students}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
           const st = Array.isArray(b.students) ? b.students[0] : b.students
           const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
