@@ -403,12 +403,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const student = students.find(s => s.id === formStudent)!
     const parentId = student.parent_id
 
-    const { data: credits } = await supabase
-      .from('lesson_credits')
-      .select('id, used_credits, total_credits')
-      .eq('parent_id', parentId)
-      .eq('course_type_id', formCourse)
-      .order('expires_at', { ascending: true })
+    const creditsRes = await fetch(`/api/admin/parent-credits?parent_id=${parentId}&course_type_id=${formCourse}`)
+    const credits = creditsRes.ok ? await creditsRes.json() : []
 
     const validCredit = credits?.find(c => c.used_credits < c.total_credits)
 
