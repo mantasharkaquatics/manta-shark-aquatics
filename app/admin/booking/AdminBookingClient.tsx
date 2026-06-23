@@ -270,7 +270,7 @@ function StudentSearch({ students, value, onChange }: {
                   <p className="text-xs text-white/40">{parent?.first_name} {parent?.last_name} · {parent?.email}</p>
                 </div>
                 <span className="text-xs text-white/30 ml-2 flex-shrink-0">Lv.{s.current_level}</span>
-                {formCourse && (() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentCreditsCache[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem} 堂</span> : null })()}
+                {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentCreditsCache[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem} 堂</span> : null })()}
               </button>
             )
           })}
