@@ -290,12 +290,12 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, is_trial, class_sessions!class_session_id(session_date, start_time, end_time, course_types(name, slug), coaches(first_name)), students!student_id(full_name)')
+        .select('id, status, student_id, lesson_credit_id, is_trial, class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, course_types(name, slug), coaches(first_name)), students!bookings_student_id_fkey(full_name)')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
       supabase.from('bookings')
-        .select('id, status, student_id, class_sessions!class_session_id(session_date, start_time, end_time, course_types(name), coaches(first_name)), students!student_id(full_name)')
+        .select('id, status, student_id, class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, course_types(name), coaches(first_name)), students!bookings_student_id_fkey(full_name)')
         .eq('parent_id', parentData.id)
         .order('created_at', { ascending: false })
         .limit(20),
@@ -308,7 +308,7 @@ export default function DashboardPage() {
     // 查詢待確認的跨帳戶預約（對方邀請我方學生，等我確認）
     const { data: pendingRaw } = await supabase
       .from('bookings')
-      .select('id, student_id, pending_expires_at, partner_parent_id, students!student_id(full_name), class_sessions!class_session_id(session_date, start_time, end_time, course_types(name), coaches(first_name))')
+      .select('id, student_id, pending_expires_at, partner_parent_id, students!bookings_student_id_fkey(full_name), class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, course_types(name), coaches(first_name))')
       .eq('parent_id', parentData.id)
       .eq('status', 'pending_partner')
       .eq('pending_action', 'confirm')
