@@ -273,12 +273,11 @@ export default function BookingPage() {
       const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions as any
       if (!cs) continue
       const t = cs.start_time.slice(0, 5)
-      if (cs.course_type_id !== selectedCourse.id) {
-        blockedTimes.add(t)
-      } else {
+      // 任何教練在此時段有 booking → 直接 block（不論課程類型）
+      blockedTimes.add(t)
+      if (cs.course_type_id === selectedCourse.id) {
         sameTypeSessions[t] = cs
       }
-      // 這個學生已有此時段的 booking → 直接 block
       if (b.student_id === selectedStudent?.id) {
         studentBookedTimes.add(t)
       }
