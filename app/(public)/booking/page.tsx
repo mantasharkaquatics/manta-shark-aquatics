@@ -257,30 +257,32 @@ export default function BookingPage() {
       allSlots.push(...generateSlots(a.start_time, a.end_time))
     }
 
-    // 查詢教練當天所有已確認的 bookings(不限課程類型),直接從 bookings 表確認
-    const { data: coachBookings } = await supabase
-      .from('bookings')
-      .select('class_session_id, student_id, class_sessions!inner(start_time, course_type_id, enrolled_count, max_students, id)')
-      .eq('class_sessions.coach_id', selectedCoach.id)
-      .eq('class_sessions.session_date', dateStr)
-      .neq('status', 'cancelled')
+    // 用 server API 繞過 RLS，取得教練當天所有 active booking 時段
+    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}`)
+    const { times: bookedTimes } = await bookedRes.json()
 
     const blockedTimes = new Set<string>()
     const sameTypeSessions: Record<string, any> = {}
     const studentBookedTimes = new Set<string>()
 
-    for (const b of coachBookings || []) {
-      const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions as any
-      if (!cs) continue
-      const t = cs.start_time.slice(0, 5)
-      // 任何教練在此時段有 booking → 直接 block（不論課程類型）
-      blockedTimes.add(t)
-      if (cs.course_type_id === selectedCourse.id) {
-        sameTypeSessions[t] = cs
-      }
+    for (const b of bookedTimes || []) {
+      blockedTimes.add(b.time)
       if (b.student_id === selectedStudent?.id) {
-        studentBookedTimes.add(t)
+        studentBookedTimes.add(b.time)
       }
+    }
+
+    // 仍需查同課程類型的 session 資訊（enrolled_count/max_students）
+    const { data: coachBookings } = await supabase
+      .from('class_sessions')
+      .select('start_time, course_type_id, enrolled_count, max_students, id')
+      .eq('coach_id', selectedCoach.id)
+      .eq('session_date', dateStr)
+      .eq('course_type_id', selectedCourse.id)
+
+    for (const cs of coachBookings || []) {
+      const t = cs.start_time.slice(0, 5)
+      sameTypeSessions[t] = cs
     }
 
     const slots: TimeSlot[] = allSlots.map(t => {
