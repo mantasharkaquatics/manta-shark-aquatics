@@ -423,6 +423,7 @@ export default function DashboardPage() {
     }).eq('id', bookingId)
 
     await supabase.from('lesson_credits').update({ used_credits: creditToUse.used_credits + 1 }).eq('id', creditToUse.id)
+    if (cs?.id) await supabase.rpc('increment_enrolled', { session_id: cs.id })
     // 寄確認通知給發起方
     try {
       const b = pendingPartnerBookings.find(x => x.id === bookingId)

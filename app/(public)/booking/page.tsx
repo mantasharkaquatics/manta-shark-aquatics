@@ -424,9 +424,7 @@ export default function BookingPage() {
             studentName: ps2.full_name,
           })
         })
-        if (pendingRes.ok) {
-          await supabase.rpc('increment_enrolled', { session_id: sessionId })
-        }
+
 
       } else {
         // 同帳戶：扣第二個 credit，建立 confirmed 預約
