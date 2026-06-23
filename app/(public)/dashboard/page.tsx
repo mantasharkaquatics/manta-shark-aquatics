@@ -408,8 +408,10 @@ export default function DashboardPage() {
       .sort((a: any, b: any) => (a.created_at || '').localeCompare(b.created_at || ''))[0] || null
 
     if (!creditToUse) {
-      alert('您沒有足夠的 credit 確認此預約，請先購買方案。')
       setConfirmingId(null)
+      if (window.confirm('您沒有足夠的 credit 確認此預約。前往購買方案？')) {
+        window.location.href = '/plans'
+      }
       return
     }
 
@@ -729,7 +731,7 @@ export default function DashboardPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                         <button
-                          onClick={() => rejectPartnerBooking(b.id)}
+                          onClick={() => { if (window.confirm('確定要拒絕此邀請嗎？')) rejectPartnerBooking(b.id) }}
                           disabled={rejectingId === b.id || confirmingId === b.id}
                           style={{ padding: '8px 16px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: '8px', color: '#f87171', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                           {rejectingId === b.id ? '...' : '拒絕'}
