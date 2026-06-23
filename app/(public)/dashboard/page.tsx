@@ -282,7 +282,7 @@ export default function DashboardPage() {
 
     const today = new Date().toISOString().split('T')[0]
 
-    const [{ data: studs }, { data: credData }, { data: upcoming }, { data: past }] = await Promise.all([
+    const [{ data: studs }, { data: credData }, { data: rawBookings }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
         .from('lesson_credits')
@@ -290,56 +290,94 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, is_trial, class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, course_types(name, slug), coaches(first_name)), students!bookings_student_id_fkey(full_name)')
+        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
-      supabase.from('bookings')
-        .select('id, status, student_id, class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, course_types(name), coaches(first_name)), students!bookings_student_id_fkey(full_name)')
-        .eq('parent_id', parentData.id)
-        .order('created_at', { ascending: false })
-        .limit(20),
     ])
+
+    // 分開查 class_sessions 和 students
+    const sessionIds = [...new Set((rawBookings || []).map((b: any) => b.class_session_id).filter(Boolean))]
+    const studentIds = [...new Set((rawBookings || []).map((b: any) => b.student_id).filter(Boolean))]
+
+    const [{ data: sessionsData }, { data: studentsData }] = await Promise.all([
+      sessionIds.length > 0
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(name, slug), coaches(first_name)').in('id', sessionIds)
+        : Promise.resolve({ data: [] }),
+      studentIds.length > 0
+        ? supabase.from('students').select('id, full_name').in('id', studentIds)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    const sessionMap: Record<string, any> = {}
+    for (const s of sessionsData || []) {
+      const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+      const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
+      sessionMap[(s as any).id] = { ...(s as any), ct, coach }
+    }
+    const studentMap: Record<string, any> = {}
+    for (const s of studentsData || []) { studentMap[(s as any).id] = s }
 
     setStudents(studs || [])
     setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
-    setActiveTrialStudentIds(new Set((upcoming || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
+    setActiveTrialStudentIds(new Set((rawBookings || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
 
-    // 查詢待確認的跨帳戶預約（對方邀請我方學生，等我確認）
+    // 查詢待確認的跨帳戶預約
     const { data: pendingRaw } = await supabase
       .from('bookings')
-      .select('id, student_id, pending_expires_at, partner_parent_id, students!bookings_student_id_fkey(full_name), class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, course_types(name), coaches(first_name))')
+      .select('id, student_id, pending_expires_at, partner_parent_id, class_session_id')
       .eq('parent_id', parentData.id)
       .eq('status', 'pending_partner')
       .eq('pending_action', 'confirm')
       .gt('pending_expires_at', new Date().toISOString())
 
-    setPendingPartnerBookings(pendingRaw || [])
+    // 補齊 pending 的 session/student 資料
+    const pendingSessionIds = [...new Set((pendingRaw || []).map((b: any) => b.class_session_id).filter(Boolean))]
+    const pendingStudentIds = [...new Set((pendingRaw || []).map((b: any) => b.student_id).filter(Boolean))]
+    const [{ data: pSessions }, { data: pStudents }] = await Promise.all([
+      pendingSessionIds.length > 0
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(name), coaches(first_name)').in('id', pendingSessionIds)
+        : Promise.resolve({ data: [] }),
+      pendingStudentIds.length > 0
+        ? supabase.from('students').select('id, full_name').in('id', pendingStudentIds)
+        : Promise.resolve({ data: [] }),
+    ])
+    const pSessionMap: Record<string, any> = {}
+    for (const s of pSessions || []) {
+      const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+      const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
+      pSessionMap[(s as any).id] = { ...(s as any), course_types: ct, coaches: coach }
+    }
+    const pStudentMap: Record<string, any> = {}
+    for (const s of pStudents || []) { pStudentMap[(s as any).id] = s }
+
+    setPendingPartnerBookings((pendingRaw || []).map((b: any) => ({
+      ...b,
+      class_sessions: pSessionMap[b.class_session_id] || null,
+      students: pStudentMap[b.student_id] || null,
+    })))
 
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => {
-        const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
-        const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
-        const coach = cs ? (Array.isArray(cs.coaches) ? cs.coaches[0] : cs.coaches) : null
-        const stu = Array.isArray(b.students) ? b.students[0] : b.students
+        const cs = sessionMap[b.class_session_id]
         return {
           id: b.id,
           status: b.status,
           session_date: cs?.session_date,
           start_time: cs?.start_time,
           end_time: cs?.end_time,
-          course_name: ct?.name,
-          coach_name: coach?.first_name,
-          student_name: stu?.full_name,
+          course_name: cs?.ct?.name,
+          coach_name: cs?.coach?.first_name,
+          student_name: studentMap[b.student_id]?.full_name,
           lesson_credit_id: b.lesson_credit_id,
-          course_slug: ct?.slug,
+          course_slug: cs?.ct?.slug,
           student_id: b.student_id,
           is_trial: b.is_trial,
         }
       }).filter(b => b.session_date)
 
-    const allUpcoming = parseBookings(upcoming || []).filter(b => b.session_date >= today)
-    const allPast = parseBookings(past || []).filter(b => b.session_date < today)
+    const allUpcoming = parseBookings(rawBookings || []).filter(b => b.session_date >= today)
+    const allPast = parseBookings(rawBookings || []).filter(b => b.session_date < today)
 
     setUpcomingBookings(allUpcoming.sort((a, b) => a.session_date.localeCompare(b.session_date)))
     setPastBookings(allPast.sort((a, b) => b.session_date.localeCompare(a.session_date)).slice(0, 10))
