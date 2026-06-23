@@ -406,7 +406,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const { data: credits } = await supabase
       .from('lesson_credits')
       .select('id, used_credits, total_credits')
-      .eq('student_id', formStudent)
+      .eq('parent_id', parentId)
       .eq('course_type_id', formCourse)
       .order('expires_at', { ascending: true })
 
