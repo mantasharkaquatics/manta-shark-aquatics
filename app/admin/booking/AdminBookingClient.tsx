@@ -352,28 +352,17 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .order('session_date')
       .order('start_time')
     if (data) {
-      // 兩步驟查詢：merge parents 資料（避免多重FK nested join失敗）
-      const allParentIds = [...new Set(
-        data.flatMap((s: any) => (s.bookings || []).map((b: any) => b.parent_id).filter(Boolean))
-      )]
-      let parentMap: Record<string, { first_name: string; last_name: string }> = {}
-      if (allParentIds.length > 0) {
-        const { data: parentsData } = await supabase
-          .from('parents')
-          .select('id, first_name, last_name')
-          .in('id', allParentIds)
-        if (parentsData) {
-          parentsData.forEach((p: any) => { parentMap[p.id] = p })
-        }
-      }
-      const merged = data.map((s: any) => ({
-        ...s,
-        bookings: (s.bookings || []).map((b: any) => ({
-          ...b,
-          parents: parentMap[b.parent_id] || null,
-        }))
+      // 用 server API 取得 bookings（繞過 RLS），只取 enrolled > 0 的 session
+      const sessionsWithBookings = await Promise.all(data.map(async (s: any) => {
+        if (s.enrolled_count === 0) return s
+        try {
+          const res = await fetch(`/api/admin/session-bookings?session_id=${s.id}`)
+          if (!res.ok) return s
+          const bookings = await res.json()
+          return { ...s, bookings: Array.isArray(bookings) ? bookings : [] }
+        } catch { return s }
       }))
-      setSessions(merged as Session[])
+      setSessions(sessionsWithBookings as Session[])
     }
     setLoading(false)
   }, [anchor, view]) // eslint-disable-line
