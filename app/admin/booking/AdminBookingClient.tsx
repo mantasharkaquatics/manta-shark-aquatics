@@ -347,3 +347,926 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const { data } = await supabase
       .from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes)')
+      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes), bookings(id, parent_id, lesson_credit_id, status, students(full_name))').gte('session_date', from)
+      .lte('session_date', to)
+      .neq('status', 'cancelled')
+      .order('session_date')
+      .order('start_time')
+    console.log("[loadSessions] data count:", data?.length)
+    if (data) {
+      // 用 server API 取得 bookings（繞過 RLS），只取 enrolled > 0 的 session
+      const sessionsWithBookings = await Promise.all(data.map(async (s: any) => {
+        if (s.enrolled_count === 0) return s
+        try {
+          const res = await fetch(`/api/admin/session-bookings?session_id=${s.id}`)
+          if (!res.ok) return s
+          const bookings = await res.json()
+          return { ...s, bookings: Array.isArray(bookings) ? bookings : [] }
+        } catch { return s }
+      }))
+      setSessions(sessionsWithBookings as Session[])
+      // 計算跨帳戶 1on2 session
+      const crossIds = new Set<string>()
+      sessionsWithBookings.forEach((s: any) => {
+        const ct = s.course_types?.slug
+        if (ct !== '1on2') return
+        const active = (s.bookings || []).filter((b: any) => b.status !== 'cancelled' && b.status !== 'pending_partner')
+        if (active.length === 2 && active[0].parent_id !== active[1].parent_id) {
+          crossIds.add(s.id)
+        }
+      })
+      console.log("[crossIds]", crossIds.size, [...crossIds])
+      sessionsWithBookings.forEach((s: any) => { if(s.course_types?.slug==='1on2') console.log("[1on2 session]", s.id, s.bookings?.map((b:any)=>({id:b.id,parent_id:b.parent_id,status:b.status}))) })
+      setCrossAccountSessionIds(crossIds)
+    }
+    setLoading(false)
+  }, [anchor, view]) // eslint-disable-line
+
+  useEffect(() => { loadSessions() }, [loadSessions])
+
+  function handleMiniSelect(date: Date) {
+    setAnchor(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
+    setView('day')
+  }
+
+  function navigate(dir: number) {
+    if (view === 'month') {
+      setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1))
+    } else {
+      const d = new Date(anchor)
+      d.setDate(d.getDate() + dir)
+      setAnchor(d)
+    }
+  }
+
+  const [isTrial, setIsTrial] = useState(false)
+  const [trialUrl, setTrialUrl] = useState('')
+  const [trialSaving, setTrialSaving] = useState(false)
+  const [trialCopied, setTrialCopied] = useState(false)
+  const [trialCreditStatus, setTrialCreditStatus] = useState<'none' | 'checking' | 'available' | 'active'>('none')
+
+  useEffect(() => {
+    if (!isTrial || !formStudent) {
+      setTrialCreditStatus('none')
+      return
+    }
+    const student = students.find(s => s.id === formStudent)
+    if (!student?.trial_used_at) {
+      setTrialCreditStatus('none')
+      return
+    }
+    setTrialCreditStatus('checking')
+    supabase
+      .from('bookings')
+      .select('id')
+      .eq('student_id', formStudent)
+      .eq('is_trial', true)
+      .neq('status', 'cancelled')
+      .maybeSingle()
+      .then(({ data }) => {
+        setTrialCreditStatus(data ? 'active' : 'available')
+      })
+  }, [isTrial, formStudent]) // eslint-disable-line
+
+  function openBookModal(date: string, time: string, coachId: string) {
+    setSelectedSlot({ date, time, coachId })
+    setFormStudent('')
+    setFormStudent2('')
+    setFormCourse(courseTypes[0]?.id || '')
+    setIsTrial(false)
+    setTrialUrl('')
+    setError('')
+    setSuccess('')
+    setModal('book')
+  }
+
+  function openDetailModal(session: Session) {
+    setSelectedSession(session)
+    setModal('detail')
+  }
+
+  async function handleBook() {
+    const ct = courseTypes.find(c => c.id === formCourse)!
+    const is1on2 = ct?.slug === '1on2'
+
+    if (!formStudent || !formCourse || !selectedSlot) {
+      setError('請選擇學生和課程類型')
+      return
+    }
+    if (is1on2 && !formStudent2) {
+      setError('1-on-2 課程需選擇兩位學生')
+      return
+    }
+    setSaving(true)
+    setError('')
+
+    const student1 = students.find(s => s.id === formStudent)!
+    const student2 = is1on2 ? students.find(s => s.id === formStudent2)! : null
+    const parentId1 = student1.parent_id
+    const parentId2 = student2?.parent_id || null
+    const sameParent = parentId2 && parentId1 === parentId2
+
+    // 確認 credit
+    const creditsRes1 = await fetch(`/api/admin/parent-credits?parent_id=${parentId1}&course_type_id=${formCourse}`)
+    const credits1 = creditsRes1.ok ? await creditsRes1.json() : []
+    const validCredit1 = credits1?.find((c: any) => c.used_credits < c.total_credits)
+    if (!validCredit1) {
+      setError(`學生 1 家長尚無「${ct.name}」可用堂數`)
+      setSaving(false)
+      return
+    }
+
+    let validCredit2: any = null
+    if (is1on2) {
+      if (sameParent) {
+        // 同帳戶：需要第二堂 credit（排除已選的第一堂）
+        const validCredit2Candidate = credits1?.find((c: any) => c.used_credits + 1 < c.total_credits || (c.id !== validCredit1.id && c.used_credits < c.total_credits))
+        // 簡化：同帳戶扣同一個 credit 包（used_credits + 2 <= total_credits）或找第二個可用
+        const totalRemaining = credits1.reduce((sum: number, c: any) => sum + (c.total_credits - c.used_credits), 0)
+        if (totalRemaining < 2) {
+          setError(`此家長「${ct.name}」堂數不足（需 2 堂，剩 ${totalRemaining} 堂）`)
+          setSaving(false)
+          return
+        }
+        // 找第二個可用 credit（可以是同一個包的第二堂）
+        const credits1Refreshed = credits1.map((c: any) => ({ ...c }))
+        validCredit2 = credits1Refreshed.find((c: any) => {
+          if (c.id === validCredit1.id) return c.total_credits - c.used_credits >= 2
+          return c.used_credits < c.total_credits
+        })
+      } else {
+        const creditsRes2 = await fetch(`/api/admin/parent-credits?parent_id=${parentId2}&course_type_id=${formCourse}`)
+        const credits2 = creditsRes2.ok ? await creditsRes2.json() : []
+        validCredit2 = credits2?.find((c: any) => c.used_credits < c.total_credits)
+        if (!validCredit2) {
+          setError(`學生 2 家長尚無「${ct.name}」可用堂數`)
+          setSaving(false)
+          return
+        }
+      }
+    }
+
+    const endMins = timeToMinutes(selectedSlot.time) + ct.duration_minutes
+    const endTime = minutesToTime(endMins)
+
+    // 找或建立 session
+    const { data: existingSession } = await supabase
+      .from('class_sessions')
+      .select('id, enrolled_count, max_students')
+      .eq('coach_id', selectedSlot.coachId)
+      .eq('session_date', selectedSlot.date)
+      .eq('start_time', selectedSlot.time)
+      .eq('status', 'open')
+      .eq('course_type_id', formCourse)
+      .maybeSingle()
+
+    if (!existingSession) {
+      const { data: conflicts } = await supabase
+        .from('class_sessions').select('id')
+        .eq('coach_id', selectedSlot.coachId)
+        .eq('session_date', selectedSlot.date)
+        .eq('start_time', selectedSlot.time)
+        .eq('status', 'open').gt('enrolled_count', 0)
+      if (conflicts && conflicts.length > 0) {
+        setError('此時段教練已有其他課程，無法安排')
+        setSaving(false)
+        return
+      }
+    }
+
+    let sessId: string
+    let currentEnrolled: number
+
+    if (existingSession) {
+      const spotsNeeded = is1on2 ? 2 : 1
+      if (existingSession.enrolled_count + spotsNeeded > existingSession.max_students) {
+        setError('這個時段座位不足')
+        setSaving(false)
+        return
+      }
+      sessId = existingSession.id
+      currentEnrolled = existingSession.enrolled_count
+    } else {
+      const { data: newSess, error: sessErr } = await supabase
+        .from('class_sessions')
+        .insert({
+          coach_id: selectedSlot.coachId,
+          course_type_id: formCourse,
+          session_date: selectedSlot.date,
+          start_time: selectedSlot.time,
+          end_time: endTime,
+          max_students: ct.max_students,
+          enrolled_count: 0,
+          status: 'open',
+        })
+        .select()
+        .single()
+      if (sessErr || !newSess) {
+        setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
+        setSaving(false)
+        return
+      }
+      sessId = newSess.id
+      currentEnrolled = 0
+    }
+
+    // 建立第一筆 booking
+    const { error: bookErr1 } = await supabase.from('bookings').insert({
+      class_session_id: sessId,
+      parent_id: parentId1,
+      student_id: formStudent,
+      lesson_credit_id: validCredit1.id,
+      status: 'confirmed',
+    })
+    if (bookErr1) {
+      setError('建立預約失敗：' + bookErr1.message)
+      setSaving(false)
+      return
+    }
+
+    // 建立第二筆 booking（1on2）
+    if (is1on2 && student2 && validCredit2) {
+      const creditId2 = sameParent && validCredit2.id === validCredit1.id ? validCredit1.id : validCredit2.id
+      const { error: bookErr2 } = await supabase.from('bookings').insert({
+        class_session_id: sessId,
+        parent_id: parentId2,
+        student_id: formStudent2,
+        lesson_credit_id: creditId2,
+        status: 'confirmed',
+      })
+      if (bookErr2) {
+        setError('建立第二位學生預約失敗：' + bookErr2.message)
+        setSaving(false)
+        return
+      }
+      // 更新 enrolled_count +2
+      await supabase.from('class_sessions').update({ enrolled_count: currentEnrolled + 2 }).eq('id', sessId)
+      // 扣 credit
+      await supabase.from('lesson_credits').update({ used_credits: validCredit1.used_credits + 1 }).eq('id', validCredit1.id)
+      if (sameParent && validCredit2.id === validCredit1.id) {
+        await supabase.from('lesson_credits').update({ used_credits: validCredit1.used_credits + 2 }).eq('id', validCredit1.id)
+      } else {
+        await supabase.from('lesson_credits').update({ used_credits: validCredit2.used_credits + 1 }).eq('id', validCredit2.id)
+      }
+    } else {
+      await supabase.from('class_sessions').update({ enrolled_count: currentEnrolled + 1 }).eq('id', sessId)
+      await supabase.from('lesson_credits').update({ used_credits: validCredit1.used_credits + 1 }).eq('id', validCredit1.id)
+    }
+
+    // 寄送 email
+    try {
+      const { data: parentData } = await supabase.from('parents').select('first_name, email').eq('id', parentId1).single()
+      const coach = coaches.find(c => c.id === selectedSlot.coachId)
+      if (parentData && coach) {
+        const endTimeForEmail = minutesToTime(timeToMinutes(selectedSlot.time) + ct.duration_minutes)
+        await fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'booking_confirmed',
+            to: parentData.email,
+            parentName: parentData.first_name,
+            studentName: student1.full_name,
+            courseName: ct.name,
+            coachName: `${coach.first_name} ${coach.last_name}`,
+            date: selectedSlot.date,
+            time: `${selectedSlot.time} – ${endTimeForEmail}`,
+          }),
+        })
+      }
+    } catch (e) { console.error('Email error:', e) }
+
+    setSuccess('預約成功！')
+    await loadSessions()
+    setTimeout(() => { setModal(null); setSuccess('') }, 1500)
+    setSaving(false)
+  }
+
+  async function handleTrialBook() {
+    if (!formStudent || !selectedSlot) {
+      setError('請選擇學生')
+      return
+    }
+    setTrialSaving(true)
+    setError('')
+    setTrialUrl('')
+
+    try {
+      const res = await fetch('/api/stripe/trial-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: formStudent,
+          coachId: selectedSlot.coachId,
+          date: selectedSlot.date,
+          time: selectedSlot.time,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || '建立體驗課付款連結失敗')
+        setTrialSaving(false)
+        return
+      }
+      setTrialUrl(data.url)
+      await loadSessions()
+    } catch (e: any) {
+      setError('建立體驗課付款連結失敗：' + e.message)
+    }
+    setTrialSaving(false)
+  }
+
+  async function handleTrialCreditBook() {
+    if (!formStudent || !selectedSlot) {
+      setError('請選擇學生')
+      return
+    }
+    setSaving(true)
+    setError('')
+    const ct = courseTypes.find(c => c.slug === '1on1')!
+    const student = students.find(s => s.id === formStudent)!
+    const parentId = student.parent_id
+
+    const endMins = timeToMinutes(selectedSlot.time) + ct.duration_minutes
+    const endTime = minutesToTime(endMins)
+
+    const { data: existingSession } = await supabase
+      .from('class_sessions')
+      .select('id, enrolled_count, max_students')
+      .eq('coach_id', selectedSlot.coachId)
+      .eq('session_date', selectedSlot.date)
+      .eq('start_time', selectedSlot.time)
+      .eq('status', 'open')
+      .eq('course_type_id', ct.id)
+      .maybeSingle()
+
+    if (!existingSession) {
+      const { data: conflicts } = await supabase
+        .from('class_sessions').select('id')
+        .eq('coach_id', selectedSlot.coachId)
+        .eq('session_date', selectedSlot.date)
+        .eq('start_time', selectedSlot.time)
+        .eq('status', 'open').gt('enrolled_count', 0)
+      if (conflicts && conflicts.length > 0) {
+        setError('此時段教練已有其他課程，無法安排')
+        setSaving(false)
+        return
+      }
+    }
+
+    let sessId: string
+    let currentEnrolled: number
+
+    if (existingSession) {
+      if (existingSession.enrolled_count >= existingSession.max_students) {
+        setError('這個時段已經額滿')
+        setSaving(false)
+        return
+      }
+      sessId = existingSession.id
+      currentEnrolled = existingSession.enrolled_count
+    } else {
+      const { data: newSess, error: sessErr } = await supabase
+        .from('class_sessions')
+        .insert({
+          coach_id: selectedSlot.coachId,
+          course_type_id: ct.id,
+          session_date: selectedSlot.date,
+          start_time: selectedSlot.time,
+          end_time: endTime,
+          max_students: ct.max_students,
+          enrolled_count: 0,
+          status: 'open',
+        })
+        .select()
+        .single()
+
+      if (sessErr || !newSess) {
+        setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
+        setSaving(false)
+        return
+      }
+      sessId = newSess.id
+      currentEnrolled = 0
+    }
+
+    const { error: bookErr } = await supabase
+      .from('bookings')
+      .insert({
+        class_session_id: sessId,
+        parent_id: parentId,
+        student_id: formStudent,
+        lesson_credit_id: null,
+        is_trial: true,
+        status: 'confirmed',
+      })
+
+    if (bookErr) {
+      if (bookErr.message?.includes('coach_timeslot_conflict')) {
+        setError('此時段教練已有其他課程，無法安排')
+      } else {
+        setError('建立預約失敗：' + bookErr.message)
+      }
+      setSaving(false)
+      return
+    }
+
+    await supabase
+      .from('class_sessions')
+      .update({ enrolled_count: currentEnrolled + 1 })
+      .eq('id', sessId)
+
+    try {
+      const { data: parentData } = await supabase.from('parents').select('first_name, email').eq('id', parentId).single()
+      const coach = coaches.find(c => c.id === selectedSlot.coachId)
+      if (parentData && coach) {
+        const endMinsForEmail = timeToMinutes(selectedSlot.time) + ct.duration_minutes
+        const endTimeForEmail = minutesToTime(endMinsForEmail)
+        await fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'booking_confirmed',
+            to: parentData.email,
+            parentName: parentData.first_name,
+            studentName: student.full_name,
+            courseName: ct.name,
+            coachName: `${coach.first_name} ${coach.last_name}`,
+            date: selectedSlot.date,
+            time: `${selectedSlot.time} – ${endTimeForEmail}`,
+          }),
+        })
+      }
+    } catch (e) { console.error('Email error:', e) }
+
+    setSuccess('使用已付款單堂課程，預約成功！')
+    await loadSessions()
+    setTimeout(() => { setModal(null); setSuccess('') }, 1500)
+    setSaving(false)
+  }
+
+  function getSessionAt(date: string, time: string, coachId: string): Session | null {
+    const matches = sessions.filter(s =>
+      s.session_date === date &&
+      s.coach_id === coachId &&
+      s.start_time.slice(0, 5) === time
+    )
+    if (matches.length === 0) return null
+    return matches.sort((a, b) => b.enrolled_count - a.enrolled_count)[0]
+  }
+
+  function getSessionsOnDate(date: string): Session[] {
+    return sessions.filter(s => s.session_date === date)
+  }
+
+  const todayStr = toDateStr(new Date())
+  const currentMonth = anchor.getMonth()
+
+  const headerLabel = view === 'month'
+    ? `${anchor.getFullYear()} ${MONTH_NAMES[anchor.getMonth()]}`
+    : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+
+  return (
+    <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
+      {/* Header */}
+      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
+          Booking Calendar
+        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex rounded-lg overflow-hidden border border-white/20">
+            {(['month', 'day'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className={`px-4 py-1.5 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'}`}>
+                {v === 'month' ? '月' : '日'}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">‹</button>
+            <span className="text-sm text-white/80 min-w-[200px] text-center">{headerLabel}</span>
+            <button onClick={() => navigate(1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">›</button>
+            <button
+              onClick={() => {
+                const t = new Date()
+                setAnchor(new Date(t.getFullYear(), t.getMonth(), t.getDate()))
+                setView('month')
+              }}
+              className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+            >今天</button>
+          </div>
+          {loading && <span className="text-xs text-white/40 animate-pulse">載入中...</span>}
+        </div>
+      </div>
+
+      {/* Body: sidebar + main */}
+      <div className="flex gap-4 p-4" style={{ height: 'calc(100vh - 130px)' }}>
+        {/* Left: Mini Calendar */}
+        <MiniCalendar selected={anchor} onSelect={handleMiniSelect} />
+
+        {/* Right: Main Calendar */}
+        <div className="flex-1 overflow-auto">
+          {view === 'month' ? (
+            <MonthView
+              dates={monthDates}
+              currentMonth={currentMonth}
+              todayStr={todayStr}
+              getSessionsOnDate={getSessionsOnDate}
+              onDayClick={(date) => {
+                setAnchor(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
+                setView('day')
+              }}
+            />
+          ) : (
+            <DayView
+              crossAccountSessionIds={crossAccountSessionIds}
+              date={anchor}
+              coaches={coaches}
+              getSessionAt={getSessionAt}
+              isCoachAvailable={isCoachAvailable}
+              onSlotClick={openBookModal}
+              onSessionClick={openDetailModal}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Book Modal */}
+      {modal === 'book' && selectedSlot && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setModal(null) }}>
+          <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="p-6 border-b border-white/10 flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>新增預約</h2>
+                <p className="text-sm text-white/50 mt-1">
+                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
+                  {' · '}{formatTime(selectedSlot.time)}
+                  {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
+                </p>
+              </div>
+              <button onClick={() => setModal(null)} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              {trialUrl ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-white/60">付款連結已建立，複製後傳給家長：</p>
+                  <div className="flex gap-2">
+                    <input readOnly value={trialUrl}
+                      className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
+                      onFocus={(e) => e.target.select()} />
+                    <button onClick={() => {
+                        navigator.clipboard.writeText(trialUrl)
+                        setTrialCopied(true)
+                        setTimeout(() => setTrialCopied(false), 1500)
+                      }}
+                      className="px-3 py-2 rounded-lg bg-[#c9a84c] text-[#0d1529] text-xs font-semibold min-w-[64px]">
+                      {trialCopied ? '已複製 ✓' : '複製'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-white/30">付款完成後預約會自動確認；連結過期會自動釋放時段。</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5">
+                    <input type="checkbox" id="isTrialCheckbox" checked={isTrial}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setIsTrial(checked)
+                        if (checked) {
+                          const trialCt = courseTypes.find(ct => ct.slug === '1on1')
+                          if (trialCt) setFormCourse(trialCt.id)
+                        }
+                      }}
+                      className="w-4 h-4" />
+                    <label htmlFor="isTrialCheckbox" className="text-sm text-white/80 cursor-pointer">
+                      單堂體驗課（$85，僅限 1-on-1，需家長線上付款）
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-white/60 mb-2">課程類型</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {courseTypes.map(ct => (
+                        <button key={ct.id}
+                          onClick={() => { if (!isTrial) setFormCourse(ct.id) }}
+                          disabled={isTrial && ct.slug !== '1on1'}
+                          className={`px-3 py-2.5 rounded-lg border text-sm text-left transition-all ${
+                            formCourse === ct.id
+                              ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]'
+                              : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
+                          } ${isTrial && ct.slug !== '1on1' ? 'opacity-30 cursor-not-allowed' : ''}`}>
+                          <span className="block font-medium">{ct.name}</span>
+                          <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} 分鐘 · 最多 {ct.max_students} 人</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-white/60 mb-2">選擇學生</label>
+                    <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentCreditsCache={parentCreditsCache} />
+                {courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && (
+                  <div className="mt-2">
+                    <label className="block text-sm text-white/60 mb-2">選擇學生 2</label>
+                    <StudentSearch students={students.filter(s => s.id !== formStudent)} value={formStudent2} onChange={setFormStudent2} parentCreditsCache={parentCreditsCache} />
+                  </div>
+                )}
+                    {isTrial && trialCreditStatus === 'available' && (
+                      <p className="text-xs text-[#c9a84c] mt-2">✓ 此學生已付款單堂體驗課，尚未使用，可直接安排，無需再次付款</p>
+                    )}
+                    {isTrial && trialCreditStatus === 'active' && (
+                      <p className="text-xs text-red-400 mt-2">此學生目前已有一筆進行中的單堂預約，請先取消該預約才能重新安排</p>
+                    )}
+                  </div>
+                  {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
+                  {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
+                </>
+              )}
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">
+                {trialUrl ? '完成' : '取消'}
+              </button>
+              {!trialUrl && (
+                <button
+                  onClick={isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook}
+                  disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active')}
+                  className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
+                  {isTrial
+                    ? (trialCreditStatus === 'available'
+                        ? (saving ? '建立中...' : '使用已付款單堂課程')
+                        : (trialSaving ? '建立付款連結中...' : '產生付款連結'))
+                    : (saving ? '建立中...' : '確認預約')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {modal === 'detail' && selectedSession && (
+        <DetailModal
+          session={selectedSession}
+          coaches={coaches}
+          onClose={() => setModal(null)}
+          supabase={supabase}
+          onRefresh={loadSessions}
+        />
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Month View
+// ══════════════════════════════════════════════════════════════════════
+function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClick }: {
+  dates: Date[]
+  currentMonth: number
+  todayStr: string
+  getSessionsOnDate: (date: string) => Session[]
+  onDayClick: (date: Date) => void
+}) {
+  return (
+    <div>
+      <div className="grid grid-cols-7 mb-1">
+        {WEEKDAY_HEADERS.map(d => (
+          <div key={d} className="text-center text-xs text-white/30 py-2 font-medium">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {dates.map(date => {
+          const ds = toDateStr(date)
+          const isToday = ds === todayStr
+          const isCurrentMonth = date.getMonth() === currentMonth
+          const daySessions = getSessionsOnDate(ds)
+          return (
+            <button key={ds} onClick={() => onDayClick(date)}
+              className={`rounded-xl p-2 text-left transition-all hover:border-[#c9a84c]/50 hover:bg-[#c9a84c]/5 group border min-h-[90px] flex flex-col ${
+                isToday ? 'border-[#c9a84c]/60 bg-[#c9a84c]/5'
+                : isCurrentMonth ? 'border-white/8 bg-[#111d38]/40'
+                : 'border-white/4 bg-transparent'
+              }`}>
+              <p className={`text-sm font-semibold mb-1 ${isToday ? 'text-[#c9a84c]' : isCurrentMonth ? 'text-white/80' : 'text-white/20'}`}>
+                {date.getDate()}
+              </p>
+              <div className="flex-1 space-y-0.5">
+                {daySessions.filter(s => s.enrolled_count > 0).slice(0, 3).map(s => {
+                  const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
+                  const slug = ct?.slug || ''
+                  return (
+                    <div key={s.id} className="rounded px-1 py-0.5" style={{ backgroundColor: COURSE_COLORS[slug] || '#6b7280' }}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-white font-medium">{s.start_time.slice(0, 5)}</span>
+                      </div>
+                      {(s as any).bookings && (s as any).bookings.filter((b: any) => b.status !== 'cancelled' && b.status !== 'pending_partner').map((b: any) => {
+                        const st = Array.isArray(b.students) ? b.students[0] : b.students
+                        return st ? <div key={b.id} className="text-[8px] text-white/90 truncate leading-tight">{st.full_name}</div> : null
+                      })}
+                    </div>
+                  )
+                })}
+                {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.filter(s => s.enrolled_count > 0).length - 3} 更多</p>}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Day View
+// ══════════════════════════════════════════════════════════════════════
+function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, crossAccountSessionIds }: {
+  date: Date
+  coaches: Coach[]
+  getSessionAt: (date: string, time: string, coachId: string) => Session | null
+  isCoachAvailable: (id: string, date: Date, time: string) => boolean
+  onSlotClick: (date: string, time: string, coachId: string) => void
+  onSessionClick: (s: Session) => void
+  crossAccountSessionIds: Set<string>
+}) {
+  const ds = toDateStr(date)
+  return (
+    <div className="relative">
+      <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
+        <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
+          <div className="h-14" />
+          {coaches.map(coach => (
+            <div key={coach.id} className="h-14 flex flex-col items-center justify-center border-l border-white/5">
+              <span className="text-sm font-semibold text-white/80">{coach.first_name}</span>
+              <span className="text-xs text-white/30">{coach.last_name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
+        {TIME_SLOTS.map(time => (
+          <div key={time} className="contents">
+            <div className="h-14 flex items-start justify-end pr-3 pt-1.5 text-xs text-white/25 border-t border-white/5">
+              {time.endsWith(':00') ? formatTime(time) : ''}
+            </div>
+            {coaches.map(coach => {
+              const session = getSessionAt(ds, time, coach.id)
+              const available = isCoachAvailable(coach.id, date, time)
+              return (
+                <div key={`${coach.id}-${time}`} className="h-14 border-t border-l border-white/5 relative">
+                  {session && session.enrolled_count > 0 ? (
+                    <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} />
+                  ) : available ? (
+                    <button onClick={() => onSlotClick(ds, time, coach.id)}
+                      className="absolute inset-0 hover:bg-[#c9a84c]/10 transition-colors group flex items-center justify-center">
+                      <span className="hidden group-hover:flex items-center gap-1 text-xs text-[#c9a84c]">
+                        <span className="text-base leading-none">+</span> 預約
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="absolute inset-0 bg-white/[0.015]" />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Session Chip
+// ══════════════════════════════════════════════════════════════════════
+function SessionChip({ session, onClick, isCrossAccount }: { session: Session; onClick: () => void; isCrossAccount?: boolean }) {
+  if (session.enrolled_count === 0) return null
+  const ct = getSessionCourseType(session)
+  const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
+  const isFull = session.enrolled_count >= session.max_students
+  const isSingleLesson = session.bookings?.some(b => b.lesson_credit_id === null)
+  const is1on2 = ct.slug === '1on2'
+  const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
+
+  return (
+    <>
+      <button onClick={onClick}
+        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
+        style={{ backgroundColor: colorClass }}>
+        <span className="text-sm font-bold text-[#1a2744] leading-tight truncate w-full">{ct.name}</span>
+        {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
+          const st = Array.isArray(b.students) ? b.students[0] : b.students
+          const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
+          return st ? (
+            <span key={b.id} className="text-xs font-semibold text-[#1a2744] truncate w-full leading-tight block">
+              {pa ? `${pa.first_name} ${pa.last_name}` : ''} · {st.full_name}
+            </span>
+          ) : null
+        })}
+      </button>
+      {isCrossAccount && (
+        <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none z-10"
+          style={{ backgroundColor: '#6366f1', color: '#fff' }}>
+          ✦
+        </span>
+      )}
+      {isSingleLesson && (
+        <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none"
+          style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
+          單堂
+        </span>
+      )}
+    </>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Detail Modal
+// ══════════════════════════════════════════════════════════════════════
+function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
+  session: Session
+  coaches: Coach[]
+  onClose: () => void
+  supabase: ReturnType<typeof createClient>
+  onRefresh: () => void
+}) {
+  const [bookings, setBookings] = useState<any[]>([])
+  const [cancelling, setCancelling] = useState(false)
+  const ct = getSessionCourseType(session)
+  const coach = coaches.find(c => c.id === session.coach_id)
+
+  useEffect(() => {
+    fetch(`/api/admin/session-bookings?session_id=${session.id}`)
+      .then(r => r.json())
+      .then(data => setBookings(Array.isArray(data) ? data : []))
+  }, [session.id]) // eslint-disable-line
+
+  async function cancelSession() {
+    if (!confirm('確定要取消這堂課？所有預約都會一起取消。')) return
+    setCancelling(true)
+    await fetch('/api/admin/cancel-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: session.id }),
+    })
+    onRefresh()
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="p-6 border-b border-white/10 flex items-start justify-between">
+          <div>
+            <div className="inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2 text-white" style={{ backgroundColor: COURSE_COLORS[ct.slug] || '#6b7280' }}>
+              {ct.name}
+            </div>
+            <p className="text-white font-medium">
+              {new Date(session.session_date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
+            </p>
+            <p className="text-sm text-white/50 mt-0.5">
+              {formatTime(session.start_time)} – {formatTime(session.end_time)}
+              {' · '}Coach {coach?.first_name} {coach?.last_name}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
+        </div>
+        <div className="p-6">
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-3">
+            已預約學生 ({session.enrolled_count}/{session.max_students})
+          </p>
+          {bookings.length === 0 ? (
+            <p className="text-sm text-white/30 italic">尚無學生預約</p>
+          ) : (
+            <div className="space-y-2">
+              {bookings.map(b => {
+                const student = Array.isArray(b.students) ? b.students[0] : b.students
+                const parent  = Array.isArray(b.parents)  ? b.parents[0]  : b.parents
+                return (
+                  <div key={b.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2.5">
+                    <span className="text-sm text-white font-medium flex items-center gap-1.5">
+                      {student?.full_name}
+                      {b.lesson_credit_id === null && (
+                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>單堂</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-white/40">Lv.{student?.current_level} · {parent?.first_name} {parent?.last_name}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        <div className="p-6 pt-0 flex gap-3">
+          <button onClick={cancelSession} disabled={cancelling}
+            className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm disabled:opacity-50">
+            {cancelling ? '取消中...' : '取消這堂課'}
+          </button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
+            關閉
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
