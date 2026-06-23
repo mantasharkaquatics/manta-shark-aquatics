@@ -29,7 +29,7 @@ export default async function AdminDashboardPage() {
     supabase.from('students').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('students').select('id, full_name, current_level, parent_id').eq('upgrade_pending', true).limit(5),
     supabase.from('coach_time_off').select('id, date, reason, coaches(first_name, last_name)').gte('date', today).order('date').limit(5),
-    supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').order('start_time'),
+    supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').gt('enrolled_count', 0).order('start_time'),
   ])
 
   const stats = [
