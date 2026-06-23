@@ -1118,8 +1118,7 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   const is1on2 = ct.slug === '1on2'
   const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
   const isCrossAccount = is1on2 && activeBookings.length === 2 && (
-    (Array.isArray(activeBookings[0].parents) ? activeBookings[0].parents[0] : activeBookings[0].parents)?.id !==
-    (Array.isArray(activeBookings[1].parents) ? activeBookings[1].parents[0] : activeBookings[1].parents)?.id
+    activeBookings[0].parent_id !== activeBookings[1].parent_id
   )
   return (
     <>
