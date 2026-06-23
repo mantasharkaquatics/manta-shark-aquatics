@@ -950,7 +950,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                     <div key={s.id} className="rounded px-1 py-0.5" style={{ backgroundColor: COURSE_COLORS[slug] || '#6b7280' }}>
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] text-white font-medium">{s.start_time.slice(0, 5)}</span>
-                        <span className="text-[9px] text-white/70 ml-1">{s.enrolled_count}/{s.max_students}</span>
+                        <span className="text-[9px] text-white/70 ml-1">{(slug === '1on4' || slug === 'team') ? `${s.enrolled_count}/${s.max_students}` : s.enrolled_count}</span>
                       </div>
                       {(s as any).bookings && (s as any).bookings.filter((b: any) => b.status !== 'cancelled' && b.status !== 'pending_partner').map((b: any) => {
                         const st = Array.isArray(b.students) ? b.students[0] : b.students

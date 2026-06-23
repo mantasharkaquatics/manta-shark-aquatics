@@ -943,7 +943,7 @@ export default function BookingPage() {
                         }}
                       >
                         {slot.label}
-                        {selectedCourse && selectedCourse.max_students > 1 && (
+                        {selectedCourse && (selectedCourse.slug === '1on4' || selectedCourse.slug === 'team') && (
                           <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{slot.max - slot.enrolled} left</div>
                         )}
                       </button>
