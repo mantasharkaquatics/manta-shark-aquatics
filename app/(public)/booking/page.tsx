@@ -429,6 +429,7 @@ export default function BookingPage() {
       } else {
         // 同帳戶：扣第二個 credit，建立 confirmed 預約
         const creditForS2 = [...credits]
+          .filter(c => c.course_type_id === selectedCourse.id)
           .sort((a, b) => ((a as any).created_at || '').localeCompare((b as any).created_at || ''))
           .find(c => {
             const usedNow = c.id === availableCredit.id ? availableCredit.used_credits + 1 : c.used_credits

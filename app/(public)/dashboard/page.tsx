@@ -380,7 +380,25 @@ export default function DashboardPage() {
         }
       }).filter(b => b.session_date)
 
-    const allUpcoming = parseBookings(rawBookings || []).filter(b => b.session_date >= today)
+    // 同 session 合併成一張卡（同帳戶 1-on-2）
+    const mergeBySession = (bookings: Booking[]): Booking[] => {
+      const map: Record<string, Booking> = {}
+      for (const b of bookings) {
+        const key = b.id.split('-')[0] + b.session_date + b.start_time + b.course_slug
+        // use class_session_id as key by finding it from rawBookings
+        const raw = (rawBookings || []).find((r: any) => r.id === b.id)
+        const sid = raw?.class_session_id || b.id
+        if (map[sid]) {
+          if (b.student_name && !map[sid].student_name?.includes(b.student_name)) {
+            map[sid] = { ...map[sid], student_name: map[sid].student_name + ', ' + b.student_name }
+          }
+        } else {
+          map[sid] = b
+        }
+      }
+      return Object.values(map)
+    }
+    const allUpcoming = mergeBySession(parseBookings(rawBookings || []).filter(b => b.session_date >= today))
     const allPast = parseBookings(rawBookings || []).filter(b => b.session_date < today)
 
     setUpcomingBookings(allUpcoming.sort((a, b) => a.session_date.localeCompare(b.session_date)))
