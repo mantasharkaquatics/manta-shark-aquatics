@@ -1120,6 +1120,7 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   const isCrossAccount = is1on2 && activeBookings.length === 2 && (
     activeBookings[0].parent_id !== activeBookings[1].parent_id
   )
+  if (is1on2) console.log('[SessionChip]', session.id, { is1on2, activeBookings: activeBookings.map(b => ({ id: b.id, parent_id: b.parent_id, status: b.status })), isCrossAccount })
   return (
     <>
       <button onClick={onClick}
