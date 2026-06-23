@@ -302,6 +302,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [formStudent, setFormStudent] = useState('')
+  const [formStudent2, setFormStudent2] = useState('')
   const [formCourse, setFormCourse] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -403,6 +404,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   function openBookModal(date: string, time: string, coachId: string) {
     setSelectedSlot({ date, time, coachId })
     setFormStudent('')
+    setFormStudent2('')
     setFormCourse(courseTypes[0]?.id || '')
     setIsTrial(false)
     setTrialUrl('')
@@ -417,30 +419,70 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }
 
   async function handleBook() {
+    const ct = courseTypes.find(c => c.id === formCourse)!
+    const is1on2 = ct?.slug === '1on2'
+
     if (!formStudent || !formCourse || !selectedSlot) {
       setError('請選擇學生和課程類型')
       return
     }
+    if (is1on2 && !formStudent2) {
+      setError('1-on-2 課程需選擇兩位學生')
+      return
+    }
     setSaving(true)
     setError('')
-    const ct = courseTypes.find(c => c.id === formCourse)!
-    const student = students.find(s => s.id === formStudent)!
-    const parentId = student.parent_id
 
-    const creditsRes = await fetch(`/api/admin/parent-credits?parent_id=${parentId}&course_type_id=${formCourse}`)
-    const credits = creditsRes.ok ? await creditsRes.json() : []
+    const student1 = students.find(s => s.id === formStudent)!
+    const student2 = is1on2 ? students.find(s => s.id === formStudent2)! : null
+    const parentId1 = student1.parent_id
+    const parentId2 = student2?.parent_id || null
+    const sameParent = parentId2 && parentId1 === parentId2
 
-    const validCredit = credits?.find((c: { used_credits: number; total_credits: number }) => c.used_credits < c.total_credits)
-
-    if (!validCredit) {
-      setError(`此學生尚未購買「${ct.name}」方案，或方案堂數已用完，無法安排此堂課`)
+    // 確認 credit
+    const creditsRes1 = await fetch(`/api/admin/parent-credits?parent_id=${parentId1}&course_type_id=${formCourse}`)
+    const credits1 = creditsRes1.ok ? await creditsRes1.json() : []
+    const validCredit1 = credits1?.find((c: any) => c.used_credits < c.total_credits)
+    if (!validCredit1) {
+      setError(`學生 1 家長尚無「${ct.name}」可用堂數`)
       setSaving(false)
       return
+    }
+
+    let validCredit2: any = null
+    if (is1on2) {
+      if (sameParent) {
+        // 同帳戶：需要第二堂 credit（排除已選的第一堂）
+        const validCredit2Candidate = credits1?.find((c: any) => c.used_credits + 1 < c.total_credits || (c.id !== validCredit1.id && c.used_credits < c.total_credits))
+        // 簡化：同帳戶扣同一個 credit 包（used_credits + 2 <= total_credits）或找第二個可用
+        const totalRemaining = credits1.reduce((sum: number, c: any) => sum + (c.total_credits - c.used_credits), 0)
+        if (totalRemaining < 2) {
+          setError(`此家長「${ct.name}」堂數不足（需 2 堂，剩 ${totalRemaining} 堂）`)
+          setSaving(false)
+          return
+        }
+        // 找第二個可用 credit（可以是同一個包的第二堂）
+        const credits1Refreshed = credits1.map((c: any) => ({ ...c }))
+        validCredit2 = credits1Refreshed.find((c: any) => {
+          if (c.id === validCredit1.id) return c.total_credits - c.used_credits >= 2
+          return c.used_credits < c.total_credits
+        })
+      } else {
+        const creditsRes2 = await fetch(`/api/admin/parent-credits?parent_id=${parentId2}&course_type_id=${formCourse}`)
+        const credits2 = creditsRes2.ok ? await creditsRes2.json() : []
+        validCredit2 = credits2?.find((c: any) => c.used_credits < c.total_credits)
+        if (!validCredit2) {
+          setError(`學生 2 家長尚無「${ct.name}」可用堂數`)
+          setSaving(false)
+          return
+        }
+      }
     }
 
     const endMins = timeToMinutes(selectedSlot.time) + ct.duration_minutes
     const endTime = minutesToTime(endMins)
 
+    // 找或建立 session
     const { data: existingSession } = await supabase
       .from('class_sessions')
       .select('id, enrolled_count, max_students')
@@ -469,8 +511,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     let currentEnrolled: number
 
     if (existingSession) {
-      if (existingSession.enrolled_count >= existingSession.max_students) {
-        setError('這個時段已經額滿')
+      const spotsNeeded = is1on2 ? 2 : 1
+      if (existingSession.enrolled_count + spotsNeeded > existingSession.max_students) {
+        setError('這個時段座位不足')
         setSaving(false)
         return
       }
@@ -491,7 +534,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         })
         .select()
         .single()
-
       if (sessErr || !newSess) {
         setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
         setSaving(false)
@@ -501,43 +543,55 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       currentEnrolled = 0
     }
 
-    const { error: bookErr } = await supabase
-      .from('bookings')
-      .insert({
-        class_session_id: sessId,
-        parent_id: parentId,
-        student_id: formStudent,
-        lesson_credit_id: validCredit.id,
-        status: 'confirmed',
-      })
-
-    if (bookErr) {
-      if (bookErr.message?.includes('coach_timeslot_conflict')) {
-        setError('此時段教練已有其他課程，無法安排')
-      } else {
-        setError('建立預約失敗：' + bookErr.message)
-      }
+    // 建立第一筆 booking
+    const { error: bookErr1 } = await supabase.from('bookings').insert({
+      class_session_id: sessId,
+      parent_id: parentId1,
+      student_id: formStudent,
+      lesson_credit_id: validCredit1.id,
+      status: 'confirmed',
+    })
+    if (bookErr1) {
+      setError('建立預約失敗：' + bookErr1.message)
       setSaving(false)
       return
     }
 
-    await supabase
-      .from('class_sessions')
-      .update({ enrolled_count: currentEnrolled + 1 })
-      .eq('id', sessId)
+    // 建立第二筆 booking（1on2）
+    if (is1on2 && student2 && validCredit2) {
+      const creditId2 = sameParent && validCredit2.id === validCredit1.id ? validCredit1.id : validCredit2.id
+      const { error: bookErr2 } = await supabase.from('bookings').insert({
+        class_session_id: sessId,
+        parent_id: parentId2,
+        student_id: formStudent2,
+        lesson_credit_id: creditId2,
+        status: 'confirmed',
+      })
+      if (bookErr2) {
+        setError('建立第二位學生預約失敗：' + bookErr2.message)
+        setSaving(false)
+        return
+      }
+      // 更新 enrolled_count +2
+      await supabase.from('class_sessions').update({ enrolled_count: currentEnrolled + 2 }).eq('id', sessId)
+      // 扣 credit
+      await supabase.from('lesson_credits').update({ used_credits: validCredit1.used_credits + 1 }).eq('id', validCredit1.id)
+      if (sameParent && validCredit2.id === validCredit1.id) {
+        await supabase.from('lesson_credits').update({ used_credits: validCredit1.used_credits + 2 }).eq('id', validCredit1.id)
+      } else {
+        await supabase.from('lesson_credits').update({ used_credits: validCredit2.used_credits + 1 }).eq('id', validCredit2.id)
+      }
+    } else {
+      await supabase.from('class_sessions').update({ enrolled_count: currentEnrolled + 1 }).eq('id', sessId)
+      await supabase.from('lesson_credits').update({ used_credits: validCredit1.used_credits + 1 }).eq('id', validCredit1.id)
+    }
 
-    await supabase
-      .from('lesson_credits')
-      .update({ used_credits: validCredit.used_credits + 1 })
-      .eq('id', validCredit.id)
-
-    // 寄送預約確認 email
+    // 寄送 email
     try {
-      const { data: parentData } = await supabase.from('parents').select('first_name, email').eq('id', parentId).single()
+      const { data: parentData } = await supabase.from('parents').select('first_name, email').eq('id', parentId1).single()
       const coach = coaches.find(c => c.id === selectedSlot.coachId)
       if (parentData && coach) {
-        const endMinsForEmail = timeToMinutes(selectedSlot.time) + ct.duration_minutes
-        const endTimeForEmail = minutesToTime(endMinsForEmail)
+        const endTimeForEmail = minutesToTime(timeToMinutes(selectedSlot.time) + ct.duration_minutes)
         await fetch('/api/email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -545,7 +599,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             type: 'booking_confirmed',
             to: parentData.email,
             parentName: parentData.first_name,
-            studentName: student.full_name,
+            studentName: student1.full_name,
             courseName: ct.name,
             coachName: `${coach.first_name} ${coach.last_name}`,
             date: selectedSlot.date,
@@ -882,6 +936,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   <div>
                     <label className="block text-sm text-white/60 mb-2">選擇學生</label>
                     <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentCreditsCache={parentCreditsCache} />
+                {courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && (
+                  <div className="mt-2">
+                    <label className="block text-sm text-white/60 mb-2">選擇學生 2</label>
+                    <StudentSearch students={students.filter(s => s.id !== formStudent)} value={formStudent2} onChange={setFormStudent2} parentCreditsCache={parentCreditsCache} />
+                  </div>
+                )}
                     {isTrial && trialCreditStatus === 'available' && (
                       <p className="text-xs text-[#c9a84c] mt-2">✓ 此學生已付款單堂體驗課，尚未使用，可直接安排，無需再次付款</p>
                     )}
