@@ -37,7 +37,7 @@ interface Session {
   status: string
   course_type_id: string
   course_types: { name: string; slug: string; duration_minutes: number } | { name: string; slug: string; duration_minutes: number }[]
-  bookings?: { id: string; lesson_credit_id: string | null; status: string; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
+  bookings?: { id: string; parent_id: string; lesson_credit_id: string | null; status: string; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
 }
 
 interface BookingSlot {
