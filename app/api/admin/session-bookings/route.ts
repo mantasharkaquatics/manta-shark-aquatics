@@ -10,12 +10,28 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data, error } = await supabase
+  const { data: bookings, error } = await supabase
     .from('bookings')
-    .select('id, status, lesson_credit_id, students(full_name, current_level), parents(first_name, last_name)')
+    .select('id, status, lesson_credit_id, parent_id, student_id')
     .eq('class_session_id', session_id)
     .neq('status', 'cancelled')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data || [])
+  if (!bookings?.length) return NextResponse.json([])
+
+  const studentIds = bookings.map(b => b.student_id).filter(Boolean)
+  const parentIds = bookings.map(b => b.parent_id).filter(Boolean)
+
+  const [{ data: students }, { data: parents }] = await Promise.all([
+    supabase.from('students').select('id, full_name, current_level').in('id', studentIds),
+    supabase.from('parents').select('id, first_name, last_name').in('id', parentIds),
+  ])
+
+  const result = bookings.map(b => ({
+    ...b,
+    students: students?.find(s => s.id === b.student_id) || null,
+    parents: parents?.find(p => p.id === b.parent_id) || null,
+  }))
+
+  return NextResponse.json(result)
 }
