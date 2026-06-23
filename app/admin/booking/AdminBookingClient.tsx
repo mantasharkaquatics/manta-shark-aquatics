@@ -308,6 +308,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [parentCreditsCache, setParentCreditsCache] = useState<Record<string, number>>({})
+  const [crossAccountSessionIds, setCrossAccountSessionIds] = useState<Set<string>>(new Set())
 
   const monthDates = getMonthDates(anchor)
 
@@ -363,6 +364,17 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         } catch { return s }
       }))
       setSessions(sessionsWithBookings as Session[])
+      // 計算跨帳戶 1on2 session
+      const crossIds = new Set<string>()
+      sessionsWithBookings.forEach((s: any) => {
+        const ct = s.course_types?.slug
+        if (ct !== '1on2') return
+        const active = (s.bookings || []).filter((b: any) => b.status !== 'cancelled' && b.status !== 'pending_partner')
+        if (active.length === 2 && active[0].parent_id !== active[1].parent_id) {
+          crossIds.add(s.id)
+        }
+      })
+      setCrossAccountSessionIds(crossIds)
     }
     setLoading(false)
   }, [anchor, view]) // eslint-disable-line
@@ -1097,7 +1109,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
               return (
                 <div key={`${coach.id}-${time}`} className="h-14 border-t border-l border-white/5 relative">
                   {session && session.enrolled_count > 0 ? (
-                    <SessionChip session={session} onClick={() => onSessionClick(session)} />
+                    <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} />
                   ) : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id)}
                       className="absolute inset-0 hover:bg-[#c9a84c]/10 transition-colors group flex items-center justify-center">
@@ -1121,7 +1133,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
 // ══════════════════════════════════════════════════════════════════════
 // Session Chip
 // ══════════════════════════════════════════════════════════════════════
-function SessionChip({ session, onClick }: { session: Session; onClick: () => void }) {
+function SessionChip({ session, onClick, isCrossAccount }: { session: Session; onClick: () => void; isCrossAccount?: boolean }) {
   if (session.enrolled_count === 0) return null
   const ct = getSessionCourseType(session)
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
@@ -1129,10 +1141,7 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   const isSingleLesson = session.bookings?.some(b => b.lesson_credit_id === null)
   const is1on2 = ct.slug === '1on2'
   const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
-  const isCrossAccount = is1on2 && activeBookings.length === 2 && (
-    activeBookings[0].parent_id !== activeBookings[1].parent_id
-  )
-  if (is1on2) console.log('[SessionChip]', session.id, { is1on2, activeBookings: activeBookings.map(b => ({ id: b.id, parent_id: b.parent_id, status: b.status })), isCrossAccount })
+
   return (
     <>
       <button onClick={onClick}
