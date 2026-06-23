@@ -260,13 +260,14 @@ export default function BookingPage() {
     // 查詢教練當天所有已確認的 bookings(不限課程類型),直接從 bookings 表確認
     const { data: coachBookings } = await supabase
       .from('bookings')
-      .select('class_session_id, class_sessions!inner(start_time, course_type_id, enrolled_count, max_students, id)')
+      .select('class_session_id, student_id, class_sessions!inner(start_time, course_type_id, enrolled_count, max_students, id)')
       .eq('class_sessions.coach_id', selectedCoach.id)
       .eq('class_sessions.session_date', dateStr)
       .neq('status', 'cancelled')
 
     const blockedTimes = new Set<string>()
     const sameTypeSessions: Record<string, any> = {}
+    const studentBookedTimes = new Set<string>()
 
     for (const b of coachBookings || []) {
       const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions as any
@@ -277,11 +278,15 @@ export default function BookingPage() {
       } else {
         sameTypeSessions[t] = cs
       }
+      // 這個學生已有此時段的 booking → 直接 block
+      if (b.student_id === selectedStudent?.id) {
+        studentBookedTimes.add(t)
+      }
     }
 
     const slots: TimeSlot[] = allSlots.map(t => {
       const maxStudents = selectedCourse.max_students
-      if (blockedTimes.has(t)) {
+      if (blockedTimes.has(t) || studentBookedTimes.has(t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
       }
       const existing = sameTypeSessions[t]
