@@ -346,8 +346,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     }
     const { data } = await supabase
       .from('class_sessions')
-      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes), bookings(id, parent_id, lesson_credit_id, status, students(full_name))')
-      .gte('session_date', from)
+      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes), bookings(id, parent_id, lesson_credit_id, status, students(full_name))').gte('session_date', from)
       .lte('session_date', to)
       .neq('status', 'cancelled')
       .order('session_date')
