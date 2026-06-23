@@ -195,10 +195,11 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
 // ══════════════════════════════════════════════════════════════════════
 // Student Search
 // ══════════════════════════════════════════════════════════════════════
-function StudentSearch({ students, value, onChange }: {
+function StudentSearch({ students, value, onChange, parentCreditsCache }: {
   students: Student[]
   value: string
   onChange: (id: string) => void
+  parentCreditsCache: Record<string, number>
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -880,7 +881,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   </div>
                   <div>
                     <label className="block text-sm text-white/60 mb-2">選擇學生</label>
-                    <StudentSearch students={students} value={formStudent} onChange={setFormStudent} />
+                    <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentCreditsCache={parentCreditsCache} />
                     {isTrial && trialCreditStatus === 'available' && (
                       <p className="text-xs text-[#c9a84c] mt-2">✓ 此學生已付款單堂體驗課，尚未使用，可直接安排，無需再次付款</p>
                     )}
