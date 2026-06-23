@@ -457,9 +457,28 @@ export default function DashboardPage() {
 
   async function rejectPartnerBooking(bookingId: string) {
     setRejectingId(bookingId)
-    const { data: b } = await supabase.from('bookings').select('class_session_id').eq('id', bookingId).single()
+    const { data: b } = await supabase.from('bookings').select('class_session_id, partner_parent_id').eq('id', bookingId).single()
     await supabase.from('bookings').update({ status: 'cancelled', pending_action: null }).eq('id', bookingId)
     if (b?.class_session_id) await supabase.rpc('decrement_enrolled', { session_id: b.class_session_id })
+
+    // 同步取消發起方的 confirmed booking 並退 credit
+    if (b?.class_session_id && b?.partner_parent_id) {
+      const { data: initiatorBooking } = await supabase
+        .from('bookings')
+        .select('id, lesson_credit_id')
+        .eq('class_session_id', b.class_session_id)
+        .eq('parent_id', b.partner_parent_id)
+        .eq('status', 'confirmed')
+        .single()
+      if (initiatorBooking) {
+        await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', initiatorBooking.id)
+        await supabase.rpc('decrement_enrolled', { session_id: b.class_session_id })
+        if (initiatorBooking.lesson_credit_id) {
+          const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', initiatorBooking.lesson_credit_id).single()
+          if (credit) await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', initiatorBooking.lesson_credit_id)
+        }
+      }
+    }
 
     // 寄拒絕通知給發起方
     try {
