@@ -1108,7 +1108,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
               const session = getSessionAt(ds, time, coach.id)
               const available = isCoachAvailable(coach.id, date, time)
               return (
-                <div key={`${coach.id}-${time}`} className="h-auto min-h-14 border-t border-l border-white/5">
+                <div key={`${coach.id}-${time}`} className="min-h-14 border-t border-l border-white/5 relative">
                   {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} />
                   ) : available ? (
@@ -1146,7 +1146,7 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
   return (
     <>
       <button onClick={onClick}
-        className={`relative w-full rounded flex flex-col items-start justify-start p-1.5 ${isFull ? 'opacity-50' : ''}`}
+        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
         style={{ backgroundColor: colorClass }}>
         <span className="text-sm font-bold text-white leading-tight truncate w-full text-left">{ct.name}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
