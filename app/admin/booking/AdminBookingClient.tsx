@@ -374,6 +374,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           crossIds.add(s.id)
         }
       })
+      console.log("[crossIds]", crossIds.size, [...crossIds])
+      sessionsWithBookings.forEach((s: any) => { if(s.course_types?.slug==='1on2') console.log("[1on2 session]", s.id, s.bookings?.map((b:any)=>({id:b.id,parent_id:b.parent_id,status:b.status}))) })
       setCrossAccountSessionIds(crossIds)
     }
     setLoading(false)
