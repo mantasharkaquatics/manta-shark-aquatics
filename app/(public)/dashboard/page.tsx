@@ -533,18 +533,18 @@ export default function DashboardPage() {
 
   async function cancelBooking(bookingId: string) {
     setCancellingId(bookingId)
-    // 先取得 booking 詳細資料（含課程、學生、教練）
+    // 先取得 booking 詳細資料（含課程、學生、教練）for email
     const { data: bookingData } = await supabase
       .from('bookings')
       .select('lesson_credit_id, student_id, class_session_id, students(full_name), class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name, last_name))')
       .eq('id', bookingId)
       .single()
-    // 取消 booking
-    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
-    // 退回 credit
-    if (bookingData?.lesson_credit_id) {
-      await supabase.rpc('increment_credit', { credit_id: bookingData.lesson_credit_id })
-    }
+    // 用 server API 取消（同時取消對方 booking 並退 credit）
+    await fetch('/api/bookings/cancel-with-partner', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booking_id: bookingId })
+    })
     // 寄送取消 email
     try {
       if (bookingData && parent) {
