@@ -1083,6 +1083,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
   isCoachAvailable: (id: string, date: Date, time: string) => boolean
   onSlotClick: (date: string, time: string, coachId: string) => void
   onSessionClick: (s: Session) => void
+  crossAccountSessionIds: Set<string>
 }) {
   const ds = toDateStr(date)
   return (
