@@ -351,7 +351,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .neq('status', 'cancelled')
       .order('session_date')
       .order('start_time')
-    console.log("[loadSessions] data count:", data?.length)
     if (data) {
       // 用 server API 取得 bookings（繞過 RLS），只取 enrolled > 0 的 session
       const sessionsWithBookings = await Promise.all(data.map(async (s: any) => {
@@ -374,8 +373,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           crossIds.add(s.id)
         }
       })
-      console.log("[crossIds]", crossIds.size, [...crossIds])
-      sessionsWithBookings.forEach((s: any) => { if(s.course_types?.slug==='1on2') console.log("[1on2 session]", s.id, s.bookings?.map((b:any)=>({id:b.id,parent_id:b.parent_id,status:b.status}))) })
       setCrossAccountSessionIds(crossIds)
     }
     setLoading(false)
@@ -1165,7 +1162,7 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
       {isCrossAccount && (
         <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none z-10"
           style={{ backgroundColor: '#6366f1', color: '#fff' }}>
-          ✦
+          連動
         </span>
       )}
       {isSingleLesson && (
