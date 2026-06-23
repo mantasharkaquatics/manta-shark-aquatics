@@ -950,7 +950,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                         <span className="text-[9px] text-white font-medium">{s.start_time.slice(0, 5)}</span>
                         <span className="text-[9px] text-white/70 ml-1">{s.enrolled_count}/{s.max_students}</span>
                       </div>
-                      {(s as any).bookings && (s as any).bookings.map((b: any) => {
+                      {(s as any).bookings && (s as any).bookings.filter((b: any) => b.status !== 'cancelled' && b.status !== 'pending_partner').map((b: any) => {
                         const st = Array.isArray(b.students) ? b.students[0] : b.students
                         return st ? <div key={b.id} className="text-[8px] text-white/90 truncate leading-tight">{st.full_name}</div> : null
                       })}
