@@ -1077,12 +1077,9 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   const coach = coaches.find(c => c.id === session.coach_id)
 
   useEffect(() => {
-    supabase
-      .from('bookings')
-      .select('id, status, lesson_credit_id, students(full_name, current_level), parents(first_name, last_name)')
-      .eq('class_session_id', session.id)
-      .neq('status', 'cancelled')
-      .then(({ data }) => setBookings(data || []))
+    fetch(`/api/admin/session-bookings?session_id=${session.id}`)
+      .then(r => r.json())
+      .then(data => setBookings(Array.isArray(data) ? data : []))
   }, [session.id]) // eslint-disable-line
 
   async function cancelSession() {
