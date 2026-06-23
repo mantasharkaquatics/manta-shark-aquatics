@@ -270,6 +270,7 @@ function StudentSearch({ students, value, onChange }: {
                   <p className="text-xs text-white/40">{parent?.first_name} {parent?.last_name} · {parent?.email}</p>
                 </div>
                 <span className="text-xs text-white/30 ml-2 flex-shrink-0">Lv.{s.current_level}</span>
+                {formCourse && (() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentCreditsCache[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem} 堂</span> : null })()}
               </button>
             )
           })}
@@ -304,8 +305,30 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [parentCreditsCache, setParentCreditsCache] = useState<Record<string, number>>({})
 
   const monthDates = getMonthDates(anchor)
+
+  useEffect(() => {
+    if (!formCourse) return
+    const uniqueParentIds = [...new Set(students.map((s: any) => {
+      const p = Array.isArray(s.parents) ? s.parents[0] : s.parents
+      return p?.id
+    }).filter(Boolean))]
+    const fetchAll = async () => {
+      const cache: Record<string, number> = {}
+      await Promise.all(uniqueParentIds.map(async (pid) => {
+        const res = await fetch(`/api/admin/parent-credits?parent_id=${pid}&course_type_id=${formCourse}`)
+        if (res.ok) {
+          const credits = await res.json()
+          const remaining = credits.reduce((sum: number, c: any) => sum + (c.total_credits - c.used_credits), 0)
+          cache[pid] = remaining
+        }
+      }))
+      setParentCreditsCache(cache)
+    }
+    fetchAll()
+  }, [formCourse, students])
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
