@@ -1154,7 +1154,7 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
           const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
           return st ? (
             <span key={b.id} className="text-sm font-semibold text-white/90 truncate w-full leading-tight block text-left">
-              <span className="text-white/60">家長</span> {pa ? `${pa.first_name} ${pa.last_name}` : ''} · <span className="text-white/60">學生姓名</span> {st.full_name}
+              -{pa ? `${pa.first_name} ${pa.last_name}` : ''} ({st.full_name})
             </span>
           ) : null
         })}
