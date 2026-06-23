@@ -705,11 +705,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }
 
   function getSessionAt(date: string, time: string, coachId: string): Session | null {
-    return sessions.find(s =>
+    const matches = sessions.filter(s =>
       s.session_date === date &&
       s.coach_id === coachId &&
       s.start_time.slice(0, 5) === time
-    ) || null
+    )
+    if (matches.length === 0) return null
+    return matches.sort((a, b) => b.enrolled_count - a.enrolled_count)[0]
   }
 
   function getSessionsOnDate(date: string): Session[] {
