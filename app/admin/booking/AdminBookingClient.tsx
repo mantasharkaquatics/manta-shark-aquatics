@@ -1136,6 +1136,12 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
           ) : null
         })}
       </button>
+      {isCrossAccount && (
+        <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none z-10"
+          style={{ backgroundColor: '#6366f1', color: '#fff' }}>
+          ✦
+        </span>
+      )}
       {isSingleLesson && (
         <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none"
           style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
