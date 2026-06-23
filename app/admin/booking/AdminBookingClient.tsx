@@ -406,7 +406,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const creditsRes = await fetch(`/api/admin/parent-credits?parent_id=${parentId}&course_type_id=${formCourse}`)
     const credits = creditsRes.ok ? await creditsRes.json() : []
 
-    const validCredit = credits?.find(c => c.used_credits < c.total_credits)
+    const validCredit = credits?.find((c: { used_credits: number; total_credits: number }) => c.used_credits < c.total_credits)
 
     if (!validCredit) {
       setError(`此學生尚未購買「${ct.name}」方案，或方案堂數已用完，無法安排此堂課`)
