@@ -1115,7 +1115,7 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
   const isFull = session.enrolled_count >= session.max_students
   const isSingleLesson = session.bookings?.some(b => b.lesson_credit_id === null)
-  const is1on2 = ct === '1on2'
+  const is1on2 = ct.slug === '1on2'
   const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
   const isCrossAccount = is1on2 && activeBookings.length === 2 && (
     (Array.isArray(activeBookings[0].parents) ? activeBookings[0].parents[0] : activeBookings[0].parents)?.id !==
