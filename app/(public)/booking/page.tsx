@@ -400,21 +400,22 @@ export default function BookingPage() {
     if (selectedCourse.slug === '1on2' && selectedStudent2) {
       const isPartnerS = (selectedStudent2 as any).isPartner === true
       if (isPartnerS) {
-        // 跨帳戶：建立 pending 預約，時段先鎖定，等對方 12 小時內確認
+        // 跨帳戶：用 server API 建立 pending 預約（繞過 RLS）
         const ps2 = selectedStudent2 as PartnerStudent
-        await supabase.from('bookings').insert({
-          class_session_id: sessionId,
-          parent_id: ps2.partnerParentId,
-          lesson_credit_id: null,
-          student_id: ps2.id,
-          status: 'pending_partner',
-          pending_action: 'confirm',
-          pending_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-          partner_parent_id: parentId,
-          partnership_id: ps2.partnershipId || null,
-          is_guest: true,
+        const pendingRes = await fetch('/api/bookings/create-partner-pending', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            class_session_id: sessionId,
+            partner_parent_id: ps2.partnerParentId,
+            partner_student_id: ps2.id,
+            initiator_parent_id: parentId,
+            partnership_id: ps2.partnershipId || null,
+          })
         })
-        await supabase.rpc('increment_enrolled', { session_id: sessionId })
+        if (pendingRes.ok) {
+          await supabase.rpc('increment_enrolled', { session_id: sessionId })
+        }
 
         // 寄通知信給對方
         try {
