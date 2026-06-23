@@ -1146,14 +1146,14 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
   return (
     <>
       <button onClick={onClick}
-        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
+        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-2 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
         style={{ backgroundColor: colorClass }}>
-        <span className="text-sm font-bold text-white leading-tight truncate w-full text-left">{ct.name}</span>
+        <span className="text-base font-bold text-white leading-tight truncate w-full text-left">{ct.name}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
           const st = Array.isArray(b.students) ? b.students[0] : b.students
           const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
           return st ? (
-            <span key={b.id} className="text-[10px] text-white/90 truncate w-full leading-tight block text-left">
+            <span key={b.id} className="text-xs font-semibold text-white/90 truncate w-full leading-tight block text-left">
               <span className="text-white/60">家長</span> {pa ? `${pa.first_name} ${pa.last_name}` : ''} · <span className="text-white/60">學生姓名</span> {st.full_name}
             </span>
           ) : null
