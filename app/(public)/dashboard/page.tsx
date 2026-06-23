@@ -282,6 +282,7 @@ export default function DashboardPage() {
 
     const today = new Date().toISOString().split('T')[0]
 
+    console.log('fetchAll: parentId =', parentData.id)
     const [{ data: studs }, { data: credData }, { data: rawBookings }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
@@ -351,6 +352,9 @@ export default function DashboardPage() {
     const pStudentMap: Record<string, any> = {}
     for (const s of pStudents || []) { pStudentMap[(s as any).id] = s }
 
+    console.log('rawBookings:', JSON.stringify(rawBookings?.slice(0,2)))
+    console.log('sessionIds:', sessionIds)
+    console.log('sessionsData:', JSON.stringify(sessionsData?.slice(0,2)))
     setPendingPartnerBookings((pendingRaw || []).map((b: any) => ({
       ...b,
       class_sessions: pSessionMap[b.class_session_id] || null,
