@@ -1108,7 +1108,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
               const session = getSessionAt(ds, time, coach.id)
               const available = isCoachAvailable(coach.id, date, time)
               return (
-                <div key={`${coach.id}-${time}`} className="min-h-14 border-t border-l border-white/5 relative">
+                <div key={`${coach.id}-${time}`} className="min-h-20 border-t border-l border-white/5 relative">
                   {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} />
                   ) : available ? (
