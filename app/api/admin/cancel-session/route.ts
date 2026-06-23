@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+export async function POST(req: NextRequest) {
+  const { session_id } = await req.json()
+  if (!session_id) return NextResponse.json({ error: 'Missing session_id' }, { status: 400 })
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // 取得所有 active bookings
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('id, lesson_credit_id')
+    .eq('class_session_id', session_id)
+    .neq('status', 'cancelled')
+
+  // 退回每筆 credit
+  for (const b of bookings || []) {
+    if (b.lesson_credit_id) {
+      const { data: credit } = await supabase
+        .from('lesson_credits')
+        .select('used_credits')
+        .eq('id', b.lesson_credit_id)
+        .single()
+      if (credit) {
+        await supabase
+          .from('lesson_credits')
+          .update({ used_credits: Math.max(0, credit.used_credits - 1) })
+          .eq('id', b.lesson_credit_id)
+      }
+    }
+  }
+
+  // 取消 session 和所有 bookings
+  await supabase.from('class_sessions').update({ status: 'cancelled' }).eq('id', session_id)
+  await supabase.from('bookings').update({ status: 'cancelled' }).eq('class_session_id', session_id)
+  await supabase.rpc('decrement_enrolled', { session_id })
+
+  return NextResponse.json({ ok: true })
+}

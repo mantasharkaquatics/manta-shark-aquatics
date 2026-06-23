@@ -1085,8 +1085,11 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   async function cancelSession() {
     if (!confirm('確定要取消這堂課？所有預約都會一起取消。')) return
     setCancelling(true)
-    await supabase.from('class_sessions').update({ status: 'cancelled' }).eq('id', session.id)
-    await supabase.from('bookings').update({ status: 'cancelled' }).eq('class_session_id', session.id)
+    await fetch('/api/admin/cancel-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: session.id }),
+    })
     onRefresh()
     onClose()
   }
