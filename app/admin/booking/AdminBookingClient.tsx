@@ -320,7 +320,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     }
     const { data } = await supabase
       .from('class_sessions')
-      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes), bookings(id, lesson_credit_id, students(full_name), parents(first_name, last_name))')
+      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes), bookings(id, lesson_credit_id, status, students(full_name), parents(first_name, last_name))')
       .gte('session_date', from)
       .lte('session_date', to)
       .neq('status', 'cancelled')
@@ -1003,7 +1003,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
               const available = isCoachAvailable(coach.id, date, time)
               return (
                 <div key={`${coach.id}-${time}`} className="h-14 border-t border-l border-white/5 relative">
-                  {session ? (
+                  {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} />
                   ) : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id)}
@@ -1041,7 +1041,7 @@ function SessionChip({ session, onClick }: { session: Session; onClick: () => vo
         style={{ backgroundColor: colorClass }}>
         <span className="text-sm font-bold text-[#1a2744] leading-tight truncate w-full">{ct.name}</span>
         <span className="text-xs font-semibold text-[#1a2744]/70">{session.enrolled_count}/{session.max_students}</span>
-        {session.bookings && session.bookings.map(b => {
+        {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
           const st = Array.isArray(b.students) ? b.students[0] : b.students
           const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
           return st ? (
