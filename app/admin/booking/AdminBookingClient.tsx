@@ -876,6 +876,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             />
           ) : (
             <DayView
+              crossAccountSessionIds={crossAccountSessionIds}
               date={anchor}
               coaches={coaches}
               getSessionAt={getSessionAt}
@@ -1075,7 +1076,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
 // ══════════════════════════════════════════════════════════════════════
 // Day View
 // ══════════════════════════════════════════════════════════════════════
-function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick }: {
+function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, crossAccountSessionIds }: {
   date: Date
   coaches: Coach[]
   getSessionAt: (date: string, time: string, coachId: string) => Session | null
