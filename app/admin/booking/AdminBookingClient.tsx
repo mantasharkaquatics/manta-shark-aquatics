@@ -351,7 +351,30 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .neq('status', 'cancelled')
       .order('session_date')
       .order('start_time')
-    if (data) setSessions(data as Session[])
+    if (data) {
+      // 兩步驟查詢：merge parents 資料（避免多重FK nested join失敗）
+      const allParentIds = [...new Set(
+        data.flatMap((s: any) => (s.bookings || []).map((b: any) => b.parent_id).filter(Boolean))
+      )]
+      let parentMap: Record<string, { first_name: string; last_name: string }> = {}
+      if (allParentIds.length > 0) {
+        const { data: parentsData } = await supabase
+          .from('parents')
+          .select('id, first_name, last_name')
+          .in('id', allParentIds)
+        if (parentsData) {
+          parentsData.forEach((p: any) => { parentMap[p.id] = p })
+        }
+      }
+      const merged = data.map((s: any) => ({
+        ...s,
+        bookings: (s.bookings || []).map((b: any) => ({
+          ...b,
+          parents: parentMap[b.parent_id] || null,
+        }))
+      }))
+      setSessions(merged as Session[])
+    }
     setLoading(false)
   }, [anchor, view]) // eslint-disable-line
 
