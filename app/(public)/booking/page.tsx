@@ -565,30 +565,59 @@ export default function BookingPage() {
         textAlign: 'center', maxWidth: '480px', width: '100%',
         border: `1px solid ${GOLD}30`,
       }}>
-        <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
-        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
-          {isReschedule ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
-        </h2>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
-          <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> is booked for
-        </p>
-        <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
-          {selectedCourse?.name} with {selectedCoach?.first_name}
-        </p>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
-          {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {selectedSlot?.label}
-        </p>
-
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)',
-          borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
-        }}>
-          <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
-            A confirmation email has been sent to your inbox.
-          </p>
-        </div>
+        {isPartnerBooking ? (
+          <>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
+              邀請已送出
+            </h2>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
+              已邀請連動帳戶確認參加
+            </p>
+            <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
+              {selectedCourse?.name} with {selectedCoach?.first_name}
+            </p>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
+              {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {selectedSlot?.label}
+            </p>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)',
+              borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: '20px', flexShrink: 0 }}>🔔</span>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+                對方需在 <strong style={{ color: '#fff' }}>12 小時內</strong>按下確認，課程才會正式成立。若對方未確認，預約將自動取消，雙方皆不扣 credit。
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
+              {isReschedule ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
+            </h2>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
+              <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> is booked for
+            </p>
+            <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
+              {selectedCourse?.name} with {selectedCoach?.first_name}
+            </p>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
+              {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {selectedSlot?.label}
+            </p>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)',
+              borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+                A confirmation email has been sent to your inbox.
+              </p>
+            </div>
+          </>
+        )}
 
         <Link href="/dashboard" style={{
           display: 'block', padding: '13px 32px',
