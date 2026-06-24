@@ -375,15 +375,21 @@ export default function BookingPage() {
       sessionId = newSession.id
     }
 
-    const { error: bookErr } = await supabase
+    const isPartnerBooking = selectedCourse?.slug === '1on2' && selectedStudent2 && (selectedStudent2 as any).isPartner === true
+
+    const { error: bookErr, data: initiatorBookingData } = await supabase
       .from('bookings')
       .insert({
         class_session_id: sessionId,
         parent_id: parentId,
-        lesson_credit_id: availableCredit.id,
+        lesson_credit_id: isPartnerBooking ? null : availableCredit.id,
         student_id: selectedStudent.id,
-        status: 'confirmed',
+        status: isPartnerBooking ? 'pending_partner' : 'confirmed',
+        pending_action: isPartnerBooking ? 'await_partner' : null,
+        pending_expires_at: isPartnerBooking ? new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() : null,
       })
+      .select('id')
+      .single()
 
     if (bookErr) {
       if (bookErr.message?.includes('coach_timeslot_conflict')) {
@@ -395,12 +401,14 @@ export default function BookingPage() {
       return
     }
 
-    await supabase
-      .from('lesson_credits')
-      .update({ used_credits: availableCredit.used_credits + 1 })
-      .eq('id', availableCredit.id)
+    if (!isPartnerBooking) {
+      await supabase
+        .from('lesson_credits')
+        .update({ used_credits: availableCredit.used_credits + 1 })
+        .eq('id', availableCredit.id)
 
-    await supabase.rpc('increment_enrolled', { session_id: sessionId })
+      await supabase.rpc('increment_enrolled', { session_id: sessionId })
+    }
 
     // 1-on-2：處理第二位學生
     if (selectedCourse.slug === '1on2' && selectedStudent2) {
@@ -416,6 +424,7 @@ export default function BookingPage() {
             partner_parent_id: ps2.partnerParentId,
             partner_student_id: ps2.id,
             initiator_parent_id: parentId,
+            initiator_booking_id: initiatorBookingData?.id || null,
             partnership_id: ps2.partnershipId || null,
             courseName: selectedCourse?.name,
             coachName: selectedCoach?.first_name,

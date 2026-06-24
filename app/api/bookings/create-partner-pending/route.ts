@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabaseAuth.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { class_session_id, partner_parent_id, partner_student_id, initiator_parent_id, partnership_id, courseName, coachName, date, time, studentName } = await req.json()
+  const { class_session_id, partner_parent_id, partner_student_id, initiator_parent_id, initiator_booking_id, partnership_id, courseName, coachName, date, time, studentName } = await req.json()
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       pending_action: 'confirm',
       pending_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
       partner_parent_id: initiator_parent_id,
+      partner_booking_id: initiator_booking_id || null,
       partnership_id: partnership_id || null,
       is_guest: true,
     })

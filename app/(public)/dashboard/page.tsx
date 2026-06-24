@@ -408,68 +408,31 @@ export default function DashboardPage() {
 
   async function confirmPartnerBooking(bookingId: string) {
     setConfirmingId(bookingId)
-    const booking = pendingPartnerBookings.find(b => b.id === bookingId)
-    if (!booking || !parent) { setConfirmingId(null); return }
-
-    // 找對應課程類型的 credit
-    const cs = Array.isArray(booking.class_sessions) ? booking.class_sessions[0] : booking.class_sessions
-    const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
-
-    const { data: myCredits } = await supabase
-      .from('lesson_credits')
-      .select('id, total_credits, used_credits, course_type_id, course_types(name)')
-      .eq('parent_id', parent.id)
-      .filter('total_credits', 'gt', 0)
-
-    const creditToUse = (myCredits || [])
-      .filter((c: any) => (c.total_credits - c.used_credits) > 0)
-      .sort((a: any, b: any) => (a.created_at || '').localeCompare(b.created_at || ''))[0] || null
-
-    if (!creditToUse) {
-      setConfirmingId(null)
-      if (window.confirm('您沒有足夠的 credit 確認此預約。前往購買方案？')) {
-        window.location.href = '/plans'
+    try {
+      const res = await fetch('/api/bookings/confirm-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partner_booking_id: bookingId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 402) {
+          if (window.confirm(data.error + '\n前往購買方案？')) {
+            window.location.href = '/plans'
+          }
+        } else if (res.status === 409) {
+          alert(data.error)
+        } else {
+          alert(data.error || '確認失敗，請稍後再試')
+        }
+        setConfirmingId(null)
+        return
       }
+    } catch {
+      alert('確認失敗，請稍後再試')
+      setConfirmingId(null)
       return
     }
-
-    await supabase.from('bookings').update({
-      status: 'confirmed',
-      lesson_credit_id: creditToUse.id,
-      pending_action: null,
-      pending_expires_at: null,
-    }).eq('id', bookingId)
-
-    await supabase.from('lesson_credits').update({ used_credits: creditToUse.used_credits + 1 }).eq('id', creditToUse.id)
-    if (cs?.id) await supabase.rpc('increment_enrolled', { session_id: cs.id })
-    // 寄確認通知給發起方
-    try {
-      const b = pendingPartnerBookings.find(x => x.id === bookingId)
-      const cs = b ? (Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions) : null
-      const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
-      const coach = cs ? (Array.isArray(cs.coaches) ? cs.coaches[0] : cs.coaches) : null
-      const partnerParentId = b?.partner_parent_id
-      const stu = b ? (Array.isArray(b.students) ? b.students[0] : b.students) : null
-      if (partnerParentId && cs && ct && coach && stu) {
-        const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', partnerParentId).single()
-        if (initiatorParent) {
-          await fetch('/api/email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'partner_booking_confirmed',
-              to: initiatorParent.email,
-              parentName: initiatorParent.first_name,
-              studentName: stu.full_name,
-              courseName: ct.name,
-              coachName: coach.first_name,
-              date: cs.session_date,
-              time: formatTime(cs.start_time),
-            })
-          })
-        }
-      }
-    } catch {}
     await fetchAll()
     setConfirmingId(null)
   }
