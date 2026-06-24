@@ -437,9 +437,13 @@ export default function DashboardPage() {
     // 同 session 合併成一張卡（同帳戶 1-on-2）
     const mergeBySession = (bookings: Booking[]): Booking[] => {
       const map: Record<string, Booking> = {}
+      const result: Booking[] = []
       for (const b of bookings) {
-        const key = b.id.split('-')[0] + b.session_date + b.start_time + b.course_slug
-        // use class_session_id as key by finding it from rawBookings
+        // 跨帳戶 1-on-2（有 partner_booking_id）不 merge，直接保留
+        if (b.partner_booking_id) {
+          result.push(b)
+          continue
+        }
         const raw = (rawBookings || []).find((r: any) => r.id === b.id)
         const sid = raw?.class_session_id || b.id
         if (map[sid]) {
@@ -450,7 +454,7 @@ export default function DashboardPage() {
           map[sid] = b
         }
       }
-      return Object.values(map)
+      return [...result, ...Object.values(map)]
     }
     const allUpcoming = mergeBySession(parseBookings(rawBookings || []).filter(b => b.session_date >= today))
     const allPast = parseBookings(rawBookings || []).filter(b => b.session_date < today)
