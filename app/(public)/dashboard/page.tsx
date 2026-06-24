@@ -291,7 +291,7 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id')
+        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id, partner_booking_id')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -361,6 +361,32 @@ export default function DashboardPage() {
       students: pStudentMap[b.student_id] || null,
     })))
 
+    // 查詢 partner booking 的學生名稱，合併進 rawBookings
+    const partnerBookingIds = (rawBookings || [])
+      .map((b: any) => b.partner_booking_id)
+      .filter(Boolean)
+    if (partnerBookingIds.length > 0) {
+      const { data: partnerBookings } = await supabase
+        .from('bookings')
+        .select('id, student_id')
+        .in('id', partnerBookingIds)
+      if (partnerBookings) {
+        const partnerStudentIds = [...new Set(partnerBookings.map((b: any) => b.student_id).filter(Boolean))]
+        const { data: partnerStudents } = partnerStudentIds.length > 0
+          ? await supabase.from('students').select('id, full_name').in('id', partnerStudentIds)
+          : { data: [] }
+        const partnerStudentMap: Record<string, string> = {}
+        for (const s of partnerStudents || []) { partnerStudentMap[(s as any).id] = (s as any).full_name }
+        const partnerBookingStudentMap: Record<string, string> = {}
+        for (const b of partnerBookings) { partnerBookingStudentMap[(b as any).id] = partnerStudentMap[(b as any).student_id] || '' }
+        for (const b of rawBookings || []) {
+          if (b.partner_booking_id && partnerBookingStudentMap[b.partner_booking_id]) {
+            b._partner_student_name = partnerBookingStudentMap[b.partner_booking_id]
+          }
+        }
+      }
+    }
+
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => {
         const cs = sessionMap[b.class_session_id]
@@ -372,7 +398,7 @@ export default function DashboardPage() {
           end_time: cs?.end_time,
           course_name: cs?.ct?.name,
           coach_name: cs?.coach?.first_name,
-          student_name: studentMap[b.student_id]?.full_name,
+          student_name: studentMap[b.student_id]?.full_name ? (b._partner_student_name ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
           lesson_credit_id: b.lesson_credit_id,
           course_slug: cs?.ct?.slug,
           student_id: b.student_id,
