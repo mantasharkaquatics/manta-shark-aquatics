@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
     lesson_credit_id: partnerCredit.id,
     pending_action: null,
     pending_expires_at: null,
+    partner_booking_id: initiatorBookingId,
   }).eq('id', partnerBooking.id)
 
   await supabase.from('bookings').update({
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
     lesson_credit_id: initiatorCredit.id,
     pending_action: null,
     pending_expires_at: null,
+    partner_booking_id: partnerBooking.id,
   }).eq('id', initiatorBookingId)
 
   await supabase.from('lesson_credits').update({ used_credits: partnerCredit.used_credits + 1 }).eq('id', partnerCredit.id)
