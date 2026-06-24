@@ -361,30 +361,27 @@ export default function DashboardPage() {
       students: pStudentMap[b.student_id] || null,
     })))
 
-    // 查詢 partner booking 的學生名稱，合併進 rawBookings
-    const partnerBookingIds = (rawBookings || [])
-      .map((b: any) => b.partner_booking_id)
+    // 查詢 1-on-2 session 的 partner 學生名稱（用 server API 繞 RLS）
+    const on2SessionIds = (rawBookings || [])
+      .filter((b: any) => b.status !== 'cancelled')
+      .map((b: any) => b.class_session_id)
       .filter(Boolean)
-    if (partnerBookingIds.length > 0) {
-      const { data: partnerBookings } = await supabase
-        .from('bookings')
-        .select('id, student_id')
-        .in('id', partnerBookingIds)
-      if (partnerBookings) {
-        const partnerStudentIds = [...new Set(partnerBookings.map((b: any) => b.student_id).filter(Boolean))]
-        const { data: partnerStudents } = partnerStudentIds.length > 0
-          ? await supabase.from('students').select('id, full_name').in('id', partnerStudentIds)
-          : { data: [] }
-        const partnerStudentMap: Record<string, string> = {}
-        for (const s of partnerStudents || []) { partnerStudentMap[(s as any).id] = (s as any).full_name }
-        const partnerBookingStudentMap: Record<string, string> = {}
-        for (const b of partnerBookings) { partnerBookingStudentMap[(b as any).id] = partnerStudentMap[(b as any).student_id] || '' }
-        for (const b of rawBookings || []) {
-          if (b.partner_booking_id && partnerBookingStudentMap[b.partner_booking_id]) {
-            (b as any)._partner_student_name = partnerBookingStudentMap[b.partner_booking_id]
+    if (on2SessionIds.length > 0 && parentData?.id) {
+      try {
+        const partnerRes = await fetch('/api/bookings/session-partners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_ids: on2SessionIds, parent_id: parentData.id }),
+        })
+        if (partnerRes.ok) {
+          const { partners } = await partnerRes.json()
+          for (const b of rawBookings || []) {
+            if (partners[b.class_session_id]) {
+              (b as any)._partner_student_name = partners[b.class_session_id]
+            }
           }
         }
-      }
+      } catch {}
     }
 
     const parseBookings = (data: any[]): Booking[] =>
