@@ -57,6 +57,29 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (!session) return NextResponse.json({ error: '課程不存在' }, { status: 404 })
+
+  // 檢查同教練同時段是否已有其他 confirmed booking（其他客戶搶先預約）
+  const { data: conflictSessions } = await supabase
+    .from('class_sessions')
+    .select('id')
+    .eq('coach_id', session.coach_id)
+    .eq('session_date', session.session_date)
+    .eq('start_time', session.start_time)
+    .neq('id', session.id)
+  const conflictSessionIds = (conflictSessions || []).map((s: any) => s.id)
+  if (conflictSessionIds.length > 0) {
+    const { data: conflictBookings } = await supabase
+      .from('bookings')
+      .select('id')
+      .in('class_session_id', conflictSessionIds)
+      .not('status', 'in', '("cancelled","pending_partner")')
+    if (conflictBookings && conflictBookings.length > 0) {
+      await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', partnerBooking.id)
+      await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', initiatorBookingId)
+      return NextResponse.json({ error: '此時段已被其他客戶預約，無法確認' }, { status: 409 })
+    }
+  }
+
   if (session.enrolled_count + 2 > session.max_students) {
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', partnerBooking.id)
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', initiatorBookingId)
