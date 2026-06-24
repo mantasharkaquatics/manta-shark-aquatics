@@ -381,7 +381,7 @@ export default function DashboardPage() {
         for (const b of partnerBookings) { partnerBookingStudentMap[(b as any).id] = partnerStudentMap[(b as any).student_id] || '' }
         for (const b of rawBookings || []) {
           if (b.partner_booking_id && partnerBookingStudentMap[b.partner_booking_id]) {
-            b._partner_student_name = partnerBookingStudentMap[b.partner_booking_id]
+            (b as any)._partner_student_name = partnerBookingStudentMap[b.partner_booking_id]
           }
         }
       }
