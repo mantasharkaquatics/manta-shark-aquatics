@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   const { data: session } = await supabase
     .from('class_sessions')
-    .select('id, enrolled_count, max_students, course_type_id')
+    .select('id, enrolled_count, max_students, course_type_id, coach_id, session_date, start_time')
     .eq('id', partnerBooking.class_session_id)
     .single()
 
