@@ -139,6 +139,7 @@ export default function BookingPage() {
   const [isReschedule, setIsReschedule] = useState(false)
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
   const rescheduleBookingIdRef = useRef<string | null>(null)
+  const reschedulePartnerBookingIdRef = useRef<string | null>(null)
   const [countdown, setCountdown] = useState(30)
 
   const [parentId, setParentId] = useState<string | null>(null)
@@ -202,11 +203,13 @@ export default function BookingPage() {
       const rbId = params.get('reschedule_booking_id')
       const rSlug = params.get('reschedule_slug')
       const rStudentId = params.get('reschedule_student_id')
+      const rPartnerBookingId = params.get('reschedule_partner_booking_id')
 
       if (rbId && rSlug) {
         setIsReschedule(true)
         setRescheduleBookingId(rbId)
         rescheduleBookingIdRef.current = rbId
+      if (rPartnerBookingId) reschedulePartnerBookingIdRef.current = rPartnerBookingId
         const matchCourse = (cts || []).find((c: any) => c.slug === rSlug) || null
         const matchStudent = (studs || []).find((s: any) => s.id === rStudentId) || (studs || [])[0] || null
         if (matchCourse) setSelectedCourse(matchCourse as any)
@@ -461,6 +464,20 @@ export default function BookingPage() {
     }
 
     const rbIdToCancel = rescheduleBookingIdRef.current || rescheduleBookingId
+    const partnerBookingIdToReschedule = reschedulePartnerBookingIdRef.current
+
+    // 1-on-2 partner reschedule：走 reschedule-partner API，不直接取消舊 booking
+    if (rbIdToCancel && partnerBookingIdToReschedule) {
+      await fetch('/api/bookings/reschedule-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: rbIdToCancel, new_session_id: sessionId }),
+      })
+      setIsPartnerBookingSuccess(true)
+      setSubmitting(false)
+      return
+    }
+
     if (rbIdToCancel) {
       const { data: oldBookingData } = await supabase
         .from('bookings')
