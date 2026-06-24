@@ -135,6 +135,7 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [isPartnerBookingSuccess, setIsPartnerBookingSuccess] = useState(false)
   const [isReschedule, setIsReschedule] = useState(false)
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
   const rescheduleBookingIdRef = useRef<string | null>(null)
@@ -513,6 +514,7 @@ export default function BookingPage() {
     } catch (e) { console.error('Email error:', e) }
 
     setSubmitting(false)
+    setIsPartnerBookingSuccess(!!isPartnerBooking)
     setSuccess(true)
   }
 
@@ -565,9 +567,9 @@ export default function BookingPage() {
         textAlign: 'center', maxWidth: '480px', width: '100%',
         border: `1px solid ${GOLD}30`,
       }}>
-        {isPartnerBooking ? (
+        {isPartnerBookingSuccess ? (
           <>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div>
+            <div style={{ fontSize: '48px', marginBottom: '20px', color: '#a78bfa' }}>~</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
               邀請已送出
             </h2>
