@@ -569,7 +569,7 @@ export default function BookingPage() {
       }}>
         {isPartnerBookingSuccess ? (
           <>
-            <div style={{ fontSize: '48px', marginBottom: '20px', color: '#a78bfa' }}>~</div>
+            <div style={{ fontSize: '48px', marginBottom: '20px', color: '#a78bfa' }}>⏳</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
               邀請已送出
             </h2>
