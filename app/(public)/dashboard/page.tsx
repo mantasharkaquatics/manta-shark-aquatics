@@ -40,6 +40,13 @@ interface Booking {
   course_slug?: string
   student_id?: string
   is_trial?: boolean
+  pending_action?: string
+  pending_new_session_id?: string
+  partner_booking_id?: string
+  new_session_date?: string
+  new_start_time?: string
+  new_end_time?: string
+  new_coach_name?: string
 }
 
 function getAge(dob: string): number {
@@ -291,7 +298,7 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id, partner_booking_id')
+        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -318,6 +325,23 @@ export default function DashboardPage() {
     }
     const studentMap: Record<string, any> = {}
     for (const s of studentsData || []) { studentMap[(s as any).id] = s }
+
+    // 抓 pending reschedule 的新 session 資料
+    const newSessionIds = [...new Set((rawBookings || [])
+      .filter((b: any) => b.pending_new_session_id)
+      .map((b: any) => b.pending_new_session_id)
+      .filter(Boolean))]
+    if (newSessionIds.length > 0) {
+      const { data: newSessionsData } = await supabase
+        .from('class_sessions')
+        .select('id, session_date, start_time, end_time, course_types(name, slug), coaches(first_name)')
+        .in('id', newSessionIds)
+      for (const s of newSessionsData || []) {
+        const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+        const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
+        sessionMap[(s as any).id] = { ...(s as any), ct, coach }
+      }
+    }
 
     setStudents(studs || [])
     setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
@@ -400,6 +424,13 @@ export default function DashboardPage() {
           course_slug: cs?.ct?.slug,
           student_id: b.student_id,
           is_trial: b.is_trial,
+          pending_action: b.pending_action,
+          pending_new_session_id: b.pending_new_session_id,
+          partner_booking_id: b.partner_booking_id,
+          new_session_date: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.session_date : undefined,
+          new_start_time: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.start_time : undefined,
+          new_end_time: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.end_time : undefined,
+          new_coach_name: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.coach?.first_name : undefined,
         }
       }).filter(b => b.session_date)
 
@@ -798,14 +829,63 @@ export default function DashboardPage() {
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                       </div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '2px' }}><span style={{ color: '#c9a84c' }}>Coach {booking.coach_name}</span>{booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
+                      {booking.pending_action === 'reschedule' && booking.new_coach_name ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700 }}>
+                            <span style={{ color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' }}>Coach {booking.coach_name}</span>
+                            {booking.student_name ? <span style={{ color: 'rgba(255,255,255,0.25)', textDecoration: 'line-through' }}> · ({booking.student_name})</span> : ''}
+                          </div>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
+                          <div style={{ fontSize: '13px', fontWeight: 700 }}>
+                            <span style={{ color: '#c9a84c' }}>Coach {booking.new_coach_name}</span>
+                            {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '2px' }}>
+                          <span style={{ color: '#c9a84c' }}>Coach {booking.coach_name}</span>
+                          {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
+                        </div>
+                      )}
+                      {booking.pending_action === 'reschedule' && booking.new_start_time ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
+                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '')}</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
-                        {booking.status}
+                        {booking.pending_action === 'reschedule' ? 'PENDING RESCHEDULE' : booking.status}
                       </span>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      {booking.pending_action === 'reschedule' ? (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={async () => {
+                              setReschedulingId(booking.id)
+                              const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
+                              const json = await res.json()
+                              if (!res.ok) alert(json.error || '改期失敗')
+                              else await fetchAll()
+                              setReschedulingId(null)
+                            }}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(134,239,172,0.4)', background: 'transparent', color: '#86efac', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                            確認改期
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
+                              if (res.ok) await fetchAll()
+                            }}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                            拒絕
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '8px' }}>
                           <button
                             onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time)}
@@ -825,6 +905,7 @@ export default function DashboardPage() {
                             </div>
                           )}
                         </div>
+                      )}
                     </div>
                   </div>
                 )
