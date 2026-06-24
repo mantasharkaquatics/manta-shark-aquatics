@@ -385,7 +385,7 @@ export default function BookingPage() {
         lesson_credit_id: isPartnerBooking ? null : availableCredit.id,
         student_id: selectedStudent.id,
         status: isPartnerBooking ? 'pending_partner' : 'confirmed',
-        pending_action: isPartnerBooking ? 'await_partner' : null,
+        pending_action: null,
         pending_expires_at: isPartnerBooking ? new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() : null,
       })
       .select('id')
