@@ -775,10 +775,9 @@ export default function DashboardPage() {
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                        with {booking.coach_name} {booking.student_name ? '· ' + booking.student_name : ''} · {formatTime(booking.start_time)} – {formatTime(booking.end_time)} · {formatDate(booking.session_date)}
-                      </div>
-                    </div>
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#c9a84c', fontWeight: 700, marginBottom: '2px' }}>Coach {booking.coach_name}{booking.student_name ? ' · (' + booking.student_name + ')' : ''}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
                         {booking.status}
