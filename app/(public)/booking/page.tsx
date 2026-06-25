@@ -324,6 +324,51 @@ export default function BookingPage() {
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || !availableCredit) return
     setSubmitting(true)
 
+    // 1-on-2 partner reschedule 早期攔截：直接呼叫 API，不走任何 booking 建立流程
+    const rbIdEarly = rescheduleBookingIdRef.current || rescheduleBookingId
+    const partnerBIdEarly = reschedulePartnerBookingIdRef.current
+    if (rbIdEarly && partnerBIdEarly) {
+      const dateStr2 = selectedDate.toISOString().split('T')[0]
+      const startTime2 = selectedSlot.time
+      // 找或建 session
+      const { data: existingSessions } = await supabase
+        .from('class_sessions')
+        .select('id, enrolled_count, max_students')
+        .eq('coach_id', selectedCoach!.id)
+        .eq('session_date', dateStr2)
+        .eq('start_time', startTime2)
+        .eq('course_type_id', selectedCourse!.id)
+        .eq('status', 'open')
+      let newSessionId = selectedSlot.session_id || existingSessions?.[0]?.id || null
+      if (!newSessionId) {
+        const [h2, m2] = startTime2.split(':').map(Number)
+        const endMin2 = h2 * 60 + m2 + selectedCourse!.duration_minutes
+        const endTime2 = `${String(Math.floor(endMin2/60)).padStart(2,'0')}:${String(endMin2%60).padStart(2,'0')}`
+        const { data: created } = await supabase.from('class_sessions').insert({
+          course_type_id: selectedCourse!.id,
+          coach_id: selectedCoach!.id,
+          session_date: dateStr2,
+          start_time: startTime2,
+          end_time: endTime2,
+          max_students: selectedCourse!.max_students,
+          enrolled_count: 0,
+          status: 'open',
+        }).select('id').single()
+        newSessionId = created?.id || null
+      }
+      if (!newSessionId) { alert('無法取得時段，請重試'); setSubmitting(false); return }
+      const res = await fetch('/api/bookings/reschedule-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: rbIdEarly, new_session_id: newSessionId }),
+      })
+      if (!res.ok) { alert('改期請求失敗，請重試'); setSubmitting(false); return }
+      setIsPartnerBookingSuccess(true)
+      setSuccess(true)
+      setSubmitting(false)
+      return
+    }
+
     const dateStr = selectedDate.toISOString().split('T')[0]
     const startTime = selectedSlot.time
     const [h, m] = startTime.split(':').map(Number)
