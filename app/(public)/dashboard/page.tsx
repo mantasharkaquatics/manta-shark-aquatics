@@ -816,7 +816,7 @@ export default function DashboardPage() {
                 const daysUntil = getDaysUntil(booking.session_date)
                 const isToday = daysUntil === 0
                 const isTomorrow = daysUntil === 1
-                const statusColor = STATUS_COLORS[booking.status] || GOLD
+                const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
                 return (
                   <div key={booking.id} style={{ background: NAVY, borderRadius: '14px', border: `1px solid ${isToday ? GOLD + '40' : 'rgba(255,255,255,0.08)'}`, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: isToday ? GOLD : 'rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
