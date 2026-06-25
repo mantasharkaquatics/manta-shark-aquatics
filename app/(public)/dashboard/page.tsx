@@ -875,7 +875,7 @@ export default function DashboardPage() {
                               const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               const json = await res.json()
                               if (!res.ok) alert(json.error || '改期失敗')
-                              else await fetchAll()
+                              await fetchAll()
                               setReschedulingId(null)
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(134,239,172,0.4)', background: 'transparent', color: '#86efac', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
@@ -883,6 +883,7 @@ export default function DashboardPage() {
                           </button>
                           <button
                             onClick={async () => {
+                              if (!confirm('確定要拒絕改期嗎？課程將維持原本時段。')) return
                               const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               if (res.ok) await fetchAll()
                             }}
@@ -893,6 +894,7 @@ export default function DashboardPage() {
                           {booking.pending_action === 'reschedule_initiator' && (
                             <button
                               onClick={async () => {
+                                if (!confirm('確定要取消改期嗎？課程將維持原本時段。')) return
                                 const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                                 if (res.ok) await fetchAll()
                               }}
