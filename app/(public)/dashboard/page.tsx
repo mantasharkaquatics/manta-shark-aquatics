@@ -263,7 +263,7 @@ export default function DashboardPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string; partnerBookingId?: string } | null>(null)
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string; type?: 'cancel' | 'reject' } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -624,21 +624,21 @@ export default function DashboardPage() {
       {cancelTarget && (
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>Cancel Lesson</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>Cancel this booking?</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>{cancelTarget.type === 'reject' ? 'REJECT INVITATION' : 'CANCEL LESSON'}</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{cancelTarget.type === 'reject' ? '確定拒絕此邀請？' : 'Cancel this booking?'}</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
-              This lesson will be cancelled and your credit will be returned to your account.
+              {cancelTarget.type === 'reject' ? '拒絕後，此邀請將被取消。' : 'This lesson will be cancelled and your credit will be returned to your account.'}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                Keep Lesson
+                {cancelTarget.type === 'reject' ? '保留邀請' : 'Keep Lesson'}
               </button>
-              <button onClick={async () => { await cancelBooking(cancelTarget.id); setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                Yes, Cancel
+              <button onClick={async () => { if (cancelTarget.type === 'reject') { await rejectPartnerBooking(cancelTarget.id) } else { await cancelBooking(cancelTarget.id) } setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                {cancelTarget.type === 'reject' ? '確定拒絕' : 'Yes, Cancel'}
               </button>
             </div>
           </div>
@@ -776,7 +776,7 @@ export default function DashboardPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                         <button
-                          onClick={() => { if (window.confirm('確定要拒絕此邀請嗎？')) rejectPartnerBooking(b.id) }}
+                          onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || '課程', date: formatDate(cs?.session_date || ''), time: formatTime(cs?.start_time || ''), type: 'reject' })}
                           disabled={rejectingId === b.id || confirmingId === b.id}
                           style={{ padding: '8px 16px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: '8px', color: '#f87171', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                           {rejectingId === b.id ? '...' : '拒絕'}
