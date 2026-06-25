@@ -474,6 +474,7 @@ export default function BookingPage() {
         body: JSON.stringify({ booking_id: rbIdToCancel, new_session_id: sessionId }),
       })
       setIsPartnerBookingSuccess(true)
+      setSuccess(true)
       setSubmitting(false)
       return
     }
