@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     .from('bookings')
     .select('student_id, class_session_id')
     .in('class_session_id', sessionIds)
-    .neq('status', 'cancelled')
+    .not('status', 'in', '("cancelled","pending_partner")')
 
   const times = (bookings || []).map(b => {
     const s = sessionMap[b.class_session_id]
