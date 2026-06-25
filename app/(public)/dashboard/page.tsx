@@ -264,6 +264,7 @@ export default function DashboardPage() {
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string; partnerBookingId?: string } | null>(null)
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string; type?: 'cancel' | 'reject' } | null>(null)
+  const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -475,19 +476,19 @@ export default function DashboardPage() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 402) {
-          if (window.confirm(data.error + '\n前往購買方案？')) {
-            window.location.href = '/plans'
+            setInfoModal({ title: '堂數不足', message: data.error || '堂數不足，請購買方案。', actionLabel: '前往購買方案', onAction: () => { window.location.href = '/plans' } })
+          } else if (res.status === 409) {
+            setInfoModal({ title: '無法確認', message: data.error || '此時段已被預約，邀請已自動取消。' })
+          } else {
+            setInfoModal({ title: '確認失敗', message: data.error || '請稍後再試' })
           }
-        } else if (res.status === 409) {
-          alert(data.error)
-        } else {
-          alert(data.error || '確認失敗，請稍後再試')
+          await fetchAll()
+          setConfirmingId(null)
+          return
         }
-        setConfirmingId(null)
-        return
-      }
     } catch {
-      alert('確認失敗，請稍後再試')
+      setInfoModal({ title: '確認失敗', message: '請稍後再試' })
+      setConfirmingId(null)
       setConfirmingId(null)
       return
     }
@@ -619,6 +620,27 @@ export default function DashboardPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
+
+      {/* Info Modal */}
+      {infoModal && (
+        <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>通知</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{infoModal.title}</div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                關閉
+              </button>
+              {infoModal.onAction && (
+                <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#c9a84c', color: '#1a2744', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                  {infoModal.actionLabel || '確定'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancel Confirm Modal */}
       {cancelTarget && (
