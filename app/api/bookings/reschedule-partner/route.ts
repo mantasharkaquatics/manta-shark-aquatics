@@ -57,11 +57,13 @@ export async function POST(req: NextRequest) {
   if (!newSession) return NextResponse.json({ error: '新時段不存在' }, { status: 404 })
 
   // 設定雙方 pending_action = 'reschedule'，pending_new_session_id = new_session_id
+  // 發起方：reschedule_initiator（不顯示確認按鈕）
   await supabase.from('bookings').update({
-    pending_action: 'reschedule',
+    pending_action: 'reschedule_initiator',
     pending_new_session_id: new_session_id,
   }).eq('id', myBooking.id)
 
+  // 對方：reschedule（顯示確認/拒絕按鈕）
   await supabase.from('bookings').update({
     pending_action: 'reschedule',
     pending_new_session_id: new_session_id,

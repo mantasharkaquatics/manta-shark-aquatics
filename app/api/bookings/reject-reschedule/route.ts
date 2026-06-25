@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     .from('bookings')
     .select('id, parent_id, partner_booking_id, pending_action')
     .eq('id', booking_id)
-    .eq('pending_action', 'reschedule')
+    .in('pending_action', ['reschedule', 'reschedule_initiator'])
     .single()
 
   if (!myBooking) return NextResponse.json({ error: '預約不存在或狀態不符' }, { status: 404 })

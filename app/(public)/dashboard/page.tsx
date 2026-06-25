@@ -866,8 +866,9 @@ export default function DashboardPage() {
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
                         {booking.pending_action === 'reschedule' ? 'PENDING RESCHEDULE' : booking.status}
                       </span>
-                      {booking.pending_action === 'reschedule' ? (
+                      {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? (
                         <div style={{ display: 'flex', gap: '8px' }}>
+                          {booking.pending_action === 'reschedule' && <>
                           <button
                             onClick={async () => {
                               setReschedulingId(booking.id)
@@ -888,6 +889,10 @@ export default function DashboardPage() {
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             拒絕
                           </button>
+                          </>}
+                          {booking.pending_action === 'reschedule_initiator' && (
+                            <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>等待對方確認</span>
+                          )}
                         </div>
                       ) : (
                         <div style={{ display: 'flex', gap: '8px' }}>
