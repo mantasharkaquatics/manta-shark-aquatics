@@ -834,7 +834,7 @@ export default function DashboardPage() {
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                       </div>
-                      {booking.pending_action === 'reschedule' && booking.new_coach_name ? (
+                      {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
                           <div style={{ fontSize: '13px', fontWeight: 700 }}>
                             <span style={{ color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' }}>Coach {booking.coach_name}</span>
@@ -852,7 +852,7 @@ export default function DashboardPage() {
                           {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
                         </div>
                       )}
-                      {booking.pending_action === 'reschedule' && booking.new_start_time ? (
+                      {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_start_time ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</span>
                           <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
@@ -864,7 +864,7 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
-                        {booking.pending_action === 'reschedule' ? 'PENDING RESCHEDULE' : booking.status}
+                        {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? 'PENDING RESCHEDULE' : booking.status}
                       </span>
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? (
                         <div style={{ display: 'flex', gap: '8px' }}>
@@ -891,7 +891,14 @@ export default function DashboardPage() {
                           </button>
                           </>}
                           {booking.pending_action === 'reschedule_initiator' && (
-                            <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>等待對方確認</span>
+                            <button
+                              onClick={async () => {
+                                const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
+                                if (res.ok) await fetchAll()
+                              }}
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                              取消改期
+                            </button>
                           )}
                         </div>
                       ) : (
