@@ -47,6 +47,13 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // 同步更新邀請方 booking 的 pending_expires_at
+  if (initiator_booking_id) {
+    await supabase.from('bookings').update({
+      pending_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    }).eq('id', initiator_booking_id)
+  }
+
   try {
     const { data: partnerParent } = await supabase.from('parents').select('first_name, email').eq('id', partner_parent_id).single()
     const { data: initiatorParent } = await supabase.from('parents').select('first_name, last_name').eq('id', initiator_parent_id).single()
