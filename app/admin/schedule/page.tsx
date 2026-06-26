@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminSchedulePage() {
   const cookieStore = await cookies()
   const supabaseAuth = createServerClient(
@@ -32,7 +34,7 @@ export default async function AdminSchedulePage() {
     supabase.from('bookings')
       .select('id, pending_expires_at, class_session_id, parent_id, partner_parent_id, student_id, students(full_name), parents(first_name, last_name), class_sessions(session_date, start_time, course_types(name), coaches(first_name))')
       .eq('status', 'pending_partner').eq('pending_action', 'confirm')
-      .gt('pending_expires_at', todayStart).order('pending_expires_at'),
+      .gt('pending_expires_at', new Date().toISOString()).order('pending_expires_at'),
     supabase.from('bookings')
       .select('id, pending_action, pending_new_session_id, class_session_id, parent_id, student_id, students(full_name), parents(first_name, last_name), class_sessions(session_date, start_time, course_types(name), coaches(first_name))')
       .in('pending_action', ['reschedule', 'reschedule_initiator']),
