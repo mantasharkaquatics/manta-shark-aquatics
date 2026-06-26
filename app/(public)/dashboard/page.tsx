@@ -45,6 +45,7 @@ interface Booking {
   pending_action?: string
   pending_new_session_id?: string
   partner_booking_id?: string
+  pending_expires_at?: string
   new_session_date?: string
   new_start_time?: string
   new_end_time?: string
@@ -314,7 +315,7 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id')
+        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -443,6 +444,7 @@ export default function DashboardPage() {
           pending_action: b.pending_action,
           pending_new_session_id: b.pending_new_session_id,
           partner_booking_id: b.partner_booking_id,
+          pending_expires_at: b.pending_expires_at,
           new_session_date: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.session_date : undefined,
           new_start_time: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.start_time : undefined,
           new_end_time: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.end_time : undefined,
@@ -901,6 +903,13 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
+                      {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
+                        const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
+                        const mins = Math.floor(ms / 60000)
+                        const secs = Math.floor((ms % 60000) / 1000)
+                        const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
+                        return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 剩餘 {str} 確認，否則自動取消</div>
+                      })()}
                       )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>

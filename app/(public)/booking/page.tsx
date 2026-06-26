@@ -652,7 +652,7 @@ export default function BookingPage() {
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>🔔</span>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
-                對方需在 <strong style={{ color: '#fff' }}>12 小時內</strong>按下確認，課程才會正式成立。若對方未確認，預約將自動取消，雙方皆不扣 credit。
+                對方需在 <strong style={{ color: '#fff' }}>15 分鐘內</strong>按下確認，課程才會正式成立。若對方未確認，預約將自動取消，雙方皆不扣 credit。
               </p>
             </div>
           </>
@@ -851,7 +851,7 @@ export default function BookingPage() {
                             <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
                             <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>連動</span>
                           </div>
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · 需對方 12 小時內確認</div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · 需對方 15 分鐘內確認</div>
                         </div>
                       </div>
                     </SelectCard>
@@ -870,7 +870,7 @@ export default function BookingPage() {
                 )}
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.3)', borderRadius: '8px', fontSize: '12px', color: '#a78bfa' }}>
-                    📋 跨帳戶預約：對方需在 12 小時內確認並扣除其帳戶 1 堂 credit。
+                    📋 跨帳戶預約：對方需在 15 分鐘內確認並扣除其帳戶 1 堂 credit。
                   </div>
                 )}
               </div>
