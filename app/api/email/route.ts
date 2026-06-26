@@ -4,7 +4,7 @@ import { Resend } from 'resend'
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(req: NextRequest) {
-  const { type, to, parentName, studentName, courseName, coachName, date, time, paymentUrl, inviterName } = await req.json()
+  const { type, to, parentName, studentName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, amount } = await req.json()
 
   let subject = ''
   let html = ''
@@ -42,6 +42,14 @@ export async function POST(req: NextRequest) {
   } else if (type === 'partner_booking_rejected') {
     subject = `❌ ${studentName} 拒絕了邀請 – ${courseName} on ${formattedDate}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">❌ 邀請已拒絕</h2><p>Hi ${parentName},</p><p><strong>${studentName}</strong> 拒絕了您的 1-on-2 邀請，該時段的第二位學生位置已釋放。</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">課程</td><td style="padding: 8px 0; font-weight: 600;">${courseName}</td></tr><tr><td style="padding: 8px 0; color: #666;">日期</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 0; color: #666;">時間</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr></table><p style="color: #666;">您的課程（第一位學生）仍然有效。</p></div></div>`
+
+  } else if (type === 'partner_reschedule_requested') {
+    subject = `改期請求 – ${courseName}`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">📅 改期請求</h2><p>Hi ${parentName},</p><p>您的 1-on-2 課程夥伴提出了改期請求，請登入 Dashboard 確認或拒絕。</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #1a2744; color: white; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">前往確認</a></div></div></div>`
+
+  } else if (type === 'invoice') {
+    subject = `🧾 Invoice ${invoiceNumber} - Manta Shark Aquatics`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${invoiceNumber}</h2><p>Hi ${parentName},</p><p>Thank you for your payment! Your invoice is ready.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${invoiceNumber}</td></tr><tr><td style="padding: 8px 0; color: #666;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;"><a href="${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/${invoiceId}/pdf" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">View &amp; Download Invoice</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
   }
 
   try {

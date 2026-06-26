@@ -98,6 +98,57 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Credit failed' }, { status: 500 })
     }
 
+    // 3. Create invoice
+    try {
+      const { data: courseType } = await supabase
+        .from('course_types')
+        .select('name, price_per_session')
+        .eq('id', course_type_id)
+        .single()
+      const unitPrice = courseType?.price_per_session || (amount_cents / 100 / sessions)
+      const invoiceRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parent_id,
+          lesson_credit_id: null,
+          amount: amount_cents / 100,
+          payment_method: 'stripe',
+          items: [{
+            name: `${courseType?.name || 'Swim Lesson'} Package`,
+            quantity: sessions,
+            unit_price: unitPrice,
+          }],
+          stripe_payment_intent_id: session.payment_intent || null,
+        }),
+      })
+      if (invoiceRes.ok) {
+        const { invoice } = await invoiceRes.json()
+        // 寄發票 email
+        const { data: parent } = await supabase
+          .from('parents')
+          .select('email, first_name')
+          .eq('id', parent_id)
+          .single()
+        if (parent?.email && invoice?.id) {
+          await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'invoice',
+              to: parent.email,
+              parentName: parent.first_name,
+              invoiceNumber: invoice.invoice_number,
+              invoiceId: invoice.id,
+              amount: amount_cents / 100,
+            }),
+          })
+        }
+      }
+    } catch (invoiceErr) {
+      console.error('Invoice create error:', invoiceErr)
+    }
+
     console.log(`✅ Purchase complete: ${plan_id} for parent ${parent_id}`)
   }
 
