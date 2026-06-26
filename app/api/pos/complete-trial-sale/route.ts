@@ -48,7 +48,43 @@ export async function POST(req: NextRequest) {
 
     const { data: purchase } = await supabase.from('purchases').insert(insertData).select().single()
 
-    console.log(`\u2705 POS trial purchase: student=${studentId} parent=${parentId} method=${paymentMethod}`)
+    // 建立 invoice
+    try {
+      const year = new Date().getFullYear()
+      const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
+      const seq = seqNum || 1
+      const invoice_number = `MSA-${year}-${String(seq).padStart(4, '0')}`
+      const { data: parentData } = await supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).single()
+      const { data: studentData } = await supabase.from('students').select('full_name').eq('id', studentId).single()
+      const { data: inv } = await supabase.from('invoices').insert({
+        invoice_number,
+        parent_id: parentId,
+        amount: 85,
+        payment_method: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
+        items: [{ name: `Trial Lesson - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
+        status: 'sent',
+        stripe_payment_intent_id: paymentIntentId || null,
+        issued_at: new Date().toISOString(),
+      }).select().single()
+      if (parentData && inv) {
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'invoice',
+            to: parentData.email,
+            parentName: parentData.first_name,
+            invoiceNumber: invoice_number,
+            invoiceUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/${inv.id}/pdf`,
+            amount: '85.00',
+            items: [{ name: `Trial Lesson - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
+            paymentMethod: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
+          }),
+        })
+      }
+    } catch (e) { console.error('Trial invoice/email error:', e) }
+
+    console.log(`✅ POS trial purchase: student=${studentId} parent=${parentId} method=${paymentMethod}`)
     return NextResponse.json({ success: true, purchaseId: purchase?.id })
   } catch (err: any) {
     console.error('POS complete-trial-sale error:', err)

@@ -40,6 +40,8 @@ export default function POSClient() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
   const [processing, setProcessing] = useState(false)
+  const [cashConfirmOpen, setCashConfirmOpen] = useState(false)
+  const [showCashConfirm, setShowCashConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [terminal, setTerminal] = useState<any>(null)
   const [readerStatus, setReaderStatus] = useState<'init' | 'none' | 'connected'>('init')
@@ -110,6 +112,14 @@ export default function POSClient() {
   )
 
   const handleCharge = async () => {
+    if (payMethod === 'cash') {
+      setCashConfirmOpen(true)
+      return
+    }
+    await doCharge()
+  }
+
+  const doCharge = async () => {
     if (!selectedParent) return
     setError(null)
     setProcessing(true)
@@ -164,16 +174,47 @@ export default function POSClient() {
       setError(err.message || 'Payment failed.')
     } finally { setProcessing(false) }
   }
-
   const reset = () => {
     setStep('select'); setSelectedParent(null); setSelectedPlanId(null); setIsTrial(false)
     setStudents([]); setSelectedStudentId(null); setPayMethod('card')
-    setSearch(''); setSearchResults([]); setError(null); setProcessing(false)
+    setSearch(''); setSearchResults([]); setError(null); setProcessing(false); setShowCashConfirm(false)
 
   }
 
   const readerDot = readerStatus === 'connected' ? '#10b981' : readerStatus === 'init' ? '#f59e0b' : '#6b7280'
   const readerLabel = readerStatus === 'connected' ? 'Reader Connected' : readerStatus === 'init' ? 'Initializing...' : 'No Reader'
+
+  // Cash 確認 modal
+  if (cashConfirmOpen) {
+    const amount = isTrial ? '$85' : plan ? `$${(plan.amount / 100).toLocaleString()}` : ''
+    const customerName = selectedParent ? `${selectedParent.first_name} ${selectedParent.last_name}` : ''
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>💵</div>
+          <h2 style={{ color: 'white', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Confirm Cash Payment</h2>
+          <p style={{ color: '#9ca3af', fontSize: 15, marginBottom: 4 }}>{customerName}</p>
+          <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 4 }}>{amount}</p>
+          <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 28 }}>
+            {isTrial ? 'Trial Lesson · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : plan?.name}
+          </p>
+          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>請確認已收到現金後再按確認。</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <button
+              onClick={() => setCashConfirmOpen(false)}
+              style={{ padding: '12px', borderRadius: 10, border: '1px solid #1e3a6e', backgroundColor: '#0d1829', color: '#9ca3af', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+              取消
+            </button>
+            <button
+              onClick={async () => { setCashConfirmOpen(false); await doCharge() }}
+              style={{ padding: '12px', borderRadius: 10, border: 'none', backgroundColor: GOLD, color: NAVY, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              確認收款
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (step === 'success') {
     return (
@@ -199,6 +240,34 @@ export default function POSClient() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: NAVY, padding: 24 }}>
+      {/* Cash Confirm Modal */}
+      {showCashConfirm && (
+        <div onClick={() => setShowCashConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#111d38', border: '1px solid #1e3a6e', borderRadius: 16, padding: 32, maxWidth: 380, width: '100%' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>現金付款確認</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>確認收取現金？</div>
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 4 }}>
+                {selectedParent?.first_name} {selectedParent?.last_name}
+              </div>
+              <div style={{ fontSize: 13, color: '#9ca3af' }}>
+                {isTrial ? 'Trial 1-on-1' : plan?.name}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: GOLD, marginTop: 8 }}>
+                ${(chargeAmount / 100).toLocaleString()}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowCashConfirm(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #1e3a6e', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                取消
+              </button>
+              <button onClick={async () => { setShowCashConfirm(false); await doCharge() }} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: GOLD, color: NAVY, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                💵 確認 Charge ${(chargeAmount / 100).toLocaleString()}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 style={{ color: 'white', fontSize: 24, fontWeight: 700, fontFamily: 'Playfair Display, serif', margin: 0 }}>Point of Sale</h1>

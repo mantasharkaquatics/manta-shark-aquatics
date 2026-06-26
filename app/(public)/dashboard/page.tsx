@@ -31,6 +31,8 @@ interface Credit {
   created_at?: string
   course_types?: { name: string } | { name: string }[]
   purchases?: { paid_at: string | null; created_at: string } | { paid_at: string | null; created_at: string }[]
+  invoice_id?: string | null
+  invoices?: { id: string } | { id: string }[] | null
 }
 interface Booking {
   id: string; status: string
@@ -201,7 +203,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
 }
 
 function CreditCard({ g, remaining, pct, note }: {
-  g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null }[] }
+  g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null }[] }
   remaining: number
   pct: number
   note?: string
@@ -236,10 +238,18 @@ function CreditCard({ g, remaining, pct, note }: {
             const itemRemaining = item.credits - item.used
             const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{dateStr}</div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.2)' }}>
-                  {itemRemaining} / {item.credits} left
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.2)' }}>
+                    {itemRemaining} / {item.credits} left
+                  </div>
+                  {item.invoiceId && (
+                    <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                      下載發票
+                    </a>
+                  )}
                 </div>
               </div>
             )
@@ -255,7 +265,6 @@ export default function DashboardPage() {
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
-  const [invoices, setInvoices] = useState<any[]>([])
   const [activeTrialStudentIds, setActiveTrialStudentIds] = useState<Set<string>>(new Set())
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
@@ -296,7 +305,7 @@ export default function DashboardPage() {
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
         .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, course_types(name), purchases(paid_at, created_at)')
+        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, course_types(name), purchases(paid_at, created_at), invoices(id)')
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
@@ -348,15 +357,6 @@ export default function DashboardPage() {
     setStudents(studs || [])
     setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
     setActiveTrialStudentIds(new Set((rawBookings || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
-
-    // 查詢發票
-    const { data: invoiceData } = await supabase
-      .from('invoices')
-      .select('id, invoice_number, amount, payment_method, issued_at, status')
-      .eq('parent_id', parentData.id)
-      .order('issued_at', { ascending: false })
-      .limit(10)
-    setInvoices(invoiceData || [])
 
     // 查詢待確認的跨帳戶預約
     const { data: pendingRaw } = await supabase
@@ -977,7 +977,7 @@ export default function DashboardPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
               {(() => {
                 // Group credits by course_type_id and sum them up
-                const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null }[] }> = {}
+                const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null }[] }> = {}
                 credits.forEach(credit => {
                   const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
                   const pur = Array.isArray(credit.purchases) ? credit.purchases[0] : credit.purchases
@@ -988,7 +988,8 @@ export default function DashboardPage() {
                   }
                   grouped[key].total += credit.total_credits
                   grouped[key].used += credit.used_credits
-                  grouped[key].items.push({ credits: credit.total_credits, used: credit.used_credits, date: itemDate })
+                  const inv = Array.isArray(credit.invoices) ? credit.invoices[0] : credit.invoices
+                  grouped[key].items.push({ credits: credit.total_credits, used: credit.used_credits, date: itemDate, invoiceId: inv?.id || null })
                 })
                 return Object.entries(grouped).map(([key, g]) => {
                   const remaining = g.total - g.used
@@ -1038,33 +1039,6 @@ export default function DashboardPage() {
 
         {/* PARTNER ACCOUNTS */}
         {parent && <PartnershipSection parentId={parent.id} />}
-
-        {/* INVOICES */}
-        {invoices.length > 0 && (
-          <section style={{ marginTop: '32px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>付款記錄 & 發票</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {invoices.map((inv: any) => (
-                <div key={inv.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{inv.invoice_number}</div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
-                      {new Date(inv.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                      {' · '}{inv.payment_method === 'stripe' ? 'Credit Card' : inv.payment_method}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#c9a84c' }}>${Number(inv.amount).toFixed(2)}</span>
-                    <a href={`/api/invoices/${inv.id}/pdf`} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: '11px', fontWeight: 600, color: '#1a2744', background: '#c9a84c', padding: '5px 12px', borderRadius: '8px', textDecoration: 'none' }}>
-                      下載
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
 
 
         {/* QUICK LINKS */}

@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date()
     expiresAt.setFullYear(expiresAt.getFullYear() + 1)
 
-    const { error: creditErr } = await supabase.from('lesson_credits').insert({
+    const { data: lessonCredit, error: creditErr } = await supabase.from('lesson_credits').insert({
       student_id: null,
       parent_id: parentId,
       purchase_id: purchase.id,
@@ -63,15 +63,57 @@ export async function POST(req: NextRequest) {
       total_credits: plan.sessions,
       used_credits: 0,
       expires_at: expiresAt.toISOString(),
-    })
+    }).select().single()
 
     if (creditErr) {
       console.error('POS credit error:', creditErr)
       return NextResponse.json({ error: 'Credit creation failed' }, { status: 500 })
     }
 
-    console.log(`✅ POS sale: ${plan.name} parent=${parentId} method=${paymentMethod}`)
-    return NextResponse.json({ success: true, purchaseId: purchase.id })
+    // 建立發票
+    const { data: parent } = await supabase
+      .from('parents').select('first_name, last_name, email').eq('id', parentId).single()
+
+    const year = new Date().getFullYear()
+    const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
+    const seq = seqNum || 1
+    const invoice_number = `MSA-${year}-${String(seq).padStart(4, '0')}`
+
+    const { data: invoice } = await supabase.from('invoices').insert({
+      invoice_number,
+      parent_id: parentId,
+      lesson_credit_id: lessonCredit?.id ?? null,
+      amount: plan.amount / 100,
+      payment_method: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
+      items: [{ name: plan.name, quantity: 1, unit_price: plan.amount / 100 }],
+      status: 'sent',
+      stripe_payment_intent_id: paymentIntentId || null,
+    }).select().single()
+
+    // 寄發票 email
+    if (invoice && parent) {
+      try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'
+        await fetch(`${appUrl}/api/email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'invoice',
+            to: parent.email,
+            parentName: parent.first_name,
+            invoiceNumber: invoice.invoice_number,
+            amount: plan.amount / 100,
+            planName: plan.name,
+            invoiceUrl: `${appUrl}/api/invoices/${invoice.id}/pdf`,
+          }),
+        })
+      } catch (e) {
+        console.error('Invoice email error:', e)
+      }
+    }
+
+    console.log(`✅ POS sale: ${plan.name} parent=${parentId} method=${paymentMethod} invoice=${invoice?.invoice_number}`)
+    return NextResponse.json({ success: true, purchaseId: purchase.id, invoiceId: invoice?.id })
   } catch (err: any) {
     console.error('POS complete-sale error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
