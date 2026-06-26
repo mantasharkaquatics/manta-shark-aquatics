@@ -306,6 +306,18 @@ export default function DashboardPage() {
 
     const today = new Date().toISOString().split('T')[0]
 
+    // 懶惰清除：刪除過期的 pending_partner booking
+    const nowIso = new Date().toISOString()
+    supabase.from('bookings').delete()
+      .eq('status', 'pending_partner')
+      .lt('pending_expires_at', nowIso)
+      .then(() => {})
+    // 清除過期的 reschedule pending
+    supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null, pending_expires_at: null })
+      .in('pending_action', ['reschedule', 'reschedule_initiator'])
+      .lt('pending_expires_at', nowIso)
+      .then(() => {})
+
     console.log('fetchAll: parentId =', parentData.id)
     const [{ data: studs }, { data: credData }, { data: rawBookings }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),

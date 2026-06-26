@@ -13,25 +13,35 @@ export async function GET(req: NextRequest) {
   )
 
   // 找所有已過期的 pending_partner 預約
+  const now = new Date().toISOString()
   const { data: expired } = await supabase
     .from('bookings')
     .select('id, class_session_id')
     .eq('status', 'pending_partner')
-    .eq('pending_action', 'confirm')
-    .lt('pending_expires_at', new Date().toISOString())
+    .lt('pending_expires_at', now)
 
-  let cancelled = 0
-  for (const b of expired || []) {
+  // 同時清除過期的 reschedule pending
+  const { data: expiredReschedule } = await supabase
+    .from('bookings')
+    .select('id')
+    .in('pending_action', ['reschedule', 'reschedule_initiator'])
+    .lt('pending_expires_at', now)
+
+  if ((expiredReschedule || []).length > 0) {
+    const rids = (expiredReschedule || []).map((b: any) => b.id)
     await supabase.from('bookings').update({
-      status: 'cancelled',
       pending_action: null,
-    }).eq('id', b.id)
-
-    if (b.class_session_id) {
-      await supabase.rpc('decrement_enrolled', { session_id: b.class_session_id })
-    }
-    cancelled++
+      pending_new_session_id: null,
+      pending_expires_at: null,
+    }).in('id', rids)
   }
 
-  return NextResponse.json({ cancelled, checked: (expired || []).length })
+  const ids = (expired || []).map(b => b.id)
+  let deleted = 0
+  if (ids.length > 0) {
+    await supabase.from('bookings').delete().in('id', ids)
+    deleted = ids.length
+  }
+
+  return NextResponse.json({ deleted, checked: (expired || []).length })
 }
