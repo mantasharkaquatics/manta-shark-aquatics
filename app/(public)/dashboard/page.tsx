@@ -902,14 +902,16 @@ export default function DashboardPage() {
                           <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '')}</span>
                         </div>
                       ) : (
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
-                      {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
-                        const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
-                        const mins = Math.floor(ms / 60000)
-                        const secs = Math.floor((ms % 60000) / 1000)
-                        const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
-                        return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 剩餘 {str} 確認，否則自動取消</div>
-                      })()}
+                        <div>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
+                          {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
+                            const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
+                            const mins = Math.floor(ms / 60000)
+                            const secs = Math.floor((ms % 60000) / 1000)
+                            const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 剩餘 {str} 確認，否則自動取消</div>
+                          })()}
+                        </div>
                       )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
