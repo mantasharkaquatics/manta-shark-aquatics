@@ -279,6 +279,11 @@ export default function DashboardPage() {
   const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -791,6 +796,10 @@ export default function DashboardPage() {
                 const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
                 const expiresAt = new Date(b.pending_expires_at)
                 const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000))
+                const msLeft = Math.max(0, expiresAt.getTime() - now)
+                const minsLeft = Math.floor(msLeft / 60000)
+                const secsLeft = Math.floor((msLeft % 60000) / 1000)
+                const countdownStr = msLeft <= 0 ? '已過期' : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
                 return (
                   <div key={b.id} style={{ background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)', borderRadius: '14px', padding: '16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -802,8 +811,8 @@ export default function DashboardPage() {
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>
                           {ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}
                         </div>
-                        <div style={{ fontSize: '11px', color: hoursLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
-                          ⏱ 剩餘 {hoursLeft} 小時確認，否則自動取消
+                        <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
+                          ⏱ 剩餘 {countdownStr} 確認，否則自動取消
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>

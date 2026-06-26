@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       student_id: partner_student_id,
       status: 'pending_partner',
       pending_action: 'confirm',
-      pending_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+      pending_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       partner_parent_id: initiator_parent_id,
       partner_booking_id: initiator_booking_id || null,
       partnership_id: partnership_id || null,
