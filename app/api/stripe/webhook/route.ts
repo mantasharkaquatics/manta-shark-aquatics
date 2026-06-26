@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date()
     expiresAt.setFullYear(expiresAt.getFullYear() + 1)
 
-    const { error: creditErr } = await supabase
+    const { data: credit, error: creditErr } = await supabase
       .from('lesson_credits')
       .insert({
         student_id: null,
@@ -92,6 +92,8 @@ export async function POST(req: NextRequest) {
         used_credits: 0,
         expires_at: expiresAt.toISOString(),
       })
+      .select()
+      .single()
 
     if (creditErr) {
       console.error('Credit insert error:', creditErr)
@@ -111,7 +113,7 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           parent_id,
-          lesson_credit_id: null,
+          lesson_credit_id: credit?.id || null,
           amount: amount_cents / 100,
           payment_method: 'stripe',
           items: [{
