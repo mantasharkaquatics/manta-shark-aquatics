@@ -255,6 +255,7 @@ export default function DashboardPage() {
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
+  const [invoices, setInvoices] = useState<any[]>([])
   const [activeTrialStudentIds, setActiveTrialStudentIds] = useState<Set<string>>(new Set())
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
@@ -347,6 +348,15 @@ export default function DashboardPage() {
     setStudents(studs || [])
     setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
     setActiveTrialStudentIds(new Set((rawBookings || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
+
+    // 查詢發票
+    const { data: invoiceData } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, amount, payment_method, issued_at, status')
+      .eq('parent_id', parentData.id)
+      .order('issued_at', { ascending: false })
+      .limit(10)
+    setInvoices(invoiceData || [])
 
     // 查詢待確認的跨帳戶預約
     const { data: pendingRaw } = await supabase
@@ -1028,6 +1038,34 @@ export default function DashboardPage() {
 
         {/* PARTNER ACCOUNTS */}
         {parent && <PartnershipSection parentId={parent.id} />}
+
+        {/* INVOICES */}
+        {invoices.length > 0 && (
+          <section style={{ marginTop: '32px' }}>
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>付款記錄 & 發票</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {invoices.map((inv: any) => (
+                <div key={inv.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{inv.invoice_number}</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+                      {new Date(inv.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {' · '}{inv.payment_method === 'stripe' ? 'Credit Card' : inv.payment_method}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#c9a84c' }}>${Number(inv.amount).toFixed(2)}</span>
+                    <a href={`/api/invoices/${inv.id}/pdf`} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: '11px', fontWeight: 600, color: '#1a2744', background: '#c9a84c', padding: '5px 12px', borderRadius: '8px', textDecoration: 'none' }}>
+                      下載
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
 
         {/* QUICK LINKS */}
         <section>
