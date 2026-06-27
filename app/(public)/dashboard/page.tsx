@@ -274,6 +274,7 @@ export default function DashboardPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string; partnerBookingId?: string } | null>(null)
+  const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string; type?: 'cancel' | 'reject' } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
@@ -851,7 +852,27 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* UPCOMING LESSONS */}
+        {/* Reschedule Action Modal */}
+      {rescheduleActionModal && (
+        <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>RESCHEDULE</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>取消</button>
+              <button onClick={async () => {
+                const id = rescheduleActionModal.bookingId
+                setRescheduleActionModal(null)
+                const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
+                if (res.ok) await fetchAll()
+              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>確定</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* UPCOMING LESSONS */}
         <section style={{ marginBottom: '36px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Upcoming Lessons</h2>
@@ -916,7 +937,14 @@ export default function DashboardPage() {
                       ) : (
                         <div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
-                          {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
+                          {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (() => {
+                            const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
+                            const mins = Math.floor(ms / 60000)
+                            const secs = Math.floor((ms % 60000) / 1000)
+                            const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 改期確認剩餘 {str}</div>
+                          })()}
+                        {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
@@ -947,9 +975,7 @@ export default function DashboardPage() {
                           </button>
                           <button
                             onClick={async () => {
-                              if (!confirm('確定要拒絕改期嗎？課程將維持原本時段。')) return
-                              const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
-                              if (res.ok) await fetchAll()
+                              setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: '確定拒絕改期？', message: '拒絕後，課程將維持原本時段。' })
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             拒絕
@@ -958,9 +984,7 @@ export default function DashboardPage() {
                           {booking.pending_action === 'reschedule_initiator' && (
                             <button
                               onClick={async () => {
-                                if (!confirm('確定要取消改期嗎？課程將維持原本時段。')) return
-                                const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
-                                if (res.ok) await fetchAll()
+                                setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: '確定取消改期？', message: '取消後，課程將維持原本時段。' })
                               }}
                               style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                               取消改期

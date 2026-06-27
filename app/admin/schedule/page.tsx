@@ -44,8 +44,9 @@ export default async function AdminSchedulePage() {
       .eq('status', 'cancelled').gte('updated_at', todayDate + 'T00:00:00.000Z')
       .order('updated_at', { ascending: false }).limit(20),
     supabase.from('bookings')
-      .select('id, updated_at, student_id, parent_id, class_session_id')
-      .eq('status', 'rescheduled').gte('updated_at', todayDate + 'T00:00:00.000Z')
+      .select('id, updated_at, student_id, parent_id, class_session_id, pending_new_session_id, pending_action')
+      .eq('status', 'cancelled').in('pending_action', ['reschedule', 'reschedule_initiator'])
+      .gte('updated_at', todayDate + 'T00:00:00.000Z')
       .order('updated_at', { ascending: false }).limit(20),
   ])
 
@@ -54,7 +55,10 @@ export default async function AdminSchedulePage() {
   const sessionIds = [...new Set(allBookings.map((b:any) => b.class_session_id).filter(Boolean))]
   const studentIds = [...new Set(allBookings.map((b:any) => b.student_id).filter(Boolean))]
   const parentIds = [...new Set(allBookings.map((b:any) => b.parent_id).filter(Boolean))]
-  const newSessionIds = [...new Set((rawReschedules||[]).map((b:any) => b.pending_new_session_id).filter(Boolean))]
+  const newSessionIds = [...new Set([
+    ...(rawReschedules||[]).map((b:any) => b.pending_new_session_id),
+    ...(rawRescheduled||[]).map((b:any) => b.pending_new_session_id),
+  ].filter(Boolean))]
   const allSessionIds = [...new Set([...sessionIds, ...newSessionIds])]
 
   // Step 3: 分開查
@@ -157,24 +161,51 @@ export default async function AdminSchedulePage() {
             <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">無待確認改期</div>
           ) : (
             <div className="space-y-3">
-              {rawReschedules.map((b: any) => {
-                const { cs, student, parent } = renderBookingInfo(b)
-                const newCs = b.pending_new_session_id ? sessionMap[b.pending_new_session_id] : null
-                const isInitiator = b.pending_action === 'reschedule_initiator'
-                return (
-                  <div key={b.id} className="bg-[#111d38] rounded-xl border border-yellow-800/30 p-5">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">{isInitiator ? '發起改期 — 等待對方確認' : '收到改期請求 — 待確認'}</span>
+              {(() => {
+                // merge 同 class_session_id + pending_new_session_id 的兩筆
+                const merged: Record<string, any[]> = {}
+                for (const b of rawReschedules) {
+                  const key = (b.class_session_id || '') + '|' + (b.pending_new_session_id || '')
+                  if (!merged[key]) merged[key] = []
+                  merged[key].push(b)
+                }
+                return Object.values(merged).map((group: any[]) => {
+                  const initiator = group.find((b:any) => b.pending_action === 'reschedule_initiator') || group[0]
+                  const recipient = group.find((b:any) => b.pending_action === 'reschedule')
+                  const cs = sessionMap[initiator.class_session_id]
+                  const newCs = initiator.pending_new_session_id ? sessionMap[initiator.pending_new_session_id] : null
+                  const iStudent = studentMap[initiator.student_id]
+                  const iParent = parentMap[initiator.parent_id]
+                  const rStudent = recipient ? studentMap[recipient.student_id] : null
+                  const rParent = recipient ? parentMap[recipient.parent_id] : null
+                  return (
+                    <div key={initiator.id} className="bg-[#111d38] rounded-xl border border-yellow-800/30 p-5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">待確認改期</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap mb-3">
+                        <span className="text-gray-500 text-sm line-through">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
+                        <span className="text-gray-500">→</span>
+                        <span className="text-[#c9a84c] text-sm">{newCs?.ct?.name || cs?.ct?.name} · Coach {newCs?.coach?.first_name || cs?.coach?.first_name} · {fDate(newCs?.session_date)} {fTime(newCs?.start_time)}</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-yellow-400 font-semibold w-16 shrink-0">發起方</span>
+                          <span className="text-white text-sm font-semibold">{iStudent?.full_name}</span>
+                          <span className="text-gray-400 text-xs">({iParent?.first_name} {iParent?.last_name})</span>
+                        </div>
+                        {rStudent && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-purple-400 font-semibold w-16 shrink-0">待確認</span>
+                            <span className="text-white text-sm font-semibold">{rStudent?.full_name}</span>
+                            <span className="text-gray-400 text-xs">({rParent?.first_name} {rParent?.last_name})</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-white font-semibold">{student?.full_name} <span className="text-gray-400 font-normal text-sm">({parent?.first_name} {parent?.last_name})</span></p>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="text-gray-500 text-sm line-through">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
-                      <span className="text-gray-500">→</span>
-                      <span className="text-[#c9a84c] text-sm">{newCs?.ct?.name || cs?.ct?.name} · Coach {newCs?.coach?.first_name || cs?.coach?.first_name} · {fDate(newCs?.session_date)} {fTime(newCs?.start_time)}</span>
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              })()}
             </div>
           )}
         </section>
@@ -215,18 +246,37 @@ export default async function AdminSchedulePage() {
             <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">今日無改期</div>
           ) : (
             <div className="space-y-3">
-              {rawRescheduled.map((b: any) => {
-                const { cs, student, parent } = renderBookingInfo(b)
-                return (
-                  <div key={b.id} className="bg-[#111d38] rounded-xl border border-green-900/30 p-5 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-white font-semibold">{student?.full_name} <span className="text-gray-400 font-normal text-sm">({parent?.first_name} {parent?.last_name})</span></p>
-                      <p className="text-green-400 text-sm mt-0.5">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
+              {(() => {
+                // merge 同 class_session_id + pending_new_session_id
+                const merged: Record<string, any[]> = {}
+                for (const b of rawRescheduled) {
+                  const key = (b.class_session_id || '') + '|' + (b.pending_new_session_id || '')
+                  if (!merged[key]) merged[key] = []
+                  merged[key].push(b)
+                }
+                return Object.values(merged).map((group: any[]) => {
+                  const b0 = group[0]
+                  const cs = sessionMap[b0.class_session_id]
+                  const newCs = b0.pending_new_session_id ? sessionMap[b0.pending_new_session_id] : null
+                  const names = group.map((b:any) => {
+                    const s = studentMap[b.student_id]
+                    const p = parentMap[b.parent_id]
+                    return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
+                  }).filter(Boolean).join('、')
+                  return (
+                    <div key={b0.id} className="bg-[#111d38] rounded-xl border border-green-900/30 p-5 flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-white font-semibold text-sm">{names}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-gray-500 text-sm line-through">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
+                          {newCs && <><span className="text-gray-500">→</span><span className="text-green-400 text-sm">{fDate(newCs?.session_date)} {fTime(newCs?.start_time)}</span></>}
+                        </div>
+                      </div>
+                      <span className="text-gray-500 text-xs shrink-0">{fDT(b0.updated_at)}</span>
                     </div>
-                    <span className="text-gray-500 text-xs shrink-0">{fDT(b.updated_at)}</span>
-                  </div>
-                )
-              })}
+                  )
+                })
+              })()}
             </div>
           )}
         </section>
