@@ -316,7 +316,12 @@ export default async function AdminSchedulePage() {
         <section>
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xs font-bold uppercase tracking-widest text-green-400">✅ 今日改期完成</h2>
-            {rawRescheduled && rawRescheduled.length > 0 && <span className="bg-green-900/40 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">{rawRescheduled.length}</span>}
+            {(() => {
+              const mr: Record<string, boolean> = {}
+              for (const b of rawRescheduled || []) mr[(b.class_session_id || '') + '|' + (b.pending_new_session_id || '')] = true
+              const cnt = Object.keys(mr).length
+              return cnt > 0 ? <span className="bg-green-900/40 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">{cnt}</span> : null
+            })()}
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {!rawRescheduled || rawRescheduled.length === 0 ? (
