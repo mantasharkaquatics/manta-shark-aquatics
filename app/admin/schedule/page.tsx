@@ -33,7 +33,7 @@ export default async function AdminSchedulePage() {
     { data: rawRescheduled },
   ] = await Promise.all([
     supabase.from('bookings')
-      .select('id, pending_expires_at, class_session_id, parent_id, partner_parent_id, student_id')
+      .select('id, pending_expires_at, class_session_id, parent_id, partner_parent_id, partner_booking_id, student_id')
       .eq('status', 'pending_partner').eq('pending_action', 'confirm')
       .gt('pending_expires_at', nowIso).order('pending_expires_at'),
     supabase.from('bookings')
@@ -73,6 +73,24 @@ export default async function AdminSchedulePage() {
       ? supabase.from('parents').select('id, first_name, last_name').in('id', parentIds)
       : Promise.resolve({ data: [] }),
   ])
+
+  // 查發起方 parent 和 student（透過 partner_parent_id 和 partner_booking_id）
+  const partnerParentIds = [...new Set((rawInvites||[]).map((b:any) => b.partner_parent_id).filter(Boolean))]
+  const partnerBookingIds = [...new Set((rawInvites||[]).map((b:any) => b.partner_booking_id).filter(Boolean))]
+  const [{ data: partnerParentsData }, { data: partnerBookingsData }] = await Promise.all([
+    partnerParentIds.length > 0
+      ? supabase.from('parents').select('id, first_name, last_name').in('id', partnerParentIds)
+      : Promise.resolve({ data: [] }),
+    partnerBookingIds.length > 0
+      ? supabase.from('bookings').select('id, student_id').in('id', partnerBookingIds)
+      : Promise.resolve({ data: [] }),
+  ])
+  const partnerParentMap: Record<string, any> = {}
+  for (const p of partnerParentsData || []) partnerParentMap[(p as any).id] = p
+  const partnerBookingStudentMap: Record<string, string> = {}
+  for (const b of partnerBookingsData || []) {
+    partnerBookingStudentMap[(b as any).id] = (b as any).student_id
+  }
 
   const sessionMap: Record<string, any> = {}
   for (const s of sessionsData || []) {
@@ -137,12 +155,30 @@ export default async function AdminSchedulePage() {
                 return (
                   <div key={b.id} className="bg-[#111d38] rounded-xl border border-purple-800/40 p-5 flex items-start justify-between gap-4">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="text-purple-400 text-xs font-bold uppercase tracking-wide">1-on-2 邀請待確認</span>
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>剩 {mins} 分鐘</span>
                       </div>
-                      <p className="text-white font-semibold">{student?.full_name} <span className="text-gray-400 font-normal text-sm">({parent?.first_name} {parent?.last_name})</span></p>
-                      <p className="text-[#c9a84c] text-sm mt-0.5">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
+                      <p className="text-[#c9a84c] text-sm mb-2">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
+                      <div className="flex flex-col gap-1">
+                        {(() => {
+                          const initiatorParent = b.partner_parent_id ? partnerParentMap[b.partner_parent_id] : null
+                          const initiatorStudentId = b.partner_booking_id ? partnerBookingStudentMap[b.partner_booking_id] : null
+                          const initiatorStudent = initiatorStudentId ? studentMap[initiatorStudentId] : null
+                          return (<>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-yellow-400 font-semibold w-14 shrink-0">發起方</span>
+                              <span className="text-white text-sm font-semibold">{initiatorStudent?.full_name || '—'}</span>
+                              <span className="text-gray-400 text-xs">({initiatorParent?.first_name} {initiatorParent?.last_name})</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-purple-400 font-semibold w-14 shrink-0">被邀請</span>
+                              <span className="text-white text-sm font-semibold">{student?.full_name}</span>
+                              <span className="text-gray-400 text-xs">({parent?.first_name} {parent?.last_name})</span>
+                            </div>
+                          </>)
+                        })()}
+                      </div>
                     </div>
                   </div>
                 )
