@@ -47,10 +47,10 @@ export default async function AdminSchedulePage() {
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('updated_at', { ascending: false }).limit(50),
     supabase.from('bookings')
-      .select('id, updated_at, student_id, parent_id, class_session_id, pending_new_session_id, pending_action')
+      .select('id, updated_at, student_id, parent_id, class_session_id, pending_new_session_id, pending_action, original_booking_id')
       .eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order('updated_at', { ascending: false }).limit(50),
+      .order('updated_at', { ascending: true }).limit(50),
   ])
 
   // Step 2: 收集所有需要查的 IDs
@@ -277,7 +277,7 @@ export default async function AdminSchedulePage() {
           </div>
           {(() => {
             // 合併取消和改期，按時間排序
-            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled'; names: string; cs: any; newCs: any; updatedAt: string }
+            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled'; names: string; cs: any; newCs: any; updatedAt: string; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
             const items: ActivityItem[] = []
 
             // 取消
@@ -296,20 +296,36 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at })
             }
 
-            // 改期完成
-            const mergedRescheduled: Record<string, any[]> = {}
+            // 改期完成：按 original_booking_id 分組成時間軸
+            const rescheduleChains: Record<string, any[]> = {}
             for (const b of rawRescheduled || []) {
-              const key = (b.class_session_id || '') + '|' + (b.pending_new_session_id || '')
-              if (!mergedRescheduled[key]) mergedRescheduled[key] = []
-              mergedRescheduled[key].push(b)
+              const chainKey = b.original_booking_id || b.id
+              if (!rescheduleChains[chainKey]) rescheduleChains[chainKey] = []
+              rescheduleChains[chainKey].push(b)
             }
-            for (const group of Object.values(mergedRescheduled)) {
-              const b0 = group[0]
-              const names = group.map((b:any) => {
-                const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
-                return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
-              }).filter(Boolean).join('、')
-              items.push({ key: 'r-' + b0.id, type: 'rescheduled', names, cs: sessionMap[b0.class_session_id], newCs: b0.pending_new_session_id ? sessionMap[b0.pending_new_session_id] : null, updatedAt: b0.updated_at })
+            for (const chain of Object.values(rescheduleChains)) {
+              // 同一個 chain 按時間排序（ascending 已在 query 做）
+              // 找代表性的一筆（取第一筆，代表發起人）
+              const rep = chain.find((b:any) => b.student_id === chain[0].student_id) || chain[0]
+              const s = studentMap[rep.student_id]; const p = parentMap[rep.parent_id]
+              // 收集所有學生名稱（去重）
+              const nameSet = new Set<string>()
+              for (const b of chain) {
+                const st = studentMap[b.student_id]; const pa = parentMap[b.parent_id]
+                if (st) nameSet.add(`${st.full_name} (${pa?.first_name} ${pa?.last_name})`)
+              }
+              const names = [...nameSet].join('、')
+              // 建立時間軸步驟
+              const steps: { fromCs: any; toCs: any; updatedAt: string }[] = []
+              const seen = new Set<string>()
+              for (const b of chain) {
+                const stepKey = b.class_session_id + '|' + b.pending_new_session_id
+                if (!seen.has(stepKey)) {
+                  seen.add(stepKey)
+                  steps.push({ fromCs: sessionMap[b.class_session_id], toCs: b.pending_new_session_id ? sessionMap[b.pending_new_session_id] : null, updatedAt: b.updated_at })
+                }
+              }
+              items.push({ key: 'r-' + rep.id, type: 'rescheduled', names, cs: steps[0]?.fromCs, newCs: steps[steps.length-1]?.toCs, updatedAt: steps[steps.length-1]?.updatedAt, steps })
             }
 
             items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -329,11 +345,27 @@ export default async function AdminSchedulePage() {
                         {item.type === 'cancelled' ? (
                           <p className="text-gray-500 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : (
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <span className="text-gray-500 text-xs">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} ·</span>
-                            <span className="text-[#c9a84c] text-xs line-through">{fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</span>
-                            <span className="text-gray-500 text-xs">→</span>
-                            <span className="text-green-400 text-xs">{fDate(item.newCs?.session_date)} {fTime(item.newCs?.start_time)}</span>
+                          <div className="mt-0.5">
+                            <span className="text-gray-500 text-xs">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name}</span>
+                            {item.steps && item.steps.length > 1 ? (
+                              <div className="flex flex-col gap-0.5 mt-1">
+                                {item.steps.map((step, i) => (
+                                  <div key={i} className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-gray-600 text-xs w-4 shrink-0">{i + 1}.</span>
+                                    <span className="text-[#c9a84c] text-xs line-through">{fDate(step.fromCs?.session_date)} {fTime(step.fromCs?.start_time)}</span>
+                                    <span className="text-gray-500 text-xs">→</span>
+                                    <span className="text-green-400 text-xs">{fDate(step.toCs?.session_date)} {fTime(step.toCs?.start_time)}</span>
+                                    <span className="text-gray-600 text-xs">({fDT(step.updatedAt)})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span className="text-[#c9a84c] text-xs line-through">{fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</span>
+                                <span className="text-gray-500 text-xs">→</span>
+                                <span className="text-green-400 text-xs">{fDate(item.newCs?.session_date)} {fTime(item.newCs?.start_time)}</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
