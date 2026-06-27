@@ -43,13 +43,13 @@ export default async function AdminSchedulePage() {
       .select('id, updated_at, student_id, parent_id, class_session_id')
       .eq('status', 'cancelled').is('pending_action', null)
       .not('lesson_credit_id', 'is', null)
-      .gte('updated_at', todayDate + 'T00:00:00.000Z')
-      .order('updated_at', { ascending: false }).limit(20),
+      .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order('updated_at', { ascending: false }).limit(50),
     supabase.from('bookings')
       .select('id, updated_at, student_id, parent_id, class_session_id, pending_new_session_id, pending_action')
       .eq('status', 'cancelled').in('pending_action', ['reschedule', 'reschedule_initiator'])
-      .gte('updated_at', todayDate + 'T00:00:00.000Z')
-      .order('updated_at', { ascending: false }).limit(20),
+      .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order('updated_at', { ascending: false }).limit(50),
   ])
 
   // Step 2: 收集所有需要查的 IDs
@@ -270,97 +270,78 @@ export default async function AdminSchedulePage() {
 
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-red-400">❌ 今日取消</h2>
-            {(() => {
-              const mc: Record<string, boolean> = {}
-              for (const b of rawCancelled || []) mc[b.class_session_id || b.id] = true
-              const cnt = Object.keys(mc).length
-              return cnt > 0 ? <span className="bg-red-900/40 text-red-400 text-xs px-2 py-0.5 rounded-full font-semibold">{cnt}</span> : null
-            })()}
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">📋 最近活動紀錄</h2>
+            <span className="text-gray-600 text-xs">最近 30 天</span>
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
-          {!rawCancelled || rawCancelled.length === 0 ? (
-            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">今日無取消</div>
-          ) : (
-            <div className="space-y-3">
-              {(() => {
-                const merged: Record<string, any[]> = {}
-                for (const b of rawCancelled) {
-                  const key = b.class_session_id || b.id
-                  if (!merged[key]) merged[key] = []
-                  merged[key].push(b)
-                }
-                return Object.values(merged).map((group: any[]) => {
-                  const b0 = group[0]
-                  const cs = sessionMap[b0.class_session_id]
-                  const names = group.map((b:any) => {
-                    const s = studentMap[b.student_id]
-                    const p = parentMap[b.parent_id]
-                    return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
-                  }).filter(Boolean).join('、')
-                  return (
-                    <div key={b0.id} className="bg-[#111d38] rounded-xl border border-red-900/30 p-5 flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-white font-semibold text-sm">{names}</p>
-                        <p className="text-red-400 text-sm mt-0.5">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
-                      </div>
-                      <span className="text-gray-500 text-xs shrink-0">{fDT(b0.updated_at)}</span>
-                    </div>
-                  )
-                })
-              })()}
-            </div>
-          )}
-        </section>
+          {(() => {
+            // 合併取消和改期，按時間排序
+            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled'; names: string; cs: any; newCs: any; updatedAt: string }
+            const items: ActivityItem[] = []
 
-        <section>
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-green-400">✅ 今日改期完成</h2>
-            {(() => {
-              const mr: Record<string, boolean> = {}
-              for (const b of rawRescheduled || []) mr[(b.class_session_id || '') + '|' + (b.pending_new_session_id || '')] = true
-              const cnt = Object.keys(mr).length
-              return cnt > 0 ? <span className="bg-green-900/40 text-green-400 text-xs px-2 py-0.5 rounded-full font-semibold">{cnt}</span> : null
-            })()}
-            <div className="flex-1 h-px bg-[#1e3a6e]" />
-          </div>
-          {!rawRescheduled || rawRescheduled.length === 0 ? (
-            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">今日無改期</div>
-          ) : (
-            <div className="space-y-3">
-              {(() => {
-                // merge 同 class_session_id + pending_new_session_id
-                const merged: Record<string, any[]> = {}
-                for (const b of rawRescheduled) {
-                  const key = (b.class_session_id || '') + '|' + (b.pending_new_session_id || '')
-                  if (!merged[key]) merged[key] = []
-                  merged[key].push(b)
-                }
-                return Object.values(merged).map((group: any[]) => {
-                  const b0 = group[0]
-                  const cs = sessionMap[b0.class_session_id]
-                  const newCs = b0.pending_new_session_id ? sessionMap[b0.pending_new_session_id] : null
-                  const names = group.map((b:any) => {
-                    const s = studentMap[b.student_id]
-                    const p = parentMap[b.parent_id]
-                    return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
-                  }).filter(Boolean).join('、')
-                  return (
-                    <div key={b0.id} className="bg-[#111d38] rounded-xl border border-green-900/30 p-5 flex items-start justify-between gap-4">
+            // 取消
+            const mergedCancelled: Record<string, any[]> = {}
+            for (const b of rawCancelled || []) {
+              const key = b.class_session_id || b.id
+              if (!mergedCancelled[key]) mergedCancelled[key] = []
+              mergedCancelled[key].push(b)
+            }
+            for (const group of Object.values(mergedCancelled)) {
+              const b0 = group[0]
+              const names = group.map((b:any) => {
+                const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
+                return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
+              }).filter(Boolean).join('、')
+              items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at })
+            }
+
+            // 改期完成
+            const mergedRescheduled: Record<string, any[]> = {}
+            for (const b of rawRescheduled || []) {
+              const key = (b.class_session_id || '') + '|' + (b.pending_new_session_id || '')
+              if (!mergedRescheduled[key]) mergedRescheduled[key] = []
+              mergedRescheduled[key].push(b)
+            }
+            for (const group of Object.values(mergedRescheduled)) {
+              const b0 = group[0]
+              const names = group.map((b:any) => {
+                const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
+                return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
+              }).filter(Boolean).join('、')
+              items.push({ key: 'r-' + b0.id, type: 'rescheduled', names, cs: sessionMap[b0.class_session_id], newCs: b0.pending_new_session_id ? sessionMap[b0.pending_new_session_id] : null, updatedAt: b0.updated_at })
+            }
+
+            items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+
+            if (items.length === 0) return <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">最近 30 天無活動紀錄</div>
+
+            return (
+              <div className="space-y-2">
+                {items.map(item => (
+                  <div key={item.key} className={`bg-[#111d38] rounded-xl border p-4 flex items-start justify-between gap-4 ${item.type === 'cancelled' ? 'border-red-900/25' : 'border-green-900/25'}`}>
+                    <div className="flex items-start gap-3">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 mt-0.5 ${item.type === 'cancelled' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>
+                        {item.type === 'cancelled' ? '取消' : '改期'}
+                      </span>
                       <div>
-                        <p className="text-white font-semibold text-sm">{names}</p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="text-gray-500 text-sm line-through">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
-                          {newCs && <><span className="text-gray-500">→</span><span className="text-green-400 text-sm">{fDate(newCs?.session_date)} {fTime(newCs?.start_time)}</span></>}
-                        </div>
+                        <p className="text-white text-sm font-semibold">{item.names}</p>
+                        {item.type === 'cancelled' ? (
+                          <p className="text-gray-500 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
+                        ) : (
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-gray-600 text-xs line-through">{item.cs?.ct?.name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</span>
+                            <span className="text-gray-600 text-xs">→</span>
+                            <span className="text-green-400 text-xs">{fDate(item.newCs?.session_date)} {fTime(item.newCs?.start_time)}</span>
+                          </div>
+                        )}
                       </div>
-                      <span className="text-gray-500 text-xs shrink-0">{fDT(b0.updated_at)}</span>
                     </div>
-                  )
-                })
-              })()}
-            </div>
-          )}
+                    <span className="text-gray-600 text-xs shrink-0">{fDT(item.updatedAt)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </section>
       </div>
     </div>
