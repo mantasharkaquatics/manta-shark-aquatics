@@ -4,7 +4,12 @@ import { PLAN_GROUPS } from '@/lib/plans'
 
 const PAGE_SIZE = 20
 
-const PAYMENT_METHODS = ['All', 'Credit Card (Terminal)', 'Cash', 'Stripe Online']
+const PAYMENT_METHODS = [
+  { value: 'All', label: '全部' },
+  { value: 'stripe', label: 'Stripe Online' },
+  { value: 'Credit Card (Terminal)', label: 'Credit Card (Terminal)' },
+  { value: 'Cash', label: 'Cash' },
+]
 
 function fDate(s: string) {
   if (!s) return '—'
@@ -147,7 +152,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
           <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">付款方式</label>
           <select value={payMethod} onChange={e => { setPayMethod(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+            {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
         </div>
         {/* 日期範圍 */}
