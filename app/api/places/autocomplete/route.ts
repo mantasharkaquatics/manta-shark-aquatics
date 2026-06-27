@@ -4,7 +4,7 @@ export async function GET(req: NextRequest) {
   const input = req.nextUrl.searchParams.get('input')
   if (!input) return NextResponse.json({ suggestions: [] })
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY
   const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&components=country:us&types=address&key=${apiKey}`
 
   const res = await fetch(url)

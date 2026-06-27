@@ -4,7 +4,7 @@ export async function GET(req: NextRequest) {
   const place_id = req.nextUrl.searchParams.get('place_id')
   if (!place_id) return NextResponse.json({})
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=address_components&key=${apiKey}`
 
   const res = await fetch(url)
