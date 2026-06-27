@@ -6,9 +6,13 @@ type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
 type Student = { id: string; full_name: string; current_level: string | null; parents: { first_name: string; last_name: string } | null }
 type UpgradeHistory = {
-  id: string; from_level: string | null; to_level: string
-  upgraded_at: string; notes: string | null
+  id: string; from_level: string | null; to_level: string; upgraded_at: string; notes: string | null
   students: { full_name: string }; admins: { first_name: string; last_name: string }
+}
+type Recommendation = {
+  id: string; recommended_level: number; notes: string | null; created_at: string
+  student: { id: string; full_name: string; current_level: string | null }
+  coach: { first_name: string }
 }
 
 const LEVEL_NAMES: Record<string, string> = {
@@ -21,14 +25,16 @@ const LEVEL_COLORS: Record<string, string> = {
   '5': '#3b82f6', '6': '#a855f7', '7': '#f59e0b', '8': '#6b7280', '9': '#ca8a04',
 }
 
-export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students }: {
+export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students, recommendations: initialRecs }: {
   upgradeHistory: UpgradeHistory[]
   adminId: string
   levels: Level[]
   skills: Skill[]
   students: Student[]
+  recommendations: Recommendation[]
 }) {
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
+  const [recommendations, setRecommendations] = useState(initialRecs)
   const [search, setSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<string>('')
@@ -38,6 +44,8 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [reviewingId, setReviewingId] = useState<string | null>(null)
+  const [overrideLevel, setOverrideLevel] = useState<Record<string, string>>({})
 
   const filteredStudents = useMemo(() => {
     if (!search || search.length < 2) return []
@@ -60,35 +68,49 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   async function handleAssign() {
     if (!selectedStudent || !selectedLevel) return
     setSaving(true)
-    const level = levels.find(l => String(l.level_number) === selectedLevel)
-    if (!level) { setSaving(false); return }
-
     const res = await fetch('/api/admin/assign-level', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         student_id: selectedStudent.id,
         level_number: selectedLevel,
-        notes,
-        admin_id: adminId,
+        notes, admin_id: adminId,
         from_level: selectedStudent.current_level,
       })
     })
-
     if (res.ok) {
       const record = await res.json()
       setUpgradeHistory(prev => [record, ...prev])
       setSaved(true)
       setTimeout(() => {
-        setSelectedStudent(null)
-        setSelectedLevel('')
-        setNotes('')
-        setSaved(false)
-        setShowSearch(false)
-        setSearch('')
+        setSelectedStudent(null); setSelectedLevel(''); setNotes(''); setSaved(false); setShowSearch(false); setSearch('')
       }, 1500)
     }
     setSaving(false)
+  }
+
+  async function handleReview(rec: Recommendation, action: 'approved' | 'modified' | 'rejected') {
+    setReviewingId(rec.id)
+    const finalLevel = action === 'modified' ? parseInt(overrideLevel[rec.id] || String(rec.recommended_level)) : rec.recommended_level
+    await fetch('/api/admin/review-level', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recommendation_id: rec.id, action, final_level: finalLevel, admin_id: adminId })
+    })
+    setRecommendations(prev => prev.filter(r => r.id !== rec.id))
+    if (action !== 'rejected') {
+      const newRecord = {
+        id: rec.id,
+        from_level: rec.student.current_level,
+        to_level: String(finalLevel),
+        upgraded_at: new Date().toISOString(),
+        notes: null,
+        students: { full_name: rec.student.full_name },
+        admins: { first_name: 'Admin', last_name: '' }
+      }
+      setUpgradeHistory(prev => [newRecord as any, ...prev])
+    }
+    setReviewingId(null)
   }
 
   return (
@@ -98,15 +120,81 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         <p className="text-gray-400 mt-1">Assign or upgrade student swim levels</p>
       </div>
 
+      {/* 待審核建議 */}
+      {recommendations.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4 flex items-center gap-2">
+            待審核等級建議
+            <span className="bg-[#c9a84c] text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{recommendations.length}</span>
+          </h2>
+          <div className="space-y-3">
+            {recommendations.map(rec => {
+              const lvl = rec.recommended_level
+              const color = LEVEL_COLORS[String(lvl)] || '#6b7280'
+              const override = overrideLevel[rec.id] || String(lvl)
+              return (
+                <div key={rec.id} className="bg-[#111d38] rounded-xl border border-[#c9a84c]/40 p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-white font-semibold">{rec.student.full_name}</p>
+                      <p className="text-gray-400 text-xs mt-0.5">
+                        教練 {rec.coach.first_name} 建議 ·{' '}
+                        {new Date(rec.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      {rec.notes && <p className="text-gray-500 text-xs mt-1">備註：{rec.notes}</p>}
+                    </div>
+                    <span className="text-sm px-3 py-1 rounded-full font-semibold" style={{ backgroundColor: color + '33', color }}>
+                      建議 L{lvl} · {LEVEL_NAMES[String(lvl)]}
+                    </span>
+                  </div>
+
+                  {/* 主管可以改 level */}
+                  <div className="mb-3">
+                    <p className="text-gray-500 text-xs mb-2">主管可修改等級：</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[1,2,3,4,5,6,7,8,9].map(n => (
+                        <button key={n}
+                          onClick={() => setOverrideLevel(prev => ({ ...prev, [rec.id]: String(n) }))}
+                          className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                            override === String(n)
+                              ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]'
+                              : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'
+                          }`}
+                        >L{n}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleReview(rec, override !== String(lvl) ? 'modified' : 'approved')}
+                      disabled={reviewingId === rec.id}
+                      className="flex-1 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+                    >
+                      {reviewingId === rec.id ? '處理中...' : override !== String(lvl) ? `確認修改為 L${override}` : `確認 L${lvl}`}
+                    </button>
+                    <button
+                      onClick={() => handleReview(rec, 'rejected')}
+                      disabled={reviewingId === rec.id}
+                      className="px-4 py-2 rounded-lg border border-red-500/40 text-red-400 text-sm hover:bg-red-500/10 transition-all"
+                    >
+                      拒絕
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Assign Level */}
       <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5 mb-8">
         <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">Assign Level to Student</h2>
-
         {!selectedStudent ? (
           <div>
             <input
-              type="text"
-              placeholder="Search student by name or parent..."
+              type="text" placeholder="Search student by name or parent..."
               value={search}
               onChange={e => { setSearch(e.target.value); setShowSearch(true) }}
               onFocus={() => setShowSearch(true)}
@@ -115,26 +203,18 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
             {showSearch && filteredStudents.length > 0 && (
               <div className="mt-2 space-y-1">
                 {filteredStudents.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => {
-                      setSelectedStudent(s)
-                      setSelectedLevel(s.current_level || '')
-                      setSearch('')
-                      setShowSearch(false)
-                    }}
+                  <button key={s.id}
+                    onClick={() => { setSelectedStudent(s); setSelectedLevel(s.current_level || ''); setSearch(''); setShowSearch(false) }}
                     className="w-full flex items-center justify-between bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-left hover:border-[#c9a84c]/50 transition-all"
                   >
                     <div>
                       <p className="text-white text-sm">{s.full_name}</p>
                       {s.parents && <p className="text-gray-500 text-xs">{s.parents.first_name} {s.parents.last_name}</p>}
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full text-white" style={{
+                    <span className="text-xs px-2 py-1 rounded-full" style={{
                       backgroundColor: (LEVEL_COLORS[s.current_level || ''] || '#374151') + '33',
                       color: LEVEL_COLORS[s.current_level || ''] || '#9ca3af'
-                    }}>
-                      {s.current_level ? `L${s.current_level}` : 'No Level'}
-                    </span>
+                    }}>{s.current_level ? `L${s.current_level}` : 'No Level'}</span>
                   </button>
                 ))}
               </div>
@@ -153,21 +233,18 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 <div>
                   <p className="text-white font-medium text-sm">{selectedStudent.full_name}</p>
                   <p className="text-gray-500 text-xs">
-                    Current: {selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]}` : 'No Level Assigned'}
+                    Current: {selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]}` : 'No Level'}
                   </p>
                 </div>
               </div>
               <button onClick={() => { setSelectedStudent(null); setSelectedLevel(''); setNotes('') }}
                 className="text-gray-500 hover:text-gray-300 text-xs">✕ Change</button>
             </div>
-
             <div>
               <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Assign Level</p>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                 {levels.map(l => (
-                  <button
-                    key={l.id}
-                    onClick={() => setSelectedLevel(String(l.level_number))}
+                  <button key={l.id} onClick={() => setSelectedLevel(String(l.level_number))}
                     className={`py-2 px-3 rounded-lg border text-sm font-medium transition-all ${
                       selectedLevel === String(l.level_number)
                         ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]'
@@ -180,18 +257,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 ))}
               </div>
             </div>
-
-            <input
-              type="text"
-              placeholder="Notes (optional)"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
+            <input type="text" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)}
               className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors placeholder-gray-600"
             />
-
-            <button
-              onClick={() => setShowConfirm(true)}
-              disabled={!selectedLevel || saving}
+            <button onClick={() => setShowConfirm(true)} disabled={!selectedLevel || saving}
               className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 saved ? 'bg-green-600 text-white' :
                 selectedLevel ? 'bg-[#c9a84c] text-[#111d38] hover:opacity-90' :
@@ -213,8 +282,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
             const isOpen = expandedLevel === l.id
             return (
               <div key={l.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
-                <button
-                  onClick={() => setExpandedLevel(isOpen ? null : l.id)}
+                <button onClick={() => setExpandedLevel(isOpen ? null : l.id)}
                   className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-[#1e3a6e]/30 transition-all"
                 >
                   <div className="flex items-center gap-3">
@@ -243,7 +311,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         </div>
       </div>
 
-      {/* Upgrade History */}
+      {/* History */}
       <div>
         <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">Assignment History</h2>
         {upgradeHistory.length === 0 ? (
@@ -257,7 +325,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 <div>
                   <p className="text-white text-sm font-medium">{h.students?.full_name}</p>
                   <p className="text-gray-400 text-xs mt-0.5">
-                    {h.from_level ? `L${h.from_level} (${LEVEL_NAMES[h.from_level]}) → ` : 'No Level → '}
+                    {h.from_level ? `L${h.from_level} → ` : '未分級 → '}
                     <span className="text-[#c9a84c]">L{h.to_level} ({LEVEL_NAMES[h.to_level]})</span>
                     {h.notes && ` · ${h.notes}`}
                   </p>
@@ -293,18 +361,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               </div>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => { setShowConfirm(false); handleAssign() }}
-                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
-              >
-                確認指定
-              </button>
+              <button onClick={() => setShowConfirm(false)}
+                className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all">取消</button>
+              <button onClick={() => { setShowConfirm(false); handleAssign() }}
+                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all">確認指定</button>
             </div>
           </div>
         </div>
