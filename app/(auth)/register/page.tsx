@@ -19,6 +19,13 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
 
+  // Address
+  const [addressLine1, setAddressLine1] = useState('')
+  const [addressLine2, setAddressLine2] = useState('')
+  const [city, setCity] = useState('')
+  const [state, setState] = useState('')
+  const [zipCode, setZipCode] = useState('')
+
   // Step 2
   const [students, setStudents] = useState([
     { fullName: '', dateOfBirth: '' },
@@ -76,6 +83,11 @@ export default function RegisterPage() {
         terms_accepted_at: now,
         newsletter_subscribed: newsletter,
         last_login_at: now,
+        address_line1: addressLine1,
+        address_line2: addressLine2 || null,
+        city,
+        state,
+        zip_code: zipCode,
       })
       .select()
       .single()
@@ -135,6 +147,42 @@ export default function RegisterPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1 <span className="text-red-500">*</span></label>
+              <input value={addressLine1} onChange={e => setAddressLine1(e.target.value)}
+                placeholder="Street address"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2 <span className="text-gray-400 font-normal">(Optional)</span></label>
+              <input value={addressLine2} onChange={e => setAddressLine2(e.target.value)}
+                placeholder="Apt, Suite, Unit, etc."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City <span className="text-red-500">*</span></label>
+                <input value={city} onChange={e => setCity(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code <span className="text-red-500">*</span></label>
+                <input value={zipCode} onChange={e => setZipCode(e.target.value)}
+                  placeholder="90210"
+                  maxLength={10}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">State <span className="text-red-500">*</span></label>
+              <select value={state} onChange={e => setState(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white">
+                <option value="">Select state...</option>
+                {['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
@@ -142,7 +190,7 @@ export default function RegisterPage() {
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
               onClick={() => {
-                if (!firstName || !lastName || !email || !password) { setError('Please fill in all fields.'); return }
+                if (!firstName || !lastName || !email || !password || !addressLine1 || !city || !state || !zipCode) { setError('Please fill in all required fields.'); return }
                 setError(''); setStep(2)
               }}
               className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
