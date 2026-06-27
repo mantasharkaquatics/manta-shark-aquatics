@@ -330,8 +330,9 @@ export default async function AdminSchedulePage() {
                           <p className="text-gray-500 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : (
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <span className="text-gray-600 text-xs line-through">{item.cs?.ct?.name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</span>
-                            <span className="text-gray-600 text-xs">→</span>
+                            <span className="text-gray-500 text-xs">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} ·</span>
+                            <span className="text-[#c9a84c] text-xs line-through">{fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</span>
+                            <span className="text-gray-500 text-xs">→</span>
                             <span className="text-green-400 text-xs">{fDate(item.newCs?.session_date)} {fTime(item.newCs?.start_time)}</span>
                           </div>
                         )}
