@@ -37,6 +37,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   const [saved, setSaved] = useState(false)
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const filteredStudents = useMemo(() => {
     if (!search || search.length < 2) return []
@@ -189,7 +190,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
             />
 
             <button
-              onClick={handleAssign}
+              onClick={() => setShowConfirm(true)}
               disabled={!selectedLevel || saving}
               className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 saved ? 'bg-green-600 text-white' :
@@ -270,6 +271,44 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
           </div>
         )}
       </div>
+
+      {/* Confirm Modal */}
+      {showConfirm && selectedStudent && selectedLevel && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-white font-bold text-lg mb-1">確認指定等級</h3>
+            <p className="text-gray-400 text-sm mb-5">請確認以下操作：</p>
+            <div className="bg-[#0d1529] rounded-xl p-4 mb-5 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">學生</span>
+                <span className="text-white font-medium">{selectedStudent.full_name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">目前等級</span>
+                <span className="text-gray-300">{selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]}` : '未指定'}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">指定為</span>
+                <span className="text-[#c9a84c] font-semibold">Level {selectedLevel} · {LEVEL_NAMES[selectedLevel]}</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); handleAssign() }}
+                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
+              >
+                確認指定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
