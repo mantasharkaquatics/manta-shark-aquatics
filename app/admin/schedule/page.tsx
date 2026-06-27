@@ -37,7 +37,7 @@ export default async function AdminSchedulePage() {
       .eq('status', 'pending_partner').eq('pending_action', 'confirm')
       .gt('pending_expires_at', nowIso).order('pending_expires_at'),
     supabase.from('bookings')
-      .select('id, pending_action, pending_new_session_id, class_session_id, parent_id, student_id')
+      .select('id, pending_action, pending_new_session_id, class_session_id, parent_id, student_id, pending_expires_at')
       .in('pending_action', ['reschedule', 'reschedule_initiator']),
     supabase.from('bookings')
       .select('id, updated_at, student_id, parent_id, class_session_id')
@@ -121,7 +121,15 @@ export default async function AdminSchedulePage() {
   const fDT = (iso: string) => iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''
   const minsLeft = (exp: string) => Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 60000))
 
-  const pendingCount = (rawInvites?.length || 0) + (rawReschedules?.length || 0)
+  const mergedRescheduleCount = (() => {
+    const merged: Record<string, boolean> = {}
+    for (const b of rawReschedules || []) {
+      const key = (b.class_session_id || '') + '|' + (b.pending_new_session_id || '')
+      merged[key] = true
+    }
+    return Object.keys(merged).length
+  })()
+  const pendingCount = (rawInvites?.length || 0) + mergedRescheduleCount
 
   const renderBookingInfo = (b: any) => {
     const cs = sessionMap[b.class_session_id]
@@ -197,7 +205,7 @@ export default async function AdminSchedulePage() {
         <section>
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xs font-bold uppercase tracking-widest text-yellow-400">🔄 待確認改期</h2>
-            {rawReschedules && rawReschedules.length > 0 && <span className="bg-yellow-900/40 text-yellow-400 text-xs px-2 py-0.5 rounded-full font-semibold">{rawReschedules.length}</span>}
+            {mergedRescheduleCount > 0 && <span className="bg-yellow-900/40 text-yellow-400 text-xs px-2 py-0.5 rounded-full font-semibold">{mergedRescheduleCount}</span>}
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {!rawReschedules || rawReschedules.length === 0 ? (
@@ -245,6 +253,10 @@ export default async function AdminSchedulePage() {
                           </div>
                         )}
                       </div>
+                      {initiator.pending_expires_at && (() => {
+                        const mins = Math.max(0, Math.floor((new Date(initiator.pending_expires_at).getTime() - Date.now()) / 60000))
+                        return <div className={`text-xs font-semibold mt-2 ${mins <= 3 ? 'text-red-400' : 'text-yellow-400'}`}>⏱ 剩 {mins} 分鐘</div>
+                      })()}
                     </div>
                   )
                 })
