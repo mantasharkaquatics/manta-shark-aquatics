@@ -10,7 +10,7 @@ type UpgradeHistory = {
   students: { full_name: string }; admins: { first_name: string; last_name: string }
 }
 type Recommendation = {
-  id: string; recommended_level: number; notes: string | null; created_at: string
+  id: string; recommended_level: number; notes: string | null; created_at: string; previous_recommended_level: number | null
   student: { id: string; full_name: string; current_level: string | null }
   coach: { first_name: string }
 }

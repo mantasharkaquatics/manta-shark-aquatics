@@ -24,7 +24,7 @@ export default async function AdminUpgradesPage() {
   // 兩步查詢：pending recommendations
   const { data: recs } = await svc
     .from('level_recommendations')
-    .select('id, recommended_level, notes, created_at, student_id, coach_id')
+    .select('id, recommended_level, notes, created_at, student_id, coach_id, previous_recommended_level')
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
 
