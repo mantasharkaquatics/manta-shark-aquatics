@@ -284,7 +284,7 @@ export default async function AdminSchedulePage() {
           </div>
           {(() => {
             // 合併取消和改期，按時間排序
-            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled' | 'new'; names: string; cs: any; newCs: any; updatedAt: string; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
+            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled' | 'new'; names: string; cs: any; newCs: any; updatedAt: string; isCrossAccount?: boolean; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
             const items: ActivityItem[] = []
 
             // 新預定（去重同場次）
@@ -300,7 +300,8 @@ export default async function AdminSchedulePage() {
                 const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
                 return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
               }).filter(Boolean).join('、')
-              items.push({ key: 'n-' + b0.id, type: 'new', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.created_at })
+              const isCrossAccountNew = new Set(group.map((b:any) => b.parent_id)).size > 1
+              items.push({ key: 'n-' + b0.id, type: 'new', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.created_at, isCrossAccount: isCrossAccountNew })
             }
 
             // 取消
@@ -316,7 +317,8 @@ export default async function AdminSchedulePage() {
                 const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
                 return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
               }).filter(Boolean).join('、')
-              items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at })
+              const isCrossAccountC = new Set(group.map((b:any) => b.parent_id)).size > 1
+              items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at, isCrossAccount: isCrossAccountC })
             }
 
             // 改期完成：先把同一 original_booking_id 的串成 chain
@@ -362,7 +364,8 @@ export default async function AdminSchedulePage() {
                 }
               }
               const rep = allBookings[0]
-              items.push({ key: 'r-' + rep.id, type: 'rescheduled', names, cs: steps[0]?.fromCs, newCs: steps[steps.length-1]?.toCs, updatedAt: steps[steps.length-1]?.updatedAt, steps })
+              const isCrossAccountR = new Set(allBookings.map((b:any) => b.parent_id)).size > 1
+              items.push({ key: 'r-' + rep.id, type: 'rescheduled', names, cs: steps[0]?.fromCs, newCs: steps[steps.length-1]?.toCs, updatedAt: steps[steps.length-1]?.updatedAt, isCrossAccount: isCrossAccountR, steps })
             }
 
             // 過濾已上完的課程（以最終課程的 session_date + start_time 判斷）
@@ -389,7 +392,7 @@ export default async function AdminSchedulePage() {
                         {item.type === 'cancelled' ? '取消' : item.type === 'new' ? '新預定' : '改期'}
                       </span>
                       <div>
-                        <p className="text-white text-sm font-semibold">{item.names}</p>
+                        <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">連動</span>}</p>
                         {item.type === 'new' ? (
                           <p className="text-blue-400 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : item.type === 'cancelled' ? (
