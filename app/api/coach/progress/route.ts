@@ -12,26 +12,38 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // Step 1: 取學生
   const { data: student } = await supabase
     .from('students')
-    .select('id, full_name, current_level, levels(id, level_number, name)')
+    .select('id, full_name, current_level')
     .eq('id', studentId)
     .single()
 
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
-  const levelData = Array.isArray((student as any).levels) ? (student as any).levels[0] : (student as any).levels
-
-  if (!levelData) {
-    return NextResponse.json({ student, skills: [], progress: {} })
+  // Step 2: 取 level 資料（用 level_number 對應）
+  let levelData = null
+  if (student.current_level) {
+    const { data: level } = await supabase
+      .from('levels')
+      .select('id, level_number, name')
+      .eq('level_number', student.current_level)
+      .single()
+    levelData = level
   }
 
+  if (!levelData) {
+    return NextResponse.json({ student: { ...student, level: null }, skills: [], progress: {} })
+  }
+
+  // Step 3: 取技能
   const { data: skills } = await supabase
     .from('skills')
     .select('id, name, sort_order')
     .eq('level_id', levelData.id)
     .order('sort_order')
 
+  // Step 4: 取進度
   const { data: progressRows } = await supabase
     .from('student_skill_progress')
     .select('skill_id, progress')
