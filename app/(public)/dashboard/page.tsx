@@ -929,10 +929,19 @@ export default function DashboardPage() {
                         </div>
                       )}
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_start_time ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</span>
-                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
-                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '')}</span>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
+                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '')}</span>
+                          </div>
+                          {booking.pending_expires_at && (() => {
+                            const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
+                            const mins = Math.floor(ms / 60000)
+                            const secs = Math.floor((ms % 60000) / 1000)
+                            const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 改期確認剩餘 {str}</div>
+                          })()}
                         </div>
                       ) : (
                         <div>
