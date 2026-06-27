@@ -263,18 +263,32 @@ export default async function AdminSchedulePage() {
             <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">今日無取消</div>
           ) : (
             <div className="space-y-3">
-              {rawCancelled.map((b: any) => {
-                const { cs, student, parent } = renderBookingInfo(b)
-                return (
-                  <div key={b.id} className="bg-[#111d38] rounded-xl border border-red-900/30 p-5 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-white font-semibold">{student?.full_name} <span className="text-gray-400 font-normal text-sm">({parent?.first_name} {parent?.last_name})</span></p>
-                      <p className="text-red-400 text-sm mt-0.5">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
+              {(() => {
+                const merged: Record<string, any[]> = {}
+                for (const b of rawCancelled) {
+                  const key = b.class_session_id || b.id
+                  if (!merged[key]) merged[key] = []
+                  merged[key].push(b)
+                }
+                return Object.values(merged).map((group: any[]) => {
+                  const b0 = group[0]
+                  const cs = sessionMap[b0.class_session_id]
+                  const names = group.map((b:any) => {
+                    const s = studentMap[b.student_id]
+                    const p = parentMap[b.parent_id]
+                    return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
+                  }).filter(Boolean).join('、')
+                  return (
+                    <div key={b0.id} className="bg-[#111d38] rounded-xl border border-red-900/30 p-5 flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-white font-semibold text-sm">{names}</p>
+                        <p className="text-red-400 text-sm mt-0.5">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
+                      </div>
+                      <span className="text-gray-500 text-xs shrink-0">{fDT(b0.updated_at)}</span>
                     </div>
-                    <span className="text-gray-500 text-xs shrink-0">{fDT(b.updated_at)}</span>
-                  </div>
-                )
-              })}
+                  )
+                })
+              })()}
             </div>
           )}
         </section>
