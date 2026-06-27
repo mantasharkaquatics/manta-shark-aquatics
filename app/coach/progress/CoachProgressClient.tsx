@@ -88,6 +88,12 @@ export default function CoachProgressClient({ coach, sessions, today }: {
     const data = await res.json()
     setStudentData(data)
     setLocalProgress({ ...data.progress })
+    // 查詢是否已有 pending 建議
+    const recRes = await fetch(`/api/coach/pending-recommendation?student_id=${studentId}`)
+    const recData = await recRes.json()
+    if (recData.recommended_level) {
+      setRecommendedLevel(String(recData.recommended_level))
+    }
     setLoading(false)
   }
 
