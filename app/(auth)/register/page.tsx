@@ -1,13 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
-declare global {
-  interface Window { google: any; initGooglePlaces: () => void }
-}
 
 const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 
@@ -36,48 +32,39 @@ export default function RegisterPage() {
   const [newsletter, setNewsletter] = useState(true)
 
   const addressInputRef = useRef<HTMLInputElement>(null)
-  const autocompleteRef = useRef<any>(null)
+  const [suggestions, setSuggestions] = useState<any[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestTimer = useRef<any>(null)
 
-  useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY
-    if (!apiKey) return
+  async function fetchSuggestions(input: string) {
+    if (input.length < 3) { setSuggestions([]); return }
+    try {
+      const res = await fetch('/api/places/autocomplete?input=' + encodeURIComponent(input))
+      const data = await res.json()
+      setSuggestions(data.suggestions || [])
+      setShowSuggestions(true)
+    } catch {}
+  }
 
-    window.initGooglePlaces = () => {
-      if (!addressInputRef.current || !window.google) return
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
-        componentRestrictions: { country: 'us' },
-        fields: ['address_components'],
-        types: ['address'],
-      })
-      autocompleteRef.current.addListener('place_changed', () => {
-        const place = autocompleteRef.current.getPlace()
-        if (!place.address_components) return
-        let street_number = '', route = '', cityVal = '', stateVal = '', zipVal = ''
-        for (const comp of place.address_components) {
-          const type = comp.types[0]
-          if (type === 'street_number') street_number = comp.long_name
-          if (type === 'route') route = comp.long_name
-          if (type === 'locality') cityVal = comp.long_name
-          if (type === 'administrative_area_level_1') stateVal = comp.short_name
-          if (type === 'postal_code') zipVal = comp.long_name
-        }
-        setAddressLine1(street_number + (route ? ' ' + route : ''))
-        setCity(cityVal)
-        setState(stateVal)
-        setZipCode(zipVal)
-      })
+  function handleAddressInput(val: string) {
+    setAddressLine1(val)
+    clearTimeout(suggestTimer.current)
+    suggestTimer.current = setTimeout(() => fetchSuggestions(val), 300)
+  }
+
+  async function selectSuggestion(placeId: string, description: string) {
+    setShowSuggestions(false)
+    try {
+      const res = await fetch('/api/places/details?place_id=' + placeId)
+      const data = await res.json()
+      if (data.address_line1) setAddressLine1(data.address_line1)
+      if (data.city) setCity(data.city)
+      if (data.state) setState(data.state)
+      if (data.zip) setZipCode(data.zip)
+    } catch {
+      setAddressLine1(description)
     }
-
-    if (!document.getElementById('google-places-script')) {
-      const script = document.createElement('script')
-      script.id = 'google-places-script'
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGooglePlaces`
-      script.async = true
-      document.head.appendChild(script)
-    } else if (window.google) {
-      window.initGooglePlaces()
-    }
-  }, [])
+  }
 
   function addStudent() {
     if (students.length < 5) setStudents([...students, { fullName: '', dateOfBirth: '' }])
@@ -153,11 +140,26 @@ export default function RegisterPage() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1 <span className="text-red-500">*</span></label>
-                  <input
-                    ref={addressInputRef}
-                    value={addressLine1} onChange={e => setAddressLine1(e.target.value)}
-                    placeholder="Start typing your address..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  <div className="relative">
+                    <input
+                      ref={addressInputRef}
+                      value={addressLine1}
+                      onChange={e => handleAddressInput(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      placeholder="Start typing your address..."
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                    {showSuggestions && suggestions.length > 0 && (
+                      <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                        {suggestions.map((s: any) => (
+                          <li key={s.place_id}
+                            onMouseDown={() => selectSuggestion(s.place_id, s.description)}
+                            className="px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer">
+                            {s.description}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2 <span className="text-gray-400 font-normal">(Optional)</span></label>
