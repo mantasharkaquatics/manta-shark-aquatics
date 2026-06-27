@@ -426,6 +426,14 @@ export default function BookingPage() {
 
     const isPartnerBooking = selectedCourse?.slug === '1on2' && selectedStudent2 && (selectedStudent2 as any).isPartner === true
 
+    // 改期時先查舊 booking 的 original_booking_id，追溯到最源頭
+    const rbId = rescheduleBookingIdRef.current || rescheduleBookingId
+    let rootOriginalId: string | null = rbId || null
+    if (rbId) {
+      const { data: oldBk } = await supabase.from('bookings').select('original_booking_id').eq('id', rbId).single()
+      rootOriginalId = oldBk?.original_booking_id || rbId
+    }
+
     const { error: bookErr, data: initiatorBookingData } = await supabase
       .from('bookings')
       .insert({
@@ -436,7 +444,7 @@ export default function BookingPage() {
         status: isPartnerBooking ? 'pending_partner' : 'confirmed',
         pending_action: null,
         pending_expires_at: isPartnerBooking ? new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() : null,
-        original_booking_id: (rescheduleBookingIdRef.current || rescheduleBookingId) ? (rescheduleBookingIdRef.current || rescheduleBookingId) : null,
+        original_booking_id: rootOriginalId,
       })
       .select('id')
       .single()
