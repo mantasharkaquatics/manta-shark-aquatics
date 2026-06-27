@@ -392,7 +392,7 @@ export default async function AdminSchedulePage() {
                                 return (
                                   <div key={i} className="flex items-center gap-2 flex-wrap">
                                     <span className="text-gray-600 text-xs w-4 shrink-0">{i + 1}.</span>
-                                    <span className="text-[#c9a84c] text-xs line-through">{fDate(step.fromCs?.session_date)} {fTime(step.fromCs?.start_time)} Coach {step.fromCs?.coach?.first_name}</span>
+                                    <span className="text-[#c9a84c] text-xs">{fDate(step.fromCs?.session_date)} {fTime(step.fromCs?.start_time)} Coach {step.fromCs?.coach?.first_name}</span>
                                     <span className="text-gray-500 text-xs">→</span>
                                     <span className={`text-xs ${isLast ? 'text-green-400' : 'text-[#c9a84c]'}`}>{fDate(step.toCs?.session_date)} {fTime(step.toCs?.start_time)} Coach {step.toCs?.coach?.first_name}</span>
                                     <span className="text-gray-600 text-xs">({fDT(step.updatedAt)})</span>
