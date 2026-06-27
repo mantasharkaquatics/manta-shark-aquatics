@@ -48,7 +48,7 @@ const LEVEL_NAMES: Record<string, string> = {
 }
 
 function calcAge(dob: string | null): string {
-  if (!dob) return '\u2014'
+  if (!dob) return '—'
   const birth = new Date(dob)
   const today = new Date()
   let age = today.getFullYear() - birth.getFullYear()
@@ -58,12 +58,12 @@ function calcAge(dob: string | null): string {
 }
 
 function formatDate(ts: string | null): string {
-  if (!ts) return '\u2014'
+  if (!ts) return '—'
   return new Date(ts).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function formatDateTime(ts: string | null): string {
-  if (!ts) return '\u2014'
+  if (!ts) return '—'
   return new Date(ts).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
@@ -111,7 +111,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Members</h1>
         <p className="text-gray-400 mt-1">
-          {parents.length} families \u00b7 {parents.reduce((a, p) => a + p.students.length, 0)} students
+          {parents.length} families · {parents.reduce((a, p) => a + p.students.length, 0)} students
         </p>
       </div>
 
@@ -151,7 +151,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-gray-500 text-sm">{parent.students.length} student{parent.students.length !== 1 ? 's' : ''}</span>
-                  <span className="text-gray-500">{expanded === parent.id ? '\u25b2' : '\u25bc'}</span>
+                  <span className="text-gray-500">{expanded === parent.id ? '▲' : '▼'}</span>
                 </div>
               </button>
 
@@ -170,7 +170,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                     <div>
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Phone</p>
                       <div className="flex items-center">
-                        <p className="text-gray-300 text-sm">{parent.phone || '\u2014'}</p>
+                        <p className="text-gray-300 text-sm">{parent.phone || '—'}</p>
                         {parent.phone && <CopyButton value={parent.phone} />}
                       </div>
                     </div>
@@ -186,7 +186,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                           <CopyButton value={addressText} />
                         </div>
                       ) : (
-                        <p className="text-gray-300 text-sm">\u2014</p>
+                        <p className="text-gray-300 text-sm">—</p>
                       )}
                     </div>
                   </div>
@@ -201,8 +201,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Terms Accepted</p>
                       <p className="text-sm">
                         {parent.terms_accepted_at
-                          ? <span className="text-green-400">\u2713 {formatDateTime(parent.terms_accepted_at)}</span>
-                          : <span className="text-red-400">\u2717 Not accepted</span>
+                          ? <span className="text-green-400">✓ {formatDateTime(parent.terms_accepted_at)}</span>
+                          : <span className="text-red-400">✗ Not accepted</span>
                         }
                       </p>
                     </div>
@@ -244,7 +244,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                               <p className="text-white text-sm">{student.full_name}</p>
                               <p className="text-gray-500 text-xs">
                                 {student.date_of_birth
-                                  ? `${new Date(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} \u00b7 ${calcAge(student.date_of_birth)}`
+                                  ? `${new Date(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`
                                   : 'No birthday on file'
                                 }
                               </p>
