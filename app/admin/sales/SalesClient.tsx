@@ -8,7 +8,7 @@ const PAYMENT_METHODS = [
   { value: 'All', label: '全部' },
   { value: 'stripe', label: 'Stripe Online' },
   { value: 'Credit Card (Terminal)', label: 'Credit Card (Terminal)' },
-  { value: 'Cash', label: 'Cash' },
+  { value: 'cash', label: 'Cash' },
 ]
 
 function fDate(s: string) {
