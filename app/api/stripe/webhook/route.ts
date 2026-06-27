@@ -102,12 +102,21 @@ export async function POST(req: NextRequest) {
 
     // 3. Create invoice
     try {
-      const { data: courseType } = await supabase
-        .from('course_types')
-        .select('name, price_per_session')
-        .eq('id', course_type_id)
-        .single()
-      const unitPrice = courseType?.price_per_session || (amount_cents / 100 / sessions)
+      const PLANS: Record<string, { name: string }> = {
+        '1on1-10': { name: '1-on-1 Private · 10 Sessions' },
+        '1on1-20': { name: '1-on-1 Private · 20 Sessions' },
+        '1on1-30': { name: '1-on-1 Private · 30 Sessions' },
+        '1on1-50': { name: '1-on-1 Private · 50 Sessions' },
+        '1on2-10': { name: '1-on-2 Semi-Private · 10 Sessions' },
+        '1on2-20': { name: '1-on-2 Semi-Private · 20 Sessions' },
+        '1on2-30': { name: '1-on-2 Semi-Private · 30 Sessions' },
+        '1on2-50': { name: '1-on-2 Semi-Private · 50 Sessions' },
+        '1on4-4':  { name: '1-on-4 Group · 4 Sessions/month' },
+        '1on4-8':  { name: '1-on-4 Group · 8 Sessions/month' },
+        'team':    { name: 'Swim Team · Monthly' },
+      }
+      const planName = plan_id && PLANS[plan_id] ? PLANS[plan_id].name : 'Swim Lesson Package'
+      const unitPrice = amount_cents / 100 / sessions
       const invoiceRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +126,7 @@ export async function POST(req: NextRequest) {
           amount: amount_cents / 100,
           payment_method: 'stripe',
           items: [{
-            name: `${courseType?.name || 'Swim Lesson'} Package`,
+            name: planName,
             quantity: sessions,
             unit_price: unitPrice,
           }],

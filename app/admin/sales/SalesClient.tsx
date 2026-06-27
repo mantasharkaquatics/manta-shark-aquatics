@@ -40,10 +40,9 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       if (planGroup !== 'All') {
         const group = PLAN_GROUPS.find(g => g.label === planGroup)
         if (!group) return false
-        const matches = group.keys.some((k: string) => {
-          const { PLANS } = require('@/lib/plans')
-          return PLANS[k]?.name === planName
-        })
+        const groupLabels = ['1-on-1 Private', '1-on-2 Semi-Private', '1-on-4 Group', 'Swim Team']
+        const matches = planName.toLowerCase().includes(planGroup.toLowerCase().split(' ')[0].replace('1-on-', '1-on-'))
+          || planName.startsWith(planGroup)
         if (!matches) return false
       }
 
