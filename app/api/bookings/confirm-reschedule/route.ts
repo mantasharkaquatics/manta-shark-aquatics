@@ -87,9 +87,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 取消舊 booking
-  await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', myBooking.id)
-  await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled' }).eq('id', partnerBookingId)
+  // 取消舊 booking（同時清除 pending 欄位）
+  await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_action: null, pending_new_session_id: null, pending_expires_at: null }).eq('id', myBooking.id)
+  await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_action: null, pending_new_session_id: null, pending_expires_at: null }).eq('id', partnerBookingId)
 
   // 舊 session enrolled_count -2
   await supabase.rpc('decrement_enrolled', { session_id: myBooking.class_session_id })
