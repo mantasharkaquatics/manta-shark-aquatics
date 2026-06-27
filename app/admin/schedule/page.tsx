@@ -92,6 +92,7 @@ export default async function AdminSchedulePage() {
     partnerBookingStudentMap[(b as any).id] = (b as any).student_id
   }
 
+
   const sessionMap: Record<string, any> = {}
   for (const s of sessionsData || []) {
     const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
@@ -100,6 +101,12 @@ export default async function AdminSchedulePage() {
   }
   const studentMap: Record<string, any> = {}
   for (const s of studentsData || []) studentMap[(s as any).id] = s
+  // 補查發起方 student
+  const initiatorStudentIds = [...new Set(Object.values(partnerBookingStudentMap).filter(Boolean))]
+  if (initiatorStudentIds.length > 0) {
+    const { data: initiatorStudentsData } = await supabase.from('students').select('id, full_name').in('id', initiatorStudentIds)
+    for (const s of initiatorStudentsData || []) studentMap[(s as any).id] = s
+  }
   const parentMap: Record<string, any> = {}
   for (const p of parentsData || []) parentMap[(p as any).id] = p
 
