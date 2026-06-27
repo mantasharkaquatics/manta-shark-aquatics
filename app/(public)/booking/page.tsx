@@ -510,6 +510,7 @@ export default function BookingPage() {
             lesson_credit_id: creditForS2.id,
             student_id: selectedStudent2.id,
             status: 'confirmed',
+            original_booking_id: rootOriginalId,
           })
           await supabase.from('lesson_credits').update({ used_credits: usedNow + 1 }).eq('id', creditForS2.id)
           await supabase.rpc('increment_enrolled', { session_id: sessionId })
