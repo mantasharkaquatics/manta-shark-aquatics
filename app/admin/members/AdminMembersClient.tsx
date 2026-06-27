@@ -179,9 +179,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                       {addressText ? (
                         <div className="flex items-start">
                           <p className="text-gray-300 text-sm leading-relaxed">
-                            {parent.address_line1}
-                            {parent.address_line2 && <><br />{parent.address_line2}</>}
-                            <br />{[parent.city, parent.state, parent.zip_code].filter(Boolean).join(', ')}
+                            {[parent.address_line1, parent.address_line2, [parent.city, parent.state, parent.zip_code].filter(Boolean).join(', ')].filter(Boolean).join(', ')}
                           </p>
                           <CopyButton value={addressText} />
                         </div>
