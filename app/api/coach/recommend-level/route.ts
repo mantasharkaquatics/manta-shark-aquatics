@@ -26,18 +26,25 @@ export async function POST(req: NextRequest) {
 
   if (!coach) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { student_id, recommended_level, notes } = await req.json()
+  const { student_id, recommended_level, notes, previous_recommended_level } = await req.json()
 
-  // 取消舊的 pending 建議
+  // 把舊的 pending 標為 superseded
   await supabase
     .from('level_recommendations')
     .update({ status: 'rejected' })
     .eq('student_id', student_id)
+    .eq('coach_id', coach.id)
     .eq('status', 'pending')
 
   const { data, error } = await supabase
     .from('level_recommendations')
-    .insert({ student_id, coach_id: coach.id, recommended_level, notes: notes || null })
+    .insert({
+      student_id,
+      coach_id: coach.id,
+      recommended_level,
+      notes: notes || null,
+      previous_recommended_level: previous_recommended_level || null
+    })
     .select()
     .single()
 
