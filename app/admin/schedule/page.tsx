@@ -296,10 +296,10 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at })
             }
 
-            // 改期完成：按 original_booking_id 分組成時間軸
+            // 改期完成：按 class_session_id 分組（同一場次的所有學生合併），再按時間排列步驟
             const rescheduleChains: Record<string, any[]> = {}
             for (const b of rawRescheduled || []) {
-              const chainKey = b.original_booking_id || b.id
+              const chainKey = b.class_session_id
               if (!rescheduleChains[chainKey]) rescheduleChains[chainKey] = []
               rescheduleChains[chainKey].push(b)
             }
