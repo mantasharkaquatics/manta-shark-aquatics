@@ -21,6 +21,11 @@ type Parent = {
   terms_accepted_at: string | null
   last_login_at: string | null
   newsletter_subscribed: boolean
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  zip_code: string | null
   students: Student[]
 }
 
@@ -175,7 +180,19 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   </div>
                 </div>
 
-                {/* Students */}
+                {/* Address */}
+                {(parent.address_line1 || parent.city) && (
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Address</p>
+                    <p className="text-gray-300 text-sm">
+                      {parent.address_line1}
+                      {parent.address_line2 && <>, {parent.address_line2}</>}<br />
+                      {[parent.city, parent.state, parent.zip_code].filter(Boolean).join(', ')}
+                    </p>
+                  </div>
+                )}
+
+                                {/* Students */}
                 <div>
                   <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">Students</p>
                   <div className="space-y-2">
