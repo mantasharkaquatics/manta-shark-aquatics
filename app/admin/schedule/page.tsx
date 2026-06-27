@@ -365,13 +365,24 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'r-' + rep.id, type: 'rescheduled', names, cs: steps[0]?.fromCs, newCs: steps[steps.length-1]?.toCs, updatedAt: steps[steps.length-1]?.updatedAt, steps })
             }
 
-            items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            // 過濾已上完的課程（以最終課程的 session_date + start_time 判斷）
+            const nowLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+            const filteredItems = items.filter((item: any) => {
+              const finalCs = item.newCs || item.cs
+              if (!finalCs?.session_date || !finalCs?.start_time) return true
+              const [h, m] = finalCs.start_time.split(':').map(Number)
+              const sessionStart = new Date(finalCs.session_date + 'T00:00:00')
+              sessionStart.setHours(h, m, 0, 0)
+              const sessionStartLA = new Date(sessionStart.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+              return nowLA < sessionStartLA
+            })
+            filteredItems.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
-            if (items.length === 0) return <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">最近 30 天無活動紀錄</div>
+            if (filteredItems.length === 0) return <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">最近 30 天無活動紀錄</div>
 
             return (
               <div className="space-y-2">
-                {items.map(item => (
+                {filteredItems.map(item => (
                   <div key={item.key} className={`bg-[#111d38] rounded-xl border p-4 flex items-start justify-between gap-4 ${item.type === 'cancelled' ? 'border-red-900/25' : 'border-green-900/25'}`}>
                     <div className="flex items-start gap-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 mt-0.5 ${item.type === 'cancelled' ? 'bg-red-900/30 text-red-400' : item.type === 'new' ? 'bg-blue-900/30 text-blue-400' : 'bg-green-900/30 text-green-400'}`}>
