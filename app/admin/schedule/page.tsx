@@ -42,6 +42,7 @@ export default async function AdminSchedulePage() {
     supabase.from('bookings')
       .select('id, updated_at, student_id, parent_id, class_session_id')
       .eq('status', 'cancelled').is('pending_action', null)
+      .not('lesson_credit_id', 'is', null)
       .gte('updated_at', todayDate + 'T00:00:00.000Z')
       .order('updated_at', { ascending: false }).limit(20),
     supabase.from('bookings')
