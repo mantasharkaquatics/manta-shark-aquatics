@@ -436,6 +436,7 @@ export default function BookingPage() {
         status: isPartnerBooking ? 'pending_partner' : 'confirmed',
         pending_action: null,
         pending_expires_at: isPartnerBooking ? new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() : null,
+        original_booking_id: (rescheduleBookingIdRef.current || rescheduleBookingId) ? (rescheduleBookingIdRef.current || rescheduleBookingId) : null,
       })
       .select('id')
       .single()
@@ -527,11 +528,12 @@ export default function BookingPage() {
     if (rbIdToCancel) {
       const { data: oldBookingData } = await supabase
         .from('bookings')
-        .select('lesson_credit_id, class_session_id')
+        .select('lesson_credit_id, class_session_id, original_booking_id')
         .eq('id', rbIdToCancel)
         .single()
+      const myOriginalId = oldBookingData?.original_booking_id || rbIdToCancel
       await supabase.from('bookings')
-        .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
+        .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
         .eq('id', rbIdToCancel)
       if (oldBookingData?.class_session_id) {
         await supabase.rpc('decrement_enrolled', { session_id: oldBookingData.class_session_id })
