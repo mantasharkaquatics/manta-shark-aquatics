@@ -40,14 +40,15 @@ export default async function AdminSchedulePage() {
       .select('id, pending_action, pending_new_session_id, class_session_id, parent_id, student_id, pending_expires_at')
       .in('pending_action', ['reschedule', 'reschedule_initiator']),
     supabase.from('bookings')
-      .select('id, updated_at, student_id, parent_id, class_session_id')
+      .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason')
       .eq('status', 'cancelled').is('pending_action', null)
       .not('lesson_credit_id', 'is', null)
+      .not('cancellation_reason', 'eq', 'rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('updated_at', { ascending: false }).limit(50),
     supabase.from('bookings')
       .select('id, updated_at, student_id, parent_id, class_session_id, pending_new_session_id, pending_action')
-      .eq('status', 'cancelled').in('pending_action', ['reschedule', 'reschedule_initiator'])
+      .eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('updated_at', { ascending: false }).limit(50),
   ])
