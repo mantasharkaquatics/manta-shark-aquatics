@@ -296,35 +296,49 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at })
             }
 
-            // 改期完成：按 class_session_id 分組（同一場次的所有學生合併），再按時間排列步驟
+            // 改期完成：先把同一 original_booking_id 的串成 chain
+            // 每個 chain 代表一位學生的改期歷史
+            // 再把同步驟（同 class_session_id → 同 pending_new_session_id）的不同學生合併
             const rescheduleChains: Record<string, any[]> = {}
             for (const b of rawRescheduled || []) {
-              const chainKey = b.class_session_id
+              // 用 original_booking_id（追溯到源頭）或 id 作為 chain key
+              const chainKey = b.original_booking_id || b.id
               if (!rescheduleChains[chainKey]) rescheduleChains[chainKey] = []
               rescheduleChains[chainKey].push(b)
             }
-            for (const chain of Object.values(rescheduleChains)) {
-              // 同一個 chain 按時間排序（ascending 已在 query 做）
-              // 找代表性的一筆（取第一筆，代表發起人）
-              const rep = chain.find((b:any) => b.student_id === chain[0].student_id) || chain[0]
-              const s = studentMap[rep.student_id]; const p = parentMap[rep.parent_id]
+            // 再把 chain 按步驟相同的合併（同場次改期的兩位學生）
+            // 步驟相同 = class_session_id 和 pending_new_session_id 都一樣
+            // 找出所有 chainKey 對應的「第一步」，把第一步相同的 chain 合併
+            const mergedChainKeys: Record<string, string[]> = {} // superKey → [chainKeys]
+            for (const [chainKey, chain] of Object.entries(rescheduleChains)) {
+              const firstStep = (chain[0] as any).class_session_id + '|' + (chain[0] as any).pending_new_session_id
+              if (!mergedChainKeys[firstStep]) mergedChainKeys[firstStep] = []
+              mergedChainKeys[firstStep].push(chainKey)
+            }
+            for (const chainKeys of Object.values(mergedChainKeys)) {
+              // 合併所有相關 chain 的 booking
+              const allBookings: any[] = []
+              for (const ck of chainKeys) {
+                allBookings.push(...(rescheduleChains[ck] || []))
+              }
               // 收集所有學生名稱（去重）
               const nameSet = new Set<string>()
-              for (const b of chain) {
+              for (const b of allBookings) {
                 const st = studentMap[b.student_id]; const pa = parentMap[b.parent_id]
                 if (st) nameSet.add(`${st.full_name} (${pa?.first_name} ${pa?.last_name})`)
               }
               const names = [...nameSet].join('、')
-              // 建立時間軸步驟
+              // 建立時間軸步驟（去重）
               const steps: { fromCs: any; toCs: any; updatedAt: string }[] = []
               const seen = new Set<string>()
-              for (const b of chain) {
+              for (const b of allBookings) {
                 const stepKey = b.class_session_id + '|' + b.pending_new_session_id
                 if (!seen.has(stepKey)) {
                   seen.add(stepKey)
                   steps.push({ fromCs: sessionMap[b.class_session_id], toCs: b.pending_new_session_id ? sessionMap[b.pending_new_session_id] : null, updatedAt: b.updated_at })
                 }
               }
+              const rep = allBookings[0]
               items.push({ key: 'r-' + rep.id, type: 'rescheduled', names, cs: steps[0]?.fromCs, newCs: steps[steps.length-1]?.toCs, updatedAt: steps[steps.length-1]?.updatedAt, steps })
             }
 
