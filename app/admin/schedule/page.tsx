@@ -233,6 +233,10 @@ export default async function AdminSchedulePage() {
                     <div key={initiator.id} className="bg-[#111d38] rounded-xl border border-yellow-800/30 p-5">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">待確認改期</span>
+                        {initiator.pending_expires_at && (() => {
+                          const mins = Math.max(0, Math.floor((new Date(initiator.pending_expires_at).getTime() - Date.now()) / 60000))
+                          return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>剩 {mins} 分鐘</span>
+                        })()}
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap mb-3">
                         <span className="text-gray-500 text-sm line-through">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
@@ -253,10 +257,7 @@ export default async function AdminSchedulePage() {
                           </div>
                         )}
                       </div>
-                      {initiator.pending_expires_at && (() => {
-                        const mins = Math.max(0, Math.floor((new Date(initiator.pending_expires_at).getTime() - Date.now()) / 60000))
-                        return <div className={`text-xs font-semibold mt-2 ${mins <= 3 ? 'text-red-400' : 'text-yellow-400'}`}>⏱ 剩 {mins} 分鐘</div>
-                      })()}
+
                     </div>
                   )
                 })
