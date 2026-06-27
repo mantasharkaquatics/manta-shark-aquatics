@@ -31,6 +31,7 @@ export default async function AdminSchedulePage() {
     { data: rawReschedules },
     { data: rawCancelled },
     { data: rawRescheduled },
+    { data: rawNewBookings },
   ] = await Promise.all([
     supabase.from('bookings')
       .select('id, pending_expires_at, class_session_id, parent_id, partner_parent_id, partner_booking_id, student_id')
@@ -51,10 +52,16 @@ export default async function AdminSchedulePage() {
       .eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('updated_at', { ascending: true }).limit(50),
+    supabase.from('bookings')
+      .select('id, created_at, student_id, parent_id, class_session_id, original_booking_id')
+      .eq('status', 'confirmed').is('original_booking_id', null)
+      .is('cancellation_reason', null)
+      .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false }).limit(50),
   ])
 
   // Step 2: 收集所有需要查的 IDs
-  const allBookings = [...(rawInvites||[]), ...(rawReschedules||[]), ...(rawCancelled||[]), ...(rawRescheduled||[])]
+  const allBookings = [...(rawInvites||[]), ...(rawReschedules||[]), ...(rawCancelled||[]), ...(rawRescheduled||[]), ...(rawNewBookings||[])]
   const sessionIds = [...new Set(allBookings.map((b:any) => b.class_session_id).filter(Boolean))]
   const studentIds = [...new Set(allBookings.map((b:any) => b.student_id).filter(Boolean))]
   const parentIds = [...new Set(allBookings.map((b:any) => b.parent_id).filter(Boolean))]
@@ -277,8 +284,24 @@ export default async function AdminSchedulePage() {
           </div>
           {(() => {
             // 合併取消和改期，按時間排序
-            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled'; names: string; cs: any; newCs: any; updatedAt: string; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
+            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled' | 'new'; names: string; cs: any; newCs: any; updatedAt: string; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
             const items: ActivityItem[] = []
+
+            // 新預定（去重同場次）
+            const mergedNew: Record<string, any[]> = {}
+            for (const b of rawNewBookings || []) {
+              const key = b.class_session_id || b.id
+              if (!mergedNew[key]) mergedNew[key] = []
+              mergedNew[key].push(b)
+            }
+            for (const group of Object.values(mergedNew)) {
+              const b0 = group[0]
+              const names = group.map((b:any) => {
+                const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
+                return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
+              }).filter(Boolean).join('、')
+              items.push({ key: 'n-' + b0.id, type: 'new', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.created_at })
+            }
 
             // 取消
             const mergedCancelled: Record<string, any[]> = {}
@@ -351,35 +374,32 @@ export default async function AdminSchedulePage() {
                 {items.map(item => (
                   <div key={item.key} className={`bg-[#111d38] rounded-xl border p-4 flex items-start justify-between gap-4 ${item.type === 'cancelled' ? 'border-red-900/25' : 'border-green-900/25'}`}>
                     <div className="flex items-start gap-3">
-                      <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 mt-0.5 ${item.type === 'cancelled' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>
-                        {item.type === 'cancelled' ? '取消' : '改期'}
+                      <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 mt-0.5 ${item.type === 'cancelled' ? 'bg-red-900/30 text-red-400' : item.type === 'new' ? 'bg-blue-900/30 text-blue-400' : 'bg-green-900/30 text-green-400'}`}>
+                        {item.type === 'cancelled' ? '取消' : item.type === 'new' ? '新預定' : '改期'}
                       </span>
                       <div>
                         <p className="text-white text-sm font-semibold">{item.names}</p>
-                        {item.type === 'cancelled' ? (
+                        {item.type === 'new' ? (
+                          <p className="text-blue-400 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
+                        ) : item.type === 'cancelled' ? (
                           <p className="text-gray-500 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : (
                           <div className="mt-0.5">
-                            <span className="text-gray-500 text-xs">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name}</span>
-                            {item.steps && item.steps.length > 1 ? (
-                              <div className="flex flex-col gap-0.5 mt-1">
-                                {item.steps.map((step, i) => (
+                            <span className="text-gray-500 text-xs">{item.cs?.ct?.name}</span>
+                            <div className="flex flex-col gap-0.5 mt-1">
+                              {(item.steps || []).map((step, i) => {
+                                const isLast = i === (item.steps?.length || 0) - 1
+                                return (
                                   <div key={i} className="flex items-center gap-2 flex-wrap">
                                     <span className="text-gray-600 text-xs w-4 shrink-0">{i + 1}.</span>
-                                    <span className="text-[#c9a84c] text-xs line-through">{fDate(step.fromCs?.session_date)} {fTime(step.fromCs?.start_time)}</span>
+                                    <span className="text-[#c9a84c] text-xs line-through">{fDate(step.fromCs?.session_date)} {fTime(step.fromCs?.start_time)} Coach {step.fromCs?.coach?.first_name}</span>
                                     <span className="text-gray-500 text-xs">→</span>
-                                    <span className="text-green-400 text-xs">{fDate(step.toCs?.session_date)} {fTime(step.toCs?.start_time)}</span>
+                                    <span className={`text-xs ${isLast ? 'text-green-400' : 'text-[#c9a84c]'}`}>{fDate(step.toCs?.session_date)} {fTime(step.toCs?.start_time)} Coach {step.toCs?.coach?.first_name}</span>
                                     <span className="text-gray-600 text-xs">({fDT(step.updatedAt)})</span>
                                   </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span className="text-[#c9a84c] text-xs line-through">{fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</span>
-                                <span className="text-gray-500 text-xs">→</span>
-                                <span className="text-green-400 text-xs">{fDate(item.newCs?.session_date)} {fTime(item.newCs?.start_time)}</span>
-                              </div>
-                            )}
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
