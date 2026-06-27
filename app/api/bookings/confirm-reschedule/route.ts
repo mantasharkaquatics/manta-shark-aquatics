@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   // 取得自己的 booking（需要是 pending reschedule）
   const { data: myBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, partner_booking_id, lesson_credit_id, pending_new_session_id, pending_action')
+    .select('id, class_session_id, parent_id, student_id, partner_booking_id, lesson_credit_id, pending_new_session_id, pending_action, original_booking_id')
     .eq('id', booking_id)
     .in('pending_action', ['reschedule', 'reschedule_initiator'])
     .single()
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const { data: partnerBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, lesson_credit_id, pending_new_session_id')
+    .select('id, class_session_id, parent_id, student_id, lesson_credit_id, pending_new_session_id, original_booking_id')
     .eq('id', partnerBookingId)
     .single()
 
@@ -97,6 +97,10 @@ export async function POST(req: NextRequest) {
 
   // 建立新的雙方 booking
   const now = new Date().toISOString()
+  // original_booking_id: 如果舊 booking 本身已經是改期過的，追溯到最源頭
+  const myOriginalId = myBooking.original_booking_id || myBooking.id
+  const partnerOriginalId = partnerBooking.original_booking_id || partnerBooking.id
+
   const { data: newMyBooking } = await supabase.from('bookings').insert({
     class_session_id: newSessionId,
     parent_id: myBooking.parent_id,
@@ -104,6 +108,7 @@ export async function POST(req: NextRequest) {
     lesson_credit_id: myBooking.lesson_credit_id,
     status: 'confirmed',
     pending_action: null,
+    original_booking_id: myOriginalId,
     created_at: now,
   }).select('id').single()
 
@@ -114,6 +119,7 @@ export async function POST(req: NextRequest) {
     lesson_credit_id: partnerBooking.lesson_credit_id,
     status: 'confirmed',
     pending_action: null,
+    original_booking_id: partnerOriginalId,
     created_at: now,
   }).select('id').single()
 
