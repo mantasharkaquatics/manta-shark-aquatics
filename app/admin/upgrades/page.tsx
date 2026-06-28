@@ -38,11 +38,28 @@ export default async function AdminUpgradesPage() {
     for (const s of recStudents || []) sMap[s.id] = s
     const cMap: Record<string, any> = {}
     for (const c of recCoaches || []) cMap[c.id] = c
+
+    // 撈同學生今日所有歷史（含 rejected）
+    const today = new Date().toISOString().slice(0, 10)
+    const { data: allHistory } = await svc
+      .from('level_recommendations')
+      .select('student_id, coach_id, recommended_level, previous_recommended_level, status, created_at')
+      .in('student_id', studentIds)
+      .gte('created_at', today + 'T00:00:00Z')
+      .order('created_at', { ascending: true })
+
+    const historyByStudent: Record<string, any[]> = {}
+    for (const h of allHistory || []) {
+      if (!historyByStudent[h.student_id]) historyByStudent[h.student_id] = []
+      historyByStudent[h.student_id].push(h)
+    }
+
     recommendations = recs.map(r => ({
       ...r,
       student: sMap[r.student_id],
       coach: cMap[r.coach_id],
       previous_recommended_level: r.previous_recommended_level ?? null,
+      history: historyByStudent[r.student_id] || [],
     }))
   }
 
