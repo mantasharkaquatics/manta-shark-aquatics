@@ -141,7 +141,15 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         教練 {rec.coach.first_name} 建議 ·{' '}
                         {new Date(rec.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
-                      {rec.notes && <p className="text-gray-500 text-xs mt-1">備註：{rec.notes}</p>}
+                      {rec.previous_recommended_level && (
+                      <p className="text-amber-400/80 text-xs mt-1 flex items-center gap-1">
+                        <span>⚠ 已更改：</span>
+                        <span className="line-through text-gray-500">L{rec.previous_recommended_level}</span>
+                        <span>→</span>
+                        <span className="text-amber-400 font-medium">L{rec.recommended_level}</span>
+                      </p>
+                    )}
+                    {rec.notes && <p className="text-gray-500 text-xs mt-1">備註：{rec.notes}</p>}
                     </div>
                     <span className="text-sm px-3 py-1 rounded-full font-semibold" style={{ backgroundColor: color + '33', color }}>
                       建議 L{lvl} · {LEVEL_NAMES[String(lvl)]}
