@@ -52,19 +52,18 @@ export async function GET(req: NextRequest) {
 
   // 查詢今日是否已儲存
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-  const { data: todayHistory } = await supabase
+  const { data: todayHistoryRows } = await supabase
     .from('progress_history')
     .select('id')
     .eq('student_id', studentId)
     .eq('session_date', today)
     .limit(1)
-    .single()
 
   return NextResponse.json({
     student: { ...student, level: levelData },
     skills: skills || [],
     progress: progressMap,
-    todayLocked: !!todayHistory
+    todayLocked: !!(todayHistoryRows && todayHistoryRows.length > 0)
   })
 }
 
