@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Step 1: 取學生
   const { data: student } = await supabase
     .from('students')
     .select('id, full_name, current_level')
@@ -21,7 +20,6 @@ export async function GET(req: NextRequest) {
 
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
-  // Step 2: 取 level 資料（用 level_number 對應）
   let levelData = null
   if (student.current_level) {
     const { data: level } = await supabase
@@ -33,17 +31,15 @@ export async function GET(req: NextRequest) {
   }
 
   if (!levelData) {
-    return NextResponse.json({ student: { ...student, level: null }, skills: [], progress: {} })
+    return NextResponse.json({ student: { ...student, level: null }, skills: [], progress: {}, todayLocked: false })
   }
 
-  // Step 3: 取技能
   const { data: skills } = await supabase
     .from('skills')
     .select('id, name, sort_order')
     .eq('level_id', levelData.id)
     .order('sort_order')
 
-  // Step 4: 取進度
   const { data: progressRows } = await supabase
     .from('student_skill_progress')
     .select('skill_id, progress')
@@ -54,10 +50,21 @@ export async function GET(req: NextRequest) {
     progressMap[row.skill_id] = row.progress
   }
 
+  // 查詢今日是否已儲存
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const { data: todayHistory } = await supabase
+    .from('progress_history')
+    .select('id')
+    .eq('student_id', studentId)
+    .eq('session_date', today)
+    .limit(1)
+    .single()
+
   return NextResponse.json({
     student: { ...student, level: levelData },
     skills: skills || [],
-    progress: progressMap
+    progress: progressMap,
+    todayLocked: !!todayHistory
   })
 }
 
@@ -87,6 +94,8 @@ export async function POST(req: NextRequest) {
   const { student_id, progress } = await req.json()
   if (!student_id || !progress) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
 
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+
   const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
     student_id,
     skill_id,
@@ -104,7 +113,9 @@ export async function POST(req: NextRequest) {
   await supabase.from('progress_history').insert({
     student_id,
     coach_id: coach.id,
-    snapshot: progress
+    snapshot: progress,
+    session_date: today,
+    status: 'pending_review'
   })
 
   return NextResponse.json({ ok: true })

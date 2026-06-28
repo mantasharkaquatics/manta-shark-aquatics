@@ -43,6 +43,7 @@ export default function CoachProgressClient({ coach, sessions, today }: {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [todayLocked, setTodayLocked] = useState(false)
   const [recommendLevel, setRecommendLevel] = useState<string>('')
   const [recommendNotes, setRecommendNotes] = useState('')
   const [recommending, setRecommending] = useState(false)
@@ -88,6 +89,7 @@ export default function CoachProgressClient({ coach, sessions, today }: {
     const data = await res.json()
     setStudentData(data)
     setLocalProgress({ ...data.progress })
+    setTodayLocked(data.todayLocked || false)
     // 查詢是否已有 pending 建議
     const recRes = await fetch(`/api/coach/pending-recommendation?student_id=${studentId}`)
     const recData = await recRes.json()
@@ -112,6 +114,7 @@ export default function CoachProgressClient({ coach, sessions, today }: {
     })
     setSaving(false)
     setSaved(true)
+    setTodayLocked(true)
   }
 
   async function submitRecommendation(isChange: boolean) {
@@ -202,7 +205,7 @@ export default function CoachProgressClient({ coach, sessions, today }: {
                   'bg-gray-700 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {saving ? '儲存中...' : saved ? '✓ 已儲存' : locked ? '已截止' : '儲存進度'}
+                {saving ? '儲存中...' : todayLocked ? '✓ 今日已完成' : saved ? '✓ 已儲存' : locked ? '已截止' : '儲存進度'}
               </button>
             )}
           </div>
@@ -292,7 +295,7 @@ export default function CoachProgressClient({ coach, sessions, today }: {
                         <button key={v} onClick={() => !locked && handleProgress(skill.id, v)}
                           className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
                             pct === v ? 'font-bold' : 'text-gray-400 bg-white/5 hover:bg-white/10'
-                          } ${locked ? 'cursor-not-allowed opacity-50' : ''}`}
+                          } ${locked || todayLocked ? 'cursor-not-allowed opacity-50' : ''}`}
                           style={pct === v ? { backgroundColor: color, color: '#1a2744' } : {}}
                         >
                           {v}%

@@ -97,6 +97,34 @@ export default async function AdminUpgradesPage() {
   for (const p of parents || []) pMap[p.id] = p
   const studentsNorm = (students || []).map((s: any) => ({ ...s, parents: pMap[s.parent_id] || null }))
 
+  // 今日待審核進度
+  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const { data: pendingProgress } = await svc
+    .from('progress_history')
+    .select('id, student_id, coach_id, snapshot, session_date, created_at')
+    .eq('session_date', todayDate)
+    .eq('status', 'pending_review')
+    .order('created_at', { ascending: false })
+
+  let pendingProgressList: any[] = []
+  if (pendingProgress && pendingProgress.length > 0) {
+    const ppStudentIds = [...new Set(pendingProgress.map(p => p.student_id))]
+    const ppCoachIds = [...new Set(pendingProgress.map(p => p.coach_id).filter(Boolean))]
+    const { data: ppStudents } = await svc.from('students').select('id, full_name, current_level').in('id', ppStudentIds)
+    const { data: ppCoaches } = await svc.from('coaches').select('id, first_name').in('id', ppCoachIds)
+    const { data: ppSkills } = await svc.from('skills').select('id, name, sort_order, level_id').order('sort_order')
+    const ppSMap: Record<string, any> = {}
+    for (const s of ppStudents || []) ppSMap[s.id] = s
+    const ppCMap: Record<string, any> = {}
+    for (const c of ppCoaches || []) ppCMap[c.id] = c
+    pendingProgressList = pendingProgress.map(p => ({
+      ...p,
+      student: ppSMap[p.student_id],
+      coach: ppCMap[p.coach_id],
+      skills: ppSkills || [],
+    }))
+  }
+
   return <AdminUpgradesClient
     upgradeHistory={upgradeHistory}
     adminId={admin.id}
@@ -104,5 +132,6 @@ export default async function AdminUpgradesPage() {
     skills={skills || []}
     students={studentsNorm}
     recommendations={recommendations}
+    pendingProgressList={pendingProgressList}
   />
 }

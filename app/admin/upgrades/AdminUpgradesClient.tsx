@@ -9,6 +9,13 @@ type UpgradeHistory = {
   id: string; from_level: string | null; to_level: string; upgraded_at: string; notes: string | null
   students: { full_name: string }; admins: { first_name: string; last_name: string }
 }
+type PendingProgress = {
+  id: string; student_id: string; snapshot: Record<string, number>; session_date: string; created_at: string
+  student: { id: string; full_name: string; current_level: string | null }
+  coach: { first_name: string }
+  skills: { id: string; name: string; sort_order: number; level_id: string }[]
+}
+
 type Recommendation = {
   id: string; recommended_level: number; notes: string | null; created_at: string; previous_recommended_level: number | null
   student: { id: string; full_name: string; current_level: string | null }
@@ -26,16 +33,20 @@ const LEVEL_COLORS: Record<string, string> = {
   '5': '#3b82f6', '6': '#a855f7', '7': '#f59e0b', '8': '#6b7280', '9': '#ca8a04',
 }
 
-export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students, recommendations: initialRecs }: {
+export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students, recommendations: initialRecs,
+  pendingProgressList: initialPending,
+}: {
   upgradeHistory: UpgradeHistory[]
   adminId: string
   levels: Level[]
   skills: Skill[]
   students: Student[]
   recommendations: Recommendation[]
+  pendingProgressList: PendingProgress[]
 }) {
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
   const [recommendations, setRecommendations] = useState(initialRecs)
+  const [pendingProgressList, setPendingProgressList] = useState(initialPending)
   const [search, setSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<string>('')
@@ -114,12 +125,74 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     setReviewingId(null)
   }
 
+  async function reviewProgress(historyId: string) {
+    await fetch('/api/admin/review-progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history_id: historyId, admin_id: adminId })
+    })
+    setPendingProgressList(prev => prev.filter(p => p.id !== historyId))
+  }
+
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Level Management</h1>
         <p className="text-gray-400 mt-1">Assign or upgrade student swim levels</p>
       </div>
+
+      {/* 今日進度審核 */}
+      {pendingProgressList.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4 flex items-center gap-2">
+            今日待審核進度
+            <span className="bg-[#c9a84c] text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pendingProgressList.length}</span>
+          </h2>
+          <div className="space-y-4">
+            {pendingProgressList.map(p => {
+              const lvl = p.student?.current_level || ''
+              const levelSkills = p.skills.filter((sk: any) => {
+                return true // will filter by level below
+              })
+              const skillMap: Record<string, string> = {}
+              for (const sk of p.skills) skillMap[sk.id] = sk.name
+              const entries = Object.entries(p.snapshot || {})
+              return (
+                <div key={p.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-white font-semibold">{p.student?.full_name}</p>
+                      <p className="text-gray-400 text-xs">教練 {p.coach?.first_name} · Level {lvl} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <button
+                      onClick={() => reviewProgress(p.id)}
+                      className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
+                    >
+                      確認 → 發布給家長
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {entries.map(([skillId, pct]) => {
+                      const skillName = skillMap[skillId] || skillId
+                      const p2 = pct as number
+                      const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
+                      return (
+                        <div key={skillId} className="flex items-center gap-3">
+                          <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                          </div>
+                          <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 待審核建議 */}
       {recommendations.length > 0 && (
