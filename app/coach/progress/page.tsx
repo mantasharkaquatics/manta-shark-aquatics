@@ -41,7 +41,7 @@ export default async function CoachProgressPage() {
     .order('start_time')
 
   if (!sessions || sessions.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedStudentIds={[]} />
   }
 
   const sessionIds = sessions.map(s => s.id)
@@ -64,7 +64,7 @@ export default async function CoachProgressPage() {
     .eq('status', 'confirmed')
 
   if (!bookings || bookings.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedStudentIds={[]} />
   }
 
   const studentIds = [...new Set(bookings.map(b => b.student_id).filter(Boolean))]
