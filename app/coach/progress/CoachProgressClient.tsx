@@ -7,6 +7,7 @@ type StudentProgress = {
   student: { id: string; full_name: string; current_level: string | null; level: { level_number: number; name: string } | null }
   skills: Skill[]
   progress: Record<string, number>
+  todayLocked: boolean
 }
 
 const LEVEL_NAMES: Record<string, string> = {
@@ -26,35 +27,27 @@ function barColor(pct: number): string {
   return 'rgba(255,255,255,0.1)'
 }
 
-function isLocked(): boolean {
-  const now = new Date()
-  const la = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
-  return la.getHours() >= 23 && la.getMinutes() >= 59 || la.getHours() === 0 && la.getMinutes() === 0
-}
-
-export default function CoachProgressClient({ coach, sessions, today }: {
+export default function CoachProgressClient({ coach, sessions, today, completedStudentIds }: {
   coach: { id: string; first_name: string }
   sessions: any[]
   today: string
+  completedStudentIds: string[]
 }) {
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
-  const [studentData, setStudentData] = useState<StudentProgress | null>(null)
-  const [localProgress, setLocalProgress] = useState<Record<string, number>>({})
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [todayLocked, setTodayLocked] = useState(false)
-  const [recommendLevel, setRecommendLevel] = useState<string>('')
-  const [recommendNotes, setRecommendNotes] = useState('')
-  const [recommending, setRecommending] = useState(false)
-  const [recommendedLevel, setRecommendedLevel] = useState<string | null>(null)
-  const [showChangeRec, setShowChangeRec] = useState(false)
+  const [expandedStudent, setExpandedStudent] = useState<string | null>(null)
+  const [studentDataMap, setStudentDataMap] = useState<Record<string, StudentProgress>>({})
+  const [localProgressMap, setLocalProgressMap] = useState<Record<string, Record<string, number>>>({})
+  const [savingMap, setSavingMap] = useState<Record<string, boolean>>({})
+  const [completedSet, setCompletedSet] = useState<Set<string>>(new Set(completedStudentIds))
+  const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
+  const [recommendedLevelMap, setRecommendedLevelMap] = useState<Record<string, string>>({})
+  const [recommendLevelInput, setRecommendLevelInput] = useState<Record<string, string>>({})
+  const [recommendingMap, setRecommendingMap] = useState<Record<string, boolean>>({})
+  const [showChangeMap, setShowChangeMap] = useState<Record<string, boolean>>({})
   const [locked, setLocked] = useState(false)
 
   useEffect(() => {
     const check = () => {
-      const now = new Date()
-      const la = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+      const la = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
       setLocked(la.getHours() === 0)
     }
     check()
@@ -69,73 +62,71 @@ export default function CoachProgressClient({ coach, sessions, today }: {
       courseName: s.course_types?.name || ''
     }))
   )
-
   const seen = new Set<string>()
   const uniqueStudents = allStudents.filter(s => {
     if (seen.has(s.id)) return false
     seen.add(s.id); return true
   })
 
-  async function selectStudent(studentId: string) {
-    setSelectedStudent(studentId)
-    setStudentData(null)
-    setSaved(false)
-    setRecommendedLevel(null)
-    setShowChangeRec(false)
-    setRecommendLevel('')
-    setRecommendNotes('')
-    setLoading(true)
-    const res = await fetch(`/api/coach/progress?student_id=${studentId}`)
-    const data = await res.json()
-    setStudentData(data)
-    setLocalProgress({ ...data.progress })
-    setTodayLocked(data.todayLocked || false)
-    // 查詢是否已有 pending 建議
-    const recRes = await fetch(`/api/coach/pending-recommendation?student_id=${studentId}`)
-    const recData = await recRes.json()
-    if (recData.recommended_level) {
-      setRecommendedLevel(String(recData.recommended_level))
+  async function toggleStudent(studentId: string) {
+    if (expandedStudent === studentId) {
+      setExpandedStudent(null)
+      return
     }
-    setLoading(false)
+    setExpandedStudent(studentId)
+    if (studentDataMap[studentId]) return
+
+    setLoadingMap(prev => ({ ...prev, [studentId]: true }))
+    const [res, recRes] = await Promise.all([
+      fetch(`/api/coach/progress?student_id=${studentId}`),
+      fetch(`/api/coach/pending-recommendation?student_id=${studentId}`)
+    ])
+    const data = await res.json()
+    const recData = await recRes.json()
+
+    setStudentDataMap(prev => ({ ...prev, [studentId]: data }))
+    setLocalProgressMap(prev => ({ ...prev, [studentId]: { ...data.progress } }))
+    if (data.todayLocked) setCompletedSet(prev => new Set([...prev, studentId]))
+    if (recData.recommended_level) {
+      setRecommendedLevelMap(prev => ({ ...prev, [studentId]: String(recData.recommended_level) }))
+    }
+    setLoadingMap(prev => ({ ...prev, [studentId]: false }))
   }
 
-  function handleProgress(skillId: string, val: number) {
-    setLocalProgress(prev => ({ ...prev, [skillId]: val }))
-    setSaved(false)
-  }
-
-  async function saveProgress() {
-    if (!selectedStudent || locked) return
-    setSaving(true)
-    await fetch('/api/coach/progress', {
+  async function saveProgress(studentId: string) {
+    if (locked || completedSet.has(studentId)) return
+    setSavingMap(prev => ({ ...prev, [studentId]: true }))
+    const progress = localProgressMap[studentId] || {}
+    const res = await fetch('/api/coach/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: selectedStudent, progress: localProgress, coach_id: coach.id })
+      body: JSON.stringify({ student_id: studentId, progress, coach_id: coach.id })
     })
-    setSaving(false)
-    setSaved(true)
-    setTodayLocked(true)
+    if (res.ok) {
+      setCompletedSet(prev => new Set([...prev, studentId]))
+    }
+    setSavingMap(prev => ({ ...prev, [studentId]: false }))
   }
 
-  async function submitRecommendation(isChange: boolean) {
-    if (!selectedStudent || !recommendLevel || locked) return
-    setRecommending(true)
+  async function submitRecommendation(studentId: string, isChange: boolean) {
+    const level = recommendLevelInput[studentId]
+    if (!level || locked) return
+    setRecommendingMap(prev => ({ ...prev, [studentId]: true }))
+    const prevLevel = isChange ? recommendedLevelMap[studentId] : null
     await fetch('/api/coach/recommend-level', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        student_id: selectedStudent,
-        recommended_level: parseInt(recommendLevel),
-        notes: recommendNotes || null,
-        previous_recommended_level: isChange && recommendedLevel ? parseInt(recommendedLevel) : null
+        student_id: studentId,
+        recommended_level: parseInt(level),
+        notes: null,
+        previous_recommended_level: prevLevel ? parseInt(prevLevel) : null
       })
     })
-    setRecommendedLevel(recommendLevel)
-    setShowChangeRec(false)
-    setRecommending(false)
+    setRecommendedLevelMap(prev => ({ ...prev, [studentId]: level }))
+    setShowChangeMap(prev => ({ ...prev, [studentId]: false }))
+    setRecommendingMap(prev => ({ ...prev, [studentId]: false }))
   }
-
-  const hasChanges = studentData && JSON.stringify(localProgress) !== JSON.stringify(studentData.progress)
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -145,168 +136,173 @@ export default function CoachProgressClient({ coach, sessions, today }: {
           <p className="text-gray-400 text-sm mt-1">{today} · {uniqueStudents.length} students today</p>
         </div>
         {locked && (
-          <div className="bg-red-900/30 border border-red-500/40 rounded-lg px-3 py-2 text-red-400 text-xs">
-            今日已截止（12:00 AM）
-          </div>
+          <div className="bg-red-900/30 border border-red-500/40 rounded-lg px-3 py-2 text-red-400 text-xs">今日已截止</div>
         )}
       </div>
 
       {uniqueStudents.length === 0 ? (
-        <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center text-gray-400">
-          今天沒有排課
-        </div>
+        <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center text-gray-400">今天沒有排課</div>
       ) : (
-        <div className="space-y-2 mb-6">
+        <div className="space-y-3">
           {uniqueStudents.map(s => {
             const lvl = s.current_level || ''
             const color = LEVEL_COLORS[lvl] || '#6b7280'
+            const isCompleted = completedSet.has(s.id)
+            const isExpanded = expandedStudent === s.id
+            const data = studentDataMap[s.id]
+            const loading = loadingMap[s.id]
+            const localProgress = localProgressMap[s.id] || {}
+            const saving = savingMap[s.id]
+            const hasChanges = data && JSON.stringify(localProgress) !== JSON.stringify(data.progress)
+            const recLevel = recommendedLevelMap[s.id]
+            const showChange = showChangeMap[s.id]
+            const recommending = recommendingMap[s.id]
+            const recInput = recommendLevelInput[s.id] || ''
+
             return (
-              <button key={s.id} onClick={() => selectStudent(s.id)}
-                className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left ${
-                  selectedStudent === s.id ? 'bg-[#1e3a6e] border-[#c9a84c]' : 'bg-[#111d38] border-[#1e3a6e] hover:border-[#c9a84c]/50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#1a2744] flex items-center justify-center flex-shrink-0">
-                    <span className="text-[#c9a84c] font-bold text-sm">{s.full_name.charAt(0)}</span>
+              <div key={s.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
+                {/* Header row */}
+                <button
+                  onClick={() => toggleStudent(s.id)}
+                  className={`w-full flex items-center justify-between p-4 text-left transition-all ${isExpanded ? 'bg-[#1e3a6e]/40' : 'hover:bg-[#1e3a6e]/20'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-[#1a2744] flex items-center justify-center flex-shrink-0">
+                      <span className="text-[#c9a84c] font-bold text-sm">{s.full_name.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <p className="text-white font-medium text-sm">{s.full_name}</p>
+                      <p className="text-gray-500 text-xs">{s.sessionTime} · {s.courseName}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-white font-medium text-sm">{s.full_name}</p>
-                    <p className="text-gray-500 text-xs">{s.sessionTime} · {s.courseName}</p>
+                  <div className="flex items-center gap-2">
+                    {/* 完成狀態 */}
+                    {isCompleted ? (
+                      <span className="text-xs px-2 py-1 rounded-full bg-green-900/40 text-green-400 font-medium">✓ 已完成</span>
+                    ) : (
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400">○ 未填寫</span>
+                    )}
+                    {/* Level badge */}
+                    {lvl ? (
+                      <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ backgroundColor: color + '33', color }}>L{lvl}</span>
+                    ) : (
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400">未分級</span>
+                    )}
+                    <span className="text-gray-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
                   </div>
-                </div>
-                {lvl ? (
-                  <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ backgroundColor: color + '33', color }}>L{lvl}</span>
-                ) : (
-                  <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400">未分級</span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
+                </button>
 
-      {loading && <div className="text-center text-gray-400 py-8">載入中...</div>}
+                {/* Expanded content */}
+                {isExpanded && (
+                  <div className="border-t border-[#1e3a6e] p-4">
+                    {loading ? (
+                      <div className="text-center text-gray-400 py-6">載入中...</div>
+                    ) : data ? (
+                      <>
+                        {/* 未分級 — 建議 Level */}
+                        {!data.student.level && (
+                          <div className="bg-[#0d1529] rounded-xl border border-[#c9a84c]/30 p-4 mb-3">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">建議等級（送交主管審核）</p>
+                              {recLevel && !showChange && (
+                                <button onClick={() => { setShowChangeMap(prev => ({ ...prev, [s.id]: true })); setRecommendLevelInput(prev => ({ ...prev, [s.id]: recLevel })) }}
+                                  disabled={locked}
+                                  className="text-xs text-gray-400 hover:text-white border border-[#1e3a6e] px-2 py-1 rounded-lg transition-all disabled:opacity-40">
+                                  更改
+                                </button>
+                              )}
+                            </div>
+                            {recLevel && !showChange ? (
+                              <div className="flex items-center gap-3 py-2">
+                                <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                                <p className="text-green-400 text-sm font-medium">已送出建議：Level {recLevel} · {LEVEL_NAMES[recLevel]}</p>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-3 gap-2 mb-3">
+                                  {[1,2,3,4,5,6,7,8,9].map(n => (
+                                    <button key={n} onClick={() => setRecommendLevelInput(prev => ({ ...prev, [s.id]: String(n) }))}
+                                      disabled={locked}
+                                      className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all disabled:opacity-40 ${
+                                        recInput === String(n) ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] bg-[#111d38] text-gray-400 hover:border-[#c9a84c]/50'
+                                      }`}
+                                    >
+                                      <div>L{n}</div>
+                                      <div className="opacity-70">{LEVEL_NAMES[String(n)]}</div>
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex gap-2">
+                                  {showChange && (
+                                    <button onClick={() => setShowChangeMap(prev => ({ ...prev, [s.id]: false }))}
+                                      className="px-3 py-2 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:bg-[#1e3a6e]/40 transition-all">取消</button>
+                                  )}
+                                  <button onClick={() => submitRecommendation(s.id, showChange)}
+                                    disabled={!recInput || recommending || locked}
+                                    className={`flex-1 py-2 rounded-lg font-semibold text-xs transition-all ${recInput && !locked ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
+                                  >
+                                    {recommending ? '送出中...' : showChange ? `確認更改為 L${recInput}` : recInput ? `送出建議：L${recInput} · ${LEVEL_NAMES[recInput]}` : '請選擇建議等級'}
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
 
-      {studentData && !loading && (
-        <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-white font-semibold">{studentData.student.full_name}</p>
-              <p className="text-gray-400 text-xs">
-                {studentData.student.level ? `Level ${studentData.student.level.level_number} · ${studentData.student.level.name}` : 'No level assigned'}
-              </p>
-            </div>
-            {studentData.skills.length > 0 && (
-              <button onClick={saveProgress} disabled={saving || !hasChanges || locked || todayLocked}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  saved ? 'bg-green-600 text-white' :
-                  hasChanges && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
-                  'bg-gray-700 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {saving ? '儲存中...' : todayLocked ? '✓ 今日已完成' : locked ? '已截止' : '儲存進度'}
-              </button>
-            )}
-          </div>
-
-          {/* 未分級 — 建議 Level */}
-          {!studentData.student.level && (
-            <div className="bg-[#0d1529] rounded-xl border border-[#c9a84c]/30 p-4 mb-3">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">建議等級（送交主管審核）</p>
-                {recommendedLevel && !showChangeRec && (
-                  <button onClick={() => { setShowChangeRec(true); setRecommendLevel(recommendedLevel) }}
-                    disabled={locked}
-                    className="text-xs text-gray-400 hover:text-white border border-[#1e3a6e] px-2 py-1 rounded-lg transition-all disabled:opacity-40">
-                    更改
-                  </button>
+                        {/* 已分級 — 技能進度 */}
+                        {data.skills.length > 0 && (
+                          <>
+                            <div className="flex justify-between items-center mb-3">
+                              <p className="text-gray-500 text-xs uppercase tracking-wider">技能進度</p>
+                              <button
+                                onClick={() => saveProgress(s.id)}
+                                disabled={saving || !hasChanges || locked || isCompleted}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                  isCompleted ? 'bg-green-700/50 text-green-400 cursor-not-allowed' :
+                                  hasChanges && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
+                                  'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                }`}
+                              >
+                                {saving ? '儲存中...' : isCompleted ? '✓ 今日已完成' : locked ? '已截止' : '儲存進度'}
+                              </button>
+                            </div>
+                            <div className="space-y-3">
+                              {data.skills.map(skill => {
+                                const pct = localProgress[skill.id] ?? 0
+                                const color = barColor(pct)
+                                return (
+                                  <div key={skill.id} className="bg-[#0d1529] rounded-lg p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-white text-sm">{skill.name}</span>
+                                      <span className="text-xs font-mono" style={{ color }}>{pct}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
+                                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                      {[0, 20, 40, 60, 80, 100].map(v => (
+                                        <button key={v}
+                                          onClick={() => { if (!locked && !isCompleted) setLocalProgressMap(prev => ({ ...prev, [s.id]: { ...prev[s.id], [skill.id]: v } })) }}
+                                          className={`flex-1 py-1 rounded text-xs font-medium transition-all ${pct === v ? 'font-bold' : 'text-gray-400 bg-white/5 hover:bg-white/10'} ${locked || isCompleted ? 'cursor-not-allowed opacity-50' : ''}`}
+                                          style={pct === v ? { backgroundColor: color, color: '#1a2744' } : {}}
+                                        >
+                                          {v}%
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
                 )}
               </div>
-
-              {recommendedLevel && !showChangeRec ? (
-                <div className="flex items-center gap-3 py-2">
-                  <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                  <p className="text-green-400 text-sm font-medium">
-                    已送出建議：Level {recommendedLevel} · {LEVEL_NAMES[recommendedLevel]}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    {[1,2,3,4,5,6,7,8,9].map(n => (
-                      <button key={n} onClick={() => setRecommendLevel(String(n))}
-                        disabled={locked}
-                        className={`py-2 px-3 rounded-lg border text-sm font-medium transition-all disabled:opacity-40 ${
-                          recommendLevel === String(n)
-                            ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]'
-                            : 'border-[#1e3a6e] bg-[#111d38] text-gray-400 hover:border-[#c9a84c]/50'
-                        }`}
-                      >
-                        <div className="text-xs">L{n}</div>
-                        <div className="text-xs opacity-70">{LEVEL_NAMES[String(n)]}</div>
-                      </button>
-                    ))}
-                  </div>
-                  <input type="text" placeholder="備註（選填）" value={recommendNotes}
-                    onChange={e => setRecommendNotes(e.target.value)} disabled={locked}
-                    className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors placeholder-gray-600 mb-3 disabled:opacity-40"
-                  />
-                  <div className="flex gap-2">
-                    {showChangeRec && (
-                      <button onClick={() => setShowChangeRec(false)}
-                        className="px-4 py-2 rounded-lg border border-[#1e3a6e] text-gray-400 text-sm hover:bg-[#1e3a6e]/40 transition-all">
-                        取消
-                      </button>
-                    )}
-                    <button onClick={() => submitRecommendation(showChangeRec)}
-                      disabled={!recommendLevel || recommending || locked}
-                      className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
-                        recommendLevel && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      {recommending ? '送出中...' :
-                       showChangeRec ? `確認更改為 Level ${recommendLevel}${recommendLevel ? ' · ' + LEVEL_NAMES[recommendLevel] : ''}` :
-                       recommendLevel ? `送出建議：Level ${recommendLevel} · ${LEVEL_NAMES[recommendLevel]}` : '請選擇建議等級'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* 已分級 — 技能進度 */}
-          {studentData.skills.length > 0 && (
-            <div className="space-y-3 mt-2">
-              {studentData.skills.map(skill => {
-                const pct = localProgress[skill.id] ?? 0
-                const color = barColor(pct)
-                return (
-                  <div key={skill.id} className="bg-[#0d1529] rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-white text-sm">{skill.name}</span>
-                      <span className="text-xs font-mono" style={{ color }}>{pct}%</span>
-                    </div>
-                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
-                    </div>
-                    <div className="flex gap-1.5">
-                      {[0, 20, 40, 60, 80, 100].map(v => (
-                        <button key={v} onClick={() => !locked && !todayLocked && handleProgress(skill.id, v)}
-                          className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
-                            pct === v ? 'font-bold' : 'text-gray-400 bg-white/5 hover:bg-white/10'
-                          } ${locked || todayLocked ? 'cursor-not-allowed opacity-50' : ''}`}
-                          style={pct === v ? { backgroundColor: color, color: '#1a2744' } : {}}
-                        >
-                          {v}%
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+            )
+          })}
         </div>
       )}
     </div>

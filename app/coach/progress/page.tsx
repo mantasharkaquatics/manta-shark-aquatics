@@ -90,5 +90,20 @@ export default async function CoachProgressPage() {
       .filter(b => b.students)
   }))
 
-  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} />
+  // 查今日哪些學生已完成
+  const allStudentIds = [...new Set(
+    enrichedSessions.flatMap(s => s.bookings.map((b: any) => b.students?.id).filter(Boolean))
+  )]
+
+  let completedStudentIds: string[] = []
+  if (allStudentIds.length > 0) {
+    const { data: completedRows } = await supabase
+      .from('progress_history')
+      .select('student_id')
+      .in('student_id', allStudentIds)
+      .eq('session_date', today)
+    completedStudentIds = (completedRows || []).map((r: any) => r.student_id)
+  }
+
+  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} completedStudentIds={completedStudentIds} />
 }
