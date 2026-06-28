@@ -110,7 +110,7 @@ export default function CoachProgressClient({ coach, sessions, today }: {
     await fetch('/api/coach/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: selectedStudent, progress: localProgress })
+      body: JSON.stringify({ student_id: selectedStudent, progress: localProgress, coach_id: coach.id })
     })
     setSaving(false)
     setSaved(true)

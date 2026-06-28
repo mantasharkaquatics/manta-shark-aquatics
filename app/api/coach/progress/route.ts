@@ -74,23 +74,23 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
   )
-  const { data: { user } } = await supabaseAuth.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const supabase = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const { student_id, progress, coach_id } = await req.json()
+  if (!student_id || !progress || !coach_id) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
+
+  // Verify coach exists
   const { data: coach } = await supabase
     .from('coaches')
     .select('id')
-    .eq('auth_user_id', user.id)
+    .eq('id', coach_id)
     .single()
 
   if (!coach) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { student_id, progress } = await req.json()
   if (!student_id || !progress) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
