@@ -42,6 +42,7 @@ export default async function AdminUpgradesPage() {
       ...r,
       student: sMap[r.student_id],
       coach: cMap[r.coach_id],
+      previous_recommended_level: r.previous_recommended_level ?? null,
     }))
   }
 
