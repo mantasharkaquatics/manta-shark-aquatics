@@ -91,7 +91,6 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (!coach) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!student_id || !progress) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
