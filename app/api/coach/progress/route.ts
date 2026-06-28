@@ -42,12 +42,12 @@ export async function GET(req: NextRequest) {
 
   const { data: progressRows } = await supabase
     .from('student_skill_progress')
-    .select('skill_id, progress')
+    .select('skill_id, progress_percent')
     .eq('student_id', studentId)
 
   const progressMap: Record<string, number> = {}
   for (const row of progressRows || []) {
-    progressMap[row.skill_id] = row.progress
+    progressMap[row.skill_id] = row.progress_percent
   }
 
   // 查詢今日是否已儲存
@@ -97,9 +97,9 @@ export async function POST(req: NextRequest) {
   const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
     student_id,
     skill_id,
-    progress: pct as number,
-    updated_by_coach_id: coach.id,
-    updated_at: new Date().toISOString()
+    progress_percent: pct as number,
+    last_updated_by: coach.id,
+    last_updated_at: new Date().toISOString()
   }))
 
   const { error } = await supabase
