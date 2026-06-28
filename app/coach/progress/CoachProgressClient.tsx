@@ -198,14 +198,14 @@ export default function CoachProgressClient({ coach, sessions, today }: {
               </p>
             </div>
             {studentData.skills.length > 0 && (
-              <button onClick={saveProgress} disabled={saving || !hasChanges || locked}
+              <button onClick={saveProgress} disabled={saving || !hasChanges || locked || todayLocked}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                   saved ? 'bg-green-600 text-white' :
                   hasChanges && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
                   'bg-gray-700 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {saving ? '儲存中...' : todayLocked ? '✓ 今日已完成' : saved ? '✓ 已儲存' : locked ? '已截止' : '儲存進度'}
+                {saving ? '儲存中...' : todayLocked ? '✓ 今日已完成' : locked ? '已截止' : '儲存進度'}
               </button>
             )}
           </div>
@@ -292,7 +292,7 @@ export default function CoachProgressClient({ coach, sessions, today }: {
                     </div>
                     <div className="flex gap-1.5">
                       {[0, 20, 40, 60, 80, 100].map(v => (
-                        <button key={v} onClick={() => !locked && handleProgress(skill.id, v)}
+                        <button key={v} onClick={() => !locked && !todayLocked && handleProgress(skill.id, v)}
                           className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
                             pct === v ? 'font-bold' : 'text-gray-400 bg-white/5 hover:bg-white/10'
                           } ${locked || todayLocked ? 'cursor-not-allowed opacity-50' : ''}`}
