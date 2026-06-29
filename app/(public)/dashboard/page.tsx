@@ -1214,12 +1214,12 @@ export default function DashboardPage() {
                   <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
                     {displayed.map((booking, i) => (
                       <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', width: '80px', flexShrink: 0 }}>{formatDate(booking.session_date)}</div>
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{booking.course_name}</span>
-                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginLeft: '8px' }}>with {booking.coach_name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>{booking.course_name}</div>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>with {booking.coach_name}</div>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
                         </div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
                         <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)', background: `${STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.1)'}18`, borderRadius: '10px', padding: '2px 8px' }}>
                           {booking.status}
                         </span>
