@@ -152,6 +152,12 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     p.students.some(s => s.full_name.toLowerCase().includes(search.toLowerCase()))
   )
 
+  async function loadAllStudentsForParent(students: Student[]) {
+    for (const s of students) {
+      loadStudentBookings(s.id)
+    }
+  }
+
   async function toggleNewsletter(parentId: string, current: boolean) {
     const newVal = !current
     await supabase.from('parents').update({ newsletter_subscribed: newVal }).eq('id', parentId)
@@ -189,7 +195,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
             <div key={parent.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
               {/* Row header */}
               <button
-                onClick={() => setExpanded(expanded === parent.id ? null : parent.id)}
+                onClick={() => {
+                  const next = expanded === parent.id ? null : parent.id
+                  setExpanded(next)
+                  if (next) loadAllStudentsForParent(parent.students)
+                }}
                 className="w-full flex items-center justify-between p-5 text-left hover:bg-[#1e3a6e]/30 transition-all"
               >
                 <div className="flex items-center gap-4">
