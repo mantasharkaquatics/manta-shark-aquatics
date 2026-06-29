@@ -41,7 +41,7 @@ export default function PartnershipsPage() {
       const data = await res.json()
       setPartnerships(data.partnerships || [])
       setPartnerStudents(data.partner_students || [])
-      setParentId(data.parent_id || null)
+      setParentId(data.my_parent_id || null)
     }
     setLoading(false)
   }
