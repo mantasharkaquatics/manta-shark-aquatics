@@ -303,6 +303,10 @@ export default function DashboardPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
   const [showAllUpcoming, setShowAllUpcoming] = useState(false)
+  const [pwForm, setPwForm] = useState({ newPw: '', confirmPw: '' })
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [newsletterSaving, setNewsletterSaving] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [historyPage, setHistoryPage] = useState(0)
   useEffect(() => {
@@ -318,6 +322,34 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => { fetchAll() }, [])
+
+  async function updatePassword() {
+    if (!pwForm.newPw || pwForm.newPw !== pwForm.confirmPw) {
+      setPwMsg({ type: 'err', text: '兩次密碼不一致' }); return
+    }
+    if (pwForm.newPw.length < 6) {
+      setPwMsg({ type: 'err', text: '密碼至少需要 6 個字元' }); return
+    }
+    setPwSaving(true)
+    const { error } = await supabase.auth.updateUser({ password: pwForm.newPw })
+    if (error) {
+      setPwMsg({ type: 'err', text: error.message })
+    } else {
+      setPwMsg({ type: 'ok', text: '密碼已更新' })
+      setPwForm({ newPw: '', confirmPw: '' })
+    }
+    setPwSaving(false)
+    setTimeout(() => setPwMsg(null), 3000)
+  }
+
+  async function toggleNewsletter() {
+    if (!parent) return
+    setNewsletterSaving(true)
+    const newVal = !(parent as any).newsletter_subscribed
+    await supabase.from('parents').update({ newsletter_subscribed: newVal }).eq('id', parent.id)
+    setParent(prev => prev ? { ...prev, newsletter_subscribed: newVal } as any : prev)
+    setNewsletterSaving(false)
+  }
 
   async function fetchAll() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -1349,6 +1381,108 @@ export default function DashboardPage() {
                 </div>
               </Link>
             ))}
+          </div>
+        </section>
+
+        {/* MY ACCOUNT */}
+        <section style={{ marginBottom: '36px' }}>
+          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>我的帳戶</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+            {/* 基本資料 */}
+            <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>基本資料</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+                {[
+                  { label: '姓名', value: `${(parent as any)?.first_name} ${(parent as any)?.last_name}` },
+                  { label: 'Email', value: parent?.email },
+                  { label: '電話', value: (parent as any)?.phone || '—' },
+                  { label: '加入日期', value: (parent as any)?.registered_at ? new Date((parent as any).registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
+                ].map(item => (
+                  <div key={item.label}>
+                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase' }}>{item.label}</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 電子報訂閱 */}
+            <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>電子報訂閱</div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>接收課程優惠與最新消息</div>
+              </div>
+              <button
+                onClick={toggleNewsletter}
+                disabled={newsletterSaving}
+                style={{
+                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                  background: (parent as any)?.newsletter_subscribed ? '#4caf72' : 'rgba(255,255,255,0.15)',
+                  position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: '3px',
+                  left: (parent as any)?.newsletter_subscribed ? '23px' : '3px',
+                  width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
+                  transition: 'left 0.2s',
+                }} />
+              </button>
+            </div>
+
+            {/* 更改密碼 */}
+            <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>更改密碼</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <input
+                  type="password" placeholder="新密碼（至少 6 個字元）"
+                  value={pwForm.newPw}
+                  onChange={e => setPwForm(p => ({ ...p, newPw: e.target.value }))}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                />
+                <input
+                  type="password" placeholder="確認新密碼"
+                  value={pwForm.confirmPw}
+                  onChange={e => setPwForm(p => ({ ...p, confirmPw: e.target.value }))}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                />
+                {pwMsg && (
+                  <div style={{ fontSize: '12px', color: pwMsg.type === 'ok' ? '#4caf72' : '#e05a4a', padding: '8px 12px', background: pwMsg.type === 'ok' ? 'rgba(76,175,114,0.1)' : 'rgba(224,90,74,0.1)', borderRadius: '8px' }}>
+                    {pwMsg.text}
+                  </div>
+                )}
+                <button
+                  onClick={updatePassword}
+                  disabled={pwSaving || !pwForm.newPw || !pwForm.confirmPw}
+                  style={{ padding: '10px', borderRadius: '10px', border: 'none', background: pwForm.newPw && pwForm.confirmPw ? GOLD : 'rgba(255,255,255,0.1)', color: pwForm.newPw && pwForm.confirmPw ? NAVY : 'rgba(255,255,255,0.3)', fontSize: '13px', fontWeight: 700, cursor: pwForm.newPw && pwForm.confirmPw ? 'pointer' : 'not-allowed' }}
+                >
+                  {pwSaving ? '更新中...' : '更新密碼'}
+                </button>
+              </div>
+            </div>
+
+            {/* 學生資料（唯讀） */}
+            {students.length > 0 && (
+              <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>學生資料</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {students.map(s => (
+                    <div key={s.id} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>{s.full_name}</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                          {s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '生日未填寫'}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>唯讀</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '10px' }}>如需更改學生資料，請聯絡游泳學校。</div>
+              </div>
+            )}
+
           </div>
         </section>
 
