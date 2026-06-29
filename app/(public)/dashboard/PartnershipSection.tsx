@@ -170,7 +170,7 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
             <p style={{ color: '#10b981', fontWeight: 600 }}>✓ 連動成功！</p>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
-              <input
+              <input autoComplete="off"
                 type="text"
                 placeholder="MSA-XXXXXX"
                 value={inputCode}
