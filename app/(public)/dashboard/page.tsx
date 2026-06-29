@@ -296,6 +296,9 @@ export default function DashboardPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false)
+  const [showAllHistory, setShowAllHistory] = useState(false)
+  const [historyPage, setHistoryPage] = useState(0)
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
@@ -997,7 +1000,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {upcomingBookings.map((booking) => {
+              {(showAllUpcoming ? upcomingBookings : upcomingBookings.slice(0, 3)).map((booking) => {
                 const daysUntil = getDaysUntil(booking.session_date)
                 const isToday = daysUntil === 0
                 const isTomorrow = daysUntil === 1
@@ -1137,6 +1140,14 @@ export default function DashboardPage() {
               })}
             </div>
           )}
+          {upcomingBookings.length > 3 && (
+            <button
+              onClick={() => setShowAllUpcoming(v => !v)}
+              style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
+            >
+              {showAllUpcoming ? '▲ 收合' : `▼ 顯示全部 ${upcomingBookings.length} 堂課`}
+            </button>
+          )}
         </section>
 
         {/* CREDITS */}
@@ -1193,21 +1204,61 @@ export default function DashboardPage() {
         {pastBookings.length > 0 && (
           <section style={{ marginBottom: '36px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Lesson History</h2>
-            <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-              {pastBookings.map((booking, i) => (
-                <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < pastBookings.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', width: '80px', flexShrink: 0 }}>{formatDate(booking.session_date)}</div>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{booking.course_name}</span>
-                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginLeft: '8px' }}>with {booking.coach_name}</span>
+            {(() => {
+              const displayed = showAllHistory
+                ? pastBookings.slice(historyPage * 10, historyPage * 10 + 10)
+                : pastBookings.slice(0, 3)
+              const totalPages = Math.ceil(pastBookings.length / 10)
+              return (
+                <>
+                  <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                    {displayed.map((booking, i) => (
+                      <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', width: '80px', flexShrink: 0 }}>{formatDate(booking.session_date)}</div>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{booking.course_name}</span>
+                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginLeft: '8px' }}>with {booking.coach_name}</span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
+                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)', background: `${STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.1)'}18`, borderRadius: '10px', padding: '2px 8px' }}>
+                          {booking.status}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)', background: `${STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.1)'}18`, borderRadius: '10px', padding: '2px 8px' }}>
-                    {booking.status}
-                  </span>
-                </div>
-              ))}
-            </div>
+                  {/* 展開/收合按鈕 */}
+                  {pastBookings.length > 3 && (
+                    <button
+                      onClick={() => { setShowAllHistory(v => !v); setHistoryPage(0) }}
+                      style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
+                    >
+                      {showAllHistory ? '▲ 收合' : `▼ 顯示全部 ${pastBookings.length} 筆記錄`}
+                    </button>
+                  )}
+                  {/* 分頁（展開後才顯示） */}
+                  {showAllHistory && totalPages > 1 && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '12px' }}>
+                      <button
+                        onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                        disabled={historyPage === 0}
+                        style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === 0 ? 'not-allowed' : 'pointer' }}
+                      >← 上一頁</button>
+                      {Array.from({ length: totalPages }, (_, i) => (
+                        <button key={i}
+                          onClick={() => setHistoryPage(i)}
+                          style={{ width: '32px', height: '32px', borderRadius: '8px', border: `1px solid ${i === historyPage ? GOLD : 'rgba(255,255,255,0.12)'}`, background: i === historyPage ? `${GOLD}20` : 'transparent', color: i === historyPage ? GOLD : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        >{i + 1}</button>
+                      ))}
+                      <button
+                        onClick={() => setHistoryPage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={historyPage === totalPages - 1}
+                        style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === totalPages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === totalPages - 1 ? 'not-allowed' : 'pointer' }}
+                      >下一頁 →</button>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </section>
         )}
 
