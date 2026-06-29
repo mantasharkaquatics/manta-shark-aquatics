@@ -853,6 +853,23 @@ export default function DashboardPage() {
                   </div>
 
                   {/* 學習進度區塊 */}
+                  {/* QR Code Button */}
+                  <button
+                    onClick={() => setQrStudent(student)}
+                    style={{
+                      marginTop: '12px', width: '100%', padding: '10px',
+                      borderRadius: '10px', border: `1px solid ${GOLD}40`,
+                      background: 'transparent', color: GOLD,
+                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      letterSpacing: '0.5px',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${GOLD}15` }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    <span style={{ fontSize: '14px' }}>⊞</span> View Check-in QR Code
+                  </button>
+
                   {studentProgressMap[student.id] && (() => {
                     const prog = studentProgressMap[student.id]
                     const isOpen = expandedProgress.has(student.id)
@@ -931,23 +948,6 @@ export default function DashboardPage() {
                       </div>
                     )
                   })()}
-
-                  {/* QR Code Button */}
-                  <button
-                    onClick={() => setQrStudent(student)}
-                    style={{
-                      marginTop: '12px', width: '100%', padding: '10px',
-                      borderRadius: '10px', border: `1px solid ${GOLD}40`,
-                      background: 'transparent', color: GOLD,
-                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                      letterSpacing: '0.5px',
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${GOLD}15` }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <span style={{ fontSize: '14px' }}>⊞</span> View Check-in QR Code
-                  </button>
                 </div>
               )
             })}
