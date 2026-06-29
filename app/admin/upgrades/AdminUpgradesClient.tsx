@@ -70,6 +70,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   const [missingProgressList, setMissingProgressList] = useState(initialMissing)
   const [missingProgress, setMissingProgress] = useState<Record<string, Record<string, number>>>({})
   const [submittingMissing, setSubmittingMissing] = useState<string | null>(null)
+  const [expandedMissing, setExpandedMissing] = useState<Set<string>>(new Set())
   const [overrideLevel, setOverrideLevel] = useState<Record<string, string>>({})
 
   const filteredStudents = useMemo(() => {
@@ -191,11 +192,19 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 <div key={s.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-5">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <p className="text-white font-semibold">{s.full_name}</p>
-                      <p className="text-gray-400 text-xs">
-                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '今日有課'}
-                        {s.current_level ? ` · Level ${s.current_level}` : ''}
-                      </p>
+                      <button
+                        onClick={() => setExpandedMissing(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })}
+                        className="text-left"
+                      >
+                        <p className="text-white font-semibold flex items-center gap-2">
+                          {s.full_name}
+                          <span className="text-gray-500 text-xs">{expandedMissing.has(s.id) ? '▲' : '▼'}</span>
+                        </p>
+                        <p className="text-gray-400 text-xs">
+                          {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '今日有課'}
+                          {s.current_level ? ` · Level ${s.current_level}` : ''}
+                        </p>
+                      </button>
                     </div>
                     <button
                       onClick={() => submitMissingProgress(s.id, s.session?.coach_id || null)}
@@ -205,7 +214,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       {submittingMissing === s.id ? '儲存中...' : '代填送審'}
                     </button>
                   </div>
-                  {levelSkills.length > 0 && (
+                  {levelSkills.length > 0 && expandedMissing.has(s.id) && (
                     <div className="space-y-2">
                       {levelSkills.map(sk => {
                         const pct = prog[sk.id] ?? 0
