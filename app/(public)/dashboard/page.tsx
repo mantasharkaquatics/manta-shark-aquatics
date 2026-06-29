@@ -1,5 +1,4 @@
 'use client'
-import PartnershipSection from './PartnershipSection'
 import ChatWidget from '@/components/ChatWidget'
 
 import { useEffect, useState, useRef } from 'react'
@@ -1364,7 +1363,6 @@ export default function DashboardPage() {
         )}
 
         {/* PARTNER ACCOUNTS */}
-        {parent && <PartnershipSection parentId={parent.id} />}
 
 
         {/* QUICK LINKS */}
