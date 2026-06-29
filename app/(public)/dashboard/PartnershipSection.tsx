@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 
 const NAVY = '#1a2744'
+const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
 type Partnership = {
@@ -94,25 +95,30 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
 
       {/* 已連動帳戶 */}
       {partnerships.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
           {partnerships.map(p => {
             const partnerParentId = getPartnerParentId(p)
             const students = studentsForPartner(partnerParentId)
             return (
-              <div key={p.id} style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: '16px 20px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <p style={{ color: GOLD, fontWeight: 600, fontSize: 14, margin: '0 0 4px' }}>已連動帳戶</p>
-                  {students.length > 0 ? (
-                    <p style={{ color: '#9ca3af', fontSize: 13, margin: 0 }}>
-                      學生：{students.map(s => s.full_name).join('、')}
-                    </p>
-                  ) : (
-                    <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>對方尚無學生資料</p>
-                  )}
+              <div key={p.id} style={{
+                background: DARK, border: '1px solid rgba(201,168,76,0.2)',
+                borderRadius: '14px', padding: '16px 20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: `${GOLD}20`, border: `1px solid ${GOLD}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
+                    🤝
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '3px' }}>已連動帳戶</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                      {students.length > 0 ? `學生：${students.map(s => s.full_name).join('、')}` : '對方尚無學生資料'}
+                    </div>
+                  </div>
                 </div>
                 <button
                   onClick={() => { setRevokeId(p.id); setRevokeConfirm(true) }}
-                  style={{ color: '#f87171', fontSize: 13, background: 'none', border: '1px solid #f87171', borderRadius: 8, padding: '6px 14px', cursor: 'pointer' }}>
+                  style={{ color: '#f87171', fontSize: '12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', flexShrink: 0, fontWeight: 600 }}>
                   解除連動
                 </button>
               </div>
@@ -121,69 +127,78 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
         </div>
       )}
 
-      {/* 解除確認 */}
+      {/* 解除確認 Modal */}
       {revokeConfirm && (
-        <div style={{ backgroundColor: '#1a0a0a', border: '1px solid #f87171', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
-          <p style={{ color: '#f87171', fontWeight: 600, margin: '0 0 12px' }}>確定要解除連動？</p>
-          <p style={{ color: '#9ca3af', fontSize: 13, margin: '0 0 16px' }}>解除後，雙方將無法再看到對方的學生，所有 pending 中的跨帳戶預約也會取消。</p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={handleRevoke}
-              style={{ backgroundColor: '#f87171', color: 'white', border: 'none', borderRadius: 8, padding: '8px 20px', fontWeight: 600, cursor: 'pointer' }}>
-              確定解除
-            </button>
-            <button onClick={() => { setRevokeConfirm(false); setRevokeId(null) }}
-              style={{ backgroundColor: '#374151', color: 'white', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer' }}>
-              取消
-            </button>
+        <div onClick={() => { setRevokeConfirm(false); setRevokeId(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: DARK, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#f87171', marginBottom: '8px' }}>解除連動</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>確定要解除連動？</div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>解除後，雙方將無法再看到對方的學生，所有 pending 中的跨帳戶預約也會取消。</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => { setRevokeConfirm(false); setRevokeId(null) }}
+                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                取消
+              </button>
+              <button onClick={handleRevoke}
+                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#f87171', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                確定解除
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      {/* 邀請碼區塊 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         {/* 我的邀請碼 */}
-        <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: '16px 20px' }}>
-          <p style={{ color: 'white', fontWeight: 600, fontSize: 14, margin: '0 0 8px' }}>我的邀請碼</p>
-          <p style={{ color: '#9ca3af', fontSize: 12, margin: '0 0 12px' }}>把邀請碼傳給對方，讓他們輸入後即可連動帳戶</p>
+        <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>我的邀請碼</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>把邀請碼傳給對方，讓他們輸入後即可連動帳戶</div>
           {myInviteCode ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ backgroundColor: '#0d1829', border: '1px solid #1e3a6e', borderRadius: 8, padding: '8px 14px', color: GOLD, fontWeight: 700, fontSize: 16, letterSpacing: '0.1em' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ background: 'rgba(201,168,76,0.1)', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '8px 14px', color: GOLD, fontWeight: 700, fontSize: '16px', letterSpacing: '0.15em', flex: 1, textAlign: 'center' }}>
                 {myInviteCode}
               </span>
               <button onClick={() => { navigator.clipboard.writeText(myInviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-                style={{ backgroundColor: copied ? '#10b981' : GOLD, color: NAVY, border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                {copied ? '已複製 ✓' : '複製'}
+                style={{ background: copied ? '#4caf72' : GOLD, color: NAVY, border: 'none', borderRadius: '8px', padding: '8px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', flexShrink: 0 }}>
+                {copied ? '✓ 已複製' : '複製'}
               </button>
             </div>
           ) : (
             <button onClick={getMyCode}
-              style={{ backgroundColor: GOLD, color: NAVY, border: 'none', borderRadius: 8, padding: '8px 20px', fontWeight: 600, cursor: 'pointer' }}>
+              style={{ width: '100%', background: GOLD, color: NAVY, border: 'none', borderRadius: '10px', padding: '10px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
               產生邀請碼
             </button>
           )}
         </div>
 
         {/* 輸入邀請碼 */}
-        <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: '16px 20px' }}>
-          <p style={{ color: 'white', fontWeight: 600, fontSize: 14, margin: '0 0 8px' }}>輸入邀請碼</p>
-          <p style={{ color: '#9ca3af', fontSize: 12, margin: '0 0 12px' }}>輸入對方的邀請碼來連動帳戶</p>
+        <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>輸入邀請碼</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>輸入對方的邀請碼來連動帳戶</div>
           {joinSuccess ? (
-            <p style={{ color: '#10b981', fontWeight: 600 }}>✓ 連動成功！</p>
-          ) : (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input autoComplete="new-password"
-                type="text"
-                placeholder="MSA-XXXXXX"
-                value={inputCode}
-                onChange={e => setInputCode(e.target.value.toUpperCase())}
-                style={{ flex: 1, backgroundColor: '#0d1829', border: '1px solid #1e3a6e', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 14, outline: 'none' }}
-              />
-              <button onClick={handleJoin} disabled={!inputCode.trim()}
-                style={{ backgroundColor: inputCode.trim() ? GOLD : '#374151', color: inputCode.trim() ? NAVY : '#6b7280', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: inputCode.trim() ? 'pointer' : 'not-allowed' }}>
-                連動
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4caf72', fontWeight: 600, fontSize: '13px' }}>
+              <span>✓</span><span>連動成功！</span>
             </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  autoComplete="new-password"
+                  type="text"
+                  placeholder="MSA-XXXXXX"
+                  value={inputCode}
+                  onChange={e => setInputCode(e.target.value.toUpperCase())}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', color: '#fff', fontSize: '14px', outline: 'none', letterSpacing: '0.1em' }}
+                />
+                <button onClick={handleJoin} disabled={!inputCode.trim()}
+                  style={{ background: inputCode.trim() ? GOLD : 'rgba(255,255,255,0.08)', color: inputCode.trim() ? NAVY : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 700, fontSize: '13px', cursor: inputCode.trim() ? 'pointer' : 'not-allowed', flexShrink: 0 }}>
+                  連動
+                </button>
+              </div>
+              {joinError && <div style={{ fontSize: '12px', color: '#f87171', marginTop: '8px', padding: '6px 10px', background: 'rgba(248,113,113,0.08)', borderRadius: '6px' }}>{joinError}</div>}
+            </>
           )}
-          {joinError && <p style={{ color: '#f87171', fontSize: 13, marginTop: 8 }}>{joinError}</p>}
         </div>
       </div>
     </section>
