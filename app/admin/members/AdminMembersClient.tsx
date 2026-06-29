@@ -211,7 +211,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
               {expanded === parent.id && (
                 <div className="border-t border-[#1e3a6e] p-5 space-y-4">
                   {/* Row 1: Email, Phone, Address */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Email</p>
                       <div className="flex items-center">
@@ -242,7 +242,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   </div>
 
                   {/* Row 2: Registered, Terms Accepted, Newsletter, Last Login */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-[#1e3a6e]/40 pt-4">
                     <div>
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Registered</p>
                       <p className="text-gray-300 text-sm">{formatDate(parent.registered_at)}</p>
