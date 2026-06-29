@@ -305,7 +305,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 mr-16">
+                              <div className="flex items-center gap-2 ml-4">
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'upcoming')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'upcoming' ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
@@ -314,6 +314,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   onClick={() => toggleStudentBookings(student.id, 'past')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'past' ? 'border-blue-400 bg-blue-400/20 text-blue-400' : 'border-[#1e3a6e] text-gray-500 hover:border-blue-400/40'}`}
                                 >歷史記錄 {sb?.loaded ? `(${sb.past.length})` : ''}</button>
+                              </div>
+                              <div className="ml-auto">
                                 <span className={`text-xs px-2 py-1 rounded-full ${LEVEL_COLORS[student.current_level] || 'bg-gray-700 text-gray-300'}`}>
                                   L{student.current_level} {LEVEL_NAMES[student.current_level] || ''}
                                 </span>
