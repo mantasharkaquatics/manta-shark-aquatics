@@ -23,6 +23,14 @@ type Recommendation = {
   history: { recommended_level: number; previous_recommended_level: number | null; status: string; created_at: string }[]
 }
 
+type MissingProgress = {
+  id: string
+  full_name: string
+  current_level: string | null
+  session: { id: string; start_time: string; end_time: string; coach_id: string; ct: { name: string } | null; coach: { first_name: string } | null } | null
+  existingProgress: Record<string, number>
+}
+
 const LEVEL_NAMES: Record<string, string> = {
   '1': 'Water Intro', '2': 'Water Comfort', '3': 'Pool Safety',
   '4': 'Beginner', '5': 'Intermediate', '6': 'Advanced',
@@ -35,6 +43,7 @@ const LEVEL_COLORS: Record<string, string> = {
 
 export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students, recommendations: initialRecs,
   pendingProgressList: initialPending,
+  missingProgressList: initialMissing,
 }: {
   upgradeHistory: UpgradeHistory[]
   adminId: string
@@ -43,6 +52,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   students: Student[]
   recommendations: Recommendation[]
   pendingProgressList: PendingProgress[]
+  missingProgressList: MissingProgress[]
 }) {
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
   const [recommendations, setRecommendations] = useState(initialRecs)
@@ -57,6 +67,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   const [showSearch, setShowSearch] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
+  const [missingProgressList, setMissingProgressList] = useState(initialMissing)
+  const [missingProgress, setMissingProgress] = useState<Record<string, Record<string, number>>>({})
+  const [submittingMissing, setSubmittingMissing] = useState<string | null>(null)
   const [overrideLevel, setOverrideLevel] = useState<Record<string, string>>({})
 
   const filteredStudents = useMemo(() => {
@@ -134,12 +147,101 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     setPendingProgressList(prev => prev.filter(p => p.id !== historyId))
   }
 
+  async function submitMissingProgress(studentId: string, coachId: string | null) {
+    setSubmittingMissing(studentId)
+    const prog = missingProgress[studentId] || {}
+    const res = await fetch('/api/coach/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_id: studentId,
+        progress: prog,
+        coach_id: coachId || adminId,
+        admin_override: true,
+      })
+    })
+    if (res.ok) {
+      setMissingProgressList(prev => prev.filter(s => s.id !== studentId))
+    }
+    setSubmittingMissing(null)
+  }
+
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Level Management</h1>
         <p className="text-gray-400 mt-1">Assign or upgrade student swim levels</p>
       </div>
+
+      {/* 今日未填寫通知 */}
+      {missingProgressList.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            ⚠️ 今日未填進度
+            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{missingProgressList.length}</span>
+          </h2>
+          <div className="space-y-4">
+            {missingProgressList.map(s => {
+              const prog = missingProgress[s.id] || s.existingProgress || {}
+              const levelSkills = skills.filter(sk => {
+                const lvl = levels.find(l => l.id === sk.level_id)
+                return lvl && String(lvl.level_number) === String(s.current_level)
+              })
+              return (
+                <div key={s.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-white font-semibold">{s.full_name}</p>
+                      <p className="text-gray-400 text-xs">
+                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '今日有課'}
+                        {s.current_level ? ` · Level ${s.current_level}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => submitMissingProgress(s.id, s.session?.coach_id || null)}
+                      disabled={submittingMissing === s.id}
+                      className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
+                    >
+                      {submittingMissing === s.id ? '儲存中...' : '代填送審'}
+                    </button>
+                  </div>
+                  {levelSkills.length > 0 && (
+                    <div className="space-y-2">
+                      {levelSkills.map(sk => {
+                        const pct = prog[sk.id] ?? 0
+                        const options = [0, 20, 40, 60, 80, 100]
+                        return (
+                          <div key={sk.id}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-gray-300 text-xs">{sk.name}</span>
+                              <span className="text-xs font-mono" style={{ color: pct >= 100 ? '#3ecf8e' : pct > 0 ? '#f5a623' : 'rgba(255,255,255,0.25)' }}>{pct}%</span>
+                            </div>
+                            <div className="flex gap-1">
+                              {options.map(v => (
+                                <button key={v}
+                                  onClick={() => setMissingProgress(prev => ({
+                                    ...prev,
+                                    [s.id]: { ...(prev[s.id] || s.existingProgress || {}), [sk.id]: v }
+                                  }))}
+                                  className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
+                                    pct === v
+                                      ? 'bg-[#c9a84c] text-[#111d38]'
+                                      : 'bg-[#0d1529] border border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'
+                                  }`}
+                                >{v}%</button>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 今日進度審核 */}
       {pendingProgressList.length > 0 && (

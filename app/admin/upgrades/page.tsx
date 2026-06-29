@@ -125,6 +125,82 @@ export default async function AdminUpgradesPage() {
     }))
   }
 
+  // 今日未填寫：今天有 confirmed booking 但沒有 progress_history 記錄的學生
+  const { data: todayBookings } = await svc
+    .from('bookings')
+    .select('student_id, class_session_id')
+    .eq('status', 'confirmed')
+
+  let missingProgressList: any[] = []
+  if (todayBookings && todayBookings.length > 0) {
+    // 過濾出今天的 booking（透過 class_sessions）
+    const bSessionIds = [...new Set(todayBookings.map((b: any) => b.class_session_id).filter(Boolean))]
+    const { data: todaySessions } = await svc
+      .from('class_sessions')
+      .select('id, coach_id, start_time, end_time, course_types(name), coaches(first_name)')
+      .in('id', bSessionIds)
+      .eq('session_date', todayDate)
+
+    const todaySessionIds = new Set((todaySessions || []).map((s: any) => s.id))
+    const todayStudentIds = [...new Set(
+      todayBookings
+        .filter((b: any) => todaySessionIds.has(b.class_session_id))
+        .map((b: any) => b.student_id)
+        .filter(Boolean)
+    )]
+
+    if (todayStudentIds.length > 0) {
+      // 查已有 progress_history 的學生（今日，任何 status）
+      const { data: todayProgress } = await svc
+        .from('progress_history')
+        .select('student_id')
+        .in('student_id', todayStudentIds)
+        .eq('session_date', todayDate)
+
+      const doneStudentIds = new Set((todayProgress || []).map((p: any) => p.student_id))
+      const missingIds = todayStudentIds.filter(id => !doneStudentIds.has(id))
+
+      if (missingIds.length > 0) {
+        const { data: missingStudents } = await svc
+          .from('students')
+          .select('id, full_name, current_level')
+          .in('id', missingIds)
+
+        // 找每個學生今天對應的 session（取第一筆）
+        const sessionMap: Record<string, any> = {}
+        for (const s of todaySessions || []) {
+          const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+          const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
+          sessionMap[s.id] = { ...s, ct, coach }
+        }
+        const studentSessionMap: Record<string, any> = {}
+        for (const b of todayBookings) {
+          if (todaySessionIds.has(b.class_session_id) && !studentSessionMap[b.student_id]) {
+            studentSessionMap[b.student_id] = sessionMap[b.class_session_id]
+          }
+        }
+
+        // 撈各學生現有技能進度
+        const { data: existingProgress } = await svc
+          .from('student_skill_progress')
+          .select('student_id, skill_id, progress_percent')
+          .in('student_id', missingIds)
+
+        const progressByStudent: Record<string, Record<string, number>> = {}
+        for (const p of existingProgress || []) {
+          if (!progressByStudent[p.student_id]) progressByStudent[p.student_id] = {}
+          progressByStudent[p.student_id][p.skill_id] = p.progress_percent
+        }
+
+        missingProgressList = (missingStudents || []).map((s: any) => ({
+          ...s,
+          session: studentSessionMap[s.id] || null,
+          existingProgress: progressByStudent[s.id] || {},
+        }))
+      }
+    }
+  }
+
   return <AdminUpgradesClient
     upgradeHistory={upgradeHistory}
     adminId={admin.id}
@@ -133,5 +209,6 @@ export default async function AdminUpgradesPage() {
     students={studentsNorm}
     recommendations={recommendations}
     pendingProgressList={pendingProgressList}
+    missingProgressList={missingProgressList}
   />
 }
