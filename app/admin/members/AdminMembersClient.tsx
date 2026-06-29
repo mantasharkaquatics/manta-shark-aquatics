@@ -290,8 +290,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                         const displayList = expandedType === 'upcoming' ? sb?.upcoming : expandedType === 'past' ? sb?.past : []
                         return (
                           <div key={student.id} className="bg-[#0d1529] rounded-lg overflow-hidden">
-                            <div className="flex items-center p-3 gap-3">
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center gap-3">
                                 <div className="w-7 h-7 rounded-full bg-[#1e3a6e] flex items-center justify-center">
                                   <span className="text-[#c9a84c] text-xs font-bold">{student.full_name.charAt(0)}</span>
                                 </div>
@@ -305,7 +305,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="flex items-center gap-2">
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'upcoming')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'upcoming' ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
