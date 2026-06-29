@@ -110,6 +110,7 @@ const QUICK_LINKS = [
   { label: 'Swim Levels', icon: '🏊', href: '/levels', color: '#4a90c4', desc: 'View curriculum & progress' },
   { label: 'Swim Plans', icon: '📦', href: '/plans', color: '#4caf72', desc: 'Browse lesson packages' },
   { label: 'Policies', icon: '📋', href: '/policies', color: '#9c7a3c', desc: 'Rules & terms' },
+  { label: '帳戶連動', icon: '🤝', href: '/dashboard/partnerships', color: '#7b5ea7', desc: '與其他家長共同預約課程' },
 ]
 
 const STATUS_COLORS: Record<string, string> = {
