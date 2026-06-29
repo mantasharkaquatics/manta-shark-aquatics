@@ -29,6 +29,16 @@ type Parent = {
   students: Student[]
 }
 
+type Booking = {
+  id: string
+  session_date: string
+  start_time: string
+  end_time: string
+  course_name: string
+  coach_name: string
+  status: string
+}
+
 const LEVEL_COLORS: Record<string, string> = {
   '1': 'bg-red-900/40 text-red-300',
   '2': 'bg-orange-900/40 text-orange-300',
@@ -92,6 +102,48 @@ function CopyButton({ value }: { value: string }) {
 export default function AdminMembersClient({ parents: initialParents }: { parents: Parent[] }) {
   const supabase = createClient()
   const [search, setSearch] = useState('')
+  const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean }>>({})
+  const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | null>>({})
+
+  async function loadStudentBookings(studentId: string) {
+    if (studentBookings[studentId]?.loaded) return
+    const today = new Date().toISOString().split('T')[0]
+    const { data: rawBookings } = await supabase
+      .from('bookings')
+      .select('id, status, student_id, class_session_id')
+      .eq('student_id', studentId)
+      .neq('status', 'cancelled')
+    if (!rawBookings || rawBookings.length === 0) {
+      setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming: [], past: [], loaded: true } }))
+      return
+    }
+    const sessionIds = rawBookings.map((b: any) => b.class_session_id).filter(Boolean)
+    const { data: sessions } = await supabase
+      .from('class_sessions')
+      .select('id, session_date, start_time, end_time, course_types(name), coaches(first_name)')
+      .in('id', sessionIds)
+    const sessionMap: Record<string, any> = {}
+    for (const s of sessions || []) {
+      const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+      const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
+      sessionMap[s.id] = { ...s, ct, coach }
+    }
+    const bookings: Booking[] = rawBookings
+      .map((b: any) => {
+        const cs = sessionMap[b.class_session_id]
+        if (!cs) return null
+        return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status }
+      })
+      .filter(Boolean) as Booking[]
+    const upcoming = bookings.filter(b => b.session_date >= today).sort((a, b) => a.session_date.localeCompare(b.session_date))
+    const past = bookings.filter(b => b.session_date < today).sort((a, b) => b.session_date.localeCompare(a.session_date))
+    setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming, past, loaded: true } }))
+  }
+
+  function toggleStudentBookings(studentId: string, type: 'upcoming' | 'past') {
+    loadStudentBookings(studentId)
+    setExpandedBookings(prev => ({ ...prev, [studentId]: prev[studentId] === type ? null : type }))
+  }
   const [expanded, setExpanded] = useState<string | null>(null)
   const [parents, setParents] = useState<Parent[]>(initialParents)
 
@@ -232,27 +284,64 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   <div>
                     <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">Students</p>
                     <div className="space-y-2">
-                      {parent.students.map(student => (
-                        <div key={student.id} className="flex items-center justify-between bg-[#0d1529] rounded-lg p-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 rounded-full bg-[#1e3a6e] flex items-center justify-center">
-                              <span className="text-[#c9a84c] text-xs font-bold">{student.full_name.charAt(0)}</span>
+                      {parent.students.map(student => {
+                        const sb = studentBookings[student.id]
+                        const expandedType = expandedBookings[student.id]
+                        const displayList = expandedType === 'upcoming' ? sb?.upcoming : expandedType === 'past' ? sb?.past : []
+                        return (
+                          <div key={student.id} className="bg-[#0d1529] rounded-lg overflow-hidden">
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-[#1e3a6e] flex items-center justify-center">
+                                  <span className="text-[#c9a84c] text-xs font-bold">{student.full_name.charAt(0)}</span>
+                                </div>
+                                <div>
+                                  <p className="text-white text-sm">{student.full_name}</p>
+                                  <p className="text-gray-500 text-xs">
+                                    {student.date_of_birth
+                                      ? `${new Date(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`
+                                      : 'No birthday on file'
+                                    }
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => toggleStudentBookings(student.id, 'upcoming')}
+                                  className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'upcoming' ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
+                                >預約課程 {sb?.loaded ? `(${sb.upcoming.length})` : ''}</button>
+                                <button
+                                  onClick={() => toggleStudentBookings(student.id, 'past')}
+                                  className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'past' ? 'border-blue-400 bg-blue-400/20 text-blue-400' : 'border-[#1e3a6e] text-gray-500 hover:border-blue-400/40'}`}
+                                >歷史記錄 {sb?.loaded ? `(${sb.past.length})` : ''}</button>
+                                <span className={`text-xs px-2 py-1 rounded-full ${LEVEL_COLORS[student.current_level] || 'bg-gray-700 text-gray-300'}`}>
+                                  L{student.current_level} {LEVEL_NAMES[student.current_level] || ''}
+                                </span>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-white text-sm">{student.full_name}</p>
-                              <p className="text-gray-500 text-xs">
-                                {student.date_of_birth
-                                  ? `${new Date(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`
-                                  : 'No birthday on file'
-                                }
-                              </p>
-                            </div>
+                            {expandedType && (
+                              <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
+                                {!sb?.loaded ? (
+                                  <p className="text-gray-500 text-xs py-2">載入中...</p>
+                                ) : displayList && displayList.length > 0 ? (
+                                  <div className="space-y-1.5">
+                                    {displayList.map(b => (
+                                      <div key={b.id} className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-400 w-24 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                        <span className="text-gray-300 flex-1">{b.course_name}</span>
+                                        <span className="text-gray-500 mx-2">Coach {b.coach_name}</span>
+                                        <span className="text-gray-500">{b.start_time?.slice(0,5)}–{b.end_time?.slice(0,5)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-gray-600 text-xs py-2">無記錄</p>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <span className={`text-xs px-2 py-1 rounded-full ${LEVEL_COLORS[student.current_level] || 'bg-gray-700 text-gray-300'}`}>
-                            L{student.current_level} {LEVEL_NAMES[student.current_level] || ''}
-                          </span>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 </div>
