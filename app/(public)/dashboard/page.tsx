@@ -22,6 +22,18 @@ const LEVEL_NAMES: Record<number, string> = {
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
 interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string; trial_used_at: string | null }
+interface SkillProgress {
+  skill_id: string
+  skill_name: string
+  progress_percent: number
+  sort_order: number
+}
+interface StudentProgress {
+  student_id: string
+  session_date: string
+  skills: SkillProgress[]
+}
+
 interface Credit {
   id: string
   total_credits: number
@@ -278,6 +290,8 @@ export default function DashboardPage() {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string; type?: 'cancel' | 'reject' } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
+  const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
+  const [expandedProgress, setExpandedProgress] = useState<Set<string>>(new Set())
   const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
@@ -492,6 +506,55 @@ export default function DashboardPage() {
 
     setUpcomingBookings(allUpcoming.sort((a, b) => a.session_date.localeCompare(b.session_date)))
     setPastBookings(allPast.sort((a, b) => b.session_date.localeCompare(a.session_date)).slice(0, 10))
+    // 抓各學生最新 approved progress_history
+    const studentIdList = (studs || []).map((s: any) => s.id)
+    if (studentIdList.length > 0) {
+      const { data: histRows } = await supabase
+        .from('progress_history')
+        .select('student_id, session_date, snapshot')
+        .in('student_id', studentIdList)
+        .eq('status', 'approved')
+        .order('session_date', { ascending: false })
+
+      // 每個學生只取最新一筆
+      const latestByStudent: Record<string, { session_date: string; snapshot: Record<string, number> }> = {}
+      for (const row of histRows || []) {
+        if (!latestByStudent[(row as any).student_id]) {
+          latestByStudent[(row as any).student_id] = {
+            session_date: (row as any).session_date,
+            snapshot: (row as any).snapshot || {},
+          }
+        }
+      }
+
+      // 抓 skills 名稱
+      const allSkillIds = [...new Set(Object.values(latestByStudent).flatMap(h => Object.keys(h.snapshot)))]
+      let skillNameMap: Record<string, { name: string; sort_order: number }> = {}
+      if (allSkillIds.length > 0) {
+        const { data: skillRows } = await supabase
+          .from('skills')
+          .select('id, name, sort_order')
+          .in('id', allSkillIds)
+        for (const sk of skillRows || []) {
+          skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order }
+        }
+      }
+
+      const progressMap: Record<string, StudentProgress> = {}
+      for (const [sid, hist] of Object.entries(latestByStudent)) {
+        const skills: SkillProgress[] = Object.entries(hist.snapshot)
+          .map(([skill_id, pct]) => ({
+            skill_id,
+            skill_name: skillNameMap[skill_id]?.name || skill_id,
+            progress_percent: pct as number,
+            sort_order: skillNameMap[skill_id]?.sort_order || 999,
+          }))
+          .sort((a, b) => a.sort_order - b.sort_order)
+        progressMap[sid] = { student_id: sid, session_date: hist.session_date, skills }
+      }
+      setStudentProgressMap(progressMap)
+    }
+
     setLoading(false)
   }
 
@@ -776,6 +839,52 @@ export default function DashboardPage() {
                       <div style={{ fontSize: '20px' }}>📋</div>
                     )}
                   </div>
+
+                  {/* 學習進度區塊 */}
+                  {studentProgressMap[student.id] && (() => {
+                    const prog = studentProgressMap[student.id]
+                    const isOpen = expandedProgress.has(student.id)
+                    return (
+                      <div style={{ marginTop: '12px' }}>
+                        <button
+                          onClick={() => setExpandedProgress(prev => {
+                            const next = new Set(prev)
+                            if (next.has(student.id)) next.delete(student.id)
+                            else next.add(student.id)
+                            return next
+                          })}
+                          style={{
+                            width: '100%', padding: '10px 14px',
+                            borderRadius: '10px', border: '1px solid rgba(76,175,114,0.35)',
+                            background: 'transparent', color: '#4caf72',
+                            fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          <span>📊 學習進度 · {prog.session_date}</span>
+                          <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>
+                        </button>
+                        {isOpen && (
+                          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {prog.skills.map(sk => (
+                              <div key={sk.skill_id}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>{sk.skill_name}</span>
+                                  <span style={{ fontSize: '11px', fontWeight: 700, color: sk.progress_percent >= 100 ? '#4caf72' : sk.progress_percent > 0 ? GOLD : 'rgba(255,255,255,0.25)' }}>
+                                    {sk.progress_percent}%
+                                  </span>
+                                </div>
+                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+                                  <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : GOLD, borderRadius: '2px', transition: 'width 0.3s ease' }} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* QR Code Button */}
                   <button
