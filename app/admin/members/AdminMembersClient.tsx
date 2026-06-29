@@ -327,7 +327,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   <div className="space-y-1.5">
                                     {displayList.map(b => (
                                       <div key={b.id} className="flex items-center gap-3 text-xs">
-                                        <span className="text-gray-400 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                        <span className="text-gray-400 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                         <span className="text-gray-500 flex-shrink-0">{b.start_time?.slice(0,5)}–{b.end_time?.slice(0,5)}</span>
                                         <span className="text-gray-300">{b.course_name}</span>
                                         <span className="text-gray-500">Coach {b.coach_name}</span>
