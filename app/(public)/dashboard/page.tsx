@@ -57,6 +57,7 @@ interface Booking {
   course_slug?: string
   student_id?: string
   is_trial?: boolean
+  checked_in?: boolean
   pending_action?: string
   pending_new_session_id?: string
   partner_booking_id?: string
@@ -513,7 +514,30 @@ export default function DashboardPage() {
     const allPast = parseBookings(rawBookings || []).filter(b => b.session_date < today)
 
     setUpcomingBookings(allUpcoming.sort((a, b) => a.session_date.localeCompare(b.session_date)))
-    setPastBookings(allPast.sort((a, b) => b.session_date.localeCompare(a.session_date)).slice(0, 10))
+
+    // 查詢 past bookings 的 attendance（check-in 記錄）
+    const pastBookingIds = (rawBookings || [])
+      .filter((b: any) => {
+        const cs = sessionMap[b.class_session_id]
+        return cs && cs.session_date < today
+      })
+      .map((b: any) => b.id)
+    let checkedInSet = new Set<string>()
+    if (pastBookingIds.length > 0) {
+      const { data: attendanceRows } = await supabase
+        .from('attendance')
+        .select('booking_id')
+        .in('booking_id', pastBookingIds)
+      for (const a of attendanceRows || []) {
+        checkedInSet.add((a as any).booking_id)
+      }
+    }
+
+    const allPastWithCheckin = allPast.map(b => {
+      const raw = (rawBookings || []).find((r: any) => r.id === b.id)
+      return { ...b, checked_in: raw ? checkedInSet.has(raw.id) : false }
+    })
+    setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date)).slice(0, 50))
     // 抓各學生最新 approved progress_history
     const studentIdList = (studs || []).map((s: any) => s.id)
     if (studentIdList.length > 0) {
