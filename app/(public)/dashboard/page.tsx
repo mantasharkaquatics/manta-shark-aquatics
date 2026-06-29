@@ -28,10 +28,13 @@ interface SkillProgress {
   progress_percent: number
   sort_order: number
 }
-interface StudentProgress {
-  student_id: string
+interface ProgressRecord {
   session_date: string
   skills: SkillProgress[]
+}
+interface StudentProgress {
+  student_id: string
+  records: ProgressRecord[]
 }
 
 interface Credit {
@@ -292,6 +295,8 @@ export default function DashboardPage() {
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
   const [expandedProgress, setExpandedProgress] = useState<Set<string>>(new Set())
+  const [progressPage, setProgressPage] = useState<Record<string, number>>({})
+  const [expandedRecord, setExpandedRecord] = useState<Record<string, string | null>>({})
   const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
@@ -519,19 +524,19 @@ export default function DashboardPage() {
         .eq('status', 'approved')
         .order('session_date', { ascending: false })
 
-      // 每個學生只取最新一筆
-      const latestByStudent: Record<string, { session_date: string; snapshot: Record<string, number> }> = {}
+      // 所有記錄按學生分組
+      const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number> }[]> = {}
       for (const row of histRows || []) {
-        if (!latestByStudent[(row as any).student_id]) {
-          latestByStudent[(row as any).student_id] = {
-            session_date: (row as any).session_date,
-            snapshot: (row as any).snapshot || {},
-          }
-        }
+        const sid = (row as any).student_id
+        if (!allByStudent[sid]) allByStudent[sid] = []
+        allByStudent[sid].push({
+          session_date: (row as any).session_date,
+          snapshot: (row as any).snapshot || {},
+        })
       }
 
       // 抓 skills 名稱
-      const allSkillIds = [...new Set(Object.values(latestByStudent).flatMap(h => Object.keys(h.snapshot)))]
+      const allSkillIds = [...new Set((histRows || []).flatMap((r: any) => Object.keys(r.snapshot || {})))]
       let skillNameMap: Record<string, { name: string; sort_order: number }> = {}
       if (allSkillIds.length > 0) {
         const { data: skillRows } = await supabase
@@ -544,16 +549,20 @@ export default function DashboardPage() {
       }
 
       const progressMap: Record<string, StudentProgress> = {}
-      for (const [sid, hist] of Object.entries(latestByStudent)) {
-        const skills: SkillProgress[] = Object.entries(hist.snapshot)
-          .map(([skill_id, pct]) => ({
-            skill_id,
-            skill_name: skillNameMap[skill_id]?.name || skill_id,
-            progress_percent: pct as number,
-            sort_order: skillNameMap[skill_id]?.sort_order || 999,
-          }))
-          .sort((a, b) => a.sort_order - b.sort_order)
-        progressMap[sid] = { student_id: sid, session_date: hist.session_date, skills }
+      for (const [sid, hists] of Object.entries(allByStudent)) {
+        const records: ProgressRecord[] = hists.map(hist => ({
+          session_date: hist.session_date,
+          skills: Object.entries(hist.snapshot)
+            .map(([skill_id, pct]) => ({
+              skill_id,
+              skill_name: skillNameMap[skill_id]?.name || skill_id,
+              progress_percent: pct as number,
+              sort_order: skillNameMap[skill_id]?.sort_order || 999,
+            }))
+            .sort((a, b) => a.sort_order - b.sort_order),
+        }))
+        // dummy line to match old structure
+        progressMap[sid] = { student_id: sid, records }
       }
       setStudentProgressMap(progressMap)
     }
@@ -847,6 +856,10 @@ export default function DashboardPage() {
                   {studentProgressMap[student.id] && (() => {
                     const prog = studentProgressMap[student.id]
                     const isOpen = expandedProgress.has(student.id)
+                    const page = progressPage[student.id] || 0
+                    const PAGE_SIZE = 10
+                    const totalPages = Math.ceil(prog.records.length / PAGE_SIZE)
+                    const pageRecords = prog.records.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
                     return (
                       <div style={{ marginTop: '12px' }}>
                         <button
@@ -865,24 +878,54 @@ export default function DashboardPage() {
                             letterSpacing: '0.5px',
                           }}
                         >
-                          <span>📊 學習進度 · {prog.session_date}</span>
+                          <span>📊 學習進度 ({prog.records.length} 筆記錄)</span>
                           <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>
                         </button>
                         {isOpen && (
-                          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {prog.skills.map(sk => (
-                              <div key={sk.skill_id}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>{sk.skill_name}</span>
-                                  <span style={{ fontSize: '11px', fontWeight: 700, color: sk.progress_percent >= 100 ? '#4caf72' : sk.progress_percent > 0 ? GOLD : 'rgba(255,255,255,0.25)' }}>
-                                    {sk.progress_percent}%
-                                  </span>
+                          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {pageRecords.map(rec => {
+                              const recKey = student.id + '_' + rec.session_date
+                              const recOpen = expandedRecord[recKey]
+                              return (
+                                <div key={rec.session_date} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                                  <button
+                                    onClick={() => setExpandedRecord(prev => ({ ...prev, [recKey]: prev[recKey] ? null : rec.session_date }))}
+                                    style={{ width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                                  >
+                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{rec.session_date}</span>
+                                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>{recOpen ? '▲' : '▼'}</span>
+                                  </button>
+                                  {recOpen && (
+                                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                      {rec.skills.map(sk => (
+                                        <div key={sk.skill_id}>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>{sk.skill_name}</span>
+                                            <span style={{ fontSize: '11px', fontWeight: 700, color: sk.progress_percent >= 100 ? '#4caf72' : sk.progress_percent > 0 ? GOLD : 'rgba(255,255,255,0.25)' }}>{sk.progress_percent}%</span>
+                                          </div>
+                                          <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+                                            <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : GOLD, borderRadius: '2px' }} />
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
-                                  <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : GOLD, borderRadius: '2px', transition: 'width 0.3s ease' }} />
-                                </div>
+                              )
+                            })}
+                            {totalPages > 1 && (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '4px' }}>
+                                <button onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: Math.max(0, page - 1) }))} disabled={page === 0}
+                                  style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '11px', cursor: page === 0 ? 'not-allowed' : 'pointer' }}>←</button>
+                                {Array.from({ length: totalPages }, (_, i) => (
+                                  <button key={i} onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: i }))}
+                                    style={{ width: '26px', height: '26px', borderRadius: '6px', border: `1px solid ${i === page ? GOLD : 'rgba(255,255,255,0.12)'}`, background: i === page ? `${GOLD}20` : 'transparent', color: i === page ? GOLD : 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                  >{i + 1}</button>
+                                ))}
+                                <button onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: Math.min(totalPages - 1, page + 1) }))} disabled={page === totalPages - 1}
+                                  style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === totalPages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '11px', cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer' }}>→</button>
                               </div>
-                            ))}
+                            )}
                           </div>
                         )}
                       </div>
