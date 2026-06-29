@@ -290,7 +290,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                         const displayList = expandedType === 'upcoming' ? sb?.upcoming : expandedType === 'past' ? sb?.past : []
                         return (
                           <div key={student.id} className="bg-[#0d1529] rounded-lg overflow-hidden">
-                            <div className="flex items-center justify-between p-3">
+                            <div className="flex items-center gap-3 p-3">
                               <div className="flex items-center gap-3">
                                 <div className="w-7 h-7 rounded-full bg-[#1e3a6e] flex items-center justify-center">
                                   <span className="text-[#c9a84c] text-xs font-bold">{student.full_name.charAt(0)}</span>
