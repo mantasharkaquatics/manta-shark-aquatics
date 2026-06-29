@@ -305,7 +305,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 mr-16">
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'upcoming')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'upcoming' ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
