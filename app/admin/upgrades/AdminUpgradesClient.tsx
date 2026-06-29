@@ -189,25 +189,22 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 return lvl && String(lvl.level_number) === String(s.current_level)
               })
               return (
-                <div key={s.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-5">
+                <div key={s.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-5 cursor-pointer"
+                  onClick={() => setExpandedMissing(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })}
+                >
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <button
-                        onClick={() => setExpandedMissing(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })}
-                        className="text-left"
-                      >
-                        <p className="text-white font-semibold flex items-center gap-2">
-                          {s.full_name}
-                          <span className="text-gray-500 text-xs">{expandedMissing.has(s.id) ? '▲' : '▼'}</span>
-                        </p>
-                        <p className="text-gray-400 text-xs">
-                          {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '今日有課'}
-                          {s.current_level ? ` · Level ${s.current_level}` : ''}
-                        </p>
-                      </button>
+                      <p className="text-white font-semibold flex items-center gap-2">
+                        {s.full_name}
+                        <span className="text-gray-500 text-xs">{expandedMissing.has(s.id) ? '▲' : '▼'}</span>
+                      </p>
+                      <p className="text-gray-400 text-xs">
+                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '今日有課'}
+                        {s.current_level ? ` · Level ${s.current_level}` : ''}
+                      </p>
                     </div>
                     <button
-                      onClick={() => submitMissingProgress(s.id, s.session?.coach_id || null)}
+                      onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.session?.coach_id || null) }}
                       disabled={submittingMissing === s.id}
                       className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
                     >
@@ -228,10 +225,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                             <div className="flex gap-1">
                               {options.map(v => (
                                 <button key={v}
-                                  onClick={() => setMissingProgress(prev => ({
+                                  onClick={e => { e.stopPropagation(); setMissingProgress(prev => ({
                                     ...prev,
                                     [s.id]: { ...(prev[s.id] || s.existingProgress || {}), [sk.id]: v }
-                                  }))}
+                                  }))}}
                                   className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
                                     pct === v
                                       ? 'bg-[#c9a84c] text-[#111d38]'
