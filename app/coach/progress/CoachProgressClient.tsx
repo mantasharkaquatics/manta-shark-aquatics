@@ -135,9 +135,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
           <h1 className="text-2xl font-bold text-white">Progress Entry</h1>
           <p className="text-gray-400 text-sm mt-1">{today} · {uniqueStudents.length} students today</p>
         </div>
-        {locked && (
-          <div className="bg-red-900/30 border border-red-500/40 rounded-lg px-3 py-2 text-red-400 text-xs">今日已截止</div>
-        )}
+
       </div>
 
       {uniqueStudents.length === 0 ? (
