@@ -193,9 +193,11 @@ export default function RegisterPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="(555) 123-4567"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              <p className="text-xs text-gray-400 mt-1">用於簡訊驗證，請填寫可接收簡訊的手機號碼</p>
             </div>
 
             {/* Address */}
@@ -263,7 +265,7 @@ export default function RegisterPage() {
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
               onClick={() => {
-                if (!firstName || !lastName || !email || !password || !addressLine1 || !city || !state || !zipCode) {
+                if (!firstName || !lastName || !email || !phone || !password || !addressLine1 || !city || !state || !zipCode) {
                   setError('Please fill in all required fields.'); return
                 }
                 setError(''); setStep(2)
