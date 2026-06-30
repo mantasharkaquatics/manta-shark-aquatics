@@ -29,14 +29,14 @@ export async function POST(req: NextRequest) {
   const { booking_id, student_id, class_session_id, checked_in } = await req.json()
 
   if (checked_in) {
-    const { error } = await supabase.from('attendance').insert({
+    const { error } = await supabase.from('attendance').upsert({
       booking_id,
       student_id,
       class_session_id,
       check_in_method: 'manual',
       checked_in_by: null,
       checked_in_at: new Date().toISOString(),
-    })
+    }, { onConflict: 'booking_id,student_id' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   } else {
     const { error } = await supabase.from('attendance').delete().eq('booking_id', booking_id)
