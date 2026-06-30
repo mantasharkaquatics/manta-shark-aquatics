@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
@@ -57,6 +58,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   pastPendingProgressList: PendingProgress[]
   missingProgressList: MissingProgress[]
 }) {
+  const router = useRouter()
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
   const [recommendations, setRecommendations] = useState(initialRecs)
   const [pendingProgressList, setPendingProgressList] = useState(initialPending)
@@ -117,6 +119,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       setTimeout(() => {
         setSelectedStudent(null); setSelectedLevel(''); setNotes(''); setSaved(false); setShowSearch(false); setSearch('')
       }, 1500)
+      router.refresh()
     }
     setSaving(false)
   }
@@ -143,6 +146,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       setUpgradeHistory(prev => [newRecord as any, ...prev])
     }
     setReviewingId(null)
+    router.refresh()
   }
 
   async function reviewProgress(historyId: string, studentId: string) {
@@ -160,6 +164,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     setPendingProgressList(prev => prev.filter(p => p.id !== historyId))
     setPastPendingProgressList(prev => prev.filter(p => p.id !== historyId))
     setEditingPendingId(null)
+    router.refresh()
   }
 
   function setEditedPct(historyId: string, skillId: string, pct: number) {
@@ -185,6 +190,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     })
     if (res.ok) {
       setMissingProgressList(prev => prev.filter(s => s.id !== listId))
+      router.refresh()
     }
     setSubmittingMissing(null)
   }
