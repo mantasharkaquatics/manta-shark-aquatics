@@ -107,6 +107,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   const [search, setSearch] = useState('')
   const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean }>>({})
   const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | null>>({})
+  const [confirmingBookingId, setConfirmingBookingId] = useState<string | null>(null)
 
   async function loadStudentBookings(studentId: string) {
     if (studentBookings[studentId]?.loaded) return
@@ -181,6 +182,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         },
       }
     })
+    setConfirmingBookingId(null)
   }
   const [expanded, setExpanded] = useState<string | null>(null)
   const [parents, setParents] = useState<Parent[]>(initialParents)
@@ -381,14 +383,30 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                         <span className="text-gray-500">Coach {b.coach_name}</span>
                                         {expandedType === 'past' && (
                                           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
-                                            <button
-                                              onClick={() => setAttendance(student.id, b, true)}
-                                              className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${b.checked_in ? 'bg-green-500/25 border-green-400 text-green-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-green-400/40'}`}
-                                            >已報到</button>
-                                            <button
-                                              onClick={() => setAttendance(student.id, b, false)}
-                                              className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${!b.checked_in ? 'bg-red-500/25 border-red-400 text-red-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-red-400/40'}`}
-                                            >未報到</button>
+                                            {confirmingBookingId === b.id ? (
+                                              <>
+                                                <span className="text-gray-400 text-[10px]">確定？</span>
+                                                <button
+                                                  onClick={() => setAttendance(student.id, b, !b.checked_in)}
+                                                  className="px-2 py-0.5 rounded-full border border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c] text-[10px] font-semibold"
+                                                >確定</button>
+                                                <button
+                                                  onClick={() => setConfirmingBookingId(null)}
+                                                  className="px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 text-[10px] font-semibold"
+                                                >取消</button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <button
+                                                  onClick={() => setConfirmingBookingId(b.id)}
+                                                  className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${b.checked_in ? 'bg-green-500/25 border-green-400 text-green-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-green-400/40'}`}
+                                                >已報到</button>
+                                                <button
+                                                  onClick={() => setConfirmingBookingId(b.id)}
+                                                  className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${!b.checked_in ? 'bg-red-500/25 border-red-400 text-red-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-red-400/40'}`}
+                                                >未報到</button>
+                                              </>
+                                            )}
                                           </div>
                                         )}
                                       </div>
