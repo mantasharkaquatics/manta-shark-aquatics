@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { student_id, progress, coach_id } = await req.json()
+  const { student_id, progress, coach_id, session_date } = await req.json()
   if (!student_id || !progress || !coach_id) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
 
   // Verify coach exists
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   if (!coach) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const today = session_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
   const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
     student_id,

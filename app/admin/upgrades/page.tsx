@@ -125,62 +125,67 @@ export default async function AdminUpgradesPage() {
     }))
   }
 
-  // 今日未填寫：今天有 confirmed booking 但沒有 progress_history 記錄的學生
-  const { data: todayBookings } = await svc
+  // 未填寫：今天或過去任何一天，有 confirmed booking 但沒有 progress_history 記錄的學生（不只今天，避免漏掉前幾天忘記填的）
+  const { data: pastBookings } = await svc
     .from('bookings')
     .select('student_id, class_session_id')
     .eq('status', 'confirmed')
 
   let missingProgressList: any[] = []
-  if (todayBookings && todayBookings.length > 0) {
-    // 過濾出今天的 booking（透過 class_sessions）
-    const bSessionIds = [...new Set(todayBookings.map((b: any) => b.class_session_id).filter(Boolean))]
-    const { data: todaySessions } = await svc
+  if (pastBookings && pastBookings.length > 0) {
+    const bSessionIds = [...new Set(pastBookings.map((b: any) => b.class_session_id).filter(Boolean))]
+    const { data: pastSessions } = await svc
       .from('class_sessions')
-      .select('id, coach_id, start_time, end_time, course_types(name), coaches(first_name)')
+      .select('id, session_date, coach_id, start_time, end_time, course_types(name), coaches(first_name)')
       .in('id', bSessionIds)
-      .eq('session_date', todayDate)
+      .lte('session_date', todayDate)
 
-    const todaySessionIds = new Set((todaySessions || []).map((s: any) => s.id))
-    const todayStudentIds = [...new Set(
-      todayBookings
-        .filter((b: any) => todaySessionIds.has(b.class_session_id))
-        .map((b: any) => b.student_id)
-        .filter(Boolean)
-    )]
+    const sessionMap: Record<string, any> = {}
+    for (const s of pastSessions || []) {
+      const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+      const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
+      sessionMap[s.id] = { ...s, ct, coach }
+    }
 
-    if (todayStudentIds.length > 0) {
-      // 查已有 progress_history 的學生（今日，任何 status）
-      const { data: todayProgress } = await svc
+    // 每筆 booking 對應一筆 (student_id, session_date) 組合，代表「這個學生在這一天上了這堂課」
+    const candidates = pastBookings
+      .filter((b: any) => sessionMap[b.class_session_id])
+      .map((b: any) => ({
+        student_id: b.student_id,
+        session: sessionMap[b.class_session_id],
+      }))
+      .filter((c: any) => c.student_id)
+
+    if (candidates.length > 0) {
+      const candidateStudentIds = [...new Set(candidates.map((c: any) => c.student_id))]
+      const { data: existingHistory } = await svc
         .from('progress_history')
-        .select('student_id')
-        .in('student_id', todayStudentIds)
-        .eq('session_date', todayDate)
+        .select('student_id, session_date')
+        .in('student_id', candidateStudentIds)
+        .lte('session_date', todayDate)
 
-      const doneStudentIds = new Set((todayProgress || []).map((p: any) => p.student_id))
-      const missingIds = todayStudentIds.filter(id => !doneStudentIds.has(id))
+      const doneSet = new Set((existingHistory || []).map((p: any) => `${p.student_id}|${p.session_date}`))
+      const missingCandidates = candidates.filter((c: any) => !doneSet.has(`${c.student_id}|${c.session.session_date}`))
 
-      if (missingIds.length > 0) {
+      // 每個學生每天最多列一筆（避免同一天多堂課重複列出）
+      const dedupKey = new Set<string>()
+      const dedupedCandidates = missingCandidates.filter((c: any) => {
+        const key = `${c.student_id}|${c.session.session_date}`
+        if (dedupKey.has(key)) return false
+        dedupKey.add(key)
+        return true
+      })
+
+      if (dedupedCandidates.length > 0) {
+        const missingIds = [...new Set(dedupedCandidates.map((c: any) => c.student_id))]
         const { data: missingStudents } = await svc
           .from('students')
           .select('id, full_name, current_level')
           .in('id', missingIds)
 
-        // 找每個學生今天對應的 session（取第一筆）
-        const sessionMap: Record<string, any> = {}
-        for (const s of todaySessions || []) {
-          const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
-          const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
-          sessionMap[s.id] = { ...s, ct, coach }
-        }
-        const studentSessionMap: Record<string, any> = {}
-        for (const b of todayBookings) {
-          if (todaySessionIds.has(b.class_session_id) && !studentSessionMap[b.student_id]) {
-            studentSessionMap[b.student_id] = sessionMap[b.class_session_id]
-          }
-        }
+        const studentMap: Record<string, any> = {}
+        for (const s of missingStudents || []) studentMap[s.id] = s
 
-        // 撈各學生現有技能進度
         const { data: existingProgress } = await svc
           .from('student_skill_progress')
           .select('student_id, skill_id, progress_percent')
@@ -192,11 +197,16 @@ export default async function AdminUpgradesPage() {
           progressByStudent[p.student_id][p.skill_id] = p.progress_percent
         }
 
-        missingProgressList = (missingStudents || []).map((s: any) => ({
-          ...s,
-          session: studentSessionMap[s.id] || null,
-          existingProgress: progressByStudent[s.id] || {},
-        }))
+        missingProgressList = dedupedCandidates
+          .filter((c: any) => studentMap[c.student_id])
+          .sort((a: any, b: any) => a.session.session_date.localeCompare(b.session.session_date))
+          .map((c: any) => ({
+            ...studentMap[c.student_id],
+            id: `${c.student_id}_${c.session.session_date}`,
+            student_id: c.student_id,
+            session: c.session,
+            existingProgress: progressByStudent[c.student_id] || {},
+          }))
       }
     }
   }

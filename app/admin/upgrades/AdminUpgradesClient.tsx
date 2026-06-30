@@ -25,9 +25,10 @@ type Recommendation = {
 
 type MissingProgress = {
   id: string
+  student_id: string
   full_name: string
   current_level: string | null
-  session: { id: string; start_time: string; end_time: string; coach_id: string; ct: { name: string } | null; coach: { first_name: string } | null } | null
+  session: { id: string; session_date: string; start_time: string; end_time: string; coach_id: string; ct: { name: string } | null; coach: { first_name: string } | null } | null
   existingProgress: Record<string, number>
 }
 
@@ -148,9 +149,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     setPendingProgressList(prev => prev.filter(p => p.id !== historyId))
   }
 
-  async function submitMissingProgress(studentId: string, coachId: string | null) {
-    setSubmittingMissing(studentId)
-    const prog = missingProgress[studentId] || {}
+  async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null) {
+    setSubmittingMissing(listId)
+    const prog = missingProgress[listId] || {}
     const res = await fetch('/api/coach/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -158,11 +159,12 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         student_id: studentId,
         progress: prog,
         coach_id: coachId || adminId,
+        session_date: sessionDate,
         admin_override: true,
       })
     })
     if (res.ok) {
-      setMissingProgressList(prev => prev.filter(s => s.id !== studentId))
+      setMissingProgressList(prev => prev.filter(s => s.id !== listId))
     }
     setSubmittingMissing(null)
   }
@@ -178,9 +180,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       {missingProgressList.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            ⚠️ 今日未填進度
+            ⚠️ 未填進度
             <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{missingProgressList.length}</span>
-            <span className="text-gray-500 normal-case font-normal text-xs">（{new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}）</span>
+            <span className="text-gray-500 normal-case font-normal text-xs">（含過去未填，截至 {new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}）</span>
           </h2>
           <div className="space-y-4">
             {missingProgressList.map(s => {
@@ -200,12 +202,13 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         <span className="text-gray-500 text-xs">{expandedMissing.has(s.id) ? '▲' : '▼'}</span>
                       </p>
                       <p className="text-gray-400 text-xs">
-                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '今日有課'}
+                        {s.session?.session_date ? `${new Date(s.session.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })} · ` : ''}
+                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '有課'}
                         {s.current_level ? ` · Level ${s.current_level}` : ''}
                       </p>
                     </div>
                     <button
-                      onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.session?.coach_id || null) }}
+                      onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null) }}
                       disabled={submittingMissing === s.id}
                       className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
                     >
