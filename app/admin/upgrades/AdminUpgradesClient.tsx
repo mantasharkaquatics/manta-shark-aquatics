@@ -44,6 +44,7 @@ const LEVEL_COLORS: Record<string, string> = {
 
 export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students, recommendations: initialRecs,
   pendingProgressList: initialPending,
+  pastPendingProgressList: initialPastPending,
   missingProgressList: initialMissing,
 }: {
   upgradeHistory: UpgradeHistory[]
@@ -53,11 +54,15 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   students: Student[]
   recommendations: Recommendation[]
   pendingProgressList: PendingProgress[]
+  pastPendingProgressList: PendingProgress[]
   missingProgressList: MissingProgress[]
 }) {
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
   const [recommendations, setRecommendations] = useState(initialRecs)
   const [pendingProgressList, setPendingProgressList] = useState(initialPending)
+  const [pastPendingProgressList, setPastPendingProgressList] = useState(initialPastPending)
+  const [editingPendingId, setEditingPendingId] = useState<string | null>(null)
+  const [editedSnapshots, setEditedSnapshots] = useState<Record<string, Record<string, number>>>({})
   const [search, setSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<string>('')
@@ -140,13 +145,28 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     setReviewingId(null)
   }
 
-  async function reviewProgress(historyId: string) {
+  async function reviewProgress(historyId: string, studentId: string) {
+    const edited = editedSnapshots[historyId]
     await fetch('/api/admin/review-progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history_id: historyId, admin_id: adminId })
+      body: JSON.stringify({
+        history_id: historyId,
+        admin_id: adminId,
+        student_id: studentId,
+        updated_snapshot: edited || undefined,
+      })
     })
     setPendingProgressList(prev => prev.filter(p => p.id !== historyId))
+    setPastPendingProgressList(prev => prev.filter(p => p.id !== historyId))
+    setEditingPendingId(null)
+  }
+
+  function setEditedPct(historyId: string, skillId: string, pct: number) {
+    setEditedSnapshots(prev => ({
+      ...prev,
+      [historyId]: { ...(prev[historyId] || {}), [skillId]: pct }
+    }))
   }
 
   async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null) {
@@ -266,12 +286,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
           <div className="space-y-4">
             {pendingProgressList.map(p => {
               const lvl = p.student?.current_level || ''
-              const levelSkills = p.skills.filter((sk: any) => {
-                return true // will filter by level below
-              })
               const skillMap: Record<string, string> = {}
               for (const sk of p.skills) skillMap[sk.id] = sk.name
               const entries = Object.entries(p.snapshot || {})
+              const isEditing = editingPendingId === p.id
+              const edited = editedSnapshots[p.id] || {}
               return (
                 <div key={p.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
                   <div className="flex items-center justify-between mb-4">
@@ -279,18 +298,120 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">教練 {p.coach?.first_name} · Level {lvl} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
-                    <button
-                      onClick={() => reviewProgress(p.id)}
-                      className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
-                    >
-                      確認 → 發布給家長
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditingPendingId(isEditing ? null : p.id)}
+                        className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
+                      >
+                        {isEditing ? '完成更改' : '更改'}
+                      </button>
+                      <button
+                        onClick={() => reviewProgress(p.id, p.student_id)}
+                        className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
+                      >
+                        確認 → 發布給家長
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     {entries.map(([skillId, pct]) => {
                       const skillName = skillMap[skillId] || skillId
-                      const p2 = pct as number
+                      const p2 = (edited[skillId] ?? pct) as number
                       const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
+                      if (isEditing) {
+                        return (
+                          <div key={skillId} className="flex items-center gap-3">
+                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                            <div className="flex gap-1">
+                              {[0, 20, 40, 60, 80, 100].map(opt => (
+                                <button
+                                  key={opt}
+                                  onClick={() => setEditedPct(p.id, skillId, opt)}
+                                  className={`px-2 py-1 rounded text-[10px] font-mono border transition-all ${p2 === opt ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
+                                >{opt}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      }
+                      return (
+                        <div key={skillId} className="flex items-center gap-3">
+                          <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                          </div>
+                          <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 過去待審核進度（之前漏審的，不論哪一天，都會一直列在這裡直到確認為止） */}
+      {pastPendingProgressList.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            過去待審核進度
+            <span className="bg-orange-500 text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pastPendingProgressList.length}</span>
+          </h2>
+          <div className="space-y-4">
+            {pastPendingProgressList.map(p => {
+              const lvl = p.student?.current_level || ''
+              const skillMap: Record<string, string> = {}
+              for (const sk of p.skills) skillMap[sk.id] = sk.name
+              const entries = Object.entries(p.snapshot || {})
+              const isEditing = editingPendingId === p.id
+              const edited = editedSnapshots[p.id] || {}
+              return (
+                <div key={p.id} className="bg-[#111d38] rounded-xl border border-orange-500/30 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-white font-semibold">{p.student?.full_name}</p>
+                      <p className="text-gray-400 text-xs">
+                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })} · 教練 {p.coach?.first_name} · Level {lvl}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditingPendingId(isEditing ? null : p.id)}
+                        className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
+                      >
+                        {isEditing ? '完成更改' : '更改'}
+                      </button>
+                      <button
+                        onClick={() => reviewProgress(p.id, p.student_id)}
+                        className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
+                      >
+                        確認 → 發布給家長
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {entries.map(([skillId, pct]) => {
+                      const skillName = skillMap[skillId] || skillId
+                      const p2 = (edited[skillId] ?? pct) as number
+                      const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
+                      if (isEditing) {
+                        return (
+                          <div key={skillId} className="flex items-center gap-3">
+                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                            <div className="flex gap-1">
+                              {[0, 20, 40, 60, 80, 100].map(opt => (
+                                <button
+                                  key={opt}
+                                  onClick={() => setEditedPct(p.id, skillId, opt)}
+                                  className={`px-2 py-1 rounded text-[10px] font-mono border transition-all ${p2 === opt ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
+                                >{opt}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      }
                       return (
                         <div key={skillId} className="flex items-center gap-3">
                           <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
