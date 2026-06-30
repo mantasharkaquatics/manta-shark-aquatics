@@ -141,11 +141,9 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     const upcoming = bookings.filter(b => b.session_date >= today).sort((a, b) => a.session_date.localeCompare(b.session_date))
     let past = bookings.filter(b => b.session_date < today).sort((a, b) => b.session_date.localeCompare(a.session_date))
     if (past.length > 0) {
-      const { data: attendanceRows } = await supabase
-        .from('attendance')
-        .select('booking_id')
-        .in('booking_id', past.map(b => b.id))
-      const checkedInSet = new Set((attendanceRows || []).map((a: any) => a.booking_id))
+      const res = await fetch('/api/admin/attendance?booking_ids=' + past.map(b => b.id).join(','))
+      const json = await res.json().catch(() => ({ checkedInBookingIds: [] }))
+      const checkedInSet = new Set((json.checkedInBookingIds || []) as string[])
       past = past.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     }
     setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming, past, loaded: true } }))
