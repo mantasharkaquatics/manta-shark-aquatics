@@ -1298,7 +1298,12 @@ export default function DashboardPage() {
               return (
                 <>
                   <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                    {displayed.map((booking, i) => (
+                    {displayed.map((booking, i) => {
+                      const isNoShow = booking.status === 'confirmed' && !booking.checked_in
+                      const noShowColor = '#e05a4a'
+                      const badgeColor = isNoShow ? noShowColor : (STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)')
+                      const badgeLabel = isNoShow ? '未報到' : booking.status
+                      return (
                       <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
@@ -1307,11 +1312,12 @@ export default function DashboardPage() {
                           {booking.student_name && <div style={{ fontSize: '12px', color: '#7dd3fc', flexShrink: 0 }}>{booking.student_name}</div>}
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>with {booking.coach_name}</div>
                         </div>
-                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)', background: `${STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.1)'}18`, borderRadius: '10px', padding: '2px 8px' }}>
-                          {booking.status}
+                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: badgeColor, background: `${badgeColor}18`, borderRadius: '10px', padding: '2px 8px' }}>
+                          {badgeLabel}
                         </span>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   {/* 展開/收合按鈕 */}
                   {pastBookings.length > 3 && (
