@@ -37,6 +37,9 @@ type Booking = {
   course_name: string
   coach_name: string
   status: string
+  student_id?: string
+  class_session_id?: string
+  checked_in?: boolean
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -132,17 +135,51 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       .map((b: any) => {
         const cs = sessionMap[b.class_session_id]
         if (!cs) return null
-        return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status }
+        return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status, student_id: b.student_id, class_session_id: b.class_session_id }
       })
       .filter(Boolean) as Booking[]
     const upcoming = bookings.filter(b => b.session_date >= today).sort((a, b) => a.session_date.localeCompare(b.session_date))
-    const past = bookings.filter(b => b.session_date < today).sort((a, b) => b.session_date.localeCompare(a.session_date))
+    let past = bookings.filter(b => b.session_date < today).sort((a, b) => b.session_date.localeCompare(a.session_date))
+    if (past.length > 0) {
+      const { data: attendanceRows } = await supabase
+        .from('attendance')
+        .select('booking_id')
+        .in('booking_id', past.map(b => b.id))
+      const checkedInSet = new Set((attendanceRows || []).map((a: any) => a.booking_id))
+      past = past.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
+    }
     setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming, past, loaded: true } }))
   }
 
   function toggleStudentBookings(studentId: string, type: 'upcoming' | 'past') {
     loadStudentBookings(studentId)
     setExpandedBookings(prev => ({ ...prev, [studentId]: prev[studentId] === type ? null : type }))
+  }
+
+  async function setAttendance(studentId: string, booking: Booking, checkedIn: boolean) {
+    if (checkedIn) {
+      await supabase.from('attendance').insert({
+        booking_id: booking.id,
+        student_id: booking.student_id,
+        class_session_id: booking.class_session_id,
+        check_in_method: 'manual',
+        checked_in_by: 'admin',
+        checked_in_at: new Date().toISOString(),
+      })
+    } else {
+      await supabase.from('attendance').delete().eq('booking_id', booking.id)
+    }
+    setStudentBookings(prev => {
+      const sb = prev[studentId]
+      if (!sb) return prev
+      return {
+        ...prev,
+        [studentId]: {
+          ...sb,
+          past: sb.past.map(b => b.id === booking.id ? { ...b, checked_in: checkedIn } : b),
+        },
+      }
+    })
   }
   const [expanded, setExpanded] = useState<string | null>(null)
   const [parents, setParents] = useState<Parent[]>(initialParents)
@@ -341,6 +378,18 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                         <span className="text-gray-500 flex-shrink-0">{b.start_time?.slice(0,5)}–{b.end_time?.slice(0,5)}</span>
                                         <span className="text-gray-300">{b.course_name}</span>
                                         <span className="text-gray-500">Coach {b.coach_name}</span>
+                                        {expandedType === 'past' && (
+                                          <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                                            <button
+                                              onClick={() => setAttendance(student.id, b, true)}
+                                              className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${b.checked_in ? 'bg-green-500/25 border-green-400 text-green-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-green-400/40'}`}
+                                            >已報到</button>
+                                            <button
+                                              onClick={() => setAttendance(student.id, b, false)}
+                                              className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${!b.checked_in ? 'bg-red-500/25 border-red-400 text-red-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-red-400/40'}`}
+                                            >未報到</button>
+                                          </div>
+                                        )}
                                       </div>
                                     ))}
                                   </div>
