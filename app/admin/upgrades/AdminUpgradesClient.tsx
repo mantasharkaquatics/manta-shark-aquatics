@@ -332,12 +332,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    {allEntries.map(([skillId, pct]) => {
-                      const skillName = skillMap[skillId] || skillId
-                      const p2 = (edited[skillId] ?? pct) as number
-                      const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
-                      if (isEditing) {
+                  {isEditing && (
+                    <div className="space-y-2 mt-3">
+                      {allEntries.map(([skillId, pct]) => {
+                        const skillName = skillMap[skillId] || skillId
+                        const p2 = (edited[skillId] ?? pct) as number
                         return (
                           <div key={skillId} className="flex items-center gap-3">
                             <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
@@ -352,18 +351,27 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                             </div>
                           </div>
                         )
-                      }
-                      return (
-                        <div key={skillId} className="flex items-center gap-3">
-                          <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
-                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                      })}
+                    </div>
+                  )}
+                  {!isEditing && (
+                    <div className="space-y-2 mt-2">
+                      {Object.entries(p.snapshot || {}).map(([skillId, pct]) => {
+                        const skillName = skillMap[skillId] || skillId
+                        const p2 = pct as number
+                        const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
+                        return (
+                          <div key={skillId} className="flex items-center gap-3">
+                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                            </div>
+                            <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
                           </div>
-                          <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -421,12 +429,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    {allEntries.map(([skillId, pct]) => {
-                      const skillName = skillMap[skillId] || skillId
-                      const p2 = (edited[skillId] ?? pct) as number
-                      const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
-                      if (isEditing) {
+                  {isEditing && (
+                    <div className="space-y-2 mt-3">
+                      {allEntries.map(([skillId, pct]) => {
+                        const skillName = skillMap[skillId] || skillId
+                        const p2 = (edited[skillId] ?? pct) as number
                         return (
                           <div key={skillId} className="flex items-center gap-3">
                             <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
@@ -441,18 +448,27 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                             </div>
                           </div>
                         )
-                      }
-                      return (
-                        <div key={skillId} className="flex items-center gap-3">
-                          <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
-                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                      })}
+                    </div>
+                  )}
+                  {!isEditing && (
+                    <div className="space-y-2 mt-2">
+                      {Object.entries(p.snapshot || {}).map(([skillId, pct]) => {
+                        const skillName = skillMap[skillId] || skillId
+                        const p2 = pct as number
+                        const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
+                        return (
+                          <div key={skillId} className="flex items-center gap-3">
+                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                            </div>
+                            <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
                           </div>
-                          <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
