@@ -525,12 +525,10 @@ export default function DashboardPage() {
       .map((b: any) => b.id)
     let checkedInSet = new Set<string>()
     if (pastBookingIds.length > 0) {
-      const { data: attendanceRows } = await supabase
-        .from('attendance')
-        .select('booking_id')
-        .in('booking_id', pastBookingIds)
-      for (const a of attendanceRows || []) {
-        checkedInSet.add((a as any).booking_id)
+      const res = await fetch('/api/parent/attendance?booking_ids=' + pastBookingIds.join(','))
+      const json = await res.json().catch(() => ({ checkedInBookingIds: [] }))
+      for (const id of (json.checkedInBookingIds || [])) {
+        checkedInSet.add(id)
       }
     }
 
