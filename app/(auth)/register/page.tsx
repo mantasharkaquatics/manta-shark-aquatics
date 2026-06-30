@@ -14,7 +14,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Step 1
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -26,21 +25,40 @@ export default function RegisterPage() {
   const [state, setState] = useState('')
   const [zipCode, setZipCode] = useState('')
 
-  // Step 2
+  const [emailOtpSent, setEmailOtpSent] = useState(false)
+  const [emailOtpCode, setEmailOtpCode] = useState('')
+  const [emailVerified, setEmailVerified] = useState(false)
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailVerifying, setEmailVerifying] = useState(false)
+  const [emailError, setEmailError] = useState('')
+  const [emailCooldown, setEmailCooldown] = useState(0)
+
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false)
+  const [phoneOtpCode, setPhoneOtpCode] = useState('')
+  const [phoneVerified, setPhoneVerified] = useState(false)
+  const [phoneSending, setPhoneSending] = useState(false)
+  const [phoneVerifying, setPhoneVerifying] = useState(false)
+  const [phoneError, setPhoneError] = useState('')
+  const [phoneCooldown, setPhoneCooldown] = useState(0)
+
   const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '' }])
-  const [otpCode, setOtpCode] = useState('')
-  const [otpError, setOtpError] = useState('')
-  const [otpSending, setOtpSending] = useState(false)
-  const [otpVerifying, setOtpVerifying] = useState(false)
-  const [resendCooldown, setResendCooldown] = useState(0)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [newsletter, setNewsletter] = useState(true)
 
   useEffect(() => {
-    if (resendCooldown <= 0) return
-    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000)
+    if (emailCooldown <= 0) return
+    const t = setTimeout(() => setEmailCooldown(c => c - 1), 1000)
     return () => clearTimeout(t)
-  }, [resendCooldown])
+  }, [emailCooldown])
+
+  useEffect(() => {
+    if (phoneCooldown <= 0) return
+    const t = setTimeout(() => setPhoneCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [phoneCooldown])
+
+  useEffect(() => { setEmailVerified(false); setEmailOtpSent(false); setEmailOtpCode(''); setEmailError('') }, [email])
+  useEffect(() => { setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode(''); setPhoneError('') }, [phone])
 
   const addressInputRef = useRef<HTMLInputElement>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -87,6 +105,89 @@ export default function RegisterPage() {
     setStudents(updated)
   }
 
+  async function sendEmailOtp() {
+    if (!email.trim()) { setEmailError('請先輸入 Email'); return }
+    setEmailSending(true); setEmailError('')
+    try {
+      const res = await fetch('/api/auth/send-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setEmailError(data.error || '發送失敗'); setEmailSending(false); return }
+      setEmailOtpSent(true)
+      setEmailCooldown(60)
+    } catch {
+      setEmailError('發送失敗，請稍後再試')
+    }
+    setEmailSending(false)
+  }
+
+  async function verifyEmailOtp() {
+    if (!emailOtpCode.trim()) { setEmailError('請輸入驗證碼'); return }
+    setEmailVerifying(true); setEmailError('')
+    try {
+      const res = await fetch('/api/auth/verify-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp_code: emailOtpCode.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setEmailError(data.error || '驗證失敗'); setEmailVerifying(false); return }
+      setEmailVerified(true)
+    } catch {
+      setEmailError('驗證失敗，請稍後再試')
+    }
+    setEmailVerifying(false)
+  }
+
+  async function sendPhoneOtp() {
+    if (!phone.trim()) { setPhoneError('請先輸入手機號碼'); return }
+    setPhoneSending(true); setPhoneError('')
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setPhoneError(data.error || '發送失敗'); setPhoneSending(false); return }
+      setPhoneOtpSent(true)
+      setPhoneCooldown(60)
+    } catch {
+      setPhoneError('發送失敗，請稍後再試')
+    }
+    setPhoneSending(false)
+  }
+
+  async function verifyPhoneOtp() {
+    if (!phoneOtpCode.trim()) { setPhoneError('請輸入驗證碼'); return }
+    setPhoneVerifying(true); setPhoneError('')
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp_code: phoneOtpCode.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setPhoneError(data.error || '驗證失敗'); setPhoneVerifying(false); return }
+      setPhoneVerified(true)
+    } catch {
+      setPhoneError('驗證失敗，請稍後再試')
+    }
+    setPhoneVerifying(false)
+  }
+
+  function handleContinue() {
+    if (!firstName || !lastName || !email || !phone || !password || !addressLine1 || !city || !state || !zipCode) {
+      setError('Please fill in all required fields.'); return
+    }
+    if (!emailVerified) { setError('請先完成 Email 驗證'); return }
+    if (!phoneVerified) { setError('請先完成手機驗證'); return }
+    setError(''); setStep(2)
+  }
+
   async function handleSubmit() {
     if (!termsAccepted) { setError('Please accept the terms & conditions to continue.'); return }
     if (!students[0].fullName.trim()) { setError('Please enter at least one student name.'); return }
@@ -109,60 +210,8 @@ export default function RegisterPage() {
         date_of_birth: s.dateOfBirth || null, current_level: null, is_active: true,
       })
     }
-
-    // 發送簡訊 OTP（若有手機號碼），同時 Supabase 已自動寄出 email 確認信
-    if (phone) {
-      setOtpSending(true)
-      try {
-        await fetch('/api/auth/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone }),
-        })
-        setResendCooldown(60)
-      } catch {}
-      setOtpSending(false)
-      setLoading(false)
-      setStep(3)
-      return
-    }
-
     setLoading(false)
     router.push('/dashboard')
-  }
-
-  async function handleVerifyOtp() {
-    if (!otpCode.trim()) { setOtpError('請輸入驗證碼'); return }
-    setOtpVerifying(true); setOtpError('')
-    try {
-      const res = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp_code: otpCode.trim() }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setOtpError(data.error || '驗證失敗'); setOtpVerifying(false); return }
-      router.push('/dashboard')
-    } catch {
-      setOtpError('驗證失敗，請稍後再試')
-      setOtpVerifying(false)
-    }
-  }
-
-  async function handleResendOtp() {
-    if (resendCooldown > 0) return
-    setOtpSending(true); setOtpError('')
-    try {
-      await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      })
-      setResendCooldown(60)
-    } catch {
-      setOtpError('發送失敗，請稍後再試')
-    }
-    setOtpSending(false)
   }
 
   return (
@@ -187,20 +236,71 @@ export default function RegisterPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label>
-              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                placeholder="(555) 123-4567"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-              <p className="text-xs text-gray-400 mt-1">用於簡訊驗證，請填寫可接收簡訊的手機號碼</p>
+              <div className="flex gap-2">
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailVerified}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500" />
+                {emailVerified ? (
+                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">已驗證</span>
+                ) : (
+                  <button type="button" onClick={sendEmailOtp} disabled={emailSending || emailCooldown > 0 || !email.trim()}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap">
+                    {emailCooldown > 0 ? `${emailCooldown}s` : emailSending ? '發送中' : emailOtpSent ? '重新發送' : '發送驗證碼'}
+                  </button>
+                )}
+              </div>
+              {emailOtpSent && !emailVerified && (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="text" inputMode="numeric" maxLength={6}
+                    value={emailOtpCode}
+                    onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="輸入收到的 6 位數驗證碼"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-blue-500" />
+                  <button type="button" onClick={verifyEmailOtp} disabled={emailVerifying || emailOtpCode.length !== 6}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
+                    {emailVerifying ? '驗證中' : '確認'}
+                  </button>
+                </div>
+              )}
+              {emailError && <p className="text-red-500 text-xs mt-1">{emailError}</p>}
             </div>
 
-            {/* Address */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label>
+              <div className="flex gap-2">
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={phoneVerified}
+                  placeholder="(555) 123-4567"
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500" />
+                {phoneVerified ? (
+                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">已驗證</span>
+                ) : (
+                  <button type="button" onClick={sendPhoneOtp} disabled={phoneSending || phoneCooldown > 0 || !phone.trim()}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap">
+                    {phoneCooldown > 0 ? `${phoneCooldown}s` : phoneSending ? '發送中' : phoneOtpSent ? '重新發送' : '發送驗證碼'}
+                  </button>
+                )}
+              </div>
+              {phoneOtpSent && !phoneVerified && (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="text" inputMode="numeric" maxLength={6}
+                    value={phoneOtpCode}
+                    onChange={e => setPhoneOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="輸入收到的 6 位數簡訊驗證碼"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-blue-500" />
+                  <button type="button" onClick={verifyPhoneOtp} disabled={phoneVerifying || phoneOtpCode.length !== 6}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
+                    {phoneVerifying ? '驗證中' : '確認'}
+                  </button>
+                </div>
+              )}
+              {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
+              {!phoneError && <p className="text-xs text-gray-400 mt-1">用於簡訊驗證，請填寫可接收簡訊的手機號碼</p>}
+            </div>
+
             <div className="border-t border-gray-100 pt-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Home Address (US Only)</p>
               <div className="space-y-3">
@@ -264,14 +364,12 @@ export default function RegisterPage() {
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
-              onClick={() => {
-                if (!firstName || !lastName || !email || !phone || !password || !addressLine1 || !city || !state || !zipCode) {
-                  setError('Please fill in all required fields.'); return
-                }
-                setError(''); setStep(2)
-              }}
-              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
-            >Continue →</button>
+              onClick={handleContinue}
+              disabled={!emailVerified || !phoneVerified}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {(!emailVerified || !phoneVerified) ? '請先完成 Email 與手機驗證' : 'Continue →'}
+            </button>
             <p className="text-center text-sm text-gray-500">
               Already have an account? <Link href="/login" className="text-blue-600 hover:underline">Sign in</Link>
             </p>
@@ -326,38 +424,6 @@ export default function RegisterPage() {
             <p className="text-center text-sm text-gray-500">
               Already have an account? <Link href="/login" className="text-blue-600 hover:underline">Sign in</Link>
             </p>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-4">
-            <div className="text-center">
-              <div className="text-3xl mb-3">📱</div>
-              <p className="text-sm text-gray-700 mb-1">我們已發送 6 位數驗證碼到</p>
-              <p className="text-sm font-semibold text-gray-900 mb-1">{phone}</p>
-              <p className="text-xs text-gray-400">同時也寄了一封確認信到 {email}，可以點擊連結完成 Email 驗證（非必要步驟）</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">驗證碼</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                value={otpCode}
-                onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="123456"
-                className="w-full border border-gray-300 rounded-lg px-3 py-3 text-center text-2xl tracking-[0.5em] focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            {otpError && <p className="text-red-500 text-sm text-center">{otpError}</p>}
-            <button onClick={handleVerifyOtp} disabled={otpVerifying || otpCode.length !== 6}
-              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
-              {otpVerifying ? '驗證中...' : '確認驗證碼'}
-            </button>
-            <button onClick={handleResendOtp} disabled={otpSending || resendCooldown > 0}
-              className="w-full text-blue-600 text-sm py-1 disabled:opacity-50 disabled:text-gray-400">
-              {resendCooldown > 0 ? `重新發送 (${resendCooldown}s)` : otpSending ? '發送中...' : '沒收到？重新發送'}
-            </button>
           </div>
         )}
       </div>
