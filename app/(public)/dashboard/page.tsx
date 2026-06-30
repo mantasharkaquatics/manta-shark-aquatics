@@ -558,36 +558,91 @@ export default function DashboardPage() {
         })
       }
 
-      // 抓 skills 名稱
+      // 抓 skills 名稱（含所有 snapshot 用到的 skill）
       const allSkillIds = [...new Set((histRows || []).flatMap((r: any) => Object.keys(r.snapshot || {})))]
-      let skillNameMap: Record<string, { name: string; sort_order: number }> = {}
-      if (allSkillIds.length > 0) {
-        const { data: skillRows } = await supabase
-          .from('skills')
-          .select('id, name, sort_order')
-          .in('id', allSkillIds)
-        for (const sk of skillRows || []) {
-          skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order }
-        }
-      }
+      let skillNameMap: Record<string, { name: string; sort_order: number; level_id: string }> = {}
 
-      const progressMap: Record<string, StudentProgress> = {}
-      for (const [sid, hists] of Object.entries(allByStudent)) {
-        const records: ProgressRecord[] = hists.map(hist => ({
-          session_date: hist.session_date,
-          skills: Object.entries(hist.snapshot)
-            .map(([skill_id, pct]) => ({
-              skill_id,
-              skill_name: skillNameMap[skill_id]?.name || skill_id,
-              progress_percent: pct as number,
-              sort_order: skillNameMap[skill_id]?.sort_order || 999,
-            }))
-            .sort((a, b) => a.sort_order - b.sort_order),
-        }))
-        // dummy line to match old structure
-        progressMap[sid] = { student_id: sid, records }
+      // 同時抓各學生 current_level 對應的所有 skills，補齊 0%
+      const studentLevelMap: Record<string, string | null> = {}
+      for (const s of studs || []) studentLevelMap[s.id] = s.current_level
+      const allLevelNums = [...new Set(Object.values(studentLevelMap).filter(Boolean))]
+      let levelSkillsMap: Record<string, { id: string; name: string; sort_order: number }[]> = {}
+
+      if (allLevelNums.length > 0) {
+        const { data: levRows } = await supabase
+          .from('levels')
+          .select('id, level_number')
+          .in('level_number', allLevelNums)
+        const levelIdMap: Record<string, string> = {}
+        for (const l of levRows || []) levelIdMap[String(l.level_number)] = l.id
+        const allLevelIds = Object.values(levelIdMap)
+        if (allLevelIds.length > 0) {
+          const { data: skRows } = await supabase
+            .from('skills')
+            .select('id, name, sort_order, level_id')
+            .in('level_id', allLevelIds)
+            .order('sort_order')
+          for (const sk of skRows || []) {
+            skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
+            // 組成 levelId → skills 對照
+            if (!levelSkillsMap[(sk as any).level_id]) levelSkillsMap[(sk as any).level_id] = []
+            levelSkillsMap[(sk as any).level_id].push({ id: (sk as any).id, name: (sk as any).name, sort_order: (sk as any).sort_order })
+          }
+          // 補上剩餘 snapshot skill（避免舊資料 level 不符也能顯示名稱）
+          const missing = allSkillIds.filter(id => !skillNameMap[id])
+          if (missing.length > 0) {
+            const { data: extraRows } = await supabase.from('skills').select('id, name, sort_order, level_id').in('id', missing)
+            for (const sk of extraRows || []) skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
+          }
+          // 建立 levelNumber → levelId 對照
+          const numToLevelId = levelIdMap
+
+          const progressMap: Record<string, StudentProgress> = {}
+          for (const [sid, hists] of Object.entries(allByStudent)) {
+            const levelNum = studentLevelMap[sid]
+            const levelId = levelNum ? numToLevelId[String(levelNum)] : null
+            const allLevelSkills = levelId ? (levelSkillsMap[levelId] || []) : []
+
+            const records: ProgressRecord[] = hists.map(hist => {
+              // 以 Level 全部 skills 為基底，填入 snapshot 值，沒有的補 0
+              const skillsForRecord = allLevelSkills.length > 0
+                ? allLevelSkills.map(sk => ({
+                    skill_id: sk.id,
+                    skill_name: sk.name,
+                    progress_percent: (hist.snapshot[sk.id] as number) ?? 0,
+                    sort_order: sk.sort_order,
+                  }))
+                : Object.entries(hist.snapshot).map(([skill_id, pct]) => ({
+                    skill_id,
+                    skill_name: skillNameMap[skill_id]?.name || skill_id,
+                    progress_percent: pct as number,
+                    sort_order: skillNameMap[skill_id]?.sort_order || 999,
+                  })).sort((a, b) => a.sort_order - b.sort_order)
+              return { session_date: hist.session_date, skills: skillsForRecord }
+            })
+            progressMap[sid] = { student_id: sid, records }
+          }
+          setStudentProgressMap(progressMap)
+        }
+      } else {
+        // 無 level 資訊時 fallback
+        if (allSkillIds.length > 0) {
+          const { data: skillRows } = await supabase.from('skills').select('id, name, sort_order').in('id', allSkillIds)
+          for (const sk of skillRows || []) skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: '' }
+        }
+        const progressMap: Record<string, StudentProgress> = {}
+        for (const [sid, hists] of Object.entries(allByStudent)) {
+          const records: ProgressRecord[] = hists.map(hist => ({
+            session_date: hist.session_date,
+            skills: Object.entries(hist.snapshot).map(([skill_id, pct]) => ({
+              skill_id, skill_name: skillNameMap[skill_id]?.name || skill_id,
+              progress_percent: pct as number, sort_order: skillNameMap[skill_id]?.sort_order || 999,
+            })).sort((a, b) => a.sort_order - b.sort_order),
+          }))
+          progressMap[sid] = { student_id: sid, records }
+        }
+        setStudentProgressMap(progressMap)
       }
-      setStudentProgressMap(progressMap)
     }
 
     setLoading(false)
