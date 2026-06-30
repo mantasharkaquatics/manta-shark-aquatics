@@ -157,25 +157,20 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   }
 
   async function setAttendance(studentId: string, booking: Booking, checkedIn: boolean) {
-    if (checkedIn) {
-      const { error } = await supabase.from('attendance').insert({
+    const res = await fetch('/api/admin/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         booking_id: booking.id,
         student_id: booking.student_id,
         class_session_id: booking.class_session_id,
-        check_in_method: 'manual',
-        checked_in_by: 'ffa7f78f-f0c6-49cd-bb12-dd1ab72a687b',
-        checked_in_at: new Date().toISOString(),
-      })
-      if (error) {
-        alert('設為已報到失敗：' + error.message)
-        return
-      }
-    } else {
-      const { error } = await supabase.from('attendance').delete().eq('booking_id', booking.id)
-      if (error) {
-        alert('設為未報到失敗：' + error.message)
-        return
-      }
+        checked_in: checkedIn,
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert((checkedIn ? '設為已報到失敗：' : '設為未報到失敗：') + (data.error || res.statusText))
+      return
     }
     setStudentBookings(prev => {
       const sb = prev[studentId]
