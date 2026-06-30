@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       student_id,
       class_session_id,
       check_in_method: 'manual',
-      checked_in_by: admin.id,
+      checked_in_by: null,
       checked_in_at: new Date().toISOString(),
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
