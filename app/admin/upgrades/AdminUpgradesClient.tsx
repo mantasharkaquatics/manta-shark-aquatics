@@ -203,6 +203,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       </p>
                       <p className="text-gray-400 text-xs">
                         {s.session?.session_date ? `${new Date(s.session.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })} · ` : ''}
+                        {s.session?.session_date === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) && (
+                          <span className="text-[#c9a84c] font-semibold">(今天) · </span>
+                        )}
                         {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '有課'}
                         {s.current_level ? ` · Level ${s.current_level}` : ''}
                       </p>
