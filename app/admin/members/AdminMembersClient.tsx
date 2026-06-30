@@ -163,7 +163,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         student_id: booking.student_id,
         class_session_id: booking.class_session_id,
         check_in_method: 'manual',
-        checked_in_by: 'admin',
+        checked_in_by: 'ffa7f78f-f0c6-49cd-bb12-dd1ab72a687b',
         checked_in_at: new Date().toISOString(),
       })
       if (error) {
