@@ -119,7 +119,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       setTimeout(() => {
         setSelectedStudent(null); setSelectedLevel(''); setNotes(''); setSaved(false); setShowSearch(false); setSearch('')
       }, 1500)
-      router.refresh()
+      window.location.reload()
     }
     setSaving(false)
   }
@@ -146,7 +146,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       setUpgradeHistory(prev => [newRecord as any, ...prev])
     }
     setReviewingId(null)
-    router.refresh()
+    window.location.reload()
   }
 
   async function reviewProgress(historyId: string, studentId: string) {
@@ -164,7 +164,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     setPendingProgressList(prev => prev.filter(p => p.id !== historyId))
     setPastPendingProgressList(prev => prev.filter(p => p.id !== historyId))
     setEditingPendingId(null)
-    router.refresh()
+    window.location.reload()
   }
 
   function setEditedPct(historyId: string, skillId: string, pct: number) {
@@ -190,7 +190,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     })
     if (res.ok) {
       setMissingProgressList(prev => prev.filter(s => s.id !== listId))
-      router.refresh()
+      window.location.reload()
     }
     setSubmittingMissing(null)
   }
