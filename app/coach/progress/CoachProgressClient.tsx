@@ -62,6 +62,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
       full_name: b.students?.full_name || '',
       current_level: b.students?.current_level || null,
       sessionId: s.id,
+      sessionDate: s.session_date || today,
       sessionTime: `${s.start_time?.slice(0,5)} - ${s.end_time?.slice(0,5)}`,
       courseName: s.course_types?.name || '',
       entryKey: `${b.students?.id}_${s.id}`,
@@ -178,7 +179,9 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
                     </div>
                     <div>
                       <p className="text-white font-medium text-sm">{s.full_name}</p>
-                      <p className="text-gray-500 text-xs">{s.sessionTime} · {s.courseName}</p>
+                      <p className="text-gray-500 text-xs">
+                        {new Date((s.sessionDate || today) + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} · {s.sessionTime} · {s.courseName}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

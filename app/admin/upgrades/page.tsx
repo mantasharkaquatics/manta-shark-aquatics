@@ -101,7 +101,7 @@ export default async function AdminUpgradesPage() {
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   const { data: allPendingProgress } = await svc
     .from('progress_history')
-    .select('id, student_id, coach_id, snapshot, session_date, created_at')
+    .select('id, student_id, coach_id, snapshot, session_date, created_at, class_session_id')
     .eq('status', 'pending_review')
     .order('created_at', { ascending: false })
 
@@ -110,6 +110,7 @@ export default async function AdminUpgradesPage() {
   if (allPendingProgress && allPendingProgress.length > 0) {
     const ppStudentIds = [...new Set(allPendingProgress.map(p => p.student_id))]
     const ppCoachIds = [...new Set(allPendingProgress.map(p => p.coach_id).filter(Boolean))]
+    const ppSessionIds = [...new Set(allPendingProgress.map((p: any) => p.class_session_id).filter(Boolean))]
     const { data: ppStudents } = await svc.from('students').select('id, full_name, current_level').in('id', ppStudentIds)
     const { data: ppCoaches } = await svc.from('coaches').select('id, first_name').in('id', ppCoachIds)
     const { data: ppSkills } = await svc.from('skills').select('id, name, sort_order, level_id').order('sort_order')
@@ -117,14 +118,26 @@ export default async function AdminUpgradesPage() {
     for (const s of ppStudents || []) ppSMap[s.id] = s
     const ppCMap: Record<string, any> = {}
     for (const c of ppCoaches || []) ppCMap[c.id] = c
-    const enriched = allPendingProgress.map(p => ({
+    const ppSessionMap: Record<string, any> = {}
+    if (ppSessionIds.length > 0) {
+      const { data: ppSessions } = await svc
+        .from('class_sessions')
+        .select('id, start_time, end_time, course_types(name)')
+        .in('id', ppSessionIds)
+      for (const s of ppSessions || []) {
+        const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+        ppSessionMap[s.id] = { start_time: s.start_time, end_time: s.end_time, course_name: ct?.name || '' }
+      }
+    }
+    const enriched = allPendingProgress.map((p: any) => ({
       ...p,
       student: ppSMap[p.student_id],
       coach: ppCMap[p.coach_id],
       skills: ppSkills || [],
+      session_info: ppSessionMap[p.class_session_id] || null,
     }))
-    pendingProgressList = enriched.filter(p => p.session_date === todayDate)
-    pastPendingProgressList = enriched.filter(p => p.session_date !== todayDate)
+    pendingProgressList = enriched.filter((p: any) => p.session_date === todayDate)
+    pastPendingProgressList = enriched.filter((p: any) => p.session_date !== todayDate)
   }
 
   // 未填寫：今天或過去任何一天，有 confirmed booking 但沒有 progress_history 記錄的學生（不只今天，避免漏掉前幾天忘記填的）

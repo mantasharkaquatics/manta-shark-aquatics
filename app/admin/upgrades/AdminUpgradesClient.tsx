@@ -15,6 +15,7 @@ type PendingProgress = {
   student: { id: string; full_name: string; current_level: string | null }
   coach: { first_name: string }
   skills: { id: string; name: string; sort_order: number; level_id: string }[]
+  session_info: { start_time: string; end_time: string; course_name: string } | null
 }
 
 type Recommendation = {
@@ -302,7 +303,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
-                      <p className="text-gray-400 text-xs">教練 {p.coach?.first_name} · Level {lvl} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="text-gray-400 text-xs">
+                        {p.session_info ? `${p.session_info.course_name} · ${p.session_info.start_time?.slice(0,5)}–${p.session_info.end_time?.slice(0,5)} · ` : ''}
+                        教練 {p.coach?.first_name} · Level {lvl}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -379,7 +383,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     <div>
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">
-                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })} · 教練 {p.coach?.first_name} · Level {lvl}
+                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}
+                        {p.session_info ? ` · ${p.session_info.course_name} · ${p.session_info.start_time?.slice(0,5)}–${p.session_info.end_time?.slice(0,5)}` : ''}
+                        {` · 教練 ${p.coach?.first_name} · Level ${lvl}`}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
