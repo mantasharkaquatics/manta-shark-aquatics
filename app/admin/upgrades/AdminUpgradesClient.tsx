@@ -295,7 +295,16 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               const lvl = p.student?.current_level || ''
               const skillMap: Record<string, string> = {}
               for (const sk of p.skills) skillMap[sk.id] = sk.name
-              const entries = Object.entries(p.snapshot || {})
+              // 顯示全部 skills（含 snapshot 沒有填的），snapshot 值為預設
+              const levelSkillIds = p.skills
+                .filter((sk: any) => {
+                  const lvlObj = levels.find(l => String(l.level_number) === String(p.student?.current_level))
+                  return lvlObj && sk.level_id === lvlObj.id
+                })
+                .sort((a: any, b: any) => a.sort_order - b.sort_order)
+              const allEntries: [string, number][] = levelSkillIds.length > 0
+                ? levelSkillIds.map((sk: any) => [sk.id, (p.snapshot || {})[sk.id] ?? 0])
+                : Object.entries(p.snapshot || {}).map(([k, v]) => [k, v as number])
               const isEditing = editingPendingId === p.id
               const edited = editedSnapshots[p.id] || {}
               return (
@@ -324,7 +333,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {entries.map(([skillId, pct]) => {
+                    {allEntries.map(([skillId, pct]) => {
                       const skillName = skillMap[skillId] || skillId
                       const p2 = (edited[skillId] ?? pct) as number
                       const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
@@ -374,7 +383,16 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               const lvl = p.student?.current_level || ''
               const skillMap: Record<string, string> = {}
               for (const sk of p.skills) skillMap[sk.id] = sk.name
-              const entries = Object.entries(p.snapshot || {})
+              // 顯示全部 skills（含 snapshot 沒有填的），snapshot 值為預設
+              const levelSkillIds = p.skills
+                .filter((sk: any) => {
+                  const lvlObj = levels.find(l => String(l.level_number) === String(p.student?.current_level))
+                  return lvlObj && sk.level_id === lvlObj.id
+                })
+                .sort((a: any, b: any) => a.sort_order - b.sort_order)
+              const allEntries: [string, number][] = levelSkillIds.length > 0
+                ? levelSkillIds.map((sk: any) => [sk.id, (p.snapshot || {})[sk.id] ?? 0])
+                : Object.entries(p.snapshot || {}).map(([k, v]) => [k, v as number])
               const isEditing = editingPendingId === p.id
               const edited = editedSnapshots[p.id] || {}
               return (
@@ -404,7 +422,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {entries.map(([skillId, pct]) => {
+                    {allEntries.map(([skillId, pct]) => {
                       const skillName = skillMap[skillId] || skillId
                       const p2 = (edited[skillId] ?? pct) as number
                       const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
