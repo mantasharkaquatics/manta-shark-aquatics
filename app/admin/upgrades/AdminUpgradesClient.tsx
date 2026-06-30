@@ -180,6 +180,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
           <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
             ⚠️ 今日未填進度
             <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{missingProgressList.length}</span>
+            <span className="text-gray-500 normal-case font-normal text-xs">（{new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}）</span>
           </h2>
           <div className="space-y-4">
             {missingProgressList.map(s => {
