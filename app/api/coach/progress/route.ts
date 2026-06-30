@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 
 export async function GET(req: NextRequest) {
   const studentId = req.nextUrl.searchParams.get('student_id')
+  const classSessionId = req.nextUrl.searchParams.get('class_session_id')
   if (!studentId) return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
 
   const supabase = createServiceClient(
@@ -50,20 +51,32 @@ export async function GET(req: NextRequest) {
     progressMap[row.skill_id] = row.progress_percent
   }
 
-  // 查詢今日是否已儲存
+  // 查詢這堂課是否已儲存（改用 class_session_id，避免同一天多堂課互相鎖定）
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-  const { data: todayHistoryRows } = await supabase
-    .from('progress_history')
-    .select('id')
-    .eq('student_id', studentId)
-    .eq('session_date', today)
-    .limit(1)
+  let todayLocked = false
+  if (classSessionId) {
+    const { data: todayHistoryRows } = await supabase
+      .from('progress_history')
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('class_session_id', classSessionId)
+      .limit(1)
+    todayLocked = !!(todayHistoryRows && todayHistoryRows.length > 0)
+  } else {
+    const { data: todayHistoryRows } = await supabase
+      .from('progress_history')
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('session_date', today)
+      .limit(1)
+    todayLocked = !!(todayHistoryRows && todayHistoryRows.length > 0)
+  }
 
   return NextResponse.json({
     student: { ...student, level: levelData },
     skills: skills || [],
     progress: progressMap,
-    todayLocked: !!(todayHistoryRows && todayHistoryRows.length > 0)
+    todayLocked
   })
 }
 
@@ -80,7 +93,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { student_id, progress, coach_id, session_date } = await req.json()
+  const { student_id, progress, coach_id, session_date, class_session_id } = await req.json()
   if (!student_id || !progress || !coach_id) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
 
   // Verify coach exists
@@ -113,6 +126,7 @@ export async function POST(req: NextRequest) {
     coach_id: coach.id,
     snapshot: progress,
     session_date: today,
+    class_session_id: class_session_id || null,
     status: 'pending_review'
   })
 

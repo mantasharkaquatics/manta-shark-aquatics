@@ -41,7 +41,7 @@ export default async function CoachProgressPage() {
     .order('start_time')
 
   if (!sessions || sessions.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedStudentIds={[]} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedSessionIds={[]} />
   }
 
   const sessionIds = sessions.map(s => s.id)
@@ -64,7 +64,7 @@ export default async function CoachProgressPage() {
     .eq('status', 'confirmed')
 
   if (!bookings || bookings.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedStudentIds={[]} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedSessionIds={[]} />
   }
 
   const studentIds = [...new Set(bookings.map(b => b.student_id).filter(Boolean))]
@@ -95,15 +95,17 @@ export default async function CoachProgressPage() {
     enrichedSessions.flatMap(s => s.bookings.map((b: any) => b.students?.id).filter(Boolean))
   )]
 
-  let completedStudentIds: string[] = []
-  if (allStudentIds.length > 0) {
+  // 用 class_session_id 判斷哪些課堂已完成，避免同一天多堂課互相鎖定
+  const allSessionIds = enrichedSessions.map(s => s.id)
+  let completedSessionIds: string[] = []
+  if (allSessionIds.length > 0) {
     const { data: completedRows } = await supabase
       .from('progress_history')
-      .select('student_id')
-      .in('student_id', allStudentIds)
+      .select('class_session_id')
+      .in('class_session_id', allSessionIds)
       .eq('session_date', today)
-    completedStudentIds = (completedRows || []).map((r: any) => r.student_id)
+    completedSessionIds = (completedRows || []).map((r: any) => r.class_session_id).filter(Boolean)
   }
 
-  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} completedStudentIds={completedStudentIds} />
+  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} completedSessionIds={completedSessionIds} />
 }
