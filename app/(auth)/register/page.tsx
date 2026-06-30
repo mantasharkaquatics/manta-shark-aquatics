@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -28,8 +28,19 @@ export default function RegisterPage() {
 
   // Step 2
   const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '' }])
+  const [otpCode, setOtpCode] = useState('')
+  const [otpError, setOtpError] = useState('')
+  const [otpSending, setOtpSending] = useState(false)
+  const [otpVerifying, setOtpVerifying] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [newsletter, setNewsletter] = useState(true)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendCooldown])
 
   const addressInputRef = useRef<HTMLInputElement>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -98,7 +109,60 @@ export default function RegisterPage() {
         date_of_birth: s.dateOfBirth || null, current_level: null, is_active: true,
       })
     }
+
+    // 發送簡訊 OTP（若有手機號碼），同時 Supabase 已自動寄出 email 確認信
+    if (phone) {
+      setOtpSending(true)
+      try {
+        await fetch('/api/auth/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone }),
+        })
+        setResendCooldown(60)
+      } catch {}
+      setOtpSending(false)
+      setLoading(false)
+      setStep(3)
+      return
+    }
+
+    setLoading(false)
     router.push('/dashboard')
+  }
+
+  async function handleVerifyOtp() {
+    if (!otpCode.trim()) { setOtpError('請輸入驗證碼'); return }
+    setOtpVerifying(true); setOtpError('')
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp_code: otpCode.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setOtpError(data.error || '驗證失敗'); setOtpVerifying(false); return }
+      router.push('/dashboard')
+    } catch {
+      setOtpError('驗證失敗，請稍後再試')
+      setOtpVerifying(false)
+    }
+  }
+
+  async function handleResendOtp() {
+    if (resendCooldown > 0) return
+    setOtpSending(true); setOtpError('')
+    try {
+      await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      })
+      setResendCooldown(60)
+    } catch {
+      setOtpError('發送失敗，請稍後再試')
+    }
+    setOtpSending(false)
   }
 
   return (
@@ -260,6 +324,38 @@ export default function RegisterPage() {
             <p className="text-center text-sm text-gray-500">
               Already have an account? <Link href="/login" className="text-blue-600 hover:underline">Sign in</Link>
             </p>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <div className="text-3xl mb-3">📱</div>
+              <p className="text-sm text-gray-700 mb-1">我們已發送 6 位數驗證碼到</p>
+              <p className="text-sm font-semibold text-gray-900 mb-1">{phone}</p>
+              <p className="text-xs text-gray-400">同時也寄了一封確認信到 {email}，可以點擊連結完成 Email 驗證（非必要步驟）</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">驗證碼</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otpCode}
+                onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+                className="w-full border border-gray-300 rounded-lg px-3 py-3 text-center text-2xl tracking-[0.5em] focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            {otpError && <p className="text-red-500 text-sm text-center">{otpError}</p>}
+            <button onClick={handleVerifyOtp} disabled={otpVerifying || otpCode.length !== 6}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
+              {otpVerifying ? '驗證中...' : '確認驗證碼'}
+            </button>
+            <button onClick={handleResendOtp} disabled={otpSending || resendCooldown > 0}
+              className="w-full text-blue-600 text-sm py-1 disabled:opacity-50 disabled:text-gray-400">
+              {resendCooldown > 0 ? `重新發送 (${resendCooldown}s)` : otpSending ? '發送中...' : '沒收到？重新發送'}
+            </button>
           </div>
         )}
       </div>
