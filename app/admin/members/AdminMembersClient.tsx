@@ -158,7 +158,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
 
   async function setAttendance(studentId: string, booking: Booking, checkedIn: boolean) {
     if (checkedIn) {
-      await supabase.from('attendance').insert({
+      const { error } = await supabase.from('attendance').insert({
         booking_id: booking.id,
         student_id: booking.student_id,
         class_session_id: booking.class_session_id,
@@ -166,8 +166,16 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         checked_in_by: 'admin',
         checked_in_at: new Date().toISOString(),
       })
+      if (error) {
+        alert('設為已報到失敗：' + error.message)
+        return
+      }
     } else {
-      await supabase.from('attendance').delete().eq('booking_id', booking.id)
+      const { error } = await supabase.from('attendance').delete().eq('booking_id', booking.id)
+      if (error) {
+        alert('設為未報到失敗：' + error.message)
+        return
+      }
     }
     setStudentBookings(prev => {
       const sb = prev[studentId]
