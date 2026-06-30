@@ -74,7 +74,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
       return
     }
     setExpandedStudent(entryKey)
-    if (studentDataMap[entryKey]) return
+    // 每次展開都重新 fetch，確保拿到最新進度（前一堂課儲存後立即反映）
+    if (studentDataMap[entryKey]?.todayLocked) return
 
     setLoadingMap(prev => ({ ...prev, [entryKey]: true }))
     const [res, recRes] = await Promise.all([
@@ -103,7 +104,14 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
       body: JSON.stringify({ student_id: studentId, progress, coach_id: coach.id, class_session_id: sessionId })
     })
     if (res.ok) {
+      // 標記已完成，收合這個卡片
       setCompletedSet(prev => new Set([...prev, sessionId]))
+      setExpandedStudent(null)
+      // 更新這個 entryKey 的 studentData（讓下一堂課展開時拿到最新進度）
+      setStudentDataMap(prev => ({
+        ...prev,
+        [entryKey]: { ...prev[entryKey], progress, todayLocked: true }
+      }))
     }
     setSavingMap(prev => ({ ...prev, [entryKey]: false }))
   }
