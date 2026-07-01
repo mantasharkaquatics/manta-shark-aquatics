@@ -257,20 +257,16 @@ function CreditCard({ g, remaining, pct, note }: {
             const itemRemaining = item.credits - item.used
             const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
             return (
-              <div key={i} style={{ paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{dateStr}</div>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)' }}>
-                    {itemRemaining} / {item.credits} left
-                  </div>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{dateStr}</div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+                  {itemRemaining} / {item.credits} left
                 </div>
                 {item.invoiceId && (
-                  <div style={{ textAlign: 'right', marginTop: '6px' }}>
-                    <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>
-                      Download Invoice
-                    </a>
-                  </div>
+                  <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    Download Invoice
+                  </a>
                 )}
               </div>
             )
@@ -1309,7 +1305,7 @@ export default function DashboardPage() {
               <Link href="/plans" style={{ display: 'inline-block', padding: '9px 20px', background: 'transparent', color: GOLD, border: `1px solid ${GOLD}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>Browse Plans</Link>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
               {(() => {
                 // Group credits by course_type_id and sum them up
                 const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null }[] }> = {}
