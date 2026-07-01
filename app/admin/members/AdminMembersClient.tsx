@@ -201,7 +201,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
 
   async function toggleNewsletter(parentId: string, current: boolean) {
     const newVal = !current
-    await supabase.from('parents').update({ newsletter_subscribed: newVal }).eq('id', parentId)
+    await fetch('/api/admin/parents/newsletter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_id: parentId, newsletter_subscribed: newVal }),
+    })
     setParents(prev => prev.map(p => p.id === parentId ? { ...p, newsletter_subscribed: newVal } : p))
   }
 
