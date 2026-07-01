@@ -257,19 +257,21 @@ function CreditCard({ g, remaining, pct, note }: {
             const itemRemaining = item.credits - item.used
             const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{dateStr}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.35)' }}>
-                    {itemRemaining > 0 ? `${itemRemaining} / ${item.credits} left` : 'Used up'}
+              <div key={i} style={{ paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{dateStr}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)' }}>
+                    {itemRemaining} / {item.credits} left
                   </div>
-                  {item.invoiceId && (
+                </div>
+                {item.invoiceId && (
+                  <div style={{ textAlign: 'right', marginTop: '6px' }}>
                     <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                      style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>
                       Download Invoice
                     </a>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )
           })}
