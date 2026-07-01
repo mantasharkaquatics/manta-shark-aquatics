@@ -46,7 +46,6 @@ export async function POST(req: NextRequest) {
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
   const laNow = getLANow()
-  const today = pad(laNow.getFullYear() < 1000 ? laNow.getFullYear() : laNow.getFullYear()) + '-' + pad(laNow.getMonth() + 1) + '-' + pad(laNow.getDate())
   const todayStr = laNow.getFullYear() + '-' + pad(laNow.getMonth() + 1) + '-' + pad(laNow.getDate())
 
   const { data: settingRow } = await supabase
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (todayBookings.length === 0) {
-    return NextResponse.json({ error: student.full_name + ' \u4eca\u5929\u6c92\u6709\u8ab2\u7a0b' }, { status: 404 })
+    return NextResponse.json({ error: student.full_name + ' has no lessons today' }, { status: 404 })
   }
 
   const nowMinutes = laNow.getHours() * 60 + laNow.getMinutes()
@@ -82,7 +81,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (!eligible) {
-    return NextResponse.json({ error: student.full_name + ' \u73fe\u5728\u6c92\u6709\u53ef\u5831\u5230\u7684\u8ab2\u7a0b\uff08\u9700\u5728\u8ab2\u7a0b\u524d\u5f8c 30 \u5206\u9418\u5167\uff09' }, { status: 400 })
+    return NextResponse.json({ error: student.full_name + ' has no lesson available to check in right now (must be within 30 minutes of class start)' }, { status: 400 })
   }
 
   const eligibleCs = Array.isArray(eligible.class_sessions) ? eligible.class_sessions[0] : eligible.class_sessions

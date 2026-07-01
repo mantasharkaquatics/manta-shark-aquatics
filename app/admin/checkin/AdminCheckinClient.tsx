@@ -24,7 +24,7 @@ interface AttendanceRecord {
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleString('zh-TW', { timeZone: 'America/Los_Angeles', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+  return d.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
 export default function AdminCheckinClient({ students }: { students: Student[] }) {
@@ -108,10 +108,10 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       })
       const data = await res.json()
       if (!res.ok) {
-        setResult({ success: false, message: data.error || 'Check-in \u5931\u6557' })
+        setResult({ success: false, message: data.error || 'Check-in failed' })
       } else {
-        const periodLabel = data.period === 'AM' ? '\u4e0a\u5348' : '\u4e0b\u5348'
-        setResult({ success: true, message: '\u2713 ' + data.student_name + ' ' + periodLabel + '\u6642\u6bb5\u5171 ' + data.checked_in_count + ' \u5802\u8ab2\u5df2\u5b8c\u6210\u5831\u5230' })
+        const periodLabel = data.period === 'AM' ? 'morning' : 'afternoon'
+        setResult({ success: true, message: 'Checked in ' + data.student_name + ' for ' + data.checked_in_count + ' lesson(s) this ' + periodLabel })
         setPage(1)
         loadRecords(1)
         if (data.current_level === null) {
@@ -120,7 +120,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
         }
       }
     } catch (e: any) {
-      setResult({ success: false, message: 'Check-in \u5931\u6557\uff1a' + e.message })
+      setResult({ success: false, message: 'Check-in failed: ' + e.message })
     }
   }
 
@@ -195,7 +195,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     setResult(null)
     const studentId = decodeQRPayload(raw)
     if (!studentId) {
-      setResult({ success: false, message: '\u7121\u6548\u7684 QR code\uff0c\u8acb\u91cd\u65b0\u6383\u63cf' })
+      setResult({ success: false, message: 'Invalid QR code. Please scan again.' })
       setScanLoading(false)
       return
     }
@@ -225,10 +225,10 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       <div className="w-full max-w-2xl mx-auto">
         <p className="text-xs font-semibold text-[#c9a84c] tracking-widest uppercase text-center mb-2">Manta Shark Aquatics</p>
         <h1 className="text-3xl font-bold text-white text-center mb-1" style={{ fontFamily: 'Playfair Display, serif' }}>Check-in</h1>
-        <p className="text-white/40 text-center text-sm mb-6">QR \u6383\u63cf\u6216\u8f38\u5165\u59d3\u540d\u9032\u884c check-in</p>
+        <p className="text-white/40 text-center text-sm mb-6">Scan a QR code or search by name to check in</p>
 
         <div className="flex items-center justify-center gap-2 mb-8 text-xs text-white/40">
-          <span>\u4e0a\u5348/\u4e0b\u5348\u5207\u5206\u6642\u9593\uff1a</span>
+          <span>AM/PM cutoff time:</span>
           {editingCutoff ? (
             <>
               <input
@@ -237,13 +237,13 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                 onChange={e => setCutoffInput(e.target.value)}
                 className="bg-[#1a2744] border border-white/10 rounded px-2 py-1 text-white text-xs"
               />
-              <button onClick={saveCutoff} disabled={savingCutoff} className="text-[#c9a84c] font-semibold">\u5132\u5b58</button>
-              <button onClick={() => { setEditingCutoff(false); setCutoffInput(cutoff) }} className="text-white/30">\u53d6\u6d88</button>
+              <button onClick={saveCutoff} disabled={savingCutoff} className="text-[#c9a84c] font-semibold">Save</button>
+              <button onClick={() => { setEditingCutoff(false); setCutoffInput(cutoff) }} className="text-white/30">Cancel</button>
             </>
           ) : (
             <>
               <span className="text-white font-semibold">{cutoff}</span>
-              <button onClick={() => setEditingCutoff(true)} className="text-[#c9a84c] underline">\u8abf\u6574</button>
+              <button onClick={() => setEditingCutoff(true)} className="text-[#c9a84c] underline">Edit</button>
             </>
           )}
         </div>
@@ -254,15 +254,15 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
             {scanning ? (
               <div>
                 <video ref={videoRef} className="w-full rounded-xl bg-black" muted playsInline />
-                <button onClick={stopCamera} className="mt-3 w-full py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white text-sm transition-colors">\u53d6\u6d88</button>
-                {cameraError && <p className="text-red-400 text-xs text-center mt-2">\u7121\u6cd5\u4f7f\u7528\u76f8\u6a5f\uff0c\u8acb\u6539\u7528\u4e0b\u65b9\u59d3\u540d\u641c\u5c0b</p>}
+                <button onClick={stopCamera} className="mt-3 w-full py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white text-sm transition-colors">Cancel</button>
+                {cameraError && <p className="text-red-400 text-xs text-center mt-2">Camera unavailable. Please use name search below.</p>}
               </div>
             ) : (
               <div className="text-center">
-                <div className="text-4xl mb-3">\ud83d\udcf7</div>
-                <p className="text-white/50 text-sm mb-4">{scanLoading ? '\u8655\u7406\u4e2d...' : '\u6383\u63cf\u5b78\u751f QR code'}</p>
+                <div className="text-4xl mb-3">📷</div>
+                <p className="text-white/50 text-sm mb-4">{scanLoading ? 'Processing...' : 'Scan student QR code'}</p>
                 <button onClick={startCamera} disabled={scanLoading} className="w-full py-3 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold text-sm disabled:opacity-50">
-                  \u958b\u59cb\u6383\u63cf
+                  Start Scan
                 </button>
               </div>
             )}
@@ -273,7 +273,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               type="text"
               value={query}
               onChange={e => { setQuery(e.target.value); setResult(null) }}
-              placeholder="\u8f38\u5165\u5b78\u751f\u59d3\u540d\u6216\u5bb6\u9577\u59d3\u540d..."
+              placeholder="Search by student or parent name..."
               className="w-full bg-[#1a2744] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#c9a84c] text-sm transition-colors"
             />
             {filtered.length > 0 && (
@@ -292,7 +292,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                         <p className="text-white/40 text-xs">{parent?.first_name} {parent?.last_name}</p>
                       </div>
                       <span className="text-[#c9a84c] text-sm font-semibold">
-                        {loading === s.id ? '\u8655\u7406\u4e2d...' : 'Check-in'}
+                        {loading === s.id ? 'Processing...' : 'Check-in'}
                       </span>
                     </button>
                   )
@@ -300,7 +300,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               </div>
             )}
             {query.trim().length >= 1 && filtered.length === 0 && (
-              <p className="text-white/30 text-sm text-center mt-4">\u627e\u4e0d\u5230\u7b26\u5408\u7684\u5b78\u751f</p>
+              <p className="text-white/30 text-sm text-center mt-4">No matching students found</p>
             )}
           </div>
         </div>
@@ -313,36 +313,36 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
 
         <div className="bg-[#111d38] rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-white/10">
-            <h2 className="text-white font-semibold text-sm">\u5831\u5230\u7d00\u9304</h2>
+            <h2 className="text-white font-semibold text-sm">Check-in Records</h2>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-white/40 text-xs uppercase tracking-wider">
-                <th className="text-left px-6 py-2">\u5b78\u751f</th>
-                <th className="text-left px-6 py-2">\u5bb6\u9577</th>
-                <th className="text-left px-6 py-2">\u65b9\u5f0f</th>
-                <th className="text-left px-6 py-2">\u5831\u5230\u6642\u9593</th>
+                <th className="text-left px-6 py-2">Student</th>
+                <th className="text-left px-6 py-2">Parent</th>
+                <th className="text-left px-6 py-2">Method</th>
+                <th className="text-left px-6 py-2">Check-in Time</th>
               </tr>
             </thead>
             <tbody>
               {recordsLoading ? (
-                <tr><td colSpan={4} className="text-center text-white/30 py-6">\u8f09\u5165\u4e2d...</td></tr>
+                <tr><td colSpan={4} className="text-center text-white/30 py-6">Loading...</td></tr>
               ) : records.length === 0 ? (
-                <tr><td colSpan={4} className="text-center text-white/30 py-6">\u5c1a\u7121\u5831\u5230\u7d00\u9304</td></tr>
+                <tr><td colSpan={4} className="text-center text-white/30 py-6">No check-in records yet</td></tr>
               ) : records.map(r => (
                 <tr key={r.id} className="border-t border-white/5">
                   <td className="px-6 py-3 text-white">{r.student_name}</td>
                   <td className="px-6 py-3 text-white/60">{r.parent_name}</td>
-                  <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr_code' ? 'QR' : '\u624b\u52d5'}</td>
+                  <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr_code' ? 'QR' : 'Manual'}</td>
                   <td className="px-6 py-3 text-white/60">{formatDateTime(r.checked_in_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div className="flex items-center justify-between px-6 py-4 border-t border-white/10">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="text-white/50 text-xs disabled:opacity-30">\u2190 \u4e0a\u4e00\u9801</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="text-white/50 text-xs disabled:opacity-30">← Previous</button>
             <span className="text-white/40 text-xs">{page} / {totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="text-white/50 text-xs disabled:opacity-30">\u4e0b\u4e00\u9801 \u2192</button>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="text-white/50 text-xs disabled:opacity-30">Next →</button>
           </div>
         </div>
       </div>
@@ -352,19 +352,19 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="w-16 h-16 rounded-full bg-[#c9a84c]/20 flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">\u2713</span>
+                <span className="text-2xl">✓</span>
               </div>
-              <h2 className="text-lg font-bold text-white mb-1">\u78ba\u8a8d Check-in</h2>
+              <h2 className="text-lg font-bold text-white mb-1">Confirm Check-in</h2>
               <p className="text-white/60 text-sm">
-                \u78ba\u5b9a\u8981\u5e6b <span className="text-white font-semibold">{confirmStudent.full_name}</span> \u9032\u884c check-in \u55ce\uff1f
+                Check in <span className="text-white font-semibold">{confirmStudent.full_name}</span>?
               </p>
               {confirmParent && (
-                <p className="text-white/40 text-xs mt-1">\u5bb6\u9577\uff1a{confirmParent.first_name} {confirmParent.last_name}</p>
+                <p className="text-white/40 text-xs mt-1">Parent: {confirmParent.first_name} {confirmParent.last_name}</p>
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmStudent(null)} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">\u53d6\u6d88</button>
-              <button onClick={() => checkin(confirmStudent)} className="flex-1 py-2.5 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold hover:bg-[#d4b86a] transition-colors text-sm">\u78ba\u8a8d Check-in</button>
+              <button onClick={() => setConfirmStudent(null)} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">Cancel</button>
+              <button onClick={() => checkin(confirmStudent)} className="flex-1 py-2.5 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold hover:bg-[#d4b86a] transition-colors text-sm">Confirm Check-in</button>
             </div>
           </div>
         </div>
@@ -374,12 +374,12 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div style={{ background: '#1a2744', borderRadius: '20px', padding: '32px', maxWidth: '420px', width: '100%', border: '1px solid #c9a84c30' }}>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>\ud83c\udfca</div>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🏊</div>
               <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '22px', fontWeight: 900, color: '#fff', margin: '0 0 8px' }}>
-                \u9996\u6b21\u4e0a\u8ab2\uff01
+                First Lesson!
               </h2>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-                \u70ba <strong style={{ color: '#fff' }}>{levelModalStudent.name}</strong> \u6307\u5b9a\u8d77\u59cb\u7b49\u7d1a
+                Assign a starting level for <strong style={{ color: '#fff' }}>{levelModalStudent.name}</strong>
               </p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' }}>
@@ -399,7 +399,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               onClick={() => { setShowLevelModal(false); setLevelModalStudent(null) }}
               style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
             >
-              \u7a0d\u5f8c\u518d\u8aaa
+              Skip for now
             </button>
           </div>
         </div>
