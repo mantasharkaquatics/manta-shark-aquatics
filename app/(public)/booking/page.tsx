@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import ChatWidget from '@/components/ChatWidget'
+import { formatDateLA } from '@/lib/date'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -245,7 +246,7 @@ export default function BookingPage() {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
 
     const dow = selectedDate.getDay()
-    const dateStr = selectedDate.toISOString().split('T')[0]
+    const dateStr = formatDateLA(selectedDate)
 
     const { data: avail } = await supabase
       .from('coach_availability')
@@ -328,7 +329,7 @@ export default function BookingPage() {
     const rbIdEarly = rescheduleBookingIdRef.current || rescheduleBookingId
     const partnerBIdEarly = reschedulePartnerBookingIdRef.current
     if (rbIdEarly && partnerBIdEarly) {
-      const dateStr2 = selectedDate.toISOString().split('T')[0]
+      const dateStr2 = formatDateLA(selectedDate)
       const startTime2 = selectedSlot.time
       // 找或建 session
       const { data: existingSessions } = await supabase
@@ -369,7 +370,7 @@ export default function BookingPage() {
       return
     }
 
-    const dateStr = selectedDate.toISOString().split('T')[0]
+    const dateStr = formatDateLA(selectedDate)
     const startTime = selectedSlot.time
     const [h, m] = startTime.split(':').map(Number)
     const endMin = h * 60 + m + selectedCourse.duration_minutes

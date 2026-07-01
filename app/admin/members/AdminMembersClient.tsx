@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getTodayLA } from '@/lib/date'
 
 type Student = {
   id: string
@@ -111,7 +112,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
 
   async function loadStudentBookings(studentId: string) {
     if (studentBookings[studentId]?.loaded) return
-    const today = new Date().toISOString().split('T')[0]
+    const today = getTodayLA()
     const { data: rawBookings } = await supabase
       .from('bookings')
       .select('id, status, student_id, class_session_id')

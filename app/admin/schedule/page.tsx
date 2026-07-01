@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { getTodayLA } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export default async function AdminSchedulePage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const todayDate = new Date().toISOString().split('T')[0]
+  const todayDate = getTodayLA()
   const nowIso = new Date().toISOString()
 
   // Step 1: 查 bookings（不帶 join）

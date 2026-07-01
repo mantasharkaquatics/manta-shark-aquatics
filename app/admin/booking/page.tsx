@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import AdminBookingClient from './AdminBookingClient'
+import { formatDateLA } from '@/lib/date'
 
 export default async function AdminBookingPage() {
   const cookieStore = await cookies()
@@ -18,8 +19,8 @@ export default async function AdminBookingPage() {
       supabase
         .from('class_sessions')
         .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes)')
-        .gte('session_date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-        .lte('session_date', new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .gte('session_date', formatDateLA(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)))
+        .lte('session_date', formatDateLA(new Date(Date.now() + 21 * 24 * 60 * 60 * 1000)))
         .neq('status', 'cancelled')
         .order('session_date')
         .order('start_time'),

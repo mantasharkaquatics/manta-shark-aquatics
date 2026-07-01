@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
+import { getTodayLA } from '@/lib/date'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -329,7 +330,7 @@ export default function DashboardPage() {
     if (!parentData) return
     setParent(parentData)
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getTodayLA()
 
     // 懶惰清除：刪除過期的 pending_partner booking
     const nowIso = new Date().toISOString()
