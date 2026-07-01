@@ -49,13 +49,23 @@ export async function POST(req: NextRequest) {
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, class_session_id, status, class_sessions(session_date, start_time, end_time)')
+    .select('id, class_session_id, status')
     .eq('student_id', student_id)
     .neq('status', 'cancelled')
 
-  const todayBookings = (bookings || []).filter((b: any) => {
-    const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
-    return cs?.session_date === todayStr
+  const sessionIds = Array.from(new Set((bookings || []).map((b: any) => b.class_session_id).filter(Boolean)))
+  const { data: sessions } = sessionIds.length
+    ? await supabase.from('class_sessions').select('id, session_date, start_time, end_time').in('id', sessionIds)
+    : { data: [] as any[] }
+  const sessionMap = new Map((sessions || []).map((s: any) => [s.id, s]))
+
+  const bookingsWithSession = (bookings || []).map((b: any) => ({
+    ...b,
+    class_sessions: sessionMap.get(b.class_session_id) || null,
+  }))
+
+  const todayBookings = bookingsWithSession.filter((b: any) => {
+    return b.class_sessions?.session_date === todayStr
   })
 
   if (todayBookings.length === 0) {
@@ -65,7 +75,7 @@ export async function POST(req: NextRequest) {
   const nowMinutes = getNowMinutesLA()
 
   const eligible = todayBookings.find((b: any) => {
-    const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
+    const cs = b.class_sessions
     if (!cs?.start_time) return false
     const parts = cs.start_time.split(':').map(Number)
     const classMinutes = parts[0] * 60 + parts[1]
@@ -76,14 +86,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: student.full_name + ' has no lesson available to check in right now (must be within 30 minutes of class start)' }, { status: 400 })
   }
 
-  const eligibleCs = Array.isArray(eligible.class_sessions) ? eligible.class_sessions[0] : eligible.class_sessions
+  const eligibleCs = eligible.class_sessions
   const cutoffParts = cutoff.split(':').map(Number)
   const cutoffMinutes = cutoffParts[0] * 60 + cutoffParts[1]
   const eParts = eligibleCs.start_time.split(':').map(Number)
   const eligiblePeriod = (eParts[0] * 60 + eParts[1]) < cutoffMinutes ? 'AM' : 'PM'
 
   const periodBookings = todayBookings.filter((b: any) => {
-    const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
+    const cs = b.class_sessions
     if (!cs?.start_time) return false
     const parts = cs.start_time.split(':').map(Number)
     const period = (parts[0] * 60 + parts[1]) < cutoffMinutes ? 'AM' : 'PM'
