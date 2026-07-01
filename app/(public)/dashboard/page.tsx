@@ -260,13 +260,13 @@ function CreditCard({ g, remaining, pct, note }: {
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{dateStr}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.2)' }}>
-                    {itemRemaining} / {item.credits} left
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.35)' }}>
+                    {itemRemaining > 0 ? `${itemRemaining} / ${item.credits} left` : 'Used up'}
                   </div>
                   {item.invoiceId && (
                     <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer"
                       style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                      下載發票
+                      Download Invoice
                     </a>
                   )}
                 </div>
@@ -399,7 +399,7 @@ export default function DashboardPage() {
     }
 
     setStudents(studs || [])
-    setCredits((credData || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
+    setCredits(credData || [])
     setActiveTrialStudentIds(new Set((rawBookings || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
 
     // 查詢待確認的跨帳戶預約
