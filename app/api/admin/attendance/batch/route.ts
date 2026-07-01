@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-
-function getLANow() {
-  const now = new Date()
-  const laString = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })
-  return new Date(laString)
-}
-
-function pad(n: number) { return String(n).padStart(2, '0') }
+import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -45,8 +38,7 @@ export async function POST(req: NextRequest) {
 
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
-  const laNow = getLANow()
-  const todayStr = laNow.getFullYear() + '-' + pad(laNow.getMonth() + 1) + '-' + pad(laNow.getDate())
+  const todayStr = getTodayLA()
 
   const { data: settingRow } = await supabase
     .from('system_settings')
@@ -70,7 +62,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: student.full_name + ' has no lessons today' }, { status: 404 })
   }
 
-  const nowMinutes = laNow.getHours() * 60 + laNow.getMinutes()
+  const nowMinutes = getNowMinutesLA()
 
   const eligible = todayBookings.find((b: any) => {
     const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
