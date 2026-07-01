@@ -20,3 +20,18 @@ export function formatDateLA(date: Date): string {
 export function getTodayLA(): string {
   return formatDateLA(new Date())
 }
+
+// Minutes since midnight, in America/Los_Angeles time.
+// Used to compare against a booking's HH:MM end_time to determine
+// whether a lesson happening "today" has already finished.
+export function getNowMinutesLA(): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const h = Number(parts.find(p => p.type === 'hour')?.value || '0')
+  const m = Number(parts.find(p => p.type === 'minute')?.value || '0')
+  return h * 60 + m
+}

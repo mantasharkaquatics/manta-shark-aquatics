@@ -5,7 +5,7 @@ import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
-import { getTodayLA } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -512,8 +512,16 @@ export default function DashboardPage() {
       }
       return [...result, ...Object.values(map)]
     }
-    const allUpcoming = mergeBySession(parseBookings(rawBookings || []).filter(b => b.session_date >= today))
-    const allPast = parseBookings(rawBookings || []).filter(b => b.session_date < today)
+    const nowMinutesLA = getNowMinutesLA()
+    const isLessonPast = (b: Booking) => {
+      if (b.session_date < today) return true
+      if (b.session_date > today) return false
+      // 今天：課程結束時間是否已經過了現在
+      const [eh, em] = b.end_time.split(':').map(Number)
+      return (eh * 60 + em) <= nowMinutesLA
+    }
+    const allUpcoming = mergeBySession(parseBookings(rawBookings || []).filter(b => !isLessonPast(b)))
+    const allPast = parseBookings(rawBookings || []).filter(b => isLessonPast(b))
 
     setUpcomingBookings(allUpcoming.sort((a, b) => a.session_date.localeCompare(b.session_date)))
 
