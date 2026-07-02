@@ -10,6 +10,8 @@ type Student = {
   current_level: string
   is_active: boolean
   date_of_birth: string | null
+  created_at: string | null
+  added_by_parent: boolean
 }
 
 type Parent = {
@@ -27,6 +29,8 @@ type Parent = {
   city: string | null
   state: string | null
   zip_code: string | null
+  last_activity_at: string | null
+  activity_reviewed_at: string | null
   students: Student[]
 }
 
@@ -79,6 +83,12 @@ function formatDate(ts: string | null): string {
 function formatDateTime(ts: string | null): string {
   if (!ts) return '—'
   return new Date(ts).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function isUnread(p: Parent): boolean {
+  if (!p.last_activity_at) return false
+  if (!p.activity_reviewed_at) return true
+  return new Date(p.last_activity_at).getTime() > new Date(p.activity_reviewed_at).getTime()
 }
 
 function CopyButton({ value }: { value: string }) {
@@ -188,10 +198,30 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   const [expanded, setExpanded] = useState<string | null>(null)
   const [parents, setParents] = useState<Parent[]>(initialParents)
 
+  async function markReviewed(parentId: string) {
+    await fetch('/api/admin/parents/mark-reviewed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_id: parentId }),
+    })
+    setParents(prev => prev.map(p => p.id === parentId ? { ...p, activity_reviewed_at: new Date().toISOString() } : p))
+  }
+
   const filtered = parents.filter(p =>
-    `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(search.toLowerCase()) ||
+    (p.first_name + ' ' + p.last_name + ' ' + p.email).toLowerCase().includes(search.toLowerCase()) ||
     p.students.some(s => s.full_name.toLowerCase().includes(search.toLowerCase()))
   )
+
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    const aUnread = isUnread(a)
+    const bUnread = isUnread(b)
+    if (aUnread && !bUnread) return -1
+    if (!aUnread && bUnread) return 1
+    if (aUnread && bUnread) {
+      return new Date(b.last_activity_at || 0).getTime() - new Date(a.last_activity_at || 0).getTime()
+    }
+    return a.first_name.localeCompare(b.first_name)
+  })
 
   async function loadAllStudentsForParent(students: Student[]) {
     for (const s of students) {
@@ -229,7 +259,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       </div>
 
       <div className="space-y-3">
-        {filtered.map(parent => {
+        {sortedFiltered.map(parent => {
           const addressText = [
             parent.address_line1,
             parent.address_line2,
@@ -243,7 +273,10 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                 onClick={() => {
                   const next = expanded === parent.id ? null : parent.id
                   setExpanded(next)
-                  if (next) loadAllStudentsForParent(parent.students)
+                  if (next) {
+                    loadAllStudentsForParent(parent.students)
+                    if (isUnread(parent)) markReviewed(parent.id)
+                  }
                 }}
                 className="w-full flex items-center justify-between p-5 text-left hover:bg-[#1e3a6e]/30 transition-all"
               >
@@ -257,6 +290,9 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {isUnread(parent) && (
+                    <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="New activity" />
+                  )}
                   <span className="text-gray-500 text-sm">{parent.students.length} student{parent.students.length !== 1 ? 's' : ''}</span>
                   <span className="text-gray-500">{expanded === parent.id ? '▲' : '▼'}</span>
                 </div>
@@ -358,6 +394,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                       : 'No birthday on file'
                                     }
                                   </p>
+                                  {student.added_by_parent && (
+                                    <p className="text-[#c9a84c] text-[10px] mt-0.5">
+                                      Added by parent{student.created_at ? ' · ' + formatDate(student.created_at) : ''}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 ml-4">
@@ -433,7 +474,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
           )
         })}
 
-        {filtered.length === 0 && (
+        {sortedFiltered.length === 0 && (
           <div className="text-center py-12 text-gray-400">No members found</div>
         )}
       </div>
