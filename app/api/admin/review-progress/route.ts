@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
-  const { history_id, admin_id, student_id, updated_snapshot } = await req.json()
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const auth = await requireAdmin()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { history_id, student_id, updated_snapshot } = await req.json()
+  const admin_id = auth.admin.id
+  const supabase = auth.svc
 
   // 如果主管在確認前有手動更改百分比，先同步寫入學生實際技能進度表
   if (updated_snapshot && student_id) {

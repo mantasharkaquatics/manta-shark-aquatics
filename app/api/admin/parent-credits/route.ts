@@ -1,12 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { requireAdmin } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const supabase = auth.svc
   const parentId = req.nextUrl.searchParams.get('parent_id')
   const courseTypeId = req.nextUrl.searchParams.get('course_type_id')
 

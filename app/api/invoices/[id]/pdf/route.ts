@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireUser } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const auth = await requireUser()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +20,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !invoice) {
     return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+  }
+
+  // Parents may only download their own invoices; admins may download any
+  const { data: adminRow } = await supabase
+    .from('admins').select('id').eq('auth_user_id', auth.user.id).single()
+  if (!adminRow) {
+    const { data: parentRow } = await supabase
+      .from('parents').select('id').eq('auth_user_id', auth.user.id).single()
+    if (!parentRow || invoice.parent_id !== parentRow.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const parent = Array.isArray(invoice.parents) ? invoice.parents[0] : invoice.parents

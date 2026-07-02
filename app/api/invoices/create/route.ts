@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
+  const internalKey = req.headers.get('x-internal-key')
+  if (!internalKey || internalKey !== process.env.CRON_SECRET) {
+    const auth = await requireAdmin()
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { requireUser } from '@/lib/api-auth'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { type, to, parentName, studentName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, amount } = await req.json()
 
   let subject = ''

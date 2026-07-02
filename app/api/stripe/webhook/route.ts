@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       const unitPrice = amount_cents / 100 / sessions
       const invoiceRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.CRON_SECRET || '' },
         body: JSON.stringify({
           parent_id,
           lesson_credit_id: credit?.id || null,

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const input = req.nextUrl.searchParams.get('input')
   if (!input) return NextResponse.json({ suggestions: [] })
 

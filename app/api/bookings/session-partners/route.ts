@@ -13,13 +13,24 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabaseAuth.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { session_ids, parent_id } = await req.json()
+  const { session_ids, parent_id: requestedParentId } = await req.json()
   if (!session_ids?.length) return NextResponse.json({ partners: {} })
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  // parent_id: parents may only query as themselves; admins may pass any id
+  const { data: adminRow } = await supabase
+    .from('admins').select('id').eq('auth_user_id', user.id).single()
+  let parent_id = requestedParentId
+  if (!adminRow) {
+    const { data: callerParent } = await supabase
+      .from('parents').select('id').eq('auth_user_id', user.id).single()
+    if (!callerParent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    parent_id = callerParent.id
+  }
 
   // 查詢這些 session 中，不屬於此 parent 的其他 active booking
   const { data: partnerBookings } = await supabase

@@ -22,12 +22,19 @@ export async function POST(req: NextRequest) {
 
   const { data: pending } = await supabase
     .from('bookings')
-    .select('id, class_session_id, partner_parent_id, partner_booking_id, status')
+    .select('id, parent_id, class_session_id, partner_parent_id, partner_booking_id, status')
     .eq('id', booking_id)
     .single()
 
   if (!pending || pending.status !== 'pending_partner') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // Only the invited parent may reject this invitation
+  const { data: callerParent } = await supabase
+    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  if (!callerParent || pending.parent_id !== callerParent.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // 取消夥伴方 booking
