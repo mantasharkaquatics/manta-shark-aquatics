@@ -30,7 +30,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (request.nextUrl.pathname.startsWith('/coach')) {
+  const p = request.nextUrl.pathname
+  if (p === '/coach' || p.startsWith('/coach/')) {
     if (!user) return NextResponse.redirect(new URL('/login', request.url))
     const { data: coach } = await supabase.from('coaches').select('id').eq('auth_user_id', user.id).single()
     if (!coach) return NextResponse.redirect(new URL('/dashboard', request.url))
