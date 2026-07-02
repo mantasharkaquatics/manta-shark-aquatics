@@ -521,28 +521,20 @@ export default function DashboardPage() {
     const allUpcoming = mergeBySession(parseBookings(rawBookings || []).filter(b => !isLessonPast(b)))
     const allPast = parseBookings(rawBookings || []).filter(b => isLessonPast(b))
 
-    setUpcomingBookings(allUpcoming.sort((a, b) => a.session_date.localeCompare(b.session_date)))
-
-    // 查詢 past bookings 的 attendance（check-in 記錄）
-    const pastBookingIds = (rawBookings || [])
-      .filter((b: any) => {
-        const cs = sessionMap[b.class_session_id]
-        return cs && cs.session_date < today
-      })
-      .map((b: any) => b.id)
+    // Fetch attendance for ALL bookings (incl. today's) so Upcoming cards can show check-in status
+    const allBookingIds = (rawBookings || []).map((b: any) => b.id)
     let checkedInSet = new Set<string>()
-    if (pastBookingIds.length > 0) {
-      const res = await fetch('/api/parent/attendance?booking_ids=' + pastBookingIds.join(','))
+    if (allBookingIds.length > 0) {
+      const res = await fetch('/api/parent/attendance?booking_ids=' + allBookingIds.join(','))
       const json = await res.json().catch(() => ({ checkedInBookingIds: [] }))
       for (const id of (json.checkedInBookingIds || [])) {
         checkedInSet.add(id)
       }
     }
 
-    const allPastWithCheckin = allPast.map(b => {
-      const raw = (rawBookings || []).find((r: any) => r.id === b.id)
-      return { ...b, checked_in: raw ? checkedInSet.has(raw.id) : false }
-    })
+    setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) })).sort((a, b) => a.session_date.localeCompare(b.session_date)))
+
+    const allPastWithCheckin = allPast.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date)).slice(0, 50))
     // 抓各學生最新 approved progress_history
     const studentIdList = (studs || []).map((s: any) => s.id)
@@ -1072,7 +1064,7 @@ export default function DashboardPage() {
                 const msLeft = Math.max(0, expiresAt.getTime() - now)
                 const minsLeft = Math.floor(msLeft / 60000)
                 const secsLeft = Math.floor((msLeft % 60000) / 1000)
-                const countdownStr = msLeft <= 0 ? '已過期' : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
+                const countdownStr = msLeft <= 0 ? 'Expired' : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
                 return (
                   <div key={b.id} style={{ background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)', borderRadius: '14px', padding: '16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -1164,7 +1156,7 @@ export default function DashboardPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.course_name}</span>
-                        {booking.is_trial && <span style={{ fontSize: '10px', fontWeight: 700, background: 'transparent', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: '10px', padding: '2px 8px' }}>單堂</span>}
+                        {booking.is_trial && <span style={{ fontSize: '10px', fontWeight: 700, background: 'transparent', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: '10px', padding: '2px 8px' }}>Trial</span>}
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                       </div>
@@ -1197,8 +1189,8 @@ export default function DashboardPage() {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 改期確認剩餘 {str}</div>
+                            const str = ms <= 0 ? 'Expired' : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ Reschedule confirmation: {str} left</div>
                           })()}
                         </div>
                       ) : (
@@ -1208,20 +1200,31 @@ export default function DashboardPage() {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 改期確認剩餘 {str}</div>
+                            const str = ms <= 0 ? 'Expired' : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ Reschedule confirmation: {str} left</div>
                           })()}
                         {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? '已過期' : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ 剩餘 {str} 確認，否則自動取消</div>
+                            const str = ms <= 0 ? 'Expired' : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {str} left to confirm or booking auto-cancels</div>
                           })()}
                         </div>
                       )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+                      {(() => {
+                        if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; Checked In</span>
+                        if (booking.session_date !== getTodayLA()) return null
+                        const [sh, sm] = booking.start_time.split(':').map(Number)
+                        const [eh, em] = booking.end_time.split(':').map(Number)
+                        const nowMin = getNowMinutesLA()
+                        if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) {
+                          return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>Check-in Open</span>
+                        }
+                        return <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Check-in opens 30 min before class</span>
+                      })()}
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
                         {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? 'PENDING RESCHEDULE' : booking.status}
                       </span>
@@ -1233,28 +1236,28 @@ export default function DashboardPage() {
                               setReschedulingId(booking.id)
                               const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               const json = await res.json()
-                              if (!res.ok) alert(json.error || '改期失敗')
+                              if (!res.ok) alert(json.error || 'Reschedule failed')
                               await fetchAll()
                               setReschedulingId(null)
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(134,239,172,0.4)', background: 'transparent', color: '#86efac', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                            確認改期
+                            Accept Reschedule
                           </button>
                           <button
                             onClick={async () => {
-                              setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: '確定拒絕改期？', message: '拒絕後，課程將維持原本時段。' })
+                              setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: 'Decline this reschedule?', message: 'The lesson will keep its original time.' })
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                            拒絕
+                            Decline
                           </button>
                           </>}
                           {booking.pending_action === 'reschedule_initiator' && (
                             <button
                               onClick={async () => {
-                                setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: '確定取消改期？', message: '取消後，課程將維持原本時段。' })
+                                setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: 'Cancel this reschedule request?', message: 'The lesson will keep its original time.' })
                               }}
                               style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                              取消改期
+                              Cancel Reschedule
                             </button>
                           )}
                         </div>
@@ -1291,7 +1294,7 @@ export default function DashboardPage() {
               onClick={() => setShowAllUpcoming(v => !v)}
               style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
             >
-              {showAllUpcoming ? '▲ 收合' : `▼ 顯示全部 ${upcomingBookings.length} 堂課`}
+              {showAllUpcoming ? '▲ Collapse' : `▼ Show all ${upcomingBookings.length} lessons`}
             </button>
           )}
         </section>
@@ -1362,7 +1365,7 @@ export default function DashboardPage() {
                       const isNoShow = booking.status === 'confirmed' && !booking.checked_in
                       const noShowColor = '#e05a4a'
                       const badgeColor = isNoShow ? noShowColor : (STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)')
-                      const badgeLabel = isNoShow ? '未報到' : booking.status
+                      const badgeLabel = isNoShow ? 'Absent' : booking.status
                       return (
                       <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
@@ -1385,7 +1388,7 @@ export default function DashboardPage() {
                       onClick={() => { setShowAllHistory(v => !v); setHistoryPage(0) }}
                       style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
                     >
-                      {showAllHistory ? '▲ 收合' : `▼ 顯示全部 ${pastBookings.length} 筆記錄`}
+                      {showAllHistory ? '▲ Collapse' : `▼ Show all ${pastBookings.length} records`}
                     </button>
                   )}
                   {/* 分頁（展開後才顯示） */}
@@ -1395,7 +1398,7 @@ export default function DashboardPage() {
                         onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
                         disabled={historyPage === 0}
                         style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === 0 ? 'not-allowed' : 'pointer' }}
-                      >← 上一頁</button>
+                      >← Prev</button>
                       {Array.from({ length: totalPages }, (_, i) => (
                         <button key={i}
                           onClick={() => setHistoryPage(i)}
@@ -1406,7 +1409,7 @@ export default function DashboardPage() {
                         onClick={() => setHistoryPage(p => Math.min(totalPages - 1, p + 1))}
                         disabled={historyPage === totalPages - 1}
                         style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === totalPages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === totalPages - 1 ? 'not-allowed' : 'pointer' }}
-                      >下一頁 →</button>
+                      >Next →</button>
                     </div>
                   )}
                 </>
