@@ -402,8 +402,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 ml-4">
-                                <span className={`text-xs px-2 py-1 rounded-full ${LEVEL_COLORS[student.current_level] || 'bg-gray-700 text-gray-300'}`}>
-                                  L{student.current_level} {LEVEL_NAMES[student.current_level] || ''}
+                                <span className={`text-xs px-2 py-1 rounded-full ${student.current_level ? (LEVEL_COLORS[student.current_level] || 'bg-gray-700 text-gray-300') : 'bg-gray-700/50 text-gray-400 italic'}`}>
+                                  {student.current_level ? `L${student.current_level} ${LEVEL_NAMES[student.current_level] || ''}` : 'Pending Assessment'}
                                 </span>
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'upcoming')}
