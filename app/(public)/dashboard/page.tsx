@@ -106,12 +106,12 @@ function makeQRPayload(studentId: string): string {
 }
 
 const QUICK_LINKS = [
-  { label: '我的帳戶', icon: '👤', href: '/dashboard/account', color: '#4a90c4', desc: '個人資料、密碼與訂閱設定' },
+  { label: 'My Account', icon: '👤', href: '/dashboard/account', color: '#4a90c4', desc: 'Profile, password & subscription settings' },
   { label: 'Book a Lesson', icon: '📅', href: '/booking', color: GOLD, desc: 'Schedule your next session' },
   { label: 'Swim Levels', icon: '🏊', href: '/levels', color: '#4a90c4', desc: 'View curriculum & progress' },
   { label: 'Swim Plans', icon: '📦', href: '/plans', color: '#4caf72', desc: 'Browse lesson packages' },
   { label: 'Policies', icon: '📋', href: '/policies', color: '#9c7a3c', desc: 'Rules & terms' },
-  { label: '帳戶連動', icon: '🤝', href: '/dashboard/partnerships', color: '#7b5ea7', desc: '與其他家長共同預約課程' },
+  { label: 'Partnerships', icon: '🤝', href: '/dashboard/partnerships', color: '#7b5ea7', desc: 'Book lessons together with another family' },
 ]
 
 const STATUS_COLORS: Record<string, string> = {
@@ -658,18 +658,18 @@ export default function DashboardPage() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 402) {
-            setInfoModal({ title: '堂數不足', message: data.error || '堂數不足，請購買方案。', actionLabel: '前往購買方案', onAction: () => { window.location.href = '/plans' } })
+            setInfoModal({ title: 'Not Enough Credits', message: data.error || 'Not enough credits. Please purchase a plan.', actionLabel: 'View Plans', onAction: () => { window.location.href = '/plans' } })
           } else if (res.status === 409) {
-            setInfoModal({ title: '無法確認', message: data.error || '此時段已被預約，邀請已自動取消。' })
+            setInfoModal({ title: 'Unable to Confirm', message: data.error || 'This time slot has been taken and the invitation was cancelled.' })
           } else {
-            setInfoModal({ title: '確認失敗', message: data.error || '請稍後再試' })
+            setInfoModal({ title: 'Confirmation Failed', message: data.error || 'Please try again later.' })
           }
           await fetchAll()
           setConfirmingId(null)
           return
         }
     } catch {
-      setInfoModal({ title: '確認失敗', message: '請稍後再試' })
+      setInfoModal({ title: 'Confirmation Failed', message: 'Please try again later.' })
       setConfirmingId(null)
       setConfirmingId(null)
       return
@@ -807,16 +807,16 @@ export default function DashboardPage() {
       {infoModal && (
         <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>通知</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>Notice</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{infoModal.title}</div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                關閉
+                Close
               </button>
               {infoModal.onAction && (
                 <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#c9a84c', color: '#1a2744', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                  {infoModal.actionLabel || '確定'}
+                  {infoModal.actionLabel || 'OK'}
                 </button>
               )}
             </div>
@@ -829,20 +829,20 @@ export default function DashboardPage() {
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>{cancelTarget.type === 'reject' ? 'REJECT INVITATION' : 'CANCEL LESSON'}</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{cancelTarget.type === 'reject' ? '確定拒絕此邀請？' : 'Cancel this booking?'}</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{cancelTarget.type === 'reject' ? 'Decline this invitation?' : 'Cancel this booking?'}</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
-              {cancelTarget.type === 'reject' ? '拒絕後，此邀請將被取消。' : 'This lesson will be cancelled and your credit will be returned to your account.'}
+              {cancelTarget.type === 'reject' ? 'The invitation will be cancelled.' : 'This lesson will be cancelled and your credit will be returned to your account.'}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                {cancelTarget.type === 'reject' ? '保留邀請' : 'Keep Lesson'}
+                {cancelTarget.type === 'reject' ? 'Keep Invitation' : 'Keep Lesson'}
               </button>
               <button onClick={async () => { if (cancelTarget.type === 'reject') { await rejectPartnerBooking(cancelTarget.id) } else { await cancelBooking(cancelTarget.id) } setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                {cancelTarget.type === 'reject' ? '確定拒絕' : 'Yes, Cancel'}
+                {cancelTarget.type === 'reject' ? 'Yes, Decline' : 'Yes, Cancel'}
               </button>
             </div>
           </div>
@@ -990,7 +990,7 @@ export default function DashboardPage() {
                             letterSpacing: '0.5px',
                           }}
                         >
-                          <span>📊 學習進度 ({prog.records.length} 筆記錄)</span>
+                          <span>📊 Skill Progress ({prog.records.length} records)</span>
                           <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>
                         </button>
                         {isOpen && (
@@ -1052,7 +1052,7 @@ export default function DashboardPage() {
         {/* PENDING PARTNER BOOKINGS 通知 */}
         {pendingPartnerBookings.length > 0 && (
           <section style={{ marginBottom: '28px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ 待確認邀請</h2>
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ Pending Invitations</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {pendingPartnerBookings.map((b: any) => {
                 const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
@@ -1069,29 +1069,29 @@ export default function DashboardPage() {
                   <div key={b.id} style={{ background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)', borderRadius: '14px', padding: '16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 跨帳戶預約邀請</div>
+                        <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 Partner Booking Invitation</div>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>
-                          {student?.full_name} 被邀請上課
+                          {student?.full_name} is invited to a lesson
                         </div>
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>
                           {ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}
                         </div>
                         <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
-                          ⏱ 剩餘 {countdownStr} 確認，否則自動取消
+                          ⏱ {countdownStr} left to confirm or the invitation auto-cancels
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                         <button
-                          onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || '課程', date: formatDate(cs?.session_date || ''), time: formatTime(cs?.start_time || ''), type: 'reject' })}
+                          onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || 'Lesson', date: formatDate(cs?.session_date || ''), time: formatTime(cs?.start_time || ''), type: 'reject' })}
                           disabled={rejectingId === b.id || confirmingId === b.id}
                           style={{ padding: '8px 16px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: '8px', color: '#f87171', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                          {rejectingId === b.id ? '...' : '拒絕'}
+                          {rejectingId === b.id ? '...' : 'Decline'}
                         </button>
                         <button
                           onClick={() => confirmPartnerBooking(b.id)}
                           disabled={confirmingId === b.id || rejectingId === b.id}
                           style={{ padding: '8px 16px', background: '#7b61c4', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                          {confirmingId === b.id ? '確認中...' : '確認參加（扣 1 credit）'}
+                          {confirmingId === b.id ? 'Confirming...' : 'Confirm (uses 1 credit)'}
                         </button>
                       </div>
                     </div>
@@ -1110,13 +1110,13 @@ export default function DashboardPage() {
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>取消</button>
+              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
               <button onClick={async () => {
                 const id = rescheduleActionModal.bookingId
                 setRescheduleActionModal(null)
                 const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
                 if (res.ok) await fetchAll()
-              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>確定</button>
+              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>Confirm</button>
             </div>
           </div>
         </div>
@@ -1338,10 +1338,10 @@ export default function DashboardPage() {
                 return (
                   <CreditCard
                     key={`trial-${s.id}`}
-                    g={{ name: `1-on-1 Private · ${s.full_name} 單堂課程`, total: 1, used: isTrialActive ? 1 : 0, items: [{ credits: 1, used: isTrialActive ? 1 : 0, date: s.trial_used_at }] }}
+                    g={{ name: `1-on-1 Private · ${s.full_name} Trial Lesson`, total: 1, used: isTrialActive ? 1 : 0, items: [{ credits: 1, used: isTrialActive ? 1 : 0, date: s.trial_used_at }] }}
                     remaining={isTrialActive ? 0 : 1}
                     pct={isTrialActive ? 0 : 100}
-                    note="每位學生限購一次"
+                    note="Limit one per student"
                   />
                 )
               })}
