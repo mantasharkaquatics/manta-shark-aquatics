@@ -6,6 +6,15 @@ const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
+function renderBody(text: string) {
+  const parts = String(text).split(/(https?:\/\/[^\s]+)/g)
+  return parts.map((p, i) =>
+    /^https?:\/\//.test(p)
+      ? <a key={i} href={p} target={p.includes('stripe.com') ? '_blank' : '_self'} rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 700, wordBreak: 'break-all' }}>{p.length > 60 ? 'Open link →' : p}</a>
+      : p
+  )
+}
+
 export default function ChatWidget({ parentId }: { parentId: string }) {
   const supabase = createClient()
   const [open, setOpen] = useState(false)
@@ -158,7 +167,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                   {msg.sender_type === 'ai' && (
                     <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>AI ASSISTANT</div>
                   )}
-                  {msg.body}
+                  {renderBody(msg.body)}
                   <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
                     {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                   </div>

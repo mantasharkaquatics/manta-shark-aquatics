@@ -29,6 +29,13 @@ export async function POST(req: NextRequest) {
 
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Ownership check: a parent may only cancel their own bookings (admin accounts have no parents row)
+  const { data: callerParent } = await supabase
+    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  if (callerParent && booking.parent_id !== callerParent.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   // 取消此 booking
   await supabase.from('bookings').update({ status: 'cancelled', pending_action: null }).eq('id', booking_id)
   await supabase.rpc('decrement_enrolled', { session_id: booking.class_session_id })
