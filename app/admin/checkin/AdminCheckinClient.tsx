@@ -40,11 +40,6 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   const [cameraError, setCameraError] = useState(false)
   const [scanLoading, setScanLoading] = useState(false)
 
-  const [cutoff, setCutoff] = useState('12:00')
-  const [editingCutoff, setEditingCutoff] = useState(false)
-  const [cutoffInput, setCutoffInput] = useState('12:00')
-  const [savingCutoff, setSavingCutoff] = useState(false)
-
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -54,29 +49,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   const [levelModalStudent, setLevelModalStudent] = useState<{ id: string; name: string } | null>(null)
   const [assigningLevel, setAssigningLevel] = useState(false)
 
-  useEffect(() => { loadCutoff() }, [])
   useEffect(() => { loadRecords(page) }, [page])
-
-  async function loadCutoff() {
-    try {
-      const res = await fetch('/api/admin/checkin-settings')
-      const data = await res.json()
-      if (data.cutoff) { setCutoff(data.cutoff); setCutoffInput(data.cutoff) }
-    } catch {}
-  }
-
-  async function saveCutoff() {
-    setSavingCutoff(true)
-    try {
-      const res = await fetch('/api/admin/checkin-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: cutoffInput }),
-      })
-      if (res.ok) { setCutoff(cutoffInput); setEditingCutoff(false) }
-    } catch {}
-    setSavingCutoff(false)
-  }
 
   async function loadRecords(p: number) {
     setRecordsLoading(true)
@@ -110,8 +83,8 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       if (!res.ok) {
         setResult({ success: false, message: data.error || 'Check-in failed' })
       } else {
-        const periodLabel = data.period === 'AM' ? 'morning' : 'afternoon'
-        setResult({ success: true, message: 'Checked in ' + data.student_name + ' for ' + data.checked_in_count + ' lesson(s) this ' + periodLabel })
+        const times = (data.lesson_times || []).join(', ')
+        setResult({ success: true, message: 'Checked in ' + data.student_name + ' for ' + data.checked_in_count + ' lesson(s)' + (times ? ': ' + times : '') })
         setPage(1)
         loadRecords(1)
         if (data.current_level === null) {
@@ -225,28 +198,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       <div className="w-full max-w-2xl mx-auto">
         <p className="text-xs font-semibold text-[#c9a84c] tracking-widest uppercase text-center mb-2">Manta Shark Aquatics</p>
         <h1 className="text-3xl font-bold text-white text-center mb-1" style={{ fontFamily: 'Playfair Display, serif' }}>Check-in</h1>
-        <p className="text-white/40 text-center text-sm mb-6">Scan a QR code or search by name to check in</p>
-
-        <div className="flex items-center justify-center gap-2 mb-8 text-xs text-white/40">
-          <span>AM/PM cutoff time:</span>
-          {editingCutoff ? (
-            <>
-              <input
-                type="time"
-                value={cutoffInput}
-                onChange={e => setCutoffInput(e.target.value)}
-                className="bg-[#1a2744] border border-white/10 rounded px-2 py-1 text-white text-xs"
-              />
-              <button onClick={saveCutoff} disabled={savingCutoff} className="text-[#c9a84c] font-semibold">Save</button>
-              <button onClick={() => { setEditingCutoff(false); setCutoffInput(cutoff) }} className="text-white/30">Cancel</button>
-            </>
-          ) : (
-            <>
-              <span className="text-white font-semibold">{cutoff}</span>
-              <button onClick={() => setEditingCutoff(true)} className="text-[#c9a84c] underline">Edit</button>
-            </>
-          )}
-        </div>
+        <p className="text-white/40 text-center text-sm mb-8">Scan a QR code or search by name. Check-in opens 30 min before class and closes at class end.</p>
 
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="bg-[#111d38] rounded-2xl p-6">
