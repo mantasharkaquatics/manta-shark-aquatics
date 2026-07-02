@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getTodayLA, formatTime12h } from '@/lib/date'
+import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
 
 type Student = {
   id: string
@@ -150,8 +150,15 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status, student_id: b.student_id, class_session_id: b.class_session_id }
       })
       .filter(Boolean) as Booking[]
-    const upcoming = bookings.filter(b => b.session_date >= today).sort((a, b) => a.session_date.localeCompare(b.session_date))
-    let past = bookings.filter(b => b.session_date < today).sort((a, b) => b.session_date.localeCompare(a.session_date))
+    const nowMin = getNowMinutesLA()
+    const isPast = (b: Booking) => {
+      if (b.session_date < today) return true
+      if (b.session_date > today) return false
+      const [eh, em] = b.end_time.split(':').map(Number)
+      return (eh * 60 + em) <= nowMin
+    }
+    const upcoming = bookings.filter(b => !isPast(b)).sort((a, b) => a.session_date.localeCompare(b.session_date))
+    let past = bookings.filter(isPast).sort((a, b) => b.session_date.localeCompare(a.session_date))
     if (past.length > 0) {
       const res = await fetch('/api/admin/attendance?booking_ids=' + past.map(b => b.id).join(','))
       const json = await res.json().catch(() => ({ checkedInBookingIds: [] }))
@@ -179,7 +186,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert((checkedIn ? '設為已報到失敗：' : '設為未報到失敗：') + (data.error || res.statusText))
+      alert((checkedIn ? 'Failed to mark as checked in: ' : 'Failed to mark as absent: ') + (data.error || res.statusText))
       return
     }
     setStudentBookings(prev => {
@@ -408,17 +415,17 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'upcoming')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'upcoming' ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >預約課程 {sb?.loaded ? `(${sb.upcoming.length})` : ''}</button>
+                                >Upcoming {sb?.loaded ? `(${sb.upcoming.length})` : ''}</button>
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'past')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'past' ? 'border-blue-400 bg-blue-400/20 text-blue-400' : 'border-[#1e3a6e] text-gray-500 hover:border-blue-400/40'}`}
-                                >歷史記錄 {sb?.loaded ? `(${sb.past.length})` : ''}</button>
+                                >History {sb?.loaded ? `(${sb.past.length})` : ''}</button>
                               </div>
                             </div>
                             {expandedType && (
                               <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
                                 {!sb?.loaded ? (
-                                  <p className="text-gray-500 text-xs py-2">載入中...</p>
+                                  <p className="text-gray-500 text-xs py-2">Loading...</p>
                                 ) : displayList && displayList.length > 0 ? (
                                   <div className="space-y-1.5">
                                     {displayList.map(b => (
@@ -431,26 +438,26 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
                                             {confirmingBookingId === b.id ? (
                                               <>
-                                                <span className="text-gray-400 text-[10px]">確定？</span>
+                                                <span className="text-gray-400 text-[10px]">Confirm?</span>
                                                 <button
                                                   onClick={() => setAttendance(student.id, b, !b.checked_in)}
                                                   className="px-2 py-0.5 rounded-full border border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c] text-[10px] font-semibold"
-                                                >確定</button>
+                                                >Yes</button>
                                                 <button
                                                   onClick={() => setConfirmingBookingId(null)}
                                                   className="px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 text-[10px] font-semibold"
-                                                >取消</button>
+                                                >No</button>
                                               </>
                                             ) : (
                                               <>
                                                 <button
                                                   onClick={() => setConfirmingBookingId(b.id)}
                                                   className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${b.checked_in ? 'bg-green-500/25 border-green-400 text-green-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-green-400/40'}`}
-                                                >已報到</button>
+                                                >Checked In</button>
                                                 <button
                                                   onClick={() => setConfirmingBookingId(b.id)}
                                                   className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${!b.checked_in ? 'bg-red-500/25 border-red-400 text-red-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-red-400/40'}`}
-                                                >未報到</button>
+                                                >Absent</button>
                                               </>
                                             )}
                                           </div>
@@ -459,7 +466,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-gray-600 text-xs py-2">無記錄</p>
+                                  <p className="text-gray-600 text-xs py-2">No records</p>
                                 )}
                               </div>
                             )}
