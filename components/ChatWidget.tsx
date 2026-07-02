@@ -76,8 +76,18 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
     const body = input.trim()
     setInput('')
     await supabase.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body })
-    await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body, unread_by_admin: true }).eq('id', threadId)
+    await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body }).eq('id', threadId)
     setSending(false)
+    try {
+      const res = await fetch('/api/chat/ai-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread_id: threadId }),
+      })
+      if (!res.ok) throw new Error('ai-reply failed')
+    } catch {
+      await supabase.from('chat_threads').update({ unread_by_admin: true }).eq('id', threadId)
+    }
   }
 
   const windowStyle: React.CSSProperties = isMobile ? {
@@ -124,7 +134,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>🦈</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: '#fff', fontSize: '15px' }}>Manta Shark Support</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>We typically reply within a few hours</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>AI assistant · a team member follows up when needed</div>
             </div>
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '20px', cursor: 'pointer', padding: '4px' }}>✕</button>
           </div>
@@ -145,6 +155,9 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                   color: msg.sender_type === 'parent' ? NAVY : '#fff',
                   fontSize: '13px', lineHeight: 1.5, fontWeight: msg.sender_type === 'parent' ? 600 : 400,
                 }}>
+                  {msg.sender_type === 'ai' && (
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>AI ASSISTANT</div>
+                  )}
                   {msg.body}
                   <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
                     {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}

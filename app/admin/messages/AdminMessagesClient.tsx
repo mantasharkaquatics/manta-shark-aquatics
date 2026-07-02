@@ -33,7 +33,7 @@ export default function AdminMessagesClient() {
         if (current && msg.thread_id === current.id) {
           setMessages(prev => [...prev, msg])
           // 收到新訊息，標記為未讀（不管是否在此對話）
-          setThreads(prev => prev.map(t => t.id === current.id ? { ...t, unread_by_admin: true, last_message_preview: msg.body } : t))
+          setThreads(prev => prev.map(t => t.id === current.id ? { ...t, unread_by_admin: msg.sender_type === 'parent' ? true : t.unread_by_admin, last_message_preview: msg.body } : t))
         } else {
           loadThreads()
         }
@@ -172,14 +172,18 @@ export default function AdminMessagesClient() {
 
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {messages.map(msg => (
-                  <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'admin' ? 'flex-end' : 'flex-start' }}>
+                  <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'parent' ? 'flex-start' : 'flex-end' }}>
                     <div style={{
                       maxWidth: '70%', padding: '10px 14px',
-                      borderRadius: msg.sender_type === 'admin' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      background: msg.sender_type === 'admin' ? GOLD : 'rgba(255,255,255,0.08)',
+                      borderRadius: msg.sender_type === 'parent' ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
+                      background: msg.sender_type === 'admin' ? GOLD : msg.sender_type === 'ai' ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.08)',
                       color: msg.sender_type === 'admin' ? NAVY : '#fff',
                       fontSize: '13px', lineHeight: 1.5,
+                      border: msg.sender_type === 'ai' ? '1px solid rgba(201,168,76,0.35)' : 'none',
                     }}>
+                      {msg.sender_type === 'ai' && (
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>AI ASSISTANT</div>
+                      )}
                       {msg.body}
                       <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
                         {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
