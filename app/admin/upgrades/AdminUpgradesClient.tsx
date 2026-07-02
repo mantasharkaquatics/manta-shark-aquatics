@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatTime12h } from '@/lib/date'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
@@ -233,7 +234,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         {s.session?.session_date === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) && (
                           <span className="text-[#c9a84c] font-semibold">(今天) · </span>
                         )}
-                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${s.session.start_time?.slice(0,5)}–${s.session.end_time?.slice(0,5)}` : '有課'}
+                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${formatTime12h(s.session.start_time)}–${formatTime12h(s.session.end_time)}` : '有課'}
                         {s.current_level ? ` · Level ${s.current_level}` : ''}
                       </p>
                     </div>
@@ -313,7 +314,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     <div>
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">
-                        {p.session_info ? `${p.session_info.course_name} · ${p.session_info.start_time?.slice(0,5)}–${p.session_info.end_time?.slice(0,5)} · ` : ''}
+                        {p.session_info ? `${p.session_info.course_name} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)} · ` : ''}
                         教練 {p.coach?.first_name} · Level {lvl} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
@@ -410,7 +411,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">
                         {new Date(p.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}
-                        {p.session_info ? ` · ${p.session_info.course_name} · ${p.session_info.start_time?.slice(0,5)}–${p.session_info.end_time?.slice(0,5)}` : ''}
+                        {p.session_info ? ` · ${p.session_info.course_name} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)}` : ''}
                         {` · 教練 ${p.coach?.first_name} · Level ${lvl}`}
                       </p>
                     </div>

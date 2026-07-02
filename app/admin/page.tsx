@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { formatTime12h } from '@/lib/date'
 
 export default async function AdminDashboardPage() {
   const cookieStore = await cookies()
@@ -72,7 +73,7 @@ export default async function AdminDashboardPage() {
                 <div key={s.id} className="flex items-center justify-between bg-[#0d1529] rounded-lg p-3">
                   <div>
                     <p className="text-white text-sm">{s.course_types?.name}</p>
-                    <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {s.start_time?.slice(0,5)}</p>
+                    <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {formatTime12h(s.start_time)}</p>
                   </div>
                   <span className="text-gray-400 text-xs">{s.enrolled_count}/{s.max_students}</span>
                 </div>

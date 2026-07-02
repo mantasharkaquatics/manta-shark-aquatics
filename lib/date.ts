@@ -35,3 +35,16 @@ export function getNowMinutesLA(): number {
   const m = Number(parts.find(p => p.type === 'minute')?.value || '0')
   return h * 60 + m
 }
+
+// Format a 24-hour "HH:MM" or "HH:MM:SS" time string to 12-hour with AM/PM (e.g. "9:00 PM").
+// Standing rule: all displayed times on the site use this format, never raw 24-hour.
+export function formatTime12h(t: string | null | undefined): string {
+  if (!t) return ''
+  const parts = t.split(':')
+  const h = parseInt(parts[0], 10)
+  const m = parts[1] || '00'
+  if (isNaN(h)) return t
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return h12 + ':' + m + ' ' + ampm
+}

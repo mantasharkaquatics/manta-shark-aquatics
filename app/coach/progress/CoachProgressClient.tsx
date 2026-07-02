@@ -1,5 +1,7 @@
 'use client'
 
+import { formatTime12h } from '@/lib/date'
+
 import { useState, useEffect } from 'react'
 
 type Skill = { id: string; name: string; sort_order: number }
@@ -63,7 +65,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
       current_level: b.students?.current_level || null,
       sessionId: s.id,
       sessionDate: s.session_date || today,
-      sessionTime: `${s.start_time?.slice(0,5)} - ${s.end_time?.slice(0,5)}`,
+      sessionTime: `${formatTime12h(s.start_time)} - ${formatTime12h(s.end_time)}`,
       courseName: s.course_types?.name || '',
       entryKey: `${b.students?.id}_${s.id}`,
     }))

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getTodayLA } from '@/lib/date'
+import { getTodayLA, formatTime12h } from '@/lib/date'
 
 type Student = {
   id: string
@@ -424,7 +424,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                     {displayList.map(b => (
                                       <div key={b.id} className="flex items-center gap-3 text-xs">
                                         <span className="text-gray-400 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                        <span className="text-gray-500 flex-shrink-0">{b.start_time?.slice(0,5)}–{b.end_time?.slice(0,5)}</span>
+                                        <span className="text-gray-500 flex-shrink-0">{formatTime12h(b.start_time)}–{formatTime12h(b.end_time)}</span>
                                         <span className="text-gray-300">{b.course_name}</span>
                                         <span className="text-gray-500">Coach {b.coach_name}</span>
                                         {expandedType === 'past' && (
