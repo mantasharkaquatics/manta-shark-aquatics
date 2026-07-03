@@ -241,18 +241,6 @@ export async function POST(req: NextRequest) {
         escalate = true
         return { error: 'Cancellation failed. The conversation has been flagged for a team member.' }
       }
-      try {
-        await sendEmail({
-            type: 'booking_cancelled',
-            to: parent!.email,
-            parentName: parent!.first_name,
-            studentName: row.student,
-            courseName: row.course,
-            coachName: row.coach,
-            date: row.date,
-            time: `${row._session.start_time} – ${row._session.end_time}`,
-          })
-      } catch {}
       return { success: true, cancelled: { student: row.student, course: row.course, date: row.date, time: row.time }, credit_refunded: true }
     }
 
