@@ -432,11 +432,20 @@ export default function DashboardPage() {
     console.log('rawBookings:', JSON.stringify(rawBookings?.slice(0,2)))
     console.log('sessionIds:', sessionIds)
     console.log('sessionsData:', JSON.stringify(sessionsData?.slice(0,2)))
+    const studentOrder: Record<string, number> = {}
+    ;(studs || []).forEach((s: any, i: number) => { studentOrder[s.id] = i })
     setPendingPartnerBookings((pendingRaw || []).map((b: any) => ({
       ...b,
       class_sessions: pSessionMap[b.class_session_id] || null,
       students: pStudentMap[b.student_id] || null,
-    })))
+    })).sort((a: any, b: any) => {
+      const oa = studentOrder[a.student_id] ?? 999
+      const ob = studentOrder[b.student_id] ?? 999
+      if (oa !== ob) return oa - ob
+      const ka = (a.class_sessions?.session_date || '') + (a.class_sessions?.start_time || '')
+      const kb = (b.class_sessions?.session_date || '') + (b.class_sessions?.start_time || '')
+      return ka.localeCompare(kb)
+    }))
 
     // 查詢 1-on-2 session 的 partner 學生名稱（用 server API 繞 RLS）
     const on2SessionIds = (rawBookings || [])
