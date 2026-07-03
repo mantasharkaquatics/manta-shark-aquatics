@@ -15,12 +15,13 @@ export interface EmailPayload {
   inviterName?: string
   invoiceNumber?: string
   invoiceId?: string
+  invoiceUrl?: string
   amount?: number | string
   [key: string]: unknown
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
-  const { type, to, parentName, studentName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, amount } = payload
+  const { type, to, parentName, studentName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, invoiceUrl, amount } = payload
 
   let subject = ''
   let html = ''
@@ -65,7 +66,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
 
   } else if (type === 'invoice') {
     subject = `🧾 Invoice ${invoiceNumber} - Manta Shark Aquatics`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${invoiceNumber}</h2><p>Hi ${parentName},</p><p>Thank you for your payment! Your invoice is ready.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${invoiceNumber}</td></tr><tr><td style="padding: 8px 0; color: #666;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;"><a href="${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/${invoiceId}/pdf" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">View &amp; Download Invoice</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${invoiceNumber}</h2><p>Hi ${parentName},</p><p>Thank you for your payment! Your invoice is ready.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${invoiceNumber}</td></tr><tr><td style="padding: 8px 0; color: #666;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;"><a href="${invoiceUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/${invoiceId}/pdf`}" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">View &amp; Download Invoice</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
   }
 
   if (!subject || !html) {
