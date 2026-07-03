@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h } from '@/lib/date'
+import { sendEmail } from '@/lib/email'
 
 function minutesUntil(dateStr: string, timeStr: string, todayStr: string, nowMin: number) {
   const d = (s: string) => Date.parse(s + 'T00:00:00Z')
@@ -247,10 +248,7 @@ export async function POST(req: NextRequest) {
     try {
       const { data: pp } = await svc.from('parents').select('first_name, email').eq('id', partner.parent_id).single()
       if (pp) {
-        await fetch(process.env.NEXT_PUBLIC_APP_URL + '/api/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await sendEmail({
             type: 'partner_booking_invite',
             to: pp.email,
             parentName: pp.first_name,
@@ -260,8 +258,7 @@ export async function POST(req: NextRequest) {
             coachName: coach.first_name,
             date: session_date,
             time: formatTime12h(start_time),
-          }),
-        })
+          })
       }
     } catch {}
   }
@@ -287,10 +284,7 @@ export async function POST(req: NextRequest) {
   if (!isPartnerBooking) {
     try {
       if (parentRow?.email) {
-        await fetch(process.env.NEXT_PUBLIC_APP_URL + '/api/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await sendEmail({
             type: oldBooking ? 'booking_rescheduled' : 'booking_confirmed',
             to: parentRow.email,
             parentName: parentRow.first_name,
@@ -299,8 +293,7 @@ export async function POST(req: NextRequest) {
             coachName: (coach.first_name + ' ' + (coach.last_name || '')).trim(),
             date: session_date,
             time: formatTime12h(start_time) + ' – ' + formatTime12h(end_time),
-          }),
-        })
+          })
       }
     } catch {}
   }
