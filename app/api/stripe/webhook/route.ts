@@ -1,3 +1,4 @@
+import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
@@ -142,18 +143,14 @@ export async function POST(req: NextRequest) {
           .eq('id', parent_id)
           .single()
         if (parent?.email && invoice?.id) {
-          await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          await sendEmail({
               type: 'invoice',
               to: parent.email,
               parentName: parent.first_name,
               invoiceNumber: invoice.invoice_number,
               invoiceId: invoice.id,
               amount: amount_cents / 100,
-            }),
-          })
+            })
         }
       }
     } catch (invoiceErr) {

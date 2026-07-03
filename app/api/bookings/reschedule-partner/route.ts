@@ -1,3 +1,4 @@
+import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
@@ -84,10 +85,7 @@ export async function POST(req: NextRequest) {
     if (partnerParent) {
       const ct = Array.isArray((newSession as any).course_types) ? (newSession as any).course_types[0] : (newSession as any).course_types
       const coach = Array.isArray((newSession as any).coaches) ? (newSession as any).coaches[0] : (newSession as any).coaches
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await sendEmail({
           type: 'partner_reschedule_requested',
           to: partnerParent.email,
           parentName: partnerParent.first_name,
@@ -98,7 +96,6 @@ export async function POST(req: NextRequest) {
           date: (newSession as any).session_date,
           time: (newSession as any).start_time,
         })
-      })
     }
   } catch {}
 

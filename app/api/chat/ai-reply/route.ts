@@ -1,3 +1,4 @@
+import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
@@ -241,10 +242,7 @@ export async function POST(req: NextRequest) {
         return { error: 'Cancellation failed. The conversation has been flagged for a team member.' }
       }
       try {
-        await fetch(`${origin}/api/email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await sendEmail({
             type: 'booking_cancelled',
             to: parent!.email,
             parentName: parent!.first_name,
@@ -253,8 +251,7 @@ export async function POST(req: NextRequest) {
             coachName: row.coach,
             date: row.date,
             time: `${row._session.start_time} – ${row._session.end_time}`,
-          }),
-        })
+          })
       } catch {}
       return { success: true, cancelled: { student: row.student, course: row.course, date: row.date, time: row.time }, credit_refunded: true }
     }

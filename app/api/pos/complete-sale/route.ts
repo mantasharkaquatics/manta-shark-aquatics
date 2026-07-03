@@ -1,3 +1,4 @@
+import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
@@ -94,10 +95,7 @@ export async function POST(req: NextRequest) {
     if (invoice && parent) {
       try {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'
-        await fetch(`${appUrl}/api/email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await sendEmail({
             type: 'invoice',
             to: parent.email,
             parentName: parent.first_name,
@@ -105,8 +103,7 @@ export async function POST(req: NextRequest) {
             amount: plan.amount / 100,
             planName: plan.name,
             invoiceUrl: `${appUrl}/api/invoices/${invoice.id}/pdf`,
-          }),
-        })
+          })
       } catch (e) {
         console.error('Invoice email error:', e)
       }

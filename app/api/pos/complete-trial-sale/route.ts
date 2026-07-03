@@ -1,3 +1,4 @@
+import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
@@ -67,10 +68,7 @@ export async function POST(req: NextRequest) {
         issued_at: new Date().toISOString(),
       }).select().single()
       if (parentData && inv) {
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await sendEmail({
             type: 'invoice',
             to: parentData.email,
             parentName: parentData.first_name,
@@ -79,8 +77,7 @@ export async function POST(req: NextRequest) {
             amount: '85.00',
             items: [{ name: `Trial Lesson - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
             paymentMethod: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
-          }),
-        })
+          })
       }
     } catch (e) { console.error('Trial invoice/email error:', e) }
 

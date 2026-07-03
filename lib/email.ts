@@ -16,6 +16,7 @@ export interface EmailPayload {
   invoiceNumber?: string
   invoiceId?: string
   amount?: number | string
+  [key: string]: unknown
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {

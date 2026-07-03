@@ -1,3 +1,4 @@
+import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
@@ -139,10 +140,7 @@ export async function POST(req: NextRequest) {
     if (initiatorParent && sess) {
       const ct = Array.isArray((sess as any).course_types) ? (sess as any).course_types[0] : (sess as any).course_types
       const coach = Array.isArray((sess as any).coaches) ? (sess as any).coaches[0] : (sess as any).coaches
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await sendEmail({
           type: 'partner_booking_confirmed',
           to: initiatorParent.email,
           parentName: initiatorParent.first_name,
@@ -152,7 +150,6 @@ export async function POST(req: NextRequest) {
           date: (sess as any).session_date,
           time: (sess as any).start_time,
         })
-      })
     }
   } catch {}
 

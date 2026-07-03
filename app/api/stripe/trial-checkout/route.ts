@@ -1,3 +1,4 @@
+import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createServerClient } from '@supabase/ssr'
@@ -164,21 +165,17 @@ export async function POST(req: NextRequest) {
     })
 
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await sendEmail({
           type: 'trial_payment_link',
-          to: parent?.email,
+          to: parent?.email || '',
           parentName: parent?.first_name || 'there',
           studentName: student.full_name,
           courseName: 'Trial 1-on-1 Lesson',
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
           time,
-          paymentUrl: session.url,
-        }),
-      })
+          paymentUrl: session.url || '',
+        })
     } catch (e) {
       console.error('Trial payment email error:', e)
     }
