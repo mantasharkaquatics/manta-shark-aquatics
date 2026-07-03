@@ -325,271 +325,69 @@ export default function BookingPage() {
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || !availableCredit) return
     setSubmitting(true)
 
-    // 1-on-2 partner reschedule 早期攔截：直接呼叫 API，不走任何 booking 建立流程
-    const rbIdEarly = rescheduleBookingIdRef.current || rescheduleBookingId
-    const partnerBIdEarly = reschedulePartnerBookingIdRef.current
-    if (rbIdEarly && partnerBIdEarly) {
-      const dateStr2 = formatDateLA(selectedDate)
-      const startTime2 = selectedSlot.time
-      // 找或建 session
-      const { data: existingSessions } = await supabase
-        .from('class_sessions')
-        .select('id, enrolled_count, max_students')
-        .eq('coach_id', selectedCoach!.id)
-        .eq('session_date', dateStr2)
-        .eq('start_time', startTime2)
-        .eq('course_type_id', selectedCourse!.id)
-        .eq('status', 'open')
-      let newSessionId = selectedSlot.session_id || existingSessions?.[0]?.id || null
-      if (!newSessionId) {
-        const [h2, m2] = startTime2.split(':').map(Number)
-        const endMin2 = h2 * 60 + m2 + selectedCourse!.duration_minutes
-        const endTime2 = `${String(Math.floor(endMin2/60)).padStart(2,'0')}:${String(endMin2%60).padStart(2,'0')}`
-        const { data: created } = await supabase.from('class_sessions').insert({
-          course_type_id: selectedCourse!.id,
-          coach_id: selectedCoach!.id,
-          session_date: dateStr2,
-          start_time: startTime2,
-          end_time: endTime2,
-          max_students: selectedCourse!.max_students,
-          enrolled_count: 0,
-          status: 'open',
-        }).select('id').single()
-        newSessionId = created?.id || null
-      }
-      if (!newSessionId) { alert('無法取得時段，請重試'); setSubmitting(false); return }
-      const res = await fetch('/api/bookings/reschedule-partner', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: rbIdEarly, new_session_id: newSessionId }),
-      })
-      if (!res.ok) { alert('改期請求失敗，請重試'); setSubmitting(false); return }
-      setIsPartnerBookingSuccess(true)
-      setSuccess(true)
-      setSubmitting(false)
-      return
-    }
-
     const dateStr = formatDateLA(selectedDate)
     const startTime = selectedSlot.time
-    const [h, m] = startTime.split(':').map(Number)
-    const endMin = h * 60 + m + selectedCourse.duration_minutes
-    const endTime = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`
+    const rbId = rescheduleBookingIdRef.current || rescheduleBookingId
+    const partnerBId = reschedulePartnerBookingIdRef.current
 
-    let sessionId = selectedSlot.session_id
-
-    // 永遠先檢查教練時段衝突(不限課程類型)
-    const { data: conflicts } = await supabase
-      .from('class_sessions')
-      .select('id, course_type_id, enrolled_count, max_students')
-      .eq('coach_id', selectedCoach.id)
-      .eq('session_date', dateStr)
-      .eq('start_time', startTime)
-      .eq('status', 'open')
-      .gt('enrolled_count', 0)
-
-    // 如果教練這個時段已有任何課程有人(含同課程類型),且不是可以加入的同課程 session
-    const sameCourseSession = (conflicts || []).find(c => c.course_type_id === selectedCourse.id)
-    const otherCourseConflict = (conflicts || []).some(c => c.course_type_id !== selectedCourse.id)
-
-    if (otherCourseConflict) {
-      alert('此時段教練已有其他課程，請選擇其他時間')
-      setSubmitting(false)
-      return
-    }
-
-    // 同課程類型但已有 session 且已額滿
-    if (sameCourseSession && sameCourseSession.enrolled_count >= sameCourseSession.max_students) {
-      alert('此時段已額滿，請選擇其他時間')
-      setSubmitting(false)
-      return
-    }
-
-    if (!sessionId) {
-      const { data: newSession, error } = await supabase
-        .from('class_sessions')
-        .insert({
+    // 1-on-2 partner reschedule: server resolves the session, then reschedule-partner API moves both bookings
+    if (rbId && partnerBId) {
+      const r = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partner_reschedule: true,
           course_type_id: selectedCourse.id,
           coach_id: selectedCoach.id,
           session_date: dateStr,
           start_time: startTime,
-          end_time: endTime,
-          max_students: selectedCourse.max_students,
-          enrolled_count: 0,
-          status: 'open',
-        })
-        .select('id')
-        .single()
-
-      if (error || !newSession) { setSubmitting(false); return }
-      sessionId = newSession.id
-    }
-
-    const isPartnerBooking = selectedCourse?.slug === '1on2' && selectedStudent2 && (selectedStudent2 as any).isPartner === true
-
-    // 改期時先查舊 booking 的 original_booking_id，追溯到最源頭
-    const rbId = rescheduleBookingIdRef.current || rescheduleBookingId
-    let rootOriginalId: string | null = rbId || null
-    if (rbId) {
-      const { data: oldBk } = await supabase.from('bookings').select('original_booking_id').eq('id', rbId).single()
-      rootOriginalId = oldBk?.original_booking_id || rbId
-    }
-
-    const { error: bookErr, data: initiatorBookingData } = await supabase
-      .from('bookings')
-      .insert({
-        class_session_id: sessionId,
-        parent_id: parentId,
-        lesson_credit_id: isPartnerBooking ? null : availableCredit.id,
-        student_id: selectedStudent.id,
-        status: isPartnerBooking ? 'pending_partner' : 'confirmed',
-        pending_action: null,
-        pending_expires_at: isPartnerBooking ? new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() : null,
-        original_booking_id: rootOriginalId,
+        }),
       })
-      .select('id')
-      .single()
-
-    if (bookErr) {
-      if (bookErr.message?.includes('coach_timeslot_conflict')) {
-        alert('此時段教練已有其他課程，請選擇其他時間')
-      } else {
-        alert('預約失敗，請稍後再試')
-      }
-      setSubmitting(false)
-      return
-    }
-
-    if (!isPartnerBooking) {
-      await supabase
-        .from('lesson_credits')
-        .update({ used_credits: availableCredit.used_credits + 1 })
-        .eq('id', availableCredit.id)
-
-      await supabase.rpc('increment_enrolled', { session_id: sessionId })
-    }
-
-    // 1-on-2：處理第二位學生
-    if (selectedCourse.slug === '1on2' && selectedStudent2) {
-      const isPartnerS = (selectedStudent2 as any).isPartner === true
-      if (isPartnerS) {
-        // 跨帳戶：用 server API 建立 pending 預約（繞過 RLS）
-        const ps2 = selectedStudent2 as PartnerStudent
-        const pendingRes = await fetch('/api/bookings/create-partner-pending', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            class_session_id: sessionId,
-            partner_parent_id: ps2.partnerParentId,
-            partner_student_id: ps2.id,
-            initiator_parent_id: parentId,
-            initiator_booking_id: initiatorBookingData?.id || null,
-            partnership_id: ps2.partnershipId || null,
-            courseName: selectedCourse?.name,
-            coachName: selectedCoach?.first_name,
-            date: dateStr,
-            time: formatTime(startTime),
-            studentName: ps2.full_name,
-          })
-        })
-
-
-      } else {
-        // 同帳戶：扣第二個 credit，建立 confirmed 預約
-        const creditForS2 = [...credits]
-          .filter(c => c.course_type_id === selectedCourse.id)
-          .sort((a, b) => ((a as any).created_at || '').localeCompare((b as any).created_at || ''))
-          .find(c => {
-            const usedNow = c.id === availableCredit.id ? availableCredit.used_credits + 1 : c.used_credits
-            return (c.total_credits - usedNow) > 0
-          }) || null
-        if (creditForS2) {
-          const usedNow = creditForS2.id === availableCredit.id ? availableCredit.used_credits + 1 : creditForS2.used_credits
-          await supabase.from('bookings').insert({
-            class_session_id: sessionId,
-            parent_id: parentId,
-            lesson_credit_id: creditForS2.id,
-            student_id: selectedStudent2.id,
-            status: 'confirmed',
-            original_booking_id: rootOriginalId,
-          })
-          await supabase.from('lesson_credits').update({ used_credits: usedNow + 1 }).eq('id', creditForS2.id)
-          await supabase.rpc('increment_enrolled', { session_id: sessionId })
-        }
-      }
-    }
-
-    const rbIdToCancel = rescheduleBookingIdRef.current || rescheduleBookingId
-    const partnerBookingIdToReschedule = reschedulePartnerBookingIdRef.current
-
-    // 1-on-2 partner reschedule：走 reschedule-partner API，不直接取消舊 booking
-    if (rbIdToCancel && partnerBookingIdToReschedule) {
-      await fetch('/api/bookings/reschedule-partner', {
+      const rj = await r.json().catch(() => ({}))
+      if (!r.ok || !rj.session_id) { alert(rj.error || 'Could not get that time slot. Please try again.'); setSubmitting(false); return }
+      const res = await fetch('/api/bookings/reschedule-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: rbIdToCancel, new_session_id: sessionId }),
+        body: JSON.stringify({ booking_id: rbId, new_session_id: rj.session_id }),
       })
+      if (!res.ok) { alert('Reschedule request failed. Please try again.'); setSubmitting(false); return }
       setIsPartnerBookingSuccess(true)
       setSuccess(true)
       setSubmitting(false)
       return
     }
 
-    if (rbIdToCancel) {
-      const { data: oldBookingData } = await supabase
-        .from('bookings')
-        .select('lesson_credit_id, class_session_id, original_booking_id')
-        .eq('id', rbIdToCancel)
-        .single()
-      const myOriginalId = oldBookingData?.original_booking_id || rbIdToCancel
-      await supabase.from('bookings')
-        .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
-        .eq('id', rbIdToCancel)
-      if (oldBookingData?.class_session_id) {
-        await supabase.rpc('decrement_enrolled', { session_id: oldBookingData.class_session_id })
-      }
-      const { data: oldBooking } = await supabase
-        .from('bookings')
-        .select('lesson_credit_id')
-        .eq('id', rbIdToCancel)
-        .single()
-      if (oldBooking?.lesson_credit_id) {
-        const { data: oldCredit } = await supabase
-          .from('lesson_credits')
-          .select('used_credits')
-          .eq('id', oldBooking.lesson_credit_id)
-          .single()
-        if (oldCredit) {
-          await supabase
-            .from('lesson_credits')
-            .update({ used_credits: Math.max(0, oldCredit.used_credits - 1) })
-            .eq('id', oldBooking.lesson_credit_id)
-        }
-      }
+    const ps2 = selectedCourse.slug === '1on2' && selectedStudent2 && (selectedStudent2 as any).isPartner === true
+      ? (selectedStudent2 as PartnerStudent) : null
+
+    const res = await fetch('/api/bookings/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_type_id: selectedCourse.id,
+        coach_id: selectedCoach.id,
+        session_date: dateStr,
+        start_time: startTime,
+        student_id: selectedStudent.id,
+        student2_id: !ps2 && selectedCourse.slug === '1on2' && selectedStudent2 ? selectedStudent2.id : null,
+        partner: ps2 ? {
+          parent_id: ps2.partnerParentId,
+          student_id: ps2.id,
+          partnership_id: ps2.partnershipId || null,
+          student_name: ps2.full_name,
+        } : null,
+        reschedule_booking_id: rbId || null,
+      }),
+    })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(j.error || 'Booking failed. Please try again.')
+      setSubmitting(false)
+      return
     }
 
-    try {
-      const { data: parentData } = await supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).single()
-      if (parentData) {
-        await fetch('/api/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: rbIdToCancel ? 'booking_rescheduled' : 'booking_confirmed',
-            to: parentData.email,
-            parentName: parentData.first_name,
-            studentName: selectedStudent.full_name,
-            courseName: selectedCourse.name,
-            coachName: `${selectedCoach.first_name} ${selectedCoach.last_name}`,
-            date: dateStr,
-            time: `${startTime} – ${endTime}`,
-          }),
-        })
-      }
-    } catch (e) { console.error('Email error:', e) }
-
     setSubmitting(false)
-    setIsPartnerBookingSuccess(!!isPartnerBooking)
+    setIsPartnerBookingSuccess(!!ps2)
     setSuccess(true)
   }
 
