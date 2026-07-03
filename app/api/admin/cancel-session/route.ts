@@ -19,17 +19,7 @@ export async function POST(req: NextRequest) {
   // 退回每筆 credit
   for (const b of bookings || []) {
     if (b.lesson_credit_id) {
-      const { data: credit } = await supabase
-        .from('lesson_credits')
-        .select('used_credits')
-        .eq('id', b.lesson_credit_id)
-        .single()
-      if (credit) {
-        await supabase
-          .from('lesson_credits')
-          .update({ used_credits: Math.max(0, credit.used_credits - 1) })
-          .eq('id', b.lesson_credit_id)
-      }
+      await supabase.rpc('decrement_used_credits', { credit_id: b.lesson_credit_id })
     }
   }
 

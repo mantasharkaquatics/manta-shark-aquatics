@@ -271,12 +271,7 @@ export async function POST(req: NextRequest) {
     if (oldBooking.class_session_id)
       await svc.rpc('decrement_enrolled', { session_id: oldBooking.class_session_id })
     if (isPartnerBooking && oldBooking.lesson_credit_id) {
-      const { data: oldCredit } = await svc
-        .from('lesson_credits').select('used_credits').eq('id', oldBooking.lesson_credit_id).single()
-      if (oldCredit)
-        await svc.from('lesson_credits')
-          .update({ used_credits: Math.max(0, oldCredit.used_credits - 1) })
-          .eq('id', oldBooking.lesson_credit_id)
+      await svc.rpc('decrement_used_credits', { credit_id: oldBooking.lesson_credit_id })
     }
   }
 

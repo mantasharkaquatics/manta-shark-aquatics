@@ -46,8 +46,7 @@ export async function POST(req: NextRequest) {
 
   // 退回 credit
   if (booking.lesson_credit_id) {
-    const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', booking.lesson_credit_id).single()
-    if (credit) await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', booking.lesson_credit_id)
+    await supabase.rpc('decrement_used_credits', { credit_id: booking.lesson_credit_id })
   }
 
   // 同帳戶同 session 其他 booking 也取消（同帳戶 1-on-2）
@@ -63,8 +62,7 @@ export async function POST(req: NextRequest) {
     await supabase.from('bookings').update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent' }).eq('id', pb.id)
     await supabase.rpc('decrement_enrolled', { session_id: pb.class_session_id })
     if (pb.lesson_credit_id) {
-      const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', pb.lesson_credit_id).single()
-      if (credit) await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', pb.lesson_credit_id)
+      await supabase.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
     }
   }
 
@@ -98,8 +96,7 @@ export async function POST(req: NextRequest) {
         await supabase.from('bookings').update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent' }).eq('id', pb.id)
         await supabase.rpc('decrement_enrolled', { session_id: pb.class_session_id })
         if (pb.lesson_credit_id) {
-          const { data: credit } = await supabase.from('lesson_credits').select('used_credits').eq('id', pb.lesson_credit_id).single()
-          if (credit) await supabase.from('lesson_credits').update({ used_credits: Math.max(0, credit.used_credits - 1) }).eq('id', pb.lesson_credit_id)
+          await supabase.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
         }
       }
     }
