@@ -33,14 +33,14 @@ export async function POST(req: NextRequest) {
     .eq('pending_action', 'confirm')
     .single()
 
-  if (!partnerBooking) return NextResponse.json({ error: '預約不存在或已過期' }, { status: 404 })
+  if (!partnerBooking) return NextResponse.json({ error: 'Invitation not found or already expired' }, { status: 404 })
   if (partnerBooking.parent_id !== confirmingParent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (new Date(partnerBooking.pending_expires_at) < new Date()) {
-    return NextResponse.json({ error: '邀請已過期' }, { status: 410 })
+    return NextResponse.json({ error: 'This invitation has expired' }, { status: 410 })
   }
 
   const initiatorBookingId = partnerBooking.partner_booking_id
-  if (!initiatorBookingId) return NextResponse.json({ error: '找不到發起方預約' }, { status: 404 })
+  if (!initiatorBookingId) return NextResponse.json({ error: 'Initiator booking not found' }, { status: 404 })
 
   const { data: initiatorBooking } = await supabase
     .from('bookings')
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     .eq('status', 'pending_partner')
     .single()
 
-  if (!initiatorBooking) return NextResponse.json({ error: '發起方預約不存在' }, { status: 404 })
+  if (!initiatorBooking) return NextResponse.json({ error: 'Initiator booking not found' }, { status: 404 })
 
   const { data: session } = await supabase
     .from('class_sessions')
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     .eq('id', partnerBooking.class_session_id)
     .single()
 
-  if (!session) return NextResponse.json({ error: '課程不存在' }, { status: 404 })
+  if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
   // 檢查同教練同時段是否已有其他 confirmed booking（其他客戶搶先預約）
   const { data: conflictSessions } = await supabase
@@ -77,14 +77,14 @@ export async function POST(req: NextRequest) {
     if (conflictBookings && conflictBookings.length > 0) {
       await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', partnerBooking.id)
       await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', initiatorBookingId)
-      return NextResponse.json({ error: '此時段已被其他客戶預約，無法確認' }, { status: 409 })
+      return NextResponse.json({ error: 'This time slot was taken by another customer and cannot be confirmed.' }, { status: 409 })
     }
   }
 
   if (session.enrolled_count + 2 > session.max_students) {
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', partnerBooking.id)
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', initiatorBookingId)
-    return NextResponse.json({ error: '此時段已被預約，無法確認' }, { status: 409 })
+    return NextResponse.json({ error: 'This time slot is full and cannot be confirmed.' }, { status: 409 })
   }
 
   const courseTypeId = session.course_type_id
@@ -105,16 +105,19 @@ export async function POST(req: NextRequest) {
     .filter(c => c.course_type_id === courseTypeId && (c.total_credits - c.used_credits) > 0)
     .sort((a, b) => a.id.localeCompare(b.id))[0] || null
 
-  if (!partnerCredit) return NextResponse.json({ error: '您沒有足夠的 credit' }, { status: 402 })
-  if (!initiatorCredit) return NextResponse.json({ error: '發起方沒有足夠的 credit' }, { status: 402 })
+  if (!partnerCredit) return NextResponse.json({ error: 'You do not have enough credits.' }, { status: 402 })
+  if (!initiatorCredit) return NextResponse.json({ error: 'The inviting family does not have enough credits.' }, { status: 402 })
 
-  await supabase.from('bookings').update({
+  const { data: claimRows } = await supabase.from('bookings').update({
     status: 'confirmed',
     lesson_credit_id: partnerCredit.id,
     pending_action: null,
     pending_expires_at: null,
     partner_booking_id: initiatorBookingId,
-  }).eq('id', partnerBooking.id)
+  }).eq('id', partnerBooking.id).eq('status', 'pending_partner').select('id')
+  if (!claimRows || claimRows.length === 0) {
+    return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })
+  }
 
   await supabase.from('bookings').update({
     status: 'confirmed',
@@ -124,8 +127,8 @@ export async function POST(req: NextRequest) {
     partner_booking_id: partnerBooking.id,
   }).eq('id', initiatorBookingId)
 
-  await supabase.from('lesson_credits').update({ used_credits: partnerCredit.used_credits + 1 }).eq('id', partnerCredit.id)
-  await supabase.from('lesson_credits').update({ used_credits: initiatorCredit.used_credits + 1 }).eq('id', initiatorCredit.id)
+  await supabase.rpc('increment_used_credits', { credit_id: partnerCredit.id })
+  await supabase.rpc('increment_used_credits', { credit_id: initiatorCredit.id })
   await supabase.rpc('increment_enrolled', { session_id: partnerBooking.class_session_id })
   await supabase.rpc('increment_enrolled', { session_id: partnerBooking.class_session_id })
 
