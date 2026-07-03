@@ -45,7 +45,7 @@ export default async function AdminSchedulePage() {
       .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason')
       .eq('status', 'cancelled').is('pending_action', null)
       .not('lesson_credit_id', 'is', null)
-      .not('cancellation_reason', 'eq', 'rescheduled')
+      .or('cancellation_reason.is.null,cancellation_reason.neq.rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('updated_at', { ascending: false }).limit(50),
     supabase.from('bookings')
