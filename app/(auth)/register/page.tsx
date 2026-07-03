@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { LEGAL_VERSIONS } from '@/lib/legal'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -43,6 +44,8 @@ export default function RegisterPage() {
 
   const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '' }])
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [waiverAccepted, setWaiverAccepted] = useState(false)
+  const [mediaAccepted, setMediaAccepted] = useState(false)
   const [newsletter, setNewsletter] = useState(true)
 
   useEffect(() => {
@@ -189,7 +192,7 @@ export default function RegisterPage() {
   }
 
   async function handleSubmit() {
-    if (!termsAccepted) { setError('Please accept the terms & conditions to continue.'); return }
+    if (!termsAccepted || !waiverAccepted) { setError('Please accept the Terms of Service and Liability Waiver to continue.'); return }
     if (!students[0].fullName.trim()) { setError('Please enter at least one student name.'); return }
     setLoading(true); setError('')
     const now = new Date().toISOString()
@@ -198,7 +201,9 @@ export default function RegisterPage() {
     const { data: parent, error: parentError } = await supabase.from('parents').insert({
       auth_user_id: authData.user.id,
       first_name: firstName, last_name: lastName, email, phone,
-      registered_at: now, terms_accepted_at: now,
+      registered_at: now, terms_accepted_at: now, terms_version: LEGAL_VERSIONS.terms,
+      waiver_accepted_at: now, waiver_version: LEGAL_VERSIONS.waiver,
+      media_release_accepted: mediaAccepted, media_release_at: mediaAccepted ? now : null,
       newsletter_subscribed: newsletter, last_login_at: now,
       address_line1: addressLine1, address_line2: addressLine2 || null,
       city, state, zip_code: zipCode,
@@ -404,7 +409,17 @@ export default function RegisterPage() {
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">I accept the <Link href="/policies" target="_blank" className="text-blue-600 hover:underline">terms & conditions</Link><span className="text-red-500 ml-1">*</span></span>
+                <span className="text-sm text-gray-600">I have read and agree to the <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms of Service</Link> and <Link href="/policies" target="_blank" className="text-blue-600 hover:underline">School Policies</Link><span className="text-red-500 ml-1">*</span></span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={waiverAccepted} onChange={e => setWaiverAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
+                <span className="text-sm text-gray-600">I have read and agree to the <Link href="/waiver" target="_blank" className="text-blue-600 hover:underline">Liability Waiver</Link>, signing electronically as parent/legal guardian<span className="text-red-500 ml-1">*</span></span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={mediaAccepted} onChange={e => setMediaAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
+                <span className="text-sm text-gray-600">(Optional) I agree to the <Link href="/media-release" target="_blank" className="text-blue-600 hover:underline">Photo & Video Release</Link></span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={newsletter} onChange={e => setNewsletter(e.target.checked)}
