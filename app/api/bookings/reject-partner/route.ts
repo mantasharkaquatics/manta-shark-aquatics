@@ -1,28 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { requireParent } from '@/lib/api-auth'
+import { sendEmail } from '@/lib/email'
+import { formatTime12h } from '@/lib/date'
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies()
-  const supabaseAuth = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user } } = await supabaseAuth.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireParent()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { parent, svc } = auth
 
   const { booking_id } = await req.json()
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const { data: pending } = await supabase
+  const { data: pending } = await svc
     .from('bookings')
-    .select('id, parent_id, class_session_id, partner_parent_id, partner_booking_id, status')
+    .select('id, parent_id, student_id, class_session_id, partner_parent_id, partner_booking_id, status')
     .eq('id', booking_id)
     .single()
 
@@ -31,19 +21,44 @@ export async function POST(req: NextRequest) {
   }
 
   // Only the invited parent may reject this invitation
-  const { data: callerParent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
-  if (!callerParent || pending.parent_id !== callerParent.id) {
+  if (pending.parent_id !== parent.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // 取消夥伴方 booking
-  await supabase.from('bookings').update({ status: 'cancelled', pending_action: null }).eq('id', booking_id)
-
-  // 取消發起方 booking（透過 partner_booking_id 直接找）
+  await svc.from('bookings')
+    .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'partner_rejected' })
+    .eq('id', booking_id)
   if (pending.partner_booking_id) {
-    await supabase.from('bookings').update({ status: 'cancelled', pending_action: null }).eq('id', pending.partner_booking_id)
+    await svc.from('bookings')
+      .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'partner_rejected' })
+      .eq('id', pending.partner_booking_id)
   }
+
+  // Notify the initiator (two-step queries)
+  try {
+    if (pending.partner_parent_id) {
+      const { data: initiator } = await svc
+        .from('parents').select('first_name, email').eq('id', pending.partner_parent_id).single()
+      const { data: sess } = await svc
+        .from('class_sessions').select('session_date, start_time, course_type_id').eq('id', pending.class_session_id).single()
+      const { data: ct } = sess
+        ? await svc.from('course_types').select('name').eq('id', sess.course_type_id).single()
+        : { data: null }
+      const { data: pStudent } = await svc
+        .from('students').select('full_name').eq('id', pending.student_id).single()
+      if (initiator?.email && sess) {
+        await sendEmail({
+          type: 'partner_booking_rejected',
+          to: initiator.email,
+          parentName: initiator.first_name,
+          studentName: pStudent?.full_name || '',
+          courseName: ct?.name || '',
+          date: sess.session_date,
+          time: formatTime12h(sess.start_time),
+        })
+      }
+    }
+  } catch {}
 
   return NextResponse.json({ ok: true })
 }
