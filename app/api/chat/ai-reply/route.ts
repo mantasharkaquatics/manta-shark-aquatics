@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
   const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
   const cookieHeader = req.headers.get('cookie') || ''
   let escalate = false
+  let cancelSucceededThisTurn = false
 
   // ---------- helpers used by multiple tools ----------
   async function fetchLessonRows(pastNotFuture: boolean) {
@@ -260,6 +261,7 @@ export async function POST(req: NextRequest) {
         escalate = true
         return { error: 'Cancellation could not be verified. The conversation has been flagged for a team member.' }
       }
+      cancelSucceededThisTurn = true
       return {
         success: true,
         cancelled: { student: row.student, course: row.course, date: row.date, time: row.time },
@@ -397,6 +399,22 @@ export async function POST(req: NextRequest) {
     }
 
     if (!finalText) throw new Error('no final text from agent loop')
+
+    // Deterministic guard against hallucinated cancellations: if the model
+    // claims a completed cancellation but cancel_booking did not succeed in
+    // this invocation, replace the reply and flag a human.
+    const claimsCancelled =
+      /(cancelled|canceled|has been cancelled|已取消|已經取消|已经取消|取消了|取消成功|refunded|已退款|退款了)/i.test(finalText)
+    if (claimsCancelled && !cancelSucceededThisTurn) {
+      const asksConfirm = /(確認|确认|confirm|are you sure|要取消)/i.test(finalText)
+      if (!asksConfirm) {
+        console.error('[ai-reply guard] blocked hallucinated cancellation claim:', finalText.slice(0, 200))
+        escalate = true
+        finalText =
+          'I was not able to complete that cancellation just now, so nothing has been changed on your account. A team member has been notified and will follow up shortly.'
+      }
+    }
+
     await postAiMessage(finalText, escalate)
     return NextResponse.json({ ok: true, escalated: escalate })
   } catch (err) {
