@@ -1189,6 +1189,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
 }) {
   const [bookings, setBookings] = useState<any[]>([])
   const [cancelling, setCancelling] = useState(false)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
   const ct = getSessionCourseType(session)
   const coach = coaches.find(c => c.id === session.coach_id)
 
@@ -1199,7 +1200,6 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   }, [session.id]) // eslint-disable-line
 
   async function cancelSession() {
-    if (!confirm('確定要取消這堂課？所有預約都會一起取消。')) return
     setCancelling(true)
     await fetch('/api/admin/cancel-session', {
       method: 'POST',
@@ -1255,15 +1255,34 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
             </div>
           )}
         </div>
-        <div className="p-6 pt-0 flex gap-3">
-          <button onClick={cancelSession} disabled={cancelling}
-            className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm disabled:opacity-50">
-            {cancelling ? '取消中...' : '取消這堂課'}
-          </button>
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
-            關閉
-          </button>
-        </div>
+        {confirmingCancel ? (
+          <div className="p-6 pt-0">
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 mb-3">
+              <p className="text-sm text-red-300 font-medium">確定要取消這堂課？</p>
+              <p className="text-xs text-red-300/70 mt-1">所有預約都會一起取消，已扣除的 credit 會退回，並寄送取消通知給家長。</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={cancelSession} disabled={cancelling}
+                className="flex-1 py-2.5 rounded-lg bg-red-500/80 hover:bg-red-500 transition-colors text-sm text-white font-medium disabled:opacity-50">
+                {cancelling ? '取消中...' : '確定取消'}
+              </button>
+              <button onClick={() => setConfirmingCancel(false)} disabled={cancelling}
+                className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
+                返回
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 pt-0 flex gap-3">
+            <button onClick={() => setConfirmingCancel(true)}
+              className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm">
+              取消這堂課
+            </button>
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
+              關閉
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
