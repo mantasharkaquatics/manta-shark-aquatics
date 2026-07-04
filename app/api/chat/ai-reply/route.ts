@@ -309,6 +309,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const upcomingSnapshot = pub(await fetchLessonRows(false))
     const knowledge = await buildKnowledgeBlock(svc)
     const nowMins = getNowMinutesLA()
     const hh = String(Math.floor(nowMins / 60)).padStart(2, '0')
@@ -324,7 +325,11 @@ export async function POST(req: NextRequest) {
       '',
       'Rules:',
       '- Answer ONLY with facts from the KNOWLEDGE section or real tool results. Never invent prices, policies, schedules, bookings, or availability.',
-      '- Use tools for anything account-specific (credits, lessons, cancellations). Never guess booking ids; they must come from get_upcoming_lessons in this conversation.',
+      '- Use tools for anything account-specific (credits, lessons, cancellations).',
+      '- booking_id values MUST be copied character-for-character from the UPCOMING LESSONS list below or from a get_upcoming_lessons result in this turn. NEVER invent, shorten, or reconstruct a booking_id. If the lesson the parent wants is not in the list, say so instead of guessing.',
+      '',
+      'UPCOMING LESSONS (authoritative, refreshed just now; use these exact booking_id values):',
+      JSON.stringify(upcomingSnapshot),
       '- Cancellation flow: first call get_upcoming_lessons and show the parent the matching lesson(s), then ask them to confirm. Only call cancel_booking after the parent has clearly confirmed that specific lesson in a LATER message. Never cancel in the same turn the parent first asks.',
       '- NEVER tell the parent that a cancellation, refund, payment, or any other action succeeded unless a tool result in THIS turn explicitly returned success for that exact action. If you did not call the tool, or the tool returned an error, the action did NOT happen: say it did not happen and what will occur next. Claiming an action succeeded when it did not is the worst possible failure.',
       '- Rescheduling: use get_reschedule_link and give the parent the link. You cannot pick a new time yourself.',
