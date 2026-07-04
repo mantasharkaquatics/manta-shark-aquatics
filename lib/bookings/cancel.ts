@@ -32,7 +32,7 @@ export async function cancelBookingWithPartner(
   // Idempotent claim on the primary booking
   const { data: claimed } = await svc
     .from('bookings')
-    .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent' })
+    .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent' })
     .eq('id', bookingId)
     .neq('status', 'cancelled')
     .select('id')
@@ -60,7 +60,7 @@ export async function cancelBookingWithPartner(
   for (const pb of sameParentBookings || []) {
     const { data: c } = await svc
       .from('bookings')
-      .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent' })
+      .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent' })
       .eq('id', pb.id)
       .neq('status', 'cancelled')
       .select('id')
@@ -100,7 +100,7 @@ export async function cancelBookingWithPartner(
       for (const pb of partnerBookings || []) {
         const { data: c } = await svc
           .from('bookings')
-          .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent' })
+          .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent' })
           .eq('id', pb.id)
           .neq('status', 'cancelled')
           .select('id')
