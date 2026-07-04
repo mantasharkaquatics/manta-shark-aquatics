@@ -193,7 +193,6 @@ export async function POST(req: NextRequest) {
   if (!isPartnerBooking) {
     if (!inheritCredit)
       await svc.from('lesson_credits').update({ used_credits: credit.used_credits + 1 }).eq('id', credit.id)
-    await svc.rpc('increment_enrolled', { session_id: sessionId })
   }
 
   // Second student (same account)
@@ -209,7 +208,6 @@ export async function POST(req: NextRequest) {
     })
     if (!s2Err) {
       await svc.from('lesson_credits').update({ used_credits: credit2.used_credits + bump + 1 }).eq('id', credit2.id)
-      await svc.rpc('increment_enrolled', { session_id: sessionId })
     }
   }
 
@@ -268,8 +266,6 @@ export async function POST(req: NextRequest) {
     await svc.from('bookings')
       .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
       .eq('id', oldBooking.id)
-    if (oldBooking.class_session_id)
-      await svc.rpc('decrement_enrolled', { session_id: oldBooking.class_session_id })
     if (isPartnerBooking && oldBooking.lesson_credit_id) {
       await svc.rpc('decrement_used_credits', { credit_id: oldBooking.lesson_credit_id })
     }

@@ -129,8 +129,6 @@ export async function POST(req: NextRequest) {
 
   await supabase.rpc('increment_used_credits', { credit_id: partnerCredit.id })
   await supabase.rpc('increment_used_credits', { credit_id: initiatorCredit.id })
-  await supabase.rpc('increment_enrolled', { session_id: partnerBooking.class_session_id })
-  await supabase.rpc('increment_enrolled', { session_id: partnerBooking.class_session_id })
 
   try {
     const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', initiatorBooking.parent_id).single()

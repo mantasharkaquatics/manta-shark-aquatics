@@ -91,9 +91,6 @@ export async function POST(req: NextRequest) {
   await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_action: null, pending_expires_at: null }).eq('id', myBooking.id)
   await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_action: null, pending_expires_at: null }).eq('id', partnerBookingId)
 
-  // 舊 session enrolled_count -2
-  await supabase.rpc('decrement_enrolled', { session_id: myBooking.class_session_id })
-  await supabase.rpc('decrement_enrolled', { session_id: myBooking.class_session_id })
 
   // 建立新的雙方 booking
   const now = new Date().toISOString()
@@ -129,9 +126,6 @@ export async function POST(req: NextRequest) {
     await supabase.from('bookings').update({ partner_booking_id: newMyBooking.id }).eq('id', newPartnerBooking.id)
   }
 
-  // 新 session enrolled_count +2
-  await supabase.rpc('increment_enrolled', { session_id: newSessionId })
-  await supabase.rpc('increment_enrolled', { session_id: newSessionId })
 
   return NextResponse.json({ success: true })
 }
