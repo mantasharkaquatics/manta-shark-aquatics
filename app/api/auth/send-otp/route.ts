@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         body: new URLSearchParams({
           From: fromNumber,
           To: normalizedPhone,
-          Body: `Your Manta Shark Aquatics verification code is: ${otpCode}. It expires in 10 minutes.`,
+          Body: `Your Manta Shark Aquatics verification code is: ${otpCode}. It expires in 10 minutes. Msg&Data rates may apply. Reply HELP for help, STOP to opt out.`,
         }),
       }
     )
