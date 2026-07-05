@@ -310,6 +310,73 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [parentCreditsCache, setParentCreditsCache] = useState<Record<string, number>>({})
+  const [bookMode, setBookMode] = useState<'single' | 'recurring'>('single')
+  const [recurCount, setRecurCount] = useState(10)
+  const [recurSkips, setRecurSkips] = useState<string[]>([])
+  const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; credits: any } | null>(null)
+  const [recurLoading, setRecurLoading] = useState(false)
+
+  async function fetchRecurPreview(skips: string[]) {
+    if (!selectedSlot || !formCourse || !formStudent) { setError('請先選擇課程類型與學生'); return }
+    setRecurLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/bookings/bulk-create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'preview',
+          coach_id: selectedSlot.coachId,
+          course_type_id: formCourse,
+          student_id: formStudent,
+          student2_id: courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && formStudent2 ? formStudent2 : undefined,
+          start_time: selectedSlot.time,
+          start_date: selectedSlot.date,
+          count: recurCount,
+          skip_dates: skips,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || '預覽失敗'); setRecurPreview(null) }
+      else setRecurPreview(data)
+    } catch { setError('預覽失敗，請重試') }
+    setRecurLoading(false)
+  }
+
+  async function handleRecurCommit() {
+    if (!selectedSlot || !recurPreview) return
+    const okDates = recurPreview.candidates.filter(c => c.status === 'ok').map(c => c.date)
+    if (okDates.length === 0) { setError('沒有可預約的日期'); return }
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/bookings/bulk-create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'commit',
+          coach_id: selectedSlot.coachId,
+          course_type_id: formCourse,
+          student_id: formStudent,
+          student2_id: courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && formStudent2 ? formStudent2 : undefined,
+          start_time: selectedSlot.time,
+          dates: okDates,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || '建立失敗') }
+      else {
+        setSuccess(`已建立 ${okDates.length} 堂課程！`)
+        await loadSessions()
+        setTimeout(() => { setModal(null); setSuccess(''); setRecurPreview(null) }, 1500)
+      }
+    } catch { setError('建立失敗，請重試') }
+    setSaving(false)
+  }
+
+  function toggleRecurSkip(date: string) {
+    const next = recurSkips.includes(date) ? recurSkips.filter(d => d !== date) : [...recurSkips, date]
+    setRecurSkips(next)
+    fetchRecurPreview(next)
+  }
   const [crossAccountSessionIds, setCrossAccountSessionIds] = useState<Set<string>>(new Set())
 
   const monthDates = getMonthDates(anchor)
@@ -435,6 +502,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     setTrialUrl('')
     setError('')
     setSuccess('')
+    setBookMode('single')
+    setRecurSkips([])
+    setRecurPreview(null)
     setModal('book')
   }
 
@@ -926,7 +996,17 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => { setBookMode('single'); setRecurPreview(null) }}
+                      className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'single' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
+                      單堂預約
+                    </button>
+                    <button onClick={() => { setBookMode('recurring'); setIsTrial(false) }}
+                      className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'recurring' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
+                      循環預約（每週同時段）
+                    </button>
+                  </div>
+                  {bookMode === 'single' && <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5">
                     <input type="checkbox" id="isTrialCheckbox" checked={isTrial}
                       onChange={(e) => {
                         const checked = e.target.checked
@@ -940,7 +1020,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     <label htmlFor="isTrialCheckbox" className="text-sm text-white/80 cursor-pointer">
                       單堂體驗課（$85，僅限 1-on-1，需家長線上付款）
                     </label>
-                  </div>
+                  </div>}
                   <div>
                     <label className="block text-sm text-white/60 mb-2">課程類型</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -975,6 +1055,60 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       <p className="text-xs text-red-400 mt-2">此學生目前已有一筆進行中的單堂預約，請先取消該預約才能重新安排</p>
                     )}
                   </div>
+                  {bookMode === 'recurring' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-white/60">堂數</label>
+                        <input type="number" min={1} max={50} value={recurCount}
+                          onChange={(e) => { setRecurCount(Math.max(1, Math.min(50, Number(e.target.value) || 1))); setRecurPreview(null) }}
+                          className="w-20 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm" />
+                        <button onClick={() => fetchRecurPreview(recurSkips)} disabled={recurLoading}
+                          className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm hover:bg-white/15 disabled:opacity-50">
+                          {recurLoading ? '計算中...' : '產生日期預覽'}
+                        </button>
+                      </div>
+                      {recurPreview && (
+                        <div className="border border-white/10 rounded-lg overflow-hidden">
+                          <div className="max-h-56 overflow-y-auto divide-y divide-white/5">
+                            {recurPreview.candidates.map((c, idx) => {
+                              const label = c.status === 'ok' ? '✓ 可預約'
+                                : c.status === 'past' ? '已過期'
+                                : c.status === 'coach_time_off' ? '教練請假'
+                                : c.status === 'conflict' ? '時段衝突'
+                                : c.status === 'full' ? '已額滿'
+                                : '已跳過'
+                              const okIndex = recurPreview.candidates.slice(0, idx + 1).filter(x => x.status === 'ok').length
+                              return (
+                                <div key={c.date} className="flex items-center justify-between px-3 py-2 text-sm">
+                                  <span className={c.status === 'ok' ? 'text-white' : 'text-white/35'}>
+                                    {c.status === 'ok' ? `第 ${okIndex} 堂 · ` : ''}
+                                    {new Date(c.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric', weekday: 'short' })}
+                                  </span>
+                                  <span className="flex items-center gap-2">
+                                    <span className={`text-xs ${c.status === 'ok' ? 'text-green-400' : c.status === 'skipped' ? 'text-white/40' : 'text-amber-400'}`}>{label}</span>
+                                    {(c.status === 'ok' || c.status === 'skipped') && (
+                                      <button onClick={() => toggleRecurSkip(c.date)} disabled={recurLoading}
+                                        className="text-xs px-2 py-1 rounded border border-white/15 text-white/50 hover:text-white hover:border-white/40">
+                                        {c.status === 'skipped' ? '恢復' : '跳過'}
+                                      </button>
+                                    )}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="px-3 py-2 bg-white/5 text-xs text-white/50 border-t border-white/10">
+                            {(() => {
+                              const cr = recurPreview.credits
+                              const p1 = `家長 1 剩餘 ${cr.parent1_remaining} 堂（需 ${cr.parent1_needed}）`
+                              const p2 = cr.parent2_needed != null ? ` · 家長 2 剩餘 ${cr.parent2_remaining} 堂（需 ${cr.parent2_needed}）` : ''
+                              return (cr.sufficient ? '✓ ' : '⚠ 堂數不足 · ') + p1 + p2
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
                 </>
@@ -986,10 +1120,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               </button>
               {!trialUrl && (
                 <button
-                  onClick={isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook}
-                  disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active')}
+                  onClick={bookMode === 'recurring' ? handleRecurCommit : (isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook)}
+                  disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.credits.sufficient || recurLoading))}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
-                  {isTrial
+                  {bookMode === 'recurring'
+                    ? (saving ? '建立中...' : recurPreview ? `確認建立 ${recurPreview.candidates.filter(c => c.status === 'ok').length} 堂` : '請先產生日期預覽')
+                    : isTrial
                     ? (trialCreditStatus === 'available'
                         ? (saving ? '建立中...' : '使用已付款單堂課程')
                         : (trialSaving ? '建立付款連結中...' : '產生付款連結'))
