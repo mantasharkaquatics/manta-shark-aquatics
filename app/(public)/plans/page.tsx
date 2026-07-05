@@ -5,17 +5,17 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const PRIVATE_PACKAGES = [
-  { id: '1on1-10', sessions: 10, total: 650,  perSession: 65,    savings: null, badge: null },
-  { id: '1on1-20', sessions: 20, total: 1260, perSession: 63,    savings: 40,   badge: null },
-  { id: '1on1-30', sessions: 30, total: 1850, perSession: 61.67, savings: 100,  badge: 'Most Popular' },
-  { id: '1on1-50', sessions: 50, total: 3000, perSession: 60,    savings: 250,  badge: 'Best Value' },
+  { id: '1on1-10', sessions: 10, total: 650,  perSession: 65,    savings: null, badge: null,           validity: '4 months' },
+  { id: '1on1-20', sessions: 20, total: 1260, perSession: 63,    savings: 40,   badge: null,           validity: '8 months' },
+  { id: '1on1-30', sessions: 30, total: 1850, perSession: 61.67, savings: 100,  badge: 'Most Popular', validity: '12 months' },
+  { id: '1on1-50', sessions: 50, total: 3000, perSession: 60,    savings: 250,  badge: 'Best Value',   validity: '18 months' },
 ]
 
 const SEMI_PACKAGES = [
-  { id: '1on2-10', sessions: 10, total: 1050, perSession: 105, savings: null, badge: null },
-  { id: '1on2-20', sessions: 20, total: 2000, perSession: 100, savings: 100,  badge: null },
-  { id: '1on2-30', sessions: 30, total: 2850, perSession: 95,  savings: 300,  badge: 'Most Popular' },
-  { id: '1on2-50', sessions: 50, total: 4500, perSession: 90,  savings: 500,  badge: 'Best Value' },
+  { id: '1on2-10', sessions: 10, total: 1050, perSession: 105, savings: null, badge: null,           validity: '4 months' },
+  { id: '1on2-20', sessions: 20, total: 2000, perSession: 100, savings: 100,  badge: null,           validity: '8 months' },
+  { id: '1on2-30', sessions: 30, total: 2850, perSession: 95,  savings: 300,  badge: 'Most Popular', validity: '12 months' },
+  { id: '1on2-50', sessions: 50, total: 4500, perSession: 90,  savings: 500,  badge: 'Best Value',   validity: '18 months' },
 ]
 
 const GROUP_OPTIONS = [
@@ -138,6 +138,9 @@ function PackageCard({ pkg, accentColor }: { pkg: typeof PRIVATE_PACKAGES[0]; ac
       <div style={{ fontSize: '13px', fontWeight: 600, color: isFeatured ? 'rgba(255,255,255,0.7)' : '#5a6a8a' }}>
         ${pkg.perSession % 1 === 0 ? pkg.perSession : pkg.perSession.toFixed(2)} per session
       </div>
+      <div style={{ fontSize: '12px', color: isFeatured ? 'rgba(255,255,255,0.45)' : '#8a9ab8', marginTop: '2px' }}>
+        Valid for {pkg.validity} from purchase
+      </div>
       {pkg.savings ? (
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -221,7 +224,7 @@ export default function PlansPage() {
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <SectionEyebrow dark>Semi-Private Lessons</SectionEyebrow>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>1-on-2 Semi-Private</h2>
-          <p style={{ fontSize: '14px', color: '#8a9ab8', marginBottom: '8px' }}>30 minutes · $110 per session · Parents find their own partner</p>
+          <p style={{ fontSize: '14px', color: '#8a9ab8', marginBottom: '8px' }}>30 minutes · $105 per session · Parents find their own partner</p>
           <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
             Share a lesson with one other swimmer. Great value when paired with a sibling or friend — same focused coaching, split across two students.
           </p>
@@ -262,6 +265,9 @@ export default function PlansPage() {
                   </div>
                 ))}
               </div>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '16px' }}>
+                Monthly subscription. Renews automatically each month until cancelled. Cancel anytime from your account settings.
+              </p>
               <GetStartedButton accentColor="#4caf72" isFeatured={true} label="Enroll Now" planId="1on4-4" />
             </div>
 
@@ -287,6 +293,9 @@ export default function PlansPage() {
                   </div>
                 ))}
               </div>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '16px' }}>
+                Monthly subscription. Renews automatically each month until cancelled. Cancel anytime from your account settings.
+              </p>
               <GetStartedButton accentColor="#e05a4a" isFeatured={true} label="Join the Team" planId="team" />
             </div>
           </div>

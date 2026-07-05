@@ -914,6 +914,11 @@ export default function BookingPage() {
                 <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1} credits</span>
               </div>
             </div>
+            <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+                Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Cancellations made within 24 hours are not eligible for a refund.
+              </span>
+            </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setStep(3)} style={{
                 flex: 1, padding: '14px', background: 'transparent',
