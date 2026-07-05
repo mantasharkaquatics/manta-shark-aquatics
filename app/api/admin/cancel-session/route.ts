@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
       if (b.lesson_credit_id) {
         await svc.rpc('decrement_used_credits', { credit_id: b.lesson_credit_id })
       }
-      await svc.rpc('decrement_enrolled', { session_id })
       notified.push({ parent_id: b.parent_id, student_id: b.student_id })
     } else {
       // pending_partner etc.: no credits were deducted, cancel without refund

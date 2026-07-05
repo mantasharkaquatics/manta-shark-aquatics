@@ -696,34 +696,6 @@ export default function DashboardPage() {
         body: JSON.stringify({ booking_id: bookingId }),
       })
     } catch {}
-
-    // 寄拒絕通知給發起方
-    try {
-      const pending = pendingPartnerBookings.find(x => x.id === bookingId)
-      const cs = pending ? (Array.isArray(pending.class_sessions) ? pending.class_sessions[0] : pending.class_sessions) : null
-      const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
-      const stu = pending ? (Array.isArray(pending.students) ? pending.students[0] : pending.students) : null
-      const partnerParentId = pending?.partner_parent_id
-      if (partnerParentId && cs && ct && stu) {
-        const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', partnerParentId).single()
-        if (initiatorParent) {
-          await fetch('/api/email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'partner_booking_rejected',
-              to: initiatorParent.email,
-              parentName: initiatorParent.first_name,
-              studentName: stu.full_name,
-              courseName: ct.name,
-              coachName: '',
-              date: cs.session_date,
-              time: formatTime(cs.start_time),
-            })
-          })
-        }
-      }
-    } catch {}
     await fetchAll()
     setRejectingId(null)
   }
@@ -750,43 +722,12 @@ export default function DashboardPage() {
 
   async function cancelBooking(bookingId: string) {
     setCancellingId(bookingId)
-    // 先取得 booking 詳細資料（含課程、學生、教練）for email
-    const { data: bookingData } = await supabase
-      .from('bookings')
-      .select('lesson_credit_id, student_id, class_session_id, students(full_name), class_sessions(session_date, start_time, end_time, course_types(name), coaches(first_name, last_name))')
-      .eq('id', bookingId)
-      .single()
     // 用 server API 取消（同時取消對方 booking 並退 credit）
     await fetch('/api/bookings/cancel-with-partner', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ booking_id: bookingId })
     })
-    // 寄送取消 email
-    try {
-      if (bookingData && parent) {
-        const session = Array.isArray(bookingData.class_sessions) ? bookingData.class_sessions[0] : bookingData.class_sessions
-        const student = Array.isArray(bookingData.students) ? bookingData.students[0] : bookingData.students
-        const courseType = session ? (Array.isArray(session.course_types) ? session.course_types[0] : session.course_types) : null
-        const coach = session ? (Array.isArray(session.coaches) ? session.coaches[0] : session.coaches) : null
-        if (session && student && courseType && coach) {
-          await fetch('/api/email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'booking_cancelled',
-              to: parent.email,
-              parentName: parent.first_name,
-              studentName: student.full_name,
-              courseName: courseType.name,
-              coachName: `${coach.first_name} ${coach.last_name}`,
-              date: session.session_date,
-              time: `${session.start_time} – ${session.end_time}`,
-            }),
-          })
-        }
-      }
-    } catch (e) { console.error('Cancel email error:', e) }
     await fetchAll()
     setCancellingId(null)
   }

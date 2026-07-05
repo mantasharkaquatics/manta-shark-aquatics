@@ -43,7 +43,6 @@ export async function cancelBookingWithPartner(
   const cancelledBookingIds: string[] = [booking.id]
   const cancelledPartners: { parent_id: string; student_id: string }[] = []
 
-  await svc.rpc('decrement_enrolled', { session_id: booking.class_session_id })
   if (booking.lesson_credit_id) {
     await svc.rpc('decrement_used_credits', { credit_id: booking.lesson_credit_id })
   }
@@ -66,7 +65,6 @@ export async function cancelBookingWithPartner(
       .select('id')
     if (!c || c.length === 0) continue
     cancelledBookingIds.push(pb.id)
-    await svc.rpc('decrement_enrolled', { session_id: pb.class_session_id })
     if (pb.lesson_credit_id) {
       await svc.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
     }
@@ -107,7 +105,6 @@ export async function cancelBookingWithPartner(
         if (!c || c.length === 0) continue
         cancelledBookingIds.push(pb.id)
         cancelledPartners.push({ parent_id: pb.parent_id, student_id: pb.student_id })
-        await svc.rpc('decrement_enrolled', { session_id: pb.class_session_id })
         if (pb.lesson_credit_id) {
           await svc.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
         }
