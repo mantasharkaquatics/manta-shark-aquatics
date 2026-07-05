@@ -916,7 +916,10 @@ export default function BookingPage() {
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Cancellations made within 24 hours are not eligible for a refund.
+                Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Cancellations made within 24 hours are not eligible for a refund.{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
+                  View full terms
+                </a>
               </span>
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
