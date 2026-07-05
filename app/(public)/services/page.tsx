@@ -126,9 +126,6 @@ export default function ServicesPage() {
         </Link>
       </section>
 
-      <footer className="bg-[#111d38] text-gray-400 py-8 text-center text-sm">
-        <p>© {new Date().getFullYear()} Manta Shark Aquatics. All rights reserved.</p>
-      </footer>
     </div>
   )
 }
