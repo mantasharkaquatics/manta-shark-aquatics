@@ -83,6 +83,14 @@ export default function PrivacyPolicyPage() {
         <li>Withdraw consent to communications at any time (unsubscribe link in emails; reply STOP to SMS).</li>
       </ul>
 
+      <H2>California Privacy Rights &amp; Do Not Track</H2>
+      <p>
+        California residents may request access to, or deletion of, the personal information we
+        hold about them by contacting us at info@mantasharkaquatics.net. We do not sell personal
+        information. Our website does not respond to browser &quot;Do Not Track&quot; signals, as no uniform
+        industry standard currently exists; we do not track visitors across third-party websites.
+      </p>
+
       <H2>7. Changes to This Policy</H2>
       <p>
         We may update this policy to reflect legal or service changes. Significant updates will be
