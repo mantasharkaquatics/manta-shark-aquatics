@@ -25,3 +25,6 @@ export const PLAN_GROUPS = [
   { label: '1-on-4 Group',        keys: ['1on4-4', '1on4-8'] },
   { label: 'Swim Team',           keys: ['team'] },
 ]
+
+// Trial Lesson (Skill Assessment): one per student, 1-on-1, 30 min
+export const TRIAL_PRICE_CENTS = 8500

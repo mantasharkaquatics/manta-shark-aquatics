@@ -1,12 +1,10 @@
 import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
+import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
-
-const TRIAL_PRICE_CENTS = 8500
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,25 +14,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
+    // Auth: admin (books on behalf of any student) or parent (self-serve, own students only)
+    let svc: ReturnType<typeof serviceClient>
+    let isParentFlow = false
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+    const adminCtx = await requireAdmin()
+    if (adminCtx) {
+      svc = adminCtx.svc
+    } else {
+      const parentCtx = await requireParent()
+      if (!parentCtx) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
+      }
+      isParentFlow = true
+      svc = parentCtx.svc
+      const { data: owned } = await svc
+        .from('students')
+        .select('id')
+        .eq('id', studentId)
+        .eq('parent_id', parentCtx.parent.id)
+        .single()
+      if (!owned) {
+        return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+      }
+    }
 
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (!admin) return NextResponse.json({ error: 'Admin only' }, { status: 403 })
-
-    const { data: student } = await supabase
+    const { data: student } = await svc
       .from('students')
       .select('id, full_name, parent_id, trial_used_at')
       .eq('id', studentId)
@@ -42,16 +47,28 @@ export async function POST(req: NextRequest) {
 
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     if (student.trial_used_at) {
-      return NextResponse.json({ error: '此學生已經使用過體驗課' }, { status: 400 })
+      return NextResponse.json({ error: 'This student has already used their trial lesson' }, { status: 400 })
     }
 
-    const { data: parent } = await supabase
+    // Guard: no duplicate trial while one is pending payment or already confirmed
+    const { data: existingTrial } = await svc
+      .from('bookings')
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('is_trial', true)
+      .neq('status', 'cancelled')
+      .limit(1)
+    if (existingTrial && existingTrial.length > 0) {
+      return NextResponse.json({ error: 'A trial lesson is already booked or awaiting payment for this student' }, { status: 400 })
+    }
+
+    const { data: parent } = await svc
       .from('parents')
       .select('first_name, email')
       .eq('id', student.parent_id)
       .single()
 
-    const { data: courseType } = await supabase
+    const { data: courseType } = await svc
       .from('course_types')
       .select('id, duration_minutes, max_students')
       .eq('slug', '1on1')
@@ -59,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     if (!courseType) return NextResponse.json({ error: '1-on-1 course type not found' }, { status: 500 })
 
-    const { data: coach } = await supabase
+    const { data: coach } = await svc
       .from('coaches')
       .select('first_name, last_name')
       .eq('id', coachId)
@@ -69,7 +86,7 @@ export async function POST(req: NextRequest) {
     const endMins = h * 60 + m + courseType.duration_minutes
     const endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`
 
-    const { data: existingSession } = await supabase
+    const { data: existingSession } = await svc
       .from('class_sessions')
       .select('id, enrolled_count, max_students')
       .eq('coach_id', coachId)
@@ -80,23 +97,23 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (!existingSession) {
-      const { data: conflicts } = await supabase
+      const { data: conflicts } = await svc
         .from('class_sessions').select('id')
         .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time)
         .in('status', ['open', 'full']).gt('enrolled_count', 0)
       if (conflicts && conflicts.length > 0)
-        return NextResponse.json({ error: '此時段教練已有其他課程，無法安排' }, { status: 400 })
+        return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 400 })
     }
 
     let sessId: string
 
     if (existingSession) {
       if (existingSession.enrolled_count >= existingSession.max_students) {
-        return NextResponse.json({ error: '這個時段已經額滿' }, { status: 400 })
+        return NextResponse.json({ error: 'This time slot is already full' }, { status: 400 })
       }
       sessId = existingSession.id
     } else {
-      const { data: newSess, error: sessErr } = await supabase
+      const { data: newSess, error: sessErr } = await svc
         .from('class_sessions')
         .insert({
           coach_id: coachId,
@@ -112,12 +129,12 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (sessErr || !newSess) {
-        return NextResponse.json({ error: '建立課程失敗：' + (sessErr?.message || '未知錯誤') }, { status: 500 })
+        return NextResponse.json({ error: 'Failed to create session: ' + (sessErr?.message || 'unknown error') }, { status: 500 })
       }
       sessId = newSess.id
     }
 
-    const { data: booking, error: bookErr } = await supabase
+    const { data: booking, error: bookErr } = await svc
       .from('bookings')
       .insert({
         class_session_id: sessId,
@@ -131,17 +148,18 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (bookErr || !booking) {
-      return NextResponse.json({ error: '建立預約失敗：' + (bookErr?.message || '未知錯誤') }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create booking: ' + (bookErr?.message || 'unknown error') }, { status: 500 })
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'us_bank_account'],
       mode: 'payment',
       customer_email: parent?.email,
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       line_items: [{
         price_data: {
           currency: 'usd',
-          product_data: { name: `Trial 1-on-1 Lesson · ${student.full_name}` },
+          product_data: { name: `Trial Lesson (Skill Assessment) - 30 min - ${student.full_name}` },
           unit_amount: TRIAL_PRICE_CENTS,
         },
         quantity: 1,
@@ -151,9 +169,11 @@ export async function POST(req: NextRequest) {
         booking_id: booking.id,
         student_id: studentId,
         class_session_id: sessId,
+        parent_id: student.parent_id,
+        course_type_id: courseType.id,
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/?trial=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/?trial=cancelled`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=cancelled`,
     })
 
     try {
@@ -162,17 +182,17 @@ export async function POST(req: NextRequest) {
           to: parent?.email || '',
           parentName: parent?.first_name || 'there',
           studentName: student.full_name,
-          courseName: 'Trial 1-on-1 Lesson',
+          courseName: 'Trial Lesson (Skill Assessment)',
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
           time,
-          paymentUrl: session.url || '',
+          paymentUrl: checkoutSession.url || '',
         })
     } catch (e) {
       console.error('Trial payment email error:', e)
     }
 
-    return NextResponse.json({ url: session.url })
+    return NextResponse.json({ url: checkoutSession.url })
   } catch (err: any) {
     console.error('Trial checkout error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
