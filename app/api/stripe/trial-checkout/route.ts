@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       .eq('coach_id', coachId)
       .eq('session_date', date)
       .eq('start_time', time)
-      .eq('status', 'open')
+      .in('status', ['open', 'full'])
       .eq('course_type_id', courseType.id)
       .maybeSingle()
 
@@ -83,20 +83,18 @@ export async function POST(req: NextRequest) {
       const { data: conflicts } = await supabase
         .from('class_sessions').select('id')
         .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time)
-        .eq('status', 'open').gt('enrolled_count', 0)
+        .in('status', ['open', 'full']).gt('enrolled_count', 0)
       if (conflicts && conflicts.length > 0)
         return NextResponse.json({ error: '此時段教練已有其他課程，無法安排' }, { status: 400 })
     }
 
     let sessId: string
-    let currentEnrolled: number
 
     if (existingSession) {
       if (existingSession.enrolled_count >= existingSession.max_students) {
         return NextResponse.json({ error: '這個時段已經額滿' }, { status: 400 })
       }
       sessId = existingSession.id
-      currentEnrolled = existingSession.enrolled_count
     } else {
       const { data: newSess, error: sessErr } = await supabase
         .from('class_sessions')
@@ -117,7 +115,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '建立課程失敗：' + (sessErr?.message || '未知錯誤') }, { status: 500 })
       }
       sessId = newSess.id
-      currentEnrolled = 0
     }
 
     const { data: booking, error: bookErr } = await supabase
@@ -136,11 +133,6 @@ export async function POST(req: NextRequest) {
     if (bookErr || !booking) {
       return NextResponse.json({ error: '建立預約失敗：' + (bookErr?.message || '未知錯誤') }, { status: 500 })
     }
-
-    await supabase
-      .from('class_sessions')
-      .update({ enrolled_count: currentEnrolled + 1 })
-      .eq('id', sessId)
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'us_bank_account'],

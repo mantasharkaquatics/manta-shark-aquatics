@@ -180,26 +180,20 @@ export async function POST(req: NextRequest) {
           .update({ status: 'cancelled' })
           .eq('id', booking_id)
 
+        // enrolled_count recalculated by trg_booking_count (includes pending_payment).
+        // Only close the session here if it became empty.
         const { data: sess } = await supabase
           .from('class_sessions')
           .select('enrolled_count')
           .eq('id', class_session_id)
           .single()
 
-        if (sess) {
-          const newCount = Math.max(0, sess.enrolled_count - 1)
+        if (sess && sess.enrolled_count === 0) {
           await supabase
             .from('class_sessions')
-            .update({ enrolled_count: newCount })
+            .update({ status: 'cancelled' })
             .eq('id', class_session_id)
-
-          if (newCount === 0) {
-            await supabase
-              .from('class_sessions')
-              .delete()
-              .eq('id', class_session_id)
-              .eq('enrolled_count', 0)
-          }
+            .eq('enrolled_count', 0)
         }
 
         console.log(`⏰ Trial lesson payment expired, released slot: booking ${booking_id}`)
