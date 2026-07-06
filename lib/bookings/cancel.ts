@@ -25,6 +25,11 @@ export async function cancelBookingWithPartner(
     .single()
 
   if (!booking) return { ok: false, status: 404, error: 'Not found', cancelledBookingIds: [] }
+  if (booking.status === 'pending_payment') {
+    // Unpaid trial holds are only released by Stripe checkout expiry (30 min),
+    // so a live payment link can never point at a cancelled booking.
+    return { ok: false, status: 409, error: 'This booking is awaiting payment and will release automatically if unpaid', cancelledBookingIds: [] }
+  }
   if (callerParentId && booking.parent_id !== callerParentId) {
     return { ok: false, status: 403, error: 'Forbidden', cancelledBookingIds: [] }
   }
@@ -55,6 +60,7 @@ export async function cancelBookingWithPartner(
     .eq('class_session_id', booking.class_session_id)
     .neq('id', bookingId)
     .neq('status', 'cancelled')
+    .neq('status', 'pending_payment')
 
   for (const pb of sameParentBookings || []) {
     const { data: c } = await svc
@@ -94,6 +100,7 @@ export async function cancelBookingWithPartner(
         .neq('parent_id', booking.parent_id)
         .in('class_session_id', sessionIds)
         .neq('status', 'cancelled')
+        .neq('status', 'pending_payment')
 
       for (const pb of partnerBookings || []) {
         const { data: c } = await svc

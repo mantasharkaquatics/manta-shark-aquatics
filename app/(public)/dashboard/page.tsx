@@ -1209,6 +1209,10 @@ export default function DashboardPage() {
                             </button>
                           )}
                         </div>
+                      ) : booking.status === 'pending_payment' ? (
+                        <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.08)', color: '#c9a84c', fontSize: '11px', fontWeight: 600 }}>
+                          ⏱ Awaiting payment · releases automatically if unpaid
+                        </div>
                       ) : (
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
