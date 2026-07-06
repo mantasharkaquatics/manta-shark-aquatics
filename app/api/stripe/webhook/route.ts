@@ -1,4 +1,5 @@
 import { sendEmail } from '@/lib/email'
+import { formatTime12h } from '@/lib/date'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
@@ -30,23 +31,117 @@ export async function POST(req: NextRequest) {
       const booking_id = meta.booking_id
       const student_id = meta.student_id
 
-      const { error: bookingErr } = await supabase
+      // Idempotency lock: only the pending_payment -> confirmed transition proceeds.
+      // Webhook retries and already-cancelled bookings fall through harmlessly.
+      const { data: locked, error: bookingErr } = await supabase
         .from('bookings')
         .update({ status: 'confirmed' })
         .eq('id', booking_id)
+        .eq('status', 'pending_payment')
+        .select('id, parent_id, class_session_id')
 
       if (bookingErr) {
         console.error('Trial booking confirm error:', bookingErr)
         return NextResponse.json({ error: 'Trial booking confirm failed' }, { status: 500 })
       }
+      if (!locked || locked.length === 0) {
+        return NextResponse.json({ received: true })
+      }
+      const bk = locked[0]
 
-      const { error: studentErr } = await supabase
+      await supabase
         .from('students')
         .update({ trial_used_at: new Date().toISOString() })
         .eq('id', student_id)
 
-      if (studentErr) {
-        console.error('Trial student update error:', studentErr)
+      // Resolve course_type_id (new checkouts carry it in metadata; fallback for older ones)
+      let course_type_id = meta.course_type_id || null
+      if (!course_type_id) {
+        const { data: ct } = await supabase.from('course_types').select('id').eq('slug', '1on1').single()
+        course_type_id = ct?.id || null
+      }
+
+      const amount_cents = session.amount_total ?? 0
+
+      const { data: purchase, error: purchaseErr } = await supabase
+        .from('purchases')
+        .insert({
+          parent_id: bk.parent_id,
+          lesson_package_id: null,
+          amount_cents,
+          status: 'paid',
+          stripe_session_id: session.id,
+          paid_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+      if (purchaseErr) console.error('Trial purchase insert error:', purchaseErr)
+
+      // Trial credit card: 1 of 1 used, appears under Lesson Credits
+      const expiresAt = new Date()
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+      const { data: credit, error: creditErr } = await supabase
+        .from('lesson_credits')
+        .insert({
+          student_id,
+          parent_id: bk.parent_id,
+          purchase_id: purchase?.id || null,
+          course_type_id,
+          total_credits: 1,
+          used_credits: 1,
+          expires_at: expiresAt.toISOString(),
+        })
+        .select()
+        .single()
+      if (creditErr) console.error('Trial credit insert error:', creditErr)
+
+      if (credit) {
+        await supabase.from('bookings').update({ lesson_credit_id: credit.id }).eq('id', booking_id)
+      }
+
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.CRON_SECRET || '' },
+          body: JSON.stringify({
+            parent_id: bk.parent_id,
+            lesson_credit_id: credit?.id || null,
+            amount: amount_cents / 100,
+            payment_method: 'stripe',
+            items: [{ name: 'Trial Lesson (Skill Assessment)', quantity: 1, unit_price: amount_cents / 100 }],
+            stripe_payment_intent_id: session.payment_intent || null,
+          }),
+        })
+      } catch (e) {
+        console.error('Trial invoice error:', e)
+      }
+
+      // Confirmation email (two-step queries; nested joins are unreliable in production)
+      try {
+        const [{ data: parentRow }, { data: studentRow }, { data: sess }] = await Promise.all([
+          supabase.from('parents').select('first_name, email').eq('id', bk.parent_id).single(),
+          supabase.from('students').select('full_name').eq('id', student_id).single(),
+          supabase.from('class_sessions').select('coach_id, session_date, start_time').eq('id', bk.class_session_id).single(),
+        ])
+        let coachName = ''
+        if (sess?.coach_id) {
+          const { data: coach } = await supabase.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
+          if (coach) coachName = `${coach.first_name} ${coach.last_name}`
+        }
+        if (parentRow?.email && sess) {
+          await sendEmail({
+            type: 'booking_confirmed',
+            to: parentRow.email,
+            parentName: parentRow.first_name || 'there',
+            studentName: studentRow?.full_name || '',
+            courseName: 'Trial Lesson (Skill Assessment)',
+            coachName,
+            date: sess.session_date,
+            time: formatTime12h(String(sess.start_time).slice(0, 5)),
+          })
+        }
+      } catch (e) {
+        console.error('Trial confirmation email error:', e)
       }
 
       console.log(`✅ Trial lesson confirmed: booking ${booking_id} for student ${student_id}`)
