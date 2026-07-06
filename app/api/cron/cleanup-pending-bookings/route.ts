@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const { data: expired } = await supabase
     .from('bookings')
     .select('id, class_session_id')
-    .eq('status', 'pending_partner')
+    .in('status', ['pending_partner', 'in_cart'])
     .lt('pending_expires_at', now)
 
   // 同時清除過期的 reschedule pending
