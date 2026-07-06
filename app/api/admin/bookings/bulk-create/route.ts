@@ -58,7 +58,7 @@ async function evaluateDates(
     .select('session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
     .eq('coach_id', coachId)
     .in('session_date', allDates)
-    .eq('status', 'open')
+    .in('status', ['open', 'full'])
   const sessByDate = new Map<string, any[]>()
   for (const s of sessRows || []) {
     if (!sessByDate.has(s.session_date)) sessByDate.set(s.session_date, [])
@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
         .from('class_sessions')
         .select('id, enrolled_count, max_students')
         .eq('coach_id', coach_id).eq('session_date', date).eq('start_time', start_time)
-        .eq('course_type_id', course_type_id).eq('status', 'open')
+        .eq('course_type_id', course_type_id).in('status', ['open', 'full'])
         .maybeSingle()
       let sessId: string
       if (existing) {
@@ -258,7 +258,11 @@ export async function POST(req: NextRequest) {
           .select('id').single()
         if (bookErr || !created) {
           await rollback()
-          return NextResponse.json({ error: `Failed to book ${date}: ${bookErr?.message || 'unknown'}` }, { status: 500 })
+          const isConflict = bookErr?.message?.includes('coach_timeslot_conflict')
+          return NextResponse.json(
+            { error: isConflict ? `Date ${date} conflicts with another session for this coach` : `Failed to book ${date}: ${bookErr?.message || 'unknown'}` },
+            { status: isConflict ? 409 : 500 }
+          )
         }
         createdBookingIds.push(created.id)
         await svc.rpc('increment_used_credits', { credit_id: b.credit_id })
