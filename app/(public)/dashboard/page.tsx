@@ -282,7 +282,6 @@ export default function DashboardPage() {
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
-  const [activeTrialStudentIds, setActiveTrialStudentIds] = useState<Set<string>>(new Set())
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
@@ -397,7 +396,6 @@ export default function DashboardPage() {
 
     setStudents(studs || [])
     setCredits(credData || [])
-    setActiveTrialStudentIds(new Set((rawBookings || []).filter((b: any) => b.is_trial).map((b: any) => b.student_id)))
 
     // 查詢待確認的跨帳戶預約
     const { data: pendingRaw } = await supabase
@@ -1285,18 +1283,6 @@ export default function DashboardPage() {
                   )
                 })
               })()}
-              {students.filter(s => s.trial_used_at).map(s => {
-                const isTrialActive = activeTrialStudentIds.has(s.id)
-                return (
-                  <CreditCard
-                    key={`trial-${s.id}`}
-                    g={{ name: `1-on-1 Private · ${s.full_name} Trial Lesson`, total: 1, used: isTrialActive ? 1 : 0, items: [{ credits: 1, used: isTrialActive ? 1 : 0, date: s.trial_used_at }] }}
-                    remaining={isTrialActive ? 0 : 1}
-                    pct={isTrialActive ? 0 : 100}
-                    note="Limit one per student"
-                  />
-                )
-              })}
             </div>
           )}
         </section>
