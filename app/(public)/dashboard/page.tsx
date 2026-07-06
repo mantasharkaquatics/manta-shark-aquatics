@@ -1216,7 +1216,7 @@ export default function DashboardPage() {
                           <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.08)', color: '#c9a84c', fontSize: '11px', fontWeight: 600 }}>
                             🛒 In cart · releases automatically if not checked out
                           </div>
-                          <Link href="/booking" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
+                          <Link href="/booking?cart=1" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
                             View Cart →
                           </Link>
                         </div>

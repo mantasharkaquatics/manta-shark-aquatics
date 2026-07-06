@@ -56,6 +56,16 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
 
   useEffect(() => { load() }, [load, refreshSignal])
 
+  // Deep link: /booking?cart=1 opens the drawer once items are loaded
+  const autoOpened = useRef(false)
+  useEffect(() => {
+    if (autoOpened.current || !cart || cart.items.length === 0) return
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cart') === '1') {
+      autoOpened.current = true
+      setOpen(true)
+    }
+  }, [cart])
+
   // Countdown; auto-clear UI when expired (server purges lazily)
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current)
