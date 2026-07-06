@@ -157,6 +157,18 @@ export default function BookingPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
+  const [trialEligible, setTrialEligible] = useState(false)
+  const [isTrial, setIsTrial] = useState(false)
+
+  useEffect(() => {
+    setIsTrial(false)
+    setTrialEligible(false)
+    if (!selectedStudent) return
+    fetch(`/api/bookings/trial-eligibility?student_id=${selectedStudent.id}`)
+      .then(r => r.ok ? r.json() : { eligible: false })
+      .then(j => setTrialEligible(!!j.eligible))
+      .catch(() => setTrialEligible(false))
+  }, [selectedStudent])
 
   const today = new Date()
   const [calMonth, setCalMonth] = useState(today.getMonth())
@@ -322,11 +334,32 @@ export default function BookingPage() {
   const remainingCredits = totalRemainingCredits
 
   async function handleConfirm() {
-    if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || !availableCredit) return
+    if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || (!availableCredit && !isTrial)) return
     setSubmitting(true)
 
     const dateStr = formatDateLA(selectedDate)
     const startTime = selectedSlot.time
+
+    if (isTrial) {
+      const res = await fetch('/api/stripe/trial-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: selectedStudent.id,
+          coachId: selectedCoach.id,
+          date: dateStr,
+          time: startTime,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok || !j.url) {
+        alert(j.error || 'Could not start payment. Please try again.')
+        setSubmitting(false)
+        return
+      }
+      window.location.href = j.url
+      return
+    }
     const rbId = rescheduleBookingIdRef.current || rescheduleBookingId
     const partnerBId = reschedulePartnerBookingIdRef.current
 
@@ -583,13 +616,27 @@ export default function BookingPage() {
           <div>
             <SectionTitle eyebrow="Step 2" title="What type of lesson?" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {trialEligible && !isReschedule && (
+                <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <span style={{ fontSize: '28px' }}>⭐</span>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>Trial Lesson (Skill Assessment)</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>30 min · 1-on-1 · One per student</div>
+                      </div>
+                    </div>
+                    <div style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, color: GOLD }}>$85</div>
+                  </div>
+                </SelectCard>
+              )}
               {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
                 const remaining = credits
                   .filter(c => c.course_type_id === ct.id)
                   .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
                 return (
-                  <SelectCard key={ct.id} selected={selectedCourse?.id === ct.id} onClick={() => setSelectedCourse(ct)} color={color}>
+                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
@@ -619,7 +666,7 @@ export default function BookingPage() {
               })}
             </div>
 
-            {selectedCourse && !availableCredit && (
+            {selectedCourse && (!availableCredit && !isTrial) && (
               <div style={{
                 marginTop: '16px', padding: '14px 18px',
                 background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)',
@@ -694,7 +741,7 @@ export default function BookingPage() {
               }}>← Back</button>
               <button
                 onClick={() => {
-                  if (!selectedCourse || !availableCredit) return
+                  if (!selectedCourse || (!availableCredit && !isTrial)) return
                   if (selectedCourse.slug === '1on2') {
                     if (!selectedStudent2) return
                     if (!(selectedStudent2 as any).isPartner && remainingCredits < 2) return
@@ -702,14 +749,14 @@ export default function BookingPage() {
                   setStep(2)
                 }}
                 disabled={
-                  !selectedCourse || !availableCredit ||
+                  !selectedCourse || (!availableCredit && !isTrial) ||
                   (selectedCourse?.slug === '1on2' && !selectedStudent2) ||
                   (selectedCourse?.slug === '1on2' && !(selectedStudent2 as any)?.isPartner && remainingCredits < 2)
                 }
                 style={{
                   flex: 2, padding: '14px',
-                  background: (!selectedCourse || !availableCredit || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
-                  color: (!selectedCourse || !availableCredit || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
+                  background: (!selectedCourse || (!availableCredit && !isTrial) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
+                  color: (!selectedCourse || (!availableCredit && !isTrial) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: 'pointer',
@@ -899,7 +946,7 @@ export default function BookingPage() {
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
                 { label: 'Duration', value: `${selectedCourse?.duration_minutes} minutes` },
-                { label: 'Credits Used', value: (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit' },
+                { label: isTrial ? 'Price' : 'Credits Used', value: isTrial ? '$85' : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -909,10 +956,10 @@ export default function BookingPage() {
                   <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{row.value}</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
+              {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Remaining Credits After</span>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1} credits</span>
-              </div>
+              </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
@@ -939,7 +986,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
-              >{submitting ? 'Booking...' : isReschedule ? 'Confirm Reschedule ✓' : 'Confirm Booking ✓'}</button>
+              >{submitting ? (isTrial ? 'Redirecting...' : 'Booking...') : isTrial ? 'Continue to Payment →' : isReschedule ? 'Confirm Reschedule ✓' : 'Confirm Booking ✓'}</button>
             </div>
           </div>
         )}
