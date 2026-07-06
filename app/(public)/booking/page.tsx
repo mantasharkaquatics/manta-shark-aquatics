@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import BookingCart from '@/components/BookingCart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -159,6 +160,9 @@ export default function BookingPage() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
   const [trialEligible, setTrialEligible] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
+  const [cartRefresh, setCartRefresh] = useState(0)
+  const [addingToCart, setAddingToCart] = useState(false)
+  const [cartMsg, setCartMsg] = useState('')
 
   useEffect(() => {
     setIsTrial(false)
@@ -422,6 +426,38 @@ export default function BookingPage() {
     setSubmitting(false)
     setIsPartnerBookingSuccess(!!ps2)
     setSuccess(true)
+  }
+
+  async function handleAddToCart() {
+    if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot) return
+    setAddingToCart(true)
+    setCartMsg('')
+    try {
+      const res = await fetch('/api/bookings/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          course_type_id: selectedCourse.id,
+          coach_id: selectedCoach.id,
+          session_date: formatDateLA(selectedDate),
+          start_time: selectedSlot.time,
+          student_id: selectedStudent.id,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCartMsg(j.error || 'Could not add to cart. Please try again.')
+      } else {
+        setCartRefresh(n => n + 1)
+        setSelectedSlot(null)
+        setStep(3)
+        loadTimeSlots()
+      }
+    } catch {
+      setCartMsg('Network error. Please try again.')
+    }
+    setAddingToCart(false)
   }
 
   function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate() }
@@ -969,12 +1005,30 @@ export default function BookingPage() {
                 </a>
               </span>
             </div>
+            {cartMsg && (
+              <div style={{ background: 'rgba(220,80,80,0.12)', border: '1px solid rgba(220,80,80,0.4)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px', color: '#f0a0a0', fontSize: '13px' }}>
+                {cartMsg}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setStep(3)} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>← Back</button>
+              {!isTrial && !isReschedule && selectedCourse?.slug !== '1on2' && (
+                <button
+                  onClick={handleAddToCart}
+                  disabled={submitting || addingToCart}
+                  style={{
+                    flex: 1, padding: '14px', background: 'transparent',
+                    color: (submitting || addingToCart) ? 'rgba(255,255,255,0.3)' : GOLD,
+                    border: `1px solid ${GOLD}`, borderRadius: '10px',
+                    fontSize: '13px', fontWeight: 700, letterSpacing: '1px',
+                    textTransform: 'uppercase', cursor: (submitting || addingToCart) ? 'not-allowed' : 'pointer',
+                  }}
+                >{addingToCart ? 'Adding...' : 'Add to Cart +'}</button>
+              )}
               <button
                 onClick={handleConfirm}
                 disabled={submitting}
@@ -993,6 +1047,7 @@ export default function BookingPage() {
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
       {parentId && <ChatWidget parentId={parentId} />}
+      {parentId && <BookingCart refreshSignal={cartRefresh} onCommitted={() => { if (selectedCoach && selectedDate) loadTimeSlots() }} />}
     </div>
   )
 }
