@@ -187,6 +187,7 @@ export async function POST(req: NextRequest) {
           date,
           time,
           paymentUrl: checkoutSession.url || '',
+          amount: TRIAL_PRICE_CENTS / 100,
         })
     } catch (e) {
       console.error('Trial payment email error:', e)
