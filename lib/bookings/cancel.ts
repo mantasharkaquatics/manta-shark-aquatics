@@ -30,6 +30,10 @@ export async function cancelBookingWithPartner(
     // so a live payment link can never point at a cancelled booking.
     return { ok: false, status: 409, error: 'This booking is awaiting payment and will release automatically if unpaid', cancelledBookingIds: [] }
   }
+  if (booking.status === 'in_cart') {
+    // Cart holds are managed by the cart API (remove/clear) and auto-expire.
+    return { ok: false, status: 409, error: 'This booking is in your cart. Remove it from the cart instead.', cancelledBookingIds: [] }
+  }
   if (callerParentId && booking.parent_id !== callerParentId) {
     return { ok: false, status: 403, error: 'Forbidden', cancelledBookingIds: [] }
   }
@@ -61,6 +65,7 @@ export async function cancelBookingWithPartner(
     .neq('id', bookingId)
     .neq('status', 'cancelled')
     .neq('status', 'pending_payment')
+    .neq('status', 'in_cart')
 
   for (const pb of sameParentBookings || []) {
     const { data: c } = await svc
@@ -101,6 +106,7 @@ export async function cancelBookingWithPartner(
         .in('class_session_id', sessionIds)
         .neq('status', 'cancelled')
         .neq('status', 'pending_payment')
+    .neq('status', 'in_cart')
 
       for (const pb of partnerBookings || []) {
         const { data: c } = await svc
