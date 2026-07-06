@@ -952,8 +952,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                           <div className="px-3 py-2 bg-white/5 text-xs text-white/50 border-t border-white/10">
                             {(() => {
                               const cr = recurPreview.credits
-                              const p1 = `家長 1 剩餘 ${cr.parent1_remaining} 堂（需 ${cr.parent1_needed}）`
-                              const p2 = cr.parent2_needed != null ? ` · 家長 2 剩餘 ${cr.parent2_remaining} 堂（需 ${cr.parent2_needed}）` : ''
+                              const n1 = cr.parent1_name || '家長 1'
+                              const n2 = cr.parent2_name || '家長 2'
+                              const p1 = `${n1} 剩餘 ${cr.parent1_remaining} 堂（需 ${cr.parent1_needed}）`
+                              const p2 = cr.parent2_needed != null ? ` · ${n2} 剩餘 ${cr.parent2_remaining} 堂（需 ${cr.parent2_needed}）` : ''
                               return (cr.sufficient ? '✓ ' : '⚠ 堂數不足 · ') + p1 + p2
                             })()}
                           </div>

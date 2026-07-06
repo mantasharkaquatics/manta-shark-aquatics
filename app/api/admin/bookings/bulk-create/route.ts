@@ -169,9 +169,19 @@ export async function POST(req: NextRequest) {
       credits2Remaining = alloc2.totalRemaining
       creditsOk = creditsOk && alloc2.ok
     }
+    const nameIds = student2 && !sameParent ? [student1.parent_id, student2.parent_id] : [student1.parent_id]
+    const { data: pRows } = await svc.from('parents').select('id, first_name, last_name').in('id', nameIds)
+    const nameOf = (pid: string) => {
+      const r = (pRows || []).find(x => x.id === pid)
+      return r ? `${r.first_name} ${r.last_name || ''}`.trim() : ''
+    }
     return NextResponse.json({
       candidates,
-      credits: { parent1_remaining: alloc1.totalRemaining, parent1_needed: needed1, parent2_remaining: credits2Remaining, parent2_needed: student2 && !sameParent ? count : null, sufficient: creditsOk },
+      credits: {
+        parent1_name: nameOf(student1.parent_id), parent1_remaining: alloc1.totalRemaining, parent1_needed: needed1,
+        parent2_name: student2 && !sameParent ? nameOf(student2.parent_id) : null,
+        parent2_remaining: credits2Remaining, parent2_needed: student2 && !sameParent ? count : null, sufficient: creditsOk,
+      },
     })
   }
 
@@ -275,7 +285,6 @@ export async function POST(req: NextRequest) {
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', coach_id).single()
       const coachName = coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : ''
       const timeStr = `${formatTime12h(start_time)} \u2013 ${formatTime12h(endTime)}`
-      const dateList = `${dates.length} lessons: ${dates.join(', ')}`
       const targets = sameParent || !student2
         ? [{ parent_id: student1.parent_id, studentName: student2 ? `${student1.full_name} & ${student2.full_name}` : student1.full_name }]
         : [
@@ -284,11 +293,18 @@ export async function POST(req: NextRequest) {
           ]
       for (const t of targets) {
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
-        if (p?.email) {
+        if (!p?.email) continue
+        if (dates.length === 1) {
           await sendEmail({
             type: 'booking_confirmed', to: p.email, parentName: p.first_name,
             studentName: t.studentName, courseName: ct.name, coachName,
-            date: dateList, time: timeStr,
+            date: dates[0], time: timeStr,
+          })
+        } else {
+          await sendEmail({
+            type: 'booking_series_confirmed', to: p.email, parentName: p.first_name,
+            studentName: t.studentName, courseName: ct.name, coachName,
+            dates, time: timeStr,
           })
         }
       }
