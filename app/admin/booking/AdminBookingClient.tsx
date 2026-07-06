@@ -481,16 +481,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       return
     }
     setTrialCreditStatus('checking')
-    supabase
-      .from('bookings')
-      .select('id')
-      .eq('student_id', formStudent)
-      .eq('is_trial', true)
-      .neq('status', 'cancelled')
-      .maybeSingle()
-      .then(({ data }) => {
-        setTrialCreditStatus(data ? 'active' : 'available')
+    fetch(`/api/bookings/trial-eligibility?student_id=${formStudent}`)
+      .then(r => r.json())
+      .then(data => {
+        setTrialCreditStatus(data.hasActiveTrial ? 'active' : 'available')
       })
+      .catch(() => setTrialCreditStatus('none'))
   }, [isTrial, formStudent]) // eslint-disable-line
 
   function openBookModal(date: string, time: string, coachId: string) {
@@ -608,117 +604,28 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     }
     setSaving(true)
     setError('')
-    const ct = courseTypes.find(c => c.slug === '1on1')!
-    const student = students.find(s => s.id === formStudent)!
-    const parentId = student.parent_id
-
-    const endMins = timeToMinutes(selectedSlot.time) + ct.duration_minutes
-    const endTime = minutesToTime(endMins)
-
-    const { data: existingSession } = await supabase
-      .from('class_sessions')
-      .select('id, enrolled_count, max_students')
-      .eq('coach_id', selectedSlot.coachId)
-      .eq('session_date', selectedSlot.date)
-      .eq('start_time', selectedSlot.time)
-      .eq('status', 'open')
-      .eq('course_type_id', ct.id)
-      .maybeSingle()
-
-    if (!existingSession) {
-      const { data: conflicts } = await supabase
-        .from('class_sessions').select('id')
-        .eq('coach_id', selectedSlot.coachId)
-        .eq('session_date', selectedSlot.date)
-        .eq('start_time', selectedSlot.time)
-        .eq('status', 'open').gt('enrolled_count', 0)
-      if (conflicts && conflicts.length > 0) {
-        setError('此時段教練已有其他課程，無法安排')
-        setSaving(false)
-        return
-      }
-    }
-
-    let sessId: string
-    let currentEnrolled: number
-
-    if (existingSession) {
-      if (existingSession.enrolled_count >= existingSession.max_students) {
-        setError('這個時段已經額滿')
-        setSaving(false)
-        return
-      }
-      sessId = existingSession.id
-      currentEnrolled = existingSession.enrolled_count
-    } else {
-      const { data: newSess, error: sessErr } = await supabase
-        .from('class_sessions')
-        .insert({
-          coach_id: selectedSlot.coachId,
-          course_type_id: ct.id,
-          session_date: selectedSlot.date,
-          start_time: selectedSlot.time,
-          end_time: endTime,
-          max_students: ct.max_students,
-          enrolled_count: 0,
-          status: 'open',
-        })
-        .select()
-        .single()
-
-      if (sessErr || !newSess) {
-        setError('建立課程失敗：' + (sessErr?.message || '未知錯誤'))
-        setSaving(false)
-        return
-      }
-      sessId = newSess.id
-      currentEnrolled = 0
-    }
-
-    const { error: bookErr } = await supabase
-      .from('bookings')
-      .insert({
-        class_session_id: sessId,
-        parent_id: parentId,
-        student_id: formStudent,
-        lesson_credit_id: null,
-        is_trial: true,
-        status: 'confirmed',
+    try {
+      const res = await fetch('/api/admin/bookings/trial-credit-book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: formStudent,
+          coachId: selectedSlot.coachId,
+          date: selectedSlot.date,
+          time: selectedSlot.time,
+        }),
       })
-
-    if (bookErr) {
-      if (bookErr.message?.includes('coach_timeslot_conflict')) {
-        setError('此時段教練已有其他課程，無法安排')
-      } else {
-        setError('建立預約失敗：' + bookErr.message)
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || '建立預約失敗')
+        setSaving(false)
+        return
       }
+    } catch (e: any) {
+      setError('建立預約失敗：' + e.message)
       setSaving(false)
       return
     }
-
-    try {
-      const { data: parentData } = await supabase.from('parents').select('first_name, email').eq('id', parentId).single()
-      const coach = coaches.find(c => c.id === selectedSlot.coachId)
-      if (parentData && coach) {
-        const endMinsForEmail = timeToMinutes(selectedSlot.time) + ct.duration_minutes
-        const endTimeForEmail = minutesToTime(endMinsForEmail)
-        await fetch('/api/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'booking_confirmed',
-            to: parentData.email,
-            parentName: parentData.first_name,
-            studentName: student.full_name,
-            courseName: ct.name,
-            coachName: `${coach.first_name} ${coach.last_name}`,
-            date: selectedSlot.date,
-            time: `${selectedSlot.time} – ${endTimeForEmail}`,
-          }),
-        })
-      }
-    } catch (e) { console.error('Email error:', e) }
-
     setSuccess('使用已付款單堂課程，預約成功！')
     await loadSessions()
     setTimeout(() => { setModal(null); setSuccess('') }, 1500)

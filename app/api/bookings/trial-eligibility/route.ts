@@ -1,23 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireParent } from '@/lib/api-auth'
+import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
-  const ctx = await requireParent()
-  if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
-
   const studentId = req.nextUrl.searchParams.get('student_id')
   if (!studentId) return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
 
-  const { data: student } = await ctx.svc
+  // Auth: admin (any student) or parent (own students only)
+  let svc: ReturnType<typeof serviceClient>
+  const adminCtx = await requireAdmin()
+  if (adminCtx) {
+    svc = adminCtx.svc
+  } else {
+    const parentCtx = await requireParent()
+    if (!parentCtx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
+    svc = parentCtx.svc
+    const { data: owned } = await svc
+      .from('students')
+      .select('id')
+      .eq('id', studentId)
+      .eq('parent_id', parentCtx.parent.id)
+      .single()
+    if (!owned) return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+  }
+
+  const { data: student } = await svc
     .from('students')
     .select('id, trial_used_at')
     .eq('id', studentId)
-    .eq('parent_id', ctx.parent.id)
     .single()
 
-  if (!student || student.trial_used_at) return NextResponse.json({ eligible: false })
+  if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
-  const { data: existingTrial } = await ctx.svc
+  const { data: existingTrial } = await svc
     .from('bookings')
     .select('id')
     .eq('student_id', studentId)
@@ -25,5 +39,11 @@ export async function GET(req: NextRequest) {
     .neq('status', 'cancelled')
     .limit(1)
 
-  return NextResponse.json({ eligible: !existingTrial || existingTrial.length === 0 })
+  const hasActiveTrial = !!(existingTrial && existingTrial.length > 0)
+
+  return NextResponse.json({
+    eligible: !student.trial_used_at && !hasActiveTrial,
+    trialUsedAt: student.trial_used_at,
+    hasActiveTrial,
+  })
 }
