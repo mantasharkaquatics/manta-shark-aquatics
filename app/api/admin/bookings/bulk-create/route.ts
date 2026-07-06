@@ -285,11 +285,11 @@ export async function POST(req: NextRequest) {
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', coach_id).single()
       const coachName = coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : ''
       const timeStr = `${formatTime12h(start_time)} \u2013 ${formatTime12h(endTime)}`
-      const targets = sameParent || !student2
+      const targets: { parent_id: string; studentName: string; partnerName?: string }[] = sameParent || !student2
         ? [{ parent_id: student1.parent_id, studentName: student2 ? `${student1.full_name} & ${student2.full_name}` : student1.full_name }]
         : [
-            { parent_id: student1.parent_id, studentName: student1.full_name },
-            { parent_id: student2.parent_id, studentName: student2.full_name },
+            { parent_id: student1.parent_id, studentName: student1.full_name, partnerName: student2.full_name },
+            { parent_id: student2.parent_id, studentName: student2.full_name, partnerName: student1.full_name },
           ]
       for (const t of targets) {
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
@@ -297,13 +297,13 @@ export async function POST(req: NextRequest) {
         if (dates.length === 1) {
           await sendEmail({
             type: 'booking_confirmed', to: p.email, parentName: p.first_name,
-            studentName: t.studentName, courseName: ct.name, coachName,
+            studentName: t.studentName, partnerName: t.partnerName, courseName: ct.name, coachName,
             date: dates[0], time: timeStr,
           })
         } else {
           await sendEmail({
             type: 'booking_series_confirmed', to: p.email, parentName: p.first_name,
-            studentName: t.studentName, courseName: ct.name, coachName,
+            studentName: t.studentName, partnerName: t.partnerName, courseName: ct.name, coachName,
             dates, time: timeStr,
           })
         }
