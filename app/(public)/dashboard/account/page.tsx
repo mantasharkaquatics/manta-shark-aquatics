@@ -164,14 +164,11 @@ export default function AccountPage() {
             )}
             <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginBottom: '14px' }}>To change existing swimmer info, please contact the swim school.</div>
 
-            {students.length >= MAX_STUDENTS ? (
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '12px 14px' }}>
-                You have reached the maximum of {MAX_STUDENTS} swimmers per account. To add more, please contact the swim school.
-              </div>
-            ) : !showAddForm ? (
+            {!showAddForm ? (
               <button
                 onClick={() => setShowAddForm(true)}
-                style={{ width: '100%', padding: '10px', borderRadius: '10px', border: `1px solid ${GOLD}`, background: 'transparent', color: GOLD, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                disabled={students.length >= MAX_STUDENTS}
+                style={{ width: '100%', padding: '10px', borderRadius: '10px', border: `1px solid ${GOLD}`, background: 'transparent', color: GOLD, fontSize: '13px', fontWeight: 700, cursor: students.length >= MAX_STUDENTS ? 'not-allowed' : 'pointer', opacity: students.length >= MAX_STUDENTS ? 0.35 : 1 }}
               >
                 + Add Swimmer
               </button>
@@ -192,8 +189,9 @@ export default function AccountPage() {
                   <input
                     type="date"
                     value={newDob}
+                    max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                     onChange={e => setNewDob(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '13px', outline: 'none' }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '13px', outline: 'none', colorScheme: 'dark' }}
                   />
                 </div>
                 {addError && <div style={{ fontSize: '12px', color: '#e05a4a', marginBottom: '10px' }}>{addError}</div>}

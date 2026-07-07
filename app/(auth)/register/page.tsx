@@ -396,13 +396,13 @@ export default function RegisterPage() {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Date of Birth</label>
-                    <input type="date" value={s.dateOfBirth} onChange={e => updateStudent(i, 'dateOfBirth', e.target.value)}
+                    <input type="date" value={s.dateOfBirth} max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })} onChange={e => updateStudent(i, 'dateOfBirth', e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                 </div>
               </div>
             ))}
-            {students.length < 5 && (
+            {students.length < 3 && (
               <button onClick={addStudent} className="w-full border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors">
                 + Add Another Student
               </button>
