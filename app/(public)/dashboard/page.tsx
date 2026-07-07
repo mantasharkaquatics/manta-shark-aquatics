@@ -107,7 +107,7 @@ function makeQRPayload(studentId: string): string {
 }
 
 const QUICK_LINKS = [
-  { label: 'My Account', icon: '👤', href: '/dashboard/account', color: '#4a90c4', desc: 'Profile, password & subscription settings' },
+  { label: 'My Account', icon: '👤', href: '/dashboard/account', color: '#4a90c4', desc: 'Profile & subscription settings' },
   { label: 'Book a Lesson', icon: '📅', href: '/booking', color: GOLD, desc: 'Schedule your next session' },
   { label: 'Swim Levels', icon: '🏊', href: '/levels', color: '#4a90c4', desc: 'View curriculum & progress' },
   { label: 'Swim Plans', icon: '📦', href: '/plans', color: '#4caf72', desc: 'Browse lesson packages' },
