@@ -1232,23 +1232,46 @@ export default function DashboardPage() {
                               {pendingPayBusy === booking.id ? '...' : 'Pay Now →'}
                             </button>
                             <button
-                              onClick={async () => {
-                                if (pendingCancelConfirm !== booking.id) { setPendingCancelConfirm(booking.id); return }
-                                setPendingPayBusy(booking.id); setPendingPayMsg('')
-                                try {
-                                  const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', booking_id: booking.id }) })
-                                  const j = await res.json().catch(() => ({}))
-                                  if (res.ok) { window.location.reload(); return }
-                                  setPendingPayMsg(j.error || 'Could not cancel. Please try again.')
-                                } catch { setPendingPayMsg('Network error. Please try again.') }
-                                setPendingPayBusy(null); setPendingCancelConfirm(null)
-                              }}
+                              onClick={() => { setPendingPayMsg(''); setPendingCancelConfirm(booking.id) }}
                               disabled={pendingPayBusy === booking.id}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.4)', background: pendingCancelConfirm === booking.id ? 'rgba(224,90,74,0.15)' : 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                              {pendingCancelConfirm === booking.id ? 'Tap again to confirm ✕' : 'Cancel'}
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.4)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                              Cancel
                             </button>
                           </div>
                           {pendingPayMsg && <div style={{ fontSize: '11px', color: '#e05a4a' }}>{pendingPayMsg}</div>}
+                          {pendingCancelConfirm === booking.id && (
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                              <div style={{ background: '#1a2744', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '100%' }}>
+                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>Cancel this Swim Assessment?</div>
+                                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: '20px' }}>
+                                  The payment link will be voided and the time slot released. You can book a new assessment right away. No charge will be made.
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                  <button
+                                    onClick={() => setPendingCancelConfirm(null)}
+                                    disabled={pendingPayBusy === booking.id}
+                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                                    Keep Booking
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      setPendingPayBusy(booking.id); setPendingPayMsg('')
+                                      try {
+                                        const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', booking_id: booking.id }) })
+                                        const j = await res.json().catch(() => ({}))
+                                        if (res.ok) { window.location.reload(); return }
+                                        setPendingPayMsg(j.error || 'Could not cancel. Please try again.')
+                                      } catch { setPendingPayMsg('Network error. Please try again.') }
+                                      setPendingPayBusy(null); setPendingCancelConfirm(null)
+                                    }}
+                                    disabled={pendingPayBusy === booking.id}
+                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                                    {pendingPayBusy === booking.id ? 'Cancelling...' : 'Yes, Cancel ✕'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : booking.status === 'in_cart' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
