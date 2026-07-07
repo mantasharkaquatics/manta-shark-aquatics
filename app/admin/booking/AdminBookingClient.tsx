@@ -1106,7 +1106,7 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
   const isSingleLesson = !hasTrial && session.bookings?.some(b => b.lesson_credit_id === null)
   const is1on2 = ct.slug === '1on2'
   const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
-  const dragOk = activeBookings.length >= 1 && activeBookings.every(b => b.status === 'confirmed')
+  const dragOk = activeBookings.length >= 1 && activeBookings.every(b => b.status === 'confirmed' || b.status === 'pending_payment')
 
   return (
     <>

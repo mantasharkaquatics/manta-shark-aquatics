@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
   if (sess.coach_id === coach_id && sess.session_date === date && sess.start_time.slice(0, 5) === time.slice(0, 5))
     return NextResponse.json({ error: 'New time is the same as the current time' }, { status: 400 })
 
-  // Only fully-confirmed sessions are movable (pending_payment carries Stripe state)
+  // Movable: confirmed or pending_payment (webhook reads session time from DB at payment
+  // completion, and session UPDATE keeps booking/session ids intact, so Stripe flow is unaffected)
   const { data: activeBookings } = await svc
     .from('bookings')
     .select('id, parent_id, student_id, status')
@@ -33,8 +34,8 @@ export async function POST(req: NextRequest) {
     .not('status', 'in', '(cancelled,pending_partner)')
   if (!activeBookings || activeBookings.length === 0)
     return NextResponse.json({ error: 'No active bookings on this session' }, { status: 400 })
-  if (activeBookings.some((b: any) => b.status !== 'confirmed'))
-    return NextResponse.json({ error: 'Session has bookings awaiting payment or confirmation and cannot be moved' }, { status: 400 })
+  if (activeBookings.some((b: any) => b.status !== 'confirmed' && b.status !== 'pending_payment'))
+    return NextResponse.json({ error: 'Session has bookings in cart or pending confirmation and cannot be moved' }, { status: 400 })
 
   // Target conflict: any session with students at that coach/date/time
   const { data: conflicts } = await svc
