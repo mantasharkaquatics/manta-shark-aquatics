@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import ChatWidget from '@/components/ChatWidget'
 import { formatDateLA } from '@/lib/date'
+import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -991,7 +992,7 @@ export default function BookingPage() {
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
                 { label: 'Duration', value: `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : 'Credits Used', value: isTrial ? '$85' : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
+                { label: isTrial ? 'Price' : 'Credits Used', value: isTrial ? `$${TRIAL_PRICE_CENTS / 100}` : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',

@@ -4,6 +4,7 @@ import { formatTime12h } from '@/lib/date'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 interface Coach {
   id: string
@@ -777,7 +778,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       }}
                       className="w-4 h-4" />
                     <label htmlFor="isTrialCheckbox" className="text-sm text-white/80 cursor-pointer">
-                      單堂體驗課（$85，僅限 1-on-1，需家長線上付款）
+                      Swim Assessment 檢測課（${TRIAL_PRICE_CENTS / 100}，僅限 1-on-1，需家長線上付款）
                     </label>
                   </div>}
                   <div>

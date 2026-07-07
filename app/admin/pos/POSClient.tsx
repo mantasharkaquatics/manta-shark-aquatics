@@ -225,7 +225,7 @@ export default function POSClient() {
           <p style={{ color: '#9ca3af', fontSize: 18, marginBottom: 4 }}>{selectedParent?.first_name} {selectedParent?.last_name}</p>
           {isTrial ? (
             <>
-              <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Trial 1-on-1 · {selectedStudent?.full_name}</p>
+              <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Swim Assessment · {selectedStudent?.full_name}</p>
             </>
           ) : (
             <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{plan?.name}</p>
@@ -318,7 +318,7 @@ export default function POSClient() {
           </h2>
           <div style={{ maxHeight: 660, overflowY: 'auto' }}>
             <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
-              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Trial Lesson</p>
+              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Swim Assessment</p>
               <button onClick={() => { setIsTrial(!isTrial); setSelectedPlanId(null) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isTrial ? GOLD : '#1e3a6e'}`, backgroundColor: isTrial ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
                 <p style={{ color: isTrial ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>1-on-1 · once per student</p>

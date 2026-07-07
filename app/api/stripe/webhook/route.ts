@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
             lesson_credit_id: credit?.id || null,
             amount: amount_cents / 100,
             payment_method: 'stripe',
-            items: [{ name: 'Trial Lesson (Skill Assessment)', quantity: 1, unit_price: amount_cents / 100 }],
+            items: [{ name: 'Swim Assessment', quantity: 1, unit_price: amount_cents / 100 }],
             stripe_payment_intent_id: session.payment_intent || null,
           }),
         })
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
             to: parentRow.email,
             parentName: parentRow.first_name || 'there',
             studentName: studentRow?.full_name || '',
-            courseName: 'Trial Lesson (Skill Assessment)',
+            courseName: 'Swim Assessment',
             coachName,
             date: sess.session_date,
             time: formatTime12h(String(sess.start_time).slice(0, 5)),
