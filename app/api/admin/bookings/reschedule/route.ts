@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
         to: pa.email,
         parentName: pa.first_name,
         studentName: st?.full_name || '',
-        courseName: course.name,
+        courseName: booking.is_trial ? 'Swim Assessment' : course.name,
         coachName: co ? (co.first_name + ' ' + (co.last_name || '')).trim() : '',
         date,
         time: t12(time) + ' – ' + t12(endTime),

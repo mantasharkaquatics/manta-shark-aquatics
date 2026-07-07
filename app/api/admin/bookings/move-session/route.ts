@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   // completion, and session UPDATE keeps booking/session ids intact, so Stripe flow is unaffected)
   const { data: activeBookings } = await svc
     .from('bookings')
-    .select('id, parent_id, student_id, status')
+    .select('id, parent_id, student_id, status, is_trial')
     .eq('class_session_id', session_id)
     .not('status', 'in', '(cancelled,pending_partner)')
   if (!activeBookings || activeBookings.length === 0)
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
         to: pa.email,
         parentName: pa.first_name,
         studentName: names,
-        courseName: course.name,
+        courseName: activeBookings.some((b: any) => b.is_trial) ? 'Swim Assessment' : course.name,
         coachName: coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : '',
         date,
         time: t12(time) + ' – ' + t12(endTime),

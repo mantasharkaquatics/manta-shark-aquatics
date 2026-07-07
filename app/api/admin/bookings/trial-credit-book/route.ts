@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
           to: parent.email,
           parentName: parent.first_name || 'there',
           studentName: student.full_name,
-          courseName: 'Trial Lesson (Skill Assessment)',
+          courseName: 'Swim Assessment',
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
           time: `${formatTime12h(time)} – ${formatTime12h(endTime)}`,
