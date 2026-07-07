@@ -1091,6 +1091,26 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   const [bookings, setBookings] = useState<any[]>([])
   const [cancelling, setCancelling] = useState(false)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const [reschedulingBooking, setReschedulingBooking] = useState<any>(null)
+  const [newCoachId, setNewCoachId] = useState('')
+  const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('')
+  const [rescheduling, setRescheduling] = useState(false)
+  const [rescheduleError, setRescheduleError] = useState('')
+
+  async function submitReschedule() {
+    if (!reschedulingBooking || !newCoachId || !newDate || !newTime) return
+    setRescheduling(true); setRescheduleError('')
+    const res = await fetch('/api/admin/bookings/reschedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booking_id: reschedulingBooking.id, coach_id: newCoachId, date: newDate, time: newTime }),
+    })
+    const data = await res.json()
+    setRescheduling(false)
+    if (!res.ok) { setRescheduleError(data.error || 'Reschedule failed'); return }
+    onRefresh(); onClose()
+  }
   const ct = getSessionCourseType(session)
   const coach = coaches.find(c => c.id === session.coach_id)
 
@@ -1149,14 +1169,49 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                         <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>單堂</span>
                       )}
                     </span>
-                    <span className="text-xs text-white/40">Lv.{student?.current_level} · {parent?.first_name} {parent?.last_name}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-white/40">Lv.{student?.current_level} · {parent?.first_name} {parent?.last_name}</span>
+                      {(!b.status || b.status === 'confirmed') && (
+                        <button onClick={() => { setReschedulingBooking(b); setNewCoachId(session.coach_id); setNewDate(session.session_date); setNewTime((session.start_time || '').slice(0, 5)); setRescheduleError('') }}
+                          className="px-2 py-1 rounded text-[10px] font-bold border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10">
+                          改期
+                        </button>
+                      )}
+                    </span>
                   </div>
                 )
               })}
             </div>
           )}
         </div>
-        {confirmingCancel ? (
+        {reschedulingBooking ? (
+          <div className="p-6 pt-0">
+            <div className="rounded-lg border border-white/15 bg-white/5 p-4 mb-3 space-y-3">
+              <p className="text-sm text-white font-medium">改期：{(Array.isArray(reschedulingBooking.students) ? reschedulingBooking.students[0] : reschedulingBooking.students)?.full_name}</p>
+              <select value={newCoachId} onChange={e => setNewCoachId(e.target.value)}
+                className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10">
+                {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+              </select>
+              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+                className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" style={{ colorScheme: 'dark' }} />
+              <input type="time" step={900} value={newTime} onChange={e => setNewTime(e.target.value)}
+                className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" style={{ colorScheme: 'dark' }} />
+              {rescheduleError && <p className="text-xs text-red-300">{rescheduleError}</p>}
+              <p className="text-xs text-white/40">改期後會寄通知信給家長；credit 沿用不變。</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={submitReschedule} disabled={rescheduling}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+                style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
+                {rescheduling ? '處理中...' : '確認改期'}
+              </button>
+              <button onClick={() => { setReschedulingBooking(null); setRescheduleError('') }} disabled={rescheduling}
+                className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
+                返回
+              </button>
+            </div>
+          </div>
+        ) : confirmingCancel ? (
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 mb-3">
               <p className="text-sm text-red-300 font-medium">確定要取消這堂課？</p>
