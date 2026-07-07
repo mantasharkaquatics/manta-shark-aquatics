@@ -38,6 +38,7 @@ interface StudentProgress {
 }
 
 interface Credit {
+  is_trial?: boolean
   id: string
   total_credits: number
   used_credits: number
@@ -348,7 +349,7 @@ export default function DashboardPage() {
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
         .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, course_types(name), purchases(paid_at, created_at), invoices(id)')
+        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, is_trial, course_types(name), purchases(paid_at, created_at), invoices(id)')
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
@@ -1336,10 +1337,10 @@ export default function DashboardPage() {
                 credits.forEach(credit => {
                   const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
                   const pur = Array.isArray(credit.purchases) ? credit.purchases[0] : credit.purchases
-                  const key = credit.course_type_id
+                  const key = credit.is_trial ? '__assessment__' : credit.course_type_id
                   const itemDate = pur?.paid_at || pur?.created_at || credit.created_at || null
                   if (!grouped[key]) {
-                    grouped[key] = { name: ct?.name || 'Lesson Credits', total: 0, used: 0, items: [] }
+                    grouped[key] = { name: credit.is_trial ? 'Swim Assessment' : (ct?.name || 'Lesson Credits'), total: 0, used: 0, items: [] }
                   }
                   grouped[key].total += credit.total_credits
                   grouped[key].used += credit.used_credits
@@ -1350,7 +1351,7 @@ export default function DashboardPage() {
                   const remaining = g.total - g.used
                   const pct = Math.round((remaining / g.total) * 100)
                   return (
-                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} />
+                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? 'One-time assessment · not a lesson package' : undefined} />
                   )
                 })
               })()}
