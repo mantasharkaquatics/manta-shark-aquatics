@@ -16,11 +16,14 @@ export async function POST(req: NextRequest) {
 
     const { data: student } = await svc
       .from('students')
-      .select('id, full_name, parent_id, trial_used_at')
+      .select('id, full_name, parent_id, trial_used_at, current_level')
       .eq('id', studentId)
       .single()
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
+    if (student.current_level != null) {
+      return NextResponse.json({ error: 'This student already has an assigned level and does not need a Swim Assessment' }, { status: 400 })
+    }
     // Credit-book path: trial must already be paid (trial_used_at set) with no active trial booking
     if (!student.trial_used_at) {
       return NextResponse.json({ error: 'This student has no paid trial credit' }, { status: 400 })

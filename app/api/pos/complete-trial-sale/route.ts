@@ -25,9 +25,10 @@ export async function POST(req: NextRequest) {
     )
 
     const { data: student } = await supabase
-      .from('students').select('id, full_name, trial_used_at').eq('id', studentId).single()
+      .from('students').select('id, full_name, trial_used_at, current_level').eq('id', studentId).single()
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     if (student.trial_used_at) return NextResponse.json({ error: '此學生已使用過體驗課' }, { status: 400 })
+    if (student.current_level != null) return NextResponse.json({ error: '此學生已有等級，無需測驗課' }, { status: 400 })
 
     const { data: activeTrial } = await supabase
       .from('bookings').select('id').eq('student_id', studentId)
