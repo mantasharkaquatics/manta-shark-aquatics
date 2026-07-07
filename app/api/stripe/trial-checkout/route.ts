@@ -41,13 +41,16 @@ export async function POST(req: NextRequest) {
 
     const { data: student } = await svc
       .from('students')
-      .select('id, full_name, parent_id, trial_used_at')
+      .select('id, full_name, parent_id, trial_used_at, current_level')
       .eq('id', studentId)
       .single()
 
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     if (student.trial_used_at) {
       return NextResponse.json({ error: 'This student has already used their trial lesson' }, { status: 400 })
+    }
+    if (student.current_level != null) {
+      return NextResponse.json({ error: 'This student already has an assigned level and does not need a Swim Assessment' }, { status: 400 })
     }
 
     // Guard: no duplicate trial while one is pending payment or already confirmed
