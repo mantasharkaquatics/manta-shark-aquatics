@@ -209,10 +209,12 @@ export default function RegisterPage() {
       city, state, zip_code: zipCode,
     }).select().single()
     if (parentError || !parent) { setError('Failed to create account: ' + parentError?.message); setLoading(false); return }
+    let sortOrder = 1
     for (const s of students.filter(s => s.fullName.trim())) {
       await supabase.from('students').insert({
         parent_id: parent.id, full_name: s.fullName.trim(),
         date_of_birth: s.dateOfBirth || null, current_level: null, is_active: true,
+        sort_order: sortOrder++,
       })
     }
     setLoading(false)

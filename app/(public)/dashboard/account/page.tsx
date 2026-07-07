@@ -62,7 +62,7 @@ export default function AccountPage() {
       current_level: null,
       is_active: true,
       added_by_parent: true,
-      sort_order: students.length,
+      sort_order: students.length + 1,
     })
     if (error) {
       setAddError('Failed to add swimmer: ' + error.message)
