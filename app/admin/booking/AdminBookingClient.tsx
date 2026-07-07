@@ -403,6 +403,25 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     fetchAll()
   }, [formCourse, students])
 
+  const [dragMove, setDragMove] = useState<any>(null)
+  const [dragMoving, setDragMoving] = useState(false)
+  const [dragMoveError, setDragMoveError] = useState('')
+
+  async function confirmDragMove() {
+    if (!dragMove) return
+    setDragMoving(true); setDragMoveError('')
+    const res = await fetch('/api/admin/bookings/move-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: dragMove.session_id, coach_id: dragMove.to_coach_id, date: dragMove.to_date, time: dragMove.to_time }),
+    })
+    const data = await res.json()
+    setDragMoving(false)
+    if (!res.ok) { setDragMoveError(data.error || 'Reschedule failed'); return }
+    setDragMove(null)
+    loadSessions()
+  }
+
   const loadSessions = useCallback(async () => {
     setLoading(true)
     let from: string, to: string
@@ -707,6 +726,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             />
           ) : (
             <DayView
+              onBookingDrop={(payload, date, time, coachId) => { setDragMove({ ...payload, to_date: date, to_time: time, to_coach_id: coachId }); setDragMoveError('') }}
               crossAccountSessionIds={crossAccountSessionIds}
               date={anchor}
               coaches={coaches}
@@ -718,6 +738,34 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           )}
         </div>
       </div>
+
+      {/* Drag Reschedule Confirm */}
+      {dragMove && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget && !dragMoving) setDragMove(null) }}>
+          <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl p-6">
+            <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>確認改期</h2>
+            <div className="rounded-lg bg-[#111d38] p-4 mb-4 space-y-1.5">
+              <p className="text-sm text-white font-medium">{dragMove.student_names} · {dragMove.course_name}</p>
+              <p className="text-xs text-white/50">{dragMove.from_date} {formatTime12h(dragMove.from_time)} → {dragMove.to_date} {formatTime12h(dragMove.to_time)}</p>
+              <p className="text-xs text-white/50">新教練：{(() => { const c = coaches.find(cc => cc.id === dragMove.to_coach_id); return c ? c.first_name + ' ' + c.last_name : '' })()}</p>
+              <p className="text-xs text-white/40 pt-1">整堂課一起移動；確認後會寄改期通知信給所有相關家長，credit 沿用不變。</p>
+            </div>
+            {dragMoveError && <p className="text-xs text-red-300 mb-3">{dragMoveError}</p>}
+            <div className="flex gap-3">
+              <button onClick={confirmDragMove} disabled={dragMoving}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
+                style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
+                {dragMoving ? '處理中...' : '確認改期'}
+              </button>
+              <button onClick={() => setDragMove(null)} disabled={dragMoving}
+                className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-sm text-white disabled:opacity-50">
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Book Modal */}
       {modal === 'book' && selectedSlot && (
@@ -979,16 +1027,18 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
 // ══════════════════════════════════════════════════════════════════════
 // Day View
 // ══════════════════════════════════════════════════════════════════════
-function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, crossAccountSessionIds }: {
+function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds }: {
   date: Date
   coaches: Coach[]
   getSessionAt: (date: string, time: string, coachId: string) => Session | null
   isCoachAvailable: (id: string, date: Date, time: string) => boolean
   onSlotClick: (date: string, time: string, coachId: string) => void
   onSessionClick: (s: Session) => void
+  onBookingDrop: (payload: any, date: string, time: string, coachId: string) => void
   crossAccountSessionIds: Set<string>
 }) {
   const ds = toDateStr(date)
+  const [overKey, setOverKey] = useState<string | null>(null)
   return (
     <div className="relative">
       <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
@@ -1017,7 +1067,16 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} />
                   ) : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id)}
-                      className="absolute inset-0 hover:bg-[#c9a84c]/10 transition-colors group flex items-center justify-center">
+                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverKey(`${coach.id}-${time}`) }}
+                      onDragLeave={() => setOverKey(k => (k === `${coach.id}-${time}` ? null : k))}
+                      onDrop={e => {
+                        e.preventDefault(); setOverKey(null)
+                        try {
+                          const payload = JSON.parse(e.dataTransfer.getData('text/plain'))
+                          if (payload && payload.session_id) onBookingDrop(payload, ds, time, coach.id)
+                        } catch {}
+                      }}
+                      className={`absolute inset-0 transition-colors group flex items-center justify-center ${overKey === `${coach.id}-${time}` ? 'bg-[#c9a84c]/20 ring-2 ring-[#c9a84c] ring-inset' : 'hover:bg-[#c9a84c]/10'}`}>
                       <span className="hidden group-hover:flex items-center gap-1 text-xs text-[#c9a84c]">
                         <span className="text-base leading-none">+</span> 預約
                       </span>
@@ -1047,11 +1106,28 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
   const isSingleLesson = !hasTrial && session.bookings?.some(b => b.lesson_credit_id === null)
   const is1on2 = ct.slug === '1on2'
   const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
+  const dragOk = activeBookings.length >= 1 && activeBookings.every(b => b.status === 'confirmed')
 
   return (
     <>
       <button onClick={onClick}
-        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
+        draggable={dragOk}
+        onDragStart={e => {
+          if (!dragOk) return
+          const names = activeBookings.map(b => {
+            const st = Array.isArray(b.students) ? b.students[0] : b.students
+            return st?.full_name || ''
+          }).filter(Boolean).join(', ')
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            session_id: session.id,
+            student_names: names,
+            from_date: session.session_date,
+            from_time: session.start_time,
+            course_name: hasTrial ? 'Swim Assessment' : ct.name,
+          }))
+          e.dataTransfer.effectAllowed = 'move'
+        }}
+        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
         style={{ backgroundColor: hasTrial ? '#c9a84c' : colorClass }}>
         <span className="text-sm font-bold leading-tight truncate w-full text-left" style={{ color: hasTrial ? '#1a2744' : '#ffffff' }}>{hasTrial ? 'Swim Assessment' : ct.name}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
