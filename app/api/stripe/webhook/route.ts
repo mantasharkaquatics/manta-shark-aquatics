@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
           course_type_id,
           total_credits: 1,
           used_credits: 1,
+          is_trial: true,
           expires_at: expiresAt.toISOString(),
         })
         .select()
