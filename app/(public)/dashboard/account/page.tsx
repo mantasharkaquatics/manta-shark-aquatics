@@ -49,7 +49,7 @@ export default function AccountPage() {
     setNewsletterSaving(false)
   }
 
-  const MAX_STUDENTS = 4
+  const MAX_STUDENTS = 3
 
   async function submitAddStudent() {
     if (!parent || !newName.trim()) return
@@ -164,7 +164,7 @@ export default function AccountPage() {
             )}
             <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginBottom: '14px' }}>To change existing swimmer info, please contact the swim school.</div>
 
-            {!showAddForm ? (
+            {!showAddForm || students.length >= MAX_STUDENTS ? (
               <button
                 onClick={() => setShowAddForm(true)}
                 disabled={students.length >= MAX_STUDENTS}
