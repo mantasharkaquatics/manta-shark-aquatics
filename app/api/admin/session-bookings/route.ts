@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const { data: bookings, error } = await supabase
     .from('bookings')
-    .select('id, status, lesson_credit_id, parent_id, student_id')
+    .select('id, status, lesson_credit_id, parent_id, student_id, is_trial')
     .eq('class_session_id', session_id)
     .neq('status', 'cancelled')
 

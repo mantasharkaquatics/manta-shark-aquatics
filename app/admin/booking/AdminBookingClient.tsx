@@ -40,7 +40,7 @@ interface Session {
   status: string
   course_type_id: string
   course_types: { name: string; slug: string; duration_minutes: number } | { name: string; slug: string; duration_minutes: number }[]
-  bookings?: { id: string; parent_id: string; lesson_credit_id: string | null; status: string; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
+  bookings?: { id: string; parent_id: string; lesson_credit_id: string | null; status: string; is_trial?: boolean; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
 }
 
 interface BookingSlot {
@@ -1042,7 +1042,8 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
   const ct = getSessionCourseType(session)
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
   const isFull = session.enrolled_count >= session.max_students
-  const isSingleLesson = session.bookings?.some(b => b.lesson_credit_id === null)
+  const hasTrial = !!session.bookings?.some(b => b.is_trial)
+  const isSingleLesson = !hasTrial && session.bookings?.some(b => b.lesson_credit_id === null)
   const is1on2 = ct.slug === '1on2'
   const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
 
@@ -1050,13 +1051,13 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
     <>
       <button onClick={onClick}
         className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''}`}
-        style={{ backgroundColor: colorClass }}>
-        <span className="text-sm font-bold text-white leading-tight truncate w-full text-left">{ct.name}</span>
+        style={{ backgroundColor: hasTrial ? '#c9a84c' : colorClass }}>
+        <span className="text-sm font-bold leading-tight truncate w-full text-left" style={{ color: hasTrial ? '#1a2744' : '#ffffff' }}>{hasTrial ? 'Swim Assessment' : ct.name}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
           const st = Array.isArray(b.students) ? b.students[0] : b.students
           const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
           return st ? (
-            <span key={b.id} className="text-sm font-semibold text-white/90 truncate w-full leading-tight block text-left">
+            <span key={b.id} className="text-sm font-semibold truncate w-full leading-tight block text-left" style={{ color: hasTrial ? 'rgba(26,39,68,0.85)' : 'rgba(255,255,255,0.9)' }}>
               -{pa ? `${pa.first_name} ${pa.last_name}` : ''} ({st.full_name})
             </span>
           ) : null
@@ -1113,6 +1114,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   }
   const ct = getSessionCourseType(session)
   const coach = coaches.find(c => c.id === session.coach_id)
+  const modalHasTrial = bookings.some((b: any) => b.is_trial)
 
   useEffect(() => {
     fetch(`/api/admin/session-bookings?session_id=${session.id}`)
@@ -1137,8 +1139,8 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
       <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
         <div className="p-6 border-b border-white/10 flex items-start justify-between">
           <div>
-            <div className="inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2 text-white" style={{ backgroundColor: COURSE_COLORS[ct.slug] || '#6b7280' }}>
-              {ct.name}
+            <div className="inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2" style={{ backgroundColor: modalHasTrial ? '#c9a84c' : (COURSE_COLORS[ct.slug] || '#6b7280'), color: modalHasTrial ? '#1a2744' : '#ffffff' }}>
+              {modalHasTrial ? 'Swim Assessment' : ct.name}
             </div>
             <p className="text-white font-medium">
               {new Date(session.session_date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
@@ -1165,7 +1167,10 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                   <div key={b.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2.5">
                     <span className="text-sm text-white font-medium flex items-center gap-1.5">
                       {student?.full_name}
-                      {b.lesson_credit_id === null && (
+                      {b.is_trial && (
+                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>測驗</span>
+                      )}
+                      {b.lesson_credit_id === null && !b.is_trial && (
                         <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>單堂</span>
                       )}
                     </span>
