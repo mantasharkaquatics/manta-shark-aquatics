@@ -953,14 +953,15 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                 {daySessions.filter(s => s.enrolled_count > 0).slice(0, 3).map(s => {
                   const ct = Array.isArray(s.course_types) ? s.course_types[0] : s.course_types
                   const slug = ct?.slug || ''
+                  const miniTrial = !!(s as any).bookings?.some((b: any) => b.is_trial)
                   return (
-                    <div key={s.id} className="rounded px-1 py-0.5" style={{ backgroundColor: COURSE_COLORS[slug] || '#6b7280' }}>
+                    <div key={s.id} className="rounded px-1 py-0.5" style={{ backgroundColor: miniTrial ? '#c9a84c' : (COURSE_COLORS[slug] || '#6b7280') }}>
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] text-white font-medium">{formatTime12h(s.start_time)}</span>
+                        <span className="text-[9px] font-medium" style={{ color: miniTrial ? '#1a2744' : '#ffffff' }}>{formatTime12h(s.start_time)}</span>
                       </div>
                       {(s as any).bookings && (s as any).bookings.filter((b: any) => b.status !== 'cancelled' && b.status !== 'pending_partner').map((b: any) => {
                         const st = Array.isArray(b.students) ? b.students[0] : b.students
-                        return st ? <div key={b.id} className="text-[8px] text-white/90 truncate leading-tight">{st.full_name}</div> : null
+                        return st ? <div key={b.id} className="text-[8px] truncate leading-tight" style={{ color: miniTrial ? 'rgba(26,39,68,0.85)' : 'rgba(255,255,255,0.9)' }}>{st.full_name}</div> : null
                       })}
                     </div>
                   )
