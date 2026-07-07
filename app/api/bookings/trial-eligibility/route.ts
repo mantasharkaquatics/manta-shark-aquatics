@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const { data: student } = await svc
     .from('students')
-    .select('id, trial_used_at')
+    .select('id, trial_used_at, current_level')
     .eq('id', studentId)
     .single()
 
@@ -42,8 +42,9 @@ export async function GET(req: NextRequest) {
   const hasActiveTrial = !!(existingTrial && existingTrial.length > 0)
 
   return NextResponse.json({
-    eligible: !student.trial_used_at && !hasActiveTrial,
+    eligible: !student.trial_used_at && !hasActiveTrial && student.current_level == null,
     trialUsedAt: student.trial_used_at,
     hasActiveTrial,
+    hasLevel: student.current_level != null,
   })
 }

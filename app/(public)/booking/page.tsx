@@ -754,7 +754,7 @@ export default function BookingPage() {
                             <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
                             <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>連動</span>
                           </div>
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · 需對方 15 分鐘內確認</div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · Partner must confirm within 15 min</div>
                         </div>
                       </div>
                     </SelectCard>
