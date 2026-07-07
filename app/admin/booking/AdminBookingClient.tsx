@@ -272,7 +272,7 @@ function StudentSearch({ students, value, onChange, parentCreditsCache }: {
                   <p className="text-sm text-white font-medium">{s.full_name}</p>
                   <p className="text-xs text-white/40">{parent?.first_name} {parent?.last_name} · {parent?.email}</p>
                 </div>
-                <span className="text-xs text-white/30 ml-2 flex-shrink-0">Lv.{s.current_level}</span>
+                <span className="text-xs ml-2 flex-shrink-0" style={{ color: s.current_level == null ? '#fbbf24' : 'rgba(255,255,255,0.3)' }}>{s.current_level == null ? '⚠ 未測驗' : `Lv.${s.current_level}`}</span>
                 {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentCreditsCache[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem} 堂</span> : null })()}
               </button>
             )
@@ -870,6 +870,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       )}
                     </div>
                   )}
+                  {(() => { const st = students.find(s => s.id === formStudent); return st && st.current_level == null && !isTrial ? (
+                    <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">⚠️ 此學生尚未完成 Swim Assessment(未評級)。管理員可直接預約,但請確認是否要在未測驗的情況下安排此課程。</p>
+                  ) : null })()}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
                 </>

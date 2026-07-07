@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       line_items: [{
         price_data: {
           currency: 'usd',
-          product_data: { name: `Trial Lesson (Skill Assessment) - 30 min - ${student.full_name}` },
+          product_data: { name: `Swim Assessment - 30 min - ${student.full_name}` },
           unit_amount: TRIAL_PRICE_CENTS,
         },
         quantity: 1,
@@ -176,13 +176,15 @@ export async function POST(req: NextRequest) {
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=cancelled`,
     })
 
+    await svc.from('bookings').update({ stripe_session_id: checkoutSession.id }).eq('id', booking.id)
+
     try {
       await sendEmail({
           type: 'trial_payment_link',
           to: parent?.email || '',
           parentName: parent?.first_name || 'there',
           studentName: student.full_name,
-          courseName: 'Trial Lesson (Skill Assessment)',
+          courseName: 'Swim Assessment',
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
           time,
