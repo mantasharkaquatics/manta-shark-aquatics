@@ -165,9 +165,11 @@ export async function POST(req: NextRequest) {
 
     // Student ownership
     const { data: student } = await svc
-      .from('students').select('id, full_name, parent_id').eq('id', student_id).single()
+      .from('students').select('id, full_name, parent_id, current_level').eq('id', student_id).single()
     if (!student || student.parent_id !== parent.id)
       return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+    if (student.current_level == null)
+      return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons. Please book a Swim Assessment first.' }, { status: 403 })
 
     // Coach conflict / full check (in_cart counts via trigger-maintained enrolled_count)
     const { data: conflicts } = await svc

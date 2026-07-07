@@ -108,15 +108,19 @@ export async function POST(req: NextRequest) {
 
   // Student ownership
   const { data: student } = await svc
-    .from('students').select('id, full_name, parent_id').eq('id', student_id).single()
+    .from('students').select('id, full_name, parent_id, current_level').eq('id', student_id).single()
   if (!student || student.parent_id !== parent.id)
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+  if (student.current_level == null)
+    return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons. Please book a Swim Assessment first.' }, { status: 403 })
   let student2: any = null
   if (student2_id) {
     const { data: s2 } = await svc
-      .from('students').select('id, parent_id').eq('id', student2_id).single()
+      .from('students').select('id, parent_id, current_level').eq('id', student2_id).single()
     if (!s2 || s2.parent_id !== parent.id)
       return NextResponse.json({ error: 'Second student not found' }, { status: 403 })
+    if (s2.current_level == null)
+      return NextResponse.json({ error: 'The second student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
     student2 = s2
   }
 
@@ -218,10 +222,14 @@ export async function POST(req: NextRequest) {
   let partnerBookingId: string | null = null
   if (isPartnerBooking && partner) {
     const { data: pStudent } = await svc
-      .from('students').select('id, parent_id, full_name').eq('id', partner.student_id).single()
+      .from('students').select('id, parent_id, full_name, current_level').eq('id', partner.student_id).single()
     if (!pStudent || pStudent.parent_id !== partner.parent_id) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_invalid' }).eq('id', newBooking.id)
       return NextResponse.json({ error: 'Partner student not found' }, { status: 400 })
+    }
+    if (pStudent.current_level == null) {
+      await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_needs_assessment' }).eq('id', newBooking.id)
+      return NextResponse.json({ error: 'The partner student must complete a Swim Assessment before booking lessons.' }, { status: 400 })
     }
     const expiry = new Date(Date.now() + 15 * 60 * 1000).toISOString()
     const { data: guest, error: guestErr } = await svc.from('bookings').insert({

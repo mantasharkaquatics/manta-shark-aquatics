@@ -337,6 +337,8 @@ export default function BookingPage() {
     : 0
   const remainingCredits = totalRemainingCredits
 
+  const needsAssessment = !!selectedStudent && selectedStudent.current_level == null
+
   async function handleConfirm() {
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || (!availableCredit && !isTrial)) return
     setSubmitting(true)
@@ -651,6 +653,13 @@ export default function BookingPage() {
         {step === 1 && (
           <div>
             <SectionTitle eyebrow="Step 2" title="What type of lesson?" />
+            {needsAssessment && (
+              <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: GOLD, lineHeight: 1.5 }}>
+                {trialEligible
+                  ? 'First lesson must be a Swim Assessment. Other lessons unlock once a level is assigned after the assessment.'
+                  : 'Swim Assessment completed — level pending. Please contact the front desk to have a level assigned before booking other lessons.'}
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {trialEligible && !isReschedule && (
                 <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
@@ -658,7 +667,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <span style={{ fontSize: '28px' }}>⭐</span>
                       <div>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>Trial Lesson (Skill Assessment)</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>Swim Assessment</div>
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>30 min · 1-on-1 · One per student</div>
                       </div>
                     </div>
@@ -672,7 +681,7 @@ export default function BookingPage() {
                   .filter(c => c.course_type_id === ct.id)
                   .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
                 return (
-                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { setSelectedCourse(ct); setIsTrial(false) }} color={color}>
+                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
