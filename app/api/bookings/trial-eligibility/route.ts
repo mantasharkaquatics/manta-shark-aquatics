@@ -41,8 +41,19 @@ export async function GET(req: NextRequest) {
 
   const hasActiveTrial = !!(existingTrial && existingTrial.length > 0)
 
+  // Paid (e.g. at POS) but not yet scheduled: an unused assessment credit exists
+  const { data: unusedCredit } = await svc
+    .from('lesson_credits')
+    .select('id')
+    .eq('student_id', studentId)
+    .eq('is_trial', true)
+    .eq('used_credits', 0)
+    .limit(1)
+  const hasCredit = !!(unusedCredit && unusedCredit.length > 0) && !hasActiveTrial && student.current_level == null
+
   return NextResponse.json({
     eligible: !student.trial_used_at && !hasActiveTrial && student.current_level == null,
+    hasCredit,
     trialUsedAt: student.trial_used_at,
     hasActiveTrial,
     hasLevel: student.current_level != null,

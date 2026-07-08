@@ -160,6 +160,7 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
   const [trialEligible, setTrialEligible] = useState(false)
+  const [trialHasCredit, setTrialHasCredit] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
   const [cartRefresh, setCartRefresh] = useState(0)
   const [addingToCart, setAddingToCart] = useState(false)
@@ -168,11 +169,12 @@ export default function BookingPage() {
   useEffect(() => {
     setIsTrial(false)
     setTrialEligible(false)
+    setTrialHasCredit(false)
     if (!selectedStudent) return
     fetch(`/api/bookings/trial-eligibility?student_id=${selectedStudent.id}`)
       .then(r => r.ok ? r.json() : { eligible: false })
-      .then(j => setTrialEligible(!!j.eligible))
-      .catch(() => setTrialEligible(false))
+      .then(j => { setTrialEligible(!!j.eligible); setTrialHasCredit(!!j.hasCredit) })
+      .catch(() => { setTrialEligible(false); setTrialHasCredit(false) })
   }, [selectedStudent])
 
   const today = new Date()
@@ -347,6 +349,26 @@ export default function BookingPage() {
     const dateStr = formatDateLA(selectedDate)
     const startTime = selectedSlot.time
 
+    if (isTrial && trialHasCredit) {
+      const res = await fetch('/api/bookings/trial-credit-book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: selectedStudent.id,
+          coachId: selectedCoach.id,
+          date: dateStr,
+          time: startTime,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(j.error || 'Could not book. Please try again.')
+        setSubmitting(false)
+        return
+      }
+      window.location.href = '/dashboard'
+      return
+    }
     if (isTrial) {
       const res = await fetch('/api/stripe/trial-checkout', {
         method: 'POST',
@@ -656,13 +678,15 @@ export default function BookingPage() {
             <SectionTitle eyebrow="Step 2" title="What type of lesson?" />
             {needsAssessment && (
               <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: GOLD, lineHeight: 1.5 }}>
-                {trialEligible
+                {trialHasCredit
+                  ? 'Your Swim Assessment is prepaid — pick a time below to schedule it.'
+                  : trialEligible
                   ? 'First lesson must be a Swim Assessment. Other lessons unlock once a level is assigned after the assessment.'
                   : 'Swim Assessment completed — level pending. Please contact the front desk to have a level assigned before booking other lessons.'}
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {trialEligible && !isReschedule && (
+              {(trialEligible || trialHasCredit) && !isReschedule && (
                 <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -672,7 +696,7 @@ export default function BookingPage() {
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>30 min · 1-on-1 · One per student</div>
                       </div>
                     </div>
-                    <div style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, color: GOLD }}>$85</div>
+                    <div style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, color: GOLD }}>{trialHasCredit ? 'Prepaid' : '$85'}</div>
                   </div>
                 </SelectCard>
               )}
@@ -992,7 +1016,7 @@ export default function BookingPage() {
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
                 { label: 'Duration', value: `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : 'Credits Used', value: isTrial ? `$${TRIAL_PRICE_CENTS / 100}` : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
+                { label: isTrial ? 'Price' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1050,7 +1074,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
-              >{submitting ? (isTrial ? 'Redirecting...' : 'Booking...') : isTrial ? 'Continue to Payment →' : isReschedule ? 'Confirm Reschedule ✓' : 'Confirm Booking ✓'}</button>
+              >{submitting ? (isTrial && !trialHasCredit ? 'Redirecting...' : 'Booking...') : isTrial ? (trialHasCredit ? 'Confirm Booking ✓' : 'Continue to Payment →') : isReschedule ? 'Confirm Reschedule ✓' : 'Confirm Booking ✓'}</button>
             </div>
           </div>
         )}

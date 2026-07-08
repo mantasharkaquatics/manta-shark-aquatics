@@ -222,11 +222,12 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   )
 }
 
-function CreditCard({ g, remaining, pct, note }: {
+function CreditCard({ g, remaining, pct, note, bookHref }: {
   g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null }[] }
   remaining: number
   pct: number
   note?: string
+  bookHref?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   return (
@@ -240,6 +241,11 @@ function CreditCard({ g, remaining, pct, note }: {
       <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginBottom: '12px' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: '#c9a84c', borderRadius: '2px' }} />
       </div>
+      {bookHref && (
+        <Link href={bookHref} style={{ display: 'block', textAlign: 'center', padding: '9px 0', marginBottom: '12px', background: '#c9a84c', color: '#1a2744', borderRadius: '8px', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' }}>
+          Book Now
+        </Link>
+      )}
       <button
         onClick={() => setExpanded(!expanded)}
         style={{
@@ -1351,7 +1357,7 @@ export default function DashboardPage() {
                   const remaining = g.total - g.used
                   const pct = Math.round((remaining / g.total) * 100)
                   return (
-                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? 'One-time assessment · not a lesson package' : undefined} />
+                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? 'One-time assessment · not a lesson package' : undefined} bookHref={key === '__assessment__' && remaining > 0 ? '/booking' : undefined} />
                   )
                 })
               })()}
