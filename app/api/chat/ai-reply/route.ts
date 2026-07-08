@@ -20,7 +20,7 @@ function minutesUntilSession(sessionDate: string, startTime: string): number {
   return dayDiff * 1440 + (h * 60 + m) - getNowMinutesLA()
 }
 
-async function getTrialSlots(svc: any, date: string, coachId?: string) {
+async function getTrialSlots(svc: any, date: string, coachId: string | undefined, parentId: string) {
   const today = getTodayLA()
   const dayDiff = Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000)
   if (isNaN(dayDiff) || dayDiff < 0) return { error: 'Date is in the past or invalid.' }
@@ -44,6 +44,30 @@ async function getTrialSlots(svc: any, date: string, coachId?: string) {
     if (!blocked.has(s.coach_id)) blocked.set(s.coach_id, new Set())
     blocked.get(s.coach_id)!.add(String(s.start_time).slice(0, 5))
   }
+  const { data: ownBookings } = await svc
+    .from('bookings')
+    .select('class_session_id, student_id, status')
+    .eq('parent_id', parentId)
+    .not('status', 'in', '("cancelled","pending_partner")')
+  const ownSessionIds = (ownBookings || []).map((b: any) => b.class_session_id).filter(Boolean)
+  const ownTimes = new Map<string, string>()
+  if (ownSessionIds.length) {
+    const { data: ownSess } = await svc
+      .from('class_sessions')
+      .select('id, coach_id, start_time')
+      .in('id', ownSessionIds)
+      .eq('session_date', date)
+    const stuIds = [...new Set((ownBookings || []).map((b: any) => b.student_id).filter(Boolean))]
+    const { data: stus } = stuIds.length
+      ? await svc.from('students').select('id, full_name').in('id', stuIds)
+      : { data: [] }
+    const stuMap = new Map((stus || []).map((x: any) => [x.id, x.full_name]))
+    for (const sess of ownSess || []) {
+      const bk = (ownBookings || []).find((b: any) => b.class_session_id === sess.id)
+      ownTimes.set(`${sess.coach_id}|${String(sess.start_time).slice(0, 5)}`, String(stuMap.get(bk?.student_id) || 'your student'))
+    }
+  }
+
   const nowMins = getNowMinutesLA()
   const out: any[] = []
   for (const c of coaches) {
@@ -60,7 +84,10 @@ async function getTrialSlots(svc: any, date: string, coachId?: string) {
         cur += 30
       }
     }
-    if (times.length) out.push({ coach_id: c.id, coach: `${c.first_name} ${c.last_name}`, available_times: times })
+    const own = [...ownTimes.entries()]
+      .filter(([k]) => k.startsWith(c.id + '|'))
+      .map(([k, v]) => ({ time: k.split('|')[1], label: formatTime12h(k.split('|')[1]), already_booked_by_this_family_for: v }))
+    if (times.length || own.length) out.push({ coach_id: c.id, coach: `${c.first_name} ${c.last_name}`, available_times: times, ...(own.length ? { this_familys_existing_bookings_at: own, note: 'Times in this_familys_existing_bookings_at are NOT free slots taken by others - they are THIS parent own existing bookings. Never suggest rebooking them or describe them as unavailable.' } : {}) })
   }
   return { date, slots: out }
 }
@@ -393,7 +420,7 @@ export async function POST(req: NextRequest) {
     if (name === 'get_trial_slots') {
       const date = String(input.date || '')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date must be YYYY-MM-DD.' }
-      return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined)
+      return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined, parent!.id)
     }
 
     if (name === 'book_trial_pending') {
