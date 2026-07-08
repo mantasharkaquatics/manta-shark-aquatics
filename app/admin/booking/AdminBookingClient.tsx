@@ -49,6 +49,16 @@ interface BookingSlot {
   coachId: string
 }
 
+interface Block {
+  id: string
+  coach_id: string
+  date: string
+  start_time: string | null
+  end_time: string | null
+  block_type: string
+  reason: string | null
+}
+
 interface Props {
   coaches: Coach[]
   students: Student[]
@@ -301,7 +311,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   })
   const [sessions, setSessions] = useState<Session[]>(initialSessions)
   const [loading, setLoading] = useState(false)
-  const [modal, setModal] = useState<'book' | 'detail' | null>(null)
+  const [modal, setModal] = useState<'book' | 'detail' | 'block' | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [formStudent, setFormStudent] = useState('')
@@ -316,6 +326,65 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [recurSkips, setRecurSkips] = useState<string[]>([])
   const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; credits: any } | null>(null)
   const [recurLoading, setRecurLoading] = useState(false)
+  const [blocks, setBlocks] = useState<Block[]>([])
+  const [blockAllDay, setBlockAllDay] = useState(false)
+  const [blockStart, setBlockStart] = useState('')
+  const [blockEnd, setBlockEnd] = useState('')
+  const [blockReason, setBlockReason] = useState('')
+  const [blockSaving, setBlockSaving] = useState(false)
+  const [blockError, setBlockError] = useState('')
+
+  const loadBlocks = useCallback(async () => {
+    let from: string, to: string
+    if (view === 'month') {
+      const dates = getMonthDates(anchor)
+      from = toDateStr(dates[0])
+      to = toDateStr(dates[dates.length - 1])
+    } else {
+      from = toDateStr(anchor)
+      to = toDateStr(anchor)
+    }
+    const { data } = await supabase
+      .from('coach_time_off')
+      .select('id, coach_id, date, start_time, end_time, block_type, reason')
+      .gte('date', from)
+      .lte('date', to)
+    setBlocks((data || []) as Block[])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchor, view])
+
+  useEffect(() => { loadBlocks() }, [loadBlocks])
+
+  async function handleCreateBlock() {
+    if (!selectedSlot) return
+    if (!blockAllDay && (!blockStart || !blockEnd || blockStart >= blockEnd)) {
+      setBlockError('請選擇有效的時間區間')
+      return
+    }
+    setBlockSaving(true)
+    setBlockError('')
+    const res = await fetch('/api/admin/time-off', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        coach_id: selectedSlot.coachId,
+        date: selectedSlot.date,
+        all_day: blockAllDay,
+        start_time: blockStart,
+        end_time: blockEnd,
+        reason: blockReason,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setBlockError(data.error || '建立封鎖失敗')
+      setBlockSaving(false)
+      return
+    }
+    await loadBlocks()
+    setBlockSaving(false)
+    setModal(null)
+  }
 
   async function fetchRecurPreview(skips: string[]) {
     if (!selectedSlot || !formCourse || !formStudent) { setError('請先選擇課程類型與學生'); return }
@@ -728,6 +797,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             <DayView
               onBookingDrop={(payload, date, time, coachId) => { setDragMove({ ...payload, to_date: date, to_time: time, to_coach_id: coachId }); setDragMoveError('') }}
               crossAccountSessionIds={crossAccountSessionIds}
+              blocks={blocks}
               date={anchor}
               coaches={coaches}
               getSessionAt={getSessionAt}
@@ -812,6 +882,17 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     <button onClick={() => { setBookMode('recurring'); setIsTrial(false) }}
                       className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'recurring' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
                       循環預約（每週同時段）
+                    </button>
+                    <button onClick={() => {
+                        setBlockAllDay(false)
+                        setBlockStart(selectedSlot.time)
+                        setBlockEnd(minutesToTime(timeToMinutes(selectedSlot.time) + SLOT_MINUTES))
+                        setBlockReason('')
+                        setBlockError('')
+                        setModal('block')
+                      }}
+                      className="col-span-2 px-3 py-2 rounded-lg border text-sm transition-all border-white/10 text-white/60 hover:border-red-400/50 hover:text-red-300">
+                      🚫 封鎖此教練時段（家長端不可預約）
                     </button>
                   </div>
                   {bookMode === 'single' && <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5">
@@ -950,6 +1031,61 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         </div>
       )}
 
+      {/* Block Modal */}
+      {modal === 'block' && selectedSlot && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setModal(null) }}>
+          <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="p-6 border-b border-white/10 flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>封鎖時段</h2>
+                <p className="text-sm text-white/50 mt-1">
+                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
+                  {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
+                </p>
+              </div>
+              <button onClick={() => setModal(null)} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <label className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5 cursor-pointer">
+                <input type="checkbox" checked={blockAllDay} onChange={e => setBlockAllDay(e.target.checked)} className="w-4 h-4" />
+                <span className="text-sm text-white/80">整天封鎖</span>
+              </label>
+              {!blockAllDay && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-white/60 mb-2">開始</label>
+                    <input type="time" value={blockStart} onChange={e => setBlockStart(e.target.value)}
+                      className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-white/60 mb-2">結束</label>
+                    <input type="time" value={blockEnd} onChange={e => setBlockEnd(e.target.value)}
+                      className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm text-white/60 mb-2">原因（選填）</label>
+                <textarea value={blockReason} onChange={e => setBlockReason(e.target.value)} rows={2}
+                  placeholder="例如：場地保養、私人活動..."
+                  className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c] resize-none placeholder-white/20" />
+              </div>
+              <p className="text-xs text-white/30">封鎖後家長端（訂課頁、購物車、AI 助理）無法預約此區間；既有已確認課程不受影響；管理員仍可手動排課。</p>
+              {blockError && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{blockError}</p>}
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">取消</button>
+              <button onClick={handleCreateBlock} disabled={blockSaving}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50"
+                style={{ backgroundColor: '#ef4444', color: '#fff' }}>
+                {blockSaving ? '封鎖中...' : '確認封鎖'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Detail Modal */}
       {modal === 'detail' && selectedSession && (
         <DetailModal
@@ -1027,8 +1163,9 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
 // ══════════════════════════════════════════════════════════════════════
 // Day View
 // ══════════════════════════════════════════════════════════════════════
-function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds }: {
+function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks }: {
   date: Date
+  blocks: Block[]
   coaches: Coach[]
   getSessionAt: (date: string, time: string, coachId: string) => Session | null
   isCoachAvailable: (id: string, date: Date, time: string) => boolean
@@ -1061,6 +1198,13 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
             {coaches.map(coach => {
               const session = getSessionAt(ds, time, coach.id)
               const available = isCoachAvailable(coach.id, date, time)
+              const blk = blocks.find(b =>
+                b.date === ds && b.coach_id === coach.id && (
+                  b.start_time == null ||
+                  (timeToMinutes(time) < timeToMinutes(String(b.end_time).slice(0, 5)) &&
+                   timeToMinutes(time) + SLOT_MINUTES > timeToMinutes(String(b.start_time).slice(0, 5)))
+                ))
+              const blkLabelHere = blk && (blk.start_time == null ? time === TIME_SLOTS[0] : String(blk.start_time).slice(0, 5) === time)
               return (
                 <div key={`${coach.id}-${time}`} className="min-h-20 border-t border-l border-white/5 relative">
                   {session && session.enrolled_count > 0 ? (
@@ -1083,6 +1227,20 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                     </button>
                   ) : (
                     <div className="absolute inset-0 bg-white/[0.015]" />
+                  )}
+                  {blk && (
+                    <div className="absolute inset-0 pointer-events-none z-[5]"
+                      style={{ background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 6px, transparent 6px, transparent 12px)' }}>
+                      {blkLabelHere && (
+                        <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
+                          style={{
+                            backgroundColor: blk.block_type === 'admin_block' ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.14)',
+                            color: blk.block_type === 'admin_block' ? '#f87171' : 'rgba(255,255,255,0.75)',
+                          }}>
+                          {blk.block_type === 'admin_block' ? '🚫 封鎖' : '請假'}{blk.start_time == null ? '(整天)' : ''}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               )
