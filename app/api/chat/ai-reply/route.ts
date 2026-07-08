@@ -9,7 +9,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { cancelBookingWithPartner } from '@/lib/bookings/cancel'
 
 const FALLBACK = 'Thanks for your message! A member of our team will get back to you shortly.'
-const MODEL = 'claude-haiku-4-5'
+const MODEL = 'claude-sonnet-4-6'
 const CANCEL_LOCK_MINUTES = 24 * 60
 
 function minutesUntilSession(sessionDate: string, startTime: string): number {
@@ -18,6 +18,51 @@ function minutesUntilSession(sessionDate: string, startTime: string): number {
   )
   const [h, m] = startTime.split(':').map(Number)
   return dayDiff * 1440 + (h * 60 + m) - getNowMinutesLA()
+}
+
+async function getTrialSlots(svc: any, date: string, coachId?: string) {
+  const today = getTodayLA()
+  const dayDiff = Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000)
+  if (isNaN(dayDiff) || dayDiff < 0) return { error: 'Date is in the past or invalid.' }
+  if (dayDiff > 14) return { error: 'Slots can only be checked up to 14 days ahead. Ask the parent for a date within 2 weeks.' }
+  const dow = new Date(date + 'T00:00:00Z').getUTCDay()
+
+  let coachQ = svc.from('coaches').select('id, first_name, last_name').eq('is_active', true)
+  if (coachId) coachQ = coachQ.eq('id', coachId)
+  const { data: coaches } = await coachQ
+  if (!coaches || coaches.length === 0) return { error: 'Coach not found.' }
+  const ids = coaches.map((c: any) => c.id)
+
+  const [availRes, offRes, sessRes] = await Promise.all([
+    svc.from('coach_availability').select('coach_id, start_time, end_time').in('coach_id', ids).eq('day_of_week', dow).eq('is_active', true),
+    svc.from('coach_time_off').select('coach_id').in('coach_id', ids).eq('date', date),
+    svc.from('class_sessions').select('coach_id, start_time').in('coach_id', ids).eq('session_date', date).in('status', ['open', 'full']).gt('enrolled_count', 0),
+  ])
+  const offSet = new Set((offRes.data || []).map((o: any) => o.coach_id))
+  const blocked = new Map<string, Set<string>>()
+  for (const s of sessRes.data || []) {
+    if (!blocked.has(s.coach_id)) blocked.set(s.coach_id, new Set())
+    blocked.get(s.coach_id)!.add(String(s.start_time).slice(0, 5))
+  }
+  const nowMins = getNowMinutesLA()
+  const out: any[] = []
+  for (const c of coaches) {
+    if (offSet.has(c.id)) continue
+    const times: { time: string; label: string }[] = []
+    for (const w of (availRes.data || []).filter((a: any) => a.coach_id === c.id)) {
+      const [sh, sm] = String(w.start_time).slice(0, 5).split(':').map(Number)
+      const [eh, em] = String(w.end_time).slice(0, 5).split(':').map(Number)
+      let cur = sh * 60 + sm
+      const endMin = eh * 60 + em
+      while (cur + 30 <= endMin) {
+        const t = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`
+        if (!(dayDiff === 0 && cur <= nowMins + 30) && !blocked.get(c.id)?.has(t)) times.push({ time: t, label: formatTime12h(t) })
+        cur += 30
+      }
+    }
+    if (times.length) out.push({ coach_id: c.id, coach: `${c.first_name} ${c.last_name}`, available_times: times })
+  }
+  return { date, slots: out }
 }
 
 const TOOLS = [
@@ -61,6 +106,37 @@ const TOOLS = [
       type: 'object',
       properties: { plan_id: { type: 'string', description: 'One of the plan ids listed in the system prompt' } },
       required: ['plan_id'],
+    },
+  },
+  {
+    name: 'get_my_students',
+    description: "Get the parent's students with real student_id values, whether each has an assigned level, and whether they still need a Swim Assessment.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'get_trial_slots',
+    description: 'Get real available Swim Assessment time slots for a date (within 14 days). Optionally filter by coach_id. Never invent availability; only present times returned by this tool.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD' },
+        coach_id: { type: 'string', description: 'Optional coach_id from a previous get_trial_slots result' },
+      },
+      required: ['date'],
+    },
+  },
+  {
+    name: 'book_trial_pending',
+    description: 'Reserve one Swim Assessment slot (pending payment) and get a secure payment link. Only call AFTER the parent has clearly confirmed this exact student, date and time in a LATER message. The slot is held ~30 minutes; the booking is confirmed only after the parent pays.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        student_id: { type: 'string', description: 'From get_my_students' },
+        coach_id: { type: 'string', description: 'From get_trial_slots' },
+        date: { type: 'string', description: 'YYYY-MM-DD' },
+        time: { type: 'string', description: 'HH:MM 24h, from get_trial_slots' },
+      },
+      required: ['student_id', 'coach_id', 'date', 'time'],
     },
   },
   {
@@ -141,6 +217,7 @@ export async function POST(req: NextRequest) {
   const cookieHeader = req.headers.get('cookie') || ''
   let escalate = false
   let cancelSucceededThisTurn = false
+  let trialBookSucceededThisTurn = false
 
   // ---------- helpers used by multiple tools ----------
   async function fetchLessonRows(pastNotFuture: boolean) {
@@ -300,6 +377,55 @@ export async function POST(req: NextRequest) {
       return { url: data.url, plan: p.name, price: `$${(p.amount / 100).toLocaleString('en-US')}` }
     }
 
+    if (name === 'get_my_students') {
+      const { data: studs } = await svc
+        .from('students')
+        .select('id, full_name, current_level, trial_used_at')
+        .eq('parent_id', parent!.id)
+      return (studs || []).map((s: any) => ({
+        student_id: s.id,
+        name: s.full_name,
+        has_assigned_level: s.current_level != null,
+        needs_assessment: s.current_level == null && !s.trial_used_at,
+      }))
+    }
+
+    if (name === 'get_trial_slots') {
+      const date = String(input.date || '')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date must be YYYY-MM-DD.' }
+      return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined)
+    }
+
+    if (name === 'book_trial_pending') {
+      const studentId = String(input.student_id || '')
+      const coachId = String(input.coach_id || '')
+      const date = String(input.date || '')
+      const time = String(input.time || '')
+      if (!studentId || !coachId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time))
+        return { error: 'Missing or invalid fields. Ids must come from get_my_students / get_trial_slots.' }
+      const { data: owned } = await svc
+        .from('students').select('id, full_name').eq('id', studentId).eq('parent_id', parent!.id).single()
+      if (!owned) return { error: 'Student not found on this account. Call get_my_students for real ids.' }
+      const res = await fetch(`${origin}/api/stripe/trial-checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: cookieHeader },
+        body: JSON.stringify({ studentId, coachId, date, time }),
+      })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok || !data.url) {
+        return { error: data.error || 'Could not reserve this slot. It may have just been taken - check get_trial_slots again and offer other times.' }
+      }
+      trialBookSucceededThisTurn = true
+      return {
+        success: true,
+        student: owned.full_name,
+        date,
+        time: formatTime12h(time),
+        payment_url: data.url,
+        note: 'Slot reserved PENDING PAYMENT only. The parent must pay via payment_url within 30 minutes or the slot is released automatically. Never say the booking is confirmed.',
+      }
+    }
+
     if (name === 'escalate_to_human') {
       escalate = true
       return { acknowledged: true }
@@ -399,6 +525,15 @@ export async function POST(req: NextRequest) {
         finalText =
           'I was not able to complete that cancellation just now, so nothing has been changed on your account. A team member has been notified and will follow up shortly.'
       }
+    }
+
+    const claimsTrialBooked =
+      /(已保留|已為您保留|已為您預約|已幫您預約|預約成功|已成功預約|slot (is|has been) reserved|reserved (the|this|your) slot|successfully (booked|reserved))/i.test(finalText)
+    if (claimsTrialBooked && !trialBookSucceededThisTurn) {
+      console.error('[ai-reply guard] blocked hallucinated trial booking claim:', finalText.slice(0, 200))
+      escalate = true
+      finalText =
+        'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.'
     }
 
     let replyBody = finalText
