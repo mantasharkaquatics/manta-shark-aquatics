@@ -23,6 +23,8 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [unread, setUnread] = useState(0)
+  const [awaitingAi, setAwaitingAi] = useState(false)
+  const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
@@ -38,6 +40,10 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
       .channel(`chat:${threadId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` }, (payload) => {
         setMessages(prev => [...prev, payload.new])
+        if ((payload.new as any)?.sender_type !== 'parent') {
+          setAwaitingAi(false)
+          if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
+        }
         if (!open) setUnread(u => u + 1)
       })
       .subscribe()
@@ -46,7 +52,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, awaitingAi])
 
   useEffect(() => {
     if (open) setUnread(0)
@@ -87,6 +93,9 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
     await supabase.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body })
     await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body }).eq('id', threadId)
     setSending(false)
+    setAwaitingAi(true)
+    if (awaitTimerRef.current) clearTimeout(awaitTimerRef.current)
+    awaitTimerRef.current = setTimeout(() => setAwaitingAi(false), 60000)
     try {
       const res = await fetch('/api/chat/ai-reply', {
         method: 'POST',
@@ -95,6 +104,8 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
       })
       if (!res.ok) throw new Error('ai-reply failed')
     } catch {
+      setAwaitingAi(false)
+      if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
       await supabase.from('chat_threads').update({ unread_by_admin: true }).eq('id', threadId)
     }
   }
@@ -114,6 +125,9 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
 
   return (
     <>
+      <style>{`
+        @keyframes msaTypingBlink { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+      `}</style>
       {/* FAB Button */}
       {!open && (
         <button data-chat-toggle onClick={() => setOpen(true)} style={{
@@ -185,6 +199,15 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                 </div>
               </div>
             ))}
+            {awaitingAi && (
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  {[0, 1, 2].map(i => (
+                    <span key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'rgba(255,255,255,0.7)', display: 'inline-block', animation: 'msaTypingBlink 1.2s infinite', animationDelay: `${i * 0.2}s` }} />
+                  ))}
+                </div>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
