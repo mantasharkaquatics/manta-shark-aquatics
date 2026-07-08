@@ -36,11 +36,47 @@ export default async function AdminTimeOffPage() {
       .order('first_name'),
   ])
 
+  // 每個 block 的受影響統計(confirmed / notified / cancelled-by-block)
+  const allBlocks = [...(timeOffList || []), ...(pastList || [])]
+  const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  const stats: Record<string, { pending: number; notified: number; handled: number }> = {}
+  if (allBlocks.length) {
+    const dates = [...new Set(allBlocks.map((b: any) => b.date))]
+    const coachIds = [...new Set(allBlocks.map((b: any) => b.coach_id).filter(Boolean))]
+    const { data: sessions } = await supabase
+      .from('class_sessions')
+      .select('id, coach_id, session_date, start_time, end_time')
+      .in('session_date', dates)
+    const sessIds = (sessions || []).map((s: any) => s.id)
+    const { data: bookings } = sessIds.length
+      ? await supabase
+          .from('bookings')
+          .select('id, class_session_id, status, block_notice_sent_at, cancellation_reason')
+          .in('class_session_id', sessIds)
+          .or('status.eq.confirmed,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
+      : { data: [] }
+    for (const b of allBlocks as any[]) {
+      const overlapped = (sessions || []).filter((s: any) => {
+        if (s.coach_id !== b.coach_id || s.session_date !== b.date) return false
+        if (b.start_time == null || b.end_time == null) return true
+        return toM(s.start_time) < toM(b.end_time) && toM(s.end_time) > toM(b.start_time)
+      })
+      const ids = new Set(overlapped.map((s: any) => s.id))
+      const bs = (bookings || []).filter((x: any) => ids.has(x.class_session_id))
+      stats[b.id] = {
+        pending: bs.filter((x: any) => x.status === 'confirmed' && !x.block_notice_sent_at).length,
+        notified: bs.filter((x: any) => x.status === 'confirmed' && x.block_notice_sent_at).length,
+        handled: bs.filter((x: any) => x.status === 'cancelled').length,
+      }
+    }
+  }
+
   return (
     <AdminTimeOffClient
       coaches={coaches || []}
       initialList={(timeOffList || []) as any}
       pastList={(pastList || []) as any}
+      impactStats={stats}
       today={today}
     />
   )
