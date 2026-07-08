@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const { data: ct1on1 } = await supabase.from('course_types').select('id').eq('slug', '1on1').single()
     const expiresAt = new Date()
     expiresAt.setFullYear(expiresAt.getFullYear() + 1)
-    const { error: creditErr } = await supabase.from('lesson_credits').insert({
+    const { data: trialCredit, error: creditErr } = await supabase.from('lesson_credits').insert({
       student_id: studentId,
       parent_id: parentId,
       purchase_id: purchase?.id || null,
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       used_credits: 0,
       is_trial: true,
       expires_at: expiresAt.toISOString(),
-    })
+    }).select().single()
     if (creditErr) console.error('POS trial credit insert error:', creditErr)
 
     // 建立 invoice
@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       const { data: inv } = await supabase.from('invoices').insert({
         invoice_number,
         parent_id: parentId,
+        lesson_credit_id: trialCredit?.id ?? null,
         amount: 85,
         payment_method: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
         items: [{ name: `Swim Assessment - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],

@@ -166,6 +166,15 @@ export default function BookingPage() {
   const [addingToCart, setAddingToCart] = useState(false)
   const [cartMsg, setCartMsg] = useState('')
 
+  // Preselect student from ?student= (e.g. dashboard assessment Book Now)
+  useEffect(() => {
+    if (selectedStudent || students.length === 0) return
+    const sid = new URLSearchParams(window.location.search).get('student')
+    if (!sid) return
+    const s = students.find(x => x.id === sid)
+    if (s) setSelectedStudent(s)
+  }, [students])
+
   useEffect(() => {
     setIsTrial(false)
     setTrialEligible(false)

@@ -1357,7 +1357,7 @@ export default function DashboardPage() {
                   const remaining = g.total - g.used
                   const pct = Math.round((remaining / g.total) * 100)
                   return (
-                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? 'One-time assessment · not a lesson package' : undefined} bookHref={key === '__assessment__' && remaining > 0 ? '/booking' : undefined} />
+                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? 'One-time assessment · not a lesson package' : undefined} bookHref={key === '__assessment__' && remaining > 0 ? `/booking?student=${credits.find(c => c.is_trial && c.used_credits < c.total_credits)?.student_id || ''}` : undefined} />
                   )
                 })
               })()}
