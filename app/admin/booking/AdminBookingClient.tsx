@@ -1243,7 +1243,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                   )}
                   {blk && (
                     <div className="absolute inset-0 pointer-events-none z-[5]"
-                      style={{ background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 6px, transparent 6px, transparent 12px)' }}>
+                      style={{ backgroundColor: 'rgba(148,163,184,0.13)', backdropFilter: 'saturate(0.6)' }}>
                       {blkLabelHere && (
                         <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
                           style={{
