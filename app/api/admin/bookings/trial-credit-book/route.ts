@@ -96,13 +96,23 @@ export async function POST(req: NextRequest) {
       sessId = newSess.id
     }
 
+    // Find an unused assessment credit (POS-sold start at 0; legacy webhook credits are pre-consumed)
+    const { data: trialCredits } = await svc
+      .from('lesson_credits')
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('is_trial', true)
+      .eq('used_credits', 0)
+      .limit(1)
+    const trialCreditId = trialCredits && trialCredits.length > 0 ? trialCredits[0].id : null
+
     const { error: bookErr } = await svc
       .from('bookings')
       .insert({
         class_session_id: sessId,
         parent_id: student.parent_id,
         student_id: studentId,
-        lesson_credit_id: null,
+        lesson_credit_id: trialCreditId,
         is_trial: true,
         status: 'confirmed',
       })
@@ -111,6 +121,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 409 })
       }
       return NextResponse.json({ error: 'Failed to create booking: ' + bookErr.message }, { status: 500 })
+    }
+
+    if (trialCreditId) {
+      await svc.from('lesson_credits').update({ used_credits: 1 }).eq('id', trialCreditId)
     }
 
     // Confirmation email (non-fatal)

@@ -50,6 +50,22 @@ export async function POST(req: NextRequest) {
 
     const { data: purchase } = await supabase.from('purchases').insert(insertData).select().single()
 
+    // Create the assessment credit — visible on parent dashboard, consumed when booked
+    const { data: ct1on1 } = await supabase.from('course_types').select('id').eq('slug', '1on1').single()
+    const expiresAt = new Date()
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+    const { error: creditErr } = await supabase.from('lesson_credits').insert({
+      student_id: studentId,
+      parent_id: parentId,
+      purchase_id: purchase?.id || null,
+      course_type_id: ct1on1?.id || null,
+      total_credits: 1,
+      used_credits: 0,
+      is_trial: true,
+      expires_at: expiresAt.toISOString(),
+    })
+    if (creditErr) console.error('POS trial credit insert error:', creditErr)
+
     // 建立 invoice
     try {
       const year = new Date().getFullYear()
