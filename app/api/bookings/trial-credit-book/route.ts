@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
+import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 
@@ -63,6 +64,12 @@ export async function POST(req: NextRequest) {
     const [h, m] = time.split(':').map(Number)
     const endMins = h * 60 + m + courseType.duration_minutes
     const endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`
+
+    const coachBlocks = await getCoachBlocks(svc, [coachId], date)
+    if (isBlocked(coachBlocks, coachId, time, endTime)) {
+      await refund()
+      return NextResponse.json({ error: 'This time slot is no longer available' }, { status: 400 })
+    }
 
     const { data: existingSession } = await svc
       .from('class_sessions')

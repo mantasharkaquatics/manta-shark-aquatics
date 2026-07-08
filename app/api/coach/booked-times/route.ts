@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const coach_id = searchParams.get('coach_id')
   const session_date = searchParams.get('session_date')
 
-  if (!coach_id || !session_date) return NextResponse.json({ times: [] })
+  if (!coach_id || !session_date) return NextResponse.json({ times: [], blocked: [] })
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  const coachBlocks = await getCoachBlocks(supabase, [coach_id], session_date)
+  const blocked = blockedIntervalsFor(coachBlocks, coach_id)
 
   // Step 1: 找此教練此日期的所有 class_sessions
   const { data: sessions } = await supabase
@@ -20,7 +24,7 @@ export async function GET(req: NextRequest) {
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
 
-  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [] })
+  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked })
 
   const sessionIds = sessions.map(s => s.id)
   const sessionMap: Record<string, any> = {}
@@ -43,5 +47,5 @@ export async function GET(req: NextRequest) {
     }
   }).filter(x => x.time)
 
-  return NextResponse.json({ times })
+  return NextResponse.json({ times, blocked })
 }

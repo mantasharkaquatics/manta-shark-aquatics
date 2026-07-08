@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
+import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 
@@ -170,6 +171,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Student not found' }, { status: 403 })
     if (student.current_level == null)
       return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons. Please book a Swim Assessment first.' }, { status: 403 })
+
+    // Coach block check (time_off / admin_block)
+    {
+      const [bh, bm] = start_time.split(':').map(Number)
+      const bEnd = bh * 60 + bm + course.duration_minutes
+      const blockEnd = String(Math.floor(bEnd / 60)).padStart(2, '0') + ':' + String(bEnd % 60).padStart(2, '0')
+      const coachBlocks = await getCoachBlocks(svc, [coach_id], session_date)
+      if (isBlocked(coachBlocks, coach_id, start_time, blockEnd))
+        return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 409 })
+    }
 
     // Coach conflict / full check (in_cart counts via trigger-maintained enrolled_count)
     const { data: conflicts } = await svc

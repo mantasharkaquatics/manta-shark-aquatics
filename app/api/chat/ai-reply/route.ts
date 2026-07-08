@@ -1,3 +1,4 @@
+import { isBlocked } from '@/lib/availability'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
@@ -35,10 +36,10 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
 
   const [availRes, offRes, sessRes] = await Promise.all([
     svc.from('coach_availability').select('coach_id, start_time, end_time').in('coach_id', ids).eq('day_of_week', dow).eq('is_active', true),
-    svc.from('coach_time_off').select('coach_id').in('coach_id', ids).eq('date', date),
+    svc.from('coach_time_off').select('coach_id, start_time, end_time, block_type').in('coach_id', ids).eq('date', date),
     svc.from('class_sessions').select('coach_id, start_time').in('coach_id', ids).eq('session_date', date).in('status', ['open', 'full']).gt('enrolled_count', 0),
   ])
-  const offSet = new Set((offRes.data || []).map((o: any) => o.coach_id))
+  const offBlocks: any[] = offRes.data || []
   const blocked = new Map<string, Set<string>>()
   for (const s of sessRes.data || []) {
     if (!blocked.has(s.coach_id)) blocked.set(s.coach_id, new Set())
@@ -71,7 +72,6 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   const nowMins = getNowMinutesLA()
   const out: any[] = []
   for (const c of coaches) {
-    if (offSet.has(c.id)) continue
     const times: { time: string; label: string }[] = []
     for (const w of (availRes.data || []).filter((a: any) => a.coach_id === c.id)) {
       const [sh, sm] = String(w.start_time).slice(0, 5).split(':').map(Number)
@@ -80,7 +80,8 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
       const endMin = eh * 60 + em
       while (cur + 30 <= endMin) {
         const t = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`
-        if (!(dayDiff === 0 && cur <= nowMins + 30) && !blocked.get(c.id)?.has(t)) times.push({ time: t, label: formatTime12h(t) })
+        const tEnd = `${String(Math.floor((cur + 30) / 60)).padStart(2, '0')}:${String((cur + 30) % 60).padStart(2, '0')}`
+        if (!(dayDiff === 0 && cur <= nowMins + 30) && !blocked.get(c.id)?.has(t) && !isBlocked(offBlocks, c.id, t, tEnd)) times.push({ time: t, label: formatTime12h(t) })
         cur += 30
       }
     }

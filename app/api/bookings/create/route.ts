@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
+import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 
@@ -55,6 +56,11 @@ export async function POST(req: NextRequest) {
   const [h, m] = start_time.split(':').map(Number)
   const endTotal = h * 60 + m + course.duration_minutes
   const end_time = String(Math.floor(endTotal / 60)).padStart(2, '0') + ':' + String(endTotal % 60).padStart(2, '0')
+
+  // Coach block check (time_off / admin_block)
+  const coachBlocks = await getCoachBlocks(svc, [coach_id], session_date)
+  if (isBlocked(coachBlocks, coach_id, start_time, end_time))
+    return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 409 })
 
   // Coach conflict check (any course type, enrolled > 0)
   const { data: conflicts } = await svc
