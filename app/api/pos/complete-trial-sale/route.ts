@@ -27,13 +27,13 @@ export async function POST(req: NextRequest) {
     const { data: student } = await supabase
       .from('students').select('id, full_name, trial_used_at, current_level').eq('id', studentId).single()
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
-    if (student.trial_used_at) return NextResponse.json({ error: '此學生已使用過體驗課' }, { status: 400 })
-    if (student.current_level != null) return NextResponse.json({ error: '此學生已有等級，無需測驗課' }, { status: 400 })
+    if (student.trial_used_at) return NextResponse.json({ error: 'This student has already used their Swim Assessment' }, { status: 400 })
+    if (student.current_level != null) return NextResponse.json({ error: 'This student already has an assigned level and does not need a Swim Assessment' }, { status: 400 })
 
     const { data: activeTrial } = await supabase
       .from('bookings').select('id').eq('student_id', studentId)
       .eq('is_trial', true).neq('status', 'cancelled').maybeSingle()
-    if (activeTrial) return NextResponse.json({ error: '此學生已有進行中的體驗課預約' }, { status: 400 })
+    if (activeTrial) return NextResponse.json({ error: 'This student already has an active Swim Assessment booking' }, { status: 400 })
 
     await supabase.from('students').update({ trial_used_at: new Date().toISOString() }).eq('id', studentId)
 
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
         parent_id: parentId,
         amount: 85,
         payment_method: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
-        items: [{ name: `Trial Lesson - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
+        items: [{ name: `Swim Assessment - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
         status: 'sent',
         stripe_payment_intent_id: paymentIntentId || null,
         issued_at: new Date().toISOString(),
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
             invoiceNumber: invoice_number,
             invoiceUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/${inv.id}/pdf`,
             amount: '85.00',
-            items: [{ name: `Trial Lesson - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
+            items: [{ name: `Swim Assessment - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
             paymentMethod: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
           })
       }

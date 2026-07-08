@@ -196,7 +196,7 @@ export default function POSClient() {
           <p style={{ color: '#9ca3af', fontSize: 15, marginBottom: 4 }}>{customerName}</p>
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 4 }}>{amount}</p>
           <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 28 }}>
-            {isTrial ? 'Trial Lesson · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : plan?.name}
+            {isTrial ? 'Swim Assessment · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : plan?.name}
           </p>
           <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>請確認已收到現金後再按確認。</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -221,11 +221,12 @@ export default function POSClient() {
       <div style={{ minHeight: '100vh', backgroundColor: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', padding: 40 }}>
           <div style={{ width: 96, height: 96, borderRadius: '50%', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 48 }}>✓</div>
-          <h2 style={{ color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{isTrial ? 'Trial Lesson Booked!' : 'Payment Complete'}</h2>
+          <h2 style={{ color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{isTrial ? 'Assessment Credit Added!' : 'Payment Complete'}</h2>
           <p style={{ color: '#9ca3af', fontSize: 18, marginBottom: 4 }}>{selectedParent?.first_name} {selectedParent?.last_name}</p>
           {isTrial ? (
             <>
               <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Swim Assessment · {selectedStudent?.full_name}</p>
+              <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 8 }}>Credit issued — schedule it from the Booking page, or the parent can book from their dashboard.</p>
             </>
           ) : (
             <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{plan?.name}</p>
@@ -251,7 +252,7 @@ export default function POSClient() {
                 {selectedParent?.first_name} {selectedParent?.last_name}
               </div>
               <div style={{ fontSize: 13, color: '#9ca3af' }}>
-                {isTrial ? 'Trial 1-on-1' : plan?.name}
+                {isTrial ? 'Swim Assessment' : plan?.name}
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, color: GOLD, marginTop: 8 }}>
                 ${(chargeAmount / 100).toLocaleString()}
@@ -403,7 +404,7 @@ export default function POSClient() {
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
           <button onClick={handleCharge} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
-            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTrial ? 'Fill in trial details' : 'Select a package'}
+            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTrial ? 'Select a student' : 'Select a package'}
           </button>
           {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u26a0 No card reader connected</p>}
           {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u2713 Reader ready</p>}
