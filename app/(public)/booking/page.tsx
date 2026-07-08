@@ -162,6 +162,10 @@ export default function BookingPage() {
   const [trialEligible, setTrialEligible] = useState(false)
   const [trialHasCredit, setTrialHasCredit] = useState(false)
   const [lockedStudent, setLockedStudent] = useState(false)
+  const lockedRef = useRef(false)
+  const courseTypesRef = useRef<CourseType[]>([])
+  useEffect(() => { lockedRef.current = lockedStudent }, [lockedStudent])
+  useEffect(() => { courseTypesRef.current = courseTypes }, [courseTypes])
   const [isTrial, setIsTrial] = useState(false)
   const [cartRefresh, setCartRefresh] = useState(0)
   const [addingToCart, setAddingToCart] = useState(false)
@@ -173,7 +177,7 @@ export default function BookingPage() {
     const sid = new URLSearchParams(window.location.search).get('student')
     if (!sid) return
     const s = students.find(x => x.id === sid)
-    if (s) { setSelectedStudent(s); setLockedStudent(true); setStep(1) }
+    if (s) { setSelectedStudent(s); setLockedStudent(true) }
   }, [students])
 
   useEffect(() => {
@@ -183,8 +187,18 @@ export default function BookingPage() {
     if (!selectedStudent) return
     fetch(`/api/bookings/trial-eligibility?student_id=${selectedStudent.id}`)
       .then(r => r.ok ? r.json() : { eligible: false })
-      .then(j => { setTrialEligible(!!j.eligible); setTrialHasCredit(!!j.hasCredit) })
-      .catch(() => { setTrialEligible(false); setTrialHasCredit(false) })
+      .then(j => {
+        setTrialEligible(!!j.eligible)
+        setTrialHasCredit(!!j.hasCredit)
+        if (lockedRef.current) {
+          if (j.hasCredit) {
+            const ct = courseTypesRef.current.find(c => c.slug === '1on1')
+            if (ct) { setSelectedCourse(ct); setIsTrial(true); setStep(2); return }
+          }
+          setStep(1)
+        }
+      })
+      .catch(() => { setTrialEligible(false); setTrialHasCredit(false); if (lockedRef.current) setStep(1) })
   }, [selectedStudent])
 
   const today = new Date()
