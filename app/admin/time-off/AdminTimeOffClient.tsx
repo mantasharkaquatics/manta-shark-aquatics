@@ -33,6 +33,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, tod
   const [expanded, setExpanded] = useState<string | null>(null)
   const [impact, setImpact] = useState<Record<string, { loading: boolean; items: ImpactItem[]; error: string }>>({})
   const [acting, setActing] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ kind: 'cancel' | 'delete'; id: string; count?: number } | null>(null)
 
   const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })
   const fmt12 = (t: string) => {
@@ -76,7 +77,6 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, tod
   }
 
   const handleCancelBookings = async (blockId: string) => {
-    if (!confirm('Cancel all notified lessons and refund credits? This cannot be undone.')) return
     setActing(blockId)
     const res = await fetch('/api/admin/time-off/impact', {
       method: 'POST',
@@ -118,7 +118,6 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, tod
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remove this time off / block?')) return
     setDeleting(id)
     const res = await fetch('/api/admin/time-off', {
       method: 'DELETE',
@@ -160,7 +159,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, tod
               {isOpen ? '▲ Hide' : '▼ Affected lessons'}
             </button>
             {removable && (
-              <button onClick={() => handleDelete(item.id)} disabled={deleting === item.id}
+              <button onClick={() => setConfirmAction({ kind: 'delete', id: item.id })} disabled={deleting === item.id}
                 className="text-gray-500 hover:text-red-400 transition-colors text-sm disabled:opacity-50">
                 {deleting === item.id ? 'Removing...' : 'Remove'}
               </button>
@@ -201,7 +200,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, tod
                       className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold text-sm disabled:opacity-40 transition-all">
                       {acting === item.id ? 'Working...' : `📧 Send cancellation notices (${confirmedNoNotice.length})`}
                     </button>
-                    <button onClick={() => handleCancelBookings(item.id)}
+                    <button onClick={() => setConfirmAction({ kind: 'cancel', id: item.id, count: confirmedNotified.length })}
                       disabled={acting === item.id || confirmedNotified.length === 0}
                       className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-40 transition-all"
                       style={{ backgroundColor: '#ef4444', color: '#fff' }}>
@@ -288,6 +287,38 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, tod
               <div className="space-y-3">{list.map(item => renderCard(item, true))}</div>
             )}
           </div>
+
+          {confirmAction && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+              onClick={e => { if (e.target === e.currentTarget) setConfirmAction(null) }}>
+              <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
+                  {confirmAction.kind === 'cancel' ? 'Cancel affected lessons?' : 'Remove this block?'}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  {confirmAction.kind === 'cancel'
+                    ? `${confirmAction.count} notified lesson${(confirmAction.count || 0) > 1 ? 's' : ''} will be cancelled and credits refunded to the parents. This cannot be undone.`
+                    : 'This time off / block will be removed. Already-cancelled lessons are not restored.'}
+                </p>
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setConfirmAction(null)}
+                    className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">
+                    Keep
+                  </button>
+                  <button onClick={() => {
+                      const a = confirmAction
+                      setConfirmAction(null)
+                      if (a.kind === 'cancel') handleCancelBookings(a.id)
+                      else handleDelete(a.id)
+                    }}
+                    className="flex-1 py-2.5 rounded-lg font-semibold text-sm"
+                    style={{ backgroundColor: '#ef4444', color: '#fff' }}>
+                    {confirmAction.kind === 'cancel' ? 'Cancel & refund' : 'Remove'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-5">Past (last 20)</h2>
