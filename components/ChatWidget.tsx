@@ -79,11 +79,11 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
     setMessages(data || [])
   }
 
-  async function sendMessage() {
-    if (!input.trim() || !threadId || sending) return
+  async function sendMessage(text?: string) {
+    const body = (text ?? input).trim()
+    if (!body || !threadId || sending) return
     setSending(true)
-    const body = input.trim()
-    setInput('')
+    if (!text) setInput('')
     await supabase.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body })
     await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body }).eq('id', threadId)
     setSending(false)
@@ -162,12 +162,23 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                   maxWidth: '75%', padding: '10px 14px', borderRadius: msg.sender_type === 'parent' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   background: msg.sender_type === 'parent' ? GOLD : 'rgba(255,255,255,0.08)',
                   color: msg.sender_type === 'parent' ? NAVY : '#fff',
-                  fontSize: '13px', lineHeight: 1.5, fontWeight: msg.sender_type === 'parent' ? 600 : 400,
+                  whiteSpace: 'pre-wrap', fontSize: '13px', lineHeight: 1.5, fontWeight: msg.sender_type === 'parent' ? 600 : 400,
                 }}>
                   {msg.sender_type === 'ai' && (
                     <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>AI ASSISTANT</div>
                   )}
                   {renderBody(msg.body)}
+                  {msg.sender_type === 'ai' && msg.id === messages[messages.length - 1]?.id && Array.isArray(msg.metadata?.options) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                      {msg.metadata.options.map((opt: any, i: number) =>
+                        opt.type === 'link' ? (
+                          <a key={i} href={opt.url} style={{ background: GOLD, color: NAVY, borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>{opt.label}</a>
+                        ) : (
+                          <button key={i} onClick={() => sendMessage(opt.label)} disabled={sending} style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(201,168,76,0.6)', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer' }}>{opt.label}</button>
+                        )
+                      )}
+                    </div>
+                  )}
                   <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
                     {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                   </div>
@@ -189,7 +200,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                 borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none',
               }}
             />
-            <button onClick={sendMessage} disabled={!input.trim() || sending} style={{
+            <button onClick={() => sendMessage()} disabled={!input.trim() || sending} style={{
               background: input.trim() ? GOLD : 'rgba(255,255,255,0.1)',
               border: 'none', borderRadius: '10px', width: '40px',
               cursor: input.trim() ? 'pointer' : 'not-allowed',

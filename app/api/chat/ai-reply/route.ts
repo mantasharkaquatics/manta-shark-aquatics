@@ -127,8 +127,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ skipped: true, reason: 'already handled' })
   }
 
-  async function postAiMessage(body: string, escalated: boolean) {
-    await svc.from('chat_messages').insert({ thread_id, sender_type: 'ai', body })
+  async function postAiMessage(body: string, escalated: boolean, metadata: Record<string, unknown> | null = null) {
+    await svc.from('chat_messages').insert({ thread_id, sender_type: 'ai', body, ...(metadata ? { metadata } : {}) })
     const upd: Record<string, unknown> = {
       last_message_at: new Date().toISOString(),
       last_message_preview: body.slice(0, 120),
@@ -401,7 +401,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await postAiMessage(finalText, escalate)
+    let replyBody = finalText
+    let replyMeta: Record<string, unknown> | null = null
+    const optIdx = finalText.lastIndexOf('<<OPTIONS>>')
+    if (optIdx !== -1) {
+      replyBody = finalText.slice(0, optIdx).trim()
+      try {
+        const arr = JSON.parse(finalText.slice(optIdx + '<<OPTIONS>>'.length).trim())
+        if (Array.isArray(arr)) {
+          const clean = arr
+            .filter((o: any) => o && typeof o.label === 'string' && o.label.length <= 60 &&
+              (o.type === 'reply' || (o.type === 'link' && typeof o.url === 'string' &&
+                (o.url.startsWith('/') || o.url.startsWith('https://')))))
+            .slice(0, 3)
+            .map((o: any) => o.type === 'link'
+              ? { label: o.label, type: 'link', url: o.url }
+              : { label: o.label, type: 'reply' })
+          if (clean.length) replyMeta = { options: clean }
+        }
+      } catch {}
+      if (!replyBody) replyBody = finalText
+    }
+
+    await postAiMessage(replyBody, escalate, replyMeta)
     return NextResponse.json({ ok: true, escalated: escalate })
   } catch (err) {
     console.error('[ai-reply]', err)

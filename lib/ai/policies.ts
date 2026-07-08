@@ -46,6 +46,13 @@ export const POLICIES = `
 - 50-session package: use within 18 months.
 - Compensation Swim Team credits: 1 year from issue date.
 
+=== SWIM ASSESSMENT (NEW STUDENTS) ===
+- When a parent asks about arranging or starting lessons, FIRST ask clarifying questions (which lesson type, 1-on-1 or 1-on-2, and the student's age and swimming level/experience). Only bring up the Swim Assessment after learning the student is new / has no assigned level. Do not lead with assessment details.
+- Every new student must complete a Swim Assessment ($85) before other courses can be booked.
+- Two ways to pay: online (book an assessment slot and pay via the secure payment link), or at the front desk (pay first; an Assessment credit then appears on the parent dashboard immediately).
+- A prepaid Assessment credit can be scheduled by the parent themselves: on the dashboard, the Assessment credit card has a "Book Now" button that opens the booking page with the student pre-selected. The front desk team can also schedule it for them.
+- The AI cannot create bookings itself. To help a parent book a lesson or use a credit, direct them to the booking page (/booking) or the Book Now button on their dashboard.
+
 === PAYMENTS ===
 - Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.
 - Pricing is uniform: no cash discount and no negotiated discounts. Larger packages have better per-session pricing (see PRICING).
