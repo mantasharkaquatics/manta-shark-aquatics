@@ -155,7 +155,10 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, tod
             </div>
           </button>
           <div className="flex items-center gap-4 ml-4 flex-shrink-0">
-            <span className="text-gray-500 text-xs">{isOpen ? '▲ Hide' : '▼ Affected lessons'}</span>
+            <button onClick={() => toggleExpand(item.id)}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-[#c9a84c] hover:border-[#c9a84c]/50 transition-colors">
+              {isOpen ? '▲ Hide' : '▼ Affected lessons'}
+            </button>
             {removable && (
               <button onClick={() => handleDelete(item.id)} disabled={deleting === item.id}
                 className="text-gray-500 hover:text-red-400 transition-colors text-sm disabled:opacity-50">
