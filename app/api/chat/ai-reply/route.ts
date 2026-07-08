@@ -409,12 +409,25 @@ export async function POST(req: NextRequest) {
         .from('students')
         .select('id, full_name, current_level, trial_used_at')
         .eq('parent_id', parent!.id)
-      return (studs || []).map((s: any) => ({
-        student_id: s.id,
-        name: s.full_name,
-        has_assigned_level: s.current_level != null,
-        needs_assessment: s.current_level == null && !s.trial_used_at,
-      }))
+      const ids = (studs || []).map((s: any) => s.id)
+      const { data: trialCreds } = ids.length
+        ? await svc.from('lesson_credits').select('student_id').in('student_id', ids).eq('is_trial', true).eq('used_credits', 0)
+        : { data: [] }
+      const { data: activeTrials } = ids.length
+        ? await svc.from('bookings').select('student_id').in('student_id', ids).eq('is_trial', true).neq('status', 'cancelled')
+        : { data: [] }
+      const credSet = new Set((trialCreds || []).map((c: any) => c.student_id))
+      const activeSet = new Set((activeTrials || []).map((b: any) => b.student_id))
+      return (studs || []).map((s: any) => {
+        const hasCredit = s.current_level == null && credSet.has(s.id) && !activeSet.has(s.id)
+        return {
+          student_id: s.id,
+          name: s.full_name,
+          has_assigned_level: s.current_level != null,
+          has_prepaid_assessment_credit: hasCredit,
+          needs_assessment: s.current_level == null && (!s.trial_used_at || hasCredit),
+        }
+      })
     }
 
     if (name === 'get_trial_slots') {
@@ -433,6 +446,33 @@ export async function POST(req: NextRequest) {
       const { data: owned } = await svc
         .from('students').select('id, full_name').eq('id', studentId).eq('parent_id', parent!.id).single()
       if (!owned) return { error: 'Student not found on this account. Call get_my_students for real ids.' }
+
+      const { data: prepaid } = await svc
+        .from('lesson_credits').select('id')
+        .eq('student_id', studentId).eq('is_trial', true).eq('used_credits', 0)
+        .limit(1)
+      if (prepaid && prepaid.length > 0) {
+        const cres = await fetch(`${origin}/api/bookings/trial-credit-book`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', cookie: cookieHeader },
+          body: JSON.stringify({ studentId, coachId, date, time }),
+        })
+        const cdata = await cres.json().catch(() => ({} as any))
+        if (!cres.ok || !cdata.ok) {
+          return { error: cdata.error || 'Could not book with the prepaid credit. The slot may have just been taken - check get_trial_slots again.' }
+        }
+        trialBookSucceededThisTurn = true
+        return {
+          success: true,
+          confirmed: true,
+          paid_with_prepaid_credit: true,
+          student: owned.full_name,
+          date,
+          time: formatTime12h(time),
+          note: 'Booked and CONFIRMED using the prepaid assessment credit. No payment is needed. Tell the parent it is confirmed.',
+        }
+      }
+
       const res = await fetch(`${origin}/api/stripe/trial-checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookieHeader },
