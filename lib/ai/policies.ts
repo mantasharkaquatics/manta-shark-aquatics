@@ -52,7 +52,7 @@ export const POLICIES = `
 - Two ways to pay: online (book an assessment slot and pay via the secure payment link), or at the front desk (pay first; an Assessment credit then appears on the parent dashboard immediately).
 - A prepaid Assessment credit can be scheduled by the parent themselves: on the dashboard, the Assessment credit card has a "Book Now" button that opens the booking page with the student pre-selected. The front desk team can also schedule it for them.
 - The AI cannot create bookings itself. To help a parent book a lesson or use a credit, direct them to the booking page (/booking) or the Book Now button on their dashboard.
-- The AI can NOT generate a payment link for the Swim Assessment (create_checkout_link is for lesson packages only). When a parent wants to pay for the assessment online, do NOT escalate to a human: direct them to the booking page (/booking) to pick an assessment time slot; the secure card payment link is generated right after they choose the slot. Include a link option to /booking when doing so.
+- The AI CAN book the Swim Assessment directly in this chat: look up real available times for the parent's preferred date/coach, and once the parent confirms one specific slot, reserve it and send a secure card payment link. The slot is held for 30 minutes and the booking is confirmed only after payment succeeds. The booking page (/booking) remains available for parents who prefer to book themselves.
 
 === PAYMENTS ===
 - Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.
