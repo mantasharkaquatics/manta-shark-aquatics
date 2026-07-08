@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type TimeOff = { id: string; date: string; reason: string | null; created_at: string }
+type TimeOff = { id: string; date: string; reason: string | null; created_at: string; start_time: string | null; end_time: string | null }
 
 export default function CoachTimeOffClient({
   coach,
@@ -18,6 +18,9 @@ export default function CoachTimeOffClient({
   const [timeOffList, setTimeOffList] = useState<TimeOff[]>(initial)
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
+  const [allDay, setAllDay] = useState(true)
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -27,16 +30,33 @@ export default function CoachTimeOffClient({
     return dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   }
 
+  const fmt12 = (t: string) => {
+    const [h, m] = t.slice(0, 5).split(':').map(Number)
+    const ap = h >= 12 ? 'PM' : 'AM'
+    const hh = h % 12 === 0 ? 12 : h % 12
+    return `${hh}:${String(m).padStart(2, '0')} ${ap}`
+  }
+
   const handleSubmit = async () => {
     if (!date) { setError('Please select a date.'); return }
     if (date < today) { setError('Cannot request time off for past dates.'); return }
-    if (timeOffList.some(t => t.date === date)) { setError('You already have time off on this date.'); return }
+    if (!allDay) {
+      if (!startTime || !endTime) { setError('Please select start and end times.'); return }
+      if (startTime >= endTime) { setError('End time must be after start time.'); return }
+    }
+    const toM = (t: string) => { const [h, m] = t.slice(0, 5).split(':').map(Number); return h * 60 + m }
+    const clash = timeOffList.some(t => {
+      if (t.date !== date) return false
+      if (allDay || t.start_time == null || t.end_time == null) return true
+      return toM(startTime) < toM(t.end_time) && toM(endTime) > toM(t.start_time)
+    })
+    if (clash) { setError('This overlaps with your existing time off on this date.'); return }
     setSubmitting(true)
     setError('')
     setSuccess('')
     const { data, error: err } = await supabase
       .from('coach_time_off')
-      .insert({ coach_id: coach.id, date, reason: reason || null })
+      .insert({ coach_id: coach.id, date, reason: reason || null, start_time: allDay ? null : startTime, end_time: allDay ? null : endTime })
       .select()
       .single()
     if (err) {
@@ -45,6 +65,9 @@ export default function CoachTimeOffClient({
       setTimeOffList(prev => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)))
       setDate('')
       setReason('')
+      setAllDay(true)
+      setStartTime('')
+      setEndTime('')
       setSuccess(`Time off requested for ${formatDate(date)}!`)
     }
     setSubmitting(false)
@@ -76,6 +99,38 @@ export default function CoachTimeOffClient({
                 className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="allDay"
+                checked={allDay}
+                onChange={e => setAllDay(e.target.checked)}
+                className="w-4 h-4 accent-[#c9a84c]"
+              />
+              <label htmlFor="allDay" className="text-gray-400 text-sm select-none">All day</label>
+            </div>
+            {!allDay && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-2">From</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={e => setStartTime(e.target.value)}
+                    className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-2">To</label>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={e => setEndTime(e.target.value)}
+                    className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors"
+                  />
+                </div>
+              </div>
+            )}
             <div>
               <label className="block text-gray-400 text-sm mb-2">Reason <span className="text-gray-600">(optional)</span></label>
               <textarea
@@ -110,6 +165,7 @@ export default function CoachTimeOffClient({
                 <div key={item.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4 flex items-center justify-between">
                   <div>
                     <p className="text-white font-medium">{formatDate(item.date)}</p>
+                    <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : 'All day'}</p>
                     {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
                   </div>
                   <button

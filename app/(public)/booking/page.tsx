@@ -307,7 +307,7 @@ export default function BookingPage() {
 
     // 用 server API 繞過 RLS，取得教練當天所有 active booking 時段
     const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}`)
-    const { times: bookedTimes } = await bookedRes.json()
+    const { times: bookedTimes, blocked: coachBlocked } = await bookedRes.json()
 
     const blockedTimes = new Set<string>()
     const sameTypeSessions: Record<string, any> = {}
@@ -333,9 +333,18 @@ export default function BookingPage() {
       sameTypeSessions[t] = cs
     }
 
+    // 教練封鎖區間(time_off / admin_block):slot 與任一區間重疊即不可訂
+    const toMinB = (x: string) => { const [h, m] = x.slice(0, 5).split(':').map(Number); return h * 60 + m }
+    const slotDur = selectedCourse.duration_minutes
+    const inCoachBlock = (t: string) => (coachBlocked || []).some((b: any) => {
+      if (b.start == null || b.end == null) return true
+      const s = toMinB(t)
+      return s < toMinB(b.end) && s + slotDur > toMinB(b.start)
+    })
+
     const slots: TimeSlot[] = allSlots.map(t => {
       const maxStudents = selectedCourse.max_students
-      if (blockedTimes.has(t) || studentBookedTimes.has(t)) {
+      if (inCoachBlock(t) || blockedTimes.has(t) || studentBookedTimes.has(t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
       }
       const existing = sameTypeSessions[t]

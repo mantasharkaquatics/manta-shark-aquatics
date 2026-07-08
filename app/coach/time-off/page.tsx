@@ -31,8 +31,9 @@ export default async function CoachTimeOffPage() {
 
   const { data: timeOffList } = await supabase
     .from('coach_time_off')
-    .select('id, date, reason, created_at')
+    .select('id, date, reason, created_at, start_time, end_time')
     .eq('coach_id', coach.id)
+    .eq('block_type', 'time_off')
     .gte('date', today)
     .order('date')
 
