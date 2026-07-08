@@ -615,7 +615,7 @@ export async function POST(req: NextRequest) {
             .filter((o: any) => o && typeof o.label === 'string' && o.label.length <= 60 &&
               (o.type === 'reply' || (o.type === 'link' && typeof o.url === 'string' &&
                 (o.url.startsWith('/') || o.url.startsWith('https://')))))
-            .slice(0, 3)
+            .slice(0, 12)
             .map((o: any) => o.type === 'link'
               ? { label: o.label, type: 'link', url: o.url }
               : { label: o.label, type: 'reply' })
