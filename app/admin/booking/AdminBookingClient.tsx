@@ -1055,13 +1055,26 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-white/60 mb-2">開始</label>
-                    <input type="time" value={blockStart} onChange={e => setBlockStart(e.target.value)}
-                      className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
+                    <select value={blockStart}
+                      onChange={e => {
+                        const v = e.target.value
+                        setBlockStart(v)
+                        if (blockEnd <= v) setBlockEnd(minutesToTime(timeToMinutes(v) + SLOT_MINUTES))
+                      }}
+                      className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
+                      {TIME_SLOTS.map(t => (
+                        <option key={t} value={t}>{formatTime(t)}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm text-white/60 mb-2">結束</label>
-                    <input type="time" value={blockEnd} onChange={e => setBlockEnd(e.target.value)}
-                      className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
+                    <select value={blockEnd} onChange={e => setBlockEnd(e.target.value)}
+                      className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
+                      {[...TIME_SLOTS.slice(1), minutesToTime(WORK_END * 60)].filter(t => t > blockStart).map(t => (
+                        <option key={t} value={t}>{formatTime(t)}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}
