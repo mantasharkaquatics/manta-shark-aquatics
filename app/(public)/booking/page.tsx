@@ -161,18 +161,19 @@ export default function BookingPage() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
   const [trialEligible, setTrialEligible] = useState(false)
   const [trialHasCredit, setTrialHasCredit] = useState(false)
+  const [lockedStudent, setLockedStudent] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
   const [cartRefresh, setCartRefresh] = useState(0)
   const [addingToCart, setAddingToCart] = useState(false)
   const [cartMsg, setCartMsg] = useState('')
 
-  // Preselect student from ?student= (e.g. dashboard assessment Book Now)
+  // Lock student from ?student= (e.g. dashboard assessment Book Now): skip Step 1 entirely
   useEffect(() => {
     if (selectedStudent || students.length === 0) return
     const sid = new URLSearchParams(window.location.search).get('student')
     if (!sid) return
     const s = students.find(x => x.id === sid)
-    if (s) setSelectedStudent(s)
+    if (s) { setSelectedStudent(s); setLockedStudent(true); setStep(1) }
   }, [students])
 
   useEffect(() => {
@@ -641,6 +642,16 @@ export default function BookingPage() {
           </div>
         )}
 
+        {lockedStudent && selectedStudent && (
+          <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+            <span>📌 Booking for: <strong style={{ color: '#fff' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? ' · Swim Assessment (Prepaid)' : ''}</span>
+            <button onClick={() => { setLockedStudent(false); setSelectedStudent(null); setIsTrial(false); setSelectedCourse(null); setStep(0) }}
+              style={{ background: 'none', border: 'none', padding: 0, color: 'rgba(255,255,255,0.5)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+              Not {selectedStudent.full_name.split(' ')[0]}? Change student
+            </button>
+          </div>
+        )}
+
         <Steps current={step} />
 
         {step === 0 && (
@@ -813,7 +824,7 @@ export default function BookingPage() {
             )}
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => setStep(0)} style={{
+              <button onClick={() => { if (lockedStudent) { setLockedStudent(false); setSelectedStudent(null); setIsTrial(false); setSelectedCourse(null) } setStep(0) }} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
