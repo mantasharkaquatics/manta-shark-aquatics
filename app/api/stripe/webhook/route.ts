@@ -100,6 +100,8 @@ export async function POST(req: NextRequest) {
         await supabase.from('bookings').update({ lesson_credit_id: credit.id }).eq('id', booking_id)
       }
 
+      const { data: invStudent } = await supabase
+        .from('students').select('full_name').eq('id', student_id).single()
       try {
         await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
           method: 'POST',
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
             lesson_credit_id: credit?.id || null,
             amount: amount_cents / 100,
             payment_method: 'stripe',
-            items: [{ name: 'Swim Assessment', quantity: 1, unit_price: amount_cents / 100 }],
+            items: [{ name: `Swim Assessment - ${invStudent?.full_name || ''}`.trim().replace(/ -$/, ''), quantity: 1, unit_price: amount_cents / 100 }],
             stripe_payment_intent_id: session.payment_intent || null,
           }),
         })
