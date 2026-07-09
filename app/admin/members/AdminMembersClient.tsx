@@ -535,12 +535,15 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                       <div key={n.id} className="group flex items-start gap-2 bg-[#0d1529] rounded-lg px-3 py-2">
                                         <div className="flex-1 min-w-0">
                                           {editingNoteId === n.id ? (
-                                            <div className="flex items-start gap-2">
-                                              <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} rows={2}
-                                                className="flex-1 bg-[#111d38] border border-[#1e3a6e] rounded px-2 py-1 text-xs text-white resize-none focus:outline-none focus:border-[#c9a84c]/60" />
-                                              <button onClick={() => saveNote(student.id, n.id)} disabled={noteBusy || !editDraft.trim()}
-                                                className="text-[10px] text-[#c9a84c] font-semibold disabled:opacity-40 mt-1">Save</button>
-                                              <button onClick={() => setEditingNoteId(null)} className="text-[10px] text-gray-500 mt-1">Cancel</button>
+                                            <div className="bg-[#111d38] border border-[#c9a84c]/40 rounded-lg p-3">
+                                              <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} rows={2} autoFocus
+                                                className="w-full bg-transparent text-sm text-white resize-none focus:outline-none" />
+                                              <div className="flex items-center gap-3 mt-2">
+                                                <button onClick={() => saveNote(student.id, n.id)} disabled={noteBusy || !editDraft.trim()}
+                                                  className="px-4 py-1.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold disabled:opacity-40 transition-all">Save</button>
+                                                <button onClick={() => setEditingNoteId(null)}
+                                                  className="px-4 py-1.5 rounded-lg border border-white/15 text-gray-400 hover:text-white hover:border-white/30 text-sm transition-all">Cancel</button>
+                                              </div>
                                             </div>
                                           ) : (
                                             <>
