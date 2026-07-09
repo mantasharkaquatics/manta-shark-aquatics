@@ -548,8 +548,6 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({ model: MODEL, max_tokens: 1000, system, messages: merged, tools: TOOLS }),
       })
       if (!res.ok) throw new Error(`anthropic status ${res.status}`)
-      // TEMP cache verify — remove after confirming cache_read_input_tokens
-      res.clone().json().then((d: any) => console.log('[ai-reply usage]', JSON.stringify(d?.usage))).catch(() => {})
       const data = await res.json()
       const content = data.content || []
       const toolUses = content.filter((c: any) => c.type === 'tool_use')
