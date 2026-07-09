@@ -533,7 +533,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                           ) : (
                                             <>
                                               <p className="text-gray-200 text-xs whitespace-pre-wrap">{n.pinned && <span className="mr-1">📌</span>}{n.content}</p>
-                                              <p className="text-gray-600 text-[10px] mt-0.5">{new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {n.author}</p>
+                                              <p className="text-gray-600 text-[10px] mt-0.5">{new Date(n.created_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })} · {n.author}</p>
                                             </>
                                           )}
                                         </div>
