@@ -134,8 +134,8 @@ const COURSE_COLORS: Record<string, string> = {
   'team': '#ea580c',
 }
 
-const WEEKDAY_HEADERS = ['日', '一', '二', '三', '四', '五', '六']
-const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+const WEEKDAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 // ══════════════════════════════════════════════════════════════════════
 // Mini Calendar (left sidebar)
@@ -200,7 +200,7 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
         }}
         className="mt-2 w-full text-[10px] text-white/30 hover:text-[#c9a84c] transition-colors text-center py-1"
       >
-        回到今天
+        Back to today
       </button>
     </div>
   )
@@ -263,7 +263,7 @@ function StudentSearch({ students, value, onChange, parentCreditsCache }: {
           })()) : query}
           onChange={e => { setQuery(e.target.value); setOpen(true); if (!e.target.value) onChange('') }}
           onFocus={() => { setOpen(true); if (selected) setQuery('') }}
-          placeholder="輸入學生姓名、家長姓名或 email..."
+          placeholder="Search student, parent name or email..."
           className="w-full bg-[#111d38] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#c9a84c] transition-colors pr-8"
         />
         {(query || selected) && (
@@ -293,7 +293,7 @@ function StudentSearch({ students, value, onChange, parentCreditsCache }: {
       )}
       {open && query.trim().length >= 1 && filtered.length === 0 && (
         <div className="absolute z-50 top-full mt-1 w-full bg-[#1a2744] border border-white/10 rounded-xl shadow-2xl px-3 py-3">
-          <p className="text-sm text-white/30 text-center">找不到符合的學生</p>
+          <p className="text-sm text-white/30 text-center">No matching students</p>
         </div>
       )}
     </div>
@@ -356,7 +356,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         setBlocks(prev => prev.filter(b => b.id !== viewingBlock.id))
         setViewingBlock(null)
       } else {
-        setUnblockErr(data.error || '解除封鎖失敗')
+        setUnblockErr(data.error || 'Failed to remove block')
       }
     } finally { setUnblocking(false) }
   }
@@ -385,7 +385,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   async function handleCreateBlock() {
     if (!selectedSlot) return
     if (!blockAllDay && (!blockStart || !blockEnd || blockStart >= blockEnd)) {
-      setBlockError('請選擇有效的時間區間')
+      setBlockError('Please select a valid time range')
       return
     }
     setBlockSaving(true)
@@ -404,7 +404,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setBlockError(data.error || '建立封鎖失敗')
+      setBlockError(data.error || 'Failed to create block')
       setBlockSaving(false)
       return
     }
@@ -414,7 +414,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }
 
   async function fetchRecurPreview(skips: string[]) {
-    if (!selectedSlot || !formCourse || !formStudent) { setError('請先選擇課程類型與學生'); return }
+    if (!selectedSlot || !formCourse || !formStudent) { setError('Please select a course type and student first'); return }
     setRecurLoading(true)
     setError('')
     try {
@@ -433,16 +433,16 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || '預覽失敗'); setRecurPreview(null) }
+      if (!res.ok) { setError(data.error || 'Preview failed'); setRecurPreview(null) }
       else setRecurPreview(data)
-    } catch { setError('預覽失敗，請重試') }
+    } catch { setError('Preview failed, please try again') }
     setRecurLoading(false)
   }
 
   async function handleRecurCommit() {
     if (!selectedSlot || !recurPreview) return
     const okDates = recurPreview.candidates.filter(c => c.status === 'ok').map(c => c.date)
-    if (okDates.length === 0) { setError('沒有可預約的日期'); return }
+    if (okDates.length === 0) { setError('No bookable dates'); return }
     setSaving(true)
     setError('')
     try {
@@ -459,13 +459,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || '建立失敗') }
+      if (!res.ok) { setError(data.error || 'Creation failed') }
       else {
-        setSuccess(`已建立 ${okDates.length} 堂課程！`)
+        setSuccess(`Created ${okDates.length} lessons!`)
         await loadSessions()
         setTimeout(() => { setModal(null); setSuccess(''); setRecurPreview(null) }, 1500)
       }
-    } catch { setError('建立失敗，請重試') }
+    } catch { setError('Creation failed, please try again') }
     setSaving(false)
   }
 
@@ -537,7 +537,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .order('session_date')
       .order('start_time')
     if (data) {
-      // 用 server API 取得 bookings（繞過 RLS），只取 enrolled > 0 的 session
+      // Fetch bookings via server API (bypasses RLS); only sessions with enrolled > 0
       const sessionsWithBookings = await Promise.all(data.map(async (s: any) => {
         if (s.enrolled_count === 0) return s
         try {
@@ -548,7 +548,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         } catch { return s }
       }))
       setSessions(sessionsWithBookings as Session[])
-      // 計算跨帳戶 1on2 session
+      // Compute cross-account 1on2 sessions
       const crossIds = new Set<string>()
       sessionsWithBookings.forEach((s: any) => {
         const ct = s.course_types?.slug
@@ -630,11 +630,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const is1on2 = ct?.slug === '1on2'
 
     if (!formStudent || !formCourse || !selectedSlot) {
-      setError('請選擇學生和課程類型')
+      setError('Please select a student and course type')
       return
     }
     if (is1on2 && !formStudent2) {
-      setError('1-on-2 課程需選擇兩位學生')
+      setError('1-on-2 lessons require two students')
       return
     }
     setSaving(true)
@@ -646,7 +646,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const parentId2 = student2?.parent_id || null
     const sameParent = parentId2 && parentId1 === parentId2
 
-    // 走 server API（bulk-create 單日路徑）：驗證、建 session、扣 credit（原子 RPC）、寄信全在 server 端
+    // Server API (bulk-create single-day path): validation, session creation, credit deduction (atomic RPC), and emails all server-side
     try {
       const res = await fetch('/api/admin/bookings/bulk-create', {
         method: 'POST',
@@ -663,17 +663,17 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || '建立預約失敗')
+        setError(data.error || 'Failed to create booking')
         setSaving(false)
         return
       }
     } catch (e: any) {
-      setError('建立預約失敗：' + (e?.message || '請重試'))
+      setError('Failed to create booking: ' + (e?.message || 'please try again'))
       setSaving(false)
       return
     }
 
-    setSuccess('預約成功！')
+    setSuccess('Booking created!')
     await loadSessions()
     setTimeout(() => { setModal(null); setSuccess('') }, 1500)
     setSaving(false)
@@ -681,7 +681,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   async function handleTrialBook() {
     if (!formStudent || !selectedSlot) {
-      setError('請選擇學生')
+      setError('Please select a student')
       return
     }
     setTrialSaving(true)
@@ -701,21 +701,21 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || '建立體驗課付款連結失敗')
+        setError(data.error || 'Failed to create assessment payment link')
         setTrialSaving(false)
         return
       }
       setTrialUrl(data.url)
       await loadSessions()
     } catch (e: any) {
-      setError('建立體驗課付款連結失敗：' + e.message)
+      setError('Failed to create assessment payment link: ' + e.message)
     }
     setTrialSaving(false)
   }
 
   async function handleTrialCreditBook() {
     if (!formStudent || !selectedSlot) {
-      setError('請選擇學生')
+      setError('Please select a student')
       return
     }
     setSaving(true)
@@ -733,16 +733,16 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || '建立預約失敗')
+        setError(data.error || 'Failed to create booking')
         setSaving(false)
         return
       }
     } catch (e: any) {
-      setError('建立預約失敗：' + e.message)
+      setError('Failed to create booking: ' + e.message)
       setSaving(false)
       return
     }
-    setSuccess('使用已付款單堂課程，預約成功！')
+    setSuccess('Booked using the prepaid single lesson!')
     await loadSessions()
     setTimeout(() => { setModal(null); setSuccess('') }, 1500)
     setSaving(false)
@@ -781,7 +781,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             {(['month', 'day'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-4 py-1.5 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'}`}>
-                {v === 'month' ? '月' : '日'}
+                {v === 'month' ? 'Month' : 'Day'}
               </button>
             ))}
           </div>
@@ -796,9 +796,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                 setView('month')
               }}
               className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-            >今天</button>
+            >Today</button>
           </div>
-          {loading && <span className="text-xs text-white/40 animate-pulse">載入中...</span>}
+          {loading && <span className="text-xs text-white/40 animate-pulse">Loading...</span>}
         </div>
       </div>
 
@@ -842,19 +842,19 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           onClick={(e) => { if (e.target === e.currentTarget && !dragMoving) setDragMove(null) }}>
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl p-6">
-            <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>確認改期</h2>
+            <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>Confirm Reschedule</h2>
             <div className="rounded-lg bg-[#111d38] p-4 mb-4 space-y-1.5">
               <p className="text-sm text-white font-medium">{dragMove.student_names} · {dragMove.course_name}</p>
               <p className="text-xs text-white/50">{dragMove.from_date} {formatTime12h(dragMove.from_time)} → {dragMove.to_date} {formatTime12h(dragMove.to_time)}</p>
-              <p className="text-xs text-white/50">新教練：{(() => { const c = coaches.find(cc => cc.id === dragMove.to_coach_id); return c ? c.first_name + ' ' + c.last_name : '' })()}</p>
-              <p className="text-xs text-white/40 pt-1">整堂課一起移動；確認後會寄改期通知信給所有相關家長，credit 沿用不變。</p>
+              <p className="text-xs text-white/50">New coach: {(() => { const c = coaches.find(cc => cc.id === dragMove.to_coach_id); return c ? c.first_name + ' ' + c.last_name : '' })()}</p>
+              <p className="text-xs text-white/40 pt-1">The whole session moves together; on confirm, reschedule notices are emailed to all affected parents. Credits carry over unchanged.</p>
             </div>
             {dragMoveError && <p className="text-xs text-red-300 mb-3">{dragMoveError}</p>}
             <div className="flex gap-3">
               <button onClick={confirmDragMove} disabled={dragMoving}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
                 style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
-                {dragMoving ? '處理中...' : '確認改期'}
+                {dragMoving ? 'Working...' : 'Confirm Reschedule'}
               </button>
               <button onClick={() => setDragMove(null)} disabled={dragMoving}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-sm text-white disabled:opacity-50">
@@ -872,7 +872,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
             <div className="p-6 border-b border-white/10 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>新增預約</h2>
+                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>New Booking</h2>
                 <p className="text-sm text-white/50 mt-1">
                   {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
                   {' · '}{formatTime(selectedSlot.time)}
@@ -884,7 +884,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             <div className="p-6 space-y-4">
               {trialUrl ? (
                 <div className="space-y-3">
-                  <p className="text-sm text-white/60">付款連結已建立，複製後傳給家長：</p>
+                  <p className="text-sm text-white/60">Payment link created — copy it and send it to the parent:</p>
                   <div className="flex gap-2">
                     <input readOnly value={trialUrl}
                       className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
@@ -895,10 +895,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                         setTimeout(() => setTrialCopied(false), 1500)
                       }}
                       className="px-3 py-2 rounded-lg bg-[#c9a84c] text-[#0d1529] text-xs font-semibold min-w-[64px]">
-                      {trialCopied ? '已複製 ✓' : '複製'}
+                      {trialCopied ? 'Copied ✓' : 'Copy'}
                     </button>
                   </div>
-                  <p className="text-xs text-white/30">付款完成後預約會自動確認；連結過期會自動釋放時段。</p>
+                  <p className="text-xs text-white/30">The booking auto-confirms once payment completes; the slot is released automatically if the link expires.</p>
                 </div>
               ) : (
                 <>
@@ -909,7 +909,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     </button>
                     <button onClick={() => { setBookMode('recurring'); setIsTrial(false) }}
                       className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'recurring' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
-                      循環預約（每週同時段）
+                      Recurring (weekly, same time)
                     </button>
                     <button onClick={() => {
                         setBlockAllDay(false)
@@ -920,7 +920,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                         setModal('block')
                       }}
                       className="col-span-2 px-3 py-2 rounded-lg border text-sm transition-all border-white/10 text-white/60 hover:border-red-400/50 hover:text-red-300">
-                      🚫 封鎖此教練時段（家長端不可預約）
+                      🚫 Block this coach slot (not bookable by parents)
                     </button>
                   </div>
                   {bookMode === 'single' && <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5">
@@ -935,11 +935,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       }}
                       className="w-4 h-4" />
                     <label htmlFor="isTrialCheckbox" className="text-sm text-white/80 cursor-pointer">
-                      Swim Assessment 檢測課（{'$'}{TRIAL_PRICE_CENTS / 100}，僅限 1-on-1，需家長線上付款）
+                      Swim Assessment ({'$'}{TRIAL_PRICE_CENTS / 100}, 1-on-1 only, parent pays online)
                     </label>
                   </div>}
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">課程類型</label>
+                    <label className="block text-sm text-white/60 mb-2">Course type</label>
                     <div className="grid grid-cols-2 gap-2">
                       {courseTypes.map(ct => (
                         <button key={ct.id}
@@ -951,54 +951,54 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                               : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
                           } ${isTrial && ct.slug !== '1on1' ? 'opacity-30 cursor-not-allowed' : ''}`}>
                           <span className="block font-medium">{ct.name}</span>
-                          <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} 分鐘 · 最多 {ct.max_students} 人</span>
+                          <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} min · up to {ct.max_students} students</span>
                         </button>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">選擇學生</label>
+                    <label className="block text-sm text-white/60 mb-2">Select student</label>
                     <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentCreditsCache={parentCreditsCache} />
                 {courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && (
                   <div className="mt-2">
-                    <label className="block text-sm text-white/60 mb-2">選擇學生 2</label>
+                    <label className="block text-sm text-white/60 mb-2">Select student 2</label>
                     <StudentSearch students={students.filter(s => s.id !== formStudent)} value={formStudent2} onChange={setFormStudent2} parentCreditsCache={parentCreditsCache} />
                   </div>
                 )}
                     {isTrial && trialCreditStatus === 'available' && (
-                      <p className="text-xs text-[#c9a84c] mt-2">✓ 此學生已付款單堂體驗課，尚未使用，可直接安排，無需再次付款</p>
+                      <p className="text-xs text-[#c9a84c] mt-2">✓ This student has a paid, unused single assessment — book directly, no extra payment needed</p>
                     )}
                     {isTrial && trialCreditStatus === 'active' && (
-                      <p className="text-xs text-red-400 mt-2">此學生目前已有一筆進行中的單堂預約，請先取消該預約才能重新安排</p>
+                      <p className="text-xs text-red-400 mt-2">This student already has an active single-lesson booking. Cancel it first to rebook.</p>
                     )}
                   </div>
                   {bookMode === 'recurring' && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <label className="text-sm text-white/60">堂數</label>
+                        <label className="text-sm text-white/60">Sessions</label>
                         <input type="number" min={1} max={50} value={recurCount}
                           onChange={(e) => { setRecurCount(Math.max(1, Math.min(50, Number(e.target.value) || 1))); setRecurPreview(null) }}
                           className="w-20 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm" />
                         <button onClick={() => fetchRecurPreview(recurSkips)} disabled={recurLoading}
                           className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm hover:bg-white/15 disabled:opacity-50">
-                          {recurLoading ? '計算中...' : '產生日期預覽'}
+                          {recurLoading ? 'Calculating...' : 'Generate date preview'}
                         </button>
                       </div>
                       {recurPreview && (
                         <div className="border border-white/10 rounded-lg overflow-hidden">
                           <div className="max-h-56 overflow-y-auto divide-y divide-white/5">
                             {recurPreview.candidates.map((c, idx) => {
-                              const label = c.status === 'ok' ? '✓ 可預約'
-                                : c.status === 'past' ? '已過期'
+                              const label = c.status === 'ok' ? '✓ Available'
+                                : c.status === 'past' ? 'Past'
                                 : c.status === 'coach_time_off' ? '教練請假'
-                                : c.status === 'conflict' ? '時段衝突'
-                                : c.status === 'full' ? '已額滿'
-                                : '已跳過'
+                                : c.status === 'conflict' ? 'Time conflict'
+                                : c.status === 'full' ? 'Full'
+                                : 'Skipped'
                               const okIndex = recurPreview.candidates.slice(0, idx + 1).filter(x => x.status === 'ok').length
                               return (
                                 <div key={c.date} className="flex items-center justify-between px-3 py-2 text-sm">
                                   <span className={c.status === 'ok' ? 'text-white' : 'text-white/35'}>
-                                    {c.status === 'ok' ? `第 ${okIndex} 堂 · ` : ''}
+                                    {c.status === 'ok' ? `Lesson ${okIndex} · ` : ''}
                                     {new Date(c.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric', weekday: 'short' })}
                                   </span>
                                   <span className="flex items-center gap-2">
@@ -1006,7 +1006,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                                     {(c.status === 'ok' || c.status === 'skipped') && (
                                       <button onClick={() => toggleRecurSkip(c.date)} disabled={recurLoading}
                                         className="text-xs px-2 py-1 rounded border border-white/15 text-white/50 hover:text-white hover:border-white/40">
-                                        {c.status === 'skipped' ? '恢復' : '跳過'}
+                                        {c.status === 'skipped' ? 'Restore' : 'Skip'}
                                       </button>
                                     )}
                                   </span>
@@ -1017,11 +1017,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                           <div className="px-3 py-2 bg-white/5 text-xs text-white/50 border-t border-white/10">
                             {(() => {
                               const cr = recurPreview.credits
-                              const n1 = cr.parent1_name || '家長 1'
-                              const n2 = cr.parent2_name || '家長 2'
-                              const p1 = `${n1} 剩餘 ${cr.parent1_remaining} 堂（需 ${cr.parent1_needed}）`
-                              const p2 = cr.parent2_needed != null ? ` · ${n2} 剩餘 ${cr.parent2_remaining} 堂（需 ${cr.parent2_needed}）` : ''
-                              return (cr.sufficient ? '✓ ' : '⚠ 堂數不足 · ') + p1 + p2
+                              const n1 = cr.parent1_name || 'Parent 1'
+                              const n2 = cr.parent2_name || 'Parent 2'
+                              const p1 = `${n1} has ${cr.parent1_remaining} left (needs ${cr.parent1_needed})`
+                              const p2 = cr.parent2_needed != null ? ` · ${n2} has ${cr.parent2_remaining} left (needs ${cr.parent2_needed})` : ''
+                              return (cr.sufficient ? '✓ ' : '⚠ Not enough credits · ') + p1 + p2
                             })()}
                           </div>
                         </div>
@@ -1038,7 +1038,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             </div>
             <div className="p-6 pt-0 flex gap-3">
               <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">
-                {trialUrl ? '完成' : '取消'}
+                {trialUrl ? 'Done' : 'Cancel'}
               </button>
               {!trialUrl && (
                 <button
@@ -1046,12 +1046,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.credits.sufficient || recurLoading))}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                   {bookMode === 'recurring'
-                    ? (saving ? '建立中...' : recurPreview ? `確認建立 ${recurPreview.candidates.filter(c => c.status === 'ok').length} 堂` : '請先產生日期預覽')
+                    ? (saving ? 'Creating...' : recurPreview ? `Confirm ${recurPreview.candidates.filter(c => c.status === 'ok').length} lessons` : 'Generate the date preview first')
                     : isTrial
                     ? (trialCreditStatus === 'available'
-                        ? (saving ? '建立中...' : '使用已付款單堂課程')
+                        ? (saving ? 'Creating...' : 'Use prepaid single lesson')
                         : (trialSaving ? '建立付款連結中...' : '產生付款連結'))
-                    : (saving ? '建立中...' : '確認預約')}
+                    : (saving ? 'Creating...' : 'Confirm Booking')}
                 </button>
               )}
             </div>
@@ -1066,7 +1066,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
             <div className="p-6 border-b border-white/10 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>封鎖時段</h2>
+                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>Block Time Slot</h2>
                 <p className="text-sm text-white/50 mt-1">
                   {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
                   {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
@@ -1077,12 +1077,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             <div className="p-6 space-y-4">
               <label className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5 cursor-pointer">
                 <input type="checkbox" checked={blockAllDay} onChange={e => setBlockAllDay(e.target.checked)} className="w-4 h-4" />
-                <span className="text-sm text-white/80">整天封鎖</span>
+                <span className="text-sm text-white/80">Block all day</span>
               </label>
               {!blockAllDay && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">開始</label>
+                    <label className="block text-sm text-white/60 mb-2">Start</label>
                     <select value={blockStart}
                       onChange={e => {
                         const v = e.target.value
@@ -1096,7 +1096,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">結束</label>
+                    <label className="block text-sm text-white/60 mb-2">End</label>
                     <select value={blockEnd} onChange={e => setBlockEnd(e.target.value)}
                       className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
                       {[...TIME_SLOTS.slice(1), minutesToTime(WORK_END * 60)].filter(t => t > blockStart).map(t => (
@@ -1107,20 +1107,20 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                 </div>
               )}
               <div>
-                <label className="block text-sm text-white/60 mb-2">原因（選填）</label>
+                <label className="block text-sm text-white/60 mb-2">Reason (optional)</label>
                 <textarea value={blockReason} onChange={e => setBlockReason(e.target.value)} rows={2}
-                  placeholder="例如：場地保養、私人活動..."
+                  placeholder="e.g. Facility maintenance, private event..."
                   className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c] resize-none placeholder-white/20" />
               </div>
-              <p className="text-xs text-white/30">封鎖後家長端（訂課頁、購物車、AI 助理）無法預約此區間；既有已確認課程不受影響；管理員仍可手動排課。</p>
+              <p className="text-xs text-white/30">Once blocked, parents cannot book this window (booking page, cart, AI assistant). Existing confirmed lessons are unaffected; admins can still schedule manually.</p>
               {blockError && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{blockError}</p>}
             </div>
             <div className="p-6 pt-0 flex gap-3">
-              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">取消</button>
+              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">Cancel</button>
               <button onClick={handleCreateBlock} disabled={blockSaving}
                 className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50"
                 style={{ backgroundColor: '#ef4444', color: '#fff' }}>
-                {blockSaving ? '封鎖中...' : '確認封鎖'}
+                {blockSaving ? 'Blocking...' : 'Confirm Block'}
               </button>
             </div>
           </div>
@@ -1142,29 +1142,29 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           onClick={() => { if (!unblocking) setViewingBlock(null) }}>
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>
-              {viewingBlock.block_type === 'admin_block' ? '封鎖時段' : '教練請假'}
+              {viewingBlock.block_type === 'admin_block' ? 'Blocked Slot' : 'Coach Time Off'}
             </h2>
             <div className="space-y-1 text-sm text-white/80">
               <p>{new Date(viewingBlock.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}</p>
-              <p>{viewingBlock.start_time == null ? '整天' : `${fmtBlk(viewingBlock.start_time)} – ${fmtBlk(viewingBlock.end_time || '')}`}</p>
-              {viewingBlock.reason && <p className="text-white/60">原因：{viewingBlock.reason}</p>}
+              <p>{viewingBlock.start_time == null ? 'All day' : `${fmtBlk(viewingBlock.start_time)} – ${fmtBlk(viewingBlock.end_time || '')}`}</p>
+              {viewingBlock.reason && <p className="text-white/60">Reason: {viewingBlock.reason}</p>}
             </div>
             {viewingBlock.block_type === 'admin_block' ? (
               <>
                 {unblockErr && <p className="text-red-400 text-xs">{unblockErr}</p>}
                 <div className="flex gap-3">
                   <button onClick={() => setViewingBlock(null)} disabled={unblocking}
-                    className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">關閉</button>
+                    className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">Close</button>
                   <button onClick={removeViewingBlock} disabled={unblocking}
                     className="flex-1 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-all"
-                    style={{ backgroundColor: '#ef4444', color: '#fff' }}>{unblocking ? '解除中...' : '解除封鎖'}</button>
+                    style={{ backgroundColor: '#ef4444', color: '#fff' }}>{unblocking ? 'Removing...' : 'Remove Block'}</button>
                 </div>
               </>
             ) : (
               <>
-                <p className="text-xs text-white/40">教練請假由教練端建立；如需調整或取消,請至 Time Off 頁面管理。</p>
+                <p className="text-xs text-white/40">Coach time off is created by the coach; to adjust or remove it, use the Time Off page.</p>
                 <button onClick={() => setViewingBlock(null)}
-                  className="w-full py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all">關閉</button>
+                  className="w-full py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all">Close</button>
               </>
             )}
           </div>
@@ -1297,7 +1297,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                       }}
                       className={`absolute inset-0 transition-colors group flex items-center justify-center ${overKey === `${coach.id}-${time}` ? 'bg-[#c9a84c]/20 ring-2 ring-[#c9a84c] ring-inset' : 'hover:bg-[#c9a84c]/10'}`}>
                       <span className="hidden group-hover:flex items-center gap-1 text-xs text-[#c9a84c]">
-                        <span className="text-base leading-none">+</span> 預約
+                        <span className="text-base leading-none">+</span> Book
                       </span>
                     </button>
                   ) : (
@@ -1314,7 +1314,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                             color: blk.block_type === 'admin_block' ? '#f87171' : 'rgba(255,255,255,0.75)',
                             borderColor: blk.block_type === 'admin_block' ? 'rgba(248,113,113,0.5)' : 'rgba(255,255,255,0.3)',
                           }}>
-                          {blk.block_type === 'admin_block' ? '🚫 封鎖' : '請假'}{blk.start_time == null ? '(整天)' : ''}{blk.reason ? ` · ${blk.reason.length > 8 ? blk.reason.slice(0, 8) + '…' : blk.reason}` : ''}
+                          {blk.block_type === 'admin_block' ? '🚫 Blocked' : 'Time off'}{blk.start_time == null ? ' (all day)' : ''}{blk.reason ? ` · ${blk.reason.length > 8 ? blk.reason.slice(0, 8) + '…' : blk.reason}` : ''}
                         </button>
                       )}
                     </div>
@@ -1466,10 +1466,10 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
         </div>
         <div className="p-6">
           <p className="text-xs text-white/40 uppercase tracking-wider mb-3">
-            已預約學生 ({session.enrolled_count}/{session.max_students})
+            Booked students ({session.enrolled_count}/{session.max_students})
           </p>
           {bookings.length === 0 ? (
-            <p className="text-sm text-white/30 italic">尚無學生預約</p>
+            <p className="text-sm text-white/30 italic">No students booked yet</p>
           ) : (
             <div className="space-y-2">
               {bookings.map(b => {
@@ -1484,7 +1484,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                         <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>測驗</span>
                       )}
                       {b.lesson_credit_id === null && !b.is_trial && (
-                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>單堂</span>
+                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>Single</span>
                       )}
                     </span>
                     <span className="flex items-center gap-2">
@@ -1511,7 +1511,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
         {reschedulingBooking ? (
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-white/15 bg-white/5 p-4 mb-3 space-y-3">
-              <p className="text-sm text-white font-medium">改期：{(Array.isArray(reschedulingBooking.students) ? reschedulingBooking.students[0] : reschedulingBooking.students)?.full_name}</p>
+              <p className="text-sm text-white font-medium">Rescheduling: {(Array.isArray(reschedulingBooking.students) ? reschedulingBooking.students[0] : reschedulingBooking.students)?.full_name}</p>
               <select value={newCoachId} onChange={e => setNewCoachId(e.target.value)}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10">
                 {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
@@ -1521,13 +1521,13 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
               <input type="time" step={900} value={newTime} onChange={e => setNewTime(e.target.value)}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" style={{ colorScheme: 'dark' }} />
               {rescheduleError && <p className="text-xs text-red-300">{rescheduleError}</p>}
-              <p className="text-xs text-white/40">改期後會寄通知信給家長；credit 沿用不變。</p>
+              <p className="text-xs text-white/40">A reschedule notice will be emailed to the parent; credits carry over unchanged.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={submitReschedule} disabled={rescheduling}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
                 style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
-                {rescheduling ? '處理中...' : '確認改期'}
+                {rescheduling ? 'Working...' : 'Confirm Reschedule'}
               </button>
               <button onClick={() => { setReschedulingBooking(null); setRescheduleError('') }} disabled={rescheduling}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
@@ -1538,13 +1538,13 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
         ) : confirmingCancel ? (
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 mb-3">
-              <p className="text-sm text-red-300 font-medium">確定要取消這堂課？</p>
-              <p className="text-xs text-red-300/70 mt-1">所有預約都會一起取消，已扣除的 credit 會退回，並寄送取消通知給家長。</p>
+              <p className="text-sm text-red-300 font-medium">Cancel this lesson?</p>
+              <p className="text-xs text-red-300/70 mt-1">All bookings in this session will be cancelled together, deducted credits will be refunded, and cancellation notices will be emailed to the parents.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={cancelSession} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-lg bg-red-500/80 hover:bg-red-500 transition-colors text-sm text-white font-medium disabled:opacity-50">
-                {cancelling ? '取消中...' : '確定取消'}
+                {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
               </button>
               <button onClick={() => setConfirmingCancel(false)} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
@@ -1556,7 +1556,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
           <div className="p-6 pt-0 flex gap-3">
             <button onClick={() => setConfirmingCancel(true)}
               className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm">
-              取消這堂課
+              Cancel this lesson
             </button>
             <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
               關閉
