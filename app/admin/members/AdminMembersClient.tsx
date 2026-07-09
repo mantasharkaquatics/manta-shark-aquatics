@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
 
@@ -117,8 +117,23 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   const supabase = createClient()
   const [search, setSearch] = useState('')
   const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean }>>({})
-  const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | null>>({})
+  const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | 'notes' | null>>({})
   const [confirmingBookingId, setConfirmingBookingId] = useState<string | null>(null)
+  type StudentNote = { id: string; content: string; pinned: boolean; created_at: string; author: string }
+  const [studentNotes, setStudentNotes] = useState<Record<string, { notes: StudentNote[]; loaded: boolean }>>({})
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
+  const [noteDraft, setNoteDraft] = useState('')
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null)
+  const [noteBusy, setNoteBusy] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/student-notes?counts=1')
+      .then(r => r.json())
+      .then(d => setNoteCounts(d.counts || {}))
+      .catch(() => {})
+  }, [])
 
   async function loadStudentBookings(studentId: string) {
     if (studentBookings[studentId]?.loaded) return
@@ -171,6 +186,69 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   function toggleStudentBookings(studentId: string, type: 'upcoming' | 'past') {
     loadStudentBookings(studentId)
     setExpandedBookings(prev => ({ ...prev, [studentId]: prev[studentId] === type ? null : type }))
+  }
+
+  async function loadStudentNotes(studentId: string) {
+    try {
+      const res = await fetch(`/api/admin/student-notes?student_id=${studentId}`)
+      const d = await res.json()
+      setStudentNotes(prev => ({ ...prev, [studentId]: { notes: d.notes || [], loaded: true } }))
+    } catch {
+      setStudentNotes(prev => ({ ...prev, [studentId]: { notes: [], loaded: true } }))
+    }
+  }
+
+  function toggleStudentNotes(studentId: string) {
+    const cur = expandedBookings[studentId]
+    setExpandedBookings(prev => ({ ...prev, [studentId]: cur === 'notes' ? null : 'notes' }))
+    setNoteDraft(''); setEditingNoteId(null); setDeletingNoteId(null)
+    if (cur !== 'notes' && !studentNotes[studentId]?.loaded) loadStudentNotes(studentId)
+  }
+
+  async function addNote(studentId: string) {
+    const content = noteDraft.trim()
+    if (!content || noteBusy) return
+    setNoteBusy(true)
+    try {
+      const res = await fetch('/api/admin/student-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: studentId, content }) })
+      if (res.ok) {
+        setNoteDraft('')
+        setNoteCounts(prev => ({ ...prev, [studentId]: (prev[studentId] || 0) + 1 }))
+        await loadStudentNotes(studentId)
+      }
+    } finally { setNoteBusy(false) }
+  }
+
+  async function saveNote(studentId: string, noteId: string) {
+    const content = editDraft.trim()
+    if (!content || noteBusy) return
+    setNoteBusy(true)
+    try {
+      const res = await fetch('/api/admin/student-notes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: noteId, content }) })
+      if (res.ok) { setEditingNoteId(null); await loadStudentNotes(studentId) }
+    } finally { setNoteBusy(false) }
+  }
+
+  async function togglePinNote(studentId: string, noteId: string, pinned: boolean) {
+    if (noteBusy) return
+    setNoteBusy(true)
+    try {
+      const res = await fetch('/api/admin/student-notes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: noteId, pinned: !pinned }) })
+      if (res.ok) await loadStudentNotes(studentId)
+    } finally { setNoteBusy(false) }
+  }
+
+  async function deleteNote(studentId: string, noteId: string) {
+    if (noteBusy) return
+    setNoteBusy(true)
+    try {
+      const res = await fetch('/api/admin/student-notes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: noteId }) })
+      if (res.ok) {
+        setDeletingNoteId(null)
+        setNoteCounts(prev => ({ ...prev, [studentId]: Math.max(0, (prev[studentId] || 1) - 1) }))
+        await loadStudentNotes(studentId)
+      }
+    } finally { setNoteBusy(false) }
   }
 
   async function setAttendance(studentId: string, booking: Booking, checkedIn: boolean) {
@@ -420,9 +498,74 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   onClick={() => toggleStudentBookings(student.id, 'past')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'past' ? 'border-blue-400 bg-blue-400/20 text-blue-400' : 'border-[#1e3a6e] text-gray-500 hover:border-blue-400/40'}`}
                                 >History {sb?.loaded ? `(${sb.past.length})` : ''}</button>
+                                <button
+                                  onClick={() => toggleStudentNotes(student.id)}
+                                  className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'notes' ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300' : 'border-[#1e3a6e] text-gray-500 hover:border-emerald-400/40'}`}
+                                >📝 Notes{noteCounts[student.id] ? ` (${noteCounts[student.id]})` : ''}</button>
                               </div>
                             </div>
-                            {expandedType && (
+                            {expandedType === 'notes' && (
+                              <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
+                                <div className="flex gap-2 mb-2">
+                                  <textarea value={noteDraft} onChange={e => setNoteDraft(e.target.value)} rows={2}
+                                    placeholder="Add a note (visible to admins only)..."
+                                    className="flex-1 bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 resize-none focus:outline-none focus:border-[#c9a84c]/60" />
+                                  <button onClick={() => addNote(student.id)} disabled={noteBusy || !noteDraft.trim()}
+                                    className="px-3 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-xs font-semibold disabled:opacity-40 transition-all">Add</button>
+                                </div>
+                                {!studentNotes[student.id]?.loaded ? (
+                                  <p className="text-gray-500 text-xs py-1">Loading...</p>
+                                ) : studentNotes[student.id].notes.length === 0 ? (
+                                  <p className="text-gray-600 text-xs py-1">No notes yet.</p>
+                                ) : (
+                                  <div className="space-y-1.5">
+                                    {studentNotes[student.id].notes.map(n => (
+                                      <div key={n.id} className="group flex items-start gap-2 bg-[#0d1529] rounded-lg px-3 py-2">
+                                        <div className="flex-1 min-w-0">
+                                          {editingNoteId === n.id ? (
+                                            <div className="flex items-start gap-2">
+                                              <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} rows={2}
+                                                className="flex-1 bg-[#111d38] border border-[#1e3a6e] rounded px-2 py-1 text-xs text-white resize-none focus:outline-none focus:border-[#c9a84c]/60" />
+                                              <button onClick={() => saveNote(student.id, n.id)} disabled={noteBusy || !editDraft.trim()}
+                                                className="text-[10px] text-[#c9a84c] font-semibold disabled:opacity-40 mt-1">Save</button>
+                                              <button onClick={() => setEditingNoteId(null)} className="text-[10px] text-gray-500 mt-1">Cancel</button>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <p className="text-gray-200 text-xs whitespace-pre-wrap">{n.pinned && <span className="mr-1">📌</span>}{n.content}</p>
+                                              <p className="text-gray-600 text-[10px] mt-0.5">{new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {n.author}</p>
+                                            </>
+                                          )}
+                                        </div>
+                                        {editingNoteId !== n.id && (
+                                          <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {deletingNoteId === n.id ? (
+                                              <>
+                                                <span className="text-gray-400 text-[10px]">Delete?</span>
+                                                <button onClick={() => deleteNote(student.id, n.id)} disabled={noteBusy}
+                                                  className="px-2 py-0.5 rounded-full border border-red-400 bg-red-500/20 text-red-300 text-[10px] font-semibold">Yes</button>
+                                                <button onClick={() => setDeletingNoteId(null)}
+                                                  className="px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 text-[10px] font-semibold">No</button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <button onClick={() => togglePinNote(student.id, n.id, n.pinned)} title={n.pinned ? 'Unpin' : 'Pin'}
+                                                  className={`px-1.5 py-0.5 rounded text-[11px] transition-colors ${n.pinned ? 'text-[#c9a84c]' : 'text-gray-500 hover:text-[#c9a84c]'}`}>📌</button>
+                                                <button onClick={() => { setEditingNoteId(n.id); setEditDraft(n.content); setDeletingNoteId(null) }}
+                                                  className="px-1.5 py-0.5 rounded text-[11px] text-gray-500 hover:text-[#c9a84c] transition-colors">✏️</button>
+                                                <button onClick={() => setDeletingNoteId(n.id)}
+                                                  className="px-1.5 py-0.5 rounded text-[11px] text-gray-500 hover:text-red-400 transition-colors">🗑</button>
+                                              </>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {(expandedType === 'upcoming' || expandedType === 'past') && (
                               <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
                                 {!sb?.loaded ? (
                                   <p className="text-gray-500 text-xs py-2">Loading...</p>
