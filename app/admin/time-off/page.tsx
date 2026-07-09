@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import AdminTimeOffClient from './AdminTimeOffClient'
@@ -37,19 +38,24 @@ export default async function AdminTimeOffPage() {
   ])
 
   // 每個 block 的受影響統計(confirmed / notified / cancelled-by-block)
+  // bookings 對 admin 無 client 端 SELECT policy(RLS 靜默回空)— 統計必走 service role
+  const svc = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   const allBlocks = [...(timeOffList || []), ...(pastList || [])]
   const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
   const stats: Record<string, { pending: number; notified: number; handled: number }> = {}
   if (allBlocks.length) {
     const dates = [...new Set(allBlocks.map((b: any) => b.date))]
     const coachIds = [...new Set(allBlocks.map((b: any) => b.coach_id).filter(Boolean))]
-    const { data: sessions } = await supabase
+    const { data: sessions } = await svc
       .from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time')
       .in('session_date', dates)
     const sessIds = (sessions || []).map((s: any) => s.id)
     const { data: bookings } = sessIds.length
-      ? await supabase
+      ? await svc
           .from('bookings')
           .select('id, class_session_id, status, block_notice_sent_at, cancellation_reason')
           .in('class_session_id', sessIds)
