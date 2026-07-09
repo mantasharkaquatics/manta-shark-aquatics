@@ -147,19 +147,24 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
             <div>
               <p className="text-white font-medium flex items-center flex-wrap gap-2">
                 <span>Coach {item.coaches?.first_name} {item.coaches?.last_name}</span>
-                {item.block_type === 'admin_block' && <span className="text-xs bg-red-500/15 text-red-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">Admin Block</span>}
-              </p>
-              <p className="text-[#c9a84c] text-sm flex items-center flex-wrap gap-x-2 gap-y-1">
-                <span className="whitespace-nowrap">{formatDate(item.date)}<span className="text-gray-400"> · {item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : 'All day'}</span></span>
                 {(() => {
                   const st = impactStats[item.id]
                   if (!st || (st.pending === 0 && st.notified === 0 && st.handled === 0)) return null
-                  if (st.pending > 0) return <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded whitespace-nowrap">⚠️ {st.pending + st.notified} affected</span>
-                  if (st.notified > 0) return <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded whitespace-nowrap">📧 Notified · awaiting cancel</span>
-                  return <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded whitespace-nowrap">✓ Handled ({st.handled})</span>
+                  if (st.pending > 0) return <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">⚠️ {st.pending + st.notified} affected</span>
+                  if (st.notified > 0) return <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded whitespace-nowrap font-normal">📧 Notified · awaiting cancel</span>
+                  return <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">✓ Handled ({st.handled})</span>
                 })()}
               </p>
-              {item.reason && <p className="text-gray-400 text-xs mt-0.5">{item.reason}</p>}
+              <p className="text-[#c9a84c] text-sm">
+                {formatDate(item.date)}
+                <span className="text-gray-400"> · {item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : 'All day'}</span>
+              </p>
+              {(item.block_type === 'admin_block' || item.reason) && (
+                <p className="text-xs mt-1 flex items-center flex-wrap gap-2">
+                  {item.block_type === 'admin_block' && <span className="bg-red-500/15 text-red-400 px-2 py-0.5 rounded whitespace-nowrap">Admin Block</span>}
+                  {item.reason && <span className="text-gray-400">{item.reason}</span>}
+                </p>
+              )}
             </div>
           </button>
           <div className="flex items-center gap-4 ml-4 flex-shrink-0">
@@ -236,7 +241,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
         <p className="text-gray-400 mt-1">Coach requests and admin schedule blocks</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 h-fit">
           <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">New Admin Block</h2>
           <div className="space-y-4">
