@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
       })
       if (invoiceRes.ok) {
         const { invoice } = await invoiceRes.json()
-        // 寄發票 email
+        // Send invoice email
         const { data: parent } = await supabase
           .from('parents')
           .select('email, first_name')

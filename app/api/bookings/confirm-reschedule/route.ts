@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!myBooking.pending_new_session_id) return NextResponse.json({ error: '無待確認的新時段' }, { status: 400 })
 
   const partnerBookingId = myBooking.partner_booking_id
-  if (!partnerBookingId) return NextResponse.json({ error: '找不到夥伴預約' }, { status: 404 })
+  if (!partnerBookingId) return NextResponse.json({ error: 'Partner booking not found' }, { status: 404 })
 
   const { data: partnerBooking } = await supabase
     .from('bookings')

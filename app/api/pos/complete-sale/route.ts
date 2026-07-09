@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       stripe_payment_intent_id: paymentIntentId || null,
     }).select().single()
 
-    // 寄發票 email
+    // Send invoice email
     if (invoice && parent) {
       try {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'

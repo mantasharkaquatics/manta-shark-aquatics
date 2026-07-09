@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     .eq('id', partnerBookingId)
     .single()
 
-  if (!partnerBooking) return NextResponse.json({ error: '找不到夥伴預約' }, { status: 404 })
+  if (!partnerBooking) return NextResponse.json({ error: 'Partner booking not found' }, { status: 404 })
 
   // 確認新 session 存在
   const { data: newSession } = await supabase

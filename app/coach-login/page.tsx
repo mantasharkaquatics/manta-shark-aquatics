@@ -81,7 +81,7 @@ export default function CoachLoginPage() {
         <div className="flex flex-col items-center mb-10">
           <Image src="/logo.png" alt="Manta Shark" width={72} height={72} className="mb-4" />
           <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest mb-1">Coach Portal</p>
-          <h1 className="text-white text-2xl font-bold">教練登入</h1>
+          <h1 className="text-white text-2xl font-bold">Coach Login</h1>
           <p className="text-gray-400 text-sm mt-1">請輸入您的 8 位數 PIN 碼</p>
         </div>
 
