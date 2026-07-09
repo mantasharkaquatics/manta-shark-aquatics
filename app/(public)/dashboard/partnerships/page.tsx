@@ -90,7 +90,7 @@ export default function PartnershipsPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#0d1529', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>載入中...</div>
+      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
     </div>
   )
 
@@ -204,15 +204,15 @@ export default function PartnershipsPage() {
           <div onClick={e => e.stopPropagation()} style={{ background: DARK, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#f87171', marginBottom: '8px' }}>解除連動</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>確定要解除連動？</div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>解除後，雙方將無法再看到對方的學生，所有 pending 中的跨帳戶預約也會取消。</p>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>解除後，雙方將無法再看到對方的學生，所有 pending 中的跨帳戶預約也會Cancel。</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => { setRevokeConfirm(false); setRevokeId(null) }}
                 style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                取消
+                Cancel
               </button>
               <button onClick={handleRevoke}
                 style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#f87171', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                確定解除
+                Yes, Remove
               </button>
             </div>
           </div>
