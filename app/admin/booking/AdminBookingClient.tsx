@@ -334,6 +334,32 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [blockReason, setBlockReason] = useState('')
   const [blockSaving, setBlockSaving] = useState(false)
   const [blockError, setBlockError] = useState('')
+  const [viewingBlock, setViewingBlock] = useState<Block | null>(null)
+  const [unblocking, setUnblocking] = useState(false)
+  const [unblockErr, setUnblockErr] = useState('')
+
+  const fmtBlk = (t: string) => {
+    const [h, m] = t.slice(0, 5).split(':').map(Number)
+    const ap = h >= 12 ? 'PM' : 'AM'
+    const hh = h % 12 === 0 ? 12 : h % 12
+    return `${hh}:${String(m).padStart(2, '0')} ${ap}`
+  }
+
+  async function removeViewingBlock() {
+    if (!viewingBlock || unblocking) return
+    setUnblocking(true)
+    setUnblockErr('')
+    try {
+      const res = await fetch('/api/admin/time-off', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: viewingBlock.id }) })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setBlocks(prev => prev.filter(b => b.id !== viewingBlock.id))
+        setViewingBlock(null)
+      } else {
+        setUnblockErr(data.error || '解除封鎖失敗')
+      }
+    } finally { setUnblocking(false) }
+  }
 
   const loadBlocks = useCallback(async () => {
     let from: string, to: string
@@ -805,6 +831,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               isCoachAvailable={isCoachAvailable}
               onSlotClick={openBookModal}
               onSessionClick={openDetailModal}
+              onBlockClick={(blk) => { setUnblockErr(''); setViewingBlock(blk) }}
             />
           )}
         </div>
@@ -1110,6 +1137,39 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           onRefresh={loadSessions}
         />
       )}
+      {viewingBlock && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => { if (!unblocking) setViewingBlock(null) }}>
+          <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>
+              {viewingBlock.block_type === 'admin_block' ? '封鎖時段' : '教練請假'}
+            </h2>
+            <div className="space-y-1 text-sm text-white/80">
+              <p>{new Date(viewingBlock.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}</p>
+              <p>{viewingBlock.start_time == null ? '整天' : `${fmtBlk(viewingBlock.start_time)} – ${fmtBlk(viewingBlock.end_time || '')}`}</p>
+              {viewingBlock.reason && <p className="text-white/60">原因：{viewingBlock.reason}</p>}
+            </div>
+            {viewingBlock.block_type === 'admin_block' ? (
+              <>
+                {unblockErr && <p className="text-red-400 text-xs">{unblockErr}</p>}
+                <div className="flex gap-3">
+                  <button onClick={() => setViewingBlock(null)} disabled={unblocking}
+                    className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">關閉</button>
+                  <button onClick={removeViewingBlock} disabled={unblocking}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-all"
+                    style={{ backgroundColor: '#ef4444', color: '#fff' }}>{unblocking ? '解除中...' : '解除封鎖'}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-white/40">教練請假由教練端建立；如需調整或取消,請至 Time Off 頁面管理。</p>
+                <button onClick={() => setViewingBlock(null)}
+                  className="w-full py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all">關閉</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1177,9 +1237,10 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
 // ══════════════════════════════════════════════════════════════════════
 // Day View
 // ══════════════════════════════════════════════════════════════════════
-function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks }: {
+function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks, onBlockClick }: {
   date: Date
   blocks: Block[]
+  onBlockClick: (blk: Block) => void
   coaches: Coach[]
   getSessionAt: (date: string, time: string, coachId: string) => Session | null
   isCoachAvailable: (id: string, date: Date, time: string) => boolean
@@ -1246,13 +1307,15 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                     <div className="absolute inset-0 pointer-events-none z-[5]"
                       style={{ backgroundColor: 'rgba(148,163,184,0.13)', backdropFilter: 'saturate(0.6)' }}>
                       {blkLabelHere && (
-                        <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
+                        <button onClick={(e) => { e.stopPropagation(); onBlockClick(blk) }}
+                          className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none pointer-events-auto border cursor-pointer transition-all hover:brightness-125"
                           style={{
                             backgroundColor: blk.block_type === 'admin_block' ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.14)',
                             color: blk.block_type === 'admin_block' ? '#f87171' : 'rgba(255,255,255,0.75)',
+                            borderColor: blk.block_type === 'admin_block' ? 'rgba(248,113,113,0.5)' : 'rgba(255,255,255,0.3)',
                           }}>
-                          {blk.block_type === 'admin_block' ? '🚫 封鎖' : '請假'}{blk.start_time == null ? '(整天)' : ''}
-                        </span>
+                          {blk.block_type === 'admin_block' ? '🚫 封鎖' : '請假'}{blk.start_time == null ? '(整天)' : ''}{blk.reason ? ` · ${blk.reason.length > 8 ? blk.reason.slice(0, 8) + '…' : blk.reason}` : ''}
+                        </button>
                       )}
                     </div>
                   )}
