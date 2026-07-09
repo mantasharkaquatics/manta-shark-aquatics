@@ -127,6 +127,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   const [editDraft, setEditDraft] = useState('')
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null)
   const [noteBusy, setNoteBusy] = useState(false)
+  const [composingNote, setComposingNote] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/student-notes?counts=1')
@@ -201,7 +202,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   function toggleStudentNotes(studentId: string) {
     const cur = expandedBookings[studentId]
     setExpandedBookings(prev => ({ ...prev, [studentId]: cur === 'notes' ? null : 'notes' }))
-    setNoteDraft(''); setEditingNoteId(null); setDeletingNoteId(null)
+    setNoteDraft(''); setEditingNoteId(null); setDeletingNoteId(null); setComposingNote(null)
     if (cur !== 'notes' && !studentNotes[studentId]?.loaded) loadStudentNotes(studentId)
   }
 
@@ -213,6 +214,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       const res = await fetch('/api/admin/student-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: studentId, content }) })
       if (res.ok) {
         setNoteDraft('')
+        setComposingNote(null)
         setNoteCounts(prev => ({ ...prev, [studentId]: (prev[studentId] || 0) + 1 }))
         await loadStudentNotes(studentId)
       }
@@ -506,13 +508,23 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                             </div>
                             {expandedType === 'notes' && (
                               <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
-                                <div className="flex gap-2 mb-2">
-                                  <textarea value={noteDraft} onChange={e => setNoteDraft(e.target.value)} rows={2}
-                                    placeholder="Add a note (visible to admins only)..."
-                                    className="flex-1 bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 resize-none focus:outline-none focus:border-[#c9a84c]/60" />
-                                  <button onClick={() => addNote(student.id)} disabled={noteBusy || !noteDraft.trim()}
-                                    className="px-3 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-xs font-semibold disabled:opacity-40 transition-all">Add</button>
-                                </div>
+                                {composingNote === student.id ? (
+                                  <div className="mb-2 bg-[#0d1529] border border-[#c9a84c]/40 rounded-lg p-3">
+                                    <textarea value={noteDraft} onChange={e => setNoteDraft(e.target.value)} rows={2} autoFocus
+                                      onBlur={() => { if (!noteDraft.trim()) { setComposingNote(null); setNoteDraft('') } }}
+                                      placeholder="Write a note (visible to admins only)..."
+                                      className="w-full bg-transparent text-sm text-white placeholder-gray-600 resize-none focus:outline-none" />
+                                    <div className="flex items-center gap-4 mt-2">
+                                      <button onClick={() => addNote(student.id)} disabled={noteBusy || !noteDraft.trim()}
+                                        className="text-sm text-[#c9a84c] font-semibold disabled:opacity-40">Done</button>
+                                      <button onClick={() => { setComposingNote(null); setNoteDraft('') }}
+                                        className="text-sm text-gray-500 hover:text-gray-300">Cancel</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => { setComposingNote(student.id); setNoteDraft('') }}
+                                    className="mb-2 text-sm text-[#c9a84c] hover:text-[#b8963e] font-semibold transition-colors">+ Add Note</button>
+                                )}
                                 {!studentNotes[student.id]?.loaded ? (
                                   <p className="text-gray-500 text-xs py-1">Loading...</p>
                                 ) : studentNotes[student.id].notes.length === 0 ? (
@@ -532,8 +544,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                             </div>
                                           ) : (
                                             <>
-                                              <p className="text-gray-200 text-xs whitespace-pre-wrap">{n.pinned && <span className="mr-1">📌</span>}{n.content}</p>
-                                              <p className="text-gray-600 text-[10px] mt-0.5">{new Date(n.created_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })} · {n.author}</p>
+                                              <p className="text-gray-200 text-sm whitespace-pre-wrap">{n.pinned && <span className="mr-1">📌</span>}{n.content}</p>
+                                              <p className="text-gray-500 text-xs mt-1">{new Date(n.created_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })} · {n.author}</p>
                                             </>
                                           )}
                                         </div>
@@ -550,11 +562,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                             ) : (
                                               <>
                                                 <button onClick={() => togglePinNote(student.id, n.id, n.pinned)} title={n.pinned ? 'Unpin' : 'Pin'}
-                                                  className={`px-1.5 py-0.5 rounded text-[11px] transition-colors ${n.pinned ? 'text-[#c9a84c]' : 'text-gray-500 hover:text-[#c9a84c]'}`}>📌</button>
-                                                <button onClick={() => { setEditingNoteId(n.id); setEditDraft(n.content); setDeletingNoteId(null) }}
-                                                  className="px-1.5 py-0.5 rounded text-[11px] text-gray-500 hover:text-[#c9a84c] transition-colors">✏️</button>
-                                                <button onClick={() => setDeletingNoteId(n.id)}
-                                                  className="px-1.5 py-0.5 rounded text-[11px] text-gray-500 hover:text-red-400 transition-colors">🗑</button>
+                                                  className={`px-2 py-1 rounded text-base transition-colors ${n.pinned ? 'text-[#c9a84c]' : 'text-gray-500 hover:text-[#c9a84c]'}`}>📌</button>
+                                                <button onClick={() => { setEditingNoteId(n.id); setEditDraft(n.content); setDeletingNoteId(null) }} title="Edit"
+                                                  className="px-2 py-1 rounded text-base text-gray-500 hover:text-[#c9a84c] transition-colors">✏️</button>
+                                                <button onClick={() => setDeletingNoteId(n.id)} title="Delete"
+                                                  className="px-2 py-1 rounded text-base text-gray-500 hover:text-red-400 transition-colors">🗑</button>
                                               </>
                                             )}
                                           </div>
