@@ -16,16 +16,19 @@ export async function POST(req: NextRequest) {
   if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 })
 
   if (mode === 'human') {
-    await svc.from('chat_threads').update({ mode: 'human', handled_by: auth.admin.id }).eq('id', thread_id)
+    const { error: hErr } = await svc.from('chat_threads').update({ mode: 'human', handled_by: auth.admin.id }).eq('id', thread_id)
+    if (hErr) return NextResponse.json({ error: 'Failed to take over: ' + hErr.message }, { status: 500 })
   } else {
     const cutoff = new Date().toISOString()
-    await svc.from('chat_messages').insert({
+    const { error: msgErr } = await svc.from('chat_messages').insert({
       thread_id,
       sender_type: 'system',
       body: 'Front desk session has ended. Our AI assistant will continue to help you here.',
     })
+    if (msgErr) return NextResponse.json({ error: 'Failed to post hand-back notice: ' + msgErr.message }, { status: 500 })
     // 分界點:AI 之後只讀此時間以後的訊息,真人服務段的對話不再進入 AI 上下文
-    await svc.from('chat_threads').update({ mode: 'ai', escalation_summary: null, ai_context_from: cutoff }).eq('id', thread_id)
+    const { error: thErr } = await svc.from('chat_threads').update({ mode: 'ai', escalation_summary: null, ai_context_from: cutoff }).eq('id', thread_id)
+    if (thErr) return NextResponse.json({ error: 'Failed to switch mode: ' + thErr.message }, { status: 500 })
   }
   return NextResponse.json({ ok: true, mode })
 }
