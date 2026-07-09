@@ -1109,7 +1109,7 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.course_name}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.is_trial ? 'Swim Assessment' : booking.course_name}</span>
                         {booking.is_trial && <span style={{ fontSize: '10px', fontWeight: 700, background: 'transparent', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: '10px', padding: '2px 8px' }}>Assessment</span>}
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
