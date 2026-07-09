@@ -1,6 +1,7 @@
 'use client'
 
 import { formatTime12h } from '@/lib/date'
+import StudentNotesPanel from '@/components/StudentNotesPanel'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -1412,7 +1413,8 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                 const student = Array.isArray(b.students) ? b.students[0] : b.students
                 const parent  = Array.isArray(b.parents)  ? b.parents[0]  : b.parents
                 return (
-                  <div key={b.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2.5">
+                  <div key={b.id} className="bg-[#111d38] rounded-lg px-3 py-2.5">
+                    <div className="flex items-center justify-between">
                     <span className="text-sm text-white font-medium flex items-center gap-1.5">
                       {student?.full_name}
                       {b.is_trial && (
@@ -1431,6 +1433,12 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                         </button>
                       )}
                     </span>
+                    </div>
+                    {student?.id && (
+                      <div className="mt-2">
+                        <StudentNotesPanel studentId={student.id} collapsible />
+                      </div>
+                    )}
                   </div>
                 )
               })}
