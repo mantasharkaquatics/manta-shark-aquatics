@@ -133,13 +133,14 @@ export async function POST(req: NextRequest) {
         }
         // 聊天室確認訊息(加值通知:失敗只 log,不擋 webhook 主流程)
         try {
-          const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', bk.parent_id).single()
+          const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', bk.parent_id).order('created_at', { ascending: true }).limit(1).maybeSingle()
           if (th && sess) {
             const [y, m, d] = String(sess.session_date).split('-')
             const [hh, mm] = String(sess.start_time).slice(0, 5).split(':').map(Number)
             const ap = hh >= 12 ? 'PM' : 'AM'
             const h12 = hh % 12 === 0 ? 12 : hh % 12
-            const body = `付款成功!您的 Swim Assessment 已確認:\n\n- 學生:${studentRow?.full_name || ''}\n- 教練:${coachName || ''}\n- 日期:${y} 年 ${Number(m)} 月 ${Number(d)} 日\n- 時間:${h12}:${String(mm).padStart(2, '0')} ${ap}\n\n收據與發票可至 Dashboard 的 Lesson Credits 區塊查看下載。期待見到您!`
+            const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            const body = `Payment received! Your Swim Assessment is confirmed:\n\n- Student: ${studentRow?.full_name || ''}\n- Coach: ${coachName || ''}\n- Date: ${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}\n- Time: ${h12}:${String(mm).padStart(2, '0')} ${ap}\n\nYour receipt and invoice are available under Lesson Credits on your Dashboard. See you at the pool!`
             const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
             if (chatErr) console.error('Trial chat confirm error:', chatErr)
             else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)
@@ -216,22 +217,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Credit failed' }, { status: 500 })
     }
 
+    const PLANS: Record<string, { name: string }> = {
+      '1on1-10': { name: '1-on-1 Private · 10 Sessions' },
+      '1on1-20': { name: '1-on-1 Private · 20 Sessions' },
+      '1on1-30': { name: '1-on-1 Private · 30 Sessions' },
+      '1on1-50': { name: '1-on-1 Private · 50 Sessions' },
+      '1on2-10': { name: '1-on-2 Semi-Private · 10 Sessions' },
+      '1on2-20': { name: '1-on-2 Semi-Private · 20 Sessions' },
+      '1on2-30': { name: '1-on-2 Semi-Private · 30 Sessions' },
+      '1on2-50': { name: '1-on-2 Semi-Private · 50 Sessions' },
+      '1on4-4':  { name: '1-on-4 Group · 4 Sessions/month' },
+      '1on4-8':  { name: '1-on-4 Group · 8 Sessions/month' },
+      'team':    { name: 'Swim Team · Monthly' },
+    }
+    const planName = plan_id && PLANS[plan_id] ? PLANS[plan_id].name : 'Swim Lesson Package'
+
     // 3. Create invoice
     try {
-      const PLANS: Record<string, { name: string }> = {
-        '1on1-10': { name: '1-on-1 Private · 10 Sessions' },
-        '1on1-20': { name: '1-on-1 Private · 20 Sessions' },
-        '1on1-30': { name: '1-on-1 Private · 30 Sessions' },
-        '1on1-50': { name: '1-on-1 Private · 50 Sessions' },
-        '1on2-10': { name: '1-on-2 Semi-Private · 10 Sessions' },
-        '1on2-20': { name: '1-on-2 Semi-Private · 20 Sessions' },
-        '1on2-30': { name: '1-on-2 Semi-Private · 30 Sessions' },
-        '1on2-50': { name: '1-on-2 Semi-Private · 50 Sessions' },
-        '1on4-4':  { name: '1-on-4 Group · 4 Sessions/month' },
-        '1on4-8':  { name: '1-on-4 Group · 8 Sessions/month' },
-        'team':    { name: 'Swim Team · Monthly' },
-      }
-      const planName = plan_id && PLANS[plan_id] ? PLANS[plan_id].name : 'Swim Lesson Package'
       const unitPrice = amount_cents / 100 / sessions
       const invoiceRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
         method: 'POST',
@@ -272,17 +274,11 @@ export async function POST(req: NextRequest) {
       console.error('Invoice create error:', invoiceErr)
     }
 
-    // 聊天室確認訊息(加值通知:失敗只 log,不擋 webhook 主流程)
+    // Chat confirmation (best-effort: failures are logged, never block the webhook)
     try {
-      const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', parent_id).single()
+      const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', parent_id).order('created_at', { ascending: true }).limit(1).maybeSingle()
       if (th) {
-        const CHAT_PLAN_NAMES: Record<string, string> = {
-          '1on1-10': '1-on-1 私人課 10 堂', '1on1-20': '1-on-1 私人課 20 堂', '1on1-30': '1-on-1 私人課 30 堂', '1on1-50': '1-on-1 私人課 50 堂',
-          '1on2-10': '1-on-2 半私人課 10 堂', '1on2-20': '1-on-2 半私人課 20 堂', '1on2-30': '1-on-2 半私人課 30 堂', '1on2-50': '1-on-2 半私人課 50 堂',
-          '1on4-4': '1-on-4 團體課 每月 4 堂', '1on4-8': '1-on-4 團體課 每月 8 堂', 'team': 'Swim Team 月費',
-        }
-        const chatPlanName = (plan_id && CHAT_PLAN_NAMES[plan_id]) || `課程套餐(${sessions} 堂)`
-        const body = `付款成功!您購買的「${chatPlanName}」已加入您的帳戶,共 ${sessions} 堂課程點數。\n\n收據與發票可至 Dashboard 的 Lesson Credits 區塊查看下載。感謝您的購買!`
+        const body = `Payment received! "${planName}" has been added to your account (${sessions} lesson credits).\n\nYour receipt and invoice are available under Lesson Credits on your Dashboard. Thank you!`
         const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
         if (chatErr) console.error('Purchase chat confirm error:', chatErr)
         else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)
