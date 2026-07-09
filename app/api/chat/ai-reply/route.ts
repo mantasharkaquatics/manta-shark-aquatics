@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
-import { buildSystemPrompt } from '@/lib/ai/system-prompt'
+import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { PLANS } from '@/lib/plans'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { cancelBookingWithPartner } from '@/lib/bookings/cancel'
@@ -512,7 +512,7 @@ export async function POST(req: NextRequest) {
       .map(([id, p]) => `${id}: ${p.name} — $${(p.amount / 100).toLocaleString('en-US')}`)
       .join('\n')
 
-    const system = buildSystemPrompt({
+    const { staticPart, dynamicPart } = buildSystemPromptParts({
       mode: 'live',
       parentName: parent.first_name,
       dateLine: `Current date (Pacific Time): ${getTodayLA()}, current time: ${formatTime12h(`${hh}:${mm}`)}.`,
@@ -520,6 +520,12 @@ export async function POST(req: NextRequest) {
       planList,
       knowledge,
     })
+    // Prompt caching:靜態段(規則+POLICIES+knowledge)掛 cache_control,
+    // 連同其前綴的 tools 一起進 cache;動態段(時間/家長/snapshot)不 cache。
+    const system = [
+      { type: 'text' as const, text: staticPart, cache_control: { type: 'ephemeral' as const } },
+      { type: 'text' as const, text: dynamicPart },
+    ]
 
     const merged: { role: 'user' | 'assistant'; content: any }[] = []
     for (const m of recent) {
