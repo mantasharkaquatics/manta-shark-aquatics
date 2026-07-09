@@ -272,6 +272,25 @@ export async function POST(req: NextRequest) {
       console.error('Invoice create error:', invoiceErr)
     }
 
+    // 聊天室確認訊息(加值通知:失敗只 log,不擋 webhook 主流程)
+    try {
+      const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', parent_id).single()
+      if (th) {
+        const CHAT_PLAN_NAMES: Record<string, string> = {
+          '1on1-10': '1-on-1 私人課 10 堂', '1on1-20': '1-on-1 私人課 20 堂', '1on1-30': '1-on-1 私人課 30 堂', '1on1-50': '1-on-1 私人課 50 堂',
+          '1on2-10': '1-on-2 半私人課 10 堂', '1on2-20': '1-on-2 半私人課 20 堂', '1on2-30': '1-on-2 半私人課 30 堂', '1on2-50': '1-on-2 半私人課 50 堂',
+          '1on4-4': '1-on-4 團體課 每月 4 堂', '1on4-8': '1-on-4 團體課 每月 8 堂', 'team': 'Swim Team 月費',
+        }
+        const chatPlanName = (plan_id && CHAT_PLAN_NAMES[plan_id]) || `課程套餐(${sessions} 堂)`
+        const body = `付款成功!您購買的「${chatPlanName}」已加入您的帳戶,共 ${sessions} 堂課程點數。\n\n收據與發票可至 Dashboard 的 Lesson Credits 區塊查看下載。感謝您的購買!`
+        const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
+        if (chatErr) console.error('Purchase chat confirm error:', chatErr)
+        else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)
+      }
+    } catch (e) {
+      console.error('Purchase chat confirm error:', e)
+    }
+
     console.log(`✅ Purchase complete: ${plan_id} for parent ${parent_id}`)
   }
 
