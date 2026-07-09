@@ -742,7 +742,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all">取消</button>
+                className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all">Cancel</button>
               <button onClick={() => { setShowConfirm(false); handleAssign() }}
                 className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all">確認指定</button>
             </div>

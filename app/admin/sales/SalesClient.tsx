@@ -187,8 +187,8 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">發票編號</th>
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">客戶</th>
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">購買方案</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">付款方式</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">金額</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Payment</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Amount</th>
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">購買時間</th>
                 </tr>
               </thead>
