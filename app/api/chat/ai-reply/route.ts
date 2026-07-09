@@ -503,8 +503,11 @@ export async function POST(req: NextRequest) {
     if (name === 'escalate_to_human') {
       escalate = true
       const summary = String(input.summary || input.reason || '').slice(0, 1000)
-      await svc.from('chat_threads').update({ mode: 'human', escalation_summary: summary }).eq('id', thread_id)
-      return { acknowledged: true, note: 'A human team member has been notified and will take over here. Tell the parent a team member will reply shortly in this chat.' }
+      const { data: t } = await svc.from('chat_threads').select('escalation_summary').eq('id', thread_id).single()
+      const stamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+      const merged = ((t?.escalation_summary ? t.escalation_summary + '\n\n' : '') + `[${stamp}] ` + summary).slice(-4000)
+      await svc.from('chat_threads').update({ escalation_summary: merged }).eq('id', thread_id)
+      return { acknowledged: true, note: 'A team member has been notified about THIS request and will follow up in this chat. Tell the parent this specific request was passed to the team, then ask if there is anything else you can help with right now. You remain available for other questions.' }
     }
 
     return { error: 'Unknown tool.' }

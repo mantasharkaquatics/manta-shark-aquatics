@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     await svc.from('chat_messages').insert({
       thread_id,
       sender_type: 'system',
-      body: 'A human team member just finished assisting in this conversation. The AI assistant has resumed.',
+      body: '[context note] A human team member handled the previous messages and has now handed the conversation back. Do not re-answer or apologize for anything above this line; simply respond to whatever the parent asks NEXT.',
     })
     await svc.from('chat_threads').update({ mode: 'ai', escalation_summary: null }).eq('id', thread_id)
   }

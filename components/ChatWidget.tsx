@@ -103,6 +103,13 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
         body: JSON.stringify({ thread_id: threadId }),
       })
       if (!res.ok) throw new Error('ai-reply failed')
+      const d = await res.json().catch(() => ({} as any))
+      if (d?.skipped) {
+        // 真人服務中:AI 不回,關掉打字動畫,通知主管有新訊息
+        setAwaitingAi(false)
+        if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
+        await supabase.from('chat_threads').update({ unread_by_admin: true }).eq('id', threadId)
+      }
     } catch {
       setAwaitingAi(false)
       if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }

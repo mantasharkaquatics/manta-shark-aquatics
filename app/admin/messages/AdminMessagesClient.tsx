@@ -202,7 +202,13 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   </div>
                   {selectedThread.escalation_summary && (
                     <div style={{ marginTop: '8px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '10px 12px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px', marginBottom: '4px' }}>AI 轉接摘要</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px' }}>⚠️ 待處理問題(AI 轉接)</div>
+                        <button onClick={async () => {
+                          await supabase.from('chat_threads').update({ escalation_summary: null }).eq('id', selectedThread.id)
+                          setSelectedThread((prev: any) => prev ? { ...prev, escalation_summary: null } : prev)
+                        }} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>✓ 已處理,清除</button>
+                      </div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selectedThread.escalation_summary}</div>
                     </div>
                   )}
