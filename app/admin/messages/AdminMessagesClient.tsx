@@ -184,18 +184,18 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
                     {selectedThread.mode === 'human' ? (
                       <>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.12)', borderRadius: '999px', padding: '2px 10px' }}>👤 真人服務中</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.12)', borderRadius: '999px', padding: '2px 10px' }}>👤 Human Agent Active</span>
                         <button onClick={() => setThreadMode('ai')} disabled={switchingMode}
                           style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'transparent', border: `1px solid ${GOLD}66`, borderRadius: '8px', padding: '3px 10px', cursor: 'pointer' }}>
-                          {switchingMode ? '...' : '交還 AI'}
+                          {switchingMode ? '...' : 'Hand back to AI'}
                         </button>
                       </>
                     ) : (
                       <>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'rgba(201,168,76,0.12)', borderRadius: '999px', padding: '2px 10px' }}>🤖 AI 回應中</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'rgba(201,168,76,0.12)', borderRadius: '999px', padding: '2px 10px' }}>🤖 AI Responding</span>
                         <button onClick={() => setThreadMode('human')} disabled={switchingMode}
                           style={{ fontSize: '11px', fontWeight: 700, color: '#fff', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '3px 10px', cursor: 'pointer' }}>
-                          {switchingMode ? '...' : '接管對話'}
+                          {switchingMode ? '...' : 'Take Over'}
                         </button>
                       </>
                     )}
@@ -203,11 +203,11 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   {selectedThread.escalation_summary && (
                     <div style={{ marginTop: '8px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '10px 12px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px' }}>⚠️ 待處理問題(AI 轉接)</div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px' }}>⚠️ Pending Issues (AI Escalations)</div>
                         <button onClick={async () => {
                           await supabase.from('chat_threads').update({ escalation_summary: null }).eq('id', selectedThread.id)
                           setSelectedThread((prev: any) => prev ? { ...prev, escalation_summary: null } : prev)
-                        }} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>✓ 已處理,清除</button>
+                        }} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>✓ Resolved, clear</button>
                       </div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selectedThread.escalation_summary}</div>
                     </div>
