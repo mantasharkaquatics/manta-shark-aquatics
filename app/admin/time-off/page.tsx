@@ -21,12 +21,12 @@ export default async function AdminTimeOffPage() {
   const [{ data: timeOffList }, { data: pastList }, { data: coaches }] = await Promise.all([
     supabase
       .from('coach_time_off')
-      .select('id, date, reason, created_at, start_time, end_time, block_type, coaches(first_name, last_name)')
+      .select('id, coach_id, date, reason, created_at, start_time, end_time, block_type, coaches(first_name, last_name)')
       .gte('date', today)
       .order('date'),
     supabase
       .from('coach_time_off')
-      .select('id, date, reason, created_at, start_time, end_time, block_type, coaches(first_name, last_name)')
+      .select('id, coach_id, date, reason, created_at, start_time, end_time, block_type, coaches(first_name, last_name)')
       .lt('date', today)
       .order('date', { ascending: false })
       .limit(20),
@@ -48,7 +48,6 @@ export default async function AdminTimeOffPage() {
   const stats: Record<string, { pending: number; notified: number; handled: number }> = {}
   if (allBlocks.length) {
     const dates = [...new Set(allBlocks.map((b: any) => b.date))]
-    const coachIds = [...new Set(allBlocks.map((b: any) => b.coach_id).filter(Boolean))]
     const { data: sessions } = await svc
       .from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time')
