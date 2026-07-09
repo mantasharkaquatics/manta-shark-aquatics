@@ -145,17 +145,18 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
               <span className="text-[#c9a84c] font-bold text-sm">{item.coaches?.first_name?.charAt(0)}</span>
             </div>
             <div>
-              <p className="text-white font-medium">Coach {item.coaches?.first_name} {item.coaches?.last_name}</p>
-              <p className="text-[#c9a84c] text-sm">
-                {formatDate(item.date)}
-                <span className="text-gray-400"> · {item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : 'All day'}</span>
-                {item.block_type === 'admin_block' && <span className="ml-2 text-xs bg-red-500/15 text-red-400 px-2 py-0.5 rounded">Admin Block</span>}
+              <p className="text-white font-medium flex items-center flex-wrap gap-2">
+                <span>Coach {item.coaches?.first_name} {item.coaches?.last_name}</span>
+                {item.block_type === 'admin_block' && <span className="text-xs bg-red-500/15 text-red-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">Admin Block</span>}
+              </p>
+              <p className="text-[#c9a84c] text-sm flex items-center flex-wrap gap-x-2 gap-y-1">
+                <span className="whitespace-nowrap">{formatDate(item.date)}<span className="text-gray-400"> · {item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : 'All day'}</span></span>
                 {(() => {
                   const st = impactStats[item.id]
                   if (!st || (st.pending === 0 && st.notified === 0 && st.handled === 0)) return null
-                  if (st.pending > 0) return <span className="ml-2 text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded">⚠️ {st.pending + st.notified} affected</span>
-                  if (st.notified > 0) return <span className="ml-2 text-xs bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded">📧 Notified · awaiting cancel</span>
-                  return <span className="ml-2 text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded">✓ Handled ({st.handled})</span>
+                  if (st.pending > 0) return <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded whitespace-nowrap">⚠️ {st.pending + st.notified} affected</span>
+                  if (st.notified > 0) return <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded whitespace-nowrap">📧 Notified · awaiting cancel</span>
+                  return <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded whitespace-nowrap">✓ Handled ({st.handled})</span>
                 })()}
               </p>
               {item.reason && <p className="text-gray-400 text-xs mt-0.5">{item.reason}</p>}
