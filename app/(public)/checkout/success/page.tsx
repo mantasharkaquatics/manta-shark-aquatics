@@ -72,7 +72,7 @@ export default function SuccessPage() {
   return (
     <Suspense fallback={
       <div style={{ minHeight: '100vh', background: '#111d38', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>載入中...</div>
+        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>Loading...</div>
       </div>
     }>
       <SuccessContent />

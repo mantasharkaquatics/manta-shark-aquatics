@@ -81,7 +81,7 @@ export default function AccountPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#0d1529', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>載入中...</div>
+      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
     </div>
   )
 
