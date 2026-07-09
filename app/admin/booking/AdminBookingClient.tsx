@@ -284,8 +284,8 @@ function StudentSearch({ students, value, onChange, parentCreditsCache }: {
                   <p className="text-sm text-white font-medium">{s.full_name}</p>
                   <p className="text-xs text-white/40">{parent?.first_name} {parent?.last_name} · {parent?.email}</p>
                 </div>
-                <span className="text-xs ml-2 flex-shrink-0" style={{ color: s.current_level == null ? '#fbbf24' : 'rgba(255,255,255,0.3)' }}>{s.current_level == null ? '⚠ 未測驗' : `Lv.${s.current_level}`}</span>
-                {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentCreditsCache[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem} 堂</span> : null })()}
+                <span className="text-xs ml-2 flex-shrink-0" style={{ color: s.current_level == null ? '#fbbf24' : 'rgba(255,255,255,0.3)' }}>{s.current_level == null ? '⚠ Not assessed' : `Lv.${s.current_level}`}</span>
+                {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentCreditsCache[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem}</span> : null })()}
               </button>
             )
           })}
@@ -990,7 +990,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                             {recurPreview.candidates.map((c, idx) => {
                               const label = c.status === 'ok' ? '✓ Available'
                                 : c.status === 'past' ? 'Past'
-                                : c.status === 'coach_time_off' ? '教練請假'
+                                : c.status === 'coach_time_off' ? 'Coach time off'
                                 : c.status === 'conflict' ? 'Time conflict'
                                 : c.status === 'full' ? 'Full'
                                 : 'Skipped'
@@ -1050,7 +1050,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     : isTrial
                     ? (trialCreditStatus === 'available'
                         ? (saving ? 'Creating...' : 'Use prepaid single lesson')
-                        : (trialSaving ? '建立付款連結中...' : '產生付款連結'))
+                        : (trialSaving ? 'Creating payment link...' : 'Create payment link'))
                     : (saving ? 'Creating...' : 'Confirm Booking')}
                 </button>
               )}
@@ -1224,7 +1224,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                     </div>
                   )
                 })}
-                {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.filter(s => s.enrolled_count > 0).length - 3} 更多</p>}
+                {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.filter(s => s.enrolled_count > 0).length - 3} more</p>}
               </div>
             </button>
           )
@@ -1481,7 +1481,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                     <span className="text-sm text-white font-medium flex items-center gap-1.5">
                       {student?.full_name}
                       {b.is_trial && (
-                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>測驗</span>
+                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>Assessment</span>
                       )}
                       {b.lesson_credit_id === null && !b.is_trial && (
                         <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>Single</span>

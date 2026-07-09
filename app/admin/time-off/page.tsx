@@ -37,8 +37,8 @@ export default async function AdminTimeOffPage() {
       .order('first_name'),
   ])
 
-  // 每個 block 的受影響統計(confirmed / notified / cancelled-by-block)
-  // bookings 對 admin 無 client 端 SELECT policy(RLS 靜默回空)— 統計必走 service role
+  // Per-block impact stats (confirmed / notified / cancelled-by-block)
+  // Admin client has no SELECT policy on bookings (RLS silently returns empty) - stats must use service role
   const svc = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
