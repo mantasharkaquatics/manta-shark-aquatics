@@ -131,6 +131,23 @@ export async function POST(req: NextRequest) {
           const { data: coach } = await supabase.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
           if (coach) coachName = `${coach.first_name} ${coach.last_name}`
         }
+        // 聊天室確認訊息(加值通知:失敗只 log,不擋 webhook 主流程)
+        try {
+          const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', bk.parent_id).single()
+          if (th && sess) {
+            const [y, m, d] = String(sess.session_date).split('-')
+            const [hh, mm] = String(sess.start_time).slice(0, 5).split(':').map(Number)
+            const ap = hh >= 12 ? 'PM' : 'AM'
+            const h12 = hh % 12 === 0 ? 12 : hh % 12
+            const body = `付款成功!您的 Swim Assessment 已確認:\n\n- 學生:${studentRow?.full_name || ''}\n- 教練:${coachName || ''}\n- 日期:${y} 年 ${Number(m)} 月 ${Number(d)} 日\n- 時間:${h12}:${String(mm).padStart(2, '0')} ${ap}\n\n收據與發票可至 Dashboard 的 Lesson Credits 區塊查看下載。期待見到您!`
+            const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
+            if (chatErr) console.error('Trial chat confirm error:', chatErr)
+            else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)
+          }
+        } catch (e) {
+          console.error('Trial chat confirm error:', e)
+        }
+
         if (parentRow?.email && sess) {
           await sendEmail({
             type: 'booking_confirmed',

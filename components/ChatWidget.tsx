@@ -18,6 +18,13 @@ function renderBody(text: string) {
 export default function ChatWidget({ parentId }: { parentId: string }) {
   const supabase = createClient()
   const [open, setOpen] = useState(false)
+  // 付款等頁面導離後返回,自動恢復對話框開啟狀態
+  useEffect(() => {
+    try { if (sessionStorage.getItem('msa_chat_open') === '1') setOpen(true) } catch {}
+  }, [])
+  useEffect(() => {
+    try { sessionStorage.setItem('msa_chat_open', open ? '1' : '0') } catch {}
+  }, [open])
   const [threadId, setThreadId] = useState<string | null>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [input, setInput] = useState('')
@@ -200,7 +207,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
                       {msg.metadata.options.map((opt: any, i: number) =>
                         opt.type === 'link' ? (
-                          <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" style={{ background: GOLD, color: NAVY, borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>{opt.label}</a>
+                          <a key={i} href={opt.url} style={{ background: GOLD, color: NAVY, borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>{opt.label}</a>
                         ) : (
                           <button key={i} onClick={() => sendMessage(opt.label)} disabled={sending} style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(201,168,76,0.6)', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer' }}>{opt.label}</button>
                         )
