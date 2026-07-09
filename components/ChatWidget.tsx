@@ -179,7 +179,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
             )}
             {messages.map(msg => msg.sender_type === 'system' ? (
               <div key={msg.id} style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.35)', padding: '2px 0' }}>
-                AI assistant has resumed this conversation
+                {msg.body}
               </div>
             ) : (
               <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'parent' ? 'flex-end' : 'flex-start' }}>

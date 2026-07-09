@@ -204,17 +204,20 @@ export async function POST(req: NextRequest) {
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: thread } = await svc
-    .from('chat_threads').select('id, parent_id, mode').eq('id', thread_id).single()
+    .from('chat_threads').select('id, parent_id, mode, ai_context_from').eq('id', thread_id).single()
   if (!thread || thread.parent_id !== parent.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { data: history } = await svc
+  let historyQuery = svc
     .from('chat_messages')
     .select('id, sender_type, body')
     .eq('thread_id', thread_id)
     .order('created_at', { ascending: false })
     .limit(12)
+  // 交還 AI 的分界點:之前的對話(真人服務段)對 AI 不可見,如同全新對話
+  if ((thread as any)?.ai_context_from) historyQuery = historyQuery.gte('created_at', (thread as any).ai_context_from)
+  const { data: history } = await historyQuery
   const recent = (history || []).reverse()
   const lastMsg = recent[recent.length - 1]
   if ((thread as any)?.mode === 'human') {

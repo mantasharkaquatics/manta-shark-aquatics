@@ -18,12 +18,14 @@ export async function POST(req: NextRequest) {
   if (mode === 'human') {
     await svc.from('chat_threads').update({ mode: 'human', handled_by: auth.admin.id }).eq('id', thread_id)
   } else {
+    const cutoff = new Date().toISOString()
     await svc.from('chat_messages').insert({
       thread_id,
       sender_type: 'system',
-      body: '[context note] A human team member handled the previous messages and has now handed the conversation back. Do not re-answer or apologize for anything above this line; simply respond to whatever the parent asks NEXT.',
+      body: 'Front desk session has ended. Our AI assistant will continue to help you here.',
     })
-    await svc.from('chat_threads').update({ mode: 'ai', escalation_summary: null }).eq('id', thread_id)
+    // 分界點:AI 之後只讀此時間以後的訊息,真人服務段的對話不再進入 AI 上下文
+    await svc.from('chat_threads').update({ mode: 'ai', escalation_summary: null, ai_context_from: cutoff }).eq('id', thread_id)
   }
   return NextResponse.json({ ok: true, mode })
 }
