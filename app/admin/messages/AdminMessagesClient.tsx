@@ -7,13 +7,26 @@ const DARKER = '#0d1529'
 const GOLD = '#c9a84c'
 const RED = '#ef4444'
 
-export default function AdminMessagesClient() {
+export default function AdminMessagesClient({ adminId, adminName }: { adminId: string; adminName: string }) {
   const supabase = createClient()
   const [threads, setThreads] = useState<any[]>([])
   const [selectedThread, setSelectedThread] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [switchingMode, setSwitchingMode] = useState(false)
+
+  async function setThreadMode(mode: 'ai' | 'human') {
+    if (!selectedThread || switchingMode) return
+    setSwitchingMode(true)
+    try {
+      const res = await fetch('/api/admin/chat-handoff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_id: selectedThread.id, mode }) })
+      if (res.ok) {
+        setSelectedThread((prev: any) => prev ? { ...prev, mode, ...(mode === 'ai' ? { escalation_summary: null } : {}) } : prev)
+        setThreads(prev => prev.map(t => t.id === selectedThread.id ? { ...t, mode } : t))
+      }
+    } finally { setSwitchingMode(false) }
+  }
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const bottomRef = useRef<HTMLDivElement>(null)
   const selectedThreadRef = useRef<any>(null)
@@ -88,8 +101,9 @@ export default function AdminMessagesClient() {
     setSending(true)
     const body = input.trim()
     setInput('')
-    await supabase.from('chat_messages').insert({ thread_id: selectedThread.id, sender_type: 'admin', body })
+    await supabase.from('chat_messages').insert({ thread_id: selectedThread.id, sender_type: 'admin', body, sender_admin_id: adminId })
     await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body, unread_by_admin: false }).eq('id', selectedThread.id)
+    if (selectedThread.mode !== 'human') await setThreadMode('human')
     setSending(false)
     loadThreads()
   }
@@ -167,6 +181,31 @@ export default function AdminMessagesClient() {
                 <div>
                   <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents?.first_name} {selectedThread.parents?.last_name}</div>
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{selectedThread.parents?.email}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                    {selectedThread.mode === 'human' ? (
+                      <>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.12)', borderRadius: '999px', padding: '2px 10px' }}>👤 真人服務中</span>
+                        <button onClick={() => setThreadMode('ai')} disabled={switchingMode}
+                          style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'transparent', border: `1px solid ${GOLD}66`, borderRadius: '8px', padding: '3px 10px', cursor: 'pointer' }}>
+                          {switchingMode ? '...' : '交還 AI'}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'rgba(201,168,76,0.12)', borderRadius: '999px', padding: '2px 10px' }}>🤖 AI 回應中</span>
+                        <button onClick={() => setThreadMode('human')} disabled={switchingMode}
+                          style={{ fontSize: '11px', fontWeight: 700, color: '#fff', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '3px 10px', cursor: 'pointer' }}>
+                          {switchingMode ? '...' : '接管對話'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {selectedThread.escalation_summary && (
+                    <div style={{ marginTop: '8px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '10px 12px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px', marginBottom: '4px' }}>AI 轉接摘要</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selectedThread.escalation_summary}</div>
+                    </div>
+                  )}
                 </div>
               </div>
 

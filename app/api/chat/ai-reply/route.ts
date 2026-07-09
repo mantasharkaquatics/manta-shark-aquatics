@@ -172,8 +172,11 @@ const TOOLS = [
     description: 'Flag this conversation for a human team member. Use when you cannot help, are uncertain, the parent is upset, or the request is outside your abilities.',
     input_schema: {
       type: 'object',
-      properties: { reason: { type: 'string', description: 'Short reason for escalation' } },
-      required: ['reason'],
+      properties: {
+        reason: { type: 'string', description: 'Short reason for escalation' },
+        summary: { type: 'string', description: "2-3 sentence handoff summary for the human team member, in the parent's language: who/what the parent is asking about, what they want, and where it got stuck. Be specific." },
+      },
+      required: ['reason', 'summary'],
     },
   },
 ]
@@ -201,7 +204,7 @@ export async function POST(req: NextRequest) {
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: thread } = await svc
-    .from('chat_threads').select('id, parent_id').eq('id', thread_id).single()
+    .from('chat_threads').select('id, parent_id, mode').eq('id', thread_id).single()
   if (!thread || thread.parent_id !== parent.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -214,6 +217,9 @@ export async function POST(req: NextRequest) {
     .limit(12)
   const recent = (history || []).reverse()
   const lastMsg = recent[recent.length - 1]
+  if ((thread as any)?.mode === 'human') {
+    return NextResponse.json({ ok: true, skipped: 'human_mode' })
+  }
   if (!lastMsg || lastMsg.sender_type !== 'parent') {
     return NextResponse.json({ skipped: true })
   }
@@ -496,7 +502,9 @@ export async function POST(req: NextRequest) {
 
     if (name === 'escalate_to_human') {
       escalate = true
-      return { acknowledged: true }
+      const summary = String(input.summary || input.reason || '').slice(0, 1000)
+      await svc.from('chat_threads').update({ mode: 'human', escalation_summary: summary }).eq('id', thread_id)
+      return { acknowledged: true, note: 'A human team member has been notified and will take over here. Tell the parent a team member will reply shortly in this chat.' }
     }
 
     return { error: 'Unknown tool.' }

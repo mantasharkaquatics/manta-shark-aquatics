@@ -6,7 +6,7 @@ export default async function AdminMessagesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
+  const { data: admin } = await supabase.from('admins').select('id, first_name').eq('auth_user_id', user.id).single()
   if (!admin) redirect('/dashboard')
-  return <AdminMessagesClient />
+  return <AdminMessagesClient adminId={admin.id} adminName={admin.first_name} />
 }

@@ -170,7 +170,11 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                 Hi! How can we help you today?
               </div>
             )}
-            {messages.map(msg => (
+            {messages.map(msg => msg.sender_type === 'system' ? (
+              <div key={msg.id} style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.35)', padding: '2px 0' }}>
+                AI assistant has resumed this conversation
+              </div>
+            ) : (
               <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'parent' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
                   maxWidth: '75%', padding: '10px 14px', borderRadius: msg.sender_type === 'parent' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
@@ -180,6 +184,9 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                 }}>
                   {msg.sender_type === 'ai' && (
                     <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>AI ASSISTANT</div>
+                  )}
+                  {msg.sender_type === 'admin' && (
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#4ade80', marginBottom: '4px', letterSpacing: '0.5px' }}>FRONT DESK</div>
                   )}
                   {renderBody(msg.body)}
                   {msg.sender_type === 'ai' && msg.id === messages[messages.length - 1]?.id && Array.isArray(msg.metadata?.options) && (
