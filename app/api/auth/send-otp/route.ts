@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID!
   const authToken = process.env.TWILIO_AUTH_TOKEN!
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER!
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID!
 
   try {
     const response = await fetch(
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          From: fromNumber,
+          MessagingServiceSid: messagingServiceSid,
           To: normalizedPhone,
           Body: `Your Manta Shark Aquatics verification code is: ${otpCode}. It expires in 10 minutes. Msg&Data rates may apply. Reply HELP for help, STOP to opt out.`,
         }),

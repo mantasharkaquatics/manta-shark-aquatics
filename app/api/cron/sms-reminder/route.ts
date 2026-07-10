@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const results = []
   const accountSid = process.env.TWILIO_ACCOUNT_SID!
   const authToken = process.env.TWILIO_AUTH_TOKEN!
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER!
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID!
 
   for (const booking of (bookings || [])) {
     const parent = Array.isArray(booking.parents) ? booking.parents[0] : booking.parents
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
-            From: fromNumber,
+            MessagingServiceSid: messagingServiceSid,
             To: parent.phone,
             Body: message,
           }),
