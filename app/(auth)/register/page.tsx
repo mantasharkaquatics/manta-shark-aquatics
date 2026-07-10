@@ -152,7 +152,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, context: 'register' }),
       })
       const data = await res.json()
       if (!res.ok) { setPhoneError(data.error || 'Failed to send'); setPhoneSending(false); return }
@@ -200,7 +200,7 @@ export default function RegisterPage() {
     if (authError || !authData.user) { setError(authError?.message || 'Sign up failed'); setLoading(false); return }
     const { data: parent, error: parentError } = await supabase.from('parents').insert({
       auth_user_id: authData.user.id,
-      first_name: firstName, last_name: lastName, email, phone,
+      first_name: firstName, last_name: lastName, email, phone: normalizePhoneForSave(phone),
       registered_at: now, terms_accepted_at: now, terms_version: LEGAL_VERSIONS.terms,
       waiver_accepted_at: now, waiver_version: LEGAL_VERSIONS.waiver,
       media_release_accepted: mediaAccepted, media_release_at: mediaAccepted ? now : null,
@@ -446,4 +446,11 @@ export default function RegisterPage() {
       </div>
     </div>
   )
+}
+
+function normalizePhoneForSave(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 10) return '+1' + digits
+  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits
+  return phone.startsWith('+') ? phone : '+' + digits
 }

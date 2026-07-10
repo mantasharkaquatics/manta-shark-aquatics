@@ -11,7 +11,7 @@ function normalizePhone(phone: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { phone } = await req.json()
+  const { phone, context } = await req.json()
   if (!phone) return NextResponse.json({ error: 'Missing phone number' }, { status: 400 })
 
   const normalizedPhone = normalizePhone(phone)
@@ -19,6 +19,21 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  if (context === 'register') {
+    const last10 = normalizedPhone.replace(/\D/g, '').slice(-10)
+    const { data: existing, error: lookupError } = await supabase
+      .from('parents')
+      .select('id')
+      .like('phone', `%${last10}`)
+      .limit(1)
+    if (lookupError) {
+      return NextResponse.json({ error: 'Failed to verify phone number. Please try again.' }, { status: 500 })
+    }
+    if (existing && existing.length > 0) {
+      return NextResponse.json({ error: 'This phone number is already registered. Please log in instead.' }, { status: 409 })
+    }
+  }
 
   const otpCode = String(Math.floor(100000 + Math.random() * 900000))
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
