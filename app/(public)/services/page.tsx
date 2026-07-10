@@ -8,10 +8,10 @@ const privatePackages = [
 ]
 
 const semiPackages = [
-  { lessons: 10, price: 1050, perLesson: 105, savings: 50 },
-  { lessons: 20, price: 2000, perLesson: 100, savings: 200 },
-  { lessons: 30, price: 2850, perLesson: 95, savings: 450 },
-  { lessons: 50, price: 4500, perLesson: 90, savings: 1000 },
+  { lessons: 10, price: 1050, perLesson: 105, savings: 0 },
+  { lessons: 20, price: 2000, perLesson: 100, savings: 100 },
+  { lessons: 30, price: 2850, perLesson: 95, savings: 300 },
+  { lessons: 50, price: 4500, perLesson: 90, savings: 750 },
 ]
 
 const groupOptions = [
@@ -60,7 +60,7 @@ export default function ServicesPage() {
             <div className="text-4xl">👫</div>
             <div>
               <h2 className="text-2xl font-bold text-[#1a2744]">1-on-2 Semi-Private Lessons</h2>
-              <p className="text-gray-500 mt-1">30 minutes · $110 per session · You arrange the pair</p>
+              <p className="text-gray-500 mt-1">30 minutes · From $90 per session · You arrange the pair</p>
             </div>
           </div>
           <p className="text-gray-600 mb-8 max-w-2xl">Great for siblings or friends at similar skill level. Parents arrange their own pairs for a focused, social learning experience.</p>

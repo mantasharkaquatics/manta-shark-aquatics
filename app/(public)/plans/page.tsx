@@ -15,7 +15,7 @@ const SEMI_PACKAGES = [
   { id: '1on2-10', sessions: 10, total: 1050, perSession: 105, savings: null, badge: null,           validity: '4 months' },
   { id: '1on2-20', sessions: 20, total: 2000, perSession: 100, savings: 100,  badge: null,           validity: '8 months' },
   { id: '1on2-30', sessions: 30, total: 2850, perSession: 95,  savings: 300,  badge: 'Most Popular', validity: '12 months' },
-  { id: '1on2-50', sessions: 50, total: 4500, perSession: 90,  savings: 500,  badge: 'Best Value',   validity: '18 months' },
+  { id: '1on2-50', sessions: 50, total: 4500, perSession: 90,  savings: 750,  badge: 'Best Value',   validity: '18 months' },
 ]
 
 const GROUP_OPTIONS = [
@@ -224,7 +224,7 @@ export default function PlansPage() {
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <SectionEyebrow dark>Semi-Private Lessons</SectionEyebrow>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>1-on-2 Semi-Private</h2>
-          <p style={{ fontSize: '14px', color: '#8a9ab8', marginBottom: '8px' }}>30 minutes · $105 per session · Parents find their own partner</p>
+          <p style={{ fontSize: '14px', color: '#8a9ab8', marginBottom: '8px' }}>30 minutes · From $90 per session · Parents find their own partner</p>
           <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
             Share a lesson with one other swimmer. Great value when paired with a sibling or friend — same focused coaching, split across two students.
           </p>
