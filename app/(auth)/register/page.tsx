@@ -115,7 +115,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/send-email-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, context: 'register' }),
       })
       const data = await res.json()
       if (!res.ok) { setEmailError(data.error || 'Failed to send'); setEmailSending(false); return }
