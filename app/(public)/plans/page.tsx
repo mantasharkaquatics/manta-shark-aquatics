@@ -256,7 +256,7 @@ export default function PlansPage() {
                   <div key={opt.sessions} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px 20px' }}>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>{opt.sessions} sessions / month</div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>${opt.perSession}/session</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>${opt.perSession % 1 === 0 ? opt.perSession : opt.perSession.toFixed(2)}/session</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: '#4caf72', lineHeight: 1 }}>${opt.price}</div>

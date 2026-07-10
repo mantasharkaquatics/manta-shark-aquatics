@@ -3,7 +3,7 @@ import Link from 'next/link'
 const privatePackages = [
   { lessons: 10, price: 650, perLesson: 65, savings: 0 },
   { lessons: 20, price: 1260, perLesson: 63, savings: 40 },
-  { lessons: 30, price: 1850, perLesson: 62, savings: 100 },
+  { lessons: 30, price: 1850, perLesson: 61.67, savings: 100 },
   { lessons: 50, price: 3000, perLesson: 60, savings: 250 },
 ]
 
@@ -38,7 +38,7 @@ export default function ServicesPage() {
               <p className="text-gray-500 mt-1">30 minutes · $65 per session · Fully personalized coaching</p>
             </div>
           </div>
-          <p className="text-gray-600 mb-8 max-w-2xl">Your child gets the coach full attention for every minute. Perfect for swimmers at any level who want to progress quickly.</p>
+          <p className="text-gray-600 mb-8 max-w-2xl">Your child gets the coach's full attention for every minute. Perfect for swimmers at any level who want to progress quickly.</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {privatePackages.map(pkg => (
               <div key={pkg.lessons} className={`border-2 rounded-2xl p-5 text-center transition-all hover:shadow-md ${pkg.lessons === 20 ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-gray-200'}`}>
@@ -47,7 +47,7 @@ export default function ServicesPage() {
                 <div className="text-gray-500 text-sm mb-3">lessons</div>
                 <div className="text-2xl font-bold text-[#1a2744]">${pkg.price.toLocaleString()}</div>
                 <div className="text-gray-400 text-xs mt-1">${pkg.perLesson}/lesson</div>
-                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">Save ${pkg.savings}</div>}
+                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">Save ${pkg.savings.toLocaleString()}</div>}
               </div>
             ))}
           </div>
@@ -72,7 +72,7 @@ export default function ServicesPage() {
                 <div className="text-gray-500 text-sm mb-3">lessons</div>
                 <div className="text-2xl font-bold text-[#1a2744]">${pkg.price.toLocaleString()}</div>
                 <div className="text-gray-400 text-xs mt-1">${pkg.perLesson}/lesson</div>
-                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">Save ${pkg.savings}</div>}
+                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">Save ${pkg.savings.toLocaleString()}</div>}
               </div>
             ))}
           </div>
