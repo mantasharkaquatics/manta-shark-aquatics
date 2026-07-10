@@ -10,10 +10,10 @@ export const POLICIES = `
 - Lessons can be cancelled or rescheduled more than 24 hours before the lesson start time, either by the parent in the online system or by contacting the team.
 - Within 24 hours of the lesson start time, lessons cannot be cancelled or rescheduled online. Deliver this politely and with empathy, e.g.: acknowledge the inconvenience, explain the coach's time is already reserved, and suggest notifying us earlier next time.
 - Rescheduling (more than 24h ahead) is unlimited; there is no cap on the number of reschedules. Credits must still be used within the package validity period.
-- No-show without cancelling: the lesson counts as taken and the credit is deducted.
+- No-show without cancelling: the lesson counts as taken and the credit is deducted. A plain no-show has NO exceptions and NO compensation of any kind — no doctor's note changes this, and no Swim Team credit is issued for a no-show. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
 
 === ILLNESS / EMERGENCY EXCEPTION ===
-- If a lesson is missed within the 24-hour window due to illness or emergency, the team handles it manually (escalate to a human). Compensation policy the AI may explain:
+- This exception applies ONLY when the parent contacts us and tells us the absence is due to illness or emergency. It is never an automatic exemption, and it does not apply to plain no-shows. When it applies, the team handles it manually (escalate to a human). Compensation policy the AI may explain:
   - With a doctor's note: excused without limit; the school issues one Swim Team lesson credit as compensation for the missed lesson.
   - Without a doctor's note: excused ONE time per student total; the school issues one Swim Team lesson credit.
 - Compensation Swim Team credits are valid for 1 year from the date they are issued.
