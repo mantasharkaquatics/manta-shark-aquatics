@@ -184,7 +184,7 @@ export default function POSClient() {
   const readerDot = readerStatus === 'connected' ? '#10b981' : readerStatus === 'init' ? '#f59e0b' : '#6b7280'
   const readerLabel = readerStatus === 'connected' ? 'Reader Connected' : readerStatus === 'init' ? 'Initializing...' : 'No Reader'
 
-  // Cash 確認 modal
+  // Cash confirmation modal
   if (cashConfirmOpen) {
     const amount = isTrial ? '$85' : plan ? `$${(plan.amount / 100).toLocaleString()}` : ''
     const customerName = selectedParent ? `${selectedParent.first_name} ${selectedParent.last_name}` : ''
@@ -198,17 +198,17 @@ export default function POSClient() {
           <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 28 }}>
             {isTrial ? 'Swim Assessment · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : plan?.name}
           </p>
-          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>請確認已收到現金後再按確認。</p>
+          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>Please confirm you have received the cash before proceeding.</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <button
               onClick={() => setCashConfirmOpen(false)}
               style={{ padding: '12px', borderRadius: 10, border: '1px solid #1e3a6e', backgroundColor: '#0d1829', color: '#9ca3af', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-              取消
+              Cancel
             </button>
             <button
               onClick={async () => { setCashConfirmOpen(false); await doCharge() }}
               style={{ padding: '12px', borderRadius: 10, border: 'none', backgroundColor: GOLD, color: NAVY, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              確認收款
+              Confirm Payment
             </button>
           </div>
         </div>
@@ -245,8 +245,8 @@ export default function POSClient() {
       {showCashConfirm && (
         <div onClick={() => setShowCashConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#111d38', border: '1px solid #1e3a6e', borderRadius: 16, padding: 32, maxWidth: 380, width: '100%' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>現金付款確認</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>確認收取現金？</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Cash Payment Confirmation</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>Confirm cash received?</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 4 }}>
                 {selectedParent?.first_name} {selectedParent?.last_name}
@@ -260,10 +260,10 @@ export default function POSClient() {
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowCashConfirm(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #1e3a6e', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                取消
+                Cancel
               </button>
               <button onClick={async () => { setShowCashConfirm(false); await doCharge() }} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: GOLD, color: NAVY, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                💵 確認 Charge ${(chargeAmount / 100).toLocaleString()}
+                💵 Confirm Charge ${(chargeAmount / 100).toLocaleString()}
               </button>
             </div>
           </div>

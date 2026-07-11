@@ -22,7 +22,7 @@ export default async function AdminProgressHistoryPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 撈所有 approved 記錄
+  // Fetch all approved records
   const { data: records } = await svc
     .from('progress_history')
     .select('id, student_id, coach_id, snapshot, session_date, created_at, reviewed_at, reviewed_by')

@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const admin_id = auth.admin.id
   const supabase = auth.svc
 
-  // 如果主管在確認前有手動更改百分比，先同步寫入學生實際技能進度表
+  // If the admin edited percentages before confirming, sync them into the student's actual skill progress first
   if (updated_snapshot && student_id) {
     const upserts = Object.entries(updated_snapshot).map(([skill_id, pct]) => ({
       student_id,

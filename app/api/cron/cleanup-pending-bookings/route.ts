@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 找所有已過期的 pending_partner 預約
+  // Find all expired pending_partner bookings
   const now = new Date().toISOString()
   const { data: expired } = await supabase
     .from('bookings')
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     .in('status', ['pending_partner', 'in_cart'])
     .lt('pending_expires_at', now)
 
-  // 同時清除過期的 reschedule pending
+  // Also clean up expired reschedule pendings
   const { data: expiredReschedule } = await supabase
     .from('bookings')
     .select('id')

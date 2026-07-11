@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
           const { data: coach } = await supabase.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
           if (coach) coachName = `${coach.first_name} ${coach.last_name}`
         }
-        // 聊天室確認訊息(加值通知:失敗只 log,不擋 webhook 主流程)
+        // Chat confirmation message (top-up notice: failures only log, never block the webhook)
         try {
           const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', bk.parent_id).order('created_at', { ascending: true }).limit(1).maybeSingle()
           if (th && sess) {

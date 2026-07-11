@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const coachBlocks = await getCoachBlocks(supabase, [coach_id], session_date)
   const blocked = blockedIntervalsFor(coachBlocks, coach_id)
 
-  // Step 1: 找此教練此日期的所有 class_sessions
+  // Step 1: find all class_sessions for this coach on this date
   const { data: sessions } = await supabase
     .from('class_sessions')
     .select('id, start_time, course_type_id')
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   const sessionMap: Record<string, any> = {}
   for (const s of sessions) sessionMap[s.id] = s
 
-  // Step 2: 找這些 sessions 的所有 active bookings
+  // Step 2: find all active bookings for those sessions
   const { data: bookings } = await supabase
     .from('bookings')
     .select('student_id, class_session_id')

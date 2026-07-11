@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     progressMap[row.skill_id] = row.progress_percent
   }
 
-  // 查詢這堂課是否已儲存（改用 class_session_id，避免同一天多堂課互相鎖定）
+  // Check whether this lesson is already saved (keyed by class_session_id so same-day lessons don't lock each other)
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   let todayLocked = false
   if (classSessionId) {

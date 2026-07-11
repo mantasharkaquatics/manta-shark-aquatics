@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   const bookingIds = bookingIdsParam.split(',').filter(Boolean)
   if (bookingIds.length === 0) return NextResponse.json({ checkedInBookingIds: [] })
 
-  // 驗證這些 booking 確實屬於這個家長底下的學生，避免查到別人的資料
+  // Verify these bookings belong to this parent's students to avoid leaking others' data
   const { data: ownedBookings } = await supabase
     .from('bookings')
     .select('id, student_id, students!inner(parent_id)')

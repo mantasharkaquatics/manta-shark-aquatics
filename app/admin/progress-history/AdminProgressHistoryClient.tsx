@@ -40,7 +40,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
     return records.filter(r => r.student?.full_name?.toLowerCase().includes(q))
   }, [search, records])
 
-  // 依學生分組
+  // Group by student
   const grouped = useMemo(() => {
     const g: Record<string, Record_[]> = {}
     for (const r of filtered) {
@@ -106,7 +106,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                             <div>
                               <p className="text-white text-sm font-medium">{rec.session_date}</p>
                               <p className="text-gray-500 text-xs">
-                                教練 {rec.coach?.first_name} · 審核：{rec.reviewer?.first_name} {rec.reviewer?.last_name}
+                                Coach {rec.coach?.first_name} · Reviewed by: {rec.reviewer?.first_name} {rec.reviewer?.last_name}
                               </p>
                             </div>
                           </div>
@@ -137,7 +137,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                               )
                             })}
                             <p className="text-gray-600 text-xs pt-2">
-                              審核時間：{new Date(rec.reviewed_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              Reviewed at: {new Date(rec.reviewed_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
                         )}

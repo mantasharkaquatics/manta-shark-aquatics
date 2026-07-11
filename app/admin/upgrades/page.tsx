@@ -21,7 +21,7 @@ export default async function AdminUpgradesPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 兩步查詢：pending recommendations
+  // Two-step query: pending recommendations
   const { data: recs } = await svc
     .from('level_recommendations')
     .select('id, recommended_level, notes, created_at, student_id, coach_id, previous_recommended_level')
@@ -39,7 +39,7 @@ export default async function AdminUpgradesPage() {
     const cMap: Record<string, any> = {}
     for (const c of recCoaches || []) cMap[c.id] = c
 
-    // 撈同學生今日所有歷史（含 rejected）
+    // Fetch all of the student's history today (incl. rejected)
     const today = new Date().toISOString().slice(0, 10)
     const { data: allHistory } = await svc
       .from('level_recommendations')
@@ -97,7 +97,7 @@ export default async function AdminUpgradesPage() {
   for (const p of parents || []) pMap[p.id] = p
   const studentsNorm = (students || []).map((s: any) => ({ ...s, parents: pMap[s.parent_id] || null }))
 
-  // 待審核進度（今日 + 過去未審核的全部都要列出，不能漏審）
+  // Pending progress (today + all past unreviewed; nothing may slip through)
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   const { data: allPendingProgress } = await svc
     .from('progress_history')
@@ -140,7 +140,7 @@ export default async function AdminUpgradesPage() {
     pastPendingProgressList = enriched.filter((p: any) => p.session_date !== todayDate)
   }
 
-  // 未填寫：今天或過去任何一天，有 confirmed booking 但沒有 progress_history 記錄的學生（不只今天，避免漏掉前幾天忘記填的）
+  // Missing: students with a confirmed booking but no progress_history on any day, today or earlier (not just today, so forgotten days aren't lost)
   const { data: pastBookings } = await svc
     .from('bookings')
     .select('student_id, class_session_id')
@@ -162,7 +162,7 @@ export default async function AdminUpgradesPage() {
       sessionMap[s.id] = { ...s, ct, coach }
     }
 
-    // 每筆 booking 對應一筆 (student_id, session_date) 組合，代表「這個學生在這一天上了這堂課」
+    // Each booking maps to one (student_id, session_date) pair: this student had a lesson that day
     const candidates = pastBookings
       .filter((b: any) => sessionMap[b.class_session_id])
       .map((b: any) => ({
@@ -182,7 +182,7 @@ export default async function AdminUpgradesPage() {
       const doneSet = new Set((existingHistory || []).map((p: any) => `${p.student_id}|${p.session_date}`))
       const missingCandidates = candidates.filter((c: any) => !doneSet.has(`${c.student_id}|${c.session.session_date}`))
 
-      // 每個學生每天最多列一筆（避免同一天多堂課重複列出）
+      // At most one row per student per day (avoids duplicates from multiple same-day lessons)
       const dedupKey = new Set<string>()
       const dedupedCandidates = missingCandidates.filter((c: any) => {
         const key = `${c.student_id}|${c.session.session_date}`

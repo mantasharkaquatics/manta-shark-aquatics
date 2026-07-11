@@ -18,7 +18,7 @@ function renderBody(text: string) {
 export default function ChatWidget({ parentId }: { parentId: string }) {
   const supabase = createClient()
   const [open, setOpen] = useState(false)
-  // 付款等頁面導離後返回,自動恢復對話框開啟狀態
+  // Auto-restore the open chat after navigating away (e.g. to payment) and back
   useEffect(() => {
     try { if (sessionStorage.getItem('msa_chat_open') === '1') setOpen(true) } catch {}
   }, [])
@@ -112,7 +112,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
       if (!res.ok) throw new Error('ai-reply failed')
       const d = await res.json().catch(() => ({} as any))
       if (d?.skipped) {
-        // 真人服務中:AI 不回,關掉打字動畫,通知主管有新訊息
+        // Human service mode: AI stays silent, hide typing animation, notify admin of the new message
         setAwaitingAi(false)
         if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
         await supabase.from('chat_threads').update({ unread_by_admin: true }).eq('id', threadId)

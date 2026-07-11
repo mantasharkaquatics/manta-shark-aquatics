@@ -45,7 +45,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
         const current = selectedThreadRef.current
         if (current && msg.thread_id === current.id) {
           setMessages(prev => [...prev, msg])
-          // 收到新訊息，標記為未讀（不管是否在此對話）
+          // New message received: mark unread (whether or not this thread is open)
           setThreads(prev => prev.map(t => t.id === current.id ? { ...t, unread_by_admin: msg.sender_type === 'parent' ? true : t.unread_by_admin, last_message_preview: msg.body } : t))
         } else {
           loadThreads()
@@ -78,7 +78,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
     setSelectedThread(thread)
     setMobileView('chat')
     await loadMessages(thread.id)
-    // 點開對話 → 標記已讀
+    // Open thread → mark as read
     await markRead(thread.id)
   }
 

@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     }).select().single()
     if (creditErr) console.error('POS trial credit insert error:', creditErr)
 
-    // 建立 invoice
+    // Create invoice
     try {
       const year = new Date().getFullYear()
       const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')

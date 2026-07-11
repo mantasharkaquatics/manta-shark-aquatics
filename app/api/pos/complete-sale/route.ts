@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Credit creation failed' }, { status: 500 })
     }
 
-    // 建立發票
+    // Create invoice
     const { data: parent } = await supabase
       .from('parents').select('first_name, last_name, email').eq('id', parentId).single()
 

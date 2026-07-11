@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
     .in('pending_action', ['reschedule', 'reschedule_initiator'])
     .single()
 
-  if (!myBooking) return NextResponse.json({ error: '預約不存在或狀態不符' }, { status: 404 })
+  if (!myBooking) return NextResponse.json({ error: 'Booking not found or in the wrong state' }, { status: 404 })
   if (myBooking.parent_id !== parent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 清除雙方 pending，維持原時段
+  // Clear both sides' pending state, keep the original time
   await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.id)
   if (myBooking.partner_booking_id) {
     await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.partner_booking_id)

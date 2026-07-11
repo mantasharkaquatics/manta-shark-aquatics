@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     parent_id = callerParent.id
   }
 
-  // 查詢這些 session 中，不屬於此 parent 的其他 active booking
+  // Fetch other active bookings in these sessions not belonging to this parent
   const { data: partnerBookings } = await supabase
     .from('bookings')
     .select('class_session_id, student_id')
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const studentMap: Record<string, string> = {}
   for (const s of students || []) { studentMap[(s as any).id] = (s as any).full_name }
 
-  // 回傳 { session_id: partner_student_name }
+  // Return { session_id: partner_student_name }
   const partners: Record<string, string> = {}
   for (const b of partnerBookings) {
     if (b.student_id && studentMap[b.student_id]) {

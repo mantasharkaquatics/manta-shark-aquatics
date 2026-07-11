@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
-  // 檢查同教練同時段是否已有其他 confirmed booking（其他客戶搶先預約）
+  // Check whether the coach already has another confirmed booking at this time (someone booked first)
   const { data: conflictSessions } = await supabase
     .from('class_sessions')
     .select('id')

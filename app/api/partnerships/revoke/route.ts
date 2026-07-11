@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (partnership.initiator_parent_id !== parent.id && partnership.partner_parent_id !== parent.id)
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 取消所有 pending 跨帳戶預約
+  // Cancel all pending cross-account bookings
   const otherParentId = partnership.initiator_parent_id === parent.id
     ? partnership.partner_parent_id
     : partnership.initiator_parent_id

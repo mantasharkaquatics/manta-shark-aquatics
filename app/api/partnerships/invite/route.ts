@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
 
-  // 看看是否已有 pending 邀請碼
+  // Check for an existing pending invite code
   const { data: existing } = await supabase
     .from('parent_partnerships')
     .select('invite_code')
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   if (existing) return NextResponse.json({ invite_code: existing.invite_code })
 
-  // 產生唯一邀請碼
+  // Generate a unique invite code
   let code = generateCode()
   let attempts = 0
   while (attempts < 10) {

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const { student_id, recommended_level, notes, previous_recommended_level } = await req.json()
 
-  // 把舊的 pending 標為 superseded
+  // Mark old pendings as superseded
   await supabase
     .from('level_recommendations')
     .update({ status: 'rejected' })

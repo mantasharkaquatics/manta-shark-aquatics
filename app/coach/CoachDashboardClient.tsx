@@ -71,7 +71,7 @@ export default function CoachDashboardClient({
     setLevelName('')
     setLoadingSkills(true)
 
-    // 用 level_number 轉成 int 查詢
+    // Convert level_number to int for the query
     const levelNum = parseInt(student.current_level)
     if (isNaN(levelNum)) {
       setLoadingSkills(false)
