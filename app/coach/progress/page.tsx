@@ -31,7 +31,7 @@ export default async function CoachProgressPage() {
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
-  // Step 1: 取今天的 sessions
+  // Step 1: fetch today's sessions
   const { data: sessions } = await supabase
     .from('class_sessions')
     .select('id, start_time, end_time, course_type_id')
@@ -47,7 +47,7 @@ export default async function CoachProgressPage() {
   const sessionIds = sessions.map(s => s.id)
   const courseTypeIds = [...new Set(sessions.map(s => s.course_type_id).filter(Boolean))]
 
-  // Step 2: 取 course types
+  // Step 2: fetch course types
   const { data: courseTypes } = await supabase
     .from('course_types')
     .select('id, name')
@@ -56,7 +56,7 @@ export default async function CoachProgressPage() {
   const courseTypeMap: Record<string, string> = {}
   for (const ct of courseTypes || []) courseTypeMap[ct.id] = ct.name
 
-  // Step 3: 取 confirmed bookings
+  // Step 3: fetch confirmed bookings
   const { data: bookings } = await supabase
     .from('bookings')
     .select('id, class_session_id, student_id')
@@ -69,7 +69,7 @@ export default async function CoachProgressPage() {
 
   const studentIds = [...new Set(bookings.map(b => b.student_id).filter(Boolean))]
 
-  // Step 4: 取 students
+  // Step 4: fetch students
   const { data: students } = await supabase
     .from('students')
     .select('id, full_name, current_level')
@@ -78,7 +78,7 @@ export default async function CoachProgressPage() {
   const studentMap: Record<string, any> = {}
   for (const s of students || []) studentMap[s.id] = s
 
-  // 組合
+  // Assemble
   const enrichedSessions = sessions.map(s => ({
     id: s.id,
     start_time: s.start_time,
@@ -90,12 +90,12 @@ export default async function CoachProgressPage() {
       .filter(b => b.students)
   }))
 
-  // 查今日哪些學生已完成
+  // Check which students are completed today
   const allStudentIds = [...new Set(
     enrichedSessions.flatMap(s => s.bookings.map((b: any) => b.students?.id).filter(Boolean))
   )]
 
-  // 用 class_session_id 判斷哪些課堂已完成，避免同一天多堂課互相鎖定
+  // Use class_session_id to determine completed lessons so multiple same-day lessons don't lock each other
   const allSessionIds = enrichedSessions.map(s => s.id)
   let completedSessionIds: string[] = []
   if (allSessionIds.length > 0) {

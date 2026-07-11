@@ -25,7 +25,7 @@ export default function CoachLoginPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError('PIN 錯誤，請再試一次')
+        setError('Incorrect PIN. Please try again.')
         setPin(['', '', '', '', '', '', '', ''])
         inputs.current[0]?.focus()
         return
@@ -38,7 +38,7 @@ export default function CoachLoginPage() {
       })
 
       if (sessionError) {
-        setError('登入失敗，請再試一次')
+        setError('Login failed. Please try again.')
         setPin(['', '', '', '', '', '', '', ''])
         inputs.current[0]?.focus()
         return
@@ -46,7 +46,7 @@ export default function CoachLoginPage() {
 
       router.push('/coach')
     } catch {
-      setError('連線錯誤，請再試一次')
+      setError('Connection error. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -82,7 +82,7 @@ export default function CoachLoginPage() {
           <Image src="/logo.png" alt="Manta Shark" width={72} height={72} className="mb-4" />
           <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest mb-1">Coach Portal</p>
           <h1 className="text-white text-2xl font-bold">Coach Login</h1>
-          <p className="text-gray-400 text-sm mt-1">請輸入您的 8 位數 PIN 碼</p>
+          <p className="text-gray-400 text-sm mt-1">Enter your 8-digit PIN</p>
         </div>
 
         <div className="flex gap-2 justify-center mb-6">
@@ -103,11 +103,11 @@ export default function CoachLoginPage() {
         </div>
 
         {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
-        {loading && <p className="text-gray-400 text-sm text-center">驗證中...</p>}
+        {loading && <p className="text-gray-400 text-sm text-center">Verifying...</p>}
 
         <div className="mt-8 text-center">
           <a href="/login" className="text-gray-500 text-xs hover:text-gray-300 transition-colors">
-            使用 Email 登入
+            Sign in with Email
           </a>
         </div>
       </div>
