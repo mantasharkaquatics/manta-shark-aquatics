@@ -60,7 +60,7 @@ function CheckoutContent() {
     if (data.url) {
       window.location.href = data.url
     } else {
-      setError(data.error || '付款失敗，請再試一次')
+      setError(data.error || 'Payment failed. Please try again.')
       setPaying(false)
     }
   }
@@ -68,10 +68,10 @@ function CheckoutContent() {
   if (!plan) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
-        <p style={{ fontSize: '18px', marginBottom: '16px' }}>找不到方案</p>
+        <p style={{ fontSize: '18px', marginBottom: '16px' }}>Plan not found</p>
         <button onClick={() => router.push('/plans')}
           style={{ padding: '10px 24px', background: GOLD, color: NAVY, border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
-          返回方案頁面
+          Back to Plans
         </button>
       </div>
     </div>
@@ -88,8 +88,8 @@ function CheckoutContent() {
       <div style={{ width: '100%', maxWidth: '480px' }}>
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>確認購買</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>購買課程包</h1>
+          <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>Confirm Purchase</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>Purchase Lesson Package</h1>
         </div>
 
         {/* Plan Summary */}
@@ -103,22 +103,22 @@ function CheckoutContent() {
               )}
               <p style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>{plan.name}</p>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-                {plan.sessions} 堂課 · ${plan.perSession % 1 === 0 ? plan.perSession : plan.perSession.toFixed(2)}/堂
+                {plan.sessions} sessions · ${plan.perSession % 1 === 0 ? plan.perSession : plan.perSession.toFixed(2)}/session
               </p>
             </div>
             <div style={{ textAlign: 'right' }}>
               <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: GOLD, margin: 0, lineHeight: 1 }}>
                 ${plan.total.toLocaleString()}
               </p>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>一次付清</p>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>One-time payment</p>
             </div>
           </div>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '16px', paddingTop: '16px' }}>
             <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', flexWrap: 'wrap' }}>
-              <span>✓ 付款後立即生效</span>
-              <span>✓ 一年內有效</span>
-              <span>✓ 全家共用</span>
-              <span>✓ 可彈性預約</span>
+              <span>✓ Active immediately after payment</span>
+              <span>✓ Valid for one year</span>
+              <span>✓ Shared across your family</span>
+              <span>✓ Flexible booking</span>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@ function CheckoutContent() {
           </div>
           <div>
             <p style={{ fontSize: '13px', fontWeight: 600, color: '#fff', margin: '0 0 2px' }}>{parentName}</p>
-            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>課程包將套用到此帳戶，全部學生皆可使用</p>
+            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>The package applies to this account and can be used by all students</p>
           </div>
         </div>
 
@@ -152,18 +152,18 @@ function CheckoutContent() {
             transition: 'all 0.15s', marginBottom: '12px',
           }}
         >
-          {paying ? '跳轉到付款頁面...' : `前往付款 · $${plan.total.toLocaleString()}`}
+          {paying ? 'Redirecting to payment...' : `Proceed to Payment · $${plan.total.toLocaleString()}`}
         </button>
 
         <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '0 0 12px' }}>
-          🔒 由 Stripe 安全處理付款 · 支援信用卡
+          🔒 Payments securely processed by Stripe · Credit cards accepted
         </p>
 
         <button
           onClick={() => router.push('/plans')}
           style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer' }}
         >
-          ← 返回方案頁面
+          ← Back to Plans
         </button>
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>

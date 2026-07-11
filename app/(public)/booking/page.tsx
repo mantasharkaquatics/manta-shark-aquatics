@@ -305,7 +305,7 @@ export default function BookingPage() {
       allSlots.push(...generateSlots(a.start_time, a.end_time))
     }
 
-    // 用 server API 繞過 RLS，取得教練當天所有 active booking 時段
+    // Use server API to bypass RLS and fetch all the coach's active booking slots for the day
     const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}`)
     const { times: bookedTimes, blocked: coachBlocked } = await bookedRes.json()
 
@@ -320,7 +320,7 @@ export default function BookingPage() {
       }
     }
 
-    // 仍需查同課程類型的 session 資訊（enrolled_count/max_students）
+    // Still need session info for the same course type (enrolled_count/max_students)
     const { data: coachBookings } = await supabase
       .from('class_sessions')
       .select('start_time, course_type_id, enrolled_count, max_students, id')
@@ -333,7 +333,7 @@ export default function BookingPage() {
       sameTypeSessions[t] = cs
     }
 
-    // 教練封鎖區間(time_off / admin_block):slot 與任一區間重疊即不可訂
+    // Coach blocked ranges (time_off / admin_block): a slot overlapping any range is unbookable
     const toMinB = (x: string) => { const [h, m] = x.slice(0, 5).split(':').map(Number); return h * 60 + m }
     const slotDur = selectedCourse.duration_minutes
     const inCoachBlock = (t: string) => (coachBlocked || []).some((b: any) => {
@@ -571,10 +571,10 @@ export default function BookingPage() {
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px', color: '#a78bfa' }}>⏳</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
-              邀請已送出
+              Invitation Sent
             </h2>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
-              已邀請連動帳戶確認參加
+              The linked account has been invited to confirm
             </p>
             <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
               {selectedCourse?.name} with {selectedCoach?.first_name}
@@ -589,7 +589,7 @@ export default function BookingPage() {
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>🔔</span>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
-                對方需在 <strong style={{ color: '#fff' }}>15 分鐘內</strong>按下確認，課程才會正式成立。若對方未確認，預約將自動取消，雙方皆不扣 credit。
+                They must confirm within <strong style={{ color: '#fff' }}>15 minutes</strong> for the lesson to be finalized. If they don't, the booking is automatically cancelled and no credits are deducted from either account.
               </p>
             </div>
           </>
@@ -790,7 +790,7 @@ export default function BookingPage() {
               </div>
             )}
 
-            {/* 1-on-2：選第二位學生 */}
+            {/* 1-on-2: select the second student */}
             {selectedCourse?.slug === '1on2' && availableCredit && (
               <div style={{ marginTop: '20px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
@@ -819,7 +819,7 @@ export default function BookingPage() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                            <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>連動</span>
+                            <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>Linked</span>
                           </div>
                           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · Partner must confirm within 15 min</div>
                         </div>
@@ -834,13 +834,13 @@ export default function BookingPage() {
                 </div>
                 {selectedStudent2 && !(selectedStudent2 as any).isPartner && remainingCredits < 2 && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '12px', color: '#e05a4a' }}>
-                    ⚠️ 1-on-2 需要 2 堂 credit。目前剩餘 {remainingCredits} 堂。{' '}
-                    <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>購買方案 →</Link>
+                    ⚠️ 1-on-2 requires 2 credits. You have {remainingCredits} remaining.{' '}
+                    <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>Buy a Plan →</Link>
                   </div>
                 )}
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.3)', borderRadius: '8px', fontSize: '12px', color: '#a78bfa' }}>
-                    📋 跨帳戶預約：對方需在 15 分鐘內確認並扣除其帳戶 1 堂 credit。
+                    📋 Cross-account booking: the other parent must confirm within 15 minutes, and 1 credit is deducted from their account.
                   </div>
                 )}
               </div>

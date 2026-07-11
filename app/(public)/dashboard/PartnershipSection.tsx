@@ -59,7 +59,7 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
       body: JSON.stringify({ invite_code: inputCode.trim().toUpperCase() }),
     })
     const data = await res.json()
-    if (!res.ok) { setJoinError(data.error || '連動失敗'); return }
+    if (!res.ok) { setJoinError(data.error || 'Failed to link accounts'); return }
     setJoinSuccess(true)
     setInputCode('')
     await load()
@@ -90,10 +90,10 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
   return (
     <section style={{ marginBottom: '36px' }}>
       <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-        帳戶連動
+        Account Linking
       </h2>
 
-      {/* 已連動帳戶 */}
+      {/* Linked accounts */}
       {partnerships.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
           {partnerships.map(p => {
@@ -110,16 +110,16 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
                     🤝
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '3px' }}>已連動帳戶</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '3px' }}>Linked Account</div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                      {students.length > 0 ? `學生：${students.map(s => s.full_name).join('、')}` : '對方尚無學生資料'}
+                      {students.length > 0 ? `Students: ${students.map(s => s.full_name).join(', ')}` : 'No students on their account yet'}
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => { setRevokeId(p.id); setRevokeConfirm(true) }}
                   style={{ color: '#f87171', fontSize: '12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', flexShrink: 0, fontWeight: 600 }}>
-                  解除連動
+                  Unlink
                 </button>
               </div>
             )
@@ -127,33 +127,33 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
         </div>
       )}
 
-      {/* 解除確認 Modal */}
+      {/* Unlink confirmation modal */}
       {revokeConfirm && (
         <div onClick={() => { setRevokeConfirm(false); setRevokeId(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: DARK, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#f87171', marginBottom: '8px' }}>解除連動</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>確定要解除連動？</div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>解除後，雙方將無法再看到對方的學生，所有 pending 中的跨帳戶預約也會取消。</p>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#f87171', marginBottom: '8px' }}>Unlink Account</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>Unlink this account?</div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>After unlinking, neither side can see the other's students, and all pending cross-account bookings will be cancelled.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => { setRevokeConfirm(false); setRevokeId(null) }}
                 style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                取消
+                Cancel
               </button>
               <button onClick={handleRevoke}
                 style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#f87171', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                確定解除
+                Yes, Unlink
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 邀請碼區塊 */}
+      {/* Invite code section */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        {/* 我的邀請碼 */}
+        {/* My invite code */}
         <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>我的邀請碼</div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>把邀請碼傳給對方，讓他們輸入後即可連動帳戶</div>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>My Invite Code</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>Send your invite code to the other parent; once they enter it, the accounts are linked</div>
           {myInviteCode ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ background: 'rgba(201,168,76,0.1)', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '8px 14px', color: GOLD, fontWeight: 700, fontSize: '16px', letterSpacing: '0.15em', flex: 1, textAlign: 'center' }}>
@@ -161,24 +161,24 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
               </span>
               <button onClick={() => { navigator.clipboard.writeText(myInviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
                 style={{ background: copied ? '#4caf72' : GOLD, color: NAVY, border: 'none', borderRadius: '8px', padding: '8px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', flexShrink: 0 }}>
-                {copied ? '✓ 已複製' : '複製'}
+                {copied ? '✓ Copied' : 'Copy'}
               </button>
             </div>
           ) : (
             <button onClick={getMyCode}
               style={{ width: '100%', background: GOLD, color: NAVY, border: 'none', borderRadius: '10px', padding: '10px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
-              產生邀請碼
+              Generate Invite Code
             </button>
           )}
         </div>
 
-        {/* 輸入邀請碼 */}
+        {/* Enter invite code */}
         <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>輸入邀請碼</div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>輸入對方的邀請碼來連動帳戶</div>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Enter Invite Code</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>Enter the other parent's invite code to link accounts</div>
           {joinSuccess ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4caf72', fontWeight: 600, fontSize: '13px' }}>
-              <span>✓</span><span>連動成功！</span>
+              <span>✓</span><span>Accounts linked!</span>
             </div>
           ) : (
             <>
@@ -193,7 +193,7 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
                 />
                 <button onClick={handleJoin} disabled={!inputCode.trim()}
                   style={{ background: inputCode.trim() ? GOLD : 'rgba(255,255,255,0.08)', color: inputCode.trim() ? NAVY : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 700, fontSize: '13px', cursor: inputCode.trim() ? 'pointer' : 'not-allowed', flexShrink: 0 }}>
-                  連動
+                  Link
                 </button>
               </div>
               {joinError && <div style={{ fontSize: '12px', color: '#f87171', marginTop: '8px', padding: '6px 10px', background: 'rgba(248,113,113,0.08)', borderRadius: '6px' }}>{joinError}</div>}

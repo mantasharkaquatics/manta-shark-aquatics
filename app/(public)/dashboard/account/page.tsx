@@ -91,23 +91,23 @@ export default function AccountPage() {
 
         <div style={{ marginBottom: '36px' }}>
           <Link href="/dashboard" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '20px' }}>
-            ← 返回 Dashboard
+            ← Back to Dashboard
           </Link>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,4vw,32px)', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>我的帳戶</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>管理您的個人資料、密碼與通知設定</p>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,4vw,32px)', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>My Account</h1>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>Manage your profile, password, and notification settings</p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-          {/* 基本資料 */}
+          {/* Profile section */}
           <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>基本資料</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>Profile</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
               {[
-                { label: '姓名', value: `${parent?.first_name} ${parent?.last_name}` },
+                { label: 'Name', value: `${parent?.first_name} ${parent?.last_name}` },
                 { label: 'Email', value: parent?.email },
-                { label: '電話', value: parent?.phone || '—' },
-                { label: '加入日期', value: parent?.registered_at ? new Date(parent.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
+                { label: 'Phone', value: parent?.phone || '—' },
+                { label: 'Member Since', value: parent?.registered_at ? new Date(parent.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase' }}>{item.label}</div>
@@ -117,11 +117,11 @@ export default function AccountPage() {
             </div>
           </div>
 
-          {/* 電子報訂閱 */}
+          {/* Newsletter section */}
           <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>電子報訂閱</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>接收課程優惠與最新消息</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>Newsletter</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Receive lesson deals and the latest news</div>
             </div>
             <button
               onClick={toggleNewsletter}

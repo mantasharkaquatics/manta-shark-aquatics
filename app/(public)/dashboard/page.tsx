@@ -339,13 +339,13 @@ export default function DashboardPage() {
 
     const today = getTodayLA()
 
-    // 懶惰清除：刪除過期的 pending_partner booking
+    // Lazy cleanup: remove expired pending_partner bookings
     const nowIso = new Date().toISOString()
     supabase.from('bookings').delete()
       .eq('status', 'pending_partner')
       .lt('pending_expires_at', nowIso)
       .then(() => {})
-    // 清除過期的 reschedule pending
+    // Clean up expired pending reschedules
     supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null, pending_expires_at: null })
       .in('pending_action', ['reschedule', 'reschedule_initiator'])
       .lt('pending_expires_at', nowIso)
@@ -365,7 +365,7 @@ export default function DashboardPage() {
         .order('created_at', { ascending: true }),
     ])
 
-    // 分開查 class_sessions 和 students
+    // Query class_sessions and students separately
     const sessionIds = [...new Set((rawBookings || []).map((b: any) => b.class_session_id).filter(Boolean))]
     const studentIds = [...new Set((rawBookings || []).map((b: any) => b.student_id).filter(Boolean))]
 
@@ -387,7 +387,7 @@ export default function DashboardPage() {
     const studentMap: Record<string, any> = {}
     for (const s of studentsData || []) { studentMap[(s as any).id] = s }
 
-    // 抓 pending reschedule 的新 session 資料
+    // Fetch new session data for pending reschedules
     const newSessionIds = [...new Set((rawBookings || [])
       .filter((b: any) => b.pending_new_session_id)
       .map((b: any) => b.pending_new_session_id)
@@ -407,7 +407,7 @@ export default function DashboardPage() {
     setStudents(studs || [])
     setCredits(credData || [])
 
-    // 查詢待確認的跨帳戶預約
+    // Fetch cross-account bookings awaiting confirmation
     const { data: pendingRaw } = await supabase
       .from('bookings')
       .select('id, student_id, pending_expires_at, partner_parent_id, class_session_id')
@@ -416,7 +416,7 @@ export default function DashboardPage() {
       .eq('pending_action', 'confirm')
       .gt('pending_expires_at', new Date().toISOString())
 
-    // 補齊 pending 的 session/student 資料
+    // Backfill session/student data for pending items
     const pendingSessionIds = [...new Set((pendingRaw || []).map((b: any) => b.class_session_id).filter(Boolean))]
     const pendingStudentIds = [...new Set((pendingRaw || []).map((b: any) => b.student_id).filter(Boolean))]
     const [{ data: pSessions }, { data: pStudents }] = await Promise.all([
@@ -451,7 +451,7 @@ export default function DashboardPage() {
       return ka.localeCompare(kb)
     }))
 
-    // 查詢 1-on-2 session 的 partner 學生名稱（用 server API 繞 RLS）
+    // Fetch partner student names for 1-on-2 sessions (server API to bypass RLS)
     const on2SessionIds = (rawBookings || [])
       .filter((b: any) => b.status !== 'cancelled')
       .map((b: any) => b.class_session_id)
@@ -501,12 +501,12 @@ export default function DashboardPage() {
         }
       }).filter(b => b.session_date)
 
-    // 同 session 合併成一張卡（同帳戶 1-on-2）
+    // Merge same session into one card (same-account 1-on-2)
     const mergeBySession = (bookings: Booking[]): Booking[] => {
       const map: Record<string, Booking> = {}
       const result: Booking[] = []
       for (const b of bookings) {
-        // 跨帳戶 1-on-2（有 partner_booking_id）不 merge，直接保留
+        // Cross-account 1-on-2 (has partner_booking_id): keep as-is, no merge
         if (b.partner_booking_id) {
           result.push(b)
           continue
@@ -527,7 +527,7 @@ export default function DashboardPage() {
     const isLessonPast = (b: Booking) => {
       if (b.session_date < today) return true
       if (b.session_date > today) return false
-      // 今天：課程結束時間是否已經過了現在
+      // Today: check whether the lesson end time has passed
       const [eh, em] = b.end_time.split(':').map(Number)
       return (eh * 60 + em) <= nowMinutesLA
     }
@@ -549,7 +549,7 @@ export default function DashboardPage() {
 
     const allPastWithCheckin = allPast.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date)).slice(0, 50))
-    // 抓各學生最新 approved progress_history
+    // Fetch each student's latest approved progress_history
     const studentIdList = (studs || []).map((s: any) => s.id)
     if (studentIdList.length > 0) {
       const { data: histRows } = await supabase
@@ -559,7 +559,7 @@ export default function DashboardPage() {
         .eq('status', 'approved')
         .order('session_date', { ascending: false })
 
-      // 所有記錄按學生分組
+      // Group all records by student
       const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number> }[]> = {}
       for (const row of histRows || []) {
         const sid = (row as any).student_id
@@ -570,11 +570,11 @@ export default function DashboardPage() {
         })
       }
 
-      // 抓 skills 名稱（含所有 snapshot 用到的 skill）
+      // Fetch skill names (including all skills used in snapshots)
       const allSkillIds = [...new Set((histRows || []).flatMap((r: any) => Object.keys(r.snapshot || {})))]
       let skillNameMap: Record<string, { name: string; sort_order: number; level_id: string }> = {}
 
-      // 同時抓各學生 current_level 對應的所有 skills，補齊 0%
+      // Also fetch all skills for each student's current_level, fill missing with 0%
       const studentLevelMap: Record<string, string | null> = {}
       for (const s of studs || []) studentLevelMap[s.id] = s.current_level
       const allLevelNums = [...new Set(Object.values(studentLevelMap).filter(Boolean))]
@@ -596,17 +596,17 @@ export default function DashboardPage() {
             .order('sort_order')
           for (const sk of skRows || []) {
             skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
-            // 組成 levelId → skills 對照
+            // Build levelId → skills map
             if (!levelSkillsMap[(sk as any).level_id]) levelSkillsMap[(sk as any).level_id] = []
             levelSkillsMap[(sk as any).level_id].push({ id: (sk as any).id, name: (sk as any).name, sort_order: (sk as any).sort_order })
           }
-          // 補上剩餘 snapshot skill（避免舊資料 level 不符也能顯示名稱）
+          // Add remaining snapshot skills (old data with mismatched level still shows names)
           const missing = allSkillIds.filter(id => !skillNameMap[id])
           if (missing.length > 0) {
             const { data: extraRows } = await supabase.from('skills').select('id, name, sort_order, level_id').in('id', missing)
             for (const sk of extraRows || []) skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
           }
-          // 建立 levelNumber → levelId 對照
+          // Build levelNumber → levelId map
           const numToLevelId = levelIdMap
 
           const progressMap: Record<string, StudentProgress> = {}
@@ -616,7 +616,7 @@ export default function DashboardPage() {
             const allLevelSkills = levelId ? (levelSkillsMap[levelId] || []) : []
 
             const records: ProgressRecord[] = hists.map(hist => {
-              // 以 Level 全部 skills 為基底，填入 snapshot 值，沒有的補 0
+              // Use all Level skills as the base, fill in snapshot values, default missing to 0
               const skillsForRecord = allLevelSkills.length > 0
                 ? allLevelSkills.map(sk => ({
                     skill_id: sk.id,
@@ -637,7 +637,7 @@ export default function DashboardPage() {
           setStudentProgressMap(progressMap)
         }
       } else {
-        // 無 level 資訊時 fallback
+        // Fallback when level info is missing
         if (allSkillIds.length > 0) {
           const { data: skillRows } = await supabase.from('skills').select('id, name, sort_order').in('id', allSkillIds)
           for (const sk of skillRows || []) skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: '' }
@@ -706,11 +706,11 @@ export default function DashboardPage() {
 
   function isWithin24Hours(sessionDate: string, startTime: string): boolean {
     const nowUTC = new Date()
-    // 把課程時間當作 LA 時間，轉換成 UTC
+    // Treat lesson time as LA time and convert to UTC
     const sessionLAString = `${sessionDate}T${startTime}`
     const sessionUTC = new Date(new Date(sessionLAString).toLocaleString('en-US', { timeZone: 'UTC' }))
     const sessionLA = new Date(new Date(sessionLAString + ' America/Los_Angeles').toLocaleString('en-US', { timeZone: 'UTC' }))
-    // 用 Intl 正確解析 LA 時間
+    // Parse LA time correctly with Intl
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Los_Angeles',
       year: 'numeric', month: '2-digit', day: '2-digit',
@@ -726,7 +726,7 @@ export default function DashboardPage() {
 
   async function cancelBooking(bookingId: string) {
     setCancellingId(bookingId)
-    // 用 server API 取消（同時取消對方 booking 並退 credit）
+    // Cancel via server API (also cancels partner booking and refunds credit)
     await fetch('/api/bookings/cancel-with-partner', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -738,7 +738,7 @@ export default function DashboardPage() {
 
   function confirmReschedule() {
     if (!rescheduleTarget) return
-    // 只跳到 booking 頁面，帶舊 booking ID，新課確認後才取消舊課
+    // Go to booking page with old booking ID; old lesson is cancelled only after new one confirms
     const partnerParam = rescheduleTarget.partnerBookingId ? `&reschedule_partner_booking_id=${rescheduleTarget.partnerBookingId}` : ''
     window.location.href = `/booking?reschedule_booking_id=${rescheduleTarget.id}&reschedule_credit_id=${rescheduleTarget.creditId}&reschedule_slug=${rescheduleTarget.slug}&reschedule_student_id=${rescheduleTarget.studentId}${partnerParam}`
   }
@@ -901,7 +901,7 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* 學習進度區塊 */}
+                  {/* Learning progress section */}
                   {/* QR Code Button */}
                   <button
                     onClick={() => setQrStudent(student)}
@@ -1003,7 +1003,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* PENDING PARTNER BOOKINGS 通知 */}
+        {/* Pending partner bookings notice */}
         {pendingPartnerBookings.length > 0 && (
           <section style={{ marginBottom: '28px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ Pending Invitations</h2>
@@ -1397,7 +1397,7 @@ export default function DashboardPage() {
                       )
                     })}
                   </div>
-                  {/* 展開/收合按鈕 */}
+                  {/* Expand/collapse button */}
                   {pastBookings.length > 3 && (
                     <button
                       onClick={() => { setShowAllHistory(v => !v); setHistoryPage(0) }}
@@ -1406,7 +1406,7 @@ export default function DashboardPage() {
                       {showAllHistory ? '▲ Collapse' : `▼ Show all ${pastBookings.length} records`}
                     </button>
                   )}
-                  {/* 分頁（展開後才顯示） */}
+                  {/* Pagination (shown when expanded) */}
                   {showAllHistory && totalPages > 1 && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '12px' }}>
                       <button
