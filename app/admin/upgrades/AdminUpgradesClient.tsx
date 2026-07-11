@@ -185,7 +185,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       body: JSON.stringify({
         student_id: studentId,
         progress: prog,
-        coach_id: coachId || adminId,
+        coach_id: coachId,
         session_date: sessionDate,
         admin_override: true,
       })
@@ -193,6 +193,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     if (res.ok) {
       setMissingProgressList(prev => prev.filter(s => s.id !== listId))
       window.location.reload()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || 'Failed to submit progress. Please try again.')
     }
     setSubmittingMissing(null)
   }
@@ -204,13 +207,13 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         <p className="text-gray-400 mt-1">Assign or upgrade student swim levels</p>
       </div>
 
-      {/* 今日未填寫通知 */}
+      {/* Missing progress notice */}
       {missingProgressList.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            ⚠️ 未填進度
+            ⚠️ Missing Progress
             <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{missingProgressList.length}</span>
-            <span className="text-gray-500 normal-case font-normal text-xs">（含過去未填，截至 {new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}）</span>
+            <span className="text-gray-500 normal-case font-normal text-xs">(includes past sessions, as of {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })})</span>
           </h2>
           <div className="space-y-4">
             {missingProgressList.map(s => {
@@ -230,11 +233,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         <span className="text-gray-500 text-xs">{expandedMissing.has(s.id) ? '▲' : '▼'}</span>
                       </p>
                       <p className="text-gray-400 text-xs">
-                        {s.session?.session_date ? `${new Date(s.session.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })} · ` : ''}
+                        {s.session?.session_date ? `${new Date(s.session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })} · ` : ''}
                         {s.session?.session_date === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) && (
-                          <span className="text-[#c9a84c] font-semibold">(今天) · </span>
+                          <span className="text-[#c9a84c] font-semibold">(Today) · </span>
                         )}
-                        {s.session ? `教練 ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${formatTime12h(s.session.start_time)}–${formatTime12h(s.session.end_time)}` : '有課'}
+                        {s.session ? `Coach ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${formatTime12h(s.session.start_time)}–${formatTime12h(s.session.end_time)}` : 'Scheduled'}
                         {s.current_level ? ` · Level ${s.current_level}` : ''}
                       </p>
                     </div>
@@ -243,7 +246,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       disabled={submittingMissing === s.id}
                       className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
                     >
-                      {submittingMissing === s.id ? '儲存中...' : '代填送審'}
+                      {submittingMissing === s.id ? 'Saving...' : 'Fill & Submit for Review'}
                     </button>
                   </div>
                   {levelSkills.length > 0 && expandedMissing.has(s.id) && (
@@ -284,11 +287,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         </div>
       )}
 
-      {/* 今日進度審核 */}
+      {/* Today's progress review */}
       {pendingProgressList.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4 flex items-center gap-2">
-            今日待審核進度
+            Today's Pending Progress
             <span className="bg-[#c9a84c] text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pendingProgressList.length}</span>
           </h2>
           <div className="space-y-4">
@@ -296,7 +299,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               const lvl = p.student?.current_level || ''
               const skillMap: Record<string, string> = {}
               for (const sk of p.skills) skillMap[sk.id] = sk.name
-              // 顯示全部 skills（含 snapshot 沒有填的），snapshot 值為預設
+              // Show all skills (incl. missing from snapshot); snapshot values as defaults
               const levelSkillIds = p.skills
                 .filter((sk: any) => {
                   const lvlObj = levels.find(l => String(l.level_number) === String(p.student?.current_level))
@@ -315,7 +318,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">
                         {p.session_info ? `${p.session_info.course_name} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)} · ` : ''}
-                        教練 {p.coach?.first_name} · Level {lvl} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        Coach {p.coach?.first_name} · Level {lvl} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -323,13 +326,13 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         onClick={() => setEditingPendingId(isEditing ? null : p.id)}
                         className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
                       >
-                        {isEditing ? '完成更改' : '更改'}
+                        {isEditing ? 'Done Editing' : 'Edit'}
                       </button>
                       <button
                         onClick={() => reviewProgress(p.id, p.student_id)}
                         className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
                       >
-                        確認 → 發布給家長
+                        Confirm → Publish to Parent
                       </button>
                     </div>
                   </div>
@@ -380,11 +383,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         </div>
       )}
 
-      {/* 過去待審核進度（之前漏審的，不論哪一天，都會一直列在這裡直到確認為止） */}
+      {/* Past pending progress (missed reviews from any date; stays until confirmed) */}
       {pastPendingProgressList.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            過去待審核進度
+            Past Pending Progress
             <span className="bg-orange-500 text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pastPendingProgressList.length}</span>
           </h2>
           <div className="space-y-4">
@@ -392,7 +395,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               const lvl = p.student?.current_level || ''
               const skillMap: Record<string, string> = {}
               for (const sk of p.skills) skillMap[sk.id] = sk.name
-              // 顯示全部 skills（含 snapshot 沒有填的），snapshot 值為預設
+              // Show all skills (incl. missing from snapshot); snapshot values as defaults
               const levelSkillIds = p.skills
                 .filter((sk: any) => {
                   const lvlObj = levels.find(l => String(l.level_number) === String(p.student?.current_level))
@@ -410,9 +413,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     <div>
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">
-                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}
+                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}
                         {p.session_info ? ` · ${p.session_info.course_name} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)}` : ''}
-                        {` · 教練 ${p.coach?.first_name} · Level ${lvl}`}
+                        {` · Coach ${p.coach?.first_name} · Level ${lvl}`}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -420,13 +423,13 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         onClick={() => setEditingPendingId(isEditing ? null : p.id)}
                         className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
                       >
-                        {isEditing ? '完成更改' : '更改'}
+                        {isEditing ? 'Done Editing' : 'Edit'}
                       </button>
                       <button
                         onClick={() => reviewProgress(p.id, p.student_id)}
                         className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
                       >
-                        確認 → 發布給家長
+                        Confirm → Publish to Parent
                       </button>
                     </div>
                   </div>
@@ -477,11 +480,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         </div>
       )}
 
-      {/* 待審核建議 */}
+      {/* Pending level recommendations */}
       {recommendations.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4 flex items-center gap-2">
-            待審核等級建議
+            Pending Level Recommendations
             <span className="bg-[#c9a84c] text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{recommendations.length}</span>
           </h2>
           <div className="space-y-3">
@@ -495,24 +498,24 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     <div>
                       <p className="text-white font-semibold">{rec.student.full_name}</p>
                       <p className="text-gray-400 text-xs mt-0.5">
-                        教練 {rec.coach.first_name} 建議 ·{' '}
+                        Coach {rec.coach.first_name} recommends ·{' '}
                         {new Date(rec.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
                       {rec.history && rec.history.length > 1 && (
                       <div className="mt-2 space-y-1">
-                        <p className="text-gray-600 text-xs uppercase tracking-wider">更改記錄</p>
+                        <p className="text-gray-600 text-xs uppercase tracking-wider">Change History</p>
                         {rec.history.map((h: any, i: number) => {
                           const t = new Date(h.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                           if (i === 0) return (
                             <p key={i} className="text-gray-500 text-xs flex items-center gap-1.5">
                               <span className="text-gray-600">{t}</span>
-                              <span>送出 L{h.recommended_level}</span>
+                              <span>Submitted L{h.recommended_level}</span>
                             </p>
                           )
                           return (
                             <p key={i} className="text-amber-400/80 text-xs flex items-center gap-1.5">
                               <span className="text-gray-600">{t}</span>
-                              <span>更改</span>
+                              <span>Changed</span>
                               <span className="line-through text-gray-500">L{h.previous_recommended_level}</span>
                               <span>→</span>
                               <span className="text-amber-400 font-medium">L{h.recommended_level}</span>
@@ -521,16 +524,16 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         })}
                       </div>
                     )}
-                    {rec.notes && <p className="text-gray-500 text-xs mt-1">備註：{rec.notes}</p>}
+                    {rec.notes && <p className="text-gray-500 text-xs mt-1">Notes: {rec.notes}</p>}
                     </div>
                     <span className="text-sm px-3 py-1 rounded-full font-semibold" style={{ backgroundColor: color + '33', color }}>
-                      建議 L{lvl} · {LEVEL_NAMES[String(lvl)]}
+                      Recommended L{lvl} · {LEVEL_NAMES[String(lvl)]}
                     </span>
                   </div>
 
-                  {/* 主管可以改 level */}
+                  {/* Admin can override level */}
                   <div className="mb-3">
-                    <p className="text-gray-500 text-xs mb-2">主管可修改等級：</p>
+                    <p className="text-gray-500 text-xs mb-2">Admin may adjust level:</p>
                     <div className="flex flex-wrap gap-1.5">
                       {[1,2,3,4,5,6,7,8,9].map(n => (
                         <button key={n}
@@ -551,14 +554,14 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       disabled={reviewingId === rec.id}
                       className="flex-1 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
                     >
-                      {reviewingId === rec.id ? '處理中...' : override !== String(lvl) ? `確認修改為 L${override}` : `確認 L${lvl}`}
+                      {reviewingId === rec.id ? 'Processing...' : override !== String(lvl) ? `Confirm Change to L${override}` : `Confirm L${lvl}`}
                     </button>
                     <button
                       onClick={() => handleReview(rec, 'rejected')}
                       disabled={reviewingId === rec.id}
                       className="px-4 py-2 rounded-lg border border-red-500/40 text-red-400 text-sm hover:bg-red-500/10 transition-all"
                     >
-                      拒絕
+                      Reject
                     </button>
                   </div>
                 </div>
@@ -705,7 +708,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 <div>
                   <p className="text-white text-sm font-medium">{h.students?.full_name}</p>
                   <p className="text-gray-400 text-xs mt-0.5">
-                    {h.from_level ? `L${h.from_level} → ` : '未分級 → '}
+                    {h.from_level ? `L${h.from_level} → ` : 'Unassigned → '}
                     <span className="text-[#c9a84c]">L{h.to_level} ({LEVEL_NAMES[h.to_level]})</span>
                     {h.notes && ` · ${h.notes}`}
                   </p>
@@ -724,19 +727,19 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       {showConfirm && selectedStudent && selectedLevel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-white font-bold text-lg mb-1">確認指定等級</h3>
-            <p className="text-gray-400 text-sm mb-5">請確認以下操作：</p>
+            <h3 className="text-white font-bold text-lg mb-1">Confirm Level Assignment</h3>
+            <p className="text-gray-400 text-sm mb-5">Please confirm the following:</p>
             <div className="bg-[#0d1529] rounded-xl p-4 mb-5 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">學生</span>
+                <span className="text-gray-400">Student</span>
                 <span className="text-white font-medium">{selectedStudent.full_name}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">目前等級</span>
-                <span className="text-gray-300">{selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]}` : '未指定'}</span>
+                <span className="text-gray-400">Current Level</span>
+                <span className="text-gray-300">{selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]}` : 'Not assigned'}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">指定為</span>
+                <span className="text-gray-400">Assign to</span>
                 <span className="text-[#c9a84c] font-semibold">Level {selectedLevel} · {LEVEL_NAMES[selectedLevel]}</span>
               </div>
             </div>
@@ -744,7 +747,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               <button onClick={() => setShowConfirm(false)}
                 className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all">Cancel</button>
               <button onClick={() => { setShowConfirm(false); handleAssign() }}
-                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all">確認指定</button>
+                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all">Confirm Assignment</button>
             </div>
           </div>
         </div>

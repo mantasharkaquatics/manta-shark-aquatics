@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { requireCoach, requireStaff } from '@/lib/api-auth'
+import { requireStaff } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
   const staff = await requireStaff()
@@ -96,11 +96,19 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const authCoach = await requireCoach()
-  if (!authCoach) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { student_id, progress, session_date, class_session_id } = await req.json()
-  const coach_id = authCoach.coach.id
+  const staff = await requireStaff()
+  if (!staff) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { student_id, progress, session_date, class_session_id, coach_id: bodyCoachId } = await req.json()
+  let coach_id: string | null = null
+  if (staff.role === 'coach') {
+    const { data: self } = await supabase.from('coaches').select('id').eq('auth_user_id', staff.user.id).single()
+    if (!self) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    coach_id = self.id
+  } else {
+    coach_id = bodyCoachId || null
+  }
   if (!student_id || !progress) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
+  if (!coach_id) return NextResponse.json({ error: 'This session has no assigned coach' }, { status: 400 })
 
   // Verify coach exists
   const { data: coach } = await supabase
