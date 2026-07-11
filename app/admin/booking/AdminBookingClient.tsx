@@ -1304,20 +1304,21 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                     <div className="absolute inset-0 bg-white/[0.015]" />
                   )}
                   {blk && (
-                    <div className="absolute inset-0 pointer-events-none z-[5]"
-                      style={{ backgroundColor: 'rgba(148,163,184,0.13)', backdropFilter: 'saturate(0.6)' }}>
+                    <>
+                      <div className="absolute inset-0 pointer-events-none z-[1]"
+                        style={{ backgroundColor: 'rgba(148,163,184,0.13)', backdropFilter: 'saturate(0.6)' }} />
                       {blkLabelHere && (
                         <button onClick={(e) => { e.stopPropagation(); onBlockClick(blk) }}
-                          className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none pointer-events-auto border cursor-pointer transition-all hover:brightness-125"
+                          className={`absolute ${session && session.enrolled_count > 0 ? 'bottom-1' : 'top-1'} left-1 right-1 px-1.5 py-1 rounded text-[10px] font-bold leading-tight text-left whitespace-normal break-words pointer-events-auto border cursor-pointer transition-all hover:brightness-125 z-[6]`}
                           style={{
-                            backgroundColor: blk.block_type === 'admin_block' ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.14)',
-                            color: blk.block_type === 'admin_block' ? '#f87171' : 'rgba(255,255,255,0.75)',
+                            backgroundColor: blk.block_type === 'admin_block' ? 'rgba(70,18,18,0.94)' : 'rgba(35,42,60,0.94)',
+                            color: blk.block_type === 'admin_block' ? '#f87171' : 'rgba(255,255,255,0.8)',
                             borderColor: blk.block_type === 'admin_block' ? 'rgba(248,113,113,0.5)' : 'rgba(255,255,255,0.3)',
                           }}>
-                          {blk.block_type === 'admin_block' ? '🚫 Blocked' : 'Time off'}{blk.start_time == null ? ' (all day)' : ''}{blk.reason ? ` · ${blk.reason.length > 8 ? blk.reason.slice(0, 8) + '…' : blk.reason}` : ''}
+                          {blk.block_type === 'admin_block' ? '🚫 Blocked' : 'Time off'}{blk.start_time == null ? ' (all day)' : ''}{blk.reason ? ` · ${blk.reason}` : ''}
                         </button>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
               )
@@ -1362,7 +1363,7 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
           }))
           e.dataTransfer.effectAllowed = 'move'
         }}
-        className={`absolute inset-0.5 rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`absolute inset-0.5 z-[2] rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
         style={{ backgroundColor: hasTrial ? '#c9a84c' : colorClass }}>
         <span className="text-sm font-bold leading-tight truncate w-full text-left" style={{ color: hasTrial ? '#1a2744' : '#ffffff' }}>{hasTrial ? 'Swim Assessment' : ct.name}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
