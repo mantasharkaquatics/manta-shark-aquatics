@@ -1513,8 +1513,10 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
               </select>
               <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" style={{ colorScheme: 'dark' }} />
-              <input type="time" step={900} value={newTime} onChange={e => setNewTime(e.target.value)}
-                className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" style={{ colorScheme: 'dark' }} />
+              <select value={newTime} onChange={e => setNewTime(e.target.value)}
+                className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10">
+                {TIME_SLOTS.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+              </select>
               {rescheduleError && <p className="text-xs text-red-300">{rescheduleError}</p>}
               <p className="text-xs text-white/40">The whole session moves together — all booked students stay paired. Reschedule notices will be emailed to all affected parents; credits carry over unchanged.</p>
             </div>
