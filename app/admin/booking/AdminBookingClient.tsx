@@ -361,6 +361,40 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     } finally { setUnblocking(false) }
   }
 
+  const [editingBlock, setEditingBlock] = useState(false)
+  const [editAllDay, setEditAllDay] = useState(false)
+  const [editStart, setEditStart] = useState('')
+  const [editEnd, setEditEnd] = useState('')
+  const [editReason, setEditReason] = useState('')
+  const [savingBlock, setSavingBlock] = useState(false)
+
+  function startEditBlock() {
+    if (!viewingBlock) return
+    setEditAllDay(viewingBlock.start_time == null)
+    setEditStart(viewingBlock.start_time ? String(viewingBlock.start_time).slice(0, 5) : TIME_SLOTS[0])
+    setEditEnd(viewingBlock.end_time ? String(viewingBlock.end_time).slice(0, 5) : TIME_SLOTS[1])
+    setEditReason(viewingBlock.reason || '')
+    setUnblockErr('')
+    setEditingBlock(true)
+  }
+
+  async function saveBlockEdit() {
+    if (!viewingBlock || savingBlock) return
+    if (!editAllDay && (!editStart || !editEnd || editStart >= editEnd)) { setUnblockErr('Please select a valid time range'); return }
+    setSavingBlock(true); setUnblockErr('')
+    try {
+      const res = await fetch('/api/admin/time-off', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: viewingBlock.id, all_day: editAllDay, start_time: editStart, end_time: editEnd, reason: editReason }) })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        await loadBlocks()
+        setEditingBlock(false)
+        setViewingBlock(null)
+      } else {
+        setUnblockErr(data.error || 'Failed to update block')
+      }
+    } finally { setSavingBlock(false) }
+  }
+
   const loadBlocks = useCallback(async () => {
     let from: string, to: string
     if (view === 'month') {
@@ -831,7 +865,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               isCoachAvailable={isCoachAvailable}
               onSlotClick={openBookModal}
               onSessionClick={openDetailModal}
-              onBlockClick={(blk) => { setUnblockErr(''); setViewingBlock(blk) }}
+              onBlockClick={(blk) => { setUnblockErr(''); setEditingBlock(false); setViewingBlock(blk) }}
             />
           )}
         </div>
@@ -1150,16 +1184,49 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               {viewingBlock.reason && <p className="text-white/60">Reason: {viewingBlock.reason}</p>}
             </div>
             {viewingBlock.block_type === 'admin_block' ? (
+              editingBlock ? (
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5 cursor-pointer">
+                    <input type="checkbox" checked={editAllDay} onChange={e => setEditAllDay(e.target.checked)} className="w-4 h-4" />
+                    <span className="text-sm text-white/80">Block all day</span>
+                  </label>
+                  {!editAllDay && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <select value={editStart} onChange={e => { const v = e.target.value; setEditStart(v); if (editEnd <= v) setEditEnd(minutesToTime(timeToMinutes(v) + SLOT_MINUTES)) }}
+                        className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm">
+                        {TIME_SLOTS.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+                      </select>
+                      <select value={editEnd} onChange={e => setEditEnd(e.target.value)}
+                        className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm">
+                        {[...TIME_SLOTS.slice(1), minutesToTime(WORK_END * 60)].filter(t => t > editStart).map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <textarea value={editReason} onChange={e => setEditReason(e.target.value)} rows={2} placeholder="Reason (optional)"
+                    className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm resize-none placeholder-white/20" />
+                  {unblockErr && <p className="text-red-400 text-xs">{unblockErr}</p>}
+                  <div className="flex gap-3">
+                    <button onClick={() => { setEditingBlock(false); setUnblockErr('') }} disabled={savingBlock}
+                      className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">Back</button>
+                    <button onClick={saveBlockEdit} disabled={savingBlock}
+                      className="flex-1 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-all"
+                      style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>{savingBlock ? 'Saving...' : 'Save Changes'}</button>
+                  </div>
+                </div>
+              ) : (
               <>
                 {unblockErr && <p className="text-red-400 text-xs">{unblockErr}</p>}
                 <div className="flex gap-3">
                   <button onClick={() => setViewingBlock(null)} disabled={unblocking}
                     className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">Close</button>
+                  <button onClick={startEditBlock} disabled={unblocking}
+                    className="flex-1 py-2.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 text-sm transition-all disabled:opacity-50">Edit</button>
                   <button onClick={removeViewingBlock} disabled={unblocking}
                     className="flex-1 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-all"
                     style={{ backgroundColor: '#ef4444', color: '#fff' }}>{unblocking ? 'Removing...' : 'Remove Block'}</button>
                 </div>
               </>
+              )
             ) : (
               <>
                 <p className="text-xs text-white/40">Coach time off is created by the coach; to adjust or remove it, use the Time Off page.</p>
@@ -1283,7 +1350,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
               return (
                 <div key={`${coach.id}-${time}`} className="min-h-20 border-t border-l border-white/5 relative">
                   {session && session.enrolled_count > 0 ? (
-                    <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} />
+                    <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} />
                   ) : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id)}
                       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverKey(`${coach.id}-${time}`) }}
@@ -1309,7 +1376,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                         style={{ backgroundColor: 'rgba(148,163,184,0.13)', backdropFilter: 'saturate(0.6)' }} />
                       {blkLabelHere && (
                         <button onClick={(e) => { e.stopPropagation(); onBlockClick(blk) }}
-                          className={`absolute ${session && session.enrolled_count > 0 ? 'bottom-1' : 'top-1'} left-1 right-1 px-1.5 py-1 rounded text-[10px] font-bold leading-tight text-left whitespace-normal break-words pointer-events-auto border cursor-pointer transition-all hover:brightness-125 z-[6]`}
+                          className={`absolute top-1 left-1 right-1 px-1.5 py-1 rounded text-[10px] font-bold leading-tight text-left whitespace-normal break-words pointer-events-auto border cursor-pointer transition-all hover:brightness-125 z-[6]`}
                           style={{
                             backgroundColor: blk.block_type === 'admin_block' ? 'rgba(70,18,18,0.94)' : 'rgba(35,42,60,0.94)',
                             color: blk.block_type === 'admin_block' ? '#f87171' : 'rgba(255,255,255,0.8)',
@@ -1333,7 +1400,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
 // ══════════════════════════════════════════════════════════════════════
 // Session Chip
 // ══════════════════════════════════════════════════════════════════════
-function SessionChip({ session, onClick, isCrossAccount }: { session: Session; onClick: () => void; isCrossAccount?: boolean }) {
+function SessionChip({ session, onClick, isCrossAccount, shiftDown }: { session: Session; onClick: () => void; isCrossAccount?: boolean; shiftDown?: boolean }) {
   if (session.enrolled_count === 0) return null
   const ct = getSessionCourseType(session)
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
@@ -1363,7 +1430,7 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
           }))
           e.dataTransfer.effectAllowed = 'move'
         }}
-        className={`absolute inset-0.5 z-[2] rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`absolute left-0.5 right-0.5 bottom-0.5 z-[2] ${shiftDown ? 'top-8' : 'top-0.5'} rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
         style={{ backgroundColor: hasTrial ? '#c9a84c' : colorClass }}>
         <span className="text-sm font-bold leading-tight truncate w-full text-left" style={{ color: hasTrial ? '#1a2744' : '#ffffff' }}>{hasTrial ? 'Swim Assessment' : ct.name}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
