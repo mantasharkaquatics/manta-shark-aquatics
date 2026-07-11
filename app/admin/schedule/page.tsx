@@ -26,7 +26,7 @@ export default async function AdminSchedulePage() {
   const todayDate = getTodayLA()
   const nowIso = new Date().toISOString()
 
-  // Step 1: 查 bookings（不帶 join）
+  // Step 1: fetch bookings (no joins)
   const [
     { data: rawInvites },
     { data: rawReschedules },
@@ -61,7 +61,7 @@ export default async function AdminSchedulePage() {
       .order('created_at', { ascending: false }).limit(50),
   ])
 
-  // Step 2: 收集所有需要查的 IDs
+  // Step 2: collect all IDs to fetch
   const allBookings = [...(rawInvites||[]), ...(rawReschedules||[]), ...(rawCancelled||[]), ...(rawRescheduled||[]), ...(rawNewBookings||[])]
   const sessionIds = [...new Set(allBookings.map((b:any) => b.class_session_id).filter(Boolean))]
   const studentIds = [...new Set(allBookings.map((b:any) => b.student_id).filter(Boolean))]
@@ -72,7 +72,7 @@ export default async function AdminSchedulePage() {
   ].filter(Boolean))]
   const allSessionIds = [...new Set([...sessionIds, ...newSessionIds])]
 
-  // Step 3: 分開查
+  // Step 3: fetch separately
   const [{ data: sessionsData }, { data: studentsData }, { data: parentsData }] = await Promise.all([
     allSessionIds.length > 0
       ? supabase.from('class_sessions').select('id, session_date, start_time, course_types(name), coaches(first_name)').in('id', allSessionIds)
@@ -85,7 +85,7 @@ export default async function AdminSchedulePage() {
       : Promise.resolve({ data: [] }),
   ])
 
-  // 查發起方 parent 和 student（透過 partner_parent_id 和 partner_booking_id）
+  // Fetch initiator parent and student (via partner_parent_id and partner_booking_id)
   const partnerParentIds = [...new Set((rawInvites||[]).map((b:any) => b.partner_parent_id).filter(Boolean))]
   const partnerBookingIds = [...new Set((rawInvites||[]).map((b:any) => b.partner_booking_id).filter(Boolean))]
   const [{ data: partnerParentsData }, { data: partnerBookingsData }] = await Promise.all([
@@ -112,7 +112,7 @@ export default async function AdminSchedulePage() {
   }
   const studentMap: Record<string, any> = {}
   for (const s of studentsData || []) studentMap[(s as any).id] = s
-  // 補查發起方 student
+  // Backfill initiator student
   const initiatorStudentIds = [...new Set(Object.values(partnerBookingStudentMap).filter(Boolean))]
   if (initiatorStudentIds.length > 0) {
     const { data: initiatorStudentsData } = await supabase.from('students').select('id, full_name').in('id', initiatorStudentIds)
@@ -154,12 +154,12 @@ export default async function AdminSchedulePage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Activity Monitor</h1>
-          <p className="text-gray-400 mt-1">即時掌握所有待處理與異動狀況</p>
+          <p className="text-gray-400 mt-1">A live view of everything pending and every recent change</p>
         </div>
         {pendingCount > 0 && (
           <div className="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/40 rounded-xl px-4 py-2">
             <div className="w-2 h-2 rounded-full bg-yellow-400" />
-            <span className="text-yellow-400 text-sm font-semibold">{pendingCount} 項待處理</span>
+            <span className="text-yellow-400 text-sm font-semibold">{pendingCount} pending</span>
           </div>
         )}
       </div>
@@ -167,12 +167,12 @@ export default async function AdminSchedulePage() {
       <div className="space-y-8">
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-purple-400">⏳ 待確認邀請</h2>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-purple-400">⏳ Pending Invitations</h2>
             {rawInvites && rawInvites.length > 0 && <span className="bg-purple-900/40 text-purple-400 text-xs px-2 py-0.5 rounded-full font-semibold">{rawInvites.length}</span>}
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {!rawInvites || rawInvites.length === 0 ? (
-            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">無待確認邀請</div>
+            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">No pending invitations</div>
           ) : (
             <div className="space-y-3">
               {rawInvites.map((b: any) => {
@@ -182,8 +182,8 @@ export default async function AdminSchedulePage() {
                   <div key={b.id} className="bg-[#111d38] rounded-xl border border-purple-800/40 p-5 flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-purple-400 text-xs font-bold uppercase tracking-wide">1-on-2 邀請待確認</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>剩 {mins} 分鐘</span>
+                        <span className="text-purple-400 text-xs font-bold uppercase tracking-wide">1-on-2 invitation pending</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>{mins} min left</span>
                       </div>
                       <p className="text-[#c9a84c] text-sm mb-2">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
                       <div className="flex flex-col gap-1">
@@ -193,12 +193,12 @@ export default async function AdminSchedulePage() {
                           const initiatorStudent = initiatorStudentId ? studentMap[initiatorStudentId] : null
                           return (<>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-yellow-400 font-semibold w-14 shrink-0">發起方</span>
+                              <span className="text-xs text-yellow-400 font-semibold w-14 shrink-0">Initiator</span>
                               <span className="text-white text-sm font-semibold">{initiatorStudent?.full_name || '—'}</span>
                               <span className="text-gray-400 text-xs">({initiatorParent?.first_name} {initiatorParent?.last_name})</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-purple-400 font-semibold w-14 shrink-0">被邀請</span>
+                              <span className="text-xs text-purple-400 font-semibold w-14 shrink-0">Invited</span>
                               <span className="text-white text-sm font-semibold">{student?.full_name}</span>
                               <span className="text-gray-400 text-xs">({parent?.first_name} {parent?.last_name})</span>
                             </div>
@@ -215,16 +215,16 @@ export default async function AdminSchedulePage() {
 
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-yellow-400">🔄 待確認改期</h2>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-yellow-400">🔄 Pending Reschedules</h2>
             {mergedRescheduleCount > 0 && <span className="bg-yellow-900/40 text-yellow-400 text-xs px-2 py-0.5 rounded-full font-semibold">{mergedRescheduleCount}</span>}
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {!rawReschedules || rawReschedules.length === 0 ? (
-            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">無待確認改期</div>
+            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">No pending reschedules</div>
           ) : (
             <div className="space-y-3">
               {(() => {
-                // merge 同 class_session_id + pending_new_session_id 的兩筆
+                // Merge the two rows sharing class_session_id + pending_new_session_id
                 const merged: Record<string, any[]> = {}
                 for (const b of rawReschedules) {
                   const key = (b.class_session_id || '') + '|' + (b.pending_new_session_id || '')
@@ -243,10 +243,10 @@ export default async function AdminSchedulePage() {
                   return (
                     <div key={initiator.id} className="bg-[#111d38] rounded-xl border border-yellow-800/30 p-5">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">待確認改期</span>
+                        <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">Reschedule pending</span>
                         {initiator.pending_expires_at && (() => {
                           const mins = Math.max(0, Math.floor((new Date(initiator.pending_expires_at).getTime() - Date.now()) / 60000))
-                          return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>剩 {mins} 分鐘</span>
+                          return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>{mins} min left</span>
                         })()}
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap mb-3">
@@ -256,13 +256,13 @@ export default async function AdminSchedulePage() {
                       </div>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-yellow-400 font-semibold w-16 shrink-0">發起方</span>
+                          <span className="text-xs text-yellow-400 font-semibold w-16 shrink-0">Initiator</span>
                           <span className="text-white text-sm font-semibold">{iStudent?.full_name}</span>
                           <span className="text-gray-400 text-xs">({iParent?.first_name} {iParent?.last_name})</span>
                         </div>
                         {rStudent && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-purple-400 font-semibold w-16 shrink-0">待確認</span>
+                            <span className="text-xs text-purple-400 font-semibold w-16 shrink-0">Pending</span>
                             <span className="text-white text-sm font-semibold">{rStudent?.full_name}</span>
                             <span className="text-gray-400 text-xs">({rParent?.first_name} {rParent?.last_name})</span>
                           </div>
@@ -279,16 +279,16 @@ export default async function AdminSchedulePage() {
 
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">📋 最近活動紀錄</h2>
-            <span className="text-gray-600 text-xs">最近 30 天</span>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">📋 Recent Activity</h2>
+            <span className="text-gray-600 text-xs">Last 30 days</span>
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {(() => {
-            // 合併取消和改期，按時間排序
+            // Merge cancellations and reschedules, sorted by time
             type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled' | 'new'; names: string; cs: any; newCs: any; updatedAt: string; isCrossAccount?: boolean; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
             const items: ActivityItem[] = []
 
-            // 新預定（去重同場次）
+            // New bookings (dedupe same session)
             const mergedNew: Record<string, any[]> = {}
             for (const b of rawNewBookings || []) {
               const key = b.class_session_id || b.id
@@ -305,7 +305,7 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'n-' + b0.id, type: 'new', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.created_at, isCrossAccount: isCrossAccountNew })
             }
 
-            // 取消
+            // Cancellations
             const mergedCancelled: Record<string, any[]> = {}
             for (const b of rawCancelled || []) {
               const key = b.class_session_id || b.id
@@ -322,19 +322,19 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at, isCrossAccount: isCrossAccountC })
             }
 
-            // 改期完成：先把同一 original_booking_id 的串成 chain
-            // 每個 chain 代表一位學生的改期歷史
-            // 再把同步驟（同 class_session_id → 同 pending_new_session_id）的不同學生合併
+            // Completed reschedules: first chain rows sharing original_booking_id
+            // Each chain is one student's reschedule history
+            // Then merge different students with identical steps (same class_session_id → same pending_new_session_id)
             const rescheduleChains: Record<string, any[]> = {}
             for (const b of rawRescheduled || []) {
-              // 用 original_booking_id（追溯到源頭）或 id 作為 chain key
+              // Use original_booking_id (traced to origin) or id as the chain key
               const chainKey = b.original_booking_id || b.id
               if (!rescheduleChains[chainKey]) rescheduleChains[chainKey] = []
               rescheduleChains[chainKey].push(b)
             }
-            // 再把 chain 按步驟相同的合併（同場次改期的兩位學生）
-            // 步驟相同 = class_session_id 和 pending_new_session_id 都一樣
-            // 找出所有 chainKey 對應的「第一步」，把第一步相同的 chain 合併
+            // Then merge chains with identical steps (two students rescheduling the same session)
+            // Identical steps = same class_session_id and pending_new_session_id
+            // Find each chainKey's first step and merge chains whose first steps match
             const mergedChainKeys: Record<string, string[]> = {} // superKey → [chainKeys]
             for (const [chainKey, chain] of Object.entries(rescheduleChains)) {
               const firstStep = (chain[0] as any).class_session_id + '|' + (chain[0] as any).pending_new_session_id
@@ -342,19 +342,19 @@ export default async function AdminSchedulePage() {
               mergedChainKeys[firstStep].push(chainKey)
             }
             for (const chainKeys of Object.values(mergedChainKeys)) {
-              // 合併所有相關 chain 的 booking
+              // Merge bookings from all related chains
               const allBookings: any[] = []
               for (const ck of chainKeys) {
                 allBookings.push(...(rescheduleChains[ck] || []))
               }
-              // 收集所有學生名稱（去重）
+              // Collect all student names (deduped)
               const nameSet = new Set<string>()
               for (const b of allBookings) {
                 const st = studentMap[b.student_id]; const pa = parentMap[b.parent_id]
                 if (st) nameSet.add(`${st.full_name} (${pa?.first_name} ${pa?.last_name})`)
               }
               const names = [...nameSet].join('、')
-              // 建立時間軸步驟（去重）
+              // Build timeline steps (deduped)
               const steps: { fromCs: any; toCs: any; updatedAt: string }[] = []
               const seen = new Set<string>()
               for (const b of allBookings) {
@@ -369,7 +369,7 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'r-' + rep.id, type: 'rescheduled', names, cs: steps[0]?.fromCs, newCs: steps[steps.length-1]?.toCs, updatedAt: steps[steps.length-1]?.updatedAt, isCrossAccount: isCrossAccountR, steps })
             }
 
-            // 過濾已上完的課程（以最終課程的 session_date + start_time 判斷）
+            // Filter out completed lessons (judged by final session_date + start_time)
             const nowLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
             const filteredItems = items.filter((item: any) => {
               const finalCs = item.newCs || item.cs
@@ -382,7 +382,7 @@ export default async function AdminSchedulePage() {
             })
             filteredItems.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
-            if (filteredItems.length === 0) return <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">最近 30 天無活動紀錄</div>
+            if (filteredItems.length === 0) return <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">No activity in the last 30 days</div>
 
             return (
               <div className="space-y-2">
@@ -390,10 +390,10 @@ export default async function AdminSchedulePage() {
                   <div key={item.key} className={`bg-[#111d38] rounded-xl border p-4 flex items-start justify-between gap-4 ${item.type === 'cancelled' ? 'border-red-900/25' : 'border-green-900/25'}`}>
                     <div className="flex items-start gap-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 mt-0.5 ${item.type === 'cancelled' ? 'bg-red-900/30 text-red-400' : item.type === 'new' ? 'bg-blue-900/30 text-blue-400' : 'bg-green-900/30 text-green-400'}`}>
-                        {item.type === 'cancelled' ? '取消' : item.type === 'new' ? '新預定' : '改期'}
+                        {item.type === 'cancelled' ? 'Cancelled' : item.type === 'new' ? 'New Booking' : 'Rescheduled'}
                       </span>
                       <div>
-                        <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">連動</span>}</p>
+                        <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">Linked</span>}</p>
                         {item.type === 'new' ? (
                           <p className="text-blue-400 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : item.type === 'cancelled' ? (

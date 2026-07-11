@@ -5,7 +5,7 @@ import { PLAN_GROUPS } from '@/lib/plans'
 const PAGE_SIZE = 20
 
 const PAYMENT_METHODS = [
-  { value: 'All', label: '全部' },
+  { value: 'All', label: 'All' },
   { value: 'stripe', label: 'Stripe Online' },
   { value: 'Credit Card (Terminal)', label: 'Credit Card (Terminal)' },
   { value: 'cash', label: 'Cash' },
@@ -35,13 +35,13 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       const email = parent?.email?.toLowerCase() || ''
       const planName: string = Array.isArray(inv.items) && inv.items[0]?.name ? inv.items[0].name : ''
 
-      // 搜尋
+      // Search
       if (search) {
         const q = search.toLowerCase()
         if (!fullName.includes(q) && !email.includes(q)) return false
       }
 
-      // 課程包種類
+      // Package type
       if (planGroup !== 'All') {
         const group = PLAN_GROUPS.find(g => g.label === planGroup)
         if (!group) return false
@@ -51,10 +51,10 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
         if (!matches) return false
       }
 
-      // 付款方式
+      // Payment method
       if (payMethod !== 'All' && inv.payment_method !== payMethod) return false
 
-      // 日期範圍
+      // Date range
       if (dateRange !== 'All') {
         const d = new Date(inv.issued_at)
         if (dateRange === 'Week') {
@@ -78,7 +78,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   function exportCSV() {
-    const rows = [['發票編號', '客戶姓名', 'Email', '購買方案', '付款方式', '金額', '購買時間']]
+    const rows = [['Invoice #', 'Customer', 'Email', 'Plan', 'Payment Method', 'Amount', 'Purchased At']]
     for (const inv of filtered) {
       const parent = parentMap[inv.parent_id]
       const planName = Array.isArray(inv.items) && inv.items[0]?.name ? inv.items[0].name : '—'
@@ -112,63 +112,63 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-white font-serif">Sales</h1>
-          <p className="text-gray-400 mt-1">所有課程購買紀錄</p>
+          <p className="text-gray-400 mt-1">All lesson package purchases</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl px-6 py-4 text-right">
             <p className="text-gray-400 text-xs uppercase tracking-wider">
-              {hasFilter ? `篩選結果 (${filtered.length} 筆)` : `Total (${invoices.length} 筆)`}
+              {hasFilter ? `Filtered (${filtered.length})` : `Total (${invoices.length})`}
             </p>
             <p className="text-[#c9a84c] text-2xl font-bold">${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
           </div>
           <button onClick={exportCSV} className="bg-[#c9a84c] hover:bg-[#b8973b] text-[#1a2744] text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-            ↓ 匯出 CSV
+            ↓ Export CSV
           </button>
         </div>
       </div>
 
       {/* Filters */}
       <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-        {/* 搜尋 */}
+        {/* Search */}
         <div className="flex-1 min-w-[200px]">
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">搜尋客戶</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Search Customer</label>
           <input
             type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="姓名或 Email..."
+            placeholder="Name or email..."
             className="w-full bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]"
           />
         </div>
-        {/* 課程包種類 */}
+        {/* Package type */}
         <div>
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">課程包種類</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Package Type</label>
           <select value={planGroup} onChange={e => { setPlanGroup(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-            <option value="All">全部</option>
+            <option value="All">All</option>
             {PLAN_GROUPS.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
           </select>
         </div>
-        {/* 付款方式 */}
+        {/* Payment method */}
         <div>
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">付款方式</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Payment Method</label>
           <select value={payMethod} onChange={e => { setPayMethod(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
             {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
         </div>
-        {/* 日期範圍 */}
+        {/* Date range */}
         <div>
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">日期範圍</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Date Range</label>
           <select value={dateRange} onChange={e => { setDateRange(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-            <option value="All">全部時間</option>
-            <option value="Week">近 7 天</option>
-            <option value="Month">本月</option>
-            <option value="Quarter">本季</option>
+            <option value="All">All Time</option>
+            <option value="Week">Last 7 Days</option>
+            <option value="Month">This Month</option>
+            <option value="Quarter">This Quarter</option>
           </select>
         </div>
         {hasFilter && (
           <button onClick={resetFilters} className="text-gray-400 hover:text-white text-sm px-3 py-2 border border-[#1e3a6e] rounded-lg transition-colors">
-            清除篩選
+            Clear Filters
           </button>
         )}
       </div>
@@ -176,7 +176,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       {/* Table */}
       {paged.length === 0 ? (
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-12 text-center">
-          <p className="text-gray-400">無符合條件的購買紀錄</p>
+          <p className="text-gray-400">No purchases match the filters</p>
         </div>
       ) : (
         <>
@@ -185,11 +185,11 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
               <thead>
                 <tr className="border-b border-[#1e3a6e]">
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Invoice #</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">客戶</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">購買方案</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Customer</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Plan</th>
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Payment</th>
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Amount</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">購買時間</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Purchased At</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,16 +219,16 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
 
           {/* Pagination */}
           <div className="flex items-center justify-between text-sm text-gray-400">
-            <span>第 {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} 筆，共 {filtered.length} 筆</span>
+            <span>Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}</span>
             <div className="flex gap-2">
               <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
                 className="px-3 py-1.5 rounded-lg border border-[#1e3a6e] disabled:opacity-30 hover:border-[#c9a84c] transition-colors">
-                ← 上一頁
+                ← Previous
               </button>
               <span className="px-3 py-1.5 text-white">{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
                 className="px-3 py-1.5 rounded-lg border border-[#1e3a6e] disabled:opacity-30 hover:border-[#c9a84c] transition-colors">
-                下一頁 →
+                Next →
               </button>
             </div>
           </div>
