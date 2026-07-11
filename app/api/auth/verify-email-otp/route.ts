@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
     .limit(1)
 
   const row = rows?.[0]
-  if (!row) return NextResponse.json({ error: '驗證碼不存在或已使用，請重新發送' }, { status: 400 })
-  if (new Date(row.expires_at) < new Date()) return NextResponse.json({ error: '驗證碼已過期，請重新發送' }, { status: 400 })
-  if (row.otp_code !== otp_code) return NextResponse.json({ error: '驗證碼錯誤' }, { status: 400 })
+  if (!row) return NextResponse.json({ error: 'Verification code not found or already used. Please request a new one.' }, { status: 400 })
+  if (new Date(row.expires_at) < new Date()) return NextResponse.json({ error: 'Verification code expired. Please request a new one.' }, { status: 400 })
+  if (row.otp_code !== otp_code) return NextResponse.json({ error: 'Incorrect verification code' }, { status: 400 })
 
   await supabase.from('email_otps').update({ verified: true }).eq('id', row.id)
 

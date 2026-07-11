@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 取得自己的 booking（需要是 pending reschedule）
+  // Fetch own booking (must be pending reschedule)
   const { data: myBooking } = await supabase
     .from('bookings')
     .select('id, class_session_id, parent_id, student_id, partner_booking_id, lesson_credit_id, pending_new_session_id, pending_action, original_booking_id')
@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
     .in('pending_action', ['reschedule', 'reschedule_initiator'])
     .single()
 
-  if (!myBooking) return NextResponse.json({ error: '預約不存在或狀態不符' }, { status: 404 })
+  if (!myBooking) return NextResponse.json({ error: 'Booking not found or in the wrong state' }, { status: 404 })
   if (myBooking.parent_id !== parent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  if (!myBooking.pending_new_session_id) return NextResponse.json({ error: '無待確認的新時段' }, { status: 400 })
+  if (!myBooking.pending_new_session_id) return NextResponse.json({ error: 'No pending new time slot to confirm' }, { status: 400 })
 
   const partnerBookingId = myBooking.partner_booking_id
   if (!partnerBookingId) return NextResponse.json({ error: 'Partner booking not found' }, { status: 404 })
@@ -45,28 +45,28 @@ export async function POST(req: NextRequest) {
     .eq('id', partnerBookingId)
     .single()
 
-  if (!partnerBooking) return NextResponse.json({ error: '夥伴預約不存在' }, { status: 404 })
+  if (!partnerBooking) return NextResponse.json({ error: 'Partner booking not found' }, { status: 404 })
 
   const newSessionId = myBooking.pending_new_session_id
 
-  // 取得新 session
+  // Fetch the new session
   const { data: newSession } = await supabase
     .from('class_sessions')
     .select('id, enrolled_count, max_students, coach_id, session_date, start_time, course_type_id')
     .eq('id', newSessionId)
     .single()
 
-  if (!newSession) return NextResponse.json({ error: '新時段不存在' }, { status: 404 })
+  if (!newSession) return NextResponse.json({ error: 'New time slot not found' }, { status: 404 })
 
-  // 競搶保護：檢查新 session 容量
+  // Race protection: check new session capacity
   if (newSession.enrolled_count + 2 > newSession.max_students) {
-    // 清除雙方 pending，維持原時段
+    // Clear both sides' pending state, keep the original time
     await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.id)
     await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', partnerBookingId)
-    return NextResponse.json({ error: '新時段已被預約，改期失敗，維持原時段' }, { status: 409 })
+    return NextResponse.json({ error: 'The new time slot was just booked; reschedule failed and the original time is kept' }, { status: 409 })
   }
 
-  // 競搶保護：檢查教練衝突
+  // Race protection: check coach conflicts
   const { data: conflictSessions } = await supabase
     .from('class_sessions')
     .select('id')
@@ -83,18 +83,18 @@ export async function POST(req: NextRequest) {
     if (conflictBookings && conflictBookings.length > 0) {
       await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.id)
       await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', partnerBookingId)
-      return NextResponse.json({ error: '新時段教練已有其他預約，改期失敗，維持原時段' }, { status: 409 })
+      return NextResponse.json({ error: 'The coach already has another booking at the new time; reschedule failed and the original time is kept' }, { status: 409 })
     }
   }
 
-  // 取消舊 booking（保留 pending_new_session_id 作為改期紀錄，清除其他 pending 欄位）
+  // Cancel the old booking (keep pending_new_session_id as reschedule history, clear other pending fields)
   await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_action: null, pending_expires_at: null }).eq('id', myBooking.id)
   await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_action: null, pending_expires_at: null }).eq('id', partnerBookingId)
 
 
-  // 建立新的雙方 booking
+  // Create new bookings for both sides
   const now = new Date().toISOString()
-  // original_booking_id: 如果舊 booking 本身已經是改期過的，追溯到最源頭
+  // original_booking_id: if the old booking was itself rescheduled, trace back to the origin
   const myOriginalId = myBooking.original_booking_id || myBooking.id
   const partnerOriginalId = partnerBooking.original_booking_id || partnerBooking.id
 
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     created_at: now,
   }).select('id').single()
 
-  // 互相設定 partner_booking_id
+  // Set partner_booking_id on each other
   if (newMyBooking && newPartnerBooking) {
     await supabase.from('bookings').update({ partner_booking_id: newPartnerBooking.id }).eq('id', newMyBooking.id)
     await supabase.from('bookings').update({ partner_booking_id: newMyBooking.id }).eq('id', newPartnerBooking.id)

@@ -18,13 +18,13 @@ export async function POST(req: NextRequest) {
 
   const levelToAssign = action === 'modified' ? final_level : rec.recommended_level
 
-  // 更新學生 level
+  // Update student level
   await supabase
     .from('students')
     .update({ current_level: String(levelToAssign) })
     .eq('id', rec.student_id)
 
-  // 寫入 level_upgrades 記錄
+  // Write level_upgrades record
   const { data: student } = await supabase
     .from('students')
     .select('current_level, full_name')
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     notes: notes || null,
   })
 
-  // 更新建議狀態
+  // Update recommendation status
   await supabase
     .from('level_recommendations')
     .update({

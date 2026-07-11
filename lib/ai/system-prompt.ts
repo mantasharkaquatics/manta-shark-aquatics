@@ -13,9 +13,9 @@ export type SystemPromptOptions = {
 // mode 'live' = production chat agent (app/api/chat/ai-reply) with tools
 // mode 'eval' = knowledge-only evaluation (scripts/ai-eval.ts), no tools
 //
-// Prompt caching:輸出拆成 staticPart(規則+POLICIES+knowledge,跨 turn/跨家長不變,
-// 可掛 cache_control)與 dynamicPart(日期時間、家長名、lessons snapshot,每 turn 變)。
-// 靜態段內嚴禁出現日期、時間、家長名或任何 per-request 資料,否則 cache 全 miss。
+// Prompt caching: output splits into staticPart (rules + POLICIES + knowledge; unchanged across turns/parents,
+// can carry cache_control) and dynamicPart (date/time, parent name, lessons snapshot; changes every turn).
+// The static part must NEVER contain dates, times, parent names, or any per-request data, or the cache misses entirely.
 export function buildSystemPromptParts(o: SystemPromptOptions): { staticPart: string; dynamicPart: string } {
   const s: string[] = [
     'You are the AI assistant for Manta Shark Aquatics, a swim school in Brea, Southern California.',
@@ -75,7 +75,7 @@ export function buildSystemPromptParts(o: SystemPromptOptions): { staticPart: st
   return { staticPart: s.join('\n'), dynamicPart: d.join('\n') }
 }
 
-// 向後相容:eval 與任何既有呼叫端仍取得單一字串(內容同前,僅段落順序重排)。
+// Backward compat: eval and existing callers still get a single string (same content, sections reordered).
 export function buildSystemPrompt(o: SystemPromptOptions): string {
   const { staticPart, dynamicPart } = buildSystemPromptParts(o)
   return staticPart + '\n\n' + dynamicPart

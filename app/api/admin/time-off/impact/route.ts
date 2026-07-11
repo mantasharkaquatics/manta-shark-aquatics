@@ -5,7 +5,7 @@ import { formatTime12h } from '@/lib/date'
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
-// 找出與 block 區間重疊的 sessions 與 bookings(confirmed + 已因請假取消的,供歷史回溯)
+// Find sessions and bookings overlapping the block range (confirmed + cancelled-by-leave, for history)
 async function getAffected(svc: any, block: any) {
   const { data: sessions } = await svc
     .from('class_sessions')
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const { sessions, bookings } = await getAffected(svc, block)
   const sessMap = new Map(sessions.map((s: any) => [s.id, s]))
 
-  // 兩步查詢:students / parents / course_types
+  // Two-step queries: students / parents / course_types
   const stuIds = [...new Set(bookings.map((b: any) => b.student_id).filter(Boolean))]
   const parIds = [...new Set(bookings.map((b: any) => b.parent_id).filter(Boolean))]
   const ctIds = [...new Set(sessions.map((s: any) => s.course_type_id).filter(Boolean))]
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     let cancelled = 0
     const touchedSessions = new Set<string>()
     for (const b of targets) {
-      // claim:只有由 confirmed 翻成 cancelled 的那一方退 credit(防併發雙退)
+      // claim: only the side that flips confirmed→cancelled refunds the credit (prevents concurrent double refunds)
       const { data: c } = await svc
         .from('bookings')
         .update({
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       touchedSessions.add(b.class_session_id)
       cancelled++
     }
-    // session 若已無任何未取消 booking → 標 cancelled(enrolled_count 交給 trigger)
+    // If the session has no remaining active bookings → mark cancelled (enrolled_count handled by trigger)
     for (const sid of touchedSessions) {
       const { data: remain } = await svc
         .from('bookings')

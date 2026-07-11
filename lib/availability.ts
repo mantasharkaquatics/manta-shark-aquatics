@@ -1,5 +1,5 @@
-// 共用教練封鎖判定:time_off(教練請假)與 admin_block(主管封鎖)
-// start_time/end_time 皆 NULL = 整天封鎖;否則為 [start, end) 區間
+// Shared coach-block logic: time_off (coach leave) and admin_block (admin block)
+// start_time/end_time both NULL = all-day block; otherwise a [start, end) range
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type CoachBlock = {
@@ -29,7 +29,7 @@ export function toMin(t: string): number {
   return h * 60 + m
 }
 
-// 課程 [startTime, endTime) 是否撞上該教練任一封鎖區間
+// Whether lesson [startTime, endTime) overlaps any of the coach's blocked ranges
 export function isBlocked(
   blocks: CoachBlock[],
   coachId: string,
@@ -47,7 +47,7 @@ export function isBlocked(
   })
 }
 
-// 給前端灰格用:回該教練當日所有封鎖區間(null = 整天)
+// For frontend gray cells: return all of the coach's blocked ranges that day (null = all day)
 export function blockedIntervalsFor(
   blocks: CoachBlock[],
   coachId: string

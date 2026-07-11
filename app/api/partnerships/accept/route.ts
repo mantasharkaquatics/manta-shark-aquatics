@@ -32,11 +32,11 @@ export async function POST(req: NextRequest) {
     .eq('status', 'pending')
     .single()
 
-  if (!partnership) return NextResponse.json({ error: '邀請碼無效或已過期' }, { status: 404 })
+  if (!partnership) return NextResponse.json({ error: 'Invite code is invalid or expired' }, { status: 404 })
   if (partnership.initiator_parent_id === parent.id)
-    return NextResponse.json({ error: '不能使用自己的邀請碼' }, { status: 400 })
+    return NextResponse.json({ error: 'You cannot use your own invite code' }, { status: 400 })
 
-  // 確認沒有已存在的連動
+  // Ensure no existing link
   const { data: existingPartnership } = await supabase
     .from('parent_partnerships')
     .select('id')
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (existingPartnership)
-    return NextResponse.json({ error: '兩個帳戶已經連動' }, { status: 400 })
+    return NextResponse.json({ error: 'These accounts are already linked' }, { status: 400 })
 
   const { error } = await supabase
     .from('parent_partnerships')

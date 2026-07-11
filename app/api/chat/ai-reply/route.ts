@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     .eq('thread_id', thread_id)
     .order('created_at', { ascending: false })
     .limit(12)
-  // 交還 AI 的分界點:之前的對話(真人服務段)對 AI 不可見,如同全新對話
+  // Hand-back-to-AI cutoff: earlier conversation (human-service segment) is invisible to the AI, like a fresh conversation
   if ((thread as any)?.ai_context_from) historyQuery = historyQuery.gte('created_at', (thread as any).ai_context_from)
   const { data: history } = await historyQuery
   const recent = (history || []).reverse()
@@ -534,8 +534,8 @@ export async function POST(req: NextRequest) {
       planList,
       knowledge,
     })
-    // Prompt caching:靜態段(規則+POLICIES+knowledge)掛 cache_control,
-    // 連同其前綴的 tools 一起進 cache;動態段(時間/家長/snapshot)不 cache。
+    // Prompt caching: static part (rules + POLICIES + knowledge) carries cache_control,
+    // cached together with the tools prefix; dynamic part (time/parent/snapshot) is not cached.
     const system = [
       { type: 'text' as const, text: staticPart, cache_control: { type: 'ephemeral' as const } },
       { type: 'text' as const, text: dynamicPart },

@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 取得發起方 booking
+  // Fetch the initiator's booking
   const { data: myBooking } = await supabase
     .from('bookings')
     .select('id, class_session_id, parent_id, student_id, partner_booking_id, status')
@@ -33,12 +33,12 @@ export async function POST(req: NextRequest) {
     .eq('status', 'confirmed')
     .single()
 
-  if (!myBooking) return NextResponse.json({ error: '預約不存在' }, { status: 404 })
+  if (!myBooking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
   if (myBooking.parent_id !== parent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 取得對方 booking（透過 partner_booking_id）
+  // Fetch the partner's booking (via partner_booking_id)
   const partnerBookingId = myBooking.partner_booking_id
-  if (!partnerBookingId) return NextResponse.json({ error: '此課程無夥伴' }, { status: 400 })
+  if (!partnerBookingId) return NextResponse.json({ error: 'This lesson has no partner' }, { status: 400 })
 
   const { data: partnerBooking } = await supabase
     .from('bookings')
@@ -48,32 +48,32 @@ export async function POST(req: NextRequest) {
 
   if (!partnerBooking) return NextResponse.json({ error: 'Partner booking not found' }, { status: 404 })
 
-  // 確認新 session 存在
+  // Verify the new session exists
   const { data: newSession } = await supabase
     .from('class_sessions')
     .select('id, enrolled_count, max_students, coach_id, session_date, start_time, course_types(name), coaches(first_name)')
     .eq('id', new_session_id)
     .single()
 
-  if (!newSession) return NextResponse.json({ error: '新時段不存在' }, { status: 404 })
+  if (!newSession) return NextResponse.json({ error: 'New time slot not found' }, { status: 404 })
 
-  // 設定雙方 pending_action = 'reschedule'，pending_new_session_id = new_session_id
+  // Set both sides' pending_action = 'reschedule', pending_new_session_id = new_session_id
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
-  // 發起方：reschedule_initiator（不顯示確認按鈕）
+  // Initiator: reschedule_initiator (no confirm button shown)
   await supabase.from('bookings').update({
     pending_action: 'reschedule_initiator',
     pending_new_session_id: new_session_id,
     pending_expires_at: expiresAt,
   }).eq('id', myBooking.id)
 
-  // 對方：reschedule（顯示確認/拒絕按鈕）
+  // Partner: reschedule (confirm/reject buttons shown)
   await supabase.from('bookings').update({
     pending_action: 'reschedule',
     pending_new_session_id: new_session_id,
     pending_expires_at: expiresAt,
   }).eq('id', partnerBookingId)
 
-  // 寄 email 通知對方
+  // Email the partner
   try {
     const { data: partnerParent } = await supabase
       .from('parents').select('first_name, email').eq('id', partnerBooking.parent_id).single()

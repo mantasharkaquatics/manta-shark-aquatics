@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 
-// GET ?counts=1(全學生計數)或 ?student_id=(單一學生備註列表)
+// GET ?counts=1 (counts for all students) or ?student_id= (note list for one student)
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     .order('pinned', { ascending: false })
     .order('created_at', { ascending: false })
 
-  // 兩步查詢:補作者名
+  // Two-step query: backfill author names
   const adminIds = [...new Set((notes || []).map((n: any) => n.created_by).filter(Boolean))]
   const names: Record<string, string> = {}
   if (adminIds.length) {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, id: data.id })
 }
 
-// PATCH { id, content? } 或 { id, pinned? }
+// PATCH { id, content? } or { id, pinned? }
 export async function PATCH(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
