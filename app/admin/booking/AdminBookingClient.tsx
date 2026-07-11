@@ -767,7 +767,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   const headerLabel = view === 'month'
     ? `${anchor.getFullYear()} ${MONTH_NAMES[anchor.getMonth()]}`
-    : anchor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+    : anchor.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
   return (
     <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
@@ -858,7 +858,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               </button>
               <button onClick={() => setDragMove(null)} disabled={dragMoving}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-sm text-white disabled:opacity-50">
-                取消
+                Cancel
               </button>
             </div>
           </div>
@@ -874,7 +874,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               <div>
                 <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>New Booking</h2>
                 <p className="text-sm text-white/50 mt-1">
-                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
+                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}
                   {' · '}{formatTime(selectedSlot.time)}
                   {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
                 </p>
@@ -905,7 +905,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => { setBookMode('single'); setRecurPreview(null) }}
                       className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'single' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
-                      單堂預約
+                      Single Booking
                     </button>
                     <button onClick={() => { setBookMode('recurring'); setIsTrial(false) }}
                       className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'recurring' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
@@ -999,7 +999,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                                 <div key={c.date} className="flex items-center justify-between px-3 py-2 text-sm">
                                   <span className={c.status === 'ok' ? 'text-white' : 'text-white/35'}>
                                     {c.status === 'ok' ? `Lesson ${okIndex} · ` : ''}
-                                    {new Date(c.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric', weekday: 'short' })}
+                                    {new Date(c.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', weekday: 'short' })}
                                   </span>
                                   <span className="flex items-center gap-2">
                                     <span className={`text-xs ${c.status === 'ok' ? 'text-green-400' : c.status === 'skipped' ? 'text-white/40' : 'text-amber-400'}`}>{label}</span>
@@ -1029,7 +1029,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     </div>
                   )}
                   {(() => { const st = students.find(s => s.id === formStudent); return st && st.current_level == null && !isTrial ? (
-                    <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">⚠️ 此學生尚未完成 Swim Assessment(未評級)。管理員可直接預約,但請確認是否要在未測驗的情況下安排此課程。</p>
+                    <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">⚠️ This student has not completed the Swim Assessment (no level assigned). Admins may still book directly, but please confirm you want to schedule this lesson without an assessment.</p>
                   ) : null })()}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
@@ -1068,7 +1068,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               <div>
                 <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>Block Time Slot</h2>
                 <p className="text-sm text-white/50 mt-1">
-                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
+                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}
                   {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
                 </p>
               </div>
@@ -1145,7 +1145,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               {viewingBlock.block_type === 'admin_block' ? 'Blocked Slot' : 'Coach Time Off'}
             </h2>
             <div className="space-y-1 text-sm text-white/80">
-              <p>{new Date(viewingBlock.date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}</p>
+              <p>{new Date(viewingBlock.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}</p>
               <p>{viewingBlock.start_time == null ? 'All day' : `${fmtBlk(viewingBlock.start_time)} – ${fmtBlk(viewingBlock.end_time || '')}`}</p>
               {viewingBlock.reason && <p className="text-white/60">Reason: {viewingBlock.reason}</p>}
             </div>
@@ -1378,13 +1378,13 @@ function SessionChip({ session, onClick, isCrossAccount }: { session: Session; o
       {isCrossAccount && (
         <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none z-10"
           style={{ backgroundColor: '#6366f1', color: '#fff' }}>
-          連動
+          Linked
         </span>
       )}
       {isSingleLesson && (
         <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none"
           style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
-          單堂
+          Single
         </span>
       )}
     </>
@@ -1404,7 +1404,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   const [bookings, setBookings] = useState<any[]>([])
   const [cancelling, setCancelling] = useState(false)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
-  const [reschedulingBooking, setReschedulingBooking] = useState<any>(null)
+  const [showReschedule, setShowReschedule] = useState(false)
   const [newCoachId, setNewCoachId] = useState('')
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
@@ -1412,12 +1412,12 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   const [rescheduleError, setRescheduleError] = useState('')
 
   async function submitReschedule() {
-    if (!reschedulingBooking || !newCoachId || !newDate || !newTime) return
+    if (!showReschedule || !newCoachId || !newDate || !newTime) return
     setRescheduling(true); setRescheduleError('')
-    const res = await fetch('/api/admin/bookings/reschedule', {
+    const res = await fetch('/api/admin/bookings/move-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ booking_id: reschedulingBooking.id, coach_id: newCoachId, date: newDate, time: newTime }),
+      body: JSON.stringify({ session_id: session.id, coach_id: newCoachId, date: newDate, time: newTime }),
     })
     const data = await res.json()
     setRescheduling(false)
@@ -1455,7 +1455,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
               {modalHasTrial ? 'Swim Assessment' : ct.name}
             </div>
             <p className="text-white font-medium">
-              {new Date(session.session_date + 'T12:00:00').toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}
+              {new Date(session.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}
             </p>
             <p className="text-sm text-white/50 mt-0.5">
               {formatTime(session.start_time)} – {formatTime(session.end_time)}
@@ -1489,12 +1489,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="text-xs text-white/40">Lv.{student?.current_level} · {parent?.first_name} {parent?.last_name}</span>
-                      {(!b.status || b.status === 'confirmed') && (
-                        <button onClick={() => { setReschedulingBooking(b); setNewCoachId(session.coach_id); setNewDate(session.session_date); setNewTime((session.start_time || '').slice(0, 5)); setRescheduleError('') }}
-                          className="px-2 py-1 rounded text-[10px] font-bold border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10">
-                          改期
-                        </button>
-                      )}
+
                     </span>
                     </div>
                     {student?.id && (
@@ -1508,10 +1503,10 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
             </div>
           )}
         </div>
-        {reschedulingBooking ? (
+        {showReschedule ? (
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-white/15 bg-white/5 p-4 mb-3 space-y-3">
-              <p className="text-sm text-white font-medium">Rescheduling: {(Array.isArray(reschedulingBooking.students) ? reschedulingBooking.students[0] : reschedulingBooking.students)?.full_name}</p>
+              <p className="text-sm text-white font-medium">Rescheduling this lesson ({bookings.length} student{bookings.length === 1 ? '' : 's'})</p>
               <select value={newCoachId} onChange={e => setNewCoachId(e.target.value)}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10">
                 {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
@@ -1521,7 +1516,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
               <input type="time" step={900} value={newTime} onChange={e => setNewTime(e.target.value)}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" style={{ colorScheme: 'dark' }} />
               {rescheduleError && <p className="text-xs text-red-300">{rescheduleError}</p>}
-              <p className="text-xs text-white/40">A reschedule notice will be emailed to the parent; credits carry over unchanged.</p>
+              <p className="text-xs text-white/40">The whole session moves together — all booked students stay paired. Reschedule notices will be emailed to all affected parents; credits carry over unchanged.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={submitReschedule} disabled={rescheduling}
@@ -1529,9 +1524,9 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                 style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
                 {rescheduling ? 'Working...' : 'Confirm Reschedule'}
               </button>
-              <button onClick={() => { setReschedulingBooking(null); setRescheduleError('') }} disabled={rescheduling}
+              <button onClick={() => { setShowReschedule(false); setRescheduleError('') }} disabled={rescheduling}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
-                返回
+                Back
               </button>
             </div>
           </div>
@@ -1548,7 +1543,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
               </button>
               <button onClick={() => setConfirmingCancel(false)} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
-                返回
+                Back
               </button>
             </div>
           </div>
@@ -1558,8 +1553,14 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
               className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm">
               Cancel this lesson
             </button>
+            {bookings.length > 0 && (
+              <button onClick={() => { setShowReschedule(true); setNewCoachId(session.coach_id); setNewDate(session.session_date); setNewTime((session.start_time || '').slice(0, 5)); setRescheduleError('') }}
+                className="flex-1 py-2.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 transition-colors text-sm">
+                Reschedule this lesson
+              </button>
+            )}
             <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
-              關閉
+              Close
             </button>
           </div>
         )}
