@@ -73,9 +73,10 @@ async function evaluateDates(
     if (okCount >= count) break
     let status: Candidate['status'] = 'ok'
 
-    // Past: strictly before today, or today with start time already passed (LA)
-    if (date < today || (date === today && startMins <= nowMins)) status = 'past'
-    else if (skipSet.has(date)) status = 'skipped'
+    // Past dates are allowed: this API is admin-only (requireAdmin) and past
+    // bookings are legitimate back-entries of lessons that already happened
+    // (credits deducted as normal). Conflict/time-off/capacity checks still apply.
+    if (skipSet.has(date)) status = 'skipped'
     else if (timeOffSet.has(date)) status = 'coach_time_off'
     else {
       const daySessions = sessByDate.get(date) || []
