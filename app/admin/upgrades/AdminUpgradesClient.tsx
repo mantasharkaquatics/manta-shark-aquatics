@@ -176,7 +176,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     }))
   }
 
-  async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null) {
+  async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null, classSessionId: string | null) {
     setSubmittingMissing(listId)
     const prog = missingProgress[listId] || {}
     const res = await fetch('/api/coach/progress', {
@@ -187,6 +187,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         progress: prog,
         coach_id: coachId,
         session_date: sessionDate,
+        class_session_id: classSessionId,
         admin_override: true,
       })
     })
@@ -242,7 +243,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       </p>
                     </div>
                     <button
-                      onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null) }}
+                      onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null, s.session?.id || null) }}
                       disabled={submittingMissing === s.id}
                       className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
                     >
