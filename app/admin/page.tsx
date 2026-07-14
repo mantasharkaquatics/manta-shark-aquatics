@@ -2,7 +2,18 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { formatTime12h } from '@/lib/date'
+
+function formatTimeRange(start: string, end: string): string {
+  const fmt = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    const hour = h % 12 || 12
+    return { text: `${hour}:${String(m).padStart(2, '0')}`, ampm: h >= 12 ? 'PM' : 'AM' }
+  }
+  const s = fmt(start)
+  const e = fmt(end)
+  if (s.ampm === e.ampm) return `${s.text} \u2013 ${e.text} ${e.ampm}`
+  return `${s.text} ${s.ampm} \u2013 ${e.text} ${e.ampm}`
+}
 
 export default async function AdminDashboardPage() {
   const cookieStore = await cookies()
@@ -18,7 +29,6 @@ export default async function AdminDashboardPage() {
   if (!admin) redirect('/dashboard')
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-  const todayDisplay = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })
 
   const [
     { count: totalMembers },
@@ -105,9 +115,8 @@ export default async function AdminDashboardPage() {
                 <div key={s.id} className="flex items-center justify-between bg-[#0d1529] rounded-lg p-3">
                   <div>
                     <p className="text-white text-sm">{s.course_types?.name}</p>
-                    <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {formatTime12h(s.start_time)}</p>
+                    <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {formatTimeRange(s.start_time, s.end_time)}</p>
                     <p className="text-[#c9a84c] text-xs mt-0.5">{(studentsBySession[s.id] || []).join(' / ')}</p>
-                    <p className="text-gray-500 text-xs mt-0.5">{todayDisplay}</p>
                   </div>
                   <span className="text-gray-400 text-xs">{s.enrolled_count}/{s.max_students}</span>
                 </div>
