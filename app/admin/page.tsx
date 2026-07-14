@@ -33,6 +33,29 @@ export default async function AdminDashboardPage() {
     supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').gt('enrolled_count', 0).order('start_time'),
   ])
 
+  const studentsBySession: Record<string, string[]> = {}
+  if (todaySessions && todaySessions.length > 0) {
+    const { data: sessionBookings } = await supabase
+      .from('bookings')
+      .select('class_session_id, student_id')
+      .in('class_session_id', todaySessions.map((s: any) => s.id))
+      .eq('status', 'confirmed')
+    const studentIds = [...new Set((sessionBookings || []).map((b: any) => b.student_id).filter(Boolean))]
+    if (studentIds.length > 0) {
+      const { data: studentRows } = await supabase
+        .from('students')
+        .select('id, full_name')
+        .in('id', studentIds)
+      const nameById = new Map((studentRows || []).map((r: any) => [r.id, r.full_name]))
+      for (const b of (sessionBookings || [])) {
+        const name = nameById.get(b.student_id)
+        if (!name) continue
+        if (!studentsBySession[b.class_session_id]) studentsBySession[b.class_session_id] = []
+        studentsBySession[b.class_session_id].push(name)
+      }
+    }
+  }
+
   const stats = [
     { label: 'Total Members', value: totalMembers ?? 0, href: '/admin/members', color: 'text-blue-400' },
     { label: 'Active Students', value: totalStudents ?? 0, href: '/admin/members', color: 'text-green-400' },
@@ -44,7 +67,7 @@ export default async function AdminDashboardPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Admin Dashboard</h1>
-        <p className="text-gray-400 mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
+        <p className="text-gray-400 mt-1">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
       </div>
 
       {/* Stats */}
@@ -74,6 +97,7 @@ export default async function AdminDashboardPage() {
                   <div>
                     <p className="text-white text-sm">{s.course_types?.name}</p>
                     <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {formatTime12h(s.start_time)}</p>
+                    <p className="text-[#c9a84c] text-xs mt-0.5">{(studentsBySession[s.id] || []).join(', ')}</p>
                   </div>
                   <span className="text-gray-400 text-xs">{s.enrolled_count}/{s.max_students}</span>
                 </div>

@@ -158,7 +158,7 @@ export default function CoachDashboardClient({
           Good {greeting}, Coach {coach.first_name}
         </h1>
         <p className="text-gray-400 mt-1">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+          {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })}
         </p>
       </div>
 
