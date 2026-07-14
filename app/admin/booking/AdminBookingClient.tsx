@@ -1327,9 +1327,8 @@ function NowLine({ ds }: { ds: string }) {
   return (
     <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${top}px` }}>
       <div className="relative flex items-center">
-        <span className="absolute left-1 -translate-y-1/2 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded leading-none">{label}</span>
-        <span className="absolute left-[76px] -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-red-500" />
-        <div className="w-full border-t-2 border-red-500" style={{ marginLeft: '80px' }} />
+        <span className="absolute left-1 -translate-y-1/2 bg-[#c9a84c] text-[#0d1529] text-[9px] font-bold px-1 py-0.5 rounded leading-none">{label}</span>
+        <div className="w-full border-t border-[#c9a84c]/70" style={{ marginLeft: '80px' }} />
       </div>
     </div>
   )
