@@ -1311,10 +1311,17 @@ function getNowMinutesInLA(): number {
 
 function NowLine({ ds }: { ds: string }) {
   const [nowMin, setNowMin] = useState(getNowMinutesInLA)
+  const lineRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const id = setInterval(() => setNowMin(getNowMinutesInLA()), 60 * 1000)
     return () => clearInterval(id)
   }, [])
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      lineRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [ds])
   const todayLA = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   if (ds !== todayLA) return null
   const startMin = WORK_START * 60
@@ -1325,7 +1332,7 @@ function NowLine({ ds }: { ds: string }) {
   const top = HEADER_PX + ((nowMin - startMin) / SLOT_MINUTES) * ROW_PX
   const label = formatTime(minutesToTime(nowMin))
   return (
-    <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${top}px` }}>
+    <div ref={lineRef} className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${top}px` }}>
       <div className="relative flex items-center">
         <span className="absolute left-1 -translate-y-1/2 bg-[#c9a84c] text-[#0d1529] text-[9px] font-bold px-1 py-0.5 rounded leading-none">{label}</span>
         <div className="w-full border-t border-[#c9a84c]/70" style={{ marginLeft: '80px' }} />
