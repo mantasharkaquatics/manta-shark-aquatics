@@ -1304,6 +1304,37 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
 // ══════════════════════════════════════════════════════════════════════
 // Day View
 // ══════════════════════════════════════════════════════════════════════
+function getNowMinutesInLA(): number {
+  const parts = new Date().toLocaleTimeString('en-GB', { hour12: false, timeZone: 'America/Los_Angeles' }).split(':')
+  return parseInt(parts[0]) * 60 + parseInt(parts[1])
+}
+
+function NowLine({ ds }: { ds: string }) {
+  const [nowMin, setNowMin] = useState(getNowMinutesInLA)
+  useEffect(() => {
+    const id = setInterval(() => setNowMin(getNowMinutesInLA()), 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+  const todayLA = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  if (ds !== todayLA) return null
+  const startMin = WORK_START * 60
+  const endMin = WORK_END * 60
+  if (nowMin < startMin || nowMin >= endMin) return null
+  const HEADER_PX = 56  // h-14
+  const ROW_PX = 80     // min-h-20
+  const top = HEADER_PX + ((nowMin - startMin) / SLOT_MINUTES) * ROW_PX
+  const label = formatTime(minutesToTime(nowMin))
+  return (
+    <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${top}px` }}>
+      <div className="relative flex items-center">
+        <span className="absolute left-1 -translate-y-1/2 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded leading-none">{label}</span>
+        <span className="absolute left-[76px] -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-red-500" />
+        <div className="w-full border-t-2 border-red-500" style={{ marginLeft: '80px' }} />
+      </div>
+    </div>
+  )
+}
+
 function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks, onBlockClick }: {
   date: Date
   blocks: Block[]
@@ -1320,6 +1351,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
   const [overKey, setOverKey] = useState<string | null>(null)
   return (
     <div className="relative">
+      <NowLine ds={ds} />
       <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
         <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
           <div className="h-14" />
