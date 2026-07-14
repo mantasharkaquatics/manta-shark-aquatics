@@ -17,7 +17,7 @@ export default async function AdminMembersPage() {
       registered_at, terms_accepted_at, last_login_at, newsletter_subscribed,
       address_line1, address_line2, city, state, zip_code,
       last_activity_at, activity_reviewed_at,
-      students(id, full_name, current_level, is_active, date_of_birth, created_at, added_by_parent)
+      students(id, full_name, current_level, is_active, date_of_birth, created_at, added_by_parent, legal_full_name, uci_number, service_code)
     `)
     .order('first_name')
 

@@ -13,6 +13,9 @@ type Student = {
   date_of_birth: string | null
   created_at: string | null
   added_by_parent: boolean
+  legal_full_name: string | null
+  uci_number: string | null
+  service_code: string | null
 }
 
 type Parent = {
@@ -109,6 +112,69 @@ function isUnread(p: Parent): boolean {
   return new Date(p.last_activity_at).getTime() > new Date(p.activity_reviewed_at).getTime()
 }
 
+function SdpPanel({ student }: { student: Student }) {
+  const [legalName, setLegalName] = useState(student.legal_full_name || '')
+  const [uci, setUci] = useState(student.uci_number || '')
+  const [code, setCode] = useState(student.service_code || '')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaving(true); setMsg(null)
+    const res = await fetch('/api/admin/student-sdp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_id: student.id,
+        legal_full_name: legalName,
+        uci_number: uci,
+        service_code: uci.trim() ? (code.trim() || '331') : code,
+      }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setMsg('Saved')
+      student.legal_full_name = legalName.trim() || null
+      student.uci_number = uci.trim() || null
+      student.service_code = uci.trim() ? (code.trim() || '331') : (code.trim() || null)
+      if (uci.trim() && !code.trim()) setCode('331')
+      setTimeout(() => setMsg(null), 2000)
+    } else {
+      setMsg('Save failed')
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-gray-500 text-xs">SDP / Regional Center billing info. Leave UCI empty for non-SDP students — invoices stay standard.</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Legal Full Name</p>
+          <input value={legalName} onChange={e => setLegalName(e.target.value)} placeholder="As registered with RC"
+            className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]" />
+        </div>
+        <div>
+          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">UCI Number</p>
+          <input value={uci} onChange={e => setUci(e.target.value)} placeholder="e.g. 1234567"
+            className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]" />
+        </div>
+        <div>
+          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Service Code</p>
+          <input value={code} onChange={e => setCode(e.target.value)} placeholder="331 (default when UCI set)"
+            className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]" />
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button onClick={save} disabled={saving}
+          className="bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] text-xs font-semibold px-4 py-2 rounded-lg transition-all">
+          {saving ? 'Saving...' : 'Save SDP Info'}
+        </button>
+        {msg && <span className={`text-xs ${msg === 'Saved' ? 'text-green-400' : 'text-red-400'}`}>{msg}</span>}
+      </div>
+    </div>
+  )
+}
+
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   function handleCopy() {
@@ -148,7 +214,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     return () => clearInterval(id)
   }, [supabase])
   const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean }>>({})
-  const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | 'notes' | null>>({})
+  const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | 'notes' | 'sdp' | null>>({})
   const [confirmingBookingId, setConfirmingBookingId] = useState<string | null>(null)
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
 
@@ -472,11 +538,20 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   onClick={() => toggleStudentNotes(student.id)}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'notes' ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300' : 'border-[#1e3a6e] text-gray-500 hover:border-emerald-400/40'}`}
                                 >📝 Notes{noteCounts[student.id] ? ` (${noteCounts[student.id]})` : ''}</button>
+                                <button
+                                  onClick={() => setExpandedBookings(prev => ({ ...prev, [student.id]: prev[student.id] === 'sdp' ? null : 'sdp' }))}
+                                  className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'sdp' ? 'border-purple-400 bg-purple-400/20 text-purple-300' : student.uci_number ? 'border-[#c9a84c]/60 text-[#c9a84c] hover:border-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-purple-400/40'}`}
+                                >SDP{student.uci_number ? ' ✓' : ''}</button>
                               </div>
                             </div>
                             {expandedType === 'notes' && (
                               <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
                                 <StudentNotesPanel studentId={student.id} onCountChange={(c) => setNoteCounts(prev => ({ ...prev, [student.id]: c }))} />
+                              </div>
+                            )}
+                            {expandedType === 'sdp' && (
+                              <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
+                                <SdpPanel student={student} />
                               </div>
                             )}
                             {(expandedType === 'upcoming' || expandedType === 'past') && (
