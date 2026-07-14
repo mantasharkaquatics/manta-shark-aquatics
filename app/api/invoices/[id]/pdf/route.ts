@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: invoice, error } = await supabase
     .from('invoices')
-    .select('*, parents(first_name, last_name, email)')
+    .select('*, parents(first_name, last_name, email), students(full_name, legal_full_name, uci_number, service_code)')
     .eq('id', id)
     .single()
 
@@ -34,6 +34,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const parent = Array.isArray(invoice.parents) ? invoice.parents[0] : invoice.parents
+  const student = Array.isArray(invoice.students) ? invoice.students[0] : invoice.students
+  const isSdp = !!student?.uci_number
   const issuedDate = new Date(invoice.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   const items = (invoice.items || []) as { name: string; quantity: number; unit_price: number }[]
 
@@ -80,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div class="brand-name">Manta Shark Aquatics</div>
       <div class="brand-sub">Swim School</div>
       <div class="brand-info">
-        Brea, CA &middot; N/A<br>
+        382 N Lemon Ave STE 821, Walnut, CA 91789<br>
         (909) 323-9573 &middot; mantasharkaquatics@gmail.com
       </div>
     </div>
@@ -93,10 +95,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   <hr class="divider">
 
-  <div class="bill-to">
-    <div class="bill-to-label">Bill To</div>
-    <div class="bill-to-name">${parent?.first_name || ''} ${parent?.last_name || ''}</div>
-    <div class="bill-to-email">${parent?.email || ''}</div>
+  <div style="display:flex;justify-content:space-between;gap:24px;" class="bill-to">
+    <div>
+      <div class="bill-to-label">Bill To</div>
+      <div class="bill-to-name">${parent?.first_name || ''} ${parent?.last_name || ''}</div>
+      <div class="bill-to-email">${parent?.email || ''}</div>
+    </div>
+    ${isSdp ? `
+    <div style="text-align:right;padding:12px 16px;background:#f8f8fb;border-radius:8px;border-right:4px solid #c9a84c;">
+      <div class="bill-to-label">Student / SDP Information</div>
+      <div style="font-size:13px;color:#1a2744;font-weight:700;">${student.legal_full_name || student.full_name}</div>
+      <div style="font-size:12px;color:#333;margin-top:4px;">UCI #: <strong>${student.uci_number}</strong></div>
+      <div style="font-size:12px;color:#333;margin-top:2px;">Service Code: <strong>${student.service_code || '331'}</strong></div>
+    </div>` : ''}
   </div>
 
   <table>
@@ -129,7 +140,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   <div class="payment-info">
     <div class="payment-label">Payment Method</div>
-    <div class="payment-method">${invoice.payment_method === 'stripe' ? 'Credit / Debit Card (Stripe)' : invoice.payment_method}</div>
+    <div class="payment-method">${
+      invoice.payment_method === 'stripe' ? 'Credit / Debit Card (Stripe)'
+      : invoice.payment_method === 'card' ? 'Credit Card'
+      : invoice.payment_method === 'cash' ? 'Cash'
+      : invoice.payment_method
+    }</div>
   </div>
 
   ${invoice.notes ? `<div style="margin-top:24px;font-size:12px;color:#666;"><strong>Notes:</strong> ${invoice.notes}</div>` : ''}
