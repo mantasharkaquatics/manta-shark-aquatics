@@ -39,6 +39,12 @@ export default function POSClient() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
+  const [isSdp, setIsSdp] = useState(false)
+  const [sdpStudents, setSdpStudents] = useState<{ id: string; full_name: string; uci_number: string }[]>([])
+  const [sdpStudentId, setSdpStudentId] = useState<string | null>(null)
+  const [sdpDesc, setSdpDesc] = useState('')
+  const [sdpSessions, setSdpSessions] = useState('10')
+  const [sdpUnitPrice, setSdpUnitPrice] = useState('65')
   const [processing, setProcessing] = useState(false)
   const [cashConfirmOpen, setCashConfirmOpen] = useState(false)
   const [showCashConfirm, setShowCashConfirm] = useState(false)
@@ -101,12 +107,27 @@ export default function POSClient() {
       })
   }, [selectedParent, isTrial])
 
+  useEffect(() => {
+    if (!selectedParent || !isSdp) { setSdpStudents([]); setSdpStudentId(null); return }
+    supabase.from('students').select('id, full_name, uci_number')
+      .eq('parent_id', selectedParent.id).not('uci_number', 'is', null)
+      .then(({ data }) => {
+        setSdpStudents((data || []) as any)
+        setSdpStudentId(data?.length ? data[0].id : null)
+      })
+  }, [selectedParent, isSdp])
+
   const plan = selectedPlanId ? PLANS[selectedPlanId] : null
   const selectedStudent = students.find(s => s.id === selectedStudentId)
-  const chargeAmount = isTrial ? TRIAL_CENTS : (plan?.amount ?? 0)
+  const sdpQty = Math.max(0, Math.round(Number(sdpSessions) || 0))
+  const sdpUnitCents = Math.max(0, Math.round((Number(sdpUnitPrice) || 0) * 100))
+  const sdpAmountCents = sdpQty * sdpUnitCents
+  const chargeAmount = isSdp ? sdpAmountCents : isTrial ? TRIAL_CENTS : (plan?.amount ?? 0)
 
   const canCharge = !processing && (
-    isTrial
+    isSdp
+      ? !!selectedParent && !!sdpStudentId && sdpQty >= 1 && sdpUnitCents >= 50 && (payMethod === 'cash' || readerStatus === 'connected')
+      : isTrial
       ? !!selectedParent && !!selectedStudentId && (payMethod === 'cash' || readerStatus === 'connected')
       : !!selectedParent && !!selectedPlanId && (payMethod === 'cash' || readerStatus === 'connected')
   )
@@ -124,7 +145,36 @@ export default function POSClient() {
     setError(null)
     setProcessing(true)
     try {
-      if (isTrial) {
+      if (isSdp) {
+        if (!sdpStudentId) throw new Error('Please select a student')
+        let paymentIntentId: string | undefined
+        if (payMethod === 'card') {
+          if (!terminal || readerStatus !== 'connected') throw new Error('Card reader not connected')
+          const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amountCents: sdpAmountCents, description: sdpDesc }),
+          })
+          const piData = await piRes.json()
+          if (!piRes.ok || piData.error) throw new Error(piData.error || 'PaymentIntent failed')
+          const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
+          if (ce) throw new Error(ce.message)
+          const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
+          if (pe) throw new Error(pe.message)
+          paymentIntentId = processed.id
+        }
+        const res = await fetch('/api/pos/complete-sdp-sale', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parentId: selectedParent.id, studentId: sdpStudentId,
+            description: sdpDesc, sessions: sdpQty, unitPriceCents: sdpUnitCents,
+            paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+            ...(paymentIntentId ? { paymentIntentId } : {}),
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed')
+        setStep('success')
+      } else if (isTrial) {
         if (!selectedStudentId) throw new Error('Please select a student')
         let paymentIntentId: string | undefined
         if (payMethod === 'card') {
@@ -176,6 +226,7 @@ export default function POSClient() {
   }
   const reset = () => {
     setStep('select'); setSelectedParent(null); setSelectedPlanId(null); setIsTrial(false)
+    setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65')
     setStudents([]); setSelectedStudentId(null); setPayMethod('card')
     setSearch(''); setSearchResults([]); setError(null); setProcessing(false); setShowCashConfirm(false)
 
@@ -342,7 +393,45 @@ export default function POSClient() {
                 </div>
               )}
             </div>
-            <div style={{ opacity: isTrial ? 0.35 : 1, transition: 'opacity 0.2s', pointerEvents: isTrial ? 'none' : 'auto' }}>
+            <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
+              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>SDP / Regional Center</p>
+              <button onClick={() => { setIsSdp(!isSdp); setIsTrial(false); setSelectedPlanId(null) }}
+                style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isSdp ? GOLD : '#1e3a6e'}`, backgroundColor: isSdp ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
+                <p style={{ color: isSdp ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>Custom sale · UCI students only</p>
+                <p style={{ color: isSdp ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>Custom Amount</p>
+              </button>
+              {isSdp && (
+                <div style={{ marginTop: 12, padding: 14, backgroundColor: '#0d1829', borderRadius: 8, border: '1px solid #1e3a6e' }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Student (SDP)</p>
+                    {!selectedParent ? (
+                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>Select a customer first</p>
+                    ) : sdpStudents.length === 0 ? (
+                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>No students with UCI on file — add UCI in Members first</p>
+                    ) : (
+                      <select value={sdpStudentId || ''} onChange={e => setSdpStudentId(e.target.value)} style={sel0}>
+                        {sdpStudents.map(s => <option key={s.id} value={s.id}>{s.full_name} · UCI {s.uci_number}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Description (shown on invoice)</p>
+                    <input value={sdpDesc} onChange={e => setSdpDesc(e.target.value)} placeholder="e.g. July 2026 Swim Lessons" style={sel0} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Sessions</p>
+                      <input type="number" min="1" value={sdpSessions} onChange={e => setSdpSessions(e.target.value)} style={sel0} />
+                    </div>
+                    <div>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Unit Price ($)</p>
+                      <input type="number" min="1" step="0.01" value={sdpUnitPrice} onChange={e => setSdpUnitPrice(e.target.value)} style={sel0} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ opacity: (isTrial || isSdp) ? 0.35 : 1, transition: 'opacity 0.2s', pointerEvents: (isTrial || isSdp) ? 'none' : 'auto' }}>
               {PLAN_GROUPS.map(group => (
                 <div key={group.label} style={{ marginBottom: 14 }}>
                   <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{group.label}</p>
@@ -372,7 +461,18 @@ export default function POSClient() {
               <span style={{ color: '#9ca3af', fontSize: 13 }}>Customer</span>
               <span style={{ color: 'white', fontSize: 13, fontWeight: 500 }}>{selectedParent ? `${selectedParent.first_name} ${selectedParent.last_name}` : '\u2014'}</span>
             </div>
-            {isTrial ? (
+            {isSdp ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
+                  <span style={{ color: 'white', fontSize: 13 }}>{sdpStudents.find(s => s.id === sdpStudentId)?.full_name || '\u2014'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Sessions</span>
+                  <span style={{ color: 'white', fontSize: 13 }}>{sdpQty || '\u2014'} \u00d7 ${(sdpUnitCents / 100).toFixed(2)}</span>
+                </div>
+              </>
+            ) : isTrial ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
@@ -389,7 +489,7 @@ export default function POSClient() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <span style={{ color: '#9ca3af' }}>Total</span>
             <span style={{ color: 'white', fontSize: 28, fontWeight: 700 }}>
-              {isTrial ? '$85' : plan ? `$${(plan.amount / 100).toLocaleString()}` : '$\u2014'}
+              {isSdp ? `$${(sdpAmountCents / 100).toLocaleString()}` : isTrial ? '$85' : plan ? `$${(plan.amount / 100).toLocaleString()}` : '$\u2014'}
             </span>
           </div>
           <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Payment Method</p>
@@ -404,7 +504,7 @@ export default function POSClient() {
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
           <button onClick={handleCharge} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
-            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTrial ? 'Select a student' : 'Select a package'}
+            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isSdp ? 'Complete SDP details' : isTrial ? 'Select a student' : 'Select a package'}
           </button>
           {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u26a0 No card reader connected</p>}
           {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u2713 Reader ready</p>}
