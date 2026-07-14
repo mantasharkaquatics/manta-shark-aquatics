@@ -18,6 +18,7 @@ export default async function AdminDashboardPage() {
   if (!admin) redirect('/dashboard')
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const todayDisplay = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })
 
   const [
     { count: totalMembers },
@@ -37,21 +38,29 @@ export default async function AdminDashboardPage() {
   if (todaySessions && todaySessions.length > 0) {
     const { data: sessionBookings } = await supabase
       .from('bookings')
-      .select('class_session_id, student_id')
+      .select('class_session_id, student_id, parent_id')
       .in('class_session_id', todaySessions.map((s: any) => s.id))
       .eq('status', 'confirmed')
     const studentIds = [...new Set((sessionBookings || []).map((b: any) => b.student_id).filter(Boolean))]
+    const parentIds = [...new Set((sessionBookings || []).map((b: any) => b.parent_id).filter(Boolean))]
     if (studentIds.length > 0) {
-      const { data: studentRows } = await supabase
-        .from('students')
-        .select('id, full_name')
-        .in('id', studentIds)
-      const nameById = new Map((studentRows || []).map((r: any) => [r.id, r.full_name]))
+      const [{ data: studentRows }, { data: parentRows }] = await Promise.all([
+        supabase.from('students').select('id, full_name, current_level').in('id', studentIds),
+        parentIds.length > 0
+          ? supabase.from('parents').select('id, first_name, last_name').in('id', parentIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ])
+      const studentById = new Map((studentRows || []).map((r: any) => [r.id, r]))
+      const parentById = new Map((parentRows || []).map((r: any) => [r.id, r]))
       for (const b of (sessionBookings || [])) {
-        const name = nameById.get(b.student_id)
-        if (!name) continue
+        const st = studentById.get(b.student_id)
+        if (!st) continue
+        const pa = parentById.get(b.parent_id)
+        const parentName = pa ? `${pa.first_name ?? ''} ${pa.last_name ?? ''}`.trim() : ''
+        const level = st.current_level ? ` · Level ${st.current_level}` : ''
+        const label = parentName ? `${parentName} — ${st.full_name}${level}` : `${st.full_name}${level}`
         if (!studentsBySession[b.class_session_id]) studentsBySession[b.class_session_id] = []
-        studentsBySession[b.class_session_id].push(name)
+        studentsBySession[b.class_session_id].push(label)
       }
     }
   }
@@ -97,7 +106,8 @@ export default async function AdminDashboardPage() {
                   <div>
                     <p className="text-white text-sm">{s.course_types?.name}</p>
                     <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {formatTime12h(s.start_time)}</p>
-                    <p className="text-[#c9a84c] text-xs mt-0.5">{(studentsBySession[s.id] || []).join(', ')}</p>
+                    <p className="text-[#c9a84c] text-xs mt-0.5">{(studentsBySession[s.id] || []).join(' / ')}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{todayDisplay}</p>
                   </div>
                   <span className="text-gray-400 text-xs">{s.enrolled_count}/{s.max_students}</span>
                 </div>
