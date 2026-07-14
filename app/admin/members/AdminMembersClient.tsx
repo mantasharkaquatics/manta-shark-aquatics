@@ -86,6 +86,23 @@ function formatDateTime(ts: string | null): string {
   return new Date(ts).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function isOnline(p: Parent): boolean {
+  if (!p.last_activity_at) return false
+  return Date.now() - new Date(p.last_activity_at).getTime() < 5 * 60 * 1000
+}
+
+function timeAgo(ts: string | null): string {
+  if (!ts) return 'Never'
+  const mins = Math.floor((Date.now() - new Date(ts).getTime()) / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 function isUnread(p: Parent): boolean {
   if (!p.last_activity_at) return false
   if (!p.activity_reviewed_at) return true
@@ -117,6 +134,19 @@ function CopyButton({ value }: { value: string }) {
 export default function AdminMembersClient({ parents: initialParents }: { parents: Parent[] }) {
   const supabase = createClient()
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    const id = setInterval(async () => {
+      const { data } = await supabase
+        .from('parents')
+        .select('id, last_activity_at')
+      if (data) {
+        const m = new Map(data.map((r: any) => [r.id, r.last_activity_at]))
+        setParents(prev => prev.map(p => m.has(p.id) ? { ...p, last_activity_at: m.get(p.id) ?? p.last_activity_at } : p))
+      }
+    }, 60 * 1000)
+    return () => clearInterval(id)
+  }, [supabase])
   const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean }>>({})
   const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | 'notes' | null>>({})
   const [confirmingBookingId, setConfirmingBookingId] = useState<string | null>(null)
@@ -302,8 +332,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                 className="w-full flex items-center justify-between p-5 text-left hover:bg-[#1e3a6e]/30 transition-all"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#1e3a6e] flex items-center justify-center flex-shrink-0">
+                  <div className="relative w-10 h-10 rounded-full bg-[#1e3a6e] flex items-center justify-center flex-shrink-0">
                     <span className="text-[#c9a84c] font-bold">{parent.first_name.charAt(0)}</span>
+                    {isOnline(parent) && (
+                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-[#111d38]" title="Online now" />
+                    )}
                   </div>
                   <div>
                     <p className="text-white font-medium">{parent.first_name} {parent.last_name}</p>
@@ -314,6 +347,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   {isUnread(parent) && (
                     <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="New activity" />
                   )}
+                  <span className={`text-xs ${isOnline(parent) ? 'text-green-400' : 'text-gray-500'}`}>{isOnline(parent) ? 'Online' : timeAgo(parent.last_activity_at)}</span>
                   <span className="text-gray-500 text-sm">{parent.students.length} student{parent.students.length !== 1 ? 's' : ''}</span>
                   <span className="text-gray-500">{expanded === parent.id ? '▲' : '▼'}</span>
                 </div>
