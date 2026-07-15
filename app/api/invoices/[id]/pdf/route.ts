@@ -103,7 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     </div>
     ${isSdp ? `
     <div style="text-align:right;padding:12px 16px;background:#f8f8fb;border-radius:8px;border-right:4px solid #c9a84c;">
-      <div class="bill-to-label">Student / SDP Information</div>
+      <div class="bill-to-label">Student Information</div>
       <div style="font-size:13px;color:#1a2744;font-weight:700;">${student.legal_full_name || student.full_name}</div>
       <div style="font-size:12px;color:#333;margin-top:4px;">UCI #: <strong>${student.uci_number}</strong></div>
       <div style="font-size:12px;color:#333;margin-top:2px;">Service Code: <strong>${student.service_code || '331'}</strong></div>
@@ -138,17 +138,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     </div>
   </div>
 
-  <div class="payment-info">
-    <div class="payment-label">Payment Method</div>
-    <div class="payment-method">${
-      invoice.payment_method === 'stripe' ? 'Credit / Debit Card (Stripe)'
-      : invoice.payment_method === 'card' ? 'Credit Card'
-      : invoice.payment_method === 'cash' ? 'Cash'
-      : invoice.payment_method
-    }</div>
-  </div>
-
-  ${invoice.notes ? `<div style="margin-top:24px;font-size:12px;color:#666;"><strong>Notes:</strong> ${invoice.notes}</div>` : ''}
+  ${invoice.notes ? `<div class="payment-info"><div class="payment-label">Note</div><div class="payment-method">${invoice.notes}</div></div>` : ''}
 
   <div class="footer">
     Thank you for choosing Manta Shark Aquatics &middot; This invoice was generated automatically

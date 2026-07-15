@@ -198,7 +198,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                   const planName = Array.isArray(inv.items) && inv.items[0]?.name ? inv.items[0].name : '—'
                   return (
                     <tr key={inv.id} className="border-b border-[#1e3a6e]/50 hover:bg-[#1e3a6e]/20 transition-colors">
-                      <td className="px-5 py-4 text-gray-400 text-xs font-mono">{inv.invoice_number}</td>
+                      <td className="px-5 py-4 text-gray-400 text-xs font-mono">{inv.invoice_number}{inv.student_id ? <span className="ml-2 px-1.5 py-0.5 rounded bg-[#c9a84c]/20 text-[#c9a84c] text-[10px] font-sans font-semibold align-middle">SDP</span> : null}</td>
                       <td className="px-5 py-4">
                         <p className="text-white text-sm">{parent ? `${parent.first_name} ${parent.last_name}` : '—'}</p>
                         <p className="text-gray-500 text-xs">{parent?.email}</p>

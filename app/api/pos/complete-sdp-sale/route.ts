@@ -6,7 +6,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest) {
   try {
-    const { parentId, studentId, description, sessions, unitPriceCents, paymentMethod, paymentIntentId } = await req.json()
+    const { parentId, studentId, courseTypeId, description, sessions, unitPriceCents, paymentMethod, paymentIntentId } = await req.json()
 
     const cookieStore = await cookies()
     const supabaseAuth = createServerClient(
@@ -24,8 +24,9 @@ export async function POST(req: NextRequest) {
     if (!parentId || !studentId) return NextResponse.json({ error: 'parentId and studentId required' }, { status: 400 })
     if (!Number.isFinite(qty) || qty < 1 || qty > 200) return NextResponse.json({ error: 'Invalid sessions' }, { status: 400 })
     if (!Number.isFinite(unit) || unit < 50 || unit > 100000) return NextResponse.json({ error: 'Invalid unit price' }, { status: 400 })
+    if (!courseTypeId) return NextResponse.json({ error: 'courseTypeId required' }, { status: 400 })
     const amountCents = qty * unit
-    const desc = String(description || '').trim() || 'Swim Lessons'
+    const noteText = String(description || '').trim()
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,6 +39,10 @@ export async function POST(req: NextRequest) {
     if (!student || student.parent_id !== parentId) {
       return NextResponse.json({ error: 'Student does not belong to this parent' }, { status: 400 })
     }
+
+    const { data: courseType } = await supabase
+      .from('course_types').select('id, name').eq('id', courseTypeId).single()
+    if (!courseType) return NextResponse.json({ error: 'Invalid course type' }, { status: 400 })
 
     const insertData: Record<string, unknown> = {
       parent_id: parentId,
@@ -64,7 +69,7 @@ export async function POST(req: NextRequest) {
       student_id: studentId,
       parent_id: parentId,
       purchase_id: purchase.id,
-      course_type_id: null,
+      course_type_id: courseType.id,
       total_credits: qty,
       used_credits: 0,
       expires_at: expiresAt.toISOString(),
@@ -89,9 +94,10 @@ export async function POST(req: NextRequest) {
       lesson_credit_id: lessonCredit?.id ?? null,
       amount: amountCents / 100,
       payment_method: paymentMethod === 'stripe_terminal' ? 'card' : paymentMethod,
-      items: [{ name: desc, quantity: qty, unit_price: unit / 100 }],
+      items: [{ name: courseType.name, quantity: qty, unit_price: unit / 100 }],
       status: 'sent',
       stripe_payment_intent_id: paymentIntentId || null,
+      notes: noteText || null,
     }).select().single()
     if (invErr) console.error('SDP invoice error:', invErr)
 
@@ -104,7 +110,7 @@ export async function POST(req: NextRequest) {
           parentName: parent.first_name,
           invoiceNumber: invoice.invoice_number,
           amount: amountCents / 100,
-          planName: `${desc} (${qty} sessions)`,
+          planName: `${courseType.name} (${qty} sessions)`,
           invoiceUrl: `${appUrl}/api/invoices/${invoice.id}/pdf`,
         })
       } catch (e) {
@@ -112,7 +118,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log(`✅ SDP sale: "${desc}" x${qty} student=${studentId} method=${paymentMethod} invoice=${invoice?.invoice_number}`)
+    console.log(`✅ SDP sale: "${courseType.name}" x${qty} student=${studentId} method=${paymentMethod} invoice=${invoice?.invoice_number}`)
     return NextResponse.json({ success: true, purchaseId: purchase.id, invoiceId: invoice?.id })
   } catch (err: any) {
     console.error('SDP complete-sale error:', err)

@@ -22,7 +22,7 @@ export default async function AdminSalesPage() {
 
   const { data: invoices } = await supabase
     .from('invoices')
-    .select('id, invoice_number, amount, payment_method, items, status, issued_at, parent_id')
+    .select('id, invoice_number, amount, payment_method, items, status, issued_at, parent_id, student_id')
     .order('issued_at', { ascending: false })
 
   const parentIds = [...new Set((invoices || []).map((i: any) => i.parent_id).filter(Boolean))]

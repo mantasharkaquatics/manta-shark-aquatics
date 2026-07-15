@@ -43,6 +43,8 @@ export default function POSClient() {
   const [sdpStudents, setSdpStudents] = useState<{ id: string; full_name: string; uci_number: string }[]>([])
   const [sdpStudentId, setSdpStudentId] = useState<string | null>(null)
   const [sdpDesc, setSdpDesc] = useState('')
+  const [sdpCourseTypes, setSdpCourseTypes] = useState<{ id: string; name: string }[]>([])
+  const [sdpCourseTypeId, setSdpCourseTypeId] = useState<string | null>(null)
   const [sdpSessions, setSdpSessions] = useState('10')
   const [sdpUnitPrice, setSdpUnitPrice] = useState('65')
   const [processing, setProcessing] = useState(false)
@@ -108,6 +110,15 @@ export default function POSClient() {
   }, [selectedParent, isTrial])
 
   useEffect(() => {
+    if (!isSdp || sdpCourseTypes.length > 0) return
+    supabase.from('course_types').select('id, name').order('name')
+      .then(({ data }) => {
+        setSdpCourseTypes(data || [])
+        if (data?.length && !sdpCourseTypeId) setSdpCourseTypeId(data[0].id)
+      })
+  }, [isSdp])
+
+  useEffect(() => {
     if (!selectedParent || !isSdp) { setSdpStudents([]); setSdpStudentId(null); return }
     supabase.from('students').select('id, full_name, uci_number')
       .eq('parent_id', selectedParent.id).not('uci_number', 'is', null)
@@ -126,7 +137,7 @@ export default function POSClient() {
 
   const canCharge = !processing && (
     isSdp
-      ? !!selectedParent && !!sdpStudentId && sdpQty >= 1 && sdpUnitCents >= 50 && (payMethod === 'cash' || readerStatus === 'connected')
+      ? !!selectedParent && !!sdpStudentId && !!sdpCourseTypeId && sdpQty >= 1 && sdpUnitCents >= 50 && (payMethod === 'cash' || readerStatus === 'connected')
       : isTrial
       ? !!selectedParent && !!selectedStudentId && (payMethod === 'cash' || readerStatus === 'connected')
       : !!selectedParent && !!selectedPlanId && (payMethod === 'cash' || readerStatus === 'connected')
@@ -165,7 +176,7 @@ export default function POSClient() {
         const res = await fetch('/api/pos/complete-sdp-sale', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            parentId: selectedParent.id, studentId: sdpStudentId,
+            parentId: selectedParent.id, studentId: sdpStudentId, courseTypeId: sdpCourseTypeId,
             description: sdpDesc, sessions: sdpQty, unitPriceCents: sdpUnitCents,
             paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
             ...(paymentIntentId ? { paymentIntentId } : {}),
@@ -226,7 +237,7 @@ export default function POSClient() {
   }
   const reset = () => {
     setStep('select'); setSelectedParent(null); setSelectedPlanId(null); setIsTrial(false)
-    setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65')
+    setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65'); setSdpCourseTypeId(null)
     setStudents([]); setSelectedStudentId(null); setPayMethod('card')
     setSearch(''); setSearchResults([]); setError(null); setProcessing(false); setShowCashConfirm(false)
 
@@ -415,7 +426,13 @@ export default function POSClient() {
                     )}
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Description (shown on invoice)</p>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Course Type</p>
+                    <select value={sdpCourseTypeId || ''} onChange={e => setSdpCourseTypeId(e.target.value)} style={sel0}>
+                      {sdpCourseTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Note (shown on invoice)</p>
                     <input value={sdpDesc} onChange={e => setSdpDesc(e.target.value)} placeholder="e.g. July 2026 Swim Lessons" style={sel0} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
