@@ -453,9 +453,13 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                         <p className="text-gray-300 text-sm">—</p>
                       )}
                     </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Last Login</p>
+                      <p className="text-gray-300 text-sm">{formatDateTime(parent.last_login_at)}</p>
+                    </div>
                   </div>
 
-                  {/* Row 2: Registered, Terms Accepted, Newsletter, Last Login */}
+                  {/* Row 2: Registered, Terms Accepted, Photo Release, Newsletter */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-[#1e3a6e]/40 pt-4">
                     <div>
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Registered</p>
@@ -496,10 +500,6 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                           {parent.newsletter_subscribed ? 'Subscribed' : 'Not subscribed'}
                         </span>
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Last Login</p>
-                      <p className="text-gray-300 text-sm">{formatDateTime(parent.last_login_at)}</p>
                     </div>
                   </div>
 
