@@ -19,6 +19,13 @@ export async function GET(req: NextRequest) {
       input,
       includedRegionCodes: ['us'],
       includedPrimaryTypes: ['street_address', 'premise'],
+      // Bias results toward Southern California (centered near Brea/Walnut, ~80km radius)
+      locationBias: {
+        circle: {
+          center: { latitude: 33.95, longitude: -117.85 },
+          radius: 50000,
+        },
+      },
     }),
   })
 
