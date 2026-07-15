@@ -28,6 +28,8 @@ type Parent = {
   terms_accepted_at: string | null
   last_login_at: string | null
   newsletter_subscribed: boolean
+  media_release_accepted: boolean | null
+  media_release_at: string | null
   address_line1: string | null
   address_line2: string | null
   city: string | null
@@ -464,6 +466,15 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                       <p className="text-sm">
                         {parent.terms_accepted_at
                           ? <span className="text-green-400">✓ {formatDateTime(parent.terms_accepted_at)}</span>
+                          : <span className="text-red-400">✗ Not accepted</span>
+                        }
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Photo Release</p>
+                      <p className="text-gray-300 text-sm">
+                        {parent.media_release_accepted
+                          ? <span className="text-green-400">✓ {formatDateTime(parent.media_release_at)}</span>
                           : <span className="text-red-400">✗ Not accepted</span>
                         }
                       </p>
