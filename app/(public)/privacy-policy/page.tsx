@@ -27,6 +27,18 @@ export default function PrivacyPolicyPage() {
         <li>Booking and attendance records for lessons you schedule with us.</li>
         <li>Payment information, processed securely by Stripe. We do not store full card numbers.</li>
       </ul>
+      <p style={{ marginTop: 16 }}>
+        <strong>Health-Related and Program Information.</strong> If your student participates in a
+        special needs program or receives services through a California Regional Center (including
+        the Self-Determination Program), we may collect, at your request or with your consent,
+        limited program-related information such as your student&apos;s legal name, Regional Center
+        UCI number, and applicable service codes. We collect this information solely to prepare
+        invoices and billing documentation for Regional Center reimbursement purposes and to
+        appropriately accommodate your student&apos;s lessons. We do not use this information for
+        marketing, do not sell or share it with third parties except as required to process your
+        requested billing, and retain it only as long as necessary for accounting and legal
+        compliance.
+      </p>
 
       <H2>2. How We Use Your Information</H2>
       <ul>
