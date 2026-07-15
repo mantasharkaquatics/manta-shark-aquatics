@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
-  const auth = await requireUser()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const place_id = req.nextUrl.searchParams.get('place_id')
   if (!place_id) return NextResponse.json({})
 

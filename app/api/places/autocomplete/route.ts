@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/api-auth'
 
+// Public endpoint: used on the registration page (user not yet authenticated).
+// Input is length-limited; Google API key quota should be capped in Google Cloud Console.
 export async function GET(req: NextRequest) {
-  const auth = await requireUser()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const input = req.nextUrl.searchParams.get('input')
-  if (!input) return NextResponse.json({ suggestions: [] })
+  const input = (req.nextUrl.searchParams.get('input') || '').slice(0, 100)
+  if (input.trim().length < 3) return NextResponse.json({ suggestions: [] })
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY
   const url = `https://places.googleapis.com/v1/places:autocomplete`
