@@ -6,6 +6,48 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
+const DOB_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function DobSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [y = '', m = '', d = ''] = (value || '').split('-')
+  const nowYear = new Date().getFullYear()
+  const years: number[] = []
+  for (let yr = nowYear; yr >= nowYear - 100; yr--) years.push(yr)
+  const daysInMonth = y && m ? new Date(Number(y), Number(m), 0).getDate() : 31
+  const days: string[] = []
+  for (let i = 1; i <= daysInMonth; i++) days.push(String(i).padStart(2, '0'))
+
+  const emit = (ny: string, nm: string, nd: string) => {
+    if (ny && nm && nd) {
+      const maxD = new Date(Number(ny), Number(nm), 0).getDate()
+      const clamped = Math.min(Number(nd), maxD)
+      onChange(`${ny}-${nm}-${String(clamped).padStart(2, '0')}`)
+    } else {
+      onChange('')
+    }
+  }
+
+  const selCls = "border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls}>
+        <option value="">Month</option>
+        {DOB_MONTHS.map((mm, i) => <option key={mm} value={mm}>{DOB_MONTH_NAMES[i]}</option>)}
+      </select>
+      <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls}>
+        <option value="">Day</option>
+        {days.map(dd => <option key={dd} value={dd}>{Number(dd)}</option>)}
+      </select>
+      <select value={y} onChange={e => emit(e.target.value, m, d)} className={selCls}>
+        <option value="">Year</option>
+        {years.map(yr => <option key={yr} value={String(yr)}>{yr}</option>)}
+      </select>
+    </div>
+  )
+}
+
+
 const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 
 export default function RegisterPage() {
@@ -396,8 +438,7 @@ export default function RegisterPage() {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Date of Birth</label>
-                    <input type="date" value={s.dateOfBirth} max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })} onChange={e => updateStudent(i, 'dateOfBirth', e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                    <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} />
                   </div>
                 </div>
               </div>
