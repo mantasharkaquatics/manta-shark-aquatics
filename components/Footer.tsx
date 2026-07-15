@@ -54,6 +54,9 @@ export default function Footer() {
               Brea, California<br />
               Open daily · 6:00 AM &ndash; 9:00 PM
             </p>
+            <div style={{ marginTop: '14px' }}>
+              <Link href="/coach-login" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>Coach Login →</Link>
+            </div>
           </div>
         </div>
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
