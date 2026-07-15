@@ -13,6 +13,95 @@ type Coach = {
 
 const inputCls = "w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]"
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const TIME_OPTS: string[] = []
+for (let h = 6; h <= 21; h++) {
+  TIME_OPTS.push(`${String(h).padStart(2, '0')}:00`)
+  if (h < 21) TIME_OPTS.push(`${String(h).padStart(2, '0')}:30`)
+}
+
+type DayRow = { enabled: boolean; start: string; end: string }
+
+function SchedulePanel({ coachId }: { coachId: string }) {
+  const [days, setDays] = useState<DayRow[]>(Array.from({ length: 7 }, () => ({ enabled: false, start: '09:00', end: '18:00' })))
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/admin/coach-availability?coach_id=${coachId}`)
+      .then(r => r.json())
+      .then(data => {
+        const next: DayRow[] = Array.from({ length: 7 }, () => ({ enabled: false, start: '09:00', end: '18:00' }))
+        for (const row of (data.availability || [])) {
+          next[row.day_of_week] = {
+            enabled: !!row.is_active,
+            start: String(row.start_time).slice(0, 5),
+            end: String(row.end_time).slice(0, 5),
+          }
+        }
+        setDays(next)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [coachId])
+
+  const save = async () => {
+    setSaving(true); setMsg(null)
+    const payload = days
+      .map((d, i) => ({ ...d, day_of_week: i }))
+      .filter(d => d.enabled)
+      .map(d => ({ day_of_week: d.day_of_week, start_time: d.start, end_time: d.end }))
+    const res = await fetch('/api/admin/coach-availability', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coach_id: coachId, days: payload }),
+    })
+    const data = await res.json()
+    setSaving(false)
+    setMsg(res.ok ? 'Saved' : (data.error || 'Save failed'))
+    if (res.ok) setTimeout(() => setMsg(null), 2000)
+  }
+
+  const upd = (i: number, patch: Partial<DayRow>) => setDays(prev => prev.map((d, idx) => idx === i ? { ...d, ...patch } : d))
+  const selCls = "bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#c9a84c]"
+
+  if (loading) return <p className="text-gray-500 text-sm py-2">Loading schedule...</p>
+  return (
+    <div className="space-y-2">
+      <p className="text-gray-500 text-xs">Weekly working hours. Parents can only book within these windows. Unchecked days are unavailable.</p>
+      {DAY_NAMES.map((name, i) => (
+        <div key={name} className="flex items-center gap-3">
+          <label className="flex items-center gap-2 w-32 cursor-pointer">
+            <input type="checkbox" checked={days[i].enabled} onChange={e => upd(i, { enabled: e.target.checked })}
+              className="w-4 h-4 accent-[#c9a84c]" />
+            <span className={`text-sm ${days[i].enabled ? 'text-white' : 'text-gray-500'}`}>{name}</span>
+          </label>
+          {days[i].enabled ? (
+            <div className="flex items-center gap-2">
+              <select value={days[i].start} onChange={e => upd(i, { start: e.target.value })} className={selCls}>
+                {TIME_OPTS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <span className="text-gray-500 text-sm">to</span>
+              <select value={days[i].end} onChange={e => upd(i, { end: e.target.value })} className={selCls}>
+                {TIME_OPTS.filter(t => t > days[i].start).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          ) : (
+            <span className="text-gray-600 text-sm">Unavailable</span>
+          )}
+        </div>
+      ))}
+      <div className="flex items-center gap-3 pt-2">
+        <button onClick={save} disabled={saving}
+          className="bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] text-xs font-semibold px-4 py-2 rounded-lg transition-all">
+          {saving ? 'Saving...' : 'Save Schedule'}
+        </button>
+        {msg && <span className={`text-xs ${msg === 'Saved' ? 'text-green-400' : 'text-red-400'}`}>{msg}</span>}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminCoachesPage() {
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,6 +110,7 @@ export default function AdminCoachesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editPinId, setEditPinId] = useState<string | null>(null)
+  const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [editPin, setEditPin] = useState('')
 
   const load = async () => {
@@ -102,7 +192,8 @@ export default function AdminCoachesPage() {
       ) : (
         <div className="space-y-3">
           {coaches.map(c => (
-            <div key={c.id} className={`bg-[#111d38] border rounded-xl p-4 flex items-center justify-between flex-wrap gap-3 ${c.is_active ? 'border-[#1e3a6e]' : 'border-[#1e3a6e]/40 opacity-60'}`}>
+            <div key={c.id} className={`bg-[#111d38] border rounded-xl ${c.is_active ? 'border-[#1e3a6e]' : 'border-[#1e3a6e]/40 opacity-60'}`}>
+            <div className="p-4 flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#1e3a6e] flex items-center justify-center">
                   <span className="text-[#c9a84c] font-bold">{c.first_name.charAt(0)}</span>
@@ -115,6 +206,10 @@ export default function AdminCoachesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button onClick={() => setScheduleId(scheduleId === c.id ? null : c.id)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${scheduleId === c.id ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-400 hover:border-[#c9a84c]/50 hover:text-[#c9a84c]'}`}>
+                  Schedule
+                </button>
                 {editPinId === c.id ? (
                   <>
                     <input placeholder="New PIN (8 digits)" value={editPin} maxLength={8}
@@ -134,6 +229,12 @@ export default function AdminCoachesPage() {
                   {c.is_active ? 'Deactivate' : 'Activate'}
                 </button>
               </div>
+            </div>
+            {scheduleId === c.id && (
+              <div className="border-t border-[#1e3a6e]/50 px-4 pb-4 pt-3">
+                <SchedulePanel coachId={c.id} />
+              </div>
+            )}
             </div>
           ))}
           {error && !showAdd && <p className="text-red-400 text-sm">{error}</p>}
