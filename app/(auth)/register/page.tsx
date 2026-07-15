@@ -10,7 +10,10 @@ const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
 const DOB_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 function DobSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [y = '', m = '', d = ''] = (value || '').split('-')
+  const [vy = '', vm = '', vd = ''] = (value || '').split('-')
+  const [y, setY] = useState(vy)
+  const [m, setM] = useState(vm)
+  const [d, setD] = useState(vd)
   const nowYear = new Date().getFullYear()
   const years: number[] = []
   for (let yr = nowYear; yr >= nowYear - 100; yr--) years.push(yr)
@@ -19,13 +22,13 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
   for (let i = 1; i <= daysInMonth; i++) days.push(String(i).padStart(2, '0'))
 
   const emit = (ny: string, nm: string, nd: string) => {
+    let fd = nd
     if (ny && nm && nd) {
       const maxD = new Date(Number(ny), Number(nm), 0).getDate()
-      const clamped = Math.min(Number(nd), maxD)
-      onChange(`${ny}-${nm}-${String(clamped).padStart(2, '0')}`)
-    } else {
-      onChange('')
+      fd = String(Math.min(Number(nd), maxD)).padStart(2, '0')
     }
+    setY(ny); setM(nm); setD(fd)
+    onChange(ny && nm && fd ? `${ny}-${nm}-${fd}` : '')
   }
 
   const selCls = "border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
