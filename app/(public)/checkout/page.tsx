@@ -8,18 +8,18 @@ const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
-const PLANS: Record<string, { name: string; sessions: number; total: number; perSession: number; courseSlug: string; badge?: string }> = {
-  '1on1-10':  { name: '1-on-1 Private',      sessions: 10, total: 650,  perSession: 65,    courseSlug: '1on1' },
-  '1on1-20':  { name: '1-on-1 Private',      sessions: 20, total: 1260, perSession: 63,    courseSlug: '1on1' },
-  '1on1-30':  { name: '1-on-1 Private',      sessions: 30, total: 1850, perSession: 61.67, courseSlug: '1on1', badge: 'Most Popular' },
-  '1on1-50':  { name: '1-on-1 Private',      sessions: 50, total: 3000, perSession: 60,    courseSlug: '1on1', badge: 'Best Value' },
-  '1on2-10':  { name: '1-on-2 Semi-Private', sessions: 10, total: 1050, perSession: 105,   courseSlug: '1on2' },
-  '1on2-20':  { name: '1-on-2 Semi-Private', sessions: 20, total: 2000, perSession: 100,   courseSlug: '1on2' },
-  '1on2-30':  { name: '1-on-2 Semi-Private', sessions: 30, total: 2850, perSession: 95,    courseSlug: '1on2', badge: 'Most Popular' },
-  '1on2-50':  { name: '1-on-2 Semi-Private', sessions: 50, total: 4500, perSession: 90,    courseSlug: '1on2', badge: 'Best Value' },
-  '1on4-10':  { name: '1-on-4 Group',        sessions: 10, total: 400,  perSession: 40,    courseSlug: '1on4' },
-  '1on4-20':  { name: '1-on-4 Group',        sessions: 20, total: 760,  perSession: 38,    courseSlug: '1on4' },
-  'team':     { name: 'Swim Team',            sessions: 8,  total: 180,  perSession: 22.5,  courseSlug: 'team' },
+const PLANS: Record<string, { name: string; sessions: number; total: number; perSession: number; courseSlug: string; badge?: string; validityMonths: number }> = {
+  '1on1-10':  { name: '1-on-1 Private',      sessions: 10, total: 650,  perSession: 65,    courseSlug: '1on1', validityMonths: 4 },
+  '1on1-20':  { name: '1-on-1 Private',      sessions: 20, total: 1260, perSession: 63,    courseSlug: '1on1', validityMonths: 8 },
+  '1on1-30':  { name: '1-on-1 Private',      sessions: 30, total: 1850, perSession: 61.67, courseSlug: '1on1', badge: 'Most Popular', validityMonths: 12 },
+  '1on1-50':  { name: '1-on-1 Private',      sessions: 50, total: 3000, perSession: 60,    courseSlug: '1on1', badge: 'Best Value', validityMonths: 18 },
+  '1on2-10':  { name: '1-on-2 Semi-Private', sessions: 10, total: 1050, perSession: 105,   courseSlug: '1on2', validityMonths: 4 },
+  '1on2-20':  { name: '1-on-2 Semi-Private', sessions: 20, total: 2000, perSession: 100,   courseSlug: '1on2', validityMonths: 8 },
+  '1on2-30':  { name: '1-on-2 Semi-Private', sessions: 30, total: 2850, perSession: 95,    courseSlug: '1on2', badge: 'Most Popular', validityMonths: 12 },
+  '1on2-50':  { name: '1-on-2 Semi-Private', sessions: 50, total: 4500, perSession: 90,    courseSlug: '1on2', badge: 'Best Value', validityMonths: 18 },
+  '1on4-10':  { name: '1-on-4 Group',        sessions: 10, total: 400,  perSession: 40,    courseSlug: '1on4', validityMonths: 4 },
+  '1on4-20':  { name: '1-on-4 Group',        sessions: 20, total: 760,  perSession: 38,    courseSlug: '1on4', validityMonths: 8 },
+  'team':     { name: 'Swim Team',            sessions: 8,  total: 180,  perSession: 22.5,  courseSlug: 'team', validityMonths: 1 },
 }
 
 function CheckoutContent() {
@@ -116,7 +116,7 @@ function CheckoutContent() {
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '16px', paddingTop: '16px' }}>
             <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', flexWrap: 'wrap' }}>
               <span>✓ Active immediately after payment</span>
-              <span>✓ Valid for one year</span>
+              <span>✓ Valid for {plan.validityMonths} months from purchase</span>
               <span>✓ Shared across your family</span>
               <span>✓ Flexible booking</span>
             </div>

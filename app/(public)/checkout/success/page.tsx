@@ -44,7 +44,7 @@ function SuccessContent() {
               { icon: '✅', text: 'Credits added to your account' },
               { icon: '📅', text: 'Ready to book lessons' },
               { icon: '📧', text: 'Confirmation email sent' },
-              { icon: '⏰', text: 'Credits valid for one year' },
+              { icon: '⏰', text: 'Credits are valid from the purchase date — see your dashboard for the expiration date' },
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '18px' }}>{item.icon}</span>
