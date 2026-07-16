@@ -19,8 +19,8 @@ const SEMI_PACKAGES = [
 ]
 
 const GROUP_OPTIONS = [
-  { sessions: 4, price: 160, perSession: 40 },
-  { sessions: 8, price: 300, perSession: 37.5 },
+  { id: '1on4-10', sessions: 10, price: 400, perSession: 40, savings: null, validity: '4 months' },
+  { id: '1on4-20', sessions: 20, price: 760, perSession: 38, savings: 40, validity: '8 months' },
 ]
 
 const NAVY = '#1a2744'
@@ -253,22 +253,25 @@ export default function PlansPage() {
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
                 {GROUP_OPTIONS.map((opt) => (
-                  <div key={opt.sessions} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px 20px' }}>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>{opt.sessions} sessions / month</div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>${opt.perSession % 1 === 0 ? opt.perSession : opt.perSession.toFixed(2)}/session</div>
+                  <div key={opt.id} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>{opt.sessions} sessions</div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>${opt.perSession}/session · Valid for {opt.validity}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: '#4caf72', lineHeight: 1 }}>${opt.price}</div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>total</div>
+                        {opt.savings ? <div style={{ fontSize: '11px', fontWeight: 600, color: '#3a9a5c', marginTop: '2px' }}>Save ${opt.savings}</div> : null}
+                      </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: '#4caf72', lineHeight: 1 }}>${opt.price}</div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>per month</div>
-                    </div>
+                    <GetStartedButton accentColor="#4caf72" isFeatured={true} label="Enroll Now" planId={opt.id} />
                   </div>
                 ))}
               </div>
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '16px' }}>
-                Monthly subscription. Renews automatically each month until cancelled. Cancel anytime from your account settings.
+                Purchase a session pack and book online anytime. Credits are valid from the date of purchase.
               </p>
-              <GetStartedButton accentColor="#4caf72" isFeatured={true} label="Enroll Now" planId="1on4-4" />
             </div>
 
             <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px' }}>

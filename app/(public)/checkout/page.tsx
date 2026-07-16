@@ -17,8 +17,8 @@ const PLANS: Record<string, { name: string; sessions: number; total: number; per
   '1on2-20':  { name: '1-on-2 Semi-Private', sessions: 20, total: 2000, perSession: 100,   courseSlug: '1on2' },
   '1on2-30':  { name: '1-on-2 Semi-Private', sessions: 30, total: 2850, perSession: 95,    courseSlug: '1on2', badge: 'Most Popular' },
   '1on2-50':  { name: '1-on-2 Semi-Private', sessions: 50, total: 4500, perSession: 90,    courseSlug: '1on2', badge: 'Best Value' },
-  '1on4-4':   { name: '1-on-4 Group',        sessions: 4,  total: 160,  perSession: 40,    courseSlug: '1on4' },
-  '1on4-8':   { name: '1-on-4 Group',        sessions: 8,  total: 300,  perSession: 37.5,  courseSlug: '1on4' },
+  '1on4-10':  { name: '1-on-4 Group',        sessions: 10, total: 400,  perSession: 40,    courseSlug: '1on4' },
+  '1on4-20':  { name: '1-on-4 Group',        sessions: 20, total: 760,  perSession: 38,    courseSlug: '1on4' },
   'team':     { name: 'Swim Team',            sessions: 8,  total: 180,  perSession: 22.5,  courseSlug: 'team' },
 }
 

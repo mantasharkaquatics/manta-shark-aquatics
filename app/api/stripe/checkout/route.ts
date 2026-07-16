@@ -14,8 +14,8 @@ const PLANS: Record<string, { name: string; amount: number; sessions: number; co
   '1on2-20':  { name: '1-on-2 Semi-Private · 20 Sessions', amount: 200000, sessions: 20, courseSlug: '1on2' },
   '1on2-30':  { name: '1-on-2 Semi-Private · 30 Sessions', amount: 285000, sessions: 30, courseSlug: '1on2' },
   '1on2-50':  { name: '1-on-2 Semi-Private · 50 Sessions', amount: 450000, sessions: 50, courseSlug: '1on2' },
-  '1on4-4':   { name: '1-on-4 Group · 4 Sessions/month',   amount: 16000,  sessions: 4,  courseSlug: '1on4' },
-  '1on4-8':   { name: '1-on-4 Group · 8 Sessions/month',   amount: 30000,  sessions: 8,  courseSlug: '1on4' },
+  '1on4-10':  { name: '1-on-4 Group · 10 Sessions', amount: 40000,  sessions: 10, courseSlug: '1on4' },
+  '1on4-20':  { name: '1-on-4 Group · 20 Sessions', amount: 76000,  sessions: 20, courseSlug: '1on4' },
   'team':     { name: 'Swim Team · Monthly',                amount: 18000,  sessions: 8,  courseSlug: 'team' },
 }
 
