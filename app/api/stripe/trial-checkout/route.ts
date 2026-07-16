@@ -155,6 +155,7 @@ export async function POST(req: NextRequest) {
     }
 
     const checkoutSession = await stripe.checkout.sessions.create({
+      locale: 'en',
       payment_method_types: ['card', 'us_bank_account'],
       mode: 'payment',
       customer_email: parent?.email,
