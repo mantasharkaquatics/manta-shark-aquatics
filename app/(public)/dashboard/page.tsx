@@ -45,6 +45,7 @@ interface Credit {
   course_type_id: string
   student_id: string | null
   created_at?: string
+  expires_at?: string | null
   course_types?: { name: string } | { name: string }[]
   purchases?: { paid_at: string | null; created_at: string } | { paid_at: string | null; created_at: string }[]
   invoice_id?: string | null
@@ -223,7 +224,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
 }
 
 function CreditCard({ g, remaining, pct, note, bookHref }: {
-  g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null }[] }
+  g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null; expiresAt?: string | null }[] }
   remaining: number
   pct: number
   note?: string
@@ -263,10 +264,12 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
           {g.items.map((item, i) => {
             const itemRemaining = item.credits - item.used
             const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+            const expStr = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
+            const isExpired = item.expiresAt ? new Date(item.expiresAt).getTime() < Date.now() : false
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{dateStr}</div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+                <div style={{ fontSize: '11px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.35)', flexShrink: 0, whiteSpace: 'nowrap' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
                   {itemRemaining} / {item.credits} left
                 </div>
                 {item.invoiceId && (
@@ -355,7 +358,7 @@ export default function DashboardPage() {
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
         .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, is_trial, course_types(name), purchases(paid_at, created_at), invoices(id)')
+        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, expires_at, is_trial, course_types(name), purchases(paid_at, created_at), invoices(id)')
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
@@ -1338,7 +1341,7 @@ export default function DashboardPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
               {(() => {
                 // Group credits by course_type_id and sum them up
-                const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null }[] }> = {}
+                const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null; expiresAt?: string | null }[] }> = {}
                 credits.forEach(credit => {
                   const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
                   const pur = Array.isArray(credit.purchases) ? credit.purchases[0] : credit.purchases
@@ -1350,7 +1353,7 @@ export default function DashboardPage() {
                   grouped[key].total += credit.total_credits
                   grouped[key].used += credit.used_credits
                   const inv = Array.isArray(credit.invoices) ? credit.invoices[0] : credit.invoices
-                  grouped[key].items.push({ credits: credit.total_credits, used: credit.used_credits, date: itemDate, invoiceId: inv?.id || null })
+                  grouped[key].items.push({ credits: credit.total_credits, used: credit.used_credits, date: itemDate, invoiceId: inv?.id || null, expiresAt: credit.expires_at || null })
                 })
                 return Object.entries(grouped).map(([key, g]) => {
                   const remaining = g.total - g.used
