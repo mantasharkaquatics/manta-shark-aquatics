@@ -1,4 +1,5 @@
 import { sendEmail } from '@/lib/email'
+import { PLANS } from '@/lib/plans'
 import { formatTime12h } from '@/lib/date'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
 
       // Trial credit card: 1 of 1 used, appears under Lesson Credits
       const expiresAt = new Date()
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+      expiresAt.setMonth(expiresAt.getMonth() + 12)
       const { data: credit, error: creditErr } = await supabase
         .from('lesson_credits')
         .insert({
@@ -195,8 +196,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Create lesson_credits
+    const purchasedPlan = plan_id ? PLANS[plan_id] : null
     const expiresAt = new Date()
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+    expiresAt.setMonth(expiresAt.getMonth() + (purchasedPlan?.validityMonths ?? 12))
 
     const { data: credit, error: creditErr } = await supabase
       .from('lesson_credits')
@@ -217,19 +219,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Credit failed' }, { status: 500 })
     }
 
-    const PLANS: Record<string, { name: string }> = {
-      '1on1-10': { name: '1-on-1 Private · 10 Sessions' },
-      '1on1-20': { name: '1-on-1 Private · 20 Sessions' },
-      '1on1-30': { name: '1-on-1 Private · 30 Sessions' },
-      '1on1-50': { name: '1-on-1 Private · 50 Sessions' },
-      '1on2-10': { name: '1-on-2 Semi-Private · 10 Sessions' },
-      '1on2-20': { name: '1-on-2 Semi-Private · 20 Sessions' },
-      '1on2-30': { name: '1-on-2 Semi-Private · 30 Sessions' },
-      '1on2-50': { name: '1-on-2 Semi-Private · 50 Sessions' },
-      '1on4-4':  { name: '1-on-4 Group · 4 Sessions/month' },
-      '1on4-8':  { name: '1-on-4 Group · 8 Sessions/month' },
-      'team':    { name: 'Swim Team · Monthly' },
-    }
     const planName = plan_id && PLANS[plan_id] ? PLANS[plan_id].name : 'Swim Lesson Package'
 
     // 3. Create invoice

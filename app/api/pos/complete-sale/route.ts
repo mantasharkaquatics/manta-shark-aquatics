@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     const expiresAt = new Date()
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+    expiresAt.setMonth(expiresAt.getMonth() + (plan.validityMonths ?? 12))
 
     const { data: lessonCredit, error: creditErr } = await supabase.from('lesson_credits').insert({
       student_id: null,
