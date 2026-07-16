@@ -267,14 +267,16 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
             const expStr = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
             const isExpired = item.expiresAt ? new Date(item.expiresAt).getTime() < Date.now() : false
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <div style={{ fontSize: '11px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.35)', flexShrink: 0, whiteSpace: 'nowrap' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
-                  {itemRemaining} / {item.credits} left
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ fontSize: '11px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                    {itemRemaining} / {item.credits} left
+                  </div>
                 </div>
                 {item.invoiceId && (
                   <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap', alignSelf: 'flex-end' }}>
                     Download Invoice
                   </a>
                 )}
