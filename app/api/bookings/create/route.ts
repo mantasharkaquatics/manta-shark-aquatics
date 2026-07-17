@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES } from '@/lib/tokens'
+import { LEAD_TIME_MINUTES, pickTokenPackage } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
@@ -128,12 +128,14 @@ export async function POST(req: NextRequest) {
   if (reschedule_booking_id) {
     const { data: ob } = await svc
       .from('bookings')
-      .select('id, parent_id, status, lesson_credit_id, class_session_id, original_booking_id')
+      .select('id, parent_id, status, lesson_credit_id, token_package_id, class_session_id, original_booking_id')
       .eq('id', reschedule_booking_id).single()
     if (!ob || ob.parent_id !== parent.id)
       return NextResponse.json({ error: 'Booking to reschedule not found' }, { status: 403 })
     if (ob.status !== 'confirmed')
       return NextResponse.json({ error: 'Only confirmed bookings can be rescheduled' }, { status: 400 })
+    if (ob.token_package_id)
+      return NextResponse.json({ error: 'Lessons booked with tokens cannot be rescheduled.' }, { status: 400 })
     const { data: oldSess } = await svc
       .from('class_sessions').select('session_date, start_time').eq('id', ob.class_session_id).single()
     if (oldSess && minutesUntil(oldSess.session_date, oldSess.start_time, today, nowMin) < 24 * 60)
@@ -144,20 +146,29 @@ export async function POST(req: NextRequest) {
   // Credits (server-side resolution, oldest first)
   const { data: creditRows } = await svc
     .from('lesson_credits')
-    .select('id, total_credits, used_credits, created_at')
+    .select('id, total_credits, used_credits, expires_at')
     .eq('parent_id', parent.id)
     .eq('course_type_id', course_type_id)
-    .order('created_at', { ascending: true })
-  const rows = (creditRows || []).map((c: any) => ({ ...c, remaining: c.total_credits - c.used_credits }))
+    .order('expires_at', { ascending: true })
+  const nowIso = new Date().toISOString()
+  const rows = (creditRows || [])
+    .filter((c: any) => !c.expires_at || c.expires_at > nowIso)
+    .map((c: any) => ({ ...c, remaining: c.total_credits - c.used_credits }))
   const totalRemaining = rows.reduce((s: number, c: any) => s + c.remaining, 0)
 
   const inheritCredit = !!oldBooking && !isPartnerBooking && !!oldBooking.lesson_credit_id
   let credit: any = null
   let credit2: any = null
+  // Token-first deduction (spec v1.1): single-student bookings only (1on1/1on4).
+  // All 1-on-2 bookings stay credit-only in v1; 1on2 tokens remain spendable on 1on4.
+  let token1: { id: string; course_type_id: string } | null = null
+  if (!isPartnerBooking && !oldBooking && !student2) {
+    token1 = await pickTokenPackage(svc, parent.id, course.slug, session_date, start_time)
+  }
   if (isPartnerBooking) {
     if (totalRemaining < 1)
       return NextResponse.json({ error: 'No remaining credits for this course type.' }, { status: 400 })
-  } else if (!inheritCredit) {
+  } else if (!inheritCredit && !token1) {
     credit = rows.find((c: any) => c.remaining > 0) || null
     if (!credit)
       return NextResponse.json({ error: 'No remaining credits for this course type.' }, { status: 400 })
@@ -176,7 +187,8 @@ export async function POST(req: NextRequest) {
     .insert({
       class_session_id: sessionId,
       parent_id: parent.id,
-      lesson_credit_id: isPartnerBooking ? null : (inheritCredit ? oldBooking.lesson_credit_id : credit.id),
+      lesson_credit_id: isPartnerBooking || token1 ? null : (inheritCredit ? oldBooking.lesson_credit_id : credit.id),
+      token_package_id: token1 ? token1.id : null,
       student_id: student.id,
       status: isPartnerBooking ? 'pending_partner' : 'confirmed',
       pending_action: null,
@@ -192,13 +204,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (!isPartnerBooking) {
-    if (!inheritCredit)
-      await svc.from('lesson_credits').update({ used_credits: credit.used_credits + 1 }).eq('id', credit.id)
+    if (token1) {
+      await svc.rpc('increment_used_tokens', { token_id: token1.id })
+    } else if (!inheritCredit) {
+      await svc.rpc('increment_used_credits', { credit_id: credit.id })
+    }
   }
 
   // Second student (same account)
   if (student2 && credit2) {
-    const bump = credit && credit2.id === credit.id ? 1 : 0
     const { error: s2Err } = await svc.from('bookings').insert({
       class_session_id: sessionId,
       parent_id: parent.id,
@@ -208,7 +222,7 @@ export async function POST(req: NextRequest) {
       original_booking_id: rootOriginalId,
     })
     if (!s2Err) {
-      await svc.from('lesson_credits').update({ used_credits: credit2.used_credits + bump + 1 }).eq('id', credit2.id)
+      await svc.rpc('increment_used_credits', { credit_id: credit2.id })
     }
   }
 
