@@ -409,7 +409,8 @@ export default function DashboardPage() {
         .from('lesson_credits')
         .select('id, total_credits, used_credits, course_type_id, student_id, created_at, expires_at, is_trial, course_types(name), purchases(paid_at, created_at), invoices(id)')
         .eq('parent_id', parentData.id)
-        .gt('total_credits', 0),
+        .gt('total_credits', 0)
+        .is('converted_to_token_at', null),
       supabase.from('bookings')
         .select('id, status, student_id, lesson_credit_id, token_package_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at')
         .eq('parent_id', parentData.id)
