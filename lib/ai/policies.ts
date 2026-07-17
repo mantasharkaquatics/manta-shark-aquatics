@@ -60,7 +60,7 @@ export const POLICIES = `
 - Occasional promotions are announced by email newsletter; parents can subscribe to receive them. The AI never invents or promises promotions or discounts.
 
 === BOOKING & COACHES ===
-- Online booking for the next day closes at 7:30 PM Pacific Time.
+- Bookings can be made online up until 30 minutes before the lesson start time. There is no earlier same-day or next-day cutoff.
 - Families can request a fixed weekly time slot: we pre-book the recurring slot in the system so it is reserved; unreserved slots may be taken by other families.
 - Parents may choose or request a specific coach for 1-on-1 and 1-on-2 lessons, either when booking online or by asking the team.
 - Students are welcome to try lessons with different coaches; parents can simply book a different coach's time slot online.
