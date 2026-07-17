@@ -648,6 +648,7 @@ function ParentTokensSection({ parentId }: { parentId: string }) {
   const [editTotals, setEditTotals] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [confirmCreate, setConfirmCreate] = useState(false)
 
   async function load() {
     setErr(null)
@@ -666,9 +667,16 @@ function ParentTokensSection({ parentId }: { parentId: string }) {
     if (next && !loaded) load()
   }
 
-  async function createPack() {
+  function requestCreate() {
     const qty = parseInt(newQty, 10)
     if (!newCourse || !Number.isInteger(qty) || qty < 1) { setErr('Pick a course and a quantity of at least 1'); return }
+    setErr(null)
+    setConfirmCreate(true)
+  }
+
+  async function createPack() {
+    const qty = parseInt(newQty, 10)
+    setConfirmCreate(false)
     setBusy(true); setErr(null)
     const res = await fetch('/api/admin/tokens', {
       method: 'POST',
@@ -757,12 +765,30 @@ function ParentTokensSection({ parentId }: { parentId: string }) {
                 className="w-16 bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
               <input type="text" placeholder="Note (optional)" value={newNote} onChange={e => setNewNote(e.target.value)}
                 className="flex-1 min-w-[140px] bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
-              <button onClick={createPack} disabled={busy}
+              <button onClick={requestCreate} disabled={busy}
                 className="text-xs px-3 py-1 rounded border border-purple-400/50 text-purple-300 hover:bg-purple-400/10 disabled:opacity-40">
                 + Manual Token
               </button>
             </div>
           )}
+        </div>
+      )}
+      {confirmCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setConfirmCreate(false)}>
+          <div className="bg-[#1a2744] border border-[#1e3a6e] rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <p className="text-xs text-purple-300 font-semibold tracking-wide mb-2">MANUAL TOKEN</p>
+            <h3 className="text-white font-semibold text-lg mb-3">Create manual token?</h3>
+            <div className="text-sm text-gray-300 space-y-1 mb-4">
+              <p>{courseTypes.find(c => c.id === newCourse)?.name || ''} · {parseInt(newQty, 10)} token{parseInt(newQty, 10) === 1 ? '' : 's'}</p>
+              <p className="text-gray-400 text-xs">Expires {new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })} (60 days)</p>
+              {newNote.trim() && <p className="text-gray-400 text-xs">Note: {newNote.trim()}</p>}
+            </div>
+            <p className="text-gray-500 text-xs mb-4">This grants free lesson tokens to this account.</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmCreate(false)} className="text-xs px-4 py-2 rounded border border-[#1e3a6e] text-gray-300 hover:bg-white/5">Cancel</button>
+              <button onClick={createPack} className="text-xs px-4 py-2 rounded bg-purple-500/80 text-white font-semibold hover:bg-purple-500">Confirm</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
