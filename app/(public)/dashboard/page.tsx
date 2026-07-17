@@ -289,15 +289,61 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
   )
 }
 
+interface TokenPack { id: string; course_name: string; remaining: number; expires_at: string; source: string }
+
+function TokenCard({ tokens }: { tokens: TokenPack[] }) {
+  if (tokens.length === 0) return null
+  const totalTokens = tokens.reduce((s, t) => s + t.remaining, 0)
+  const ORANGE = '#e8883a'
+  return (
+    <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${ORANGE}55`, padding: '20px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: ORANGE, marginBottom: '8px' }}>
+        Tokens
+      </div>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: ORANGE, lineHeight: 1 }}>{totalTokens}</div>
+      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '10px' }}>available for same-day or next-day booking</div>
+      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>Token bookings are final — no cancellation or reschedule.</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
+        {tokens.map(t => {
+          const daysLeft = Math.max(0, Math.ceil((new Date(t.expires_at).getTime() - Date.now()) / 86400000))
+          const urgent = daysLeft <= 7
+          return (
+            <div key={t.id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.course_name}</div>
+              <div style={{ fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <span style={{ fontWeight: 600, color: ORANGE }}>{t.remaining} token{t.remaining === 1 ? '' : 's'}</span>
+                <span style={{ color: urgent ? '#e05a4a' : 'rgba(255,255,255,0.35)', fontWeight: urgent ? 700 : 400 }}> · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const supabase = createClient()
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
+  const [tokenPacks, setTokenPacks] = useState<TokenPack[]>([])
+  const [cancelQuota, setCancelQuota] = useState<{ total: number; used: number; remaining: number } | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('Good morning')
+
+  async function loadTokens() {
+    try {
+      const res = await fetch('/api/parent/tokens')
+      if (!res.ok) return
+      const data = await res.json()
+      setTokenPacks(data.tokens || [])
+      setCancelQuota(data.quota || null)
+    } catch {}
+  }
+  useEffect(() => { loadTokens() }, [])
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string; partnerBookingId?: string } | null>(null)
@@ -1365,6 +1411,7 @@ export default function DashboardPage() {
                   )
                 })
               })()}
+              <TokenCard tokens={tokenPacks} />
             </div>
           )}
         </section>
