@@ -192,9 +192,11 @@ export default function HomePage() {
           var timer;
 
           function goTo(n) {
+            var target = document.querySelector('.tcard[data-slide="' + n + '"]');
+            if (!target) { clearInterval(timer); return; }
             document.querySelectorAll('.tcard').forEach(function(el) { el.classList.remove('active'); });
             document.querySelectorAll('.dot').forEach(function(el, i) { el.classList.toggle('active', i === n); });
-            document.querySelector('.tcard[data-slide="' + n + '"]').classList.add('active');
+            target.classList.add('active');
             current = n;
             clearInterval(timer);
             timer = setInterval(function() { goTo((current + 1) % total); }, 15000);
