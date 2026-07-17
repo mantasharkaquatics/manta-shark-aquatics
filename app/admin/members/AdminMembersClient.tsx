@@ -503,6 +503,9 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                     </div>
                   </div>
 
+                  {/* Tokens */}
+                  <ParentTokensSection parentId={parent.id} />
+
                   {/* Students */}
                   <div>
                     <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">Students</p>
@@ -628,6 +631,136 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
           <div className="text-center py-12 text-gray-400">No members found</div>
         )}
       </div>
+    </div>
+  )
+}
+
+type TokenPack = { id: string; course_type_id: string; total_tokens: number; used_tokens: number; expires_at: string; source: string; note: string | null; created_at: string }
+
+function ParentTokensSection({ parentId }: { parentId: string }) {
+  const [open, setOpen] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [packs, setPacks] = useState<TokenPack[]>([])
+  const [courseTypes, setCourseTypes] = useState<{ id: string; name: string }[]>([])
+  const [newCourse, setNewCourse] = useState('')
+  const [newQty, setNewQty] = useState('1')
+  const [newNote, setNewNote] = useState('')
+  const [editTotals, setEditTotals] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function load() {
+    setErr(null)
+    const res = await fetch('/api/admin/tokens?parent_id=' + parentId)
+    if (!res.ok) { setErr('Failed to load tokens'); return }
+    const d = await res.json()
+    setPacks(d.packages)
+    setCourseTypes(d.courseTypes)
+    setLoaded(true)
+    if (d.courseTypes.length > 0) setNewCourse((prev: string) => prev || d.courseTypes[0].id)
+  }
+
+  function toggle() {
+    const next = !open
+    setOpen(next)
+    if (next && !loaded) load()
+  }
+
+  async function createPack() {
+    const qty = parseInt(newQty, 10)
+    if (!newCourse || !Number.isInteger(qty) || qty < 1) { setErr('Pick a course and a quantity of at least 1'); return }
+    setBusy(true); setErr(null)
+    const res = await fetch('/api/admin/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_id: parentId, course_type_id: newCourse, total_tokens: qty, note: newNote.trim() || undefined }),
+    })
+    setBusy(false)
+    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || 'Create failed'); return }
+    setNewQty('1'); setNewNote('')
+    load()
+  }
+
+  async function adjust(pack: TokenPack) {
+    const raw = editTotals[pack.id]
+    const total = parseInt(raw ?? '', 10)
+    if (!Number.isInteger(total) || total < 0) { setErr('Enter a valid total'); return }
+    if (total === pack.total_tokens) return
+    setBusy(true); setErr(null)
+    const res = await fetch('/api/admin/tokens', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package_id: pack.id, total_tokens: total }),
+    })
+    setBusy(false)
+    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || 'Adjust failed'); return }
+    setEditTotals(prev => { const n = { ...prev }; delete n[pack.id]; return n })
+    load()
+  }
+
+  const courseName = (id: string) => courseTypes.find(c => c.id === id)?.name || '—'
+  const srcStyle = (src: string) =>
+    src === 'manual' ? 'border-purple-400/50 text-purple-300'
+    : src === 'cancellation' ? 'border-orange-400/50 text-orange-300'
+    : 'border-[#c9a84c]/50 text-[#c9a84c]'
+
+  return (
+    <div className="border-t border-[#1e3a6e]/40 pt-4">
+      <button onClick={toggle} className="text-gray-500 text-xs uppercase tracking-wider mb-1 hover:text-[#c9a84c] transition-colors">
+        Tokens {open ? '▾' : '▸'}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-3">
+          {err && <p className="text-red-400 text-xs">{err}</p>}
+          {!loaded && !err && <p className="text-gray-500 text-xs">Loading…</p>}
+          {loaded && packs.length === 0 && <p className="text-gray-500 text-xs">No token packages</p>}
+          {loaded && packs.map(pk => {
+            const expired = new Date(pk.expires_at) < new Date()
+            const remaining = pk.total_tokens - pk.used_tokens
+            return (
+              <div key={pk.id} className="flex flex-wrap items-center gap-3 text-sm border border-[#1e3a6e] rounded-lg px-3 py-2">
+                <span className="text-gray-300">{courseName(pk.course_type_id)}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full border ${srcStyle(pk.source)}`}>{pk.source}</span>
+                <span className={remaining > 0 && !expired ? 'text-gray-300' : 'text-gray-500'}>
+                  {remaining} left ({pk.used_tokens}/{pk.total_tokens} used)
+                </span>
+                <span className={expired ? 'text-red-400 text-xs' : 'text-gray-500 text-xs'}>
+                  {expired ? 'Expired' : 'Expires'} {new Date(pk.expires_at).toLocaleDateString('en-US')}
+                </span>
+                {pk.note && <span className="text-gray-500 text-xs truncate max-w-[200px]" title={pk.note}>{pk.note.split('\n')[0]}</span>}
+                <span className="flex items-center gap-1 ml-auto">
+                  <input
+                    type="number" min={pk.used_tokens}
+                    value={editTotals[pk.id] ?? String(pk.total_tokens)}
+                    onChange={e => setEditTotals(prev => ({ ...prev, [pk.id]: e.target.value }))}
+                    className="w-16 bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs"
+                  />
+                  <button onClick={() => adjust(pk)} disabled={busy}
+                    className="text-xs px-2 py-1 rounded border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 disabled:opacity-40">
+                    Save
+                  </button>
+                </span>
+              </div>
+            )
+          })}
+          {loaded && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <select value={newCourse} onChange={e => setNewCourse(e.target.value)}
+                className="bg-[#111d38] border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs">
+                {courseTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <input type="number" min={1} value={newQty} onChange={e => setNewQty(e.target.value)}
+                className="w-16 bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
+              <input type="text" placeholder="Note (optional)" value={newNote} onChange={e => setNewNote(e.target.value)}
+                className="flex-1 min-w-[140px] bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
+              <button onClick={createPack} disabled={busy}
+                className="text-xs px-3 py-1 rounded border border-purple-400/50 text-purple-300 hover:bg-purple-400/10 disabled:opacity-40">
+                + Manual Token
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
