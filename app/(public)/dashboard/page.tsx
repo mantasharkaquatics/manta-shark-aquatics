@@ -56,6 +56,7 @@ interface Booking {
   session_date: string; start_time: string; end_time: string
   course_name: string; coach_name: string; student_name?: string
   lesson_credit_id?: string
+  token_package_id?: string
   course_slug?: string
   student_id?: string
   is_trial?: boolean
@@ -348,7 +349,7 @@ export default function DashboardPage() {
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string; partnerBookingId?: string } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string; type?: 'cancel' | 'reject' } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
@@ -410,7 +411,7 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at')
+        .select('id, status, student_id, lesson_credit_id, token_package_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -538,6 +539,7 @@ export default function DashboardPage() {
           coach_name: cs?.coach?.first_name,
           student_name: studentMap[b.student_id]?.full_name ? (b._partner_student_name ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
           lesson_credit_id: b.lesson_credit_id,
+          token_package_id: b.token_package_id,
           course_slug: cs?.ct?.slug,
           student_id: b.student_id,
           is_trial: b.is_trial,
@@ -840,7 +842,7 @@ export default function DashboardPage() {
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
-              {cancelTarget.type === 'reject' ? 'The invitation will be cancelled.' : 'This lesson will be cancelled and your credit will be returned to your account.'}
+              {cancelTarget.type === 'reject' ? 'The invitation will be cancelled.' : cancelTarget.isLate ? `This lesson starts within 24 hours. Cancelling now converts your credit into 1 token — valid 60 days, same-day/next-day bookings only, and final once booked. You have ${cancelQuota?.remaining ?? 0} late-cancellation conversion${(cancelQuota?.remaining ?? 0) === 1 ? '' : 's'} remaining.` : 'This lesson will be cancelled and your credit will be returned to your account.'}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -1339,6 +1341,10 @@ export default function DashboardPage() {
                             View Cart →
                           </Link>
                         </div>
+                      ) : booking.token_package_id ? (
+                        <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '11px', fontWeight: 600 }}>
+                          🎫 Booked with token · Final
+                        </div>
                       ) : (
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
@@ -1347,18 +1353,22 @@ export default function DashboardPage() {
                             style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : 'Reschedule'}
                           </button>
-                          {daysUntil >= 1 ? (
-                            <button
-                              onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time) })}
-                              disabled={cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time)}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? 'rgba(255,255,255,0.2)' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: cancellingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) ? 'not-allowed' : 'pointer' }}>
-                              {cancellingId === booking.id ? '...' : 'Cancel'}
-                            </button>
-                          ) : (
-                            <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
-                              Cancel
-                            </div>
-                          )}
+                          {(() => {
+                            const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
+                            const lateOk = late && !!booking.lesson_credit_id && !booking.partner_booking_id && booking.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
+                            const enabled = (!late || lateOk) && cancellingId !== booking.id && booking.status !== 'pending_partner'
+                            return enabled ? (
+                              <button
+                                onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time), isLate: late })}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                {cancellingId === booking.id ? '...' : late ? 'Cancel → Token' : 'Cancel'}
+                              </button>
+                            ) : (
+                              <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
+                                Cancel
+                              </div>
+                            )
+                          })()}
                         </div>
                       )}
                     </div>
