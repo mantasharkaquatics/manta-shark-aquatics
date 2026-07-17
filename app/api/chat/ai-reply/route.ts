@@ -328,6 +328,7 @@ export async function POST(req: NextRequest) {
         .select('id, total_credits, used_credits, course_type_id, created_at')
         .eq('parent_id', parent!.id)
         .gt('total_credits', 0)
+        .is('converted_to_token_at', null)
         .order('created_at', { ascending: true })
       const rows = creds || []
       const ctIds = [...new Set(rows.map(c => c.course_type_id).filter(Boolean))]

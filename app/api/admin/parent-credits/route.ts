@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     .select('id, used_credits, total_credits')
     .eq('parent_id', parentId)
     .eq('course_type_id', courseTypeId)
+    .is('converted_to_token_at', null)
     .order('expires_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

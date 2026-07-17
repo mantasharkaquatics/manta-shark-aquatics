@@ -99,6 +99,7 @@ async function allocateCredits(svc: any, parentId: string, courseTypeId: string,
     .select('id, used_credits, total_credits')
     .eq('parent_id', parentId)
     .eq('course_type_id', courseTypeId)
+    .is('converted_to_token_at', null)
     .order('expires_at', { ascending: true })
   const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits }))
   const totalRemaining = pool.reduce((s: number, c: any) => s + c.remaining, 0)

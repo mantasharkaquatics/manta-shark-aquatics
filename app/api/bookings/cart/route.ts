@@ -82,6 +82,7 @@ async function creditSummary(svc: any, parentId: string, items: any[]) {
       .from('lesson_credits')
       .select('total_credits, used_credits')
       .eq('parent_id', parentId).eq('course_type_id', ctId)
+      .is('converted_to_token_at', null)
     const remaining = (credits || []).reduce((s: number, c: any) => s + (c.total_credits - c.used_credits), 0)
     const name = items.find((i: any) => i.course_type_id === ctId)?.course_name || ''
     result.push({ course_type_id: ctId, course_name: name, needed, remaining, sufficient: remaining >= needed })
@@ -250,6 +251,7 @@ export async function POST(req: NextRequest) {
         .from('lesson_credits')
         .select('id, total_credits, used_credits')
         .eq('parent_id', parent.id).eq('course_type_id', ctId)
+        .is('converted_to_token_at', null)
         .order('expires_at', { ascending: true })
       const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits }))
       const remaining = pool.reduce((s, c) => s + c.remaining, 0)

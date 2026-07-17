@@ -92,10 +92,12 @@ export async function POST(req: NextRequest) {
   const { data: partnerCredits } = await supabase
     .from('lesson_credits').select('id, total_credits, used_credits, course_type_id')
     .eq('parent_id', confirmingParent.id)
+    .is('converted_to_token_at', null)
 
   const { data: initiatorCredits } = await supabase
     .from('lesson_credits').select('id, total_credits, used_credits, course_type_id')
     .eq('parent_id', initiatorBooking.parent_id)
+    .is('converted_to_token_at', null)
 
   const partnerCredit = (partnerCredits || [])
     .filter(c => c.course_type_id === courseTypeId && (c.total_credits - c.used_credits) > 0)

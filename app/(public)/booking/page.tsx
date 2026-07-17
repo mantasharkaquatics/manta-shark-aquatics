@@ -226,7 +226,8 @@ export default function BookingPage() {
         supabase.from('lesson_credits')
           .select('id, total_credits, used_credits, course_type_id, student_id, created_at')
           .eq('parent_id', parent.id)
-          .filter('total_credits', 'gt', 0),
+          .filter('total_credits', 'gt', 0)
+          .is('converted_to_token_at', null),
       ])
 
       setStudents(studs || [])
