@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { tokenExpiryFromNow } from '@/lib/tokens'
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -20,7 +21,7 @@ async function getAffected(svc: any, block: any) {
   const ids = overlapped.map((s: any) => s.id)
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, status, lesson_credit_id, block_notice_sent_at, cancellation_reason')
+    .select('id, class_session_id, parent_id, student_id, status, lesson_credit_id, token_package_id, block_notice_sent_at, cancellation_reason')
     .in('class_session_id', ids)
     .or('status.eq.confirmed,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
   return { sessions: overlapped, bookings: bookings || [] }
@@ -120,6 +121,7 @@ export async function POST(req: NextRequest) {
           pending_action: null,
           cancellation_reason: 'coach_time_off',
           cancelled_by: 'admin',
+          cancelled_at: new Date().toISOString(),
         })
         .eq('id', b.id)
         .eq('status', 'confirmed')
@@ -127,6 +129,22 @@ export async function POST(req: NextRequest) {
       if (!c || c.length === 0) continue
       if (b.lesson_credit_id) {
         await svc.rpc('decrement_used_credits', { credit_id: b.lesson_credit_id })
+      } else if (b.token_package_id) {
+        // Coach time-off is a school-side cancellation: refund in kind with a
+        // fresh 60-day expiry. source is 'school_cancellation', NOT
+        // 'cancellation' — the latter counts against the parent's quota.
+        const ct = sessions.find((s: any) => s.id === b.class_session_id)?.course_type_id
+        if (ct) {
+          await svc.from('token_packages').insert({
+            parent_id: b.parent_id,
+            course_type_id: ct,
+            total_tokens: 1,
+            source: 'school_cancellation',
+            source_booking_id: b.id,
+            expires_at: tokenExpiryFromNow(),
+            note: 'Reissued: lesson cancelled by school',
+          })
+        }
       }
       touchedSessions.add(b.class_session_id)
       cancelled++
