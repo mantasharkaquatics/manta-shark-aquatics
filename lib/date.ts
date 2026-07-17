@@ -48,3 +48,12 @@ export function formatTime12h(t: string | null | undefined): string {
   const h12 = h % 12 || 12
   return h12 + ':' + m + ' ' + ampm
 }
+
+// Minutes from (todayStr @ nowMin) until (dateStr @ timeStr). Negative if already passed.
+// Moved from bookings create/cart routes (was duplicated); LA-time inputs from getTodayLA/getNowMinutesLA.
+export function minutesUntil(dateStr: string, timeStr: string, todayStr: string, nowMin: number) {
+  const d = (s: string) => Date.parse(s + 'T00:00:00Z')
+  const days = Math.round((d(dateStr) - d(todayStr)) / 86400000)
+  const [h, m] = timeStr.split(':').map(Number)
+  return days * 1440 + h * 60 + m - nowMin
+}

@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
-import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
+import { LEAD_TIME_MINUTES } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
-
-function minutesUntil(dateStr: string, timeStr: string, todayStr: string, nowMin: number) {
-  const d = (s: string) => Date.parse(s + 'T00:00:00Z')
-  const days = Math.round((d(dateStr) - d(todayStr)) / 86400000)
-  const [h, m] = timeStr.split(':').map(Number)
-  return days * 1440 + h * 60 + m - nowMin
-}
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -34,14 +28,11 @@ export async function POST(req: NextRequest) {
   // Date & cutoff checks (LA time)
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
-  if (session_date < today || (session_date === today && minutesUntil(session_date, start_time, today, nowMin) <= 0))
-    return NextResponse.json({ error: 'This time has already passed. Please pick another time.' }, { status: 400 })
+  if (session_date < today || minutesUntil(session_date, start_time, today, nowMin) < LEAD_TIME_MINUTES)
+    return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts. Please pick a later time.' }, { status: 400 })
   const maxDate = formatDateLA(new Date(Date.now() + 60 * 86400000))
   if (session_date > maxDate)
     return NextResponse.json({ error: 'Bookings can only be made up to 60 days in advance.' }, { status: 400 })
-  const tomorrow = formatDateLA(new Date(Date.now() + 86400000))
-  if (session_date === tomorrow && nowMin >= 19 * 60 + 30)
-    return NextResponse.json({ error: 'Next-day bookings after 7:30 PM must be made through us. Please contact us and we will reserve your spot.' }, { status: 400 })
 
   // Course type & coach
   const { data: course } = await svc
