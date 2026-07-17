@@ -1642,7 +1642,7 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 mb-3">
               <p className="text-sm text-red-300 font-medium">Cancel this lesson?</p>
-              <p className="text-xs text-red-300/70 mt-1">All bookings in this session will be cancelled together, deducted credits will be refunded, and cancellation notices will be emailed to the parents.</p>
+              <p className="text-xs text-red-300/70 mt-1">All bookings in this session will be cancelled together, credits or tokens will be returned, and cancellation notices will be emailed to the parents.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={cancelSession} disabled={cancelling}

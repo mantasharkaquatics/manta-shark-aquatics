@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       if (!s || !par?.email) continue
       const ok = await sendEmail({
         type: 'block_cancellation_notice',
+        refundKind: b.token_package_id ? 'token' : b.lesson_credit_id ? 'credit' : 'none',
         to: par.email,
         parentName: par.first_name,
         studentName: stu?.full_name || '',

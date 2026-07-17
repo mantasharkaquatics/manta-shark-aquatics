@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   const { data: sessRow } = await svc
     .from('class_sessions').select('course_type_id').eq('id', session_id).single()
 
-  const notified: { parent_id: string; student_id: string }[] = []
+  const notified: { parent_id: string; student_id: string; kind: 'credit' | 'token' | 'none' }[] = []
 
   for (const b of bookings || []) {
     if (b.status === 'confirmed') {
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
           note: 'Reissued: lesson cancelled by school',
         })
       }
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id })
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.lesson_credit_id ? 'credit' : (b.token_package_id && sessRow?.course_type_id ? 'token' : 'none') })
     } else {
       // pending_partner etc.: no credits were deducted, cancel without refund
       const { data: c } = await svc
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         .eq('status', b.status)
         .select('id')
       if (!c || c.length === 0) continue
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id })
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: 'none' })
     }
   }
 
@@ -94,10 +94,18 @@ export async function POST(req: NextRequest) {
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
       const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
       const timeStr = formatTime12h(sess.start_time) + ' \u2013 ' + formatTime12h(sess.end_time)
+      const kindsByParent = new Map<string, Set<string>>()
+      for (const n of notified) {
+        if (!n.parent_id || n.kind === 'none') continue
+        if (!kindsByParent.has(n.parent_id)) kindsByParent.set(n.parent_id, new Set())
+        kindsByParent.get(n.parent_id)!.add(n.kind)
+      }
       const seen = new Set<string>()
       for (const t of notified) {
         if (!t.parent_id || seen.has(t.parent_id)) continue
         seen.add(t.parent_id)
+        const ks = kindsByParent.get(t.parent_id)
+        const refundKind = !ks || ks.size === 0 ? 'none' : ks.size > 1 ? 'mixed' : (Array.from(ks)[0] as 'credit' | 'token')
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
         const { data: s } = await svc.from('students').select('full_name').eq('id', t.student_id).single()
         if (p?.email) {
@@ -110,6 +118,7 @@ export async function POST(req: NextRequest) {
             coachName,
             date: sess.session_date,
             time: timeStr,
+            refundKind,
           })
         }
       }

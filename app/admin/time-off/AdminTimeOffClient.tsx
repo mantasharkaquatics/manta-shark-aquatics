@@ -198,7 +198,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                         <p className="text-gray-400 text-xs">{i.course_name} · {i.time}</p>
                       </div>
                       {i.status === 'cancelled' ? (
-                        <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">✓ Cancelled · credit refunded</span>
+                        <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">✓ Cancelled · refunded</span>
                       ) : i.notice_sent_at ? (
                         <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-1 rounded">📧 Notified · awaiting cancel</span>
                       ) : (
@@ -218,12 +218,12 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                       disabled={acting === item.id || confirmedNotified.length === 0}
                       className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-40 transition-all"
                       style={{ backgroundColor: '#ef4444', color: '#fff' }}>
-                      {acting === item.id ? 'Working...' : `Cancel & refund credits (${confirmedNotified.length})`}
+                      {acting === item.id ? 'Working...' : `Cancel & refund (${confirmedNotified.length})`}
                     </button>
                   </div>
                 )}
                 {confirmedNoNotice.length === 0 && confirmedNotified.length === 0 && cancelledItems.length > 0 && (
-                  <p className="text-gray-500 text-xs">All affected lessons have been cancelled and credits refunded.</p>
+                  <p className="text-gray-500 text-xs">All affected lessons have been cancelled and refunds issued.</p>
                 )}
                 <p className="text-gray-500 text-xs">Cancel is only enabled for lessons whose notice has been sent — parents are always informed first.</p>
               </>
@@ -311,7 +311,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                 </h3>
                 <p className="text-sm text-gray-400">
                   {confirmAction.kind === 'cancel'
-                    ? `${confirmAction.count} notified lesson${(confirmAction.count || 0) > 1 ? 's' : ''} will be cancelled and credits refunded to the parents. This cannot be undone.`
+                    ? `${confirmAction.count} notified lesson${(confirmAction.count || 0) > 1 ? 's' : ''} will be cancelled and credits or tokens returned to the parents. This cannot be undone.`
                     : 'This time off / block will be removed. Already-cancelled lessons are not restored.'}
                 </p>
                 <div className="flex gap-3 pt-1">

@@ -190,9 +190,9 @@ export async function cancelBookingWithPartner(
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', sess2.coach_id).single()
       const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
       const timeStr = formatTime12h(sess2.start_time) + ' \u2013 ' + formatTime12h(sess2.end_time)
-      const targets: { parent_id: string; student_id: string }[] = [
-        { parent_id: booking.parent_id, student_id: booking.student_id },
-        ...cancelledPartners,
+      const targets: { parent_id: string; student_id: string; kind: 'credit' | 'token_conversion' | 'none' }[] = [
+        { parent_id: booking.parent_id, student_id: booking.student_id, kind: booking.lesson_credit_id ? (convertToToken ? 'token_conversion' : 'credit') : 'none' },
+        ...cancelledPartners.map((p) => ({ ...p, kind: 'credit' as const })),
       ]
       const seen = new Set<string>()
       for (const t of targets) {
@@ -210,6 +210,7 @@ export async function cancelBookingWithPartner(
             coachName,
             date: sess2.session_date,
             time: timeStr,
+            refundKind: t.kind,
           })
         }
       }
