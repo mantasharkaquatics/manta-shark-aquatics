@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
           pending_action: null,
           cancellation_reason: 'cancelled_by_school',
           cancelled_by: 'admin',
+          cancelled_at: new Date().toISOString(),
         })
         .eq('id', b.id)
         .eq('status', 'confirmed')
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
           pending_action: null,
           cancellation_reason: 'cancelled_by_school',
           cancelled_by: 'admin',
+          cancelled_at: new Date().toISOString(),
         })
         .eq('id', b.id)
         .eq('status', b.status)
