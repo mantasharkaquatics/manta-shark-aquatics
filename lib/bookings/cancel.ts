@@ -1,12 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { getCancellationQuota, tokenExpiryFromNow } from '@/lib/tokens'
 
 export type CancelResult = {
   ok: boolean
   status: number
   error?: string
   cancelledBookingIds: string[]
+  convertedToToken?: boolean
 }
 
 // Cancels one booking plus any same-account and cross-account partner bookings
@@ -20,7 +22,7 @@ export async function cancelBookingWithPartner(
 ): Promise<CancelResult> {
   const { data: booking } = await svc
     .from('bookings')
-    .select('id, class_session_id, lesson_credit_id, parent_id, student_id, status')
+    .select('id, class_session_id, lesson_credit_id, token_package_id, partner_booking_id, parent_id, student_id, status')
     .eq('id', bookingId)
     .single()
 
@@ -38,6 +40,40 @@ export async function cancelBookingWithPartner(
     return { ok: false, status: 403, error: 'Forbidden', cancelledBookingIds: [] }
   }
 
+  // Token-booked lessons are final (spec v1.1): no cancellation, no reschedule.
+  if (booking.token_package_id) {
+    return { ok: false, status: 400, error: 'Lessons booked with tokens cannot be cancelled.', cancelledBookingIds: [] }
+  }
+
+  // Parent-initiated cancellation within 24h: convert the spent credit to a
+  // token (quota-gated) instead of refunding. Admin/system callers keep the
+  // plain credit refund. 1-on-2 within 24h stays human-handled (v1 exclusion).
+  let convertToToken = false
+  let convertCourseTypeId: string | null = null
+  if (callerParentId) {
+    const { data: timing } = await svc
+      .from('class_sessions')
+      .select('session_date, start_time, course_type_id')
+      .eq('id', booking.class_session_id)
+      .single()
+    if (timing && minutesUntil(timing.session_date, timing.start_time, getTodayLA(), getNowMinutesLA()) < 24 * 60) {
+      const { data: ct } = await svc
+        .from('course_types').select('slug').eq('id', timing.course_type_id).single()
+      if (ct?.slug === '1on2' || booking.partner_booking_id) {
+        return { ok: false, status: 400, error: '1-on-2 lessons starting within 24 hours cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
+      }
+      if (!booking.lesson_credit_id) {
+        return { ok: false, status: 400, error: 'This lesson starts within 24 hours and cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
+      }
+      const quota = await getCancellationQuota(svc, booking.parent_id)
+      if (quota.remaining <= 0) {
+        return { ok: false, status: 400, error: 'This lesson starts within 24 hours and cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
+      }
+      convertToToken = true
+      convertCourseTypeId = timing.course_type_id
+    }
+  }
+
   // Idempotent claim on the primary booking
   const { data: claimed } = await svc
     .from('bookings')
@@ -53,7 +89,24 @@ export async function cancelBookingWithPartner(
   const cancelledPartners: { parent_id: string; student_id: string }[] = []
 
   if (booking.lesson_credit_id) {
-    await svc.rpc('decrement_used_credits', { credit_id: booking.lesson_credit_id })
+    if (convertToToken && convertCourseTypeId) {
+      const { error: tokenErr } = await svc.from('token_packages').insert({
+        parent_id: booking.parent_id,
+        course_type_id: convertCourseTypeId,
+        total_tokens: 1,
+        source: 'cancellation',
+        source_booking_id: booking.id,
+        expires_at: tokenExpiryFromNow(),
+        note: 'Late cancellation conversion',
+      })
+      if (tokenErr) {
+        // Never leave the parent short: fall back to a plain credit refund.
+        await svc.rpc('decrement_used_credits', { credit_id: booking.lesson_credit_id })
+        convertToToken = false
+      }
+    } else {
+      await svc.rpc('decrement_used_credits', { credit_id: booking.lesson_credit_id })
+    }
   }
 
   // Same-account 1-on-2: cancel sibling bookings on the same session
@@ -163,5 +216,5 @@ export async function cancelBookingWithPartner(
     }
   } catch {}
 
-  return { ok: true, status: 200, cancelledBookingIds }
+  return { ok: true, status: 200, cancelledBookingIds, convertedToToken: convertToToken }
 }
