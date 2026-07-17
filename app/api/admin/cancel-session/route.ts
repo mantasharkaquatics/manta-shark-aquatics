@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { tokenExpiryFromNow } from '@/lib/tokens'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -13,9 +14,12 @@ export async function POST(req: NextRequest) {
 
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, lesson_credit_id, parent_id, student_id, status')
+    .select('id, lesson_credit_id, token_package_id, parent_id, student_id, status')
     .eq('class_session_id', session_id)
     .neq('status', 'cancelled')
+
+  const { data: sessRow } = await svc
+    .from('class_sessions').select('course_type_id').eq('id', session_id).single()
 
   const notified: { parent_id: string; student_id: string }[] = []
 
@@ -37,6 +41,20 @@ export async function POST(req: NextRequest) {
       if (!c || c.length === 0) continue
       if (b.lesson_credit_id) {
         await svc.rpc('decrement_used_credits', { credit_id: b.lesson_credit_id })
+      } else if (b.token_package_id && sessRow?.course_type_id) {
+        // School cancelled a token lesson: reissue a fresh 60-day token rather
+        // than crediting back the original package (its remaining days may be
+        // nearly gone). source is 'school_cancellation', NOT 'cancellation' —
+        // the latter is counted against the parent's late-cancellation quota.
+        await svc.from('token_packages').insert({
+          parent_id: b.parent_id,
+          course_type_id: sessRow.course_type_id,
+          total_tokens: 1,
+          source: 'school_cancellation',
+          source_booking_id: b.id,
+          expires_at: tokenExpiryFromNow(),
+          note: 'Reissued: lesson cancelled by school',
+        })
       }
       notified.push({ parent_id: b.parent_id, student_id: b.student_id })
     } else {

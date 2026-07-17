@@ -702,7 +702,11 @@ function ParentTokensSection({ parentId }: { parentId: string }) {
   const srcStyle = (src: string) =>
     src === 'manual' ? 'border-purple-400/50 text-purple-300'
     : src === 'cancellation' ? 'border-orange-400/50 text-orange-300'
+    : src === 'school_cancellation' ? 'border-red-400/50 text-red-300'
     : 'border-[#c9a84c]/50 text-[#c9a84c]'
+
+  // Badge text: raw source values are DB-facing; school_cancellation is too long for the pill.
+  const srcLabel = (src: string) => src === 'school_cancellation' ? 'school' : src
 
   return (
     <div className="border-t border-[#1e3a6e]/40 pt-4">
@@ -720,7 +724,7 @@ function ParentTokensSection({ parentId }: { parentId: string }) {
             return (
               <div key={pk.id} className="flex flex-wrap items-center gap-3 text-sm border border-[#1e3a6e] rounded-lg px-3 py-2">
                 <span className="text-gray-300">{courseName(pk.course_type_id)}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full border ${srcStyle(pk.source)}`}>{pk.source}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full border ${srcStyle(pk.source)}`}>{srcLabel(pk.source)}</span>
                 <span className={remaining > 0 && !expired ? 'text-gray-300' : 'text-gray-500'}>
                   {remaining} left ({pk.used_tokens}/{pk.total_tokens} used)
                 </span>
