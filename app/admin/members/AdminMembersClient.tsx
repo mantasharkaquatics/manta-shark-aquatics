@@ -729,7 +729,7 @@ function ParentTokensSection({ parentId }: { parentId: string }) {
                   {remaining} left ({pk.used_tokens}/{pk.total_tokens} used)
                 </span>
                 <span className={expired ? 'text-red-400 text-xs' : 'text-gray-500 text-xs'}>
-                  {expired ? 'Expired' : 'Expires'} {new Date(pk.expires_at).toLocaleDateString('en-US')}
+                  {expired ? 'Expired' : 'Expires'} {new Date(pk.expires_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                 </span>
                 {pk.note && <span className="text-gray-500 text-xs truncate max-w-[200px]" title={pk.note}>{pk.note.split('\n')[0]}</span>}
                 <span className="flex items-center gap-1 ml-auto">
