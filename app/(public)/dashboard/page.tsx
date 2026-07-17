@@ -381,6 +381,7 @@ export default function DashboardPage() {
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
+    loadTokens()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
