@@ -352,6 +352,9 @@ export default function BookingPage() {
       if (!meetsLeadTime(dateStr, t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
       }
+      if (isToday(selectedDate!) && !hasTokenForCourse) {
+        return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
+      }
       if (inCoachBlock(t) || blockedTimes.has(t) || studentBookedTimes.has(t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
       }
