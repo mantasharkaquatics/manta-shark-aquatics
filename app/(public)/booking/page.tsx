@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { tokenSlugsForTarget, meetsLeadTime } from '@/lib/tokens'
 import BookingCart from '@/components/BookingCart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -150,6 +151,10 @@ export default function BookingPage() {
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([])
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
+  const [tokens, setTokens] = useState<{ id: string; course_type_id: string; remaining: number; expires_at: string }[]>([])
+  useEffect(() => {
+    fetch('/api/parent/tokens').then(r => r.ok ? r.json() : null).then(d => { if (d?.tokens) setTokens(d.tokens) }).catch(() => {})
+  }, [])
   const [partnerStudents, setPartnerStudents] = useState<PartnerStudent[]>([])
   const [selectedStudent2, setSelectedStudent2] = useState<Student | PartnerStudent | null>(null)
 
@@ -344,6 +349,9 @@ export default function BookingPage() {
 
     const slots: TimeSlot[] = allSlots.map(t => {
       const maxStudents = selectedCourse.max_students
+      if (!meetsLeadTime(dateStr, t)) {
+        return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
+      }
       if (inCoachBlock(t) || blockedTimes.has(t) || studentBookedTimes.has(t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
       }
@@ -362,6 +370,21 @@ export default function BookingPage() {
     setTimeSlots(slots)
   }
 
+  const slugById: Record<string, string> = {}
+  for (const ct of courseTypes) slugById[ct.id] = ct.slug
+  const eligibleTokens = selectedCourse && selectedCourse.slug !== '1on2'
+    ? tokens.filter(t => tokenSlugsForTarget(selectedCourse.slug).includes(slugById[t.course_type_id]) && t.remaining > 0)
+    : []
+  const tokenRemaining = eligibleTokens.reduce((sum, t) => sum + t.remaining, 0)
+  const hasTokenForCourse = tokenRemaining > 0
+  function inTokenWindow(date: Date): boolean {
+    if (isToday(date)) return true
+    const tm = new Date(today); tm.setDate(tm.getDate() + 1); tm.setHours(0, 0, 0, 0)
+    const d = new Date(date); d.setHours(0, 0, 0, 0)
+    return d.getTime() === tm.getTime()
+  }
+  const willUseToken = !!selectedCourse && !!selectedDate && !isTrial && hasTokenForCourse && inTokenWindow(selectedDate)
+
   const availableCredit = selectedCourse
     ? [...credits]
         .filter(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
@@ -376,7 +399,7 @@ export default function BookingPage() {
   const needsAssessment = !!selectedStudent && selectedStudent.current_level == null
 
   async function handleConfirm() {
-    if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || (!availableCredit && !isTrial)) return
+    if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || (!availableCredit && !isTrial && !willUseToken)) return
     setSubmitting(true)
 
     const dateStr = formatDateLA(selectedDate)
@@ -537,18 +560,6 @@ export default function BookingPage() {
     const dateMidnight = new Date(date)
     dateMidnight.setHours(0, 0, 0, 0)
     return dateMidnight.getTime() === todayMidnight.getTime()
-  }
-
-  function isNextDayBlocked(date: Date): boolean {
-    const nowLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
-    const isPastCutoff = nowLA.getHours() > 19 || (nowLA.getHours() === 19 && nowLA.getMinutes() >= 30)
-    if (!isPastCutoff) return false
-    const tomorrow = new Date(nowLA)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(0, 0, 0, 0)
-    const tomorrowEnd = new Date(tomorrow)
-    tomorrowEnd.setHours(23, 59, 59, 999)
-    return date >= tomorrow && date <= tomorrowEnd
   }
 
   if (loading) return (
@@ -779,7 +790,7 @@ export default function BookingPage() {
               })}
             </div>
 
-            {selectedCourse && (!availableCredit && !isTrial) && (
+            {selectedCourse && (!availableCredit && !isTrial && !willUseToken) && (
               <div style={{
                 marginTop: '16px', padding: '14px 18px',
                 background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)',
@@ -854,7 +865,7 @@ export default function BookingPage() {
               }}>← Back</button>
               <button
                 onClick={() => {
-                  if (!selectedCourse || (!availableCredit && !isTrial)) return
+                  if (!selectedCourse || (!availableCredit && !isTrial && !willUseToken)) return
                   if (selectedCourse.slug === '1on2') {
                     if (!selectedStudent2) return
                     if (!(selectedStudent2 as any).isPartner && remainingCredits < 2) return
@@ -862,14 +873,14 @@ export default function BookingPage() {
                   setStep(2)
                 }}
                 disabled={
-                  !selectedCourse || (!availableCredit && !isTrial) ||
+                  !selectedCourse || (!availableCredit && !isTrial && !willUseToken) ||
                   (selectedCourse?.slug === '1on2' && !selectedStudent2) ||
                   (selectedCourse?.slug === '1on2' && !(selectedStudent2 as any)?.isPartner && remainingCredits < 2)
                 }
                 style={{
                   flex: 2, padding: '14px',
-                  background: (!selectedCourse || (!availableCredit && !isTrial) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
-                  color: (!selectedCourse || (!availableCredit && !isTrial) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
+                  background: (!selectedCourse || (!availableCredit && !isTrial && !willUseToken) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
+                  color: (!selectedCourse || (!availableCredit && !isTrial && !willUseToken) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: 'pointer',
@@ -976,7 +987,7 @@ export default function BookingPage() {
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
                   Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
-                {isToday(selectedDate) && (
+                {isToday(selectedDate) && !hasTokenForCourse && (
                   <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>📅</span>
                     <div>
@@ -986,13 +997,12 @@ export default function BookingPage() {
                     </div>
                   </div>
                 )}
-                {isNextDayBlocked(selectedDate) && (
-                  <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <span style={{ fontSize: '16px' }}>⚠️</span>
+                {isToday(selectedDate) && hasTokenForCourse && (
+                  <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Advance Booking Required</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Bookings for the next day must be made through us after 7:30 PM. Please contact us and we'll reserve your spot.</div>
-                      <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>Booking with a Token</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>This lesson will use 1 token ({tokenRemaining} available). Token bookings are final — no cancellation or reschedule. Times within 30 minutes are unavailable.</div>
                     </div>
                   </div>
                 )}
@@ -1033,15 +1043,15 @@ export default function BookingPage() {
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>← Back</button>
               <button
-                onClick={() => { if (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) setStep(4) }}
-                disabled={!selectedSlot || isNextDayBlocked(selectedDate!) || isToday(selectedDate!)}
+                onClick={() => { if (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) setStep(4) }}
+                disabled={!selectedSlot || (isToday(selectedDate!) && !hasTokenForCourse)}
                 style={{
                   flex: 2, padding: '14px',
-                  background: (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) ? NAVY : 'rgba(255,255,255,0.3)',
+                  background: (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) ? GOLD : 'rgba(255,255,255,0.1)',
+                  color: (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) ? NAVY : 'rgba(255,255,255,0.3)',
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: (selectedSlot && !isNextDayBlocked(selectedDate!) && !isToday(selectedDate!)) ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase', cursor: (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) ? 'pointer' : 'not-allowed',
                 }}
               >Continue →</button>
             </div>
@@ -1059,7 +1069,7 @@ export default function BookingPage() {
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
                 { label: 'Duration', value: `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
+                { label: isTrial ? 'Price' : willUseToken ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : willUseToken ? '1 token' : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1071,12 +1081,12 @@ export default function BookingPage() {
               ))}
               {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Remaining Credits After</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1} credits</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{willUseToken ? `${tokenRemaining - 1} tokens` : `${isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1} credits`}</span>
               </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Cancellations made within 24 hours are not eligible for a refund.{' '}
+                {willUseToken ? 'Token bookings are final — they cannot be cancelled or rescheduled.' : 'Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Cancellations made within 24 hours are not eligible for a refund.'}{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   View full terms
                 </a>
