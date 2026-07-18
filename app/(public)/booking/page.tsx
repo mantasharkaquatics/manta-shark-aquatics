@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { tokenSlugsForTarget, meetsLeadTime } from '@/lib/tokens'
+import { tokenSlugsForTarget, meetsLeadTime, isWithin24Hours } from '@/lib/tokens'
 import BookingCart from '@/components/BookingCart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -18,7 +18,7 @@ interface Student { id: string; full_name: string; current_level: number; parent
 interface PartnerStudent { id: string; full_name: string; current_level: number; parent_id: string; isPartner: true; partnerParentId: string; partnershipId: string }
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
-interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string }
+interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string; within24h?: boolean }
 interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string | null }
 
 const COURSE_COLORS: Record<string, string> = {
@@ -353,7 +353,8 @@ export default function BookingPage() {
       if (!meetsLeadTime(dateStr, t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
       }
-      if (isToday(selectedDate!) && !hasTokenForCourse) {
+      const within24h = isWithin24Hours(dateStr, t)
+      if (!availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate!)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
       }
       if (inCoachBlock(t) || blockedTimes.has(t) || studentBookedTimes.has(t)) {
@@ -364,11 +365,11 @@ export default function BookingPage() {
         const isFull = existing.enrolled_count >= existing.max_students
         return {
           time: t, label: formatTime(t),
-          available: !isFull,
+          available: !isFull, within24h,
           enrolled: existing.enrolled_count, max: existing.max_students, session_id: isFull ? undefined : existing.id,
         }
       }
-      return { time: t, label: formatTime(t), available: true, enrolled: 0, max: maxStudents }
+      return { time: t, label: formatTime(t), available: true, enrolled: 0, max: maxStudents, within24h }
     })
 
     setTimeSlots(slots)
@@ -763,6 +764,9 @@ export default function BookingPage() {
                 const remaining = credits
                   .filter(c => c.course_type_id === ct.id)
                   .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
+                const ctTokens = ct.slug !== '1on2'
+                  ? tokens.filter(t => tokenSlugsForTarget(ct.slug).includes(slugById[t.course_type_id]) && t.remaining > 0).reduce((s2, t) => s2 + t.remaining, 0)
+                  : 0
                 return (
                   <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -781,6 +785,12 @@ export default function BookingPage() {
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '12px', fontWeight: 700, color,
                         }}>{remaining} credits</div>
+                      ) : ctTokens > 0 ? (
+                        <div style={{
+                          background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.4)',
+                          borderRadius: '20px', padding: '4px 12px',
+                          fontSize: '12px', fontWeight: 700, color: '#e8883a',
+                        }}>{ctTokens} token{ctTokens === 1 ? '' : 's'}</div>
                       ) : (
                         <div style={{
                           background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
@@ -794,7 +804,7 @@ export default function BookingPage() {
               })}
             </div>
 
-            {selectedCourse && (!availableCredit && !isTrial && !willUseToken) && (
+            {selectedCourse && (!availableCredit && !isTrial && !hasTokenForCourse) && (
               <div style={{
                 marginTop: '16px', padding: '14px 18px',
                 background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)',
@@ -869,7 +879,7 @@ export default function BookingPage() {
               }}>← Back</button>
               <button
                 onClick={() => {
-                  if (!selectedCourse || (!availableCredit && !isTrial && !willUseToken)) return
+                  if (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse)) return
                   if (selectedCourse.slug === '1on2') {
                     if (!selectedStudent2) return
                     if (!(selectedStudent2 as any).isPartner && remainingCredits < 2) return
@@ -877,14 +887,14 @@ export default function BookingPage() {
                   setStep(2)
                 }}
                 disabled={
-                  !selectedCourse || (!availableCredit && !isTrial && !willUseToken) ||
+                  !selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) ||
                   (selectedCourse?.slug === '1on2' && !selectedStudent2) ||
                   (selectedCourse?.slug === '1on2' && !(selectedStudent2 as any)?.isPartner && remainingCredits < 2)
                 }
                 style={{
                   flex: 2, padding: '14px',
-                  background: (!selectedCourse || (!availableCredit && !isTrial && !willUseToken) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
-                  color: (!selectedCourse || (!availableCredit && !isTrial && !willUseToken) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
+                  background: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
+                  color: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: 'pointer',
@@ -991,13 +1001,21 @@ export default function BookingPage() {
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
                   Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
-                {isToday(selectedDate) && !hasTokenForCourse && (
-                  <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <span style={{ fontSize: '16px' }}>📅</span>
+                {!availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate) && (
+                  <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Same-Day Booking</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Same-day bookings must be made through us. Please contact us and we'll reserve your spot.</div>
-                      <button onClick={() => { const btn = document.querySelector('[data-chat-toggle]') as HTMLButtonElement; if (btn) btn.click() }} style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', color: '#c9a84c', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>💬 Chat with Us →</button>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>Tokens Are Valid Today or Tomorrow Only</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>You have no credits for this course — your token can only book lessons starting today or tomorrow. <a href="/plans" style={{ color: '#c9a84c', textDecoration: 'underline', fontWeight: 600 }}>Browse Plans →</a></div>
+                    </div>
+                  </div>
+                )}
+                {!willUseToken && !isTrial && timeSlots.some(sl => sl.available && sl.within24h) && (
+                  <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <span style={{ fontSize: '16px' }}>⚠️</span>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Booking Within 24 Hours</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Slots marked "24h" start within 24 hours. These bookings cannot be rescheduled — cancelling converts your credit to a token (valid today or tomorrow; token bookings are final).</div>
                     </div>
                   </div>
                 )}
@@ -1030,6 +1048,9 @@ export default function BookingPage() {
                         }}
                       >
                         {slot.label}
+                        {!willUseToken && !isTrial && slot.available && slot.within24h && (
+                          <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
+                        )}
                         {selectedCourse && (selectedCourse.slug === '1on4' || selectedCourse.slug === 'team') && (
                           <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{slot.max - slot.enrolled} left</div>
                         )}
@@ -1047,15 +1068,15 @@ export default function BookingPage() {
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>← Back</button>
               <button
-                onClick={() => { if (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) setStep(4) }}
-                disabled={!selectedSlot || (isToday(selectedDate!) && !hasTokenForCourse)}
+                onClick={() => { if (selectedSlot) setStep(4) }}
+                disabled={!selectedSlot}
                 style={{
                   flex: 2, padding: '14px',
-                  background: (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) ? NAVY : 'rgba(255,255,255,0.3)',
+                  background: selectedSlot ? GOLD : 'rgba(255,255,255,0.1)',
+                  color: selectedSlot ? NAVY : 'rgba(255,255,255,0.3)',
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: (selectedSlot && (!isToday(selectedDate!) || hasTokenForCourse)) ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase', cursor: selectedSlot ? 'pointer' : 'not-allowed',
                 }}
               >Continue →</button>
             </div>
@@ -1090,7 +1111,7 @@ export default function BookingPage() {
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                {willUseToken ? 'Token bookings are final — they cannot be cancelled or rescheduled.' : 'Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Cancellations made within 24 hours are not eligible for a refund.'}{' '}
+                {willUseToken ? 'Token bookings are final — they cannot be cancelled or rescheduled.' : 'Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Within 24 hours, rescheduling is unavailable and cancelling converts your credit to a token (valid today or tomorrow; token bookings are final).'}{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   View full terms
                 </a>

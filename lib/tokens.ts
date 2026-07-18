@@ -29,6 +29,15 @@ export function meetsLeadTime(session_date: string, start_time: string): boolean
   return minutesUntil(session_date, start_time, today, nowMin) >= LEAD_TIME_MINUTES
 }
 
+// 24h cancellation cutoff (spec v1.2 L27/L55): booking is NOT restricted; sessions starting
+// within 24 hours cannot be rescheduled, and cancelling converts the credit to a token.
+export function isWithin24Hours(session_date: string, start_time: string): boolean {
+  const today = getTodayLA()
+  const nowMin = getNowMinutesLA()
+  if (session_date < today) return true
+  return minutesUntil(session_date, start_time, today, nowMin) < 24 * 60
+}
+
 // Token window: lead time AND (today or tomorrow only).
 export function isWithinTokenWindow(session_date: string, start_time: string): boolean {
   if (!meetsLeadTime(session_date, start_time)) return false
