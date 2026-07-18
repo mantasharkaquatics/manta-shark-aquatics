@@ -1001,7 +1001,7 @@ export default function BookingPage() {
                     </div>
                   </div>
                 )}
-                {isToday(selectedDate) && hasTokenForCourse && (
+                {inTokenWindow(selectedDate) && hasTokenForCourse && (
                   <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
