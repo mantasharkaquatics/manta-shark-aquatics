@@ -203,7 +203,7 @@ export default function PlansPage() {
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <SectionEyebrow>Private Lessons</SectionEyebrow>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>1-on-1 Private</h2>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginBottom: '8px' }}>30 minutes · $65 per session · Full coach attention</p>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginBottom: '8px' }}>30 minutes · Full coach attention</p>
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
             Dedicated one-on-one time with a coach. Fastest way to build technique and confidence, tailored entirely to your child's pace.
           </p>
@@ -224,7 +224,7 @@ export default function PlansPage() {
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <SectionEyebrow dark>Semi-Private Lessons</SectionEyebrow>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>1-on-2 Semi-Private</h2>
-          <p style={{ fontSize: '14px', color: '#8a9ab8', marginBottom: '8px' }}>30 minutes · From $90 per session · Parents find their own partner</p>
+          <p style={{ fontSize: '14px', color: '#8a9ab8', marginBottom: '8px' }}>30 minutes · Parents find their own partner</p>
           <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
             Share a lesson with one other swimmer. Great value when paired with a sibling or friend — same focused coaching, split across two students.
           </p>
@@ -281,13 +281,6 @@ export default function PlansPage() {
               <p style={{ fontSize: '13.5px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, marginBottom: '28px' }}>
                 Competitive swim training for dedicated swimmers. Focus on stroke technique, endurance, turns, and race strategy.
               </p>
-              <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '20px 24px', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '6px' }}>
-                  <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '40px', fontWeight: 900, color: '#e05a4a', lineHeight: 1 }}>$180</span>
-                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>/ month</span>
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>Mon & Wed · 6:00–7:30 PM<br />Maximum 24 swimmers</div>
-              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '28px' }}>
                 {['Stroke technique & drills', 'Endurance training sets', 'Flip turns & race starts', 'Race strategy coaching'].map((feat) => (
                   <div key={feat} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>

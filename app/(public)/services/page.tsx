@@ -35,7 +35,7 @@ export default function ServicesPage() {
             <div className="text-4xl">🏊</div>
             <div>
               <h2 className="text-2xl font-bold text-[#1a2744]">1-on-1 Private Lessons</h2>
-              <p className="text-gray-500 mt-1">30 minutes · $65 per session · Fully personalized coaching</p>
+              <p className="text-gray-500 mt-1">30 minutes · Fully personalized coaching</p>
             </div>
           </div>
           <p className="text-gray-600 mb-8 max-w-2xl">Your child gets the coach's full attention for every minute. Perfect for swimmers at any level who want to progress quickly.</p>
@@ -60,7 +60,7 @@ export default function ServicesPage() {
             <div className="text-4xl">👫</div>
             <div>
               <h2 className="text-2xl font-bold text-[#1a2744]">1-on-2 Semi-Private Lessons</h2>
-              <p className="text-gray-500 mt-1">30 minutes · From $90 per session · You arrange the pair</p>
+              <p className="text-gray-500 mt-1">30 minutes · You arrange the pair</p>
             </div>
           </div>
           <p className="text-gray-600 mb-8 max-w-2xl">Great for siblings or friends at similar skill level. Parents arrange their own pairs for a focused, social learning experience.</p>
@@ -110,11 +110,6 @@ export default function ServicesPage() {
             </div>
           </div>
           <p className="text-gray-600 mb-8 max-w-2xl">Competitive swim training for dedicated swimmers. Focus on stroke technique, endurance, turns, and race strategy.</p>
-          <div className="border-2 border-gray-200 rounded-2xl p-6 max-w-xs hover:border-[#c9a84c] hover:shadow-md transition-all">
-            <div className="text-3xl font-bold text-[#1a2744]">$180</div>
-            <div className="text-gray-500 text-sm mt-1">per month</div>
-            <div className="text-gray-400 text-xs mt-3">Mon & Wed · 6:00–7:30 PM<br />Maximum 24 swimmers</div>
-          </div>
         </section>
       </div>
 
