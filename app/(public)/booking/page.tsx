@@ -1006,7 +1006,7 @@ export default function BookingPage() {
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>Booking with a Token</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>This lesson will use 1 token ({tokenRemaining} available). Token bookings are final — no cancellation or reschedule. Times within 30 minutes are unavailable.</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>This lesson will use 1 token ({tokenRemaining} available). Token bookings are final — no cancellation or reschedule.{isToday(selectedDate) ? ' Times within 30 minutes are unavailable.' : ''}</div>
                     </div>
                   </div>
                 )}
