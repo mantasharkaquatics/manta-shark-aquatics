@@ -54,7 +54,7 @@ interface Credit {
 interface Booking {
   id: string; status: string
   session_date: string; start_time: string; end_time: string
-  course_name: string; coach_name: string; student_name?: string
+  course_name: string; coach_name: string; student_name?: string; _group?: Booking[]
   lesson_credit_id?: string
   token_package_id?: string
   course_slug?: string
@@ -562,16 +562,17 @@ export default function DashboardPage() {
       const result: Booking[] = []
       for (const b of bookings) {
         // Cross-account 1-on-2 (has partner_booking_id): keep as-is, no merge
-        if (b.partner_booking_id) {
+        if (b.partner_booking_id || b.pending_action) {
           result.push(b)
           continue
         }
         const raw = (rawBookings || []).find((r: any) => r.id === b.id)
         const sid = raw?.class_session_id || b.id
         if (map[sid]) {
-          if (b.student_name && !map[sid].student_name?.includes(b.student_name)) {
-            map[sid] = { ...map[sid], student_name: map[sid].student_name + ', ' + b.student_name }
-          }
+          const base = map[sid]
+          const grp = base._group || [base]
+          const newName = b.student_name && !base.student_name?.includes(b.student_name) ? base.student_name + ', ' + b.student_name : base.student_name
+          map[sid] = { ...base, student_name: newName, _group: [...grp, b] }
         } else {
           map[sid] = b
         }
@@ -1180,6 +1181,44 @@ export default function DashboardPage() {
                             {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
                           </div>
                         </div>
+                      ) : booking._group ? (
+                        <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {booking._group.map(m => {
+                            const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
+                            const lateOk = late && !!m.lesson_credit_id && !m.partner_booking_id && m.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
+                            const cEnabled = (!late || lateOk) && cancellingId !== m.id && m.status !== 'pending_partner'
+                            const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
+                            return (
+                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 700 }}>
+                                  <span style={{ color: '#c9a84c' }}>Coach {m.coach_name}</span>
+                                  {m.student_name ? <span style={{ color: '#7dd3fc' }}> · ({m.student_name})</span> : ''}
+                                </div>
+                                {m.token_package_id ? (
+                                  <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '10px', fontWeight: 600 }}>🎫 Token · Final</div>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button
+                                      onClick={() => m.lesson_credit_id && setRescheduleTarget({ id: m.id, creditId: m.lesson_credit_id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id })}
+                                      disabled={rDis}
+                                      style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: rDis ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
+                                      {reschedulingId === m.id ? '...' : 'Reschedule'}
+                                    </button>
+                                    {cEnabled ? (
+                                      <button
+                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late })}
+                                        style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                                        {cancellingId === m.id ? '...' : late ? 'Cancel → Token' : 'Cancel'}
+                                      </button>
+                                    ) : (
+                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.2)', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>Cancel</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
                       ) : (
                         <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '2px' }}>
                           <span style={{ color: '#c9a84c' }}>Coach {booking.coach_name}</span>
@@ -1343,7 +1382,7 @@ export default function DashboardPage() {
                             View Cart →
                           </Link>
                         </div>
-                      ) : booking.token_package_id ? (
+                      ) : booking._group ? null : booking.token_package_id ? (
                         <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '11px', fontWeight: 600 }}>
                           🎫 Booked with token · Final
                         </div>
