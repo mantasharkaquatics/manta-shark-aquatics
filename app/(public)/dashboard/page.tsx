@@ -1260,7 +1260,7 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0, alignSelf: booking._group ? 'flex-start' : undefined, paddingTop: booking._group ? '24px' : undefined }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {(() => {
                         if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; Checked In</span>
