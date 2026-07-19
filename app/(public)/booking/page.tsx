@@ -357,7 +357,7 @@ export default function BookingPage() {
       if (!availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate!)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
       }
-      if (inCoachBlock(t) || blockedTimes.has(t) || studentBookedTimes.has(t)) {
+      if (inCoachBlock(t) || studentBookedTimes.has(t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
       }
       const existing = sameTypeSessions[t]
@@ -368,6 +368,9 @@ export default function BookingPage() {
           available: !isFull, within24h,
           enrolled: existing.enrolled_count, max: existing.max_students, session_id: isFull ? undefined : existing.id,
         }
+      }
+      if (blockedTimes.has(t)) {
+        return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
       }
       return { time: t, label: formatTime(t), available: true, enrolled: 0, max: maxStudents, within24h }
     })
