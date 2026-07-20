@@ -1168,6 +1168,7 @@ export default function DashboardPage() {
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.is_trial ? 'Swim Assessment' : booking.course_name}</span>
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
+                        {booking._group && <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>}
                       </div>
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
@@ -1183,9 +1184,6 @@ export default function DashboardPage() {
                         </div>
                       ) : booking._group ? (
                         <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>
-                          </div>
                           {booking._group.map(m => {
                             const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
                             const lateOk = late && !!m.lesson_credit_id && !m.partner_booking_id && m.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
