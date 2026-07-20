@@ -1183,6 +1183,9 @@ export default function DashboardPage() {
                         </div>
                       ) : booking._group ? (
                         <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>
+                          </div>
                           {booking._group.map(m => {
                             const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
                             const lateOk = late && !!m.lesson_credit_id && !m.partner_booking_id && m.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
@@ -1260,7 +1263,7 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0, alignSelf: booking._group ? 'flex-start' : undefined, paddingTop: booking._group ? '24px' : undefined }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {(() => {
                         if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; Checked In</span>
@@ -1273,9 +1276,9 @@ export default function DashboardPage() {
                         }
                         return <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Check-in opens 30 min before class</span>
                       })()}
-                      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
+                      {!booking._group && <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
                         {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? 'PENDING RESCHEDULE' : booking.status}
-                      </span>
+                      </span>}
                       </div>
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? (
                         <div style={{ display: 'flex', gap: '8px' }}>
