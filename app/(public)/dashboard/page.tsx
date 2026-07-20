@@ -310,7 +310,10 @@ function TokenCard({ tokens }: { tokens: TokenPack[] }) {
           const urgent = daysLeft <= 7
           return (
             <div key={t.id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.course_name}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.course_name}</div>
+                <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, borderRadius: '8px', padding: '1px 7px', color: t.source === 'manual' ? '#c9a84c' : ORANGE, background: t.source === 'manual' ? 'rgba(201,168,76,0.12)' : 'rgba(232,136,58,0.1)', border: t.source === 'manual' ? '1px solid rgba(201,168,76,0.35)' : '1px solid rgba(232,136,58,0.3)' }}>{t.source === 'manual' ? 'Courtesy' : 'Make-up'}</span>
+              </div>
               <div style={{ fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 <span style={{ fontWeight: 600, color: ORANGE }}>{t.remaining} token{t.remaining === 1 ? '' : 's'}</span>
                 <span style={{ color: urgent ? '#e05a4a' : 'rgba(255,255,255,0.35)', fontWeight: urgent ? 700 : 400 }}> · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>
