@@ -109,16 +109,27 @@ export async function cancelBookingWithPartner(
     }
   }
 
-  // Same-account 1-on-2: cancel sibling bookings on the same session
-  const { data: sameParentBookings } = await svc
-    .from('bookings')
-    .select('id, lesson_credit_id, class_session_id')
-    .eq('parent_id', booking.parent_id)
-    .eq('class_session_id', booking.class_session_id)
-    .neq('id', bookingId)
-    .neq('status', 'cancelled')
-    .neq('status', 'pending_payment')
-    .neq('status', 'in_cart')
+  // Same-account 1-on-2 ONLY: cancel sibling bookings on the same session.
+  // Other course types (1-on-4 etc.): each booking is independent — no sibling cascade.
+  let sameParentBookings: any[] = []
+  const { data: primarySession } = await svc
+    .from('class_sessions')
+    .select('course_types(slug)')
+    .eq('id', booking.class_session_id)
+    .single()
+  const primaryCt = Array.isArray((primarySession as any)?.course_types) ? (primarySession as any).course_types[0] : (primarySession as any)?.course_types
+  if (primaryCt?.slug === '1on2') {
+    const { data: spb } = await svc
+      .from('bookings')
+      .select('id, lesson_credit_id, class_session_id')
+      .eq('parent_id', booking.parent_id)
+      .eq('class_session_id', booking.class_session_id)
+      .neq('id', bookingId)
+      .neq('status', 'cancelled')
+      .neq('status', 'pending_payment')
+      .neq('status', 'in_cart')
+    sameParentBookings = spb || []
+  }
 
   for (const pb of sameParentBookings || []) {
     const { data: c } = await svc
