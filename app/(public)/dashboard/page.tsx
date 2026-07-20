@@ -1187,13 +1187,13 @@ export default function DashboardPage() {
                         </div>
                       ) : booking._group ? (
                         <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {booking._group.map(m => {
+                          {booking._group.map((m, mi) => {
                             const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
                             const lateOk = late && !!m.lesson_credit_id && !m.partner_booking_id && m.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
                             const cEnabled = (!late || lateOk) && cancellingId !== m.id && m.status !== 'pending_partner'
                             const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
                             return (
-                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
                                 <div style={{ fontSize: '13px', fontWeight: 700 }}>
                                   <span style={{ color: '#c9a84c' }}>Coach {m.coach_name}</span>
                                   {m.student_name ? <span style={{ color: '#7dd3fc' }}> · ({m.student_name})</span> : ''}
