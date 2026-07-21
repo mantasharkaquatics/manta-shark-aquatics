@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -49,6 +49,32 @@ function Divider({ center = false }: { center?: boolean }) {
       <div style={{ width: 36, height: 2, background: GOLD_BORDER, borderRadius: 1 }} />
       <div style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD }} />
       {center && <div style={{ width: 36, height: 2, background: GOLD_BORDER, borderRadius: 1 }} />}
+    </div>
+  )
+}
+
+function TeamTierList() {
+  const [tiers, setTiers] = useState<{ id: string; name: string; level_min: number; level_max: number; spots_left: number }[]>([])
+  useEffect(() => {
+    fetch('/api/team/tiers').then(r => r.ok ? r.json() : null).then(d => { if (d?.tiers) setTiers(d.tiers) }).catch(() => {})
+  }, [])
+  if (tiers.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px 18px' }}>
+      {tiers.map(t => (
+        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{t.name}</span>
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}> · Level {t.level_min}–{t.level_max}</span>
+          </div>
+          {t.spots_left === 0 ? (
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#e05a4a' }}>Full</span>
+          ) : (
+            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{t.spots_left} spot{t.spots_left === 1 ? '' : 's'} left</span>
+          )}
+        </div>
+      ))}
+      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>Your swimmer is placed automatically based on their swim level.</div>
     </div>
   )
 }
@@ -277,7 +303,7 @@ export default function PlansPage() {
             <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px' }}>
               <SectionEyebrow>Competitive</SectionEyebrow>
               <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.2vw,28px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>Swim Team</h2>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>90 minutes · Mon & Wed 6:00–7:30 PM · Max 24 swimmers</p>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>90-minute practices · squads by swim level · max 24 swimmers per squad</p>
               <p style={{ fontSize: '13.5px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, marginBottom: '28px' }}>
                 Competitive swim training for dedicated swimmers. Focus on stroke technique, endurance, turns, and race strategy.
               </p>
@@ -289,8 +315,9 @@ export default function PlansPage() {
                   </div>
                 ))}
               </div>
+              <TeamTierList />
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '16px' }}>
-                Monthly subscription. Renews automatically each month until cancelled. Cancel anytime from your account settings.
+                Monthly membership per swimmer — renews automatically until cancelled. Contact us anytime to cancel.
               </p>
               <GetStartedButton accentColor="#e05a4a" isFeatured={true} label="Join the Team" planId="team" />
             </div>

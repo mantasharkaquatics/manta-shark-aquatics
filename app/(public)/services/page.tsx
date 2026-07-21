@@ -106,7 +106,7 @@ export default function ServicesPage() {
             <div className="text-4xl">🏅</div>
             <div>
               <h2 className="text-2xl font-bold text-[#1a2744]">Swim Team</h2>
-              <p className="text-gray-500 mt-1">90 minutes · Mon & Wed 6:00–7:30 PM · Max 24 swimmers</p>
+              <p className="text-gray-500 mt-1">90-minute practices · squads by swim level · max 24 swimmers per squad</p>
             </div>
           </div>
           <p className="text-gray-600 mb-8 max-w-2xl">Competitive swim training for dedicated swimmers. Focus on stroke technique, endurance, turns, and race strategy.</p>
