@@ -3,6 +3,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES, pickTokenPackage } from '@/lib/tokens'
+import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
@@ -52,6 +53,19 @@ export async function POST(req: NextRequest) {
   const coachBlocks = await getCoachBlocks(svc, [coach_id], session_date)
   if (isBlocked(coachBlocks, coach_id, start_time, end_time))
     return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 409 })
+
+  // Availability-zone validation (spec v1.0): zoned coaches only accept slots that
+  // fit entirely inside a zone matching the course type; legacy coaches skip this.
+  const effZones = await getEffectiveZones(svc, coach_id, session_date)
+  if (!effZones.legacy) {
+    const zt = zoneTypeForSlug(course.slug)
+    const toMinZ = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+    const slotStartMin = toMinZ(start_time)
+    const slotEndMin = slotStartMin + course.duration_minutes
+    const inZone = effZones.rows.some(z => z.zone_type === zt && toMinZ(z.start_time) <= slotStartMin && slotEndMin <= toMinZ(z.end_time))
+    if (!inZone)
+      return NextResponse.json({ error: 'This time is not available for this course type. Please pick another time.' }, { status: 409 })
+  }
 
   // Coach conflict check (any course type, enrolled > 0)
   const { data: conflicts } = await svc
