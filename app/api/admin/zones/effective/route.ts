@@ -12,12 +12,16 @@ export async function GET(req: NextRequest) {
   const svc = auth.svc
   const [{ data: coaches }, { data: tiers }] = await Promise.all([
     svc.from('coaches').select('id').eq('is_active', true),
-    svc.from('team_tiers').select('id').eq('active', true).order('level_min'),
+    svc.from('team_tiers').select('id, name').eq('active', true).order('level_min'),
   ])
   const zones: Record<string, unknown> = {}
   await Promise.all((coaches || []).map(async (c: { id: string }) => {
     const eff = await getEffectiveZones(svc, c.id, date)
     zones[c.id] = eff.legacy ? null : eff.rows
   }))
-  return NextResponse.json({ zones, tierOrder: (tiers || []).map((t: { id: string }) => t.id) })
+  return NextResponse.json({
+    zones,
+    tierOrder: (tiers || []).map((t: { id: string }) => t.id),
+    tierNames: Object.fromEntries((tiers || []).map((t: { id: string; name: string }) => [t.id, t.name])),
+  })
 }

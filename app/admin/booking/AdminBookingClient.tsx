@@ -1360,11 +1360,12 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
   const [overKey, setOverKey] = useState<string | null>(null)
   const [zoneMap, setZoneMap] = useState<Record<string, any[] | null>>({})
   const [tierOrder, setTierOrder] = useState<string[]>([])
+  const [tierNames, setTierNames] = useState<Record<string, string>>({})
   useEffect(() => {
     let alive = true
     fetch(`/api/admin/zones/effective?date=${ds}`)
       .then(r => r.json())
-      .then(d => { if (alive) { setZoneMap(d?.zones || {}); setTierOrder(d?.tierOrder || []) } })
+      .then(d => { if (alive) { setZoneMap(d?.zones || {}); setTierOrder(d?.tierOrder || []); setTierNames(d?.tierNames || {}) } })
       .catch(() => {})
     return () => { alive = false }
   }, [ds])
@@ -1406,7 +1407,20 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                     const m = timeToMinutes(time)
                     const z = zr.find((z: any) => timeToMinutes(String(z.start_time).slice(0, 5)) <= m && m < timeToMinutes(String(z.end_time).slice(0, 5)))
                     const fill = z ? zoneFill(z, tierOrder) : null
-                    return fill ? <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: fill + '2b' }} /> : null
+                    if (!fill) return null
+                    const zoneLabel = String(z.start_time).slice(0, 5) === time
+                      ? (z.zone_type === 'team'
+                          ? ((z.team_tier_id && tierNames[z.team_tier_id]) || 'Team')
+                          : (z.group_level_min != null ? `L${z.group_level_min}\u2013${z.group_level_max} Group` : 'Group'))
+                      : null
+                    return (
+                      <>
+                        <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: fill + '2b' }} />
+                        {zoneLabel && (
+                          <div className="absolute top-0.5 left-1.5 pointer-events-none z-[1] text-[10px] font-bold tracking-wide" style={{ color: fill }}>{zoneLabel}</div>
+                        )}
+                      </>
+                    )
                   })()}
                   {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} />
