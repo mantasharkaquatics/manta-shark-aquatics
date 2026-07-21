@@ -3,6 +3,19 @@ import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
+const WINDOW_START_H = 24.5
+const WINDOW_END_H = 25.5
+
+function laWallParts(d: Date) {
+  const date = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const time = d.toLocaleTimeString('en-GB', { timeZone: 'America/Los_Angeles', hour12: false })
+  return { date, time }
+}
+
+function wallMs(dateStr: string, timeStr: string): number {
+  return Date.parse(`${dateStr}T${timeStr}Z`)
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -14,47 +27,59 @@ export async function GET(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // 25h window in LA wall-clock terms
   const now = new Date()
-  const tomorrow = new Date(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const nowParts = laWallParts(now)
+  const nowWall = wallMs(nowParts.date, nowParts.time)
+  const winStart = nowWall + WINDOW_START_H * 3600000
+  const winEnd = nowWall + WINDOW_END_H * 3600000
+  const dateA = new Date(winStart).toISOString().slice(0, 10)
+  const dateB = new Date(winEnd).toISOString().slice(0, 10)
+  const candidateDates = dateA === dateB ? [dateA] : [dateA, dateB]
 
-  // Step 1: tomorrow's sessions
+  // Step 1: sessions whose LA wall-clock start falls inside the window
   const { data: sessions, error: sessErr } = await supabase
     .from('class_sessions')
-    .select('id, start_time, course_type_id, coach_id')
-    .eq('session_date', tomorrowStr)
+    .select('id, session_date, start_time, course_type_id, coach_id')
+    .in('session_date', candidateDates)
 
   if (sessErr) {
     console.error('Error fetching sessions:', sessErr)
     return NextResponse.json({ error: 'DB error (sessions)' }, { status: 500 })
   }
-  if (!sessions || sessions.length === 0) {
-    return NextResponse.json({ sent: 0, results: [], note: 'no sessions tomorrow' })
-  }
-  const sessionMap = new Map(sessions.map((s) => [s.id, s]))
 
-  // Step 2: confirmed bookings for those sessions
+  const inWindow = (sessions || []).filter((s) => {
+    const t = wallMs(s.session_date, s.start_time || '00:00:00')
+    return t >= winStart && t < winEnd
+  })
+
+  if (inWindow.length === 0) {
+    return NextResponse.json({ sent: 0, results: [], note: 'no sessions in 25h window' })
+  }
+  const sessionMap = new Map(inWindow.map((s) => [s.id, s]))
+
+  // Step 2: confirmed, not-yet-reminded bookings for those sessions
   const { data: bookings, error: bookErr } = await supabase
     .from('bookings')
     .select('id, class_session_id, student_id, parent_id')
     .eq('status', 'confirmed')
-    .in('class_session_id', sessions.map((s) => s.id))
+    .is('reminder_sent_at', null)
+    .in('class_session_id', inWindow.map((s) => s.id))
 
   if (bookErr) {
     console.error('Error fetching bookings:', bookErr)
     return NextResponse.json({ error: 'DB error (bookings)' }, { status: 500 })
   }
   if (!bookings || bookings.length === 0) {
-    return NextResponse.json({ sent: 0, results: [], note: 'no confirmed bookings tomorrow' })
+    return NextResponse.json({ sent: 0, results: [], note: 'no unreminded bookings in window' })
   }
 
   // Step 3: batch lookups
   const uniq = (arr: (string | null)[]) => [...new Set(arr.filter(Boolean))] as string[]
   const studentIds = uniq(bookings.map((b) => b.student_id))
   const parentIds = uniq(bookings.map((b) => b.parent_id))
-  const courseTypeIds = uniq(sessions.map((s) => s.course_type_id))
-  const coachIds = uniq(sessions.map((s) => s.coach_id))
+  const courseTypeIds = uniq(inWindow.map((s) => s.course_type_id))
+  const coachIds = uniq(inWindow.map((s) => s.coach_id))
 
   const [studentsRes, parentsRes, courseTypesRes, coachesRes] = await Promise.all([
     supabase.from('students').select('id, full_name').in('id', studentIds),
@@ -85,6 +110,7 @@ export async function GET(request: Request) {
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID!
 
   const results: Array<Record<string, unknown>> = []
+  let sent = 0
 
   for (const booking of bookings) {
     const session = sessionMap.get(booking.class_session_id)
@@ -114,13 +140,23 @@ export async function GET(request: Request) {
         }
       )
       const data = await response.json()
-      results.push({ booking_id: booking.id, status: data.status, to: parent.phone })
+      if (response.ok && data.sid) {
+        const { error: updErr } = await supabase
+          .from('bookings')
+          .update({ reminder_sent_at: new Date().toISOString() })
+          .eq('id', booking.id)
+        if (updErr) console.error('Error stamping reminder_sent_at:', booking.id, updErr)
+        sent += 1
+        results.push({ booking_id: booking.id, status: data.status, to: parent.phone, stamped: !updErr })
+      } else {
+        results.push({ booking_id: booking.id, error: data.message || data.code || 'twilio rejected' })
+      }
     } catch (err) {
       results.push({ booking_id: booking.id, error: String(err) })
     }
   }
 
-  return NextResponse.json({ sent: results.length, results })
+  return NextResponse.json({ sent, results })
 }
 
 function formatTime(t: string): string {
