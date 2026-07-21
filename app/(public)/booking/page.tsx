@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { tokenSlugsForTarget, meetsLeadTime, isWithin24Hours } from '@/lib/tokens'
+import { zoneTypeForSlug } from '@/lib/zones'
 import BookingCart from '@/components/BookingCart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -297,23 +298,28 @@ export default function BookingPage() {
     const dow = selectedDate.getDay()
     const dateStr = formatDateLA(selectedDate)
 
-    const { data: avail } = await supabase
-      .from('coach_availability')
-      .select('start_time, end_time')
-      .eq('coach_id', selectedCoach.id)
-      .eq('day_of_week', dow)
-      .eq('is_active', true)
-
-    if (!avail || avail.length === 0) { setTimeSlots([]); return }
+    // Server API bypasses RLS: booked slots, coach blocks, and availability zones in one call
+    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}`)
+    const { times: bookedTimes, blocked: coachBlocked, zones } = await bookedRes.json()
 
     const allSlots: string[] = []
-    for (const a of avail) {
-      allSlots.push(...generateSlots(a.start_time, a.end_time))
+    if (zones && !zones.legacy) {
+      const zt = zoneTypeForSlug(selectedCourse.slug)
+      for (const z of zones.rows || []) {
+        if (z.zone_type === zt) allSlots.push(...generateSlots(z.start_time, z.end_time))
+      }
+    } else {
+      const { data: avail } = await supabase
+        .from('coach_availability')
+        .select('start_time, end_time')
+        .eq('coach_id', selectedCoach.id)
+        .eq('day_of_week', dow)
+        .eq('is_active', true)
+      for (const a of avail || []) {
+        allSlots.push(...generateSlots(a.start_time, a.end_time))
+      }
     }
-
-    // Use server API to bypass RLS and fetch all the coach's active booking slots for the day
-    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}`)
-    const { times: bookedTimes, blocked: coachBlocked } = await bookedRes.json()
+    if (allSlots.length === 0) { setTimeSlots([]); return }
 
     const blockedTimes = new Set<string>()
     const sameTypeSessions: Record<string, any> = {}

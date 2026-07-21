@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
+import { getEffectiveZones } from '@/lib/zones'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
 
   const coachBlocks = await getCoachBlocks(supabase, [coach_id], session_date)
   const blocked = blockedIntervalsFor(coachBlocks, coach_id)
+  const zones = await getEffectiveZones(supabase, coach_id, session_date)
 
   // Step 1: find all class_sessions for this coach on this date
   const { data: sessions } = await supabase
@@ -24,7 +26,7 @@ export async function GET(req: NextRequest) {
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
 
-  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked })
+  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked, zones })
 
   const sessionIds = sessions.map(s => s.id)
   const sessionMap: Record<string, any> = {}
@@ -47,5 +49,5 @@ export async function GET(req: NextRequest) {
     }
   }).filter(x => x.time)
 
-  return NextResponse.json({ times, blocked })
+  return NextResponse.json({ times, blocked, zones })
 }
