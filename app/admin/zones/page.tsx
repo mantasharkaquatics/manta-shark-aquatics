@@ -35,7 +35,7 @@ export default function ZonesEditorPage() {
   const [painting, setPainting] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; warn?: boolean; text: string } | null>(null)
   const [hasZones, setHasZones] = useState(false)
   const [mode, setMode] = useState<'weekly' | 'date'>('weekly')
   const [ovDate, setOvDate] = useState('')
@@ -164,7 +164,8 @@ export default function ZonesEditorPage() {
       if (!res.ok) { setMsg({ ok: false, text: data.error || 'Save failed' }); return }
       setWeeklyRows(zones)
       setDirty(false); setHasZones(zones.length > 0)
-      setMsg({ ok: true, text: `Saved weekly template (${data.count} block(s))` })
+      const w = data.warnings || []
+      setMsg({ ok: true, warn: w.length > 0, text: `Saved weekly template (${data.count} block(s))` + (w.length ? ` — ⚠ ${w.length} existing booking(s) now fall outside the zones: ${w.join('; ')}. These lessons still happen; only new bookings are limited.` : '') })
       return
     }
     const zones = compress([ovDow])
@@ -181,7 +182,8 @@ export default function ZonesEditorPage() {
     setSaving(false)
     if (!res.ok) { setMsg({ ok: false, text: data.error || 'Save failed' }); return }
     setDirty(false); setHasOverride(true)
-    setMsg({ ok: true, text: data.mode === 'closed' ? `${ovDate} closed for this coach` : `Override saved for ${ovDate}` })
+    const w = data.warnings || []
+    setMsg({ ok: true, warn: w.length > 0, text: (data.mode === 'closed' ? `${ovDate} closed for this coach` : `Override saved for ${ovDate}`) + (w.length ? ` — ⚠ ${w.length} existing booking(s) affected: ${w.join('; ')}. These lessons still happen; only new bookings are limited.` : '') })
   }
 
   function closeDay() {
@@ -266,7 +268,7 @@ export default function ZonesEditorPage() {
             </button>
           </div>
 
-          {msg && <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, fontSize: 13, background: msg.ok ? 'rgba(134,239,172,0.1)' : 'rgba(224,90,74,0.1)', border: msg.ok ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(224,90,74,0.4)', color: msg.ok ? '#86efac' : '#e05a4a' }}>{msg.text}</div>}
+          {msg && <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, fontSize: 13, background: msg.warn ? 'rgba(232,136,58,0.1)' : msg.ok ? 'rgba(134,239,172,0.1)' : 'rgba(224,90,74,0.1)', border: msg.warn ? '1px solid rgba(232,136,58,0.4)' : msg.ok ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(224,90,74,0.4)', color: msg.warn ? '#e8883a' : msg.ok ? '#86efac' : '#e05a4a' }}>{msg.text}</div>}
           {mode === 'date' && ovDate && <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 10, fontSize: 12, background: 'rgba(167,139,250,0.08)', border: `1px solid ${PURPLE}44`, color: PURPLE }}>Editing {ovDate} ({DAY_NAMES[ovDow]}) only — this override replaces the weekly template for that date.{!hasOverride && !dirty ? ' Currently showing the weekly template as a starting point.' : ''}</div>}
 
           <div style={{ display: 'grid', gridTemplateColumns: `52px repeat(${visDays.length}, 1fr)`, gap: 2, userSelect: 'none', border: mode === 'date' ? `1px solid ${PURPLE}44` : 'none', borderRadius: 8, padding: mode === 'date' ? 6 : 0 }}>

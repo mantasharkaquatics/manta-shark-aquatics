@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
+import { zoneTypeForSlug } from '@/lib/zones'
+import { getTodayLA } from '@/lib/date'
 
 // Admin CRUD for coach availability zones (spec v1.1).
 // GET ?coach_id → weekly template + legacy hours + tiers
@@ -9,6 +11,30 @@ import { requireAdmin } from '@/lib/api-auth'
 
 const VALID_TYPES = ['private', 'group', 'team']
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+
+// Q3 (warn-and-save): list future enrolled sessions that no longer fit the new zones.
+async function bookingWarnings(
+  svc: any,
+  coachId: string,
+  evalDay: (dateStr: string) => { skip?: boolean; closed?: boolean; rows: { zone_type: string; start_time: string; end_time: string }[] },
+): Promise<string[]> {
+  const { data: sessions } = await svc
+    .from('class_sessions')
+    .select('session_date, start_time, end_time, enrolled_count, course_types(slug, name)')
+    .eq('coach_id', coachId).gte('session_date', getTodayLA()).gt('enrolled_count', 0)
+  const warnings: string[] = []
+  for (const sess of sessions || []) {
+    const day = evalDay(sess.session_date)
+    if (!day || day.skip) continue
+    const ct: any = Array.isArray(sess.course_types) ? sess.course_types[0] : sess.course_types
+    const zt = zoneTypeForSlug(ct?.slug || '')
+    const st = toMin(String(sess.start_time).slice(0, 5))
+    const en = toMin(String(sess.end_time).slice(0, 5))
+    const fits = !day.closed && day.rows.some(z => z.zone_type === zt && toMin(String(z.start_time).slice(0, 5)) <= st && en <= toMin(String(z.end_time).slice(0, 5)))
+    if (!fits) warnings.push(`${sess.session_date} ${String(sess.start_time).slice(0, 5)} ${ct?.name || ''} (${sess.enrolled_count} booked)`)
+  }
+  return warnings
+}
 
 function validateZones(zones: any[], needWeekday: boolean): string | null {
   for (const z of zones) {
@@ -93,7 +119,16 @@ export async function PUT(req: NextRequest) {
     )
     if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
   }
-  return NextResponse.json({ ok: true, count: zones.length })
+  const { data: ovr } = await svc
+    .from('coach_availability_zones')
+    .select('override_date').eq('coach_id', coach_id).eq('kind', 'date')
+  const ovrSet = new Set((ovr || []).map((r: any) => r.override_date))
+  const warnings = await bookingWarnings(svc, coach_id, (dateStr) => {
+    if (ovrSet.has(dateStr)) return { skip: true, rows: [] }
+    const dow = new Date(dateStr + 'T00:00:00').getDay()
+    return { rows: zones.filter((z: any) => z.weekday === dow) }
+  })
+  return NextResponse.json({ ok: true, count: zones.length, warnings })
 }
 
 export async function POST(req: NextRequest) {
@@ -118,7 +153,8 @@ export async function POST(req: NextRequest) {
       start_time: '00:00', end_time: '23:59',
     })
     if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-    return NextResponse.json({ ok: true, mode: 'closed' })
+    const warnings = await bookingWarnings(svc, coach_id, (d) => d === date ? { closed: true, rows: [] } : { skip: true, rows: [] })
+    return NextResponse.json({ ok: true, mode: 'closed', warnings })
   }
 
   if (!Array.isArray(zones) || zones.length === 0)
@@ -134,5 +170,6 @@ export async function POST(req: NextRequest) {
     }))
   )
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-  return NextResponse.json({ ok: true, mode: 'set', count: zones.length })
+  const warnings = await bookingWarnings(svc, coach_id, (d) => d === date ? { rows: zones } : { skip: true, rows: [] })
+  return NextResponse.json({ ok: true, mode: 'set', count: zones.length, warnings })
 }
