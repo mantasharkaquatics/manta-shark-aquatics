@@ -292,6 +292,27 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
 
 interface TokenPack { id: string; course_name: string; remaining: number; expires_at: string; source: string }
 
+function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string }[] }) {
+  if (memberships.length === 0) return null
+  const RED = '#e05a4a'
+  return (
+    <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>Swim Team</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {memberships.map(m => (
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · $399/mo · unlimited practices</div>
+            </div>
+            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? 'Active' : 'Past Due'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function TokenCard({ tokens }: { tokens: TokenPack[] }) {
   if (tokens.length === 0) return null
   const totalTokens = tokens.reduce((s, t) => s + t.remaining, 0)
@@ -332,6 +353,7 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
   const [tokenPacks, setTokenPacks] = useState<TokenPack[]>([])
+  const [teamMemberships, setTeamMemberships] = useState<{ id: string; student_name: string; tier_name: string; status: string }[]>([])
   const [cancelQuota, setCancelQuota] = useState<{ total: number; used: number; remaining: number } | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
@@ -345,6 +367,8 @@ export default function DashboardPage() {
       const data = await res.json()
       setTokenPacks(data.tokens || [])
       setCancelQuota(data.quota || null)
+      const tmRes = await fetch('/api/parent/team-memberships')
+      if (tmRes.ok) { const tmData = await tmRes.json(); setTeamMemberships(tmData.memberships || []) }
     } catch {}
   }
   useEffect(() => { loadTokens() }, [])
@@ -1467,6 +1491,7 @@ export default function DashboardPage() {
                 })
               })()}
               <TokenCard tokens={tokenPacks} />
+              <TeamCard memberships={teamMemberships} />
             </div>
           )}
         </section>

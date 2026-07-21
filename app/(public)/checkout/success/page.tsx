@@ -12,6 +12,7 @@ function SuccessContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const sessionId = searchParams.get('session_id')
+  const isTeam = searchParams.get('team') === '1'
   const [countdown, setCountdown] = useState(30)
 
   useEffect(() => {
@@ -34,18 +35,23 @@ function SuccessContent() {
       <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }}>
         <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(76,175,114,0.15)', border: '2px solid rgba(76,175,114,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: '36px' }}>✓</div>
         <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: '#4caf72', marginBottom: '8px' }}>Payment Successful</div>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>Purchase Complete!</h1>
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>{isTeam ? 'Welcome to the Team!' : 'Purchase Complete!'}</h1>
         <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 32px' }}>
-          Your lesson credits have been added to your account. You can start booking lessons now.
+          {isTeam ? 'Your Swim Team membership is now active. See you at practice!' : 'Your lesson credits have been added to your account. You can start booking lessons now.'}
         </p>
         <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', marginBottom: '24px', textAlign: 'left' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {[
+            {(isTeam ? [
+              { icon: '✅', text: 'Team membership active' },
+              { icon: '🏊', text: 'Unlimited team practices — check the team schedule' },
+              { icon: '📧', text: 'Confirmation email sent' },
+              { icon: '🔁', text: 'Renews monthly · cancel anytime by contacting us' },
+            ] : [
               { icon: '✅', text: 'Credits added to your account' },
               { icon: '📅', text: 'Ready to book lessons' },
               { icon: '📧', text: 'Confirmation email sent' },
               { icon: '⏰', text: 'Credits are valid from the purchase date — see your dashboard for the expiration date' },
-            ].map((item, i) => (
+            ]).map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '18px' }}>{item.icon}</span>
                 <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>{item.text}</span>
@@ -53,8 +59,8 @@ function SuccessContent() {
             ))}
           </div>
         </div>
-        <Link href="/booking" style={{ display: 'block', padding: '16px', borderRadius: '12px', background: GOLD, color: NAVY, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none', marginBottom: '10px' }}>
-          Book a Lesson Now
+        <Link href={isTeam ? '/dashboard' : '/booking'} style={{ display: 'block', padding: '16px', borderRadius: '12px', background: GOLD, color: NAVY, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none', marginBottom: '10px' }}>
+          {isTeam ? 'View My Dashboard' : 'Book a Lesson Now'}
         </Link>
         <Link href="/dashboard" style={{ display: 'block', padding: '14px', borderRadius: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
           Back to Dashboard

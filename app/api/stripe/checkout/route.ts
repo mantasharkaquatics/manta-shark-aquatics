@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         }],
         metadata: subMeta,
         subscription_data: { metadata: subMeta },
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&team=1`,
         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
       })
       return NextResponse.json({ url: session.url })
