@@ -16,7 +16,7 @@ const BANDS = [
   { key: '5-6', label: 'L5–6' },
   { key: '7-9', label: 'L7–9' },
 ]
-const BAND_GREENS: Record<string, string> = { '1-2': '#7ed6a0', '3-4': '#4caf72', '5-6': '#2f8f57', '7-9': '#1d6e40' }
+const BAND_GREENS: Record<string, string> = { '1-2': '#38bdf8', '3-4': '#2dd4bf', '5-6': '#818cf8', '7-9': '#fb923c' }
 
 type Cell = { t: 'private' | 'group' | 'team'; tier?: string; band?: string } | null
 type Brush = 'private' | 'group' | 'team' | 'erase'
@@ -213,6 +213,7 @@ export default function ZonesEditorPage() {
   }
 
   const tierName = (id?: string) => tiers.find(t => t.id === id)?.name || ''
+  const cellLabel = (c: Cell) => !c ? '' : c.t === 'team' ? tierName(c.tier) : c.t === 'group' ? (c.band ? 'L' + c.band.replace('-', '–') : 'Group') : 'Private'
   const accent = mode === 'date' ? PURPLE : '#c9a84c'
 
   return (
@@ -300,7 +301,7 @@ export default function ZonesEditorPage() {
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
                       onMouseEnter={() => { if (painting) paint(d, i) }}
                       title={c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? 'group L' + c.band : c.t) + ' · ' + idxToTime(i) : idxToTime(i)}
-                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : `${COLORS[c.t]}${c.t === 'team' ? 'cc' : '99'}`) : 'rgba(255,255,255,0.04)', borderTop: i % 2 === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none' }} />
+                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : `${COLORS[c.t]}${c.t === 'team' ? 'cc' : '99'}`) : 'rgba(255,255,255,0.04)', borderTop: i % 2 === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
                   )
                 })}
               </>
