@@ -1521,9 +1521,10 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const [addQuery, setAddQuery] = useState('')
   const [adding, setAdding] = useState<string | null>(null)
   const [addError, setAddError] = useState('')
+  const [confirmAddId, setConfirmAddId] = useState<string | null>(null)
 
   async function addStudent(studentId: string) {
-    setAdding(studentId); setAddError('')
+    setAdding(studentId); setAddError(''); setConfirmAddId(null)
     const res = await fetch('/api/admin/bookings/bulk-create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1631,7 +1632,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
           {session.enrolled_count < session.max_students && (
             <div className="mt-4 pt-4 border-t border-white/10">
               <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Add student</p>
-              <input value={addQuery} onChange={e => { setAddQuery(e.target.value); setAddError('') }} placeholder="Search by student or parent name..."
+              <input value={addQuery} onChange={e => { setAddQuery(e.target.value); setAddError(''); setConfirmAddId(null) }} placeholder="Search by student or parent name..."
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" />
               {addError && <p className="text-xs text-red-300 mt-2">{addError}</p>}
               {addQuery.trim().length >= 1 && (
@@ -1649,9 +1650,10 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                       return (
                         <div key={s.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2">
                           <span className="text-sm text-white">{s.full_name} <span className="text-xs text-white/40">Lv.{s.current_level ?? '—'} · {par?.first_name} {par?.last_name}</span></span>
-                          <button onClick={() => addStudent(s.id)} disabled={adding !== null}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
-                            {adding === s.id ? '...' : 'Add'}
+                          <button onClick={() => confirmAddId === s.id ? addStudent(s.id) : setConfirmAddId(s.id)} disabled={adding !== null}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50"
+                            style={confirmAddId === s.id ? { backgroundColor: '#e05a4a', color: '#fff' } : { backgroundColor: '#c9a84c', color: '#1a2744' }}>
+                            {adding === s.id ? '...' : confirmAddId === s.id ? 'Confirm?' : 'Add'}
                           </button>
                         </div>
                       )
