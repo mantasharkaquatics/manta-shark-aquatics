@@ -1522,6 +1522,8 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const [adding, setAdding] = useState<string | null>(null)
   const [addError, setAddError] = useState('')
   const [confirmAddId, setConfirmAddId] = useState<string | null>(null)
+  const [bookingsLoaded, setBookingsLoaded] = useState(false)
+  const [band, setBand] = useState<{ min: number; max: number } | null>(null)
 
   async function addStudent(studentId: string) {
     setAdding(studentId); setAddError(''); setConfirmAddId(null)
@@ -1554,11 +1556,20 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const ct = getSessionCourseType(session)
   const coach = coaches.find(c => c.id === session.coach_id)
   const modalHasTrial = bookings.some((b: any) => b.is_trial)
+  const liveCount = bookingsLoaded ? bookings.length : session.enrolled_count
 
   useEffect(() => {
     fetch(`/api/admin/session-bookings?session_id=${session.id}`)
       .then(r => r.json())
-      .then(data => setBookings(Array.isArray(data) ? data : []))
+      .then(data => { setBookings(Array.isArray(data) ? data : []); setBookingsLoaded(true) })
+  }, [session.id]) // eslint-disable-line
+
+  useEffect(() => {
+    if (ct.slug !== '1on4') return
+    fetch(`/api/admin/zones/band?coach_id=${session.coach_id}&date=${session.session_date}&start=${session.start_time}&end=${session.end_time}`)
+      .then(r => r.json())
+      .then(d => setBand(d?.band ?? null))
+      .catch(() => {})
   }, [session.id]) // eslint-disable-line
 
   async function cancelSession() {
@@ -1593,7 +1604,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
         </div>
         <div className="p-6">
           <p className="text-xs text-white/40 uppercase tracking-wider mb-3">
-            Booked students ({session.enrolled_count}/{session.max_students})
+            Booked students ({liveCount}/{session.max_students})
           </p>
           {bookings.length === 0 ? (
             <p className="text-sm text-white/30 italic">No students booked yet</p>
@@ -1629,7 +1640,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
               })}
             </div>
           )}
-          {session.enrolled_count < session.max_students && (
+          {liveCount < session.max_students && (
             <div className="mt-4 pt-4 border-t border-white/10">
               <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Add student</p>
               <input value={addQuery} onChange={e => { setAddQuery(e.target.value); setAddError(''); setConfirmAddId(null) }} placeholder="Search by student or parent name..."
@@ -1649,7 +1660,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                       const par = Array.isArray(s.parents) ? s.parents[0] : s.parents
                       return (
                         <div key={s.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2">
-                          <span className="text-sm text-white">{s.full_name} <span className="text-xs text-white/40">Lv.{s.current_level ?? '—'} · {par?.first_name} {par?.last_name}</span></span>
+                          <span className="text-sm text-white">{s.full_name} <span className="text-xs text-white/40">Lv.{s.current_level ?? '—'} · {par?.first_name} {par?.last_name}</span>{band && s.current_level != null && (Number(s.current_level) < band.min || Number(s.current_level) > band.max) && <span className="text-xs ml-1.5 font-medium" style={{ color: '#fb923c' }}>⚠ L{band.min}–{band.max} class</span>}</span>
                           <button onClick={() => confirmAddId === s.id ? addStudent(s.id) : setConfirmAddId(s.id)} disabled={adding !== null}
                             className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50"
                             style={confirmAddId === s.id ? { backgroundColor: '#e05a4a', color: '#fff' } : { backgroundColor: '#c9a84c', color: '#1a2744' }}>

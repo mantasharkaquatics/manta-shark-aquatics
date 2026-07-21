@@ -96,6 +96,7 @@ export async function POST(req: NextRequest) {
         }, { onConflict: 'student_id,practice_date,start_time' })
         if (taErr) return NextResponse.json({ error: taErr.message }, { status: 500 })
         return NextResponse.json({
+          success: true,
           student_id: student.id,
           student_name: student.full_name,
           checked_in_count: 1,
