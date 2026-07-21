@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
           student_id: student.id,
           student_name: student.full_name,
           checked_in_count: 1,
-          checked_in_times: [formatTime12h(startHH) + ' · ' + (tierName || 'Team') + ' practice'],
+          lesson_times: [formatTime12h(startHH) + ' · ' + (tierName || 'Team') + ' practice'],
         })
       }
       if (open.length > 0) {
