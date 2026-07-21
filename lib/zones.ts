@@ -10,6 +10,7 @@ export interface ZoneRow {
   end_time: string
   group_level_min?: number | null
   group_level_max?: number | null
+  team_tier_id?: string | null
 }
 
 export interface EffectiveZones {
@@ -42,7 +43,7 @@ export async function getEffectiveZones(
   // One query for both candidate sets; date rows win if present.
   const { data } = await svc
     .from('coach_availability_zones')
-    .select('zone_type, start_time, end_time, kind, override_date, weekday, group_level_min, group_level_max')
+    .select('zone_type, start_time, end_time, kind, override_date, weekday, group_level_min, group_level_max, team_tier_id')
     .eq('coach_id', coachId)
     .or(`and(kind.eq.date,override_date.eq.${dateStr}),and(kind.eq.weekly,weekday.eq.${dow})`)
 
@@ -53,7 +54,7 @@ export async function getEffectiveZones(
   if (picked.some(r => r.zone_type === 'closed')) return { legacy: false, rows: [] }
 
   const rows = picked
-    .map(r => ({ zone_type: r.zone_type, start_time: r.start_time.slice(0, 5), end_time: r.end_time.slice(0, 5), group_level_min: r.group_level_min ?? null, group_level_max: r.group_level_max ?? null }))
+    .map(r => ({ zone_type: r.zone_type, start_time: r.start_time.slice(0, 5), end_time: r.end_time.slice(0, 5), group_level_min: r.group_level_min ?? null, group_level_max: r.group_level_max ?? null, team_tier_id: r.team_tier_id ?? null }))
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
   return { legacy: false, rows }
 }

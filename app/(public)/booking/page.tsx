@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { tokenSlugsForTarget, meetsLeadTime, isWithin24Hours } from '@/lib/tokens'
 import { zoneTypeForSlug } from '@/lib/zones'
+import { ZONE_COLORS, BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import BookingCart from '@/components/BookingCart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -19,7 +20,7 @@ interface Student { id: string; full_name: string; current_level: number; parent
 interface PartnerStudent { id: string; full_name: string; current_level: number; parent_id: string; isPartner: true; partnerParentId: string; partnershipId: string }
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
-interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string; within24h?: boolean }
+interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string; within24h?: boolean; fill?: string }
 interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string | null }
 
 const COURSE_COLORS: Record<string, string> = {
@@ -302,13 +303,20 @@ export default function BookingPage() {
     const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}`)
     const { times: bookedTimes, blocked: coachBlocked, zones } = await bookedRes.json()
 
+    const fillByTime: Record<string, string> = {}
     const allSlots: string[] = []
     if (zones && !zones.legacy) {
       const zt = zoneTypeForSlug(selectedCourse.slug)
       for (const z of zones.rows || []) {
         if (z.zone_type !== zt) continue
         if (zt === 'group' && z.group_level_min != null && z.group_level_max != null && selectedStudent?.current_level != null && (selectedStudent.current_level < z.group_level_min || selectedStudent.current_level > z.group_level_max)) continue
-        allSlots.push(...generateSlots(z.start_time, z.end_time))
+        const gs = generateSlots(z.start_time, z.end_time)
+        if (zt === 'group') {
+          const k = bandKey(z.group_level_min, z.group_level_max)
+          const f = (k && BAND_COLORS[k]) || ZONE_COLORS.group
+          for (const t of gs) fillByTime[t] = f
+        }
+        allSlots.push(...gs)
       }
     } else {
       const { data: avail } = await supabase
@@ -386,6 +394,7 @@ export default function BookingPage() {
       return { time: t, label: formatTime(t), available: true, enrolled: 0, max: maxStudents, within24h }
     })
 
+    for (const sl of slots) sl.fill = fillByTime[sl.time]
     setTimeSlots(slots)
   }
 
@@ -1054,8 +1063,8 @@ export default function BookingPage() {
                         disabled={!slot.available}
                         style={{
                           padding: '12px 8px', borderRadius: '10px',
-                          border: `2px solid ${selectedSlot?.time === slot.time ? GOLD : slot.available ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
-                          background: selectedSlot?.time === slot.time ? `${GOLD}20` : slot.available ? NAVY : 'rgba(255,255,255,0.03)',
+                          border: `2px solid ${selectedSlot?.time === slot.time ? GOLD : slot.available ? (slot.fill ? slot.fill + '55' : 'rgba(255,255,255,0.12)') : 'rgba(255,255,255,0.05)'}`,
+                          background: selectedSlot?.time === slot.time ? `${GOLD}20` : slot.available ? (slot.fill ? slot.fill + '22' : NAVY) : 'rgba(255,255,255,0.03)',
                           color: selectedSlot?.time === slot.time ? GOLD : slot.available ? '#fff' : 'rgba(255,255,255,0.2)',
                           fontSize: '13px', fontWeight: 600, cursor: slot.available ? 'pointer' : 'not-allowed',
                           textAlign: 'center',

@@ -1,5 +1,7 @@
 'use client'
 
+import { zoneFill } from '@/lib/zone-colors'
+
 import { formatTime12h } from '@/lib/date'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
 
@@ -1356,6 +1358,16 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
 }) {
   const ds = toDateStr(date)
   const [overKey, setOverKey] = useState<string | null>(null)
+  const [zoneMap, setZoneMap] = useState<Record<string, any[] | null>>({})
+  const [tierOrder, setTierOrder] = useState<string[]>([])
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/admin/zones/effective?date=${ds}`)
+      .then(r => r.json())
+      .then(d => { if (alive) { setZoneMap(d?.zones || {}); setTierOrder(d?.tierOrder || []) } })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [ds])
   return (
     <div className="relative">
       <NowLine ds={ds} />
@@ -1388,6 +1400,14 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
               const blkLabelHere = blk && (blk.start_time == null ? time === TIME_SLOTS[0] : String(blk.start_time).slice(0, 5) === time)
               return (
                 <div key={`${coach.id}-${time}`} className="min-h-20 border-t border-l border-white/5 relative">
+                  {(() => {
+                    const zr = zoneMap[coach.id]
+                    if (!zr) return null
+                    const m = timeToMinutes(time)
+                    const z = zr.find((z: any) => timeToMinutes(String(z.start_time).slice(0, 5)) <= m && m < timeToMinutes(String(z.end_time).slice(0, 5)))
+                    const fill = z ? zoneFill(z, tierOrder) : null
+                    return fill ? <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: fill + '2b' }} /> : null
+                  })()}
                   {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} />
                   ) : available ? (

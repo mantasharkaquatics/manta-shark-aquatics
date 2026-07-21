@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS } from '@/lib/zone-colors'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const GRID_START = 6 * 60
 const GRID_END = 21 * 60
 const SLOTS = (GRID_END - GRID_START) / 30
 
-const COLORS: Record<string, string> = { private: '#c9a84c', group: '#4caf72', team: '#e05a4a' }
+const COLORS = ZONE_COLORS
 const PURPLE = '#a78bfa'
 
 const BANDS = [
@@ -16,8 +17,8 @@ const BANDS = [
   { key: '5-6', label: 'L5–6' },
   { key: '7-9', label: 'L7–9' },
 ]
-const BAND_GREENS: Record<string, string> = { '1-2': '#38bdf8', '3-4': '#2dd4bf', '5-6': '#818cf8', '7-9': '#fb923c' }
-const TEAM_COLORS = ['#ef4444', '#ec4899', '#9f1239']
+const BAND_GREENS = BAND_COLORS
+const TEAM_COLORS = TEAM_TIER_COLORS
 
 type Cell = { t: 'private' | 'group' | 'team'; tier?: string; band?: string } | null
 type Brush = 'private' | 'group' | 'team' | 'erase'
