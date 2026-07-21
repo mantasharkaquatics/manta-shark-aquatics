@@ -1408,11 +1408,9 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                     const z = zr.find((z: any) => timeToMinutes(String(z.start_time).slice(0, 5)) <= m && m < timeToMinutes(String(z.end_time).slice(0, 5)))
                     const fill = z ? zoneFill(z, tierOrder) : null
                     if (!fill) return null
-                    const zoneLabel = String(z.start_time).slice(0, 5) === time
-                      ? (z.zone_type === 'team'
-                          ? ((z.team_tier_id && tierNames[z.team_tier_id]) || 'Team')
-                          : (z.group_level_min != null ? `L${z.group_level_min}\u2013${z.group_level_max} Group` : 'Group'))
-                      : null
+                    const zoneLabel = z.zone_type === 'team'
+                      ? (String(z.start_time).slice(0, 5) === time ? ((z.team_tier_id && tierNames[z.team_tier_id]) || 'Team') : null)
+                      : (z.group_level_min != null ? `L${z.group_level_min}\u2013${z.group_level_max} Group` : 'Group')
                     return (
                       <>
                         <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: fill + '2b' }} />
