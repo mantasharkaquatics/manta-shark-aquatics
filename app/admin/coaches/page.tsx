@@ -9,6 +9,7 @@ type Coach = {
   email: string
   is_active: boolean
   created_at: string
+  zoned?: boolean
 }
 
 const inputCls = "w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]"
@@ -232,7 +233,14 @@ export default function AdminCoachesPage() {
             </div>
             {scheduleId === c.id && (
               <div className="border-t border-[#1e3a6e]/50 px-4 pb-4 pt-3">
-                <SchedulePanel coachId={c.id} />
+                {c.zoned ? (
+                  <div className="flex items-center gap-3 py-2">
+                    <p className="text-sm text-gray-400">Availability for this coach is managed by <span className="text-white font-medium">Zones</span>. Legacy weekly hours below no longer apply.</p>
+                    <a href="/admin/zones" className="text-xs px-3 py-1.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 whitespace-nowrap transition-all">Open Zones →</a>
+                  </div>
+                ) : (
+                  <SchedulePanel coachId={c.id} />
+                )}
               </div>
             )}
             </div>

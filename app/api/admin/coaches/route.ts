@@ -12,12 +12,16 @@ const svc = () => createClient(
 export async function GET() {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { data, error } = await svc()
-    .from('coaches')
-    .select('id, first_name, last_name, email, is_active, created_at')
-    .order('created_at')
+  const s = svc()
+  const [{ data, error }, { data: zrows }] = await Promise.all([
+    s.from('coaches')
+      .select('id, first_name, last_name, email, is_active, created_at')
+      .order('created_at'),
+    s.from('coach_availability_zones').select('coach_id'),
+  ])
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ coaches: data })
+  const zoned = new Set((zrows || []).map((r: { coach_id: string }) => r.coach_id))
+  return NextResponse.json({ coaches: (data || []).map((c: { id: string }) => ({ ...c, zoned: zoned.has(c.id) })) })
 }
 
 // Create coach
