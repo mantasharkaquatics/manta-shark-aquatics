@@ -1217,7 +1217,7 @@ export default function DashboardPage() {
                             const cEnabled = (!late || lateOk) && cancellingId !== m.id && m.status !== 'pending_partner'
                             const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
                             return (
-                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
+                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
                                 <div style={{ fontSize: '13px', fontWeight: 700 }}>
                                   <span style={{ color: '#c9a84c' }}>Coach {m.coach_name}</span>
                                   {m.student_name ? <span style={{ color: '#7dd3fc' }}> · ({m.student_name})</span> : ''}
