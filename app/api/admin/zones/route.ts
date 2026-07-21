@@ -45,6 +45,10 @@ function validateZones(zones: any[], needWeekday: boolean): string | null {
       if (!z.team_tier_id) return 'Team zones need a squad'
       if ((toMin(z.end_time) - toMin(z.start_time)) % 90 !== 0) return 'Team blocks must be in 90-minute multiples'
     }
+    if (z.zone_type === 'group' && (z.group_level_min != null || z.group_level_max != null)) {
+      const mn = z.group_level_min, mx = z.group_level_max
+      if (!Number.isInteger(mn) || !Number.isInteger(mx) || mn < 1 || mx > 9 || mn > mx) return 'Invalid group level band'
+    }
   }
   const groups: Record<string, any[]> = {}
   for (const z of zones) {
@@ -76,7 +80,7 @@ export async function GET(req: NextRequest) {
   if (date) {
     const { data: dateRows } = await svc
       .from('coach_availability_zones')
-      .select('zone_type, start_time, end_time, team_tier_id')
+      .select('zone_type, start_time, end_time, team_tier_id, group_level_min, group_level_max')
       .eq('coach_id', coachId).eq('kind', 'date').eq('override_date', date)
       .order('start_time')
     return NextResponse.json({ dateRows: dateRows || [] })
@@ -84,7 +88,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: weekly }, { data: legacy }, { data: tiers }] = await Promise.all([
     svc.from('coach_availability_zones')
-      .select('zone_type, weekday, start_time, end_time, team_tier_id')
+      .select('zone_type, weekday, start_time, end_time, team_tier_id, group_level_min, group_level_max')
       .eq('coach_id', coachId).eq('kind', 'weekly').order('weekday').order('start_time'),
     svc.from('coach_availability')
       .select('day_of_week, start_time, end_time')
@@ -115,6 +119,8 @@ export async function PUT(req: NextRequest) {
         coach_id, kind: 'weekly', zone_type: z.zone_type, weekday: z.weekday,
         start_time: z.start_time, end_time: z.end_time,
         team_tier_id: z.zone_type === 'team' ? z.team_tier_id : null,
+        group_level_min: z.zone_type === 'group' ? z.group_level_min ?? null : null,
+        group_level_max: z.zone_type === 'group' ? z.group_level_max ?? null : null,
       }))
     )
     if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
@@ -167,6 +173,8 @@ export async function POST(req: NextRequest) {
       coach_id, kind: 'date', override_date: date, zone_type: z.zone_type,
       start_time: z.start_time, end_time: z.end_time,
       team_tier_id: z.zone_type === 'team' ? z.team_tier_id : null,
+      group_level_min: z.zone_type === 'group' ? z.group_level_min ?? null : null,
+      group_level_max: z.zone_type === 'group' ? z.group_level_max ?? null : null,
     }))
   )
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })

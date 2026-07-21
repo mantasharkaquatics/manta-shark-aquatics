@@ -57,14 +57,17 @@ export async function POST(req: NextRequest) {
   // Availability-zone validation (spec v1.0): zoned coaches only accept slots that
   // fit entirely inside a zone matching the course type; legacy coaches skip this.
   const effZones = await getEffectiveZones(svc, coach_id, session_date)
+  let groupBand: { min: number; max: number } | null = null
   if (!effZones.legacy) {
     const zt = zoneTypeForSlug(course.slug)
     const toMinZ = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
     const slotStartMin = toMinZ(start_time)
     const slotEndMin = slotStartMin + course.duration_minutes
-    const inZone = effZones.rows.some(z => z.zone_type === zt && toMinZ(z.start_time) <= slotStartMin && slotEndMin <= toMinZ(z.end_time))
-    if (!inZone)
+    const matched = effZones.rows.find(z => z.zone_type === zt && toMinZ(z.start_time) <= slotStartMin && slotEndMin <= toMinZ(z.end_time))
+    if (!matched)
       return NextResponse.json({ error: 'This time is not available for this course type. Please pick another time.' }, { status: 409 })
+    if (zt === 'group' && matched.group_level_min != null && matched.group_level_max != null)
+      groupBand = { min: matched.group_level_min, max: matched.group_level_max }
   }
 
   // Coach conflict check (any course type, enrolled > 0)
@@ -124,6 +127,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
   if (student.current_level == null)
     return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons. Please book a Swim Assessment first.' }, { status: 403 })
+  if (groupBand && (student.current_level < groupBand.min || student.current_level > groupBand.max))
+    return NextResponse.json({ error: `This group time is for Level ${groupBand.min}–${groupBand.max} students. ${student.full_name} is Level ${student.current_level} — please pick a group time for that level.` }, { status: 409 })
   let student2: any = null
   if (student2_id) {
     const { data: s2 } = await svc

@@ -10,9 +10,17 @@ const SLOTS = (GRID_END - GRID_START) / 30
 const COLORS: Record<string, string> = { private: '#c9a84c', group: '#4caf72', team: '#e05a4a' }
 const PURPLE = '#a78bfa'
 
-type Cell = { t: 'private' | 'group' | 'team'; tier?: string } | null
+const BANDS = [
+  { key: '1-2', label: 'L1–2' },
+  { key: '3-4', label: 'L3–4' },
+  { key: '5-6', label: 'L5–6' },
+  { key: '7-9', label: 'L7–9' },
+]
+const BAND_GREENS: Record<string, string> = { '1-2': '#7ed6a0', '3-4': '#4caf72', '5-6': '#2f8f57', '7-9': '#1d6e40' }
+
+type Cell = { t: 'private' | 'group' | 'team'; tier?: string; band?: string } | null
 type Brush = 'private' | 'group' | 'team' | 'erase'
-type ZoneRow = { zone_type: string; weekday?: number; start_time: string; end_time: string; team_tier_id?: string | null }
+type ZoneRow = { zone_type: string; weekday?: number; start_time: string; end_time: string; team_tier_id?: string | null; group_level_min?: number | null; group_level_max?: number | null }
 
 const idxToTime = (i: number) => {
   const m = GRID_START + i * 30
@@ -32,6 +40,7 @@ export default function ZonesEditorPage() {
   const [grid, setGrid] = useState<Cell[][]>(() => Array.from({ length: 7 }, () => Array(SLOTS).fill(null)))
   const [brush, setBrush] = useState<Brush>('private')
   const [brushTier, setBrushTier] = useState('')
+  const [brushBand, setBrushBand] = useState('')
   const [painting, setPainting] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -59,7 +68,7 @@ export default function ZonesEditorPage() {
       const s = timeToIdx(String(z.start_time).slice(0, 5))
       const e = timeToIdx(String(z.end_time).slice(0, 5))
       for (let i = Math.max(0, s); i < Math.min(SLOTS, e); i++) {
-        g[z.weekday!][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined }
+        g[z.weekday!][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: z.group_level_min != null ? z.group_level_min + '-' + z.group_level_max : undefined }
       }
     }
     return g
@@ -96,7 +105,7 @@ export default function ZonesEditorPage() {
         for (const z of src) {
           const s = timeToIdx(String(z.start_time).slice(0, 5))
           const e = timeToIdx(String(z.end_time).slice(0, 5))
-          for (let i = Math.max(0, s); i < Math.min(SLOTS, e); i++) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined }
+          for (let i = Math.max(0, s); i < Math.min(SLOTS, e); i++) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: (z as any).group_level_min != null ? (z as any).group_level_min + '-' + (z as any).group_level_max : undefined }
         }
       }
       setGrid(g)
@@ -107,7 +116,7 @@ export default function ZonesEditorPage() {
   function paint(day: number, idx: number) {
     setGrid(prev => {
       const g = prev.map(row => [...row])
-      g[day][idx] = brush === 'erase' ? null : { t: brush, tier: brush === 'team' ? brushTier : undefined }
+      g[day][idx] = brush === 'erase' ? null : { t: brush, tier: brush === 'team' ? brushTier : undefined, band: brush === 'group' && brushBand ? brushBand : undefined }
       return g
     })
     setDirty(true); setMsg(null); setDayClosed(false)
@@ -124,15 +133,15 @@ export default function ZonesEditorPage() {
   }
 
   function compress(days: number[]) {
-    const out: { zone_type: string; weekday: number; start_time: string; end_time: string; team_tier_id?: string }[] = []
+    const out: { zone_type: string; weekday: number; start_time: string; end_time: string; team_tier_id?: string; group_level_min?: number | null; group_level_max?: number | null }[] = []
     for (const d of days) {
       let i = 0
       while (i < SLOTS) {
         const c = grid[d][i]
         if (!c) { i++; continue }
         let j = i + 1
-        while (j < SLOTS && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier) j++
-        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToTime(j), team_tier_id: c.tier })
+        while (j < SLOTS && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band) j++
+        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToTime(j), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, group_level_max: c.band ? Number(c.band.split('-')[1]) : null })
         i = j
       }
     }
@@ -174,7 +183,7 @@ export default function ZonesEditorPage() {
     setSaving(true); setMsg(null)
     const body: any = { coach_id: coachId, date: ovDate }
     if (dayClosed && zones.length === 0) body.closed = true
-    else body.zones = zones.map(z => ({ zone_type: z.zone_type, start_time: z.start_time, end_time: z.end_time, team_tier_id: z.team_tier_id }))
+    else body.zones = zones.map(z => ({ zone_type: z.zone_type, start_time: z.start_time, end_time: z.end_time, team_tier_id: z.team_tier_id, group_level_min: z.group_level_min ?? null, group_level_max: z.group_level_max ?? null }))
     const res = await fetch('/api/admin/zones', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
@@ -253,6 +262,13 @@ export default function ZonesEditorPage() {
                 {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             )}
+            {brush === 'group' && (
+              <select value={brushBand} onChange={e => setBrushBand(e.target.value)}
+                style={{ background: '#1a2744', color: '#4caf72', border: '1px solid rgba(76,175,114,0.4)', borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: 700 }}>
+                <option value="">All levels</option>
+                {BANDS.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
+              </select>
+            )}
             <button onClick={() => setBrush('erase')}
               style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: brush === 'erase' ? '2px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.15)', background: brush === 'erase' ? 'rgba(255,255,255,0.1)' : 'transparent', color: 'rgba(255,255,255,0.7)' }}>Eraser</button>
             {mode === 'date' && (
@@ -283,8 +299,8 @@ export default function ZonesEditorPage() {
                     <div key={`c${d}-${i}`}
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
                       onMouseEnter={() => { if (painting) paint(d, i) }}
-                      title={c ? (c.t === 'team' ? tierName(c.tier) : c.t) + ' · ' + idxToTime(i) : idxToTime(i)}
-                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? `${COLORS[c.t]}${c.t === 'team' ? 'cc' : '99'}` : 'rgba(255,255,255,0.04)', borderTop: i % 2 === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none' }} />
+                      title={c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? 'group L' + c.band : c.t) + ' · ' + idxToTime(i) : idxToTime(i)}
+                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : `${COLORS[c.t]}${c.t === 'team' ? 'cc' : '99'}`) : 'rgba(255,255,255,0.04)', borderTop: i % 2 === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none' }} />
                   )
                 })}
               </>

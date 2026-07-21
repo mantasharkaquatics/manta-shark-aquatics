@@ -306,7 +306,9 @@ export default function BookingPage() {
     if (zones && !zones.legacy) {
       const zt = zoneTypeForSlug(selectedCourse.slug)
       for (const z of zones.rows || []) {
-        if (z.zone_type === zt) allSlots.push(...generateSlots(z.start_time, z.end_time))
+        if (z.zone_type !== zt) continue
+        if (zt === 'group' && z.group_level_min != null && z.group_level_max != null && selectedStudent?.current_level != null && (selectedStudent.current_level < z.group_level_min || selectedStudent.current_level > z.group_level_max)) continue
+        allSlots.push(...generateSlots(z.start_time, z.end_time))
       }
     } else {
       const { data: avail } = await supabase
