@@ -1166,6 +1166,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         <DetailModal
           session={selectedSession}
           coaches={coaches}
+          students={students}
           onClose={() => setModal(null)}
           supabase={supabase}
           onRefresh={loadSessions}
@@ -1500,9 +1501,10 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown }: { session:
 // ══════════════════════════════════════════════════════════════════════
 // Detail Modal
 // ══════════════════════════════════════════════════════════════════════
-function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
+function DetailModal({ session, coaches, students, onClose, supabase, onRefresh }: {
   session: Session
   coaches: Coach[]
+  students: any[]
   onClose: () => void
   supabase: ReturnType<typeof createClient>
   onRefresh: () => void
@@ -1516,6 +1518,24 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
   const [newTime, setNewTime] = useState('')
   const [rescheduling, setRescheduling] = useState(false)
   const [rescheduleError, setRescheduleError] = useState('')
+  const [addQuery, setAddQuery] = useState('')
+  const [adding, setAdding] = useState<string | null>(null)
+  const [addError, setAddError] = useState('')
+
+  async function addStudent(studentId: string) {
+    setAdding(studentId); setAddError('')
+    const res = await fetch('/api/admin/bookings/bulk-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'commit', coach_id: session.coach_id, course_type_id: session.course_type_id, start_time: session.start_time, student_id: studentId, dates: [session.session_date] }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setAdding(null)
+    if (!res.ok) { setAddError(data.error || 'Add failed'); return }
+    setAddQuery('')
+    fetch(`/api/admin/session-bookings?session_id=${session.id}`).then(r => r.json()).then(d => setBookings(Array.isArray(d) ? d : []))
+    onRefresh()
+  }
 
   async function submitReschedule() {
     if (!showReschedule || !newCoachId || !newDate || !newTime) return
@@ -1606,6 +1626,39 @@ function DetailModal({ session, coaches, onClose, supabase, onRefresh }: {
                   </div>
                 )
               })}
+            </div>
+          )}
+          {session.enrolled_count < session.max_students && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Add student</p>
+              <input value={addQuery} onChange={e => { setAddQuery(e.target.value); setAddError('') }} placeholder="Search by student or parent name..."
+                className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" />
+              {addError && <p className="text-xs text-red-300 mt-2">{addError}</p>}
+              {addQuery.trim().length >= 1 && (
+                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                  {(() => {
+                    const bookedNames = new Set(bookings.map((b: any) => { const st = Array.isArray(b.students) ? b.students[0] : b.students; return st?.full_name }))
+                    const q = addQuery.toLowerCase()
+                    const matches = students.filter((s: any) => {
+                      const par = Array.isArray(s.parents) ? s.parents[0] : s.parents
+                      return !bookedNames.has(s.full_name) && (s.full_name.toLowerCase().includes(q) || ((par?.first_name + ' ' + par?.last_name).toLowerCase().includes(q)))
+                    }).slice(0, 6)
+                    if (matches.length === 0) return <p className="text-xs text-white/30 italic">No matching students</p>
+                    return matches.map((s: any) => {
+                      const par = Array.isArray(s.parents) ? s.parents[0] : s.parents
+                      return (
+                        <div key={s.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2">
+                          <span className="text-sm text-white">{s.full_name} <span className="text-xs text-white/40">Lv.{s.current_level ?? '—'} · {par?.first_name} {par?.last_name}</span></span>
+                          <button onClick={() => addStudent(s.id)} disabled={adding !== null}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
+                            {adding === s.id ? '...' : 'Add'}
+                          </button>
+                        </div>
+                      )
+                    })
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
