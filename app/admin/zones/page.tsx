@@ -17,6 +17,7 @@ const BANDS = [
   { key: '7-9', label: 'L7–9' },
 ]
 const BAND_GREENS: Record<string, string> = { '1-2': '#38bdf8', '3-4': '#2dd4bf', '5-6': '#818cf8', '7-9': '#fb923c' }
+const TEAM_COLORS = ['#ef4444', '#ec4899', '#9f1239']
 
 type Cell = { t: 'private' | 'group' | 'team'; tier?: string; band?: string } | null
 type Brush = 'private' | 'group' | 'team' | 'erase'
@@ -213,6 +214,7 @@ export default function ZonesEditorPage() {
   }
 
   const tierName = (id?: string) => tiers.find(t => t.id === id)?.name || ''
+  const tierColor = (id?: string) => { const i = tiers.findIndex(t => t.id === id); return TEAM_COLORS[i >= 0 ? i % TEAM_COLORS.length : 0] }
   const cellLabel = (c: Cell) => !c ? '' : c.t === 'team' ? tierName(c.tier) : c.t === 'group' ? (c.band ? 'L' + c.band.replace('-', '–') : 'Group') : 'Private'
   const accent = mode === 'date' ? PURPLE : '#c9a84c'
 
@@ -301,7 +303,7 @@ export default function ZonesEditorPage() {
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
                       onMouseEnter={() => { if (painting) paint(d, i) }}
                       title={c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? 'group L' + c.band : c.t) + ' · ' + idxToTime(i) : idxToTime(i)}
-                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : `${COLORS[c.t]}${c.t === 'team' ? 'cc' : '99'}`) : 'rgba(255,255,255,0.04)', borderTop: i % 2 === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
+                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', borderTop: i % 2 === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
                   )
                 })}
               </>
