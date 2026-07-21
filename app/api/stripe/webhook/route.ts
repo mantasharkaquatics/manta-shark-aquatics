@@ -170,6 +170,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
+    if (meta.type === 'team_subscription') {
+      const { error: tmErr } = await supabase.from('team_memberships').insert({
+        student_id: meta.student_id,
+        team_tier_id: meta.team_tier_id,
+        stripe_subscription_id: String(session.subscription || ''),
+        status: 'active',
+      })
+      if (tmErr) console.error('Team membership insert (possibly duplicate retry):', tmErr.message)
+      else console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
+      return NextResponse.json({ received: true })
+    }
+
     const parent_id      = meta.parent_id
     const plan_id        = meta.plan_id
     const sessions       = parseInt(meta.sessions)
@@ -277,6 +289,33 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`✅ Purchase complete: ${plan_id} for parent ${parent_id}`)
+  }
+
+  if (event.type === 'customer.subscription.deleted') {
+    const sub = event.data.object as Stripe.Subscription
+    await supabase.from('team_memberships')
+      .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('stripe_subscription_id', sub.id).neq('status', 'cancelled')
+    console.log(`Team membership cancelled for subscription ${sub.id}`)
+    return NextResponse.json({ received: true })
+  }
+
+  if (event.type === 'invoice.payment_failed') {
+    const inv = event.data.object as any
+    const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id
+    if (subId) await supabase.from('team_memberships')
+      .update({ status: 'past_due', updated_at: new Date().toISOString() })
+      .eq('stripe_subscription_id', subId).eq('status', 'active')
+    return NextResponse.json({ received: true })
+  }
+
+  if (event.type === 'invoice.paid') {
+    const inv = event.data.object as any
+    const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id
+    if (subId) await supabase.from('team_memberships')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('stripe_subscription_id', subId).eq('status', 'past_due')
+    return NextResponse.json({ received: true })
   }
 
   if (event.type === 'checkout.session.expired') {

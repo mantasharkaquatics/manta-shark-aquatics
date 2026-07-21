@@ -19,7 +19,6 @@ const PLANS: Record<string, { name: string; sessions: number; total: number; per
   '1on2-50':  { name: '1-on-2 Semi-Private', sessions: 50, total: 4500, perSession: 90,    courseSlug: '1on2', badge: 'Best Value', validityMonths: 18 },
   '1on4-10':  { name: '1-on-4 Group',        sessions: 10, total: 400,  perSession: 40,    courseSlug: '1on4', validityMonths: 4 },
   '1on4-20':  { name: '1-on-4 Group',        sessions: 20, total: 760,  perSession: 38,    courseSlug: '1on4', validityMonths: 8 },
-  'team':     { name: 'Swim Team',            sessions: 8,  total: 180,  perSession: 22.5,  courseSlug: 'team', validityMonths: 1 },
 }
 
 function CheckoutContent() {
@@ -29,32 +28,42 @@ function CheckoutContent() {
 
   const planId = searchParams.get('plan') || ''
   const plan = PLANS[planId]
+  const isTeam = planId === 'team'
 
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState('')
   const [parentName, setParentName] = useState('')
+  const [students, setStudents] = useState<{ id: string; full_name: string; current_level: number | null }[]>([])
+  const [selectedStudentId, setSelectedStudentId] = useState('')
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push(`/login?redirect=/checkout?plan=${planId}`); return }
       const { data: parent } = await supabase
-        .from('parents').select('first_name, last_name').eq('auth_user_id', user.id).single()
+        .from('parents').select('id, first_name, last_name').eq('auth_user_id', user.id).single()
       if (!parent) { router.push('/login'); return }
       setParentName(`${parent.first_name} ${parent.last_name}`)
+      if (isTeam) {
+        const { data: studs } = await supabase
+          .from('students').select('id, full_name, current_level')
+          .eq('parent_id', (parent as any).id).eq('is_active', true).order('sort_order')
+        setStudents(studs || [])
+      }
       setLoading(false)
     }
     load()
   }, [])
 
   async function handleCheckout() {
+    if (isTeam && !selectedStudentId) { setError('Please select a student to enroll.'); return }
     setPaying(true)
     setError('')
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId }),
+      body: JSON.stringify({ planId, studentId: selectedStudentId || undefined }),
     })
     const data = await res.json()
     if (data.url) {
@@ -65,7 +74,7 @@ function CheckoutContent() {
     }
   }
 
-  if (!plan) return (
+  if (!plan && !isTeam) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
         <p style={{ fontSize: '18px', marginBottom: '16px' }}>Plan not found</p>
@@ -89,10 +98,33 @@ function CheckoutContent() {
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>Confirm Purchase</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>Purchase Lesson Package</h1>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>{isTeam ? 'Join the Swim Team' : 'Purchase Lesson Package'}</h1>
         </div>
 
+        {isTeam && (
+          <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(224,90,74,0.4)', padding: '24px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <p style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Swim Team · Monthly Membership</p>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>Unlimited team practices · squad matched to swim level</p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#e05a4a', margin: 0, lineHeight: 1 }}>$399</p>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>per month</p>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '16px', paddingTop: '16px' }}>
+              <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', flexWrap: 'wrap' }}>
+                <span>✓ Unlimited practices</span>
+                <span>✓ Renews monthly · cancel anytime</span>
+                <span>✓ Team assigned by swim level (Level 4+)</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Plan Summary */}
+        {!isTeam && (
         <div style={{ background: NAVY, borderRadius: '16px', border: `1px solid ${GOLD}40`, padding: '24px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
@@ -122,6 +154,7 @@ function CheckoutContent() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Account Info */}
         <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px 24px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -130,9 +163,32 @@ function CheckoutContent() {
           </div>
           <div>
             <p style={{ fontSize: '13px', fontWeight: 600, color: '#fff', margin: '0 0 2px' }}>{parentName}</p>
-            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>The package applies to this account and can be used by all students</p>
+            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{isTeam ? 'Each membership covers one student — select the swimmer below' : 'The package applies to this account and can be used by all students'}</p>
           </div>
         </div>
+
+        {isTeam && (
+          <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px 24px', marginBottom: '16px' }}>
+            <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', margin: '0 0 12px' }}>Select Student</p>
+            {students.length === 0 ? (
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>No students on this account yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {students.map(st => {
+                  const eligible = (st.current_level || 0) >= 4
+                  const sel = selectedStudentId === st.id
+                  return (
+                    <button key={st.id} onClick={() => eligible && setSelectedStudentId(st.id)} disabled={!eligible}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: '10px', border: sel ? `2px solid ${GOLD}` : '1px solid rgba(255,255,255,0.12)', background: sel ? 'rgba(201,168,76,0.1)' : 'transparent', color: eligible ? '#fff' : 'rgba(255,255,255,0.3)', fontSize: '14px', fontWeight: 600, cursor: eligible ? 'pointer' : 'not-allowed', textAlign: 'left' }}>
+                      <span>{st.full_name}</span>
+                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{st.current_level ? `Level ${st.current_level}` : 'Pending assessment'}{!eligible ? ' · not eligible' : ''}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div style={{ background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#e05a4a' }}>
@@ -142,7 +198,7 @@ function CheckoutContent() {
 
         <button
           onClick={handleCheckout}
-          disabled={paying}
+          disabled={paying || (isTeam && !selectedStudentId)}
           style={{
             width: '100%', padding: '16px', borderRadius: '12px', border: 'none',
             background: paying ? 'rgba(201,168,76,0.4)' : GOLD,
@@ -152,7 +208,7 @@ function CheckoutContent() {
             transition: 'all 0.15s', marginBottom: '12px',
           }}
         >
-          {paying ? 'Redirecting to payment...' : `Proceed to Payment · $${plan.total.toLocaleString()}`}
+          {paying ? 'Redirecting to payment...' : isTeam ? 'Subscribe · $399/month' : `Proceed to Payment · $${plan.total.toLocaleString()}`}
         </button>
 
         <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '0 0 12px' }}>
