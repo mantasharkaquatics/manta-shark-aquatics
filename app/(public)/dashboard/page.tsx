@@ -1224,7 +1224,7 @@ export default function DashboardPage() {
                                 </div>
                                 {m.token_package_id ? (
                                   <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '10px', fontWeight: 600 }}>🎫 Token · Final</div>
-                                ) : (
+                                ) : (m.course_slug === '1on2' && mi > 0) ? null : (
                                   <div style={{ display: 'flex', gap: '6px' }}>
                                     <button
                                       onClick={() => m.lesson_credit_id && setRescheduleTarget({ id: m.id, creditId: m.lesson_credit_id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id })}
