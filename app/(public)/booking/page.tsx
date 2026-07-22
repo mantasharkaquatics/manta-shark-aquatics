@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { tokenSlugsForTarget, meetsLeadTime, isWithin24Hours } from '@/lib/tokens'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { ZONE_COLORS, BAND_COLORS, bandKey } from '@/lib/zone-colors'
+
+const GROUP_BANDS: [number, number][] = [[1, 2], [3, 4], [5, 6], [7, 9]]
+function studentBandOf(lvl: number): { min: number; max: number } | null {
+  const b = GROUP_BANDS.find(([a, z]) => lvl >= a && lvl <= z)
+  return b ? { min: b[0], max: b[1] } : null
+}
 import BookingCart from '@/components/BookingCart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -55,8 +61,8 @@ function formatTime(t: string): string {
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`
 }
 
-function Steps({ current }: { current: number }) {
-  const steps = ['Select Student', 'Course Type', 'Choose Coach', 'Pick Date & Time', 'Confirm']
+function Steps({ current, labels }: { current: number; labels?: string[] }) {
+  const steps = labels || ['Select Student', 'Course Type', 'Choose Coach', 'Pick Date & Time', 'Confirm']
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '36px', overflowX: 'auto' }}>
       {steps.map((s, i) => (
@@ -178,6 +184,16 @@ export default function BookingPage() {
   const [addingToCart, setAddingToCart] = useState(false)
   const [cartMsg, setCartMsg] = useState('')
 
+  // ── 1on4 class-based flow (cross-coach, band-matched) ──
+  const groupFlow = !isTrial && selectedCourse?.slug === '1on4'
+  const myLevel = selectedStudent?.current_level != null ? Number(selectedStudent.current_level) : null
+  const myGroupBand = myLevel != null ? studentBandOf(myLevel) : null
+  const myBandColor = myGroupBand ? (BAND_COLORS[`${myGroupBand.min}-${myGroupBand.max}`] || ZONE_COLORS.group) : ZONE_COLORS.group
+  const [groupDates, setGroupDates] = useState<string[]>([])
+  const [groupClasses, setGroupClasses] = useState<any[]>([])
+  const [groupLoading, setGroupLoading] = useState(false)
+
+
   // Lock student from ?student= (e.g. dashboard assessment Book Now): skip Step 1 entirely
   useEffect(() => {
     if (selectedStudent || students.length === 0) return
@@ -211,6 +227,20 @@ export default function BookingPage() {
   const today = new Date()
   const [calMonth, setCalMonth] = useState(today.getMonth())
   const [calYear, setCalYear] = useState(today.getFullYear())
+
+  useEffect(() => {
+    if (!groupFlow || !selectedStudent) { setGroupDates([]); return }
+    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&year=${calYear}&month=${calMonth + 1}`)
+      .then(r => r.json()).then(d => setGroupDates(d?.dates || [])).catch(() => {})
+  }, [groupFlow, selectedStudent, calMonth, calYear])
+
+  useEffect(() => {
+    if (!groupFlow || !selectedStudent || !selectedDate) { setGroupClasses([]); return }
+    setGroupLoading(true)
+    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&date=${formatDateLA(selectedDate)}`)
+      .then(r => r.json()).then(d => setGroupClasses(d?.classes || [])).catch(() => setGroupClasses([]))
+      .finally(() => setGroupLoading(false))
+  }, [groupFlow, selectedStudent, selectedDate])
 
   useEffect(() => {
     async function init() {
@@ -714,7 +744,7 @@ export default function BookingPage() {
           </div>
         )}
 
-        <Steps current={step} />
+        <Steps current={groupFlow && step >= 3 ? step - 1 : step} labels={groupFlow ? ['Select Student', 'Course Type', 'Pick Date & Time', 'Confirm'] : undefined} />
 
         {step === 0 && (
           <div>
@@ -800,6 +830,11 @@ export default function BookingPage() {
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
                             {ct.duration_minutes} min · Max {ct.max_students} student{ct.max_students > 1 ? 's' : ''}
                           </div>
+                          {ct.slug === '1on4' && myGroupBand && (
+                            <div style={{ marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
+                              Your class: L{myGroupBand.min}–{myGroupBand.max} Group
+                            </div>
+                          )}
                         </div>
                       </div>
                       {remaining > 0 ? (
@@ -907,7 +942,7 @@ export default function BookingPage() {
                     if (!selectedStudent2) return
                     if (!(selectedStudent2 as any).isPartner && remainingCredits < 2) return
                   }
-                  setStep(2)
+                  setStep(selectedCourse.slug === '1on4' && !isTrial ? 3 : 2)
                 }}
                 disabled={
                   !selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) ||
@@ -1013,7 +1048,9 @@ export default function BookingPage() {
                         cursor: available ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected ? `1px solid ${GOLD}40` : 'none',
                       }}
-                    >{i + 1}</button>
+                    ><span>{i + 1}</span>{groupFlow && groupDates.includes(formatDateLA(date)) && !isSelected && (
+                      <span style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', margin: '2px auto 0', backgroundColor: myBandColor }} />
+                    )}</button>
                   )
                 })}
               </div>
@@ -1051,7 +1088,65 @@ export default function BookingPage() {
                     </div>
                   </div>
                 )}
-                {timeSlots.length === 0 ? (
+                {groupFlow ? (
+                  groupLoading ? (
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading classes...</p>
+                  ) : (() => {
+                    const ds2 = formatDateLA(selectedDate)
+                    const tokenBlocked = !availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate)
+                    const visible = groupClasses.filter((gc: any) => meetsLeadTime(ds2, gc.time))
+                    if (visible.length === 0) return (
+                      <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
+                          No {myGroupBand ? `L${myGroupBand.min}–${myGroupBand.max} Group` : 'group'} classes this day — look for dates marked with a dot.
+                        </p>
+                      </div>
+                    )
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {visible.map((gc: any) => {
+                          const w24 = isWithin24Hours(ds2, gc.time)
+                          const sel = selectedSlot?.time === gc.time && selectedCoach?.id === gc.coach_id
+                          const clickable = !gc.full && !gc.already_booked && !tokenBlocked
+                          return (
+                            <button key={gc.coach_id + gc.time}
+                              onClick={() => {
+                                if (!clickable) return
+                                const c = coaches.find(x => x.id === gc.coach_id)
+                                if (!c) return
+                                setSelectedCoach(c)
+                                setSelectedSlot({ time: gc.time, label: formatTime(gc.time), available: true, enrolled: gc.enrolled, max: gc.max, session_id: gc.session_id, within24h: w24 })
+                              }}
+                              disabled={!clickable}
+                              style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                                padding: '14px 16px', borderRadius: '10px', textAlign: 'left', cursor: clickable ? 'pointer' : 'not-allowed',
+                                border: `2px solid ${sel ? GOLD : clickable ? myBandColor + '55' : 'rgba(255,255,255,0.06)'}`,
+                                background: sel ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
+                              }}>
+                              <span>
+                                <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                  {formatTime(gc.time)} – {formatTime(gc.end_time)}
+                                </span>
+                                <span style={{ display: 'block', fontSize: '12px', color: clickable ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
+                                  Coach {gc.coach_name} · L{myGroupBand?.min}–{myGroupBand?.max} Group
+                                </span>
+                              </span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                {w24 && clickable && <span style={{ fontSize: '10px', fontWeight: 700, color: '#c9a84c' }}>24h</span>}
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px',
+                                  color: gc.already_booked ? 'rgba(255,255,255,0.4)' : gc.full ? 'rgba(255,255,255,0.3)' : myBandColor,
+                                  background: gc.already_booked || gc.full ? 'rgba(255,255,255,0.06)' : myBandColor + '22' }}>
+                                  {gc.already_booked ? 'Booked ✓' : gc.full ? 'Full' : `${gc.max - gc.enrolled} left`}
+                                </span>
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()
+                ) : timeSlots.length === 0 ? (
                   <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>No available slots for this day.</p>
                   </div>
@@ -1085,7 +1180,7 @@ export default function BookingPage() {
             )}
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => { setStep(2); setSelectedDate(null); setSelectedSlot(null) }} style={{
+              <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null) }} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
