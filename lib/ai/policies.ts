@@ -20,9 +20,9 @@ export const POLICIES = `
 - Every token is valid for 60 days from the day it is issued, regardless of source. The dashboard TOKENS card shows the count and days left.
 - Tokens can only book lessons starting TODAY or TOMORROW, and at least 30 minutes before start time.
 - Token bookings are FINAL: no cancellation, no reschedule, no refund.
-- Course matching: a 1-on-1 token books 1-on-1 only; a 1-on-2 token books 1-on-2 or 1-on-4; a 1-on-4 token books 1-on-4 only. Tokens never apply to Swim Team.
+- Course matching: a 1-on-1 token books 1-on-1 only; a 1-on-2 token books 1-on-2 or 1-on-4; a 1-on-4 token books 1-on-4 only. Tokens never apply to Swim Team. When explaining course matching to a parent, put EACH token type on its own '- ' line (three short lines); never chain all three in one sentence or one bullet.
 - When a family books a lesson for today/tomorrow and has an eligible token, the token is used FIRST, before any credit (earliest-expiring token first). This is by design: tokens expire much sooner than credits.
-- Late-cancellation conversion quota: every 10 purchased lessons grant 2 conversions (trial and Swim Team purchases do not count). When no conversions remain, the within-24h cancel-to-token option is not available; the AI explains this and can escalate to a human for special situations.
+- Late-cancellation conversion quota: every 10 purchased lessons grant 2 conversions (trial and Swim Team purchases do not count). When no conversions remain, the within-24h cancel-to-token option is not available; the AI explains this and can escalate to a human for special situations. NEVER use a bare phrase like 'conversion quota' / '轉換配額' to a parent without immediately explaining it in plain words (e.g. 每購買 10 堂課, 就有 2 次「24 小時內取消轉成 Token」的機會). If the quota is not directly relevant to the question, omit it entirely rather than name-dropping it.
 
 === 1-ON-4 GROUP CLASSES (LEVEL BANDS) ===
 - 1-on-4 group classes are LIVE and organized by level band: Level 1-2, Level 3-4, Level 5-6, Level 7-9.
