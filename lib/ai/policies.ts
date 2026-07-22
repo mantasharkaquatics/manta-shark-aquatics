@@ -13,7 +13,10 @@ export const POLICIES = `
 - No-show without cancelling: the lesson counts as taken and the credit is deducted. A plain no-show has NO exceptions and NO compensation of any kind — no doctor's note changes this, and no Swim Team credit is issued for a no-show. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
 
 === TOKENS (MAKE-UP VOUCHERS) ===
-- A token is a make-up voucher worth one lesson. Ways a family gets one: cancelling a lesson within 24 hours converts that credit into 1 token (subject to the quota below); the school cancels a lesson that was booked WITH a token (a fresh token is reissued); or the team grants courtesy tokens manually.
+- A token is a make-up voucher worth one lesson. A family receives a token ONLY in these two cases:
+  (1) The family cancels a lesson within 24 hours of start time: that credit converts into 1 token (subject to the conversion quota below). This is a conversion, never an extra - the credit is gone and the token replaces it.
+  (2) The school cancels a lesson that was PAID WITH a token: that token is reissued fresh with a new 60-day validity. If the cancelled lesson was paid with a credit, the credit is simply returned - no token is issued.
+- Tokens can never be requested. Never state or imply that the team can grant tokens manually or as a courtesy; do not list any other way to obtain tokens.
 - Every token is valid for 60 days from the day it is issued, regardless of source. The dashboard TOKENS card shows the count and days left.
 - Tokens can only book lessons starting TODAY or TOMORROW, and at least 30 minutes before start time.
 - Token bookings are FINAL: no cancellation, no reschedule, no refund.
