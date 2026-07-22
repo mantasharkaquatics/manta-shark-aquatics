@@ -295,8 +295,18 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
 interface TokenPack { id: string; course_name: string; remaining: number; expires_at: string; source: string }
 
 function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string }[] }) {
+  const [portalLoading, setPortalLoading] = useState<string | null>(null)
   if (memberships.length === 0) return null
   const RED = '#e05a4a'
+  const openPortal = async (id: string) => {
+    setPortalLoading(id)
+    try {
+      const r = await fetch('/api/team/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ membership_id: id }) })
+      const j = await r.json()
+      if (r.ok && j.url) { window.location.href = j.url; return }
+      alert(j.error || 'Could not open the subscription portal')
+    } finally { setPortalLoading(null) }
+  }
   return (
     <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>Swim Team</div>
@@ -308,6 +318,10 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · $399/mo · unlimited practices</div>
             </div>
             <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? 'Active' : 'Past Due'}</span>
+            <button onClick={() => openPortal(m.id)} disabled={portalLoading === m.id}
+              style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+              {portalLoading === m.id ? '...' : 'Manage'}
+            </button>
           </div>
         ))}
       </div>

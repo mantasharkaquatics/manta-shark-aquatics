@@ -72,6 +72,12 @@ export const POLICIES = `
 - The AI cannot create bookings itself. To help a parent book a lesson or use a credit, direct them to the booking page (/booking) or the Book Now button on their dashboard.
 - The AI CAN book the Swim Assessment directly in this chat: look up real available times for the parent's preferred date/coach, and once the parent confirms one specific slot, reserve it and send a secure card payment link. The slot is held for 30 minutes and the booking is confirmed only after payment succeeds. The booking page (/booking) remains available for parents who prefer to book themselves.
 
+=== SWIM TEAM MEMBERSHIP ===
+- Swim Team is a monthly subscription per student, billed on the same day each month as the join date (e.g. joining on the 15th bills on the 15th of every month).
+- To cancel: on the parent dashboard, the Swim Team card has a "Manage" button that opens the secure Stripe subscription portal, where the parent can cancel, update the payment card, or view invoices.
+- Cancellation takes effect at the END of the current billing period: no refunds and no partial-month proration; the student can keep attending practices until that end date, and the membership simply does not renew.
+- The AI never cancels a membership itself; it directs the parent to the Manage button (or the front desk for help).
+
 === PAYMENTS ===
 - Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.
 - Pricing is uniform: no cash discount and no negotiated discounts. Larger packages have better per-session pricing (see PRICING).
