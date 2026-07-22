@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -55,6 +56,7 @@ interface Booking {
   id: string; status: string
   session_date: string; start_time: string; end_time: string
   course_name: string; coach_name: string; student_name?: string; _group?: Booking[]
+  level_min?: number | null; level_max?: number | null
   lesson_credit_id?: string
   token_package_id?: string
   course_slug?: string
@@ -452,7 +454,7 @@ export default function DashboardPage() {
 
     const [{ data: sessionsData }, { data: studentsData }] = await Promise.all([
       sessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(name, slug), coaches(first_name)').in('id', sessionIds)
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(name, slug), coaches(first_name)').in('id', sessionIds)
         : Promise.resolve({ data: [] }),
       studentIds.length > 0
         ? supabase.from('students').select('id, full_name').in('id', studentIds)
@@ -476,7 +478,7 @@ export default function DashboardPage() {
     if (newSessionIds.length > 0) {
       const { data: newSessionsData } = await supabase
         .from('class_sessions')
-        .select('id, session_date, start_time, end_time, course_types(name, slug), coaches(first_name)')
+        .select('id, session_date, start_time, end_time, level_min, level_max, course_types(name, slug), coaches(first_name)')
         .in('id', newSessionIds)
       for (const s of newSessionsData || []) {
         const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
@@ -565,6 +567,7 @@ export default function DashboardPage() {
           start_time: cs?.start_time,
           end_time: cs?.end_time,
           course_name: cs?.ct?.name,
+          level_min: cs?.level_min ?? null, level_max: cs?.level_max ?? null,
           coach_name: cs?.coach?.first_name,
           student_name: studentMap[b.student_id]?.full_name ? (b._partner_student_name ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
           lesson_credit_id: b.lesson_credit_id,
@@ -1193,6 +1196,7 @@ export default function DashboardPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.is_trial ? 'Swim Assessment' : booking.course_name}</span>
+                        {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>L{booking.level_min}–{booking.level_max}</span> : null })()}
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                         {booking._group && <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>}

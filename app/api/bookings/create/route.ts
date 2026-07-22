@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
       .insert({
         course_type_id, coach_id, session_date, start_time, end_time,
         max_students: course.max_students, enrolled_count: 0, status: 'open',
+        level_min: groupBand?.min ?? null, level_max: groupBand?.max ?? null,
       })
       .select('id').single()
     if (sessErr || !created)
