@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
+import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -134,16 +135,16 @@ export async function POST(req: NextRequest) {
 
   const { data: ct } = await svc
     .from('course_types')
-    .select('id, name, duration_minutes, max_students')
+    .select('id, name, slug, duration_minutes, max_students')
     .eq('id', course_type_id)
     .single()
   if (!ct) return NextResponse.json({ error: 'Course type not found' }, { status: 404 })
 
-  const { data: student1 } = await svc.from('students').select('id, parent_id, full_name').eq('id', student_id).single()
+  const { data: student1 } = await svc.from('students').select('id, parent_id, full_name, current_level').eq('id', student_id).single()
   if (!student1) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
   let student2: any = null
   if (student2_id) {
-    const { data } = await svc.from('students').select('id, parent_id, full_name').eq('id', student2_id).single()
+    const { data } = await svc.from('students').select('id, parent_id, full_name, current_level').eq('id', student2_id).single()
     if (!data) return NextResponse.json({ error: 'Student 2 not found' }, { status: 404 })
     student2 = data
   }
@@ -202,6 +203,24 @@ export async function POST(req: NextRequest) {
       const st = statusByDate.get(d)
       if (st !== 'ok') {
         return NextResponse.json({ error: `Date ${d} is no longer available (${st || 'out of range'})` }, { status: 409 })
+      }
+    }
+
+    // Level-band hard block (owner rule): banded 1on4 rejects out-of-band students for everyone, admin included.
+    if (zoneTypeForSlug(ct.slug || '') === 'group') {
+      const slotStartMin = timeToMinutes(start_time)
+      const slotEndMin = slotStartMin + ct.duration_minutes
+      for (const d of dates) {
+        const eff = await getEffectiveZones(svc, coach_id, d)
+        if (eff.legacy) continue
+        const z = eff.rows.find(z => z.zone_type === 'group' && timeToMinutes(z.start_time) <= slotStartMin && slotEndMin <= timeToMinutes(z.end_time))
+        if (!z || z.group_level_min == null || z.group_level_max == null) continue
+        for (const stu of [student1, student2].filter(Boolean)) {
+          if (stu.current_level == null || stu.current_level < z.group_level_min || stu.current_level > z.group_level_max) {
+            const who = stu.current_level == null ? `${stu.full_name} has not been assessed yet` : `${stu.full_name} is Level ${stu.current_level}`
+            return NextResponse.json({ error: `${who}; the ${d} class is Level ${z.group_level_min}\u2013${z.group_level_max} only.` }, { status: 409 })
+          }
+        }
       }
     }
 
