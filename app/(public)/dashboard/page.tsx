@@ -1199,14 +1199,16 @@ export default function DashboardPage() {
                         {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>Level {booking.level_min}–{booking.level_max}</span> : null })()}
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
-                        {(() => {
-                          if (!booking._group || booking.checked_in) return null
-                          if (booking.session_date !== getTodayLA()) return null
-                          const [sh, sm] = booking.start_time.split(':').map(Number)
-                          if (getNowMinutesLA() >= sh * 60 + sm - 30) return null
-                          return <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Check-in opens 30 min before class</span>
-                        })()}
-                        {booking._group && <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>}
+                        {booking._group && <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {(() => {
+                            if (booking.checked_in) return null
+                            if (booking.session_date !== getTodayLA()) return null
+                            const [sh, sm] = booking.start_time.split(':').map(Number)
+                            if (getNowMinutesLA() >= sh * 60 + sm - 30) return null
+                            return <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>Check-in opens 30 min before class</span>
+                          })()}
+                          <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>
+                        </span>}
                       </div>
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
