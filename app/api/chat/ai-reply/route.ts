@@ -1,4 +1,5 @@
 import { isBlocked } from '@/lib/availability'
+import { getEffectiveZones } from '@/lib/zones'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
@@ -33,6 +34,8 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   const { data: coaches } = await coachQ
   if (!coaches || coaches.length === 0) return { error: 'Coach not found.' }
   const ids = coaches.map((c: any) => c.id)
+  const effMap = new Map<string, any>()
+  await Promise.all(coaches.map(async (c: any) => { effMap.set(c.id, await getEffectiveZones(svc, c.id, date)) }))
 
   const [availRes, offRes, sessRes] = await Promise.all([
     svc.from('coach_availability').select('coach_id, start_time, end_time').in('coach_id', ids).eq('day_of_week', dow).eq('is_active', true),
@@ -73,7 +76,11 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   const out: any[] = []
   for (const c of coaches) {
     const times: { time: string; label: string }[] = []
-    for (const w of (availRes.data || []).filter((a: any) => a.coach_id === c.id)) {
+    const effC = effMap.get(c.id)
+    const windows = effC && !effC.legacy
+      ? effC.rows.filter((z: any) => z.zone_type === 'private')
+      : (availRes.data || []).filter((a: any) => a.coach_id === c.id)
+    for (const w of windows) {
       const [sh, sm] = String(w.start_time).slice(0, 5).split(':').map(Number)
       const [eh, em] = String(w.end_time).slice(0, 5).split(':').map(Number)
       let cur = sh * 60 + sm
