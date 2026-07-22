@@ -8,9 +8,24 @@ export const POLICIES = `
 
 === CANCEL / RESCHEDULE ===
 - Lessons can be cancelled or rescheduled more than 24 hours before the lesson start time, either by the parent in the online system or by contacting the team.
-- Within 24 hours of the lesson start time, lessons cannot be cancelled or rescheduled online. Deliver this politely and with empathy, e.g.: acknowledge the inconvenience, explain the coach's time is already reserved, and suggest notifying us earlier next time.
+- Within 24 hours of the lesson start time, lessons cannot be RESCHEDULED online. Cancelling within 24 hours is possible online, but the credit is not refunded - it converts into a make-up TOKEN (see TOKENS section, subject to the conversion quota). Deliver this politely and with empathy: acknowledge the inconvenience, explain the coach's time is already reserved, and explain what the token can do.
 - Rescheduling (more than 24h ahead) is unlimited; there is no cap on the number of reschedules. Credits must still be used within the package validity period.
 - No-show without cancelling: the lesson counts as taken and the credit is deducted. A plain no-show has NO exceptions and NO compensation of any kind — no doctor's note changes this, and no Swim Team credit is issued for a no-show. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
+
+=== TOKENS (MAKE-UP VOUCHERS) ===
+- A token is a make-up voucher worth one lesson. Ways a family gets one: cancelling a lesson within 24 hours converts that credit into 1 token (subject to the quota below); the school cancels a lesson that was booked WITH a token (a fresh token is reissued); or the team grants courtesy tokens manually.
+- Every token is valid for 60 days from the day it is issued, regardless of source. The dashboard TOKENS card shows the count and days left.
+- Tokens can only book lessons starting TODAY or TOMORROW, and at least 30 minutes before start time.
+- Token bookings are FINAL: no cancellation, no reschedule, no refund.
+- Course matching: a 1-on-1 token books 1-on-1 only; a 1-on-2 token books 1-on-2 or 1-on-4; a 1-on-4 token books 1-on-4 only. Tokens never apply to Swim Team.
+- When a family books a lesson for today/tomorrow and has an eligible token, the token is used FIRST, before any credit (earliest-expiring token first). This is by design: tokens expire much sooner than credits.
+- Late-cancellation conversion quota: every 10 purchased lessons grant 2 conversions (trial and Swim Team purchases do not count). When no conversions remain, the within-24h cancel-to-token option is not available; the AI explains this and can escalate to a human for special situations.
+
+=== 1-ON-4 GROUP CLASSES (LEVEL BANDS) ===
+- 1-on-4 group classes are LIVE and organized by level band: Level 1-2, Level 3-4, Level 5-6, Level 7-9.
+- A student may only book or join a class whose band includes the student's current level. This is a hard rule with NO exceptions - not even staff can override it.
+- Students without an assessed level cannot book group classes; they must complete the Swim Assessment first.
+- Parents book on the booking page: after picking the student, dates with matching-band classes show a dot; each class card shows the time, coach, and spots left (max 4 students per class).
 
 === ILLNESS / EMERGENCY EXCEPTION ===
 - This exception applies ONLY when the parent contacts us and tells us the absence is due to illness or emergency. It is never an automatic exemption, and it does not apply to plain no-shows. When it applies, the team handles it manually (escalate to a human). Compensation policy the AI may explain:
@@ -30,7 +45,7 @@ export const POLICIES = `
 
 === WEATHER / SCHOOL-INITIATED CANCELLATIONS ===
 - In extreme weather or when California disaster alerts are issued, lessons are paused. Management notifies all families by email and SMS.
-- If the school cancels a lesson, the credit is returned to the family account automatically; the family can rebook online or contact us for help.
+- If the school cancels a lesson, the refund follows the original payment path automatically: a credit-booked lesson gets the credit back; a token-booked lesson receives a fresh 60-day token. The family can rebook online or contact us for help.
 - If the school cancels within 24 hours of the lesson start time, the family also receives one free Swim Team lesson credit (valid 1 year) in addition to the returned credit.
 
 === LATE ARRIVAL ===
@@ -67,7 +82,7 @@ export const POLICIES = `
 
 === STUDENTS WE SERVE ===
 - All ages and levels: children and adults, from complete beginners to competitive swimmers. 1-on-1 and 1-on-2 lessons fit every age.
-- Group classes and an adult swim team are planned for the future.
+- 1-on-4 group classes (level-banded) are available now; an adult swim team is planned for the future.
 - Special needs students (e.g. autism, ADHD) are welcome: our coaches are ABA-trained, one of our co-founders is a school psychologist specializing in supporting special-needs students, and our team has coached special-needs swimmers up to Paralympic-level competition.
 
 === LESSON GUIDANCE (for common questions) ===
