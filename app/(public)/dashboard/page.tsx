@@ -1481,7 +1481,7 @@ export default function DashboardPage() {
               <Link href="/plans" style={{ display: 'inline-block', padding: '9px 20px', background: 'transparent', color: GOLD, border: `1px solid ${GOLD}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>Browse Plans</Link>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px', alignItems: 'start' }}>
               {(() => {
                 // Group credits by course_type_id and sum them up
                 const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null; expiresAt?: string | null }[] }> = {}
