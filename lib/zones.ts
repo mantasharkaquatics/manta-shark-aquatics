@@ -16,6 +16,7 @@ export interface ZoneRow {
 export interface EffectiveZones {
   legacy: boolean
   rows: ZoneRow[]
+  overridden: boolean
 }
 
 // Course slug -> zone that admits it. 1on1/1on2 share private; 1on4 -> group.
@@ -36,7 +37,7 @@ export async function getEffectiveZones(
     .from('coach_availability_zones')
     .select('id', { count: 'exact', head: true })
     .eq('coach_id', coachId)
-  if (!count || count === 0) return { legacy: true, rows: [] }
+  if (!count || count === 0) return { legacy: true, rows: [], overridden: false }
 
   const dow = new Date(dateStr + 'T00:00:00').getDay()
 
@@ -51,10 +52,10 @@ export async function getEffectiveZones(
   const dateRows = all.filter(r => r.kind === 'date')
   const picked = dateRows.length > 0 ? dateRows : all.filter(r => r.kind === 'weekly')
 
-  if (picked.some(r => r.zone_type === 'closed')) return { legacy: false, rows: [] }
+  if (picked.some(r => r.zone_type === 'closed')) return { legacy: false, rows: [], overridden: dateRows.length > 0 }
 
   const rows = picked
     .map(r => ({ zone_type: r.zone_type, start_time: r.start_time.slice(0, 5), end_time: r.end_time.slice(0, 5), group_level_min: r.group_level_min ?? null, group_level_max: r.group_level_max ?? null, team_tier_id: r.team_tier_id ?? null }))
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
-  return { legacy: false, rows }
+  return { legacy: false, rows, overridden: dateRows.length > 0 }
 }

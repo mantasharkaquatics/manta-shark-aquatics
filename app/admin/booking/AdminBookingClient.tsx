@@ -1361,11 +1361,12 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
   const [zoneMap, setZoneMap] = useState<Record<string, any[] | null>>({})
   const [tierOrder, setTierOrder] = useState<string[]>([])
   const [tierNames, setTierNames] = useState<Record<string, string>>({})
+  const [ovrMap, setOvrMap] = useState<Record<string, boolean>>({})
   useEffect(() => {
     let alive = true
     fetch(`/api/admin/zones/effective?date=${ds}`)
       .then(r => r.json())
-      .then(d => { if (alive) { setZoneMap(d?.zones || {}); setTierOrder(d?.tierOrder || []); setTierNames(d?.tierNames || {}) } })
+      .then(d => { if (alive) { setZoneMap(d?.zones || {}); setTierOrder(d?.tierOrder || []); setTierNames(d?.tierNames || {}); setOvrMap(d?.overridden || {}) } })
       .catch(() => {})
     return () => { alive = false }
   }, [ds])
@@ -1377,7 +1378,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
           <div className="h-14" />
           {coaches.map(coach => (
             <div key={coach.id} className="h-14 flex flex-col items-center justify-center border-l border-white/5">
-              <span className="text-sm font-semibold text-white/80">{coach.first_name}</span>
+              <span className="text-sm font-semibold text-white/80">{coach.first_name}{ovrMap[coach.id] && <span title="Schedule modified for this date (zone override)" className="ml-1.5 rounded-full border border-purple-400/50 bg-purple-400/10 px-1.5 py-0.5 text-[9px] font-bold text-purple-300 align-middle">Modified</span>}</span>
               <span className="text-xs text-white/30">{coach.last_name}</span>
             </div>
           ))}
