@@ -1098,7 +1098,7 @@ export default function BookingPage() {
                     if (visible.length === 0) return (
                       <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
                         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
-                          No {myGroupBand ? `L${myGroupBand.min}–${myGroupBand.max} Group` : 'group'} classes this day — look for dates marked with a dot.
+                          No {myGroupBand ? `Level ${myGroupBand.min}–${myGroupBand.max} Group` : 'group'} classes this day — look for dates marked with a dot.
                         </p>
                       </div>
                     )

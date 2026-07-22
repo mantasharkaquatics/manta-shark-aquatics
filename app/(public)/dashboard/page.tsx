@@ -1196,7 +1196,7 @@ export default function DashboardPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.is_trial ? 'Swim Assessment' : booking.course_name}</span>
-                        {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>L{booking.level_min}–{booking.level_max}</span> : null })()}
+                        {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>Level {booking.level_min}–{booking.level_max}</span> : null })()}
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
                         {booking._group && <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>}
@@ -1275,6 +1275,13 @@ export default function DashboardPage() {
                       ) : (
                         <div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
+                      {(() => {
+                        if (booking.checked_in) return null
+                        if (booking.session_date !== getTodayLA()) return null
+                        const [sh, sm] = booking.start_time.split(':').map(Number)
+                        if (getNowMinutesLA() >= sh * 60 + sm - 30) return null
+                        return <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '3px' }}>Check-in opens 30 min before class</div>
+                      })()}
                           {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
@@ -1303,7 +1310,7 @@ export default function DashboardPage() {
                         if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) {
                           return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>Check-in Open</span>
                         }
-                        return <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Check-in opens 30 min before class</span>
+                        return null
                       })()}
                       {!booking._group && <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
                         {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? 'PENDING RESCHEDULE' : booking.status}
