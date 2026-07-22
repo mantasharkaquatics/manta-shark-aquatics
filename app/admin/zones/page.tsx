@@ -42,7 +42,7 @@ export default function ZonesEditorPage() {
   const [grid, setGrid] = useState<Cell[][]>(() => Array.from({ length: 7 }, () => Array(SLOTS).fill(null)))
   const [brush, setBrush] = useState<Brush>('private')
   const [brushTier, setBrushTier] = useState('')
-  const [brushBand, setBrushBand] = useState('')
+  const [brushBand, setBrushBand] = useState(BANDS[0].key)
   const [painting, setPainting] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -290,7 +290,6 @@ export default function ZonesEditorPage() {
             {brush === 'group' && (
               <select value={brushBand} onChange={e => setBrushBand(e.target.value)}
                 style={{ background: '#1a2744', color: '#4caf72', border: '1px solid rgba(76,175,114,0.4)', borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: 700 }}>
-                <option value="">All levels</option>
                 {BANDS.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
               </select>
             )}

@@ -45,8 +45,9 @@ function validateZones(zones: any[], needWeekday: boolean): string | null {
       if (!z.team_tier_id) return 'Team zones need a squad'
       if ((toMin(z.end_time) - toMin(z.start_time)) % 90 !== 0) return 'Team blocks must be in 90-minute multiples'
     }
-    if (z.zone_type === 'group' && (z.group_level_min != null || z.group_level_max != null)) {
+    if (z.zone_type === 'group') {
       const mn = z.group_level_min, mx = z.group_level_max
+      if (mn == null || mx == null) return 'Group zones must have a level band'
       if (!Number.isInteger(mn) || !Number.isInteger(mx) || mn < 1 || mx > 9 || mn > mx) return 'Invalid group level band'
     }
   }
