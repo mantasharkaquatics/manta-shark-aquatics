@@ -53,6 +53,7 @@ export default function ZonesEditorPage() {
   const [dayClosed, setDayClosed] = useState(false)
   const [hasOverride, setHasOverride] = useState(false)
   const [reload, setReload] = useState(0)
+  const [ovDates, setOvDates] = useState<{ date: string; closed: boolean }[]>([])
 
   const ovDow = ovDate ? new Date(ovDate + 'T00:00:00').getDay() : 0
   const visDays = mode === 'date' && ovDate ? [ovDow] : [0, 1, 2, 3, 4, 5, 6]
@@ -86,6 +87,7 @@ export default function ZonesEditorPage() {
       if ((d.tiers || []).length > 0 && !brushTier) setBrushTier(d.tiers[0].id)
       setGrid(buildWeeklyGrid(d.weekly || []))
       setHasZones((d.weekly || []).length > 0)
+      setOvDates(d.overrideDates || [])
     })
   }, [coachId])
 
@@ -193,6 +195,7 @@ export default function ZonesEditorPage() {
     setSaving(false)
     if (!res.ok) { setMsg({ ok: false, text: data.error || 'Save failed' }); return }
     setDirty(false); setHasOverride(true)
+    setOvDates(prev => { const rest = prev.filter(o => o.date !== ovDate); return [...rest, { date: ovDate, closed: data.mode === 'closed' }].sort((a, b) => a.date.localeCompare(b.date)) })
     const w = data.warnings || []
     setMsg({ ok: true, warn: w.length > 0, text: (data.mode === 'closed' ? `${ovDate} closed for this coach` : `Override saved for ${ovDate}`) + (w.length ? ` — ⚠ ${w.length} existing booking(s) affected: ${w.join('; ')}. These lessons still happen; only new bookings are limited.` : '') })
   }
@@ -211,6 +214,7 @@ export default function ZonesEditorPage() {
     setSaving(false)
     if (!res.ok) { setMsg({ ok: false, text: 'Clear failed' }); return }
     setHasOverride(false); setReload(x => x + 1)
+    setOvDates(prev => prev.filter(o => o.date !== ovDate))
     setMsg({ ok: true, text: `Override cleared — ${ovDate} follows the weekly template` })
   }
 
@@ -250,6 +254,23 @@ export default function ZonesEditorPage() {
           </span>
         )}
       </div>
+
+      {coachId && (() => {
+        const laToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+        const upcoming = ovDates.filter(o => o.date >= laToday)
+        if (upcoming.length === 0) return null
+        return (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: PURPLE }}>Overrides:</span>
+            {upcoming.map(o => (
+              <button key={o.date} onClick={() => { setMode('date'); setOvDate(o.date) }}
+                style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: o.closed ? '1px solid rgba(224,90,74,0.5)' : `1px solid ${PURPLE}66`, background: mode === 'date' && ovDate === o.date ? (o.closed ? 'rgba(224,90,74,0.18)' : 'rgba(167,139,250,0.18)') : 'transparent', color: o.closed ? '#e05a4a' : PURPLE }}>
+                {o.date.slice(5).replace('-', '/')}{o.closed ? ' ✕ closed' : ''}
+              </button>
+            ))}
+          </div>
+        )
+      })()}
 
       {coachId && (mode === 'weekly' || ovDate) && (
         <>

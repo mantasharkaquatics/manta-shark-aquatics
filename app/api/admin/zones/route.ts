@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ dateRows: dateRows || [] })
   }
 
-  const [{ data: weekly }, { data: legacy }, { data: tiers }] = await Promise.all([
+  const [{ data: weekly }, { data: legacy }, { data: tiers }, { data: ovRows }] = await Promise.all([
     svc.from('coach_availability_zones')
       .select('zone_type, weekday, start_time, end_time, team_tier_id, group_level_min, group_level_max')
       .eq('coach_id', coachId).eq('kind', 'weekly').order('weekday').order('start_time'),
@@ -94,8 +94,14 @@ export async function GET(req: NextRequest) {
       .select('day_of_week, start_time, end_time')
       .eq('coach_id', coachId).eq('is_active', true),
     svc.from('team_tiers').select('id, name').eq('active', true).order('level_min'),
+    svc.from('coach_availability_zones')
+      .select('override_date, zone_type')
+      .eq('coach_id', coachId).eq('kind', 'date').order('override_date'),
   ])
-  return NextResponse.json({ weekly: weekly || [], legacy: legacy || [], tiers: tiers || [] })
+  const ovMap: Record<string, boolean> = {}
+  for (const r of (ovRows || []) as any[]) ovMap[r.override_date] = ovMap[r.override_date] || r.zone_type === 'closed'
+  const overrideDates = Object.entries(ovMap).map(([date, closed]) => ({ date, closed }))
+  return NextResponse.json({ weekly: weekly || [], legacy: legacy || [], tiers: tiers || [], overrideDates })
 }
 
 export async function PUT(req: NextRequest) {
