@@ -30,7 +30,7 @@ export async function GET() {
 
   const { data: tms } = await svc
     .from('team_memberships')
-    .select('id, student_id, status, started_at, team_tiers(name)')
+    .select('id, student_id, status, started_at, cancels_at, team_tiers(name)')
     .in('student_id', ids)
     .neq('status', 'cancelled')
 
@@ -44,6 +44,7 @@ export async function GET() {
       tier_name: Array.isArray(m.team_tiers) ? m.team_tiers[0]?.name : m.team_tiers?.name,
       status: m.status,
       started_at: m.started_at,
+      cancels_at: m.cancels_at || null,
     })),
   })
 }

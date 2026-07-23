@@ -291,6 +291,16 @@ export async function POST(req: NextRequest) {
     console.log(`✅ Purchase complete: ${plan_id} for parent ${parent_id}`)
   }
 
+  if (event.type === 'customer.subscription.updated') {
+    const sub = event.data.object as Stripe.Subscription
+    const ts = (sub as any).cancel_at || (sub as any).current_period_end
+    const cancelsAt = sub.cancel_at_period_end && ts ? new Date(ts * 1000).toISOString() : null
+    await supabase.from('team_memberships')
+      .update({ cancels_at: cancelsAt, updated_at: new Date().toISOString() })
+      .eq('stripe_subscription_id', sub.id).neq('status', 'cancelled')
+    return NextResponse.json({ received: true })
+  }
+
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object as Stripe.Subscription
     await supabase.from('team_memberships')
