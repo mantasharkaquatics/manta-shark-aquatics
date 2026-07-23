@@ -327,7 +327,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               const c = expired ? '#e05a4a' : '#86efac'
               const bg = expired ? 'rgba(224,90,74,0.12)' : 'rgba(134,239,172,0.12)'
               const bd = expired ? '1px solid rgba(224,90,74,0.3)' : '1px solid rgba(134,239,172,0.3)'
-              return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: c, background: bg, border: bd, borderRadius: '20px', padding: '3px 10px' }}>{label}</span>
+              return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: c, background: bg, border: bd, borderRadius: '20px', padding: '3px 10px', whiteSpace: 'nowrap' }}>{label}</span>
             })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#e8883a', background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>Cancels {new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? 'Active' : 'Past Due'}</span>}
             {!m.is_prepaid && (
             <button onClick={() => openPortal(m.id)} disabled={portalLoading === m.id}
