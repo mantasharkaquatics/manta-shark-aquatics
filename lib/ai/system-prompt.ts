@@ -6,6 +6,7 @@ export type SystemPromptOptions = {
   knowledge: string
   dateLine?: string
   upcomingSnapshotJson?: string
+  teamSnapshotJson?: string
   planList?: string
 }
 
@@ -71,6 +72,9 @@ export function buildSystemPromptParts(o: SystemPromptOptions): { staticPart: st
     d.push('')
     d.push('UPCOMING LESSONS (authoritative, refreshed just now; use these exact booking_id values):')
     d.push(o.upcomingSnapshotJson ?? '[]')
+    d.push('')
+    d.push('SWIM TEAM MEMBERSHIPS of this family (authoritative, refreshed just now; empty array = no memberships). track "subscription" = monthly auto-renew; "prepaid" = paid upfront, valid until paid_through. cancels_at set = cancellation ALREADY scheduled for that date (do not tell them to cancel again; they can undo it via the Manage button). status past_due = last payment failed; suggest updating the card via Manage.')
+    d.push(o.teamSnapshotJson ?? '[]')
   }
 
   return { staticPart: s.join('\n'), dynamicPart: d.join('\n') }

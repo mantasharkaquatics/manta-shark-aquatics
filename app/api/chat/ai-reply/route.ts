@@ -564,6 +564,28 @@ export async function POST(req: NextRequest) {
 
   try {
     const upcomingSnapshot = pub(await fetchLessonRows(false))
+    const { data: tmStuds } = await svc.from('students').select('id, full_name').eq('parent_id', parent.id)
+    const tmNameById: Record<string, string> = {}
+    for (const st of tmStuds || []) tmNameById[st.id] = st.full_name
+    const tmIds = (tmStuds || []).map((st: any) => st.id)
+    let teamSnapshot: any[] = []
+    if (tmIds.length) {
+      const { data: tms } = await svc.from('team_memberships')
+        .select('student_id, status, cancels_at, expires_at, stripe_subscription_id, team_tiers(name)')
+        .in('student_id', tmIds).neq('status', 'cancelled')
+      teamSnapshot = (tms || []).map((m: any) => {
+        const prepaid = !m.stripe_subscription_id
+        const expired = prepaid && m.expires_at ? new Date(m.expires_at).getTime() < Date.now() : false
+        return {
+          student: tmNameById[m.student_id] || '',
+          tier: Array.isArray(m.team_tiers) ? m.team_tiers[0]?.name : m.team_tiers?.name,
+          track: prepaid ? 'prepaid' : 'subscription',
+          status: expired ? 'expired' : m.status,
+          ...(prepaid ? { paid_through: m.expires_at } : {}),
+          ...(m.cancels_at ? { cancels_at: m.cancels_at } : {}),
+        }
+      })
+    }
     const knowledge = await buildKnowledgeBlock(svc)
     const nowMins = getNowMinutesLA()
     const hh = String(Math.floor(nowMins / 60)).padStart(2, '0')
@@ -577,6 +599,7 @@ export async function POST(req: NextRequest) {
       parentName: parent.first_name,
       dateLine: `Current date (Pacific Time): ${getTodayLA()}, current time: ${formatTime12h(`${hh}:${mm}`)}.`,
       upcomingSnapshotJson: JSON.stringify(upcomingSnapshot),
+      teamSnapshotJson: JSON.stringify(teamSnapshot),
       planList,
       knowledge,
     })
