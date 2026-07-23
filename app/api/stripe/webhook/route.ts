@@ -171,14 +171,29 @@ export async function POST(req: NextRequest) {
     }
 
     if (meta.type === 'team_subscription') {
-      const { error: tmErr } = await supabase.from('team_memberships').insert({
-        student_id: meta.student_id,
-        team_tier_id: meta.team_tier_id,
-        stripe_subscription_id: String(session.subscription || ''),
-        status: 'active',
-      })
-      if (tmErr) console.error('Team membership insert (possibly duplicate retry):', tmErr.message)
-      else console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
+      if (meta.prepaid_membership_id) {
+        // Prepaid → subscription conversion: take over the existing prepaid row
+        const { data: upd, error: convErr } = await supabase.from('team_memberships')
+          .update({
+            stripe_subscription_id: String(session.subscription || ''),
+            status: 'active',
+            expires_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', meta.prepaid_membership_id)
+          .select('id')
+        if (convErr || !upd || upd.length === 0) console.error('Prepaid conversion update failed:', convErr?.message, 'matched:', upd?.length ?? 0)
+        else console.log(`✅ Prepaid membership ${meta.prepaid_membership_id} converted to subscription ${session.subscription}`)
+      } else {
+        const { error: tmErr } = await supabase.from('team_memberships').insert({
+          student_id: meta.student_id,
+          team_tier_id: meta.team_tier_id,
+          stripe_subscription_id: String(session.subscription || ''),
+          status: 'active',
+        })
+        if (tmErr) console.error('Team membership insert (possibly duplicate retry):', tmErr.message)
+        else console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
+      }
       return NextResponse.json({ received: true })
     }
 
@@ -333,7 +348,7 @@ export async function POST(req: NextRequest) {
       // Mirror the paid Stripe invoice into our invoices table (MSA-branded PDF + Sales page)
       const { data: existing } = await supabase.from('invoices')
         .select('id').eq('stripe_payment_intent_id', inv.id).maybeSingle()
-      if (!existing) {
+      if (!existing && (inv.amount_paid ?? 0) > 0) {
         const { data: tm } = await supabase.from('team_memberships')
           .select('id, student_id, team_tiers(name)')
           .eq('stripe_subscription_id', subId).single()
