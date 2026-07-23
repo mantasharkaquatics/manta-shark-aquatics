@@ -324,10 +324,46 @@ export async function POST(req: NextRequest) {
 
   if (event.type === 'invoice.paid') {
     const inv = event.data.object as any
-    const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id
-    if (subId) await supabase.from('team_memberships')
-      .update({ status: 'active', updated_at: new Date().toISOString() })
-      .eq('stripe_subscription_id', subId).eq('status', 'past_due')
+    const subId = typeof inv.subscription === 'string' ? inv.subscription : (inv.subscription?.id || inv.parent?.subscription_details?.subscription || null)
+    if (subId) {
+      await supabase.from('team_memberships')
+        .update({ status: 'active', updated_at: new Date().toISOString() })
+        .eq('stripe_subscription_id', subId).eq('status', 'past_due')
+
+      // Mirror the paid Stripe invoice into our invoices table (MSA-branded PDF + Sales page)
+      const { data: existing } = await supabase.from('invoices')
+        .select('id').eq('stripe_payment_intent_id', inv.id).maybeSingle()
+      if (!existing) {
+        const { data: tm } = await supabase.from('team_memberships')
+          .select('id, student_id, team_tiers(name)')
+          .eq('stripe_subscription_id', subId).single()
+        if (tm) {
+          const { data: stu } = await supabase.from('students')
+            .select('full_name, parent_id').eq('id', tm.student_id).single()
+          const tierName = (Array.isArray(tm.team_tiers) ? (tm.team_tiers as any)[0]?.name : (tm.team_tiers as any)?.name) || 'Swim Team'
+          const period = inv.lines?.data?.[0]?.period
+          const fmt = (sec: number) => new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          const coverage = period?.start && period?.end ? ` \u00b7 ${fmt(period.start)} \u2013 ${fmt(period.end)}` : ''
+          const amount = (inv.amount_paid ?? 0) / 100
+          const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
+          const invoice_number = `MSA-${new Date().getFullYear()}-${String(seqNum || 1).padStart(4, '0')}`
+          const { data: created, error: invErr } = await supabase.from('invoices').insert({
+            invoice_number,
+            parent_id: stu?.parent_id || null,
+            student_id: tm.student_id,
+            team_membership_id: tm.id,
+            amount,
+            payment_method: 'stripe',
+            items: [{ name: `${tierName} \u00b7 Monthly Membership${coverage}`, quantity: 1, unit_price: amount, period_end: period?.end ? new Date(period.end * 1000).toISOString() : null }],
+            status: 'paid',
+            stripe_payment_intent_id: inv.id,
+            issued_at: new Date().toISOString(),
+          }).select('id').single()
+          if (invErr) console.error('Team invoice mirror insert error:', invErr)
+          else console.log(`Team invoice mirrored: ${invoice_number} (${created?.id}) for ${subId}`)
+        }
+      }
+    }
     return NextResponse.json({ received: true })
   }
 

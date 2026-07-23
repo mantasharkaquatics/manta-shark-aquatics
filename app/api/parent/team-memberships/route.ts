@@ -2,9 +2,6 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import Stripe from 'stripe'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
 // Parent-facing team memberships. Same service-role pattern as /api/parent/tokens.
 export async function GET() {
@@ -42,20 +39,17 @@ export async function GET() {
 
   const memberships = await Promise.all((tms || []).map(async (m: any) => {
     let invoices: { date: string; period_end: string | null; url: string | null }[] = []
-    if (m.stripe_subscription_id) {
-      try {
-        const list = await stripe.invoices.list({ subscription: m.stripe_subscription_id, status: 'paid', limit: 24 })
-        invoices = list.data
-          .map((iv: any) => ({
-            date: new Date((iv.status_transitions?.paid_at || iv.created) * 1000).toISOString(),
-            period_end: iv.lines?.data?.[0]?.period?.end ? new Date(iv.lines.data[0].period.end * 1000).toISOString() : null,
-            url: iv.hosted_invoice_url || null,
-          }))
-          .sort((a: { date: string }, b: { date: string }) => (a.date < b.date ? 1 : -1))
-      } catch (e) {
-        console.error('team-memberships invoice list failed', m.id, e)
-      }
-    }
+    const { data: invRows } = await svc
+      .from('invoices')
+      .select('id, issued_at, items')
+      .eq('team_membership_id', m.id)
+      .eq('status', 'paid')
+      .order('issued_at', { ascending: false })
+    invoices = (invRows || []).map((r: any) => ({
+      date: r.issued_at,
+      period_end: r.items?.[0]?.period_end || null,
+      url: `/api/invoices/${r.id}/pdf`,
+    }))
     return {
       id: m.id,
       student_name: nameById[m.student_id] || '',
