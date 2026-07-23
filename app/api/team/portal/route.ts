@@ -48,23 +48,13 @@ export async function POST(req: NextRequest) {
     const sub = await stripe.subscriptions.retrieve(tm.stripe_subscription_id)
     const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
     if (!customerId) return NextResponse.json({ error: 'Subscription has no customer' }, { status: 500 })
-    const base = { customer: customerId, return_url: `${req.nextUrl.origin}/dashboard` }
-    try {
-      const session = await stripe.billingPortal.sessions.create({
-        ...base,
-        flow_data: {
-          type: 'subscription_cancel',
-          subscription_cancel: { subscription: tm.stripe_subscription_id },
-          after_completion: { type: 'redirect', redirect: { return_url: `${req.nextUrl.origin}/dashboard` } },
-        },
-      } as any)
-      return NextResponse.json({ url: session.url })
-    } catch (flowErr: any) {
-      // e.g. subscription already scheduled to cancel - fall back to the plain portal home
-      console.error('portal cancel-flow failed, falling back:', flowErr?.message)
-      const session = await stripe.billingPortal.sessions.create(base)
-      return NextResponse.json({ url: session.url })
-    }
+    // Owner 2026-07-23: Manage opens the portal HOME (cards, invoices, cancel button);
+    // the parent chooses to cancel themselves - no direct deep-link into the cancel flow.
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${req.nextUrl.origin}/dashboard`,
+    })
+    return NextResponse.json({ url: session.url })
   } catch (e: any) {
     console.error('portal session failed:', e?.message)
     return NextResponse.json({ error: 'Could not open the subscription portal. Please contact us.' }, { status: 500 })
