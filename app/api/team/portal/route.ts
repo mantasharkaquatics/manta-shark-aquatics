@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         subscription_cancel: { subscription: tm.stripe_subscription_id },
         after_completion: { type: 'redirect', redirect: { return_url: `${req.nextUrl.origin}/dashboard` } },
       },
-    })
+    } as any)
     return NextResponse.json({ url: session.url })
   } catch (e: any) {
     console.error('portal session failed:', e?.message)
