@@ -369,7 +369,7 @@ export async function POST(req: NextRequest) {
             team_membership_id: tm.id,
             amount,
             payment_method: 'stripe',
-            items: [{ name: `${tierName} \u00b7 Monthly Membership${coverage}`, quantity: 1, unit_price: amount, period_end: period?.end ? new Date(period.end * 1000).toISOString() : null }],
+            items: [{ name: `${tierName} \u00b7 Monthly Membership${stu?.full_name ? ` (${stu.full_name})` : ''}${coverage}`, quantity: 1, unit_price: amount, period_end: period?.end ? new Date(period.end * 1000).toISOString() : null }],
             status: 'paid',
             stripe_payment_intent_id: inv.id,
             issued_at: new Date().toISOString(),

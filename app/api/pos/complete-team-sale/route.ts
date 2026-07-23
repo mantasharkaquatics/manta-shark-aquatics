@@ -37,6 +37,10 @@ export async function POST(req: NextRequest) {
       .from('team_tiers').select('id, name, monthly_price_cents').eq('id', tierId).single()
     if (!tier) return NextResponse.json({ error: 'Invalid tier' }, { status: 400 })
 
+    const { data: student } = await supabase
+      .from('students').select('id, full_name').eq('id', studentId).single()
+    if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 400 })
+
     // One track only: block if the student has a live subscription membership
     const { data: subRows } = await supabase
       .from('team_memberships').select('id')
@@ -99,7 +103,7 @@ export async function POST(req: NextRequest) {
         amount,
         payment_method: paymentMethod,
         items: [{
-          name: `${tier.name} \u00b7 Prepaid Membership \u00b7 ${m} month${m > 1 ? 's' : ''} \u00b7 ${fmt(base)} \u2013 ${fmt(end)}`,
+          name: `${tier.name} \u00b7 Prepaid Membership (${student.full_name}) \u00b7 ${m} month${m > 1 ? 's' : ''} \u00b7 ${fmt(base)} \u2013 ${fmt(end)}`,
           quantity: m,
           unit_price: unitPrice,
           period_end: end.toISOString(),
