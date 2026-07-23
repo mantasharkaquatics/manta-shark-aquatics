@@ -30,7 +30,7 @@ export async function GET() {
 
   const { data: tms } = await svc
     .from('team_memberships')
-    .select('id, student_id, status, started_at, cancels_at, stripe_subscription_id, team_tiers(name)')
+    .select('id, student_id, status, started_at, cancels_at, stripe_subscription_id, expires_at, team_tiers(name)')
     .in('student_id', ids)
     .neq('status', 'cancelled')
 
@@ -57,6 +57,8 @@ export async function GET() {
       status: m.status,
       started_at: m.started_at,
       cancels_at: m.cancels_at || null,
+      expires_at: m.expires_at || null,
+      is_prepaid: !m.stripe_subscription_id,
       invoices,
     }
   }))

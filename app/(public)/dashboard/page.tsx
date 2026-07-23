@@ -294,7 +294,7 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
 
 interface TokenPack { id: string; course_name: string; remaining: number; expires_at: string; source: string }
 
-function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
+function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   if (memberships.length === 0) return null
@@ -317,14 +317,24 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · $399/mo · unlimited practices</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? 'Prepaid' : '$399/mo'} · unlimited practices</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            {m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#e8883a', background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>Cancels {new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? 'Active' : 'Past Due'}</span>}
+            {m.is_prepaid ? (() => {
+              const exp = m.expires_at ? new Date(m.expires_at) : null
+              const expired = exp ? exp.getTime() < Date.now() : false
+              const label = exp ? `${expired ? 'Expired' : 'Paid thru'} ${exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Prepaid'
+              const c = expired ? '#e05a4a' : '#86efac'
+              const bg = expired ? 'rgba(224,90,74,0.12)' : 'rgba(134,239,172,0.12)'
+              const bd = expired ? '1px solid rgba(224,90,74,0.3)' : '1px solid rgba(134,239,172,0.3)'
+              return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: c, background: bg, border: bd, borderRadius: '20px', padding: '3px 10px' }}>{label}</span>
+            })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#e8883a', background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>Cancels {new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? 'Active' : 'Past Due'}</span>}
+            {!m.is_prepaid && (
             <button onClick={() => openPortal(m.id)} disabled={portalLoading === m.id}
               style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
               {portalLoading === m.id ? '...' : 'Manage'}
             </button>
+            )}
             </div>
           </div>
           {(m.invoices || []).length > 0 && (

@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       .select('team_tier_id, status, team_tiers(name)')
       .eq('student_id', student_id)
       .in('status', ['active', 'past_due'])
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .limit(1)
     const membership: any = (tm || [])[0] || null
 

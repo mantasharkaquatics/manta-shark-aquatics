@@ -52,6 +52,17 @@ export default function POSClient() {
   const [showCashConfirm, setShowCashConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [terminal, setTerminal] = useState<any>(null)
+  const [isTeam, setIsTeam] = useState(false)
+  const [teamTiers, setTeamTiers] = useState<{ id: string; name: string; monthly_price_cents: number }[]>([])
+  const [teamTierId, setTeamTierId] = useState<string | null>(null)
+  const [teamMonths, setTeamMonths] = useState('1')
+  useEffect(() => {
+    fetch('/api/team/tiers').then(r => r.json()).then(d => {
+      const tiers = d.tiers || []
+      setTeamTiers(tiers)
+      if (tiers.length > 0) setTeamTierId(tiers[0].id)
+    }).catch(() => {})
+  }, [])
   const [readerStatus, setReaderStatus] = useState<'init' | 'none' | 'connected'>('init')
 
   const supabase = createBrowserClient(
@@ -100,14 +111,14 @@ export default function POSClient() {
   }, [search])
 
   useEffect(() => {
-    if (!selectedParent || !isTrial) { setStudents([]); setSelectedStudentId(null); return }
-    supabase.from('students').select('id, full_name, trial_used_at')
-      .eq('parent_id', selectedParent.id).is('trial_used_at', null)
+    if (!selectedParent || (!isTrial && !isTeam)) { setStudents([]); setSelectedStudentId(null); return }
+    const q = supabase.from('students').select('id, full_name, trial_used_at').eq('parent_id', selectedParent.id)
+    ;(isTrial ? q.is('trial_used_at', null) : q)
       .then(({ data }) => {
         setStudents(data || [])
-        setSelectedStudentId(data?.length ? data[0].id : null)
+        setSelectedStudentId(isTrial && data?.length ? data[0].id : null)
       })
-  }, [selectedParent, isTrial])
+  }, [selectedParent, isTrial, isTeam])
 
   useEffect(() => {
     if (!isSdp || sdpCourseTypes.length > 0) return
@@ -133,10 +144,16 @@ export default function POSClient() {
   const sdpQty = Math.max(0, Math.round(Number(sdpSessions) || 0))
   const sdpUnitCents = Math.max(0, Math.round((Number(sdpUnitPrice) || 0) * 100))
   const sdpAmountCents = sdpQty * sdpUnitCents
-  const chargeAmount = isSdp ? sdpAmountCents : isTrial ? TRIAL_CENTS : (plan?.amount ?? 0)
+  const teamTier = teamTiers.find(t => t.id === teamTierId) || null
+  const teamM = Math.max(1, Math.min(12, Math.round(Number(teamMonths) || 1)))
+  const teamAmountCents = (teamTier?.monthly_price_cents ?? 39900) * teamM
+  const teamLabel = `${teamTier?.name || 'Swim Team'} · Prepaid · ${teamM} month${teamM > 1 ? 's' : ''}`
+  const chargeAmount = isTeam ? teamAmountCents : isSdp ? sdpAmountCents : isTrial ? TRIAL_CENTS : (plan?.amount ?? 0)
 
   const canCharge = !processing && (
-    isSdp
+    isTeam
+      ? !!selectedParent && !!selectedStudentId && !!teamTierId && (payMethod === 'cash' || readerStatus === 'connected')
+      : isSdp
       ? !!selectedParent && !!sdpStudentId && !!sdpCourseTypeId && sdpQty >= 1 && sdpUnitCents >= 50 && (payMethod === 'cash' || readerStatus === 'connected')
       : isTrial
       ? !!selectedParent && !!selectedStudentId && (payMethod === 'cash' || readerStatus === 'connected')
@@ -156,7 +173,36 @@ export default function POSClient() {
     setError(null)
     setProcessing(true)
     try {
-      if (isSdp) {
+      if (isTeam) {
+        if (!selectedStudentId) throw new Error('Please select a student')
+        if (!teamTierId) throw new Error('Please select a tier')
+        let paymentIntentId: string | undefined
+        if (payMethod === 'card') {
+          if (!terminal || readerStatus !== 'connected') throw new Error('Card reader not connected')
+          const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amountCents: teamAmountCents, description: teamLabel }),
+          })
+          const piData = await piRes.json()
+          if (!piRes.ok || piData.error) throw new Error(piData.error || 'PaymentIntent failed')
+          const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
+          if (ce) throw new Error(ce.message)
+          const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
+          if (pe) throw new Error(pe.message)
+          paymentIntentId = processed.id
+        }
+        const res = await fetch('/api/pos/complete-team-sale', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parentId: selectedParent.id, studentId: selectedStudentId, tierId: teamTierId, months: teamM,
+            paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+            ...(paymentIntentId ? { paymentIntentId } : {}),
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed')
+        setStep('success')
+      } else if (isSdp) {
         if (!sdpStudentId) throw new Error('Please select a student')
         let paymentIntentId: string | undefined
         if (payMethod === 'card') {
@@ -238,7 +284,7 @@ export default function POSClient() {
   const reset = () => {
     setStep('select'); setSelectedParent(null); setSelectedPlanId(null); setIsTrial(false)
     setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65'); setSdpCourseTypeId(null)
-    setStudents([]); setSelectedStudentId(null); setPayMethod('card')
+    setStudents([]); setSelectedStudentId(null); setPayMethod('card'); setIsTeam(false); setTeamMonths('1')
     setSearch(''); setSearchResults([]); setError(null); setProcessing(false); setShowCashConfirm(false)
 
   }
@@ -248,7 +294,7 @@ export default function POSClient() {
 
   // Cash confirmation modal
   if (cashConfirmOpen) {
-    const amount = isTrial ? '$85' : plan ? `$${(plan.amount / 100).toLocaleString()}` : ''
+    const amount = `$${(chargeAmount / 100).toLocaleString()}`
     const customerName = selectedParent ? `${selectedParent.first_name} ${selectedParent.last_name}` : ''
     return (
       <div style={{ minHeight: '100vh', backgroundColor: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -258,7 +304,7 @@ export default function POSClient() {
           <p style={{ color: '#9ca3af', fontSize: 15, marginBottom: 4 }}>{customerName}</p>
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 4 }}>{amount}</p>
           <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 28 }}>
-            {isTrial ? 'Swim Assessment · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : plan?.name}
+            {isTrial ? 'Swim Assessment · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : isTeam ? teamLabel : plan?.name}
           </p>
           <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>Please confirm you have received the cash before proceeding.</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -291,7 +337,7 @@ export default function POSClient() {
               <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 8 }}>Credit issued — schedule it from the Booking page, or the parent can book from their dashboard.</p>
             </>
           ) : (
-            <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{plan?.name}</p>
+            <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{isTeam ? teamLabel : plan?.name}</p>
           )}
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 8 }}>${(chargeAmount / 100).toLocaleString()}</p>
           <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 32 }}>{payMethod === 'cash' ? '💵 Cash' : '💳 Card'}</p>
@@ -314,7 +360,7 @@ export default function POSClient() {
                 {selectedParent?.first_name} {selectedParent?.last_name}
               </div>
               <div style={{ fontSize: 13, color: '#9ca3af' }}>
-                {isTrial ? 'Swim Assessment' : plan?.name}
+                {isTrial ? 'Swim Assessment' : isTeam ? teamLabel : plan?.name}
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, color: GOLD, marginTop: 8 }}>
                 ${(chargeAmount / 100).toLocaleString()}
@@ -382,7 +428,7 @@ export default function POSClient() {
           <div style={{ maxHeight: 660, overflowY: 'auto' }}>
             <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
               <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Swim Assessment</p>
-              <button onClick={() => { setIsTrial(!isTrial); setSelectedPlanId(null) }}
+              <button onClick={() => { setIsTrial(!isTrial); setSelectedPlanId(null); setIsTeam(false) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isTrial ? GOLD : '#1e3a6e'}`, backgroundColor: isTrial ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
                 <p style={{ color: isTrial ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>1-on-1 · once per student</p>
                 <p style={{ color: isTrial ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>$85.00</p>
@@ -406,7 +452,7 @@ export default function POSClient() {
             </div>
             <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
               <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>SDP / Regional Center</p>
-              <button onClick={() => { setIsSdp(!isSdp); setIsTrial(false); setSelectedPlanId(null) }}
+              <button onClick={() => { setIsSdp(!isSdp); setIsTrial(false); setSelectedPlanId(null); setIsTeam(false) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isSdp ? GOLD : '#1e3a6e'}`, backgroundColor: isSdp ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
                 <p style={{ color: isSdp ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>Custom sale · UCI students only</p>
                 <p style={{ color: isSdp ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>Custom Amount</p>
@@ -448,8 +494,46 @@ export default function POSClient() {
                 </div>
               )}
             </div>
-            <div style={{ opacity: (isTrial || isSdp) ? 0.35 : 1, transition: 'opacity 0.2s', pointerEvents: (isTrial || isSdp) ? 'none' : 'auto' }}>
-              {PLAN_GROUPS.map(group => (
+            <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
+              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Swim Team · Prepaid</p>
+              <button onClick={() => { setIsTeam(!isTeam); setIsTrial(false); setIsSdp(false); setSelectedPlanId(null) }}
+                style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isTeam ? GOLD : '#1e3a6e'}`, backgroundColor: isTeam ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
+                <p style={{ color: isTeam ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>Monthly membership · pay upfront · cash or card</p>
+                <p style={{ color: isTeam ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>{teamTier ? `$${(teamTier.monthly_price_cents / 100).toLocaleString()}/mo` : '$399/mo'}</p>
+              </button>
+              {isTeam && (
+                <div style={{ marginTop: 12, padding: 14, backgroundColor: '#0d1829', borderRadius: 8, border: '1px solid #1e3a6e' }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Student</p>
+                    {!selectedParent ? (
+                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>Select a customer first</p>
+                    ) : students.length === 0 ? (
+                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>No students on file</p>
+                    ) : (
+                      <select value={selectedStudentId || ''} onChange={e => setSelectedStudentId(e.target.value)} style={sel0}>
+                        <option value="">Select student...</option>
+                        {students.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Tier</p>
+                      <select value={teamTierId || ''} onChange={e => setTeamTierId(e.target.value)} style={sel0}>
+                        {teamTiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Months</p>
+                      <input type="number" min="1" max="12" value={teamMonths} onChange={e => setTeamMonths(e.target.value)} style={sel0} />
+                    </div>
+                  </div>
+                  <p style={{ color: '#6b7280', fontSize: 11, margin: '10px 0 0' }}>Extends from current expiry if the student already has an active prepaid membership. Blocked if the student has an active subscription.</p>
+                </div>
+              )}
+            </div>
+            <div style={{ opacity: (isTrial || isSdp || isTeam) ? 0.35 : 1, transition: 'opacity 0.2s', pointerEvents: (isTrial || isSdp || isTeam) ? 'none' : 'auto' }}>
+              {PLAN_GROUPS.filter(g => g.label !== 'Swim Team').map(group => (
                 <div key={group.label} style={{ marginBottom: 14 }}>
                   <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{group.label}</p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
@@ -457,7 +541,7 @@ export default function POSClient() {
                       const p = PLANS[key]
                       const sel = selectedPlanId === key
                       return (
-                        <button key={key} onClick={() => { setSelectedPlanId(key); setIsTrial(false) }}
+                        <button key={key} onClick={() => { setSelectedPlanId(key); setIsTrial(false); setIsTeam(false) }}
                           style={{ padding: '10px 8px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `1px solid ${sel ? GOLD : '#1e3a6e'}`, backgroundColor: sel ? GOLD : '#0d1829' }}>
                           <p style={{ color: sel ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 500, margin: 0 }}>{p.sessions} sessions</p>
                           <p style={{ color: sel ? NAVY : 'white', fontSize: 15, fontWeight: 700, margin: 0 }}>${(p.amount / 100).toLocaleString()}</p>
@@ -478,7 +562,18 @@ export default function POSClient() {
               <span style={{ color: '#9ca3af', fontSize: 13 }}>Customer</span>
               <span style={{ color: 'white', fontSize: 13, fontWeight: 500 }}>{selectedParent ? `${selectedParent.first_name} ${selectedParent.last_name}` : '\u2014'}</span>
             </div>
-            {isSdp ? (
+            {isTeam ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
+                  <span style={{ color: 'white', fontSize: 13 }}>{selectedStudent?.full_name || '—'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Membership</span>
+                  <span style={{ color: 'white', fontSize: 13 }}>{teamTier?.name || '—'} × {teamM} mo</span>
+                </div>
+              </>
+            ) : isSdp ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
@@ -506,7 +601,7 @@ export default function POSClient() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <span style={{ color: '#9ca3af' }}>Total</span>
             <span style={{ color: 'white', fontSize: 28, fontWeight: 700 }}>
-              {isSdp ? `$${(sdpAmountCents / 100).toLocaleString()}` : isTrial ? '$85' : plan ? `$${(plan.amount / 100).toLocaleString()}` : '$\u2014'}
+              {isTeam ? `$${(teamAmountCents / 100).toLocaleString()}` : isSdp ? `$${(sdpAmountCents / 100).toLocaleString()}` : isTrial ? '$85' : plan ? `$${(plan.amount / 100).toLocaleString()}` : '$\u2014'}
             </span>
           </div>
           <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Payment Method</p>
@@ -521,7 +616,7 @@ export default function POSClient() {
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
           <button onClick={handleCharge} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
-            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isSdp ? 'Complete SDP details' : isTrial ? 'Select a student' : 'Select a package'}
+            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTeam ? 'Complete team details' : isSdp ? 'Complete SDP details' : isTrial ? 'Select a student' : 'Select a package'}
           </button>
           {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u26a0 No card reader connected</p>}
           {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u2713 Reader ready</p>}
