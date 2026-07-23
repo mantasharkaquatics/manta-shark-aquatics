@@ -77,6 +77,11 @@ export const POLICIES = `
 - To cancel: on the parent dashboard, the Swim Team card has a "Manage" button that opens the secure Stripe subscription portal, where the parent can cancel, update the payment card, or view invoices.
 - Cancellation takes effect at the END of the current billing period: no refunds and no partial-month proration; the student can keep attending practices until that end date, and the membership simply does not renew.
 - The AI never cancels a membership itself; it directs the parent to the Manage button (or the front desk for help).
+- PREPAID OPTION: Swim Team can also be purchased at the front desk as a prepaid membership - pay for 1 or more months upfront, by cash or card. The membership is valid from the purchase date; buying multiple months extends the expiry accordingly (e.g. 2 months bought July 23 covers through September 23).
+- Prepaid renewals EXTEND from the current expiry date, never from the renewal purchase date - no paid days are ever lost by renewing early.
+- Each prepaid purchase produces one invoice stating the covered date range, downloadable from the Swim Team card on the parent dashboard.
+- Prepaid memberships have no Manage button and no auto-renewal: they simply end on the expiry date unless renewed at the front desk. No refunds on prepaid months.
+- A student can be on only ONE track at a time: either the monthly subscription or prepaid. A prepaid member who wants to switch to the subscription can ask the front desk; billing then starts at the prepaid expiry date so no paid time is lost.
 
 === PAYMENTS ===
 - Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.

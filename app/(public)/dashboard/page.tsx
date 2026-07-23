@@ -317,7 +317,8 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? 'Prepaid' : '$399/mo'} · unlimited practices</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? 'Prepaid' : '$399/mo'}</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>unlimited practices</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             {m.is_prepaid ? (() => {
