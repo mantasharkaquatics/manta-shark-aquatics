@@ -51,6 +51,11 @@ export async function POST(req: NextRequest) {
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
       return_url: `${req.nextUrl.origin}/dashboard`,
+      flow_data: {
+        type: 'subscription_cancel',
+        subscription_cancel: { subscription: tm.stripe_subscription_id },
+        after_completion: { type: 'redirect', redirect: { return_url: `${req.nextUrl.origin}/dashboard` } },
+      },
     })
     return NextResponse.json({ url: session.url })
   } catch (e: any) {
