@@ -294,8 +294,9 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
 
 interface TokenPack { id: string; course_name: string; remaining: number; expires_at: string; source: string }
 
-function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null }[] }) {
+function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   if (memberships.length === 0) return null
   const RED = '#e05a4a'
   const openPortal = async (id: string) => {
@@ -312,16 +313,48 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>Swim Team</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {memberships.map(m => (
-          <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div key={m.id}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · $399/mo · unlimited practices</div>
             </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             {m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#e8883a', background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>Cancels {new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? 'Active' : 'Past Due'}</span>}
             <button onClick={() => openPortal(m.id)} disabled={portalLoading === m.id}
               style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
               {portalLoading === m.id ? '...' : 'Manage'}
             </button>
+            </div>
+          </div>
+          {(m.invoices || []).length > 0 && (
+            <div style={{ marginTop: '10px' }}>
+              <button onClick={() => setExpanded(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
+                <span style={{ fontSize: '9px' }}>{expanded[m.id] ? '\u25b2' : '\u25bc'}</span>
+                {expanded[m.id] ? 'Hide' : 'Show'} {(m.invoices || []).length} invoice{(m.invoices || []).length > 1 ? 's' : ''}
+              </button>
+              {expanded[m.id] && (
+                <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {(m.invoices || []).map((iv, i) => {
+                    const dateStr = new Date(iv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    const expStr = iv.period_end ? new Date(iv.period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingBottom: i < (m.invoices || []).length - 1 ? '8px' : 0, borderBottom: i < (m.invoices || []).length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>{dateStr}{expStr && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
+                        {iv.url && (
+                          <a href={iv.url} target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                            Download Invoice
+                          </a>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           </div>
         ))}
       </div>
