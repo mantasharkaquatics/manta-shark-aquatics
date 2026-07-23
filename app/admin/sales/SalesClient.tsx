@@ -45,10 +45,15 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       if (planGroup !== 'All') {
         const group = PLAN_GROUPS.find(g => g.label === planGroup)
         if (!group) return false
-        const groupLabels = ['1-on-1 Private', '1-on-2 Semi-Private', '1-on-4 Group', 'Swim Team']
-        const matches = planName.toLowerCase().includes(planGroup.toLowerCase().split(' ')[0].replace('1-on-', '1-on-'))
-          || planName.startsWith(planGroup)
-        if (!matches) return false
+        const isTeamInvoice = !!inv.team_membership_id
+        if (planGroup === 'Swim Team') {
+          if (!isTeamInvoice && !planName.toLowerCase().startsWith('swim team')) return false
+        } else {
+          if (isTeamInvoice) return false
+          const matches = planName.toLowerCase().includes(planGroup.toLowerCase().split(' ')[0])
+            || planName.startsWith(planGroup)
+          if (!matches) return false
+        }
       }
 
       // Payment method
