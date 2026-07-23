@@ -312,8 +312,8 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
     <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>Swim Team</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {memberships.map(m => (
-          <div key={m.id}>
+        {memberships.map((m, mi) => (
+          <div key={m.id} style={{ borderTop: mi > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', marginTop: mi > 0 ? '16px' : 0, paddingTop: mi > 0 ? '16px' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
