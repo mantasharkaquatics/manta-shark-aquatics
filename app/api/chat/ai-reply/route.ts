@@ -175,6 +175,20 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_group_classes',
+    description: "Get real 1-on-4 group class availability for one student, automatically filtered to the student's level band. Pass date (YYYY-MM-DD) for that day's classes, or year+month to learn which dates that month have matching classes. Never invent group class times; only present what this tool returns.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        student_id: { type: 'string', description: 'From get_my_students' },
+        date: { type: 'string', description: 'YYYY-MM-DD for a single day' },
+        year: { type: 'number', description: 'Calendar year, for month view' },
+        month: { type: 'number', description: '1-12, for month view' },
+      },
+      required: ['student_id'],
+    },
+  },
+  {
     name: 'escalate_to_human',
     description: 'Flag this conversation for a human team member. Use when you cannot help, are uncertain, the parent is upset, or the request is outside your abilities.',
     input_schema: {
@@ -452,6 +466,30 @@ export async function POST(req: NextRequest) {
       const date = String(input.date || '')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date must be YYYY-MM-DD.' }
       return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined, parent!.id)
+    }
+
+    if (name === 'get_group_classes') {
+      const studentId = String(input.student_id || '')
+      const date = input.date ? String(input.date) : ''
+      const year = input.year ? String(input.year) : ''
+      const month = input.month ? String(input.month) : ''
+      if (!studentId) return { error: 'student_id required. Call get_my_students first.' }
+      const { data: owned } = await svc
+        .from('students').select('id').eq('id', studentId).eq('parent_id', parent!.id).single()
+      if (!owned) return { error: 'Student not found on this account. Call get_my_students for real ids.' }
+      let qs = ''
+      if (date) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date must be YYYY-MM-DD.' }
+        qs = `date=${date}`
+      } else if (year && month) {
+        qs = `year=${year}&month=${month}`
+      } else {
+        return { error: 'Provide date (YYYY-MM-DD) or year+month.' }
+      }
+      const res = await fetch(`${origin}/api/bookings/group-classes?student_id=${studentId}&${qs}`, { headers: { cookie: cookieHeader } })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok) return { error: data.error || 'Could not load group classes.' }
+      return data
     }
 
     if (name === 'book_trial_pending') {
