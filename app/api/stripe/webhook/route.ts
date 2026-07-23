@@ -294,7 +294,8 @@ export async function POST(req: NextRequest) {
   if (event.type === 'customer.subscription.updated') {
     const sub = event.data.object as Stripe.Subscription
     const ts = (sub as any).cancel_at || (sub as any).current_period_end
-    const cancelsAt = sub.cancel_at_period_end && ts ? new Date(ts * 1000).toISOString() : null
+    const scheduled = sub.cancel_at_period_end || (sub as any).cancel_at != null
+    const cancelsAt = scheduled && ts ? new Date(ts * 1000).toISOString() : null
     const { data: updRows, error: updErr } = await supabase.from('team_memberships')
       .update({ cancels_at: cancelsAt, updated_at: new Date().toISOString() })
       .eq('stripe_subscription_id', sub.id).neq('status', 'cancelled')
