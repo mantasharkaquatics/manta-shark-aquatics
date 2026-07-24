@@ -1218,6 +1218,7 @@ export default function BookingPage() {
                                 <button key={sl.coach_id + sl.time}
                                   onClick={() => {
                                     if (!clickable) return
+                                    if (sel) { setSelectedSlot(null); setSelectedDate(null); return }
                                     const c = coaches.find(x => x.id === sl.coach_id)
                                     if (!c) return
                                     setSelectedDate(dt)
