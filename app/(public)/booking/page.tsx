@@ -234,7 +234,7 @@ export default function BookingPage() {
     const mm = String(calMonth + 1).padStart(2, '0')
     fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=6&start=${calYear}-${mm}-01`)
       .then(r => r.json()).then(d => setGroupWeeks(d?.days || [])).catch(() => {})
-  }, [groupFlow, selectedStudent, calMonth, calYear])
+  }, [groupFlow, selectedStudent, calMonth, calYear, cartRefresh])
 
   useEffect(() => {
     async function init() {
