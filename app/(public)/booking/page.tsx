@@ -1207,7 +1207,7 @@ export default function BookingPage() {
                       const isToday2 = ds === todayDs
                       const tokenBlocked = tokenMode && !inTokenWindow(dt)
                       return (
-                        <div key={ds} style={{ background: NAVY, border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '86px' }}>
+                        <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px' }}>
                           <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {slots.map((sl: any) => {
@@ -1231,9 +1231,12 @@ export default function BookingPage() {
                                     background: sel ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
                                     cursor: clickable ? 'pointer' : 'not-allowed',
                                   }}>
-                                  <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>{formatTime(sl.time)}</span>
-                                  <span style={{ display: 'block', fontSize: '9px', marginTop: '1px', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
-                                    {sl.already_booked ? 'Booked ✓' : sl.full ? 'Full' : `${sl.max - sl.enrolled} left${w24 && clickable ? ' · 24h' : ''}`}
+                                  <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                    {formatTime(sl.time)}
+                                    <span style={{ fontWeight: 600, marginLeft: '4px', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
+                                      {sl.already_booked ? '✓' : sl.full ? 'Full' : `${sl.max - sl.enrolled} left`}
+                                    </span>
+                                    {w24 && clickable ? <span style={{ color: '#c9a84c', marginLeft: '3px' }}>24h</span> : null}
                                   </span>
                                 </button>
                               )
@@ -1242,6 +1245,9 @@ export default function BookingPage() {
                         </div>
                       )
                     })}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '8px' }}>
+                    Showing {selectedStudent?.full_name}{myGroupBand ? ` · Level ${myGroupBand.min}–${myGroupBand.max} Group` : ''} classes only
                   </div>
                   {selectedSlot && selectedDate && selectedCoach && (
                     <div style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
