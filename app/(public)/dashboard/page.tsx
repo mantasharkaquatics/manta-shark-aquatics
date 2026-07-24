@@ -1539,7 +1539,12 @@ export default function DashboardPage() {
 
         {/* CREDITS */}
         <section style={{ marginBottom: '36px' }}>
-          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Lesson Credits</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Lesson Credits</h2>
+            <button onClick={() => window.location.href = '/plans'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
+              + Buy Credits
+            </button>
+          </div>
           {credits.length === 0 && tokenPacks.length === 0 && students.filter(s => s.trial_used_at).length === 0 ? (
             <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '28px', textAlign: 'center' }}>
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 14px' }}>No active lesson credits.</p>
