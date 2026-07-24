@@ -1595,7 +1595,7 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-          {upcomingBookings.length > 3 && (
+          {lessonView === 'list' && upcomingBookings.length > 3 && (
             <button
               onClick={() => setShowAllUpcoming(v => !v)}
               style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
