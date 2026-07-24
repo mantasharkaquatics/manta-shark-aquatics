@@ -234,8 +234,7 @@ export default function BookingPage() {
   const [recurCredits, setRecurCredits] = useState(0)
   const [recurBusy, setRecurBusy] = useState(false)
   const [recurMsg, setRecurMsg] = useState('')
-  const [recurDone, setRecurDone] = useState<{ booked: number; skipped: number } | null>(null)
-  const [redirectIn, setRedirectIn] = useState(6)
+  const [recurConfirm, setRecurConfirm] = useState(false)
 
   useEffect(() => {
     if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
@@ -243,18 +242,6 @@ export default function BookingPage() {
     fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=6&start=${calYear}-${mm}-01`)
       .then(r => r.json()).then(d => setGroupWeeks(d?.days || [])).catch(() => {})
   }, [groupFlow, selectedStudent, calMonth, calYear, cartRefresh])
-
-  useEffect(() => {
-    if (!recurDone) return
-    setRedirectIn(6)
-    const t = setInterval(() => {
-      setRedirectIn(n => {
-        if (n <= 1) { clearInterval(t); router.push('/dashboard'); return 0 }
-        return n - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [recurDone])
 
   useEffect(() => {
     async function init() {
@@ -1193,21 +1180,7 @@ export default function BookingPage() {
               </div>
             )}
 
-            {groupFlow && recurDone && (
-              <div style={{ background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '16px', padding: '48px 28px', textAlign: 'center' }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: `${GOLD}20`, border: `2px solid ${GOLD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '30px', color: GOLD }}>✓</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>Booking complete!</div>
-                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '4px' }}>
-                  {recurDone.booked} weekly lesson{recurDone.booked === 1 ? '' : 's'} booked{recurDone.skipped > 0 ? ` · ${recurDone.skipped} skipped (no longer available)` : ''}.
-                </div>
-                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '28px' }}>A confirmation email is on its way.</div>
-                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px' }}>Returning to your dashboard in {redirectIn}s…</div>
-                <button onClick={() => router.push('/dashboard')}
-                  style={{ padding: '13px 28px', background: GOLD, border: 'none', borderRadius: '10px', color: NAVY, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  Go to Dashboard now →</button>
-              </div>
-            )}
-            {groupFlow && !recurDone && (() => {
+            {groupFlow && (() => {
               const byDate: Record<string, any[]> = {}
               for (const d of groupWeeks) byDate[d.date] = d.classes || []
               const mm = String(calMonth + 1).padStart(2, '0')
@@ -1359,33 +1332,69 @@ export default function BookingPage() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                         <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Using {recurSel.size} of {recurCredits} credits</span>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => { setRecurOpen(false); setRecurMsg('') }}
-                            style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                          <button disabled={recurSel.size === 0 || recurBusy}
-                            onClick={async () => {
-                              if (!selectedStudent) return
-                              setRecurBusy(true)
-                              try {
-                                const res = await fetch('/api/bookings/recurring', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, dates: [...recurSel].sort() }),
-                                })
-                                const j = await res.json().catch(() => ({}))
-                                if (!res.ok) setRecurMsg(j.error || 'Could not complete the weekly booking.')
-                                else {
-                                  const skippedN = (j.skipped || []).filter((s: any) => recurSel.has(s.date)).length
-                                  setRecurOpen(false)
-                                  setSelectedSlot(null); setSelectedDate(null)
-                                  setCartRefresh(n => n + 1)
-                                  setRecurDone({ booked: j.booked, skipped: skippedN })
-                                }
-                              } catch { setRecurMsg('Network error. Please try again.') }
-                              setRecurBusy(false)
+                          <button onClick={() => {
+                              setRecurSel(prev => {
+                                if (prev.size > 0) return new Set<string>()
+                                const okDates = recurList.filter((c: any) => c.status === 'ok').map((c: any) => c.date)
+                                return new Set(okDates.slice(0, recurCredits))
+                              })
                             }}
-                            style={{ padding: '10px 20px', background: recurSel.size === 0 || recurBusy ? 'rgba(255,255,255,0.1)' : GOLD, border: 'none', borderRadius: '8px', color: recurSel.size === 0 || recurBusy ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurSel.size === 0 || recurBusy ? 'not-allowed' : 'pointer' }}>
-                            {recurBusy ? 'Booking…' : `Confirm ${recurSel.size} lessons`}</button>
+                            style={{ padding: '10px 16px', background: 'transparent', border: `1px solid ${GOLD}55`, borderRadius: '8px', color: GOLD, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                            {recurSel.size > 0 ? 'Deselect all' : 'Select all'}</button>
+                          <button onClick={() => { setRecurOpen(false); setRecurMsg(''); setRecurConfirm(false) }}
+                            style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                          <button disabled={recurSel.size === 0}
+                            onClick={() => setRecurConfirm(true)}
+                            style={{ padding: '10px 20px', background: recurSel.size === 0 ? 'rgba(255,255,255,0.1)' : GOLD, border: 'none', borderRadius: '8px', color: recurSel.size === 0 ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurSel.size === 0 ? 'not-allowed' : 'pointer' }}>
+                            Confirm {recurSel.size} lessons</button>
                         </div>
                       </div>
+                      {recurConfirm && (
+                        <div style={{ marginTop: '14px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${GOLD}66`, borderRadius: '10px', padding: '16px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '6px' }}>Please confirm your weekly booking</div>
+                          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', marginBottom: '10px' }}>
+                            {selectedStudent?.full_name} · every {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })} at {selectedSlot.label} · Coach {selectedCoach.first_name} · 1 credit per lesson
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '150px', overflowY: 'auto', marginBottom: '12px' }}>
+                            {[...recurSel].sort().map(d => (
+                              <span key={d} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                                {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{recurSel.size} lesson{recurSel.size === 1 ? '' : 's'} · {recurSel.size} credit{recurSel.size === 1 ? '' : 's'}</span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button onClick={() => setRecurConfirm(false)}
+                                style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Go back</button>
+                              <button disabled={recurBusy}
+                                onClick={async () => {
+                                  if (!selectedStudent) return
+                                  setRecurBusy(true)
+                                  try {
+                                    const res = await fetch('/api/bookings/recurring', {
+                                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, dates: [...recurSel].sort() }),
+                                    })
+                                    const j = await res.json().catch(() => ({}))
+                                    if (!res.ok) setRecurMsg(j.error || 'Could not complete the weekly booking.')
+                                    else {
+                                      const skippedN = (j.skipped || []).filter((s: any) => recurSel.has(s.date)).length
+                                      setRecurMsg(`Booked ${j.booked} lesson${j.booked === 1 ? '' : 's'}${skippedN > 0 ? `, ${skippedN} skipped (no longer available)` : ''}. Confirmation email sent.`)
+                                      setRecurConfirm(false)
+                                      setRecurOpen(false)
+                                      setSelectedSlot(null); setSelectedDate(null)
+                                      setCartRefresh(n => n + 1)
+                                    }
+                                  } catch { setRecurMsg('Network error. Please try again.') }
+                                  setRecurBusy(false)
+                                }}
+                                style={{ padding: '10px 20px', background: recurBusy ? 'rgba(255,255,255,0.1)' : GOLD, border: 'none', borderRadius: '8px', color: recurBusy ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'not-allowed' : 'pointer' }}>
+                                {recurBusy ? 'Booking…' : `Yes, book ${recurSel.size} lessons`}</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
