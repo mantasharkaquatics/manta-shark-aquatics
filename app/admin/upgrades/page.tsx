@@ -141,10 +141,21 @@ export default async function AdminUpgradesPage() {
   }
 
   // Missing: students with a confirmed booking but no progress_history on any day, today or earlier (not just today, so forgotten days aren't lost)
-  const { data: pastBookings } = await svc
+  const { data: pastBookingsRaw } = await svc
     .from('bookings')
-    .select('student_id, class_session_id')
+    .select('id, student_id, class_session_id')
     .eq('status', 'confirmed')
+
+  // Absent students need no progress: keep only bookings with an attendance row (checked in)
+  let pastBookings: any[] = []
+  if (pastBookingsRaw && pastBookingsRaw.length > 0) {
+    const { data: attRows } = await svc
+      .from('attendance')
+      .select('booking_id')
+      .in('booking_id', pastBookingsRaw.map((b: any) => b.id))
+    const attendedSet = new Set((attRows || []).map((r: any) => r.booking_id))
+    pastBookings = pastBookingsRaw.filter((b: any) => attendedSet.has(b.id))
+  }
 
   let missingProgressList: any[] = []
   if (pastBookings && pastBookings.length > 0) {

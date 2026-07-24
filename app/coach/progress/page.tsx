@@ -57,11 +57,22 @@ export default async function CoachProgressPage() {
   for (const ct of courseTypes || []) courseTypeMap[ct.id] = ct.name
 
   // Step 3: fetch confirmed bookings
-  const { data: bookings } = await supabase
+  const { data: bookingsRaw } = await supabase
     .from('bookings')
     .select('id, class_session_id, student_id')
     .in('class_session_id', sessionIds)
     .eq('status', 'confirmed')
+
+  // Absent students need no progress: keep only bookings with an attendance row (checked in)
+  let bookings: any[] = []
+  if (bookingsRaw && bookingsRaw.length > 0) {
+    const { data: attRows } = await supabase
+      .from('attendance')
+      .select('booking_id')
+      .in('booking_id', bookingsRaw.map((b: any) => b.id))
+    const attendedSet = new Set((attRows || []).map((r: any) => r.booking_id))
+    bookings = bookingsRaw.filter((b: any) => attendedSet.has(b.id))
+  }
 
   if (!bookings || bookings.length === 0) {
     return <CoachProgressClient coach={coach} sessions={[]} today={today} completedSessionIds={[]} />
