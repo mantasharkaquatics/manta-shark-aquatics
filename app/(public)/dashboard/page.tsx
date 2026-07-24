@@ -417,6 +417,9 @@ export default function DashboardPage() {
   const [cancelQuota, setCancelQuota] = useState<{ total: number; used: number; remaining: number } | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
+  const [lessonView, setLessonView] = useState<'list' | 'month'>('list')
+  const [lvMonth, setLvMonth] = useState(() => new Date().getMonth())
+  const [lvYear, setLvYear] = useState(() => new Date().getFullYear())
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('Good morning')
 
@@ -1231,11 +1234,76 @@ export default function DashboardPage() {
         <section style={{ marginBottom: '36px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Upcoming Lessons</h2>
-            <button onClick={() => window.location.href = '/booking'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
-              + Book a Lesson
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'inline-flex', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', overflow: 'hidden' }}>
+                {(['list', 'month'] as const).map(v => (
+                  <button key={v} onClick={() => setLessonView(v)}
+                    style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
+                      background: lessonView === v ? GOLD : 'transparent',
+                      color: lessonView === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
+                    {v === 'list' ? 'List' : 'Month'}</button>
+                ))}
+              </div>
+              <button onClick={() => window.location.href = '/booking'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
+                + Book a Lesson
+              </button>
+            </div>
           </div>
-          {upcomingBookings.length === 0 ? (
+          {lessonView === 'month' ? (() => {
+            const todayDs = getTodayLA()
+            const mm2 = String(lvMonth + 1).padStart(2, '0')
+            const monthPrefix = `${lvYear}-${mm2}`
+            const all = [...upcomingBookings, ...pastBookings].filter(b => b.session_date && b.session_date.startsWith(monthPrefix))
+            const byDate: Record<string, Booking[]> = {}
+            for (const b of all) (byDate[b.session_date] ||= []).push(b)
+            for (const k of Object.keys(byDate)) byDate[k].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+            const daysIn = new Date(lvYear, lvMonth + 1, 0).getDate()
+            const firstDow = new Date(lvYear, lvMonth, 1).getDay()
+            const t12 = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
+            const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+            return (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <button onClick={() => { if (lvMonth === 0) { setLvMonth(11); setLvYear(lvYear - 1) } else setLvMonth(lvMonth - 1) }}
+                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>‹ Prev</button>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
+                  <button onClick={() => { if (lvMonth === 11) { setLvMonth(0); setLvYear(lvYear + 1) } else setLvMonth(lvMonth + 1) }}
+                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>Next ›</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                  {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+                    <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{d}</div>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                  {Array.from({ length: firstDow }).map((_, i) => <div key={`e-${i}`} />)}
+                  {Array.from({ length: daysIn }).map((_, i) => {
+                    const ds = `${monthPrefix}-${String(i + 1).padStart(2, '0')}`
+                    const dayBookings = byDate[ds] || []
+                    const isPast = ds < todayDs
+                    const isTodayCell = ds === todayDs
+                    return (
+                      <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px' }}>
+                        <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? 'rgba(255,255,255,0.25)' : dayBookings.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {dayBookings.map((b, j) => (
+                            <div key={b.id + j} style={{ padding: '4px 3px', borderRadius: '5px', textAlign: 'center',
+                              border: `1px solid ${isPast ? 'rgba(255,255,255,0.1)' : GOLD + '55'}`,
+                              background: isPast ? 'rgba(255,255,255,0.04)' : `${GOLD}14` }}>
+                              <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
+                                {t12(b.start_time)}{b.checked_in ? ' ✓' : ''}</span>
+                              <span style={{ display: 'block', fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>
+                                {(b.student_name || '').split(',')[0]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })() : upcomingBookings.length === 0 ? (
             <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '32px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 16px' }}>No upcoming lessons.</p>
