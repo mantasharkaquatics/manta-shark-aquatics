@@ -228,14 +228,13 @@ export default function BookingPage() {
   const [calMonth, setCalMonth] = useState(today.getMonth())
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [groupWeeks, setGroupWeeks] = useState<any[]>([])
-  const [weekOffset, setWeekOffset] = useState(0)
 
   useEffect(() => {
-    setWeekOffset(0)
     if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
-    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=4`)
+    const mm = String(calMonth + 1).padStart(2, '0')
+    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=6&start=${calYear}-${mm}-01`)
       .then(r => r.json()).then(d => setGroupWeeks(d?.days || [])).catch(() => {})
-  }, [groupFlow, selectedStudent])
+  }, [groupFlow, selectedStudent, calMonth, calYear])
 
   useEffect(() => {
     async function init() {
@@ -1177,61 +1176,63 @@ export default function BookingPage() {
             {groupFlow && (() => {
               const byDate: Record<string, any[]> = {}
               for (const d of groupWeeks) byDate[d.date] = d.classes || []
-              const base = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay() + weekOffset * 7)
-              const cells = Array.from({ length: 7 }).map((_, i) => {
-                const dt = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i)
-                const ds = formatDateLA(dt)
-                return { dt, ds, slots: (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time)) }
-              })
+              const mm = String(calMonth + 1).padStart(2, '0')
               const todayDs = formatDateLA(today)
-              const rangeLabel = `${cells[0].dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${cells[6].dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+              const atCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth()
+              const tokenMode = !availableCredit && !isTrial && hasTokenForCourse
               return (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <button disabled={weekOffset === 0} onClick={() => setWeekOffset(weekOffset - 1)}
-                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: weekOffset === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)', cursor: weekOffset === 0 ? 'not-allowed' : 'pointer' }}>‹ Prev</button>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{rangeLabel}</span>
-                    <button disabled={weekOffset >= 3} onClick={() => setWeekOffset(weekOffset + 1)}
-                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: weekOffset >= 3 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)', cursor: weekOffset >= 3 ? 'not-allowed' : 'pointer' }}>Next ›</button>
+                    <button disabled={atCurrentMonth} onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) } else setCalMonth(calMonth - 1) }}
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: atCurrentMonth ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)', cursor: atCurrentMonth ? 'not-allowed' : 'pointer' }}>‹ Prev</button>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{MONTHS[calMonth]} {calYear}</span>
+                    <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) } else setCalMonth(calMonth + 1) }}
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>Next ›</button>
                   </div>
-                  {!availableCredit && !isTrial && hasTokenForCourse && (
+                  {tokenMode && (
                     <div style={{ fontSize: '12px', color: '#e8883a', marginBottom: '10px' }}>Booking with a token — only today and tomorrow can be selected.</div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px', marginBottom: '16px' }}>
-                    {cells.map(cell => {
-                      const isPast = cell.ds < todayDs
-                      const isToday2 = cell.ds === todayDs
-                      const tokenBlocked = !availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(cell.dt)
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+                      <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{d}</div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '16px' }}>
+                    {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
+                    {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, i) => {
+                      const dt = new Date(calYear, calMonth, i + 1)
+                      const ds = `${calYear}-${mm}-${String(i + 1).padStart(2, '0')}`
+                      const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
+                      const isPast = ds < todayDs
+                      const isToday2 = ds === todayDs
+                      const tokenBlocked = tokenMode && !inTokenWindow(dt)
                       return (
-                        <div key={cell.ds} style={{ background: NAVY, border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '10px', padding: '8px 5px', minHeight: '160px' }}>
-                          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-                            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)' }}>{['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][cell.dt.getDay()]}</div>
-                            <div style={{ fontSize: '14px', fontWeight: 700, color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.25)' : '#fff' }}>{cell.dt.getDate()}</div>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {cell.slots.map((sl: any) => {
-                              const w24 = isWithin24Hours(cell.ds, sl.time)
+                        <div key={ds} style={{ background: NAVY, border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '86px' }}>
+                          <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {slots.map((sl: any) => {
+                              const w24 = isWithin24Hours(ds, sl.time)
                               const clickable = !sl.full && !sl.already_booked && !tokenBlocked
-                              const sel = selectedSlot?.time === sl.time && selectedCoach?.id === sl.coach_id && selectedDate && formatDateLA(selectedDate) === cell.ds
+                              const sel = selectedSlot?.time === sl.time && selectedCoach?.id === sl.coach_id && selectedDate && formatDateLA(selectedDate) === ds
                               return (
                                 <button key={sl.coach_id + sl.time}
                                   onClick={() => {
                                     if (!clickable) return
                                     const c = coaches.find(x => x.id === sl.coach_id)
                                     if (!c) return
-                                    setSelectedDate(cell.dt)
+                                    setSelectedDate(dt)
                                     setSelectedCoach(c)
                                     setSelectedSlot({ time: sl.time, label: formatTime(sl.time), available: true, enrolled: sl.enrolled, max: sl.max, session_id: sl.session_id, within24h: w24 })
                                   }}
                                   disabled={!clickable}
                                   style={{
-                                    padding: '6px 4px', borderRadius: '6px', textAlign: 'center',
+                                    padding: '4px 2px', borderRadius: '5px', textAlign: 'center',
                                     border: `2px solid ${sel ? GOLD : clickable ? myBandColor + '55' : 'rgba(255,255,255,0.06)'}`,
                                     background: sel ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
                                     cursor: clickable ? 'pointer' : 'not-allowed',
                                   }}>
-                                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>{formatTime(sl.time)}</span>
-                                  <span style={{ display: 'block', fontSize: '10px', marginTop: '1px', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
+                                  <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>{formatTime(sl.time)}</span>
+                                  <span style={{ display: 'block', fontSize: '9px', marginTop: '1px', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
                                     {sl.already_booked ? 'Booked ✓' : sl.full ? 'Full' : `${sl.max - sl.enrolled} left${w24 && clickable ? ' · 24h' : ''}`}
                                   </span>
                                 </button>
