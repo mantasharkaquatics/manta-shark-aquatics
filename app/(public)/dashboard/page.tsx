@@ -422,12 +422,15 @@ export default function DashboardPage() {
 
   async function loadTokens() {
     try {
-      const res = await fetch('/api/parent/tokens')
-      if (!res.ok) return
-      const data = await res.json()
-      setTokenPacks(data.tokens || [])
-      setCancelQuota(data.quota || null)
-      const tmRes = await fetch('/api/parent/team-memberships')
+      const [res, tmRes] = await Promise.all([
+        fetch('/api/parent/tokens'),
+        fetch('/api/parent/team-memberships'),
+      ])
+      if (res.ok) {
+        const data = await res.json()
+        setTokenPacks(data.tokens || [])
+        setCancelQuota(data.quota || null)
+      }
       if (tmRes.ok) { const tmData = await tmRes.json(); setTeamMemberships(tmData.memberships || []) }
     } catch {}
   }
@@ -491,7 +494,7 @@ export default function DashboardPage() {
       .lt('pending_expires_at', nowIso)
       .then(() => {})
 
-    const [{ data: studs }, { data: credData }, { data: rawBookings }] = await Promise.all([
+    const [{ data: studs }, { data: credData }, { data: rawBookings }, { data: pendingRaw }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
         .from('lesson_credits')
@@ -504,18 +507,40 @@ export default function DashboardPage() {
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
+      supabase.from('bookings')
+        .select('id, student_id, pending_expires_at, partner_parent_id, class_session_id')
+        .eq('parent_id', parentData.id)
+        .eq('status', 'pending_partner')
+        .eq('pending_action', 'confirm')
+        .gt('pending_expires_at', nowIso),
     ])
 
     // Query class_sessions and students separately
     const sessionIds = [...new Set((rawBookings || []).map((b: any) => b.class_session_id).filter(Boolean))]
     const studentIds = [...new Set((rawBookings || []).map((b: any) => b.student_id).filter(Boolean))]
 
-    const [{ data: sessionsData }, { data: studentsData }] = await Promise.all([
+    const newSessionIds = [...new Set((rawBookings || [])
+      .filter((b: any) => b.pending_new_session_id)
+      .map((b: any) => b.pending_new_session_id)
+      .filter(Boolean))]
+    const pendingSessionIds = [...new Set((pendingRaw || []).map((b: any) => b.class_session_id).filter(Boolean))]
+    const pendingStudentIds = [...new Set((pendingRaw || []).map((b: any) => b.student_id).filter(Boolean))]
+
+    const [{ data: sessionsData }, { data: studentsData }, { data: newSessionsData }, { data: pSessions }, { data: pStudents }] = await Promise.all([
       sessionIds.length > 0
         ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(name, slug), coaches(first_name)').in('id', sessionIds)
         : Promise.resolve({ data: [] }),
       studentIds.length > 0
         ? supabase.from('students').select('id, full_name').in('id', studentIds)
+        : Promise.resolve({ data: [] }),
+      newSessionIds.length > 0
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(name, slug), coaches(first_name)').in('id', newSessionIds)
+        : Promise.resolve({ data: [] }),
+      pendingSessionIds.length > 0
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(name), coaches(first_name)').in('id', pendingSessionIds)
+        : Promise.resolve({ data: [] }),
+      pendingStudentIds.length > 0
+        ? supabase.from('students').select('id, full_name').in('id', pendingStudentIds)
         : Promise.resolve({ data: [] }),
     ])
 
@@ -528,46 +553,47 @@ export default function DashboardPage() {
     const studentMap: Record<string, any> = {}
     for (const s of studentsData || []) { studentMap[(s as any).id] = s }
 
-    // Fetch new session data for pending reschedules
-    const newSessionIds = [...new Set((rawBookings || [])
-      .filter((b: any) => b.pending_new_session_id)
-      .map((b: any) => b.pending_new_session_id)
-      .filter(Boolean))]
-    if (newSessionIds.length > 0) {
-      const { data: newSessionsData } = await supabase
-        .from('class_sessions')
-        .select('id, session_date, start_time, end_time, level_min, level_max, course_types(name, slug), coaches(first_name)')
-        .in('id', newSessionIds)
-      for (const s of newSessionsData || []) {
-        const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
-        const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
-        sessionMap[(s as any).id] = { ...(s as any), ct, coach }
-      }
+    // Merge pending-reschedule target sessions (fetched in the Promise.all above)
+    for (const s of newSessionsData || []) {
+      const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
+      const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
+      sessionMap[(s as any).id] = { ...(s as any), ct, coach }
     }
 
     setStudents(studs || [])
     setCredits(credData || [])
 
-    // Fetch cross-account bookings awaiting confirmation
-    const { data: pendingRaw } = await supabase
-      .from('bookings')
-      .select('id, student_id, pending_expires_at, partner_parent_id, class_session_id')
-      .eq('parent_id', parentData.id)
-      .eq('status', 'pending_partner')
-      .eq('pending_action', 'confirm')
-      .gt('pending_expires_at', new Date().toISOString())
+    // pendingRaw / pSessions / pStudents fetched in the Promise.all batches above
 
-    // Backfill session/student data for pending items
-    const pendingSessionIds = [...new Set((pendingRaw || []).map((b: any) => b.class_session_id).filter(Boolean))]
-    const pendingStudentIds = [...new Set((pendingRaw || []).map((b: any) => b.student_id).filter(Boolean))]
-    const [{ data: pSessions }, { data: pStudents }] = await Promise.all([
-      pendingSessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(name), coaches(first_name)').in('id', pendingSessionIds)
-        : Promise.resolve({ data: [] }),
-      pendingStudentIds.length > 0
-        ? supabase.from('students').select('id, full_name').in('id', pendingStudentIds)
-        : Promise.resolve({ data: [] }),
-    ])
+    // Early-start independent fetches (awaited later where needed).
+    // Promise.resolve() forces lazy supabase builders to fire immediately.
+    const on2IdsEarly = (rawBookings || [])
+      .filter((b: any) => b.status !== 'cancelled')
+      .map((b: any) => b.class_session_id)
+      .filter(Boolean)
+    const partnerPromise: Promise<Response | null> = (on2IdsEarly.length > 0 && parentData?.id)
+      ? fetch('/api/bookings/session-partners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_ids: on2IdsEarly, parent_id: parentData.id }),
+        }).catch(() => null)
+      : Promise.resolve(null)
+    const bookingIdsEarly = (rawBookings || []).map((b: any) => b.id)
+    const attendancePromise: Promise<Response | null> = bookingIdsEarly.length > 0
+      ? fetch('/api/parent/attendance?booking_ids=' + bookingIdsEarly.join(',')).catch(() => null)
+      : Promise.resolve(null)
+    const histStudentIdsEarly = (studs || []).map((s: any) => s.id)
+    const histPromise: Promise<{ data: any[] | null }> = histStudentIdsEarly.length > 0
+      ? Promise.resolve(supabase.from('progress_history')
+          .select('student_id, session_date, snapshot')
+          .in('student_id', histStudentIdsEarly)
+          .eq('status', 'approved')
+          .order('session_date', { ascending: false })) as any
+      : Promise.resolve({ data: [] })
+    const levelNumsEarly = [...new Set((studs || []).map((s: any) => s.current_level).filter(Boolean))]
+    const levPromise: Promise<{ data: any[] | null }> = levelNumsEarly.length > 0
+      ? Promise.resolve(supabase.from('levels').select('id, level_number').in('level_number', levelNumsEarly)) as any
+      : Promise.resolve({ data: [] })
     const pSessionMap: Record<string, any> = {}
     for (const s of pSessions || []) {
       const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
@@ -592,28 +618,18 @@ export default function DashboardPage() {
       return ka.localeCompare(kb)
     }))
 
-    // Fetch partner student names for 1-on-2 sessions (server API to bypass RLS)
-    const on2SessionIds = (rawBookings || [])
-      .filter((b: any) => b.status !== 'cancelled')
-      .map((b: any) => b.class_session_id)
-      .filter(Boolean)
-    if (on2SessionIds.length > 0 && parentData?.id) {
-      try {
-        const partnerRes = await fetch('/api/bookings/session-partners', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_ids: on2SessionIds, parent_id: parentData.id }),
-        })
-        if (partnerRes.ok) {
-          const { partners } = await partnerRes.json()
-          for (const b of rawBookings || []) {
-            if (partners[b.class_session_id]) {
-              (b as any)._partner_student_name = partners[b.class_session_id]
-            }
+    // Fetch partner student names for 1-on-2 sessions (early-started above)
+    try {
+      const partnerRes = await partnerPromise
+      if (partnerRes && partnerRes.ok) {
+        const { partners } = await partnerRes.json()
+        for (const b of rawBookings || []) {
+          if (partners[b.class_session_id]) {
+            (b as any)._partner_student_name = partners[b.class_session_id]
           }
         }
-      } catch {}
-    }
+      }
+    } catch {}
 
     const parseBookings = (data: any[]): Booking[] =>
       (data || []).map((b: any) => {
@@ -679,11 +695,10 @@ export default function DashboardPage() {
     const allPast = parseBookings(rawBookings || []).filter(b => isLessonPast(b))
 
     // Fetch attendance for ALL bookings (incl. today's) so Upcoming cards can show check-in status
-    const allBookingIds = (rawBookings || []).map((b: any) => b.id)
     let checkedInSet = new Set<string>()
-    if (allBookingIds.length > 0) {
-      const res = await fetch('/api/parent/attendance?booking_ids=' + allBookingIds.join(','))
-      const json = await res.json().catch(() => ({ checkedInBookingIds: [] }))
+    {
+      const res = await attendancePromise
+      const json = res ? await res.json().catch(() => ({ checkedInBookingIds: [] })) : { checkedInBookingIds: [] }
       for (const id of (json.checkedInBookingIds || [])) {
         checkedInSet.add(id)
       }
@@ -696,12 +711,7 @@ export default function DashboardPage() {
     // Fetch each student's latest approved progress_history
     const studentIdList = (studs || []).map((s: any) => s.id)
     if (studentIdList.length > 0) {
-      const { data: histRows } = await supabase
-        .from('progress_history')
-        .select('student_id, session_date, snapshot')
-        .in('student_id', studentIdList)
-        .eq('status', 'approved')
-        .order('session_date', { ascending: false })
+      const { data: histRows } = await histPromise
 
       // Group all records by student
       const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number> }[]> = {}
@@ -725,10 +735,7 @@ export default function DashboardPage() {
       let levelSkillsMap: Record<string, { id: string; name: string; sort_order: number }[]> = {}
 
       if (allLevelNums.length > 0) {
-        const { data: levRows } = await supabase
-          .from('levels')
-          .select('id, level_number')
-          .in('level_number', allLevelNums)
+        const { data: levRows } = await levPromise
         const levelIdMap: Record<string, string> = {}
         for (const l of levRows || []) levelIdMap[String(l.level_number)] = l.id
         const allLevelIds = Object.values(levelIdMap)
