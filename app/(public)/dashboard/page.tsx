@@ -294,11 +294,21 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
 
 interface TokenPack { id: string; course_name: string; remaining: number; expires_at: string; source: string }
 
-function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
+function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   if (memberships.length === 0) return null
   const RED = '#e05a4a'
+  const DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const t12tc = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
+  const practiceLines = (slots: { weekday: number; start_time: string; end_time: string; coach_name: string }[]) => {
+    const g: Record<string, { days: string[]; st: string; en: string; coach: string }> = {}
+    for (const s of slots) {
+      const k = s.start_time + '|' + s.end_time + '|' + s.coach_name
+      ;(g[k] ||= { days: [], st: s.start_time, en: s.end_time, coach: s.coach_name }).days.push(DAYS3[s.weekday])
+    }
+    return Object.values(g).map(x => `${x.days.join(' & ')} ${t12tc(x.st)} – ${t12tc(x.en)}${x.coach ? ' · Coach ' + x.coach : ''}`)
+  }
   const openPortal = async (id: string) => {
     setPortalLoading(id)
     try {
@@ -319,6 +329,9 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? 'Prepaid' : '$399/mo'}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>unlimited practices</div>
+              {(m.weekly_slots || []).length > 0 && practiceLines(m.weekly_slots || []).map((line, li) => (
+                <div key={li} style={{ fontSize: '11px', color: RED, marginTop: li === 0 ? '4px' : 0 }}>{li === 0 ? 'Practices: ' : ''}{line}</div>
+              ))}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             {m.is_prepaid ? (() => {
@@ -413,7 +426,7 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
   const [tokenPacks, setTokenPacks] = useState<TokenPack[]>([])
-  const [teamMemberships, setTeamMemberships] = useState<{ id: string; student_name: string; tier_name: string; status: string }[]>([])
+  const [teamMemberships, setTeamMemberships] = useState<any[]>([])
   const [cancelQuota, setCancelQuota] = useState<{ total: number; used: number; remaining: number } | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
@@ -439,6 +452,13 @@ export default function DashboardPage() {
     } catch {}
   }
   useEffect(() => { loadTokens() }, [])
+  const [practiceDetail, setPracticeDetail] = useState<any | null>(null)
+  useEffect(() => {
+    if (lessonView !== 'month') return
+    const mm = String(lvMonth + 1).padStart(2, '0')
+    fetch(`/api/parent/team-memberships?month=${lvYear}-${mm}`)
+      .then(r => r.ok ? r.json() : null).then(d => { if (d) setTeamMemberships(d.memberships || []) }).catch(() => {})
+  }, [lessonView, lvMonth, lvYear])
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string; partnerBookingId?: string } | null>(null)
@@ -1258,6 +1278,15 @@ export default function DashboardPage() {
             const byDate: Record<string, Booking[]> = {}
             for (const b of all) (byDate[b.session_date] ||= []).push(b)
             for (const k of Object.keys(byDate)) byDate[k].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+            const practiceByDate: Record<string, any[]> = {}
+            for (const tm of teamMemberships) {
+              const active = tm.status === 'active' || tm.status === 'trialing'
+              if (!active) continue
+              for (const p of tm.practice_days || []) {
+                (practiceByDate[p.date] ||= []).push({ ...p, student_name: tm.student_name, tier_name: tm.tier_name })
+              }
+            }
+            for (const k of Object.keys(practiceByDate)) practiceByDate[k].sort((a, b) => a.start_time.localeCompare(b.start_time) || a.student_name.localeCompare(b.student_name))
             const daysIn = new Date(lvYear, lvMonth + 1, 0).getDate()
             const firstDow = new Date(lvYear, lvMonth, 1).getDay()
             const t12 = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
@@ -1295,6 +1324,14 @@ export default function DashboardPage() {
                                 {t12(b.start_time)}{b.checked_in ? ' ✓' : ''}</span>
                               <span style={{ display: 'block', fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>
                                 {(b.student_name || '').split(',')[0]}</span>
+                            </button>
+                          ))}
+                          {(practiceByDate[ds] || []).map((p: any, j: number) => (
+                            <button key={'p' + j} onClick={() => setPracticeDetail({ ...p, date: ds })} style={{ padding: '4px 3px', borderRadius: '5px', textAlign: 'center', cursor: 'pointer', width: '100%',
+                              border: `1px dashed ${isPast ? 'rgba(224,90,74,0.25)' : 'rgba(224,90,74,0.6)'}`,
+                              background: isPast ? 'rgba(224,90,74,0.04)' : 'rgba(224,90,74,0.10)' }}>
+                              <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.35)' : '#fff' }}>{t12(p.start_time)}</span>
+                              <span style={{ display: 'block', fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(224,90,74,0.4)' : '#e05a4a' }}>{(p.student_name || '').split(' ')[0]} · Team</span>
                             </button>
                           ))}
                         </div>
@@ -1339,6 +1376,31 @@ export default function DashboardPage() {
                     </div>
                   )
                 })()}
+                {practiceDetail && (
+                  <div onClick={() => setPracticeDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: DARK, border: '1px solid rgba(224,90,74,0.4)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                        <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff' }}>Team Practice</div>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: '#e05a4a', background: 'rgba(224,90,74,0.15)', whiteSpace: 'nowrap' }}>Optional</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px' }}>Come whenever it works for you — just check in when you arrive.</div>
+                      {[
+                        { label: 'Swimmer', value: practiceDetail.student_name || '—' },
+                        { label: 'Squad', value: practiceDetail.tier_name || '—' },
+                        { label: 'Date', value: practiceDetail.date ? new Date(practiceDetail.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '' },
+                        { label: 'Time', value: `${t12(practiceDetail.start_time)} – ${t12(practiceDetail.end_time)}` },
+                        { label: 'Coach', value: practiceDetail.coach_name ? `Coach ${practiceDetail.coach_name}` : '—' },
+                      ].map(row => (
+                        <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{row.label}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff', textAlign: 'right' }}>{row.value}</span>
+                        </div>
+                      ))}
+                      <button onClick={() => setPracticeDetail(null)}
+                        style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#e05a4a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })() : upcomingBookings.length === 0 ? (
