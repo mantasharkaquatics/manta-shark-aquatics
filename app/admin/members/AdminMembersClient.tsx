@@ -114,6 +114,194 @@ function isUnread(p: Parent): boolean {
   return new Date(p.last_activity_at).getTime() > new Date(p.activity_reviewed_at).getTime()
 }
 
+function MemberEditPanel({ parent }: { parent: any }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  const [emailVal, setEmailVal] = useState(parent.email || '')
+  const [phoneVal, setPhoneVal] = useState(parent.phone || '')
+  const [pending, setPending] = useState<{ id: string; field: 'email' | 'phone'; sent_to: string } | null>(null)
+  const [code, setCode] = useState('')
+  const [forceField, setForceField] = useState<'email' | 'phone' | null>(null)
+  const [reason, setReason] = useState('')
+
+  const [a1, setA1] = useState(parent.address_line1 || '')
+  const [a2, setA2] = useState(parent.address_line2 || '')
+  const [city, setCity] = useState(parent.city || '')
+  const [stateV, setStateV] = useState(parent.state || '')
+  const [zip, setZip] = useState(parent.zip_code || '')
+
+  const [studentEdits, setStudentEdits] = useState<Record<string, { name: string; dob: string }>>(() => {
+    const o: Record<string, { name: string; dob: string }> = {}
+    for (const s of parent.students || []) o[s.id] = { name: s.full_name || '', dob: (s.date_of_birth || '').slice(0, 10) }
+    return o
+  })
+
+  const post = async (body: any) => {
+    const res = await fetch('/api/admin/members/contact-change', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    const j = await res.json().catch(() => ({}))
+    return { ok: res.ok, j }
+  }
+  const flash = (m: string) => { setMsg(m); setErr(null); setTimeout(() => setMsg(null), 4000) }
+
+  const requestCode = async (field: 'email' | 'phone') => {
+    setBusy(true); setErr(null); setMsg(null)
+    const { ok, j } = await post({ action: 'request_code', parent_id: parent.id, field, new_value: field === 'email' ? emailVal : phoneVal })
+    setBusy(false)
+    if (!ok) {
+      if (j.error === 'no_channel') { setErr(j.message); setForceField(field) }
+      else setErr(j.error || 'Could not send the code.')
+      return
+    }
+    setPending({ id: j.request_id, field, sent_to: j.sent_to })
+    setCode('')
+    flash(`Code sent to ${j.sent_to}${j.delivered ? '' : ' (delivery may be delayed)'}`)
+  }
+
+  const confirmCode = async () => {
+    if (!pending) return
+    setBusy(true); setErr(null)
+    const { ok, j } = await post({ action: 'confirm', request_id: pending.id, code })
+    setBusy(false)
+    if (!ok) { setErr(j.error + (j.attempts_left != null ? ` ${j.attempts_left} attempts left.` : '')); return }
+    if (pending.field === 'email') { parent.email = j.new_value; setEmailVal(j.new_value) }
+    else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
+    setPending(null); setCode('')
+    flash(`${pending.field === 'email' ? 'Email' : 'Phone'} updated. Notifications sent.`)
+  }
+
+  const forceUpdate = async () => {
+    if (!forceField) return
+    setBusy(true); setErr(null)
+    const { ok, j } = await post({ action: 'force_update', parent_id: parent.id, field: forceField, new_value: forceField === 'email' ? emailVal : phoneVal, reason })
+    setBusy(false)
+    if (!ok) { setErr(j.error || 'Override failed.'); return }
+    if (forceField === 'email') { parent.email = j.new_value; setEmailVal(j.new_value) }
+    else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
+    setForceField(null); setReason('')
+    flash('Updated by override — reason recorded.')
+  }
+
+  const saveAddress = async () => {
+    setBusy(true); setErr(null)
+    const { ok, j } = await post({ action: 'direct_update', target: 'parent', id: parent.id, fields: { address_line1: a1, address_line2: a2, city, state: stateV, zip_code: zip } })
+    setBusy(false)
+    if (!ok) { setErr(j.error || 'Save failed.'); return }
+    parent.address_line1 = a1.trim() || null; parent.address_line2 = a2.trim() || null
+    parent.city = city.trim() || null; parent.state = stateV.trim() || null; parent.zip_code = zip.trim() || null
+    flash('Address saved.')
+  }
+
+  const saveStudent = async (s: any) => {
+    const e = studentEdits[s.id]
+    setBusy(true); setErr(null)
+    const { ok, j } = await post({ action: 'direct_update', target: 'student', id: s.id, fields: { full_name: e.name, date_of_birth: e.dob } })
+    setBusy(false)
+    if (!ok) { setErr(j.error || 'Save failed.'); return }
+    s.full_name = e.name.trim(); s.date_of_birth = e.dob || null
+    flash(`${e.name.trim()} saved.`)
+  }
+
+  const inputCls = 'w-full bg-[#0d1729] border border-[#1e3a6e] rounded px-2 py-1.5 text-sm text-white'
+  const goldBtn = 'bg-[#c9a84c] text-[#1a2744] font-bold text-xs px-3 py-1.5 rounded disabled:opacity-40'
+  const ghostBtn = 'border border-[#1e3a6e] text-gray-300 font-semibold text-xs px-3 py-1.5 rounded disabled:opacity-40'
+  const label = 'text-gray-500 text-xs uppercase tracking-wider mb-1'
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-xs text-gray-400 hover:text-[#c9a84c]">&#9998; Edit details</button>
+    )
+  }
+
+  return (
+    <div className="border border-[#1e3a6e] rounded-lg p-4 space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-[#c9a84c] text-xs uppercase tracking-wider font-bold">Edit details</p>
+        <button onClick={() => { setOpen(false); setPending(null); setForceField(null); setErr(null) }} className="text-xs text-gray-400">Close</button>
+      </div>
+      {msg && <p className="text-green-400 text-xs">{msg}</p>}
+      {err && <p className="text-red-400 text-xs">{err}</p>}
+
+      <div className="space-y-3">
+        <p className="text-gray-400 text-xs">Email and phone need the family to confirm a code sent to their other contact method.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <p className={label}>Email (login)</p>
+            <div className="flex gap-2">
+              <input className={inputCls} value={emailVal} onChange={e => setEmailVal(e.target.value)} />
+              <button className={ghostBtn} disabled={busy || emailVal === parent.email} onClick={() => requestCode('email')}>Send code</button>
+            </div>
+            <p className="text-gray-500 text-[11px] mt-1">Code goes to their phone by SMS.</p>
+          </div>
+          <div>
+            <p className={label}>Phone</p>
+            <div className="flex gap-2">
+              <input className={inputCls} value={phoneVal} onChange={e => setPhoneVal(e.target.value)} />
+              <button className={ghostBtn} disabled={busy || phoneVal === parent.phone} onClick={() => requestCode('phone')}>Send code</button>
+            </div>
+            <p className="text-gray-500 text-[11px] mt-1">Code goes to their email.</p>
+          </div>
+        </div>
+
+        {pending && (
+          <div className="border border-[#c9a84c]/40 rounded p-3 space-y-2">
+            <p className="text-gray-300 text-xs">Code sent to <span className="text-[#c9a84c]">{pending.sent_to}</span> — ask the family to read it back.</p>
+            <div className="flex gap-2 items-center">
+              <input className={inputCls + ' max-w-[160px] tracking-[4px] text-center'} value={code} onChange={e => setCode(e.target.value)} placeholder="000000" maxLength={6} />
+              <button className={goldBtn} disabled={busy || code.length < 6} onClick={confirmCode}>Confirm change</button>
+              <button className={ghostBtn} disabled={busy} onClick={() => requestCode(pending.field)}>Resend</button>
+              <button className={ghostBtn} onClick={() => { setPending(null); setCode('') }}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {forceField && (
+          <div className="border border-red-500/40 rounded p-3 space-y-2">
+            <p className="text-red-300 text-xs font-semibold">Override without verification</p>
+            <p className="text-gray-400 text-[11px]">Only after checking ID in person. The reason is recorded.</p>
+            <textarea className={inputCls} rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Parent at front desk with photo ID, old phone disconnected" />
+            <div className="flex gap-2">
+              <button className={goldBtn} disabled={busy || reason.trim().length < 10} onClick={forceUpdate}>Apply override</button>
+              <button className={ghostBtn} onClick={() => { setForceField(null); setReason('') }}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-[#1e3a6e] pt-4 space-y-2">
+        <p className={label}>Address</p>
+        <input className={inputCls} value={a1} onChange={e => setA1(e.target.value)} placeholder="Address line 1" />
+        <input className={inputCls} value={a2} onChange={e => setA2(e.target.value)} placeholder="Address line 2" />
+        <div className="grid grid-cols-3 gap-2">
+          <input className={inputCls} value={city} onChange={e => setCity(e.target.value)} placeholder="City" />
+          <input className={inputCls} value={stateV} onChange={e => setStateV(e.target.value)} placeholder="State" />
+          <input className={inputCls} value={zip} onChange={e => setZip(e.target.value)} placeholder="ZIP" />
+        </div>
+        <button className={goldBtn} disabled={busy} onClick={saveAddress}>Save address</button>
+      </div>
+
+      {(parent.students || []).length > 0 && (
+        <div className="border-t border-[#1e3a6e] pt-4 space-y-3">
+          <p className={label}>Swimmers</p>
+          {(parent.students || []).map((s: any) => (
+            <div key={s.id} className="flex flex-wrap gap-2 items-center">
+              <input className={inputCls + ' max-w-[220px]'} value={studentEdits[s.id]?.name || ''}
+                onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], name: e.target.value } }))} />
+              <input type="date" className={inputCls + ' max-w-[170px]'} value={studentEdits[s.id]?.dob || ''}
+                onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], dob: e.target.value } }))} />
+              <button className={goldBtn} disabled={busy} onClick={() => saveStudent(s)}>Save</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SdpPanel({ student }: { student: Student }) {
   const [legalName, setLegalName] = useState(student.legal_full_name || '')
   const [uci, setUci] = useState(student.uci_number || '')
@@ -458,6 +646,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                       <p className="text-gray-300 text-sm">{formatDateTime(parent.last_login_at)}</p>
                     </div>
                   </div>
+
+                  <MemberEditPanel parent={parent} />
 
                   {/* Row 2: Registered, Terms Accepted, Photo Release, Newsletter */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-[#1e3a6e]/40 pt-4">
