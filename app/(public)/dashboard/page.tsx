@@ -418,6 +418,7 @@ export default function DashboardPage() {
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [lessonView, setLessonView] = useState<'list' | 'month'>('list')
+  const [lessonDetail, setLessonDetail] = useState<Booking | null>(null)
   const [lvMonth, setLvMonth] = useState(() => new Date().getMonth())
   const [lvYear, setLvYear] = useState(() => new Date().getFullYear())
   const [loading, setLoading] = useState(true)
@@ -1287,20 +1288,57 @@ export default function DashboardPage() {
                         <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? 'rgba(255,255,255,0.25)' : dayBookings.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {dayBookings.map((b, j) => (
-                            <div key={b.id + j} style={{ padding: '4px 3px', borderRadius: '5px', textAlign: 'center',
+                            <button key={b.id + j} onClick={() => setLessonDetail(b)} style={{ padding: '4px 3px', borderRadius: '5px', textAlign: 'center', cursor: 'pointer', width: '100%',
                               border: `1px solid ${isPast ? 'rgba(255,255,255,0.1)' : GOLD + '55'}`,
                               background: isPast ? 'rgba(255,255,255,0.04)' : `${GOLD}14` }}>
                               <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
                                 {t12(b.start_time)}{b.checked_in ? ' ✓' : ''}</span>
                               <span style={{ display: 'block', fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>
                                 {(b.student_name || '').split(',')[0]}</span>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
                     )
                   })}
                 </div>
+                {lessonDetail && (() => {
+                  const b = lessonDetail
+                  const past = !!(b.session_date && b.session_date < todayDs)
+                  const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
+                  const statusLabel = past ? (b.checked_in ? 'Attended ✓' : 'Absent') : b.checked_in ? 'Checked in ✓' : 'Confirmed'
+                  const statusColor = past ? (b.checked_in ? '#7fd8a0' : '#e05a4a') : b.checked_in ? '#7fd8a0' : GOLD
+                  const funding = b.is_trial ? 'Swim Assessment' : b.token_package_id ? '1 token' : b.lesson_credit_id ? '1 credit' : '—'
+                  return (
+                    <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                      <div onClick={e => e.stopPropagation()} style={{ background: DARK, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                          <div>
+                            <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff' }}>{b.course_name || 'Lesson'}</div>
+                            {b.level_min != null && b.level_max != null && (
+                              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>Level {b.level_min}–{b.level_max} Group</div>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                        </div>
+                        {[
+                          { label: 'Swimmer', value: b.student_name || '—' },
+                          { label: 'Date', value: dateStr },
+                          { label: 'Time', value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
+                          { label: 'Coach', value: b.coach_name ? `Coach ${b.coach_name}` : '—' },
+                          { label: 'Payment', value: funding },
+                        ].map(row => (
+                          <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{row.label}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff', textAlign: 'right' }}>{row.value}</span>
+                          </div>
+                        ))}
+                        <button onClick={() => setLessonDetail(null)}
+                          style={{ marginTop: '18px', width: '100%', padding: '12px', background: GOLD, border: 'none', borderRadius: '10px', color: NAVY, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })() : upcomingBookings.length === 0 ? (
