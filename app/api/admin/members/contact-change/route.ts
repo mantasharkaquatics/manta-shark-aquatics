@@ -77,6 +77,11 @@ async function validateNewValue(svc: any, parentId: string, field: string, raw: 
   if (field === 'email') {
     const { data: dup } = await svc.from('parents').select('id').ilike('email', value).neq('id', parentId).limit(1)
     if (dup && dup.length > 0) return { error: 'Another family already uses this email address.' }
+    // auth.users is the real uniqueness constraint — check it before spending a code
+    const { data: me } = await svc.from('parents').select('auth_user_id').eq('id', parentId).single()
+    const { data: list } = await svc.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    const taken = (list?.users || []).find((u: any) => String(u.email || '').toLowerCase() === value && u.id !== me?.auth_user_id)
+    if (taken) return { error: 'That email already belongs to another login account (family, coach or admin). Pick a different address or remove the old account first.' }
   } else {
     const last10 = value.replace(/\D/g, '').slice(-10)
     const { data: dup } = await svc.from('parents').select('id').like('phone', `%${last10}`).neq('id', parentId).limit(1)
