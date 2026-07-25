@@ -297,6 +297,7 @@ interface TokenPack { id: string; course_name: string; remaining: number; expire
 function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [schedOpen, setSchedOpen] = useState<Record<string, boolean>>({})
   if (memberships.length === 0) return null
   const RED = '#e05a4a'
   const DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -307,7 +308,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
       const k = s.start_time + '|' + s.end_time + '|' + s.coach_name
       ;(g[k] ||= { days: [], st: s.start_time, en: s.end_time, coach: s.coach_name }).days.push(DAYS3[s.weekday])
     }
-    return Object.values(g).map(x => `${x.days.join(' & ')} ${t12tc(x.st)} – ${t12tc(x.en)}${x.coach ? ' · Coach ' + x.coach : ''}`)
+    return Object.values(g).map(x => ({ days: x.days.length === 7 ? 'Every day' : x.days.join(', '), time: `${t12tc(x.st)} – ${t12tc(x.en)}`, coach: x.coach }))
   }
   const openPortal = async (id: string) => {
     setPortalLoading(id)
@@ -329,9 +330,25 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? 'Prepaid' : '$399/mo'}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>unlimited practices</div>
-              {(m.weekly_slots || []).length > 0 && practiceLines(m.weekly_slots || []).map((line, li) => (
-                <div key={li} style={{ fontSize: '11px', color: RED, marginTop: li === 0 ? '4px' : 0 }}>{li === 0 ? 'Practices: ' : ''}{line}</div>
-              ))}
+              {(m.weekly_slots || []).length > 0 && (
+                <div style={{ marginTop: '8px' }}>
+                  <button onClick={() => setSchedOpen(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
+                    <span style={{ fontSize: '9px' }}>{schedOpen[m.id] ? '\u25b2' : '\u25bc'}</span>
+                    {schedOpen[m.id] ? 'Hide' : 'Show'} practice schedule
+                  </button>
+                  {schedOpen[m.id] && (
+                    <div style={{ marginTop: '8px', borderLeft: `2px solid ${RED}55`, paddingLeft: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      {practiceLines(m.weekly_slots || []).map((ln, li) => (
+                        <div key={li} style={{ fontSize: '11px', lineHeight: 1.5 }}>
+                          <span style={{ color: '#fff', fontWeight: 600 }}>{ln.days}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.5)' }}> · {ln.time}{ln.coach ? ` · Coach ${ln.coach}` : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             {m.is_prepaid ? (() => {
@@ -1320,18 +1337,16 @@ export default function DashboardPage() {
                             <button key={b.id + j} onClick={() => setLessonDetail(b)} style={{ padding: '4px 3px', borderRadius: '5px', textAlign: 'center', cursor: 'pointer', width: '100%',
                               border: `1px solid ${isPast ? 'rgba(255,255,255,0.1)' : GOLD + '55'}`,
                               background: isPast ? 'rgba(255,255,255,0.04)' : `${GOLD}14` }}>
-                              <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
-                                {t12(b.start_time)}{b.checked_in ? ' ✓' : ''}</span>
-                              <span style={{ display: 'block', fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>
-                                {(b.student_name || '').split(',')[0]}</span>
+                              <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
+                                {t12(b.start_time)} <span style={{ fontWeight: 600, color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>{(b.student_name || '').split(',')[0].split(' ')[0]}</span>{b.checked_in ? ' ✓' : ''}</span>
                             </button>
                           ))}
                           {(practiceByDate[ds] || []).map((p: any, j: number) => (
                             <button key={'p' + j} onClick={() => setPracticeDetail({ ...p, date: ds })} style={{ padding: '4px 3px', borderRadius: '5px', textAlign: 'center', cursor: 'pointer', width: '100%',
                               border: `1px dashed ${isPast ? 'rgba(224,90,74,0.25)' : 'rgba(224,90,74,0.6)'}`,
                               background: isPast ? 'rgba(224,90,74,0.04)' : 'rgba(224,90,74,0.10)' }}>
-                              <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.35)' : '#fff' }}>{t12(p.start_time)}</span>
-                              <span style={{ display: 'block', fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(224,90,74,0.4)' : '#e05a4a' }}>{(p.student_name || '').split(' ')[0]} · Team</span>
+                              <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(255,255,255,0.35)' : '#fff' }}>
+                                {t12(p.start_time)} <span style={{ fontWeight: 600, color: isPast ? 'rgba(224,90,74,0.4)' : '#e05a4a' }}>{(p.student_name || '').split(' ')[0]}</span></span>
                             </button>
                           ))}
                         </div>
