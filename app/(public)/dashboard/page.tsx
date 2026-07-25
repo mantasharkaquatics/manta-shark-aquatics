@@ -1338,8 +1338,8 @@ export default function DashboardPage() {
                               border: `1px solid ${isPast ? 'rgba(255,255,255,0.1)' : GOLD + '55'}`,
                               background: isPast ? 'rgba(255,255,255,0.04)' : `${GOLD}14` }}>
                               <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '4px', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
-                                <span>{t12(b.start_time)}{b.checked_in ? ' ✓' : ''}</span>
-                                <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>{(b.student_name || '').split(',')[0].split(' ')[0]}</span></span>
+                                <span style={{ flexShrink: 0 }}>{t12(b.start_time)}{b.checked_in ? ' ✓' : ''}</span>
+                                <span style={{ fontWeight: 600, flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right', color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>{(b.student_name || '').split(',')[0].split(' ')[0]}</span></span>
                             </button>
                           ))}
                           {(practiceByDate[ds] || []).map((p: any, j: number) => (
@@ -1347,8 +1347,8 @@ export default function DashboardPage() {
                               border: `1px dashed ${isPast ? 'rgba(224,90,74,0.25)' : 'rgba(224,90,74,0.6)'}`,
                               background: isPast ? 'rgba(224,90,74,0.04)' : 'rgba(224,90,74,0.10)' }}>
                               <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '4px', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.35)' : '#fff' }}>
-                                <span>{t12(p.start_time)}</span>
-                                <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', color: isPast ? 'rgba(224,90,74,0.4)' : '#e05a4a' }}>{(p.student_name || '').split(' ')[0]}</span></span>
+                                <span style={{ flexShrink: 0 }}>{t12(p.start_time)}</span>
+                                <span style={{ fontWeight: 600, flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right', color: isPast ? 'rgba(224,90,74,0.4)' : '#e05a4a' }}>{(p.student_name || '').split(' ')[0]}</span></span>
                             </button>
                           ))}
                         </div>
