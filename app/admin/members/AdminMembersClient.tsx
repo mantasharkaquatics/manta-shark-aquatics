@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
@@ -115,6 +116,7 @@ function isUnread(p: Parent): boolean {
 }
 
 function MemberEditPanel({ parent }: { parent: any }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -172,6 +174,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
     setPending(null); setCode('')
     flash(`${pending.field === 'email' ? 'Email' : 'Phone'} updated. Notifications sent.`)
+    router.refresh()
   }
 
   const forceUpdate = async () => {
@@ -184,6 +187,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
     setForceField(null); setReason('')
     flash('Updated by override — reason recorded.')
+    router.refresh()
   }
 
   const saveAddress = async () => {
@@ -194,6 +198,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     parent.address_line1 = a1.trim() || null; parent.address_line2 = a2.trim() || null
     parent.city = city.trim() || null; parent.state = stateV.trim() || null; parent.zip_code = zip.trim() || null
     flash('Address saved.')
+    router.refresh()
   }
 
   const saveStudent = async (s: any) => {
@@ -204,6 +209,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     if (!ok) { setErr(j.error || 'Save failed.'); return }
     s.full_name = e.name.trim(); s.date_of_birth = e.dob || null
     flash(`${e.name.trim()} saved.`)
+    router.refresh()
   }
 
   const inputCls = 'w-full bg-[#0d1729] border border-[#1e3a6e] rounded px-2 py-1.5 text-sm text-white'
