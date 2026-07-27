@@ -62,3 +62,20 @@ export function minutesUntil(dateStr: string, timeStr: string, todayStr: string,
 // Slots are generated from each zone's start_time, so cutting zones at the
 // long-break boundaries is what produces the published 20-slot day.
 export const SLOT_STEP_MINUTES = 35
+
+// The teaching day: 30-min lessons on a 35-min cadence. Segment boundaries are
+// where the cadence breaks — here only once, the 10-min break after slot 12.
+export const DAY_SEGMENTS: [string, string][] = [
+  ['09:10', '16:05'],
+  ['16:15', '20:50'],
+]
+export const LESSON_MINUTES = 30
+export function daySlots(): { start: string; end: string }[] {
+  const toM = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+  const toT = (m: number) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
+  const out: { start: string; end: string }[] = []
+  for (const [a, b] of DAY_SEGMENTS) {
+    for (let m = toM(a); m + LESSON_MINUTES <= toM(b); m += SLOT_STEP_MINUTES) out.push({ start: toT(m), end: toT(m + LESSON_MINUTES) })
+  }
+  return out
+}

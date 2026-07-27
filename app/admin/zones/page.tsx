@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS } from '@/lib/zone-colors'
+import { daySlots, SLOT_STEP_MINUTES } from '@/lib/date'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const GRID_START = 6 * 60
-const GRID_END = 21 * 60
-const SLOTS = (GRID_END - GRID_START) / 30
+const DAY_SLOTS = daySlots()
+const SLOTS = DAY_SLOTS.length
 
 const COLORS = ZONE_COLORS
 const PURPLE = '#a78bfa'
@@ -24,14 +24,19 @@ type Cell = { t: 'private' | 'group' | 'team'; tier?: string; band?: string } | 
 type Brush = 'private' | 'group' | 'team' | 'erase'
 type ZoneRow = { zone_type: string; weekday?: number; start_time: string; end_time: string; team_tier_id?: string | null; group_level_min?: number | null; group_level_max?: number | null }
 
-const idxToTime = (i: number) => {
-  const m = GRID_START + i * 30
-  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
+const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+const clampIdx = (i: number) => Math.max(0, Math.min(SLOTS - 1, i))
+const idxToTime = (i: number) => DAY_SLOTS[clampIdx(i)].start
+const idxToEnd = (i: number) => DAY_SLOTS[clampIdx(i)].end
+// Which slots sit entirely inside a stored zone range
+const slotsInRange = (start: string, end: string) => {
+  const s = toMin(start), e = toMin(end)
+  const out: number[] = []
+  DAY_SLOTS.forEach((sl, i) => { if (toMin(sl.start) >= s && toMin(sl.end) <= e) out.push(i) })
+  return out
 }
-const timeToIdx = (t: string) => {
-  const [h, m] = t.split(':').map(Number)
-  return (h * 60 + m - GRID_START) / 30
-}
+// False across the long break — merging there would regenerate the wrong grid
+const contiguous = (a: number, b: number) => toMin(DAY_SLOTS[b].start) - toMin(DAY_SLOTS[a].start) === SLOT_STEP_MINUTES
 
 export default function ZonesEditorPage() {
   const [coaches, setCoaches] = useState<{ id: string; first_name: string; last_name: string }[]>([])
@@ -39,6 +44,8 @@ export default function ZonesEditorPage() {
   const [tiers, setTiers] = useState<{ id: string; name: string }[]>([])
   const [legacy, setLegacy] = useState<{ day_of_week: number; start_time: string; end_time: string }[]>([])
   const [weeklyRows, setWeeklyRows] = useState<ZoneRow[]>([])
+  const [teamRows, setTeamRows] = useState<ZoneRow[]>([])
+  const [ovTeamRows, setOvTeamRows] = useState<any[]>([])
   const [grid, setGrid] = useState<Cell[][]>(() => Array.from({ length: 7 }, () => Array(SLOTS).fill(null)))
   const [brush, setBrush] = useState<Brush>('private')
   const [brushTier, setBrushTier] = useState('')
@@ -68,9 +75,8 @@ export default function ZonesEditorPage() {
   function buildWeeklyGrid(rows: ZoneRow[]) {
     const g: Cell[][] = Array.from({ length: 7 }, () => Array(SLOTS).fill(null))
     for (const z of rows) {
-      const s = timeToIdx(String(z.start_time).slice(0, 5))
-      const e = timeToIdx(String(z.end_time).slice(0, 5))
-      for (let i = Math.max(0, s); i < Math.min(SLOTS, e); i++) {
+      if (z.zone_type === 'team') continue
+      for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) {
         g[z.weekday!][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: z.group_level_min != null ? z.group_level_min + '-' + z.group_level_max : undefined }
       }
     }
@@ -84,6 +90,7 @@ export default function ZonesEditorPage() {
       setTiers(d.tiers || [])
       setLegacy(d.legacy || [])
       setWeeklyRows(d.weekly || [])
+      setTeamRows((d.weekly || []).filter((z: ZoneRow) => z.zone_type === 'team'))
       if ((d.tiers || []).length > 0 && !brushTier) setBrushTier(d.tiers[0].id)
       setGrid(buildWeeklyGrid(d.weekly || []))
       setHasZones((d.weekly || []).length > 0)
@@ -106,10 +113,10 @@ export default function ZonesEditorPage() {
         setDayClosed(true)
       } else {
         const src = rows.length > 0 ? rows.map(r => ({ ...r, weekday: ovDow })) : weeklyRows.filter(w => w.weekday === ovDow)
+        setOvTeamRows(src.filter((z: any) => z.zone_type === 'team'))
         for (const z of src) {
-          const s = timeToIdx(String(z.start_time).slice(0, 5))
-          const e = timeToIdx(String(z.end_time).slice(0, 5))
-          for (let i = Math.max(0, s); i < Math.min(SLOTS, e); i++) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: (z as any).group_level_min != null ? (z as any).group_level_min + '-' + (z as any).group_level_max : undefined }
+          if (z.zone_type === 'team') continue
+          for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: (z as any).group_level_min != null ? (z as any).group_level_min + '-' + (z as any).group_level_max : undefined }
         }
       }
       setGrid(g)
@@ -118,9 +125,10 @@ export default function ZonesEditorPage() {
   }, [mode, ovDate, reload])
 
   function paint(day: number, idx: number) {
+    if (brush === 'team') { setMsg({ ok: false, text: 'Team practices are managed separately — they are not painted on the lesson grid.' }); return }
     setGrid(prev => {
       const g = prev.map(row => [...row])
-      g[day][idx] = brush === 'erase' ? null : { t: brush, tier: brush === 'team' ? brushTier : undefined, band: brush === 'group' && brushBand ? brushBand : undefined }
+      g[day][idx] = brush === 'erase' ? null : { t: brush, tier: undefined, band: brush === 'group' && brushBand ? brushBand : undefined }
       return g
     })
     setDirty(true); setMsg(null); setDayClosed(false)
@@ -129,9 +137,7 @@ export default function ZonesEditorPage() {
   function loadLegacyAsPrivate() {
     const g: Cell[][] = Array.from({ length: 7 }, () => Array(SLOTS).fill(null))
     for (const a of legacy) {
-      const s = timeToIdx(String(a.start_time).slice(0, 5))
-      const e = timeToIdx(String(a.end_time).slice(0, 5))
-      for (let i = Math.max(0, s); i < Math.min(SLOTS, e); i++) g[a.day_of_week][i] = { t: 'private' }
+      for (const i of slotsInRange(String(a.start_time).slice(0, 5), String(a.end_time).slice(0, 5))) g[a.day_of_week][i] = { t: 'private' }
     }
     setGrid(g); setDirty(true); setMsg(null)
   }
@@ -144,8 +150,8 @@ export default function ZonesEditorPage() {
         const c = grid[d][i]
         if (!c) { i++; continue }
         let j = i + 1
-        while (j < SLOTS && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band) j++
-        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToTime(j), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, group_level_max: c.band ? Number(c.band.split('-')[1]) : null })
+        while (j < SLOTS && contiguous(j - 1, j) && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band) j++
+        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToEnd(j - 1), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, group_level_max: c.band ? Number(c.band.split('-')[1]) : null })
         i = j
       }
     }
@@ -155,7 +161,7 @@ export default function ZonesEditorPage() {
   function teamCheck(zones: { zone_type: string; weekday: number; start_time: string; end_time: string }[]): string | null {
     for (const z of zones) {
       if (z.zone_type === 'team') {
-        const dur = (timeToIdx(z.end_time) - timeToIdx(z.start_time)) * 30
+        const dur = toMin(z.end_time) - toMin(z.start_time)
         if (dur % 90 !== 0) return `Team block ${DAY_NAMES[z.weekday]} ${z.start_time}–${z.end_time} must be a multiple of 90 minutes`
       }
     }
@@ -164,7 +170,7 @@ export default function ZonesEditorPage() {
 
   async function save() {
     if (mode === 'weekly') {
-      const zones = compress([0, 1, 2, 3, 4, 5, 6])
+      const zones = [...compress([0, 1, 2, 3, 4, 5, 6]), ...teamRows.map((z: any) => ({ zone_type: 'team', weekday: z.weekday as number, start_time: String(z.start_time).slice(0, 5), end_time: String(z.end_time).slice(0, 5), team_tier_id: z.team_tier_id || undefined, group_level_min: null, group_level_max: null }))]
       const err = teamCheck(zones)
       if (err) { setMsg({ ok: false, text: err }); return }
       setSaving(true); setMsg(null)
@@ -181,12 +187,13 @@ export default function ZonesEditorPage() {
       setMsg({ ok: true, warn: w.length > 0, text: `Saved weekly template (${data.count} block(s))` + (w.length ? ` — ⚠ ${w.length} existing booking(s) now fall outside the zones: ${w.join('; ')}. These lessons still happen; only new bookings are limited.` : '') })
       return
     }
-    const zones = compress([ovDow])
+    const painted = compress([ovDow])
+    const zones = dayClosed ? painted : [...painted, ...ovTeamRows.map((z: any) => ({ zone_type: 'team', weekday: ovDow, start_time: String(z.start_time).slice(0, 5), end_time: String(z.end_time).slice(0, 5), team_tier_id: z.team_tier_id || undefined, group_level_min: null, group_level_max: null }))]
     const err = teamCheck(zones)
     if (err) { setMsg({ ok: false, text: err }); return }
     setSaving(true); setMsg(null)
     const body: any = { coach_id: coachId, date: ovDate }
-    if (dayClosed && zones.length === 0) body.closed = true
+    if (dayClosed && painted.length === 0) body.closed = true
     else body.zones = zones.map(z => ({ zone_type: z.zone_type, start_time: z.start_time, end_time: z.end_time, team_tier_id: z.team_tier_id, group_level_min: z.group_level_min ?? null, group_level_max: z.group_level_max ?? null }))
     const res = await fetch('/api/admin/zones', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
