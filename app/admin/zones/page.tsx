@@ -321,23 +321,31 @@ export default function ZonesEditorPage() {
           <div style={{ display: 'grid', gridTemplateColumns: `52px repeat(${visDays.length}, 1fr)`, gap: 2, userSelect: 'none', border: mode === 'date' ? `1px solid ${PURPLE}44` : 'none', borderRadius: 8, padding: mode === 'date' ? 6 : 0 }}>
             <div />
             {visDays.map(d => <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: mode === 'date' ? PURPLE : 'rgba(255,255,255,0.5)', padding: '4px 0' }}>{mode === 'date' ? `${ovDate} · ${DAY_NAMES[d]}` : DAY_NAMES[d]}</div>)}
-            {Array.from({ length: SLOTS }, (_, i) => (
+            {Array.from({ length: SLOTS }, (_, i) => {
+              const gap = i < SLOTS - 1 ? toMin(DAY_SLOTS[i + 1].start) - toMin(DAY_SLOTS[i].end) : 0
+              const gapH = gap >= 10 ? 14 : 7
+              return (
               <>
-                <div key={`t${i}`} style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textAlign: 'right', paddingRight: 6, lineHeight: '20px' }}>{i % 2 === 0 ? idxToTime(i) : ''}</div>
+                <div key={`t${i}`} style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textAlign: 'right', paddingRight: 6, lineHeight: '20px' }}>{idxToTime(i)}</div>
                 {visDays.map(d => {
                   const c = grid[d][i]
                   return (
                     <div key={`c${d}-${i}`}
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
                       onMouseEnter={() => { if (painting) paint(d, i) }}
-                      title={c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? 'group L' + c.band : c.t) + ' · ' + idxToTime(i) : idxToTime(i)}
-                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', borderTop: i % 2 === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
+                      title={(c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? 'group L' + c.band : c.t) + ' · ' : '') + idxToTime(i) + '–' + idxToEnd(i)}
+                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
                   )
                 })}
+                {gap > 0 && <div key={`bt${i}`} style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', textAlign: 'right', paddingRight: 6, lineHeight: `${gapH}px` }}>{gap >= 10 ? `${gap}m` : ''}</div>}
+                {gap > 0 && visDays.map(d => (
+                  <div key={`b${d}-${i}`} title={`${gap}-minute turnover`} style={{ height: gapH, borderRadius: 2, background: gap >= 10 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.035)' }} />
+                ))}
               </>
-            ))}
+              )
+            })}
           </div>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 12 }}>Click or drag to paint. Team blocks must total 90-minute multiples. Saving replaces the {mode === 'weekly' ? "coach's whole weekly template" : 'selected date'}; existing bookings are never affected.</p>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 12 }}>Click or drag to paint. Each row is one 30-minute lesson; the thin strip below it is the turnover (5 min, or 10 min after 4:05 PM). A 60-minute booking runs straight through one turnover and leaves the coach 10 minutes afterwards. Team practices are managed separately. Saving replaces the {mode === 'weekly' ? "coach's whole weekly template" : 'selected date'}; existing bookings are never affected.</p>
         </>
       )}
     </div>
