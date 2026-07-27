@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import ChatWidget from '@/components/ChatWidget'
-import { formatDateLA } from '@/lib/date'
+import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 const NAVY = '#1a2744'
@@ -49,7 +49,7 @@ function generateSlots(start: string, end: string): string[] {
     const h = Math.floor(cur / 60)
     const m = cur % 60
     slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
-    cur += 30
+    cur += SLOT_STEP_MINUTES
   }
   return slots
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
-import { getTodayLA } from '@/lib/date'
+import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { bandKey } from '@/lib/zone-colors'
 
 // Parent 1on4 class-based booking (cross-coach).
@@ -44,7 +44,7 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
     const blocked = blockedIntervalsFor(blocksAll, cid)
     for (const z of eff.rows) {
       if (z.zone_type !== 'group' || !bandMatches(z, level)) continue
-      for (let m = toMin(z.start_time); m + ct.duration_minutes <= toMin(z.end_time); m += 30) {
+      for (let m = toMin(z.start_time); m + ct.duration_minutes <= toMin(z.end_time); m += SLOT_STEP_MINUTES) {
         const t = idxTime(m)
         if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
         const clash = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id !== ct.id && x.enrolled_count > 0)

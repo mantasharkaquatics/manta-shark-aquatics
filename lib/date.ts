@@ -57,3 +57,8 @@ export function minutesUntil(dateStr: string, timeStr: string, todayStr: string,
   const [h, m] = timeStr.split(':').map(Number)
   return days * 1440 + h * 60 + m - nowMin
 }
+
+// Venue slot cadence: 30-min lesson + 5-min turnover.
+// Slots are generated from each zone's start_time, so cutting zones at the
+// long-break boundaries is what produces the published 20-slot day.
+export const SLOT_STEP_MINUTES = 35

@@ -7,7 +7,7 @@ import { cookies } from 'next/headers'
 import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { PLANS } from '@/lib/plans'
-import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, formatTime12h, SLOT_STEP_MINUTES } from '@/lib/date'
 import { cancelBookingWithPartner } from '@/lib/bookings/cancel'
 
 const FALLBACK = 'Thanks for your message! A member of our team will get back to you shortly.'
@@ -89,7 +89,7 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
         const t = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`
         const tEnd = `${String(Math.floor((cur + 30) / 60)).padStart(2, '0')}:${String((cur + 30) % 60).padStart(2, '0')}`
         if (!(dayDiff === 0 && cur <= nowMins + 30) && !blocked.get(c.id)?.has(t) && !isBlocked(offBlocks, c.id, t, tEnd)) times.push({ time: t, label: formatTime12h(t) })
-        cur += 30
+        cur += SLOT_STEP_MINUTES
       }
     }
     const own = [...ownTimes.entries()]
