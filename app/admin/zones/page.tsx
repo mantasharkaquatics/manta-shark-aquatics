@@ -124,7 +124,19 @@ export default function ZonesEditorPage() {
     })
   }, [mode, ovDate, reload])
 
+  const teamIvs = (day: number): { s: number; e: number; tier?: string }[] => {
+    const rows: any[] = mode === 'date' ? ovTeamRows : teamRows.filter((z: any) => z.weekday === day)
+    return rows.map((z: any) => ({ s: toMin(String(z.start_time).slice(0, 5)), e: toMin(String(z.end_time).slice(0, 5)), tier: z.team_tier_id || undefined }))
+  }
+  // A lesson slot overlapping a team block can't be painted — saving both would
+  // produce overlapping zones and the API rejects the whole template
+  const teamAt = (day: number, idx: number) => {
+    const a = toMin(DAY_SLOTS[idx].start), b = toMin(DAY_SLOTS[idx].end)
+    return teamIvs(day).find(iv => a < iv.e && b > iv.s)
+  }
+
   function paint(day: number, idx: number) {
+    if (teamAt(day, idx)) { setMsg({ ok: false, text: 'That slot sits inside a team practice block.' }); return }
     if (brush === 'team') { setMsg({ ok: false, text: 'Team practices are managed separately — they are not painted on the lesson grid.' }); return }
     setGrid(prev => {
       const g = prev.map(row => [...row])
@@ -148,9 +160,9 @@ export default function ZonesEditorPage() {
       let i = 0
       while (i < SLOTS) {
         const c = grid[d][i]
-        if (!c) { i++; continue }
+        if (!c || teamAt(d, i)) { i++; continue }
         let j = i + 1
-        while (j < SLOTS && contiguous(j - 1, j) && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band) j++
+        while (j < SLOTS && contiguous(j - 1, j) && !teamAt(d, j) && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band) j++
         out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToEnd(j - 1), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, group_level_max: c.band ? Number(c.band.split('-')[1]) : null })
         i = j
       }
@@ -329,6 +341,11 @@ export default function ZonesEditorPage() {
                 <div key={`t${i}`} style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textAlign: 'right', paddingRight: 6, lineHeight: '20px' }}>{idxToTime(i)}</div>
                 {visDays.map(d => {
                   const c = grid[d][i]
+                  const th = teamAt(d, i)
+                  if (th) return (
+                    <div key={`c${d}-${i}`} title={`${tierName(th.tier)} practice · not bookable for lessons`}
+                      style={{ height: 20, borderRadius: 3, cursor: 'not-allowed', background: `${tierColor(th.tier)}55`, border: `1px dashed ${tierColor(th.tier)}aa`, overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '18px', color: 'rgba(255,255,255,0.75)' }}>Team</div>
+                  )
                   return (
                     <div key={`c${d}-${i}`}
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
