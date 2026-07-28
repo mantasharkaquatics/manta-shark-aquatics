@@ -40,14 +40,19 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   const [availRes, offRes, sessRes] = await Promise.all([
     svc.from('coach_availability').select('coach_id, start_time, end_time').in('coach_id', ids).eq('day_of_week', dow).eq('is_active', true),
     svc.from('coach_time_off').select('coach_id, start_time, end_time, block_type').in('coach_id', ids).eq('date', date),
-    svc.from('class_sessions').select('coach_id, start_time').in('coach_id', ids).eq('session_date', date).in('status', ['open', 'full']).gt('enrolled_count', 0),
+    svc.from('class_sessions').select('coach_id, start_time, end_time').in('coach_id', ids).eq('session_date', date).in('status', ['open', 'full']).gt('enrolled_count', 0),
   ])
   const offBlocks: any[] = offRes.data || []
-  const blocked = new Map<string, Set<string>>()
+  // Interval-based: a lesson running 09:40–10:10 must hide the 09:45 slot too
+  const toMinAi = (x: string) => { const [h, m] = String(x).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  const busy = new Map<string, { s: number; e: number }[]>()
   for (const s of sessRes.data || []) {
-    if (!blocked.has(s.coach_id)) blocked.set(s.coach_id, new Set())
-    blocked.get(s.coach_id)!.add(String(s.start_time).slice(0, 5))
+    const st = toMinAi(String(s.start_time))
+    const en = (s as any).end_time ? toMinAi(String((s as any).end_time)) : st + 30
+    if (!busy.has(s.coach_id)) busy.set(s.coach_id, [])
+    busy.get(s.coach_id)!.push({ s: st, e: en })
   }
+  const isBusy = (coachId: string, a: number, b: number) => (busy.get(coachId) || []).some(iv => a < iv.e && b > iv.s)
   const { data: ownBookings } = await svc
     .from('bookings')
     .select('class_session_id, student_id, status')
@@ -88,7 +93,7 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
       while (cur + 30 <= endMin) {
         const t = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`
         const tEnd = `${String(Math.floor((cur + 30) / 60)).padStart(2, '0')}:${String((cur + 30) % 60).padStart(2, '0')}`
-        if (!(dayDiff === 0 && cur <= nowMins + 30) && !blocked.get(c.id)?.has(t) && !isBlocked(offBlocks, c.id, t, tEnd)) times.push({ time: t, label: formatTime12h(t) })
+        if (!(dayDiff === 0 && cur <= nowMins + 30) && !isBusy(c.id, cur, cur + 30) && !isBlocked(offBlocks, c.id, t, tEnd)) times.push({ time: t, label: formatTime12h(t) })
         cur += SLOT_STEP_MINUTES
       }
     }
