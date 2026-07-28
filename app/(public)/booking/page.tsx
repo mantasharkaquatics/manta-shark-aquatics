@@ -228,6 +228,11 @@ export default function BookingPage() {
   const [calMonth, setCalMonth] = useState(today.getMonth())
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [groupWeeks, setGroupWeeks] = useState<any[]>([])
+  const [lessonLength, setLessonLength] = useState<30 | 60>(30)
+  const [hourSlots, setHourSlots] = useState<any[]>([])
+  const [hourLoading, setHourLoading] = useState(false)
+  const [hourCredits, setHourCredits] = useState(0)
+  const [selectedHour, setSelectedHour] = useState<any | null>(null)
   const [recurOpen, setRecurOpen] = useState(false)
   const [recurList, setRecurList] = useState<any[]>([])
   const [recurSel, setRecurSel] = useState<Set<string>>(new Set())
@@ -242,6 +247,19 @@ export default function BookingPage() {
     fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=6&start=${calYear}-${mm}-01`)
       .then(r => r.json()).then(d => setGroupWeeks(d?.days || [])).catch(() => {})
   }, [groupFlow, selectedStudent, calMonth, calYear, cartRefresh])
+
+  useEffect(() => {
+    setSelectedHour(null)
+    if (groupFlow || !selectedStudent || !selectedDate || lessonLength !== 60 || selectedCourse?.slug !== '1on1') { setHourSlots([]); return }
+    setHourLoading(true)
+    fetch('/api/bookings/hour', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'options', student_id: selectedStudent.id, session_date: formatDateLA(selectedDate) }),
+    }).then(r => r.json())
+      .then(d => { setHourSlots(d?.slots || []); setHourCredits(d?.credits_remaining || 0) })
+      .catch(() => setHourSlots([]))
+      .finally(() => setHourLoading(false))
+  }, [groupFlow, selectedStudent, selectedDate, lessonLength, selectedCourse])
 
   useEffect(() => {
     async function init() {
@@ -542,6 +560,20 @@ export default function BookingPage() {
       setIsPartnerBookingSuccess(true)
       setSuccess(true)
       setSubmitting(false)
+      return
+    }
+
+    if (selectedHour) {
+      const hr = await fetch('/api/bookings/hour', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'book', student_id: selectedStudent.id, session_date: dateStr,
+          start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
+      })
+      const hj = await hr.json().catch(() => ({}))
+      if (!hr.ok) { alert(hj.error || 'Booking failed. Please try again.'); setSubmitting(false); return }
+      setSubmitting(false)
+      setIsPartnerBookingSuccess(false)
+      setSuccess(true)
       return
     }
 
@@ -1072,9 +1104,69 @@ export default function BookingPage() {
 
             {!groupFlow && selectedDate && (
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>
-                  Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
+                    Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  </div>
+                  {selectedCourse?.slug === '1on1' && (
+                    <div style={{ display: 'inline-flex', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', overflow: 'hidden' }}>
+                      {([30, 60] as const).map(v => (
+                        <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
+                          style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
+                            background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
+                          {v} min{v === 60 ? ' · 2 credits' : ''}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                {lessonLength === 60 && (() => {
+                  const rows = hourSlots
+                    .map((h: any) => ({ ...h, opts: (h.options || []).filter((o: any) => o.coach1_id === selectedCoach?.id) }))
+                    .filter((h: any) => h.opts.length > 0)
+                    .map((h: any) => ({ ...h, pick: h.opts.find((o: any) => !o.relay) || h.opts[0] }))
+                  return (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px' }}>
+                        One continuous 60-minute lesson · uses 2 credits ({hourCredits} left)
+                      </div>
+                      {hourLoading ? (
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading hour-long options…</p>
+                      ) : rows.length === 0 ? (
+                        <div style={{ background: NAVY, borderRadius: '12px', padding: '20px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
+                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>No 60-minute openings with this coach on this day. Try another date, or book two 30-minute lessons.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {rows.map((h: any) => {
+                            const o = h.pick
+                            const sel = selectedHour?.start_time === h.start_time
+                            const enough = hourCredits >= 2
+                            return (
+                              <button key={h.start_time} disabled={!enough}
+                                onClick={() => {
+                                  setSelectedHour({ ...h, ...o })
+                                  setSelectedSlot({ time: h.start_time, label: `${formatTime(h.start_time)} – ${formatTime(h.end_time)}`, available: true, enrolled: 0, max: 1 })
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '14px 16px', borderRadius: '10px', textAlign: 'left',
+                                  border: `2px solid ${sel ? GOLD : enough ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}`,
+                                  background: sel ? `${GOLD}20` : 'rgba(255,255,255,0.03)', cursor: enough ? 'pointer' : 'not-allowed' }}>
+                                <span>
+                                  <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: sel ? GOLD : enough ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                    {formatTime(h.start_time)} – {formatTime(h.end_time)}
+                                  </span>
+                                  <span style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                                    {o.relay ? `Coach ${o.coach1_name} → Coach ${o.coach2_name} (two coaches)` : `Coach ${o.coach1_name}`}
+                                  </span>
+                                </span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: sel ? GOLD : 'rgba(255,255,255,0.4)' }}>2 credits</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
                 {!availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate) && (
                   <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>🎟️</span>
@@ -1166,7 +1258,7 @@ export default function BookingPage() {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
-                    {timeSlots.map(slot => (
+                    {(lessonLength === 60 ? [] : timeSlots).map(slot => (
                       <button key={slot.time}
                         onClick={() => { if (slot.available) setSelectedSlot(slot) }}
                         disabled={!slot.available}
@@ -1443,11 +1535,11 @@ export default function BookingPage() {
               {[
                 { label: 'Swimmer', value: selectedStudent?.full_name },
                 { label: 'Course', value: selectedCourse?.name },
-                { label: 'Coach', value: selectedCoach?.first_name },
+                { label: 'Coach', value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
-                { label: 'Duration', value: `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : willUseToken ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : willUseToken ? '1 token' : ((selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit') },
+                { label: 'Duration', value: selectedHour ? '60 minutes' : `${selectedCourse?.duration_minutes} minutes` },
+                { label: isTrial ? 'Price' : willUseToken ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : willUseToken ? '1 token' : (selectedHour || (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner)) ? '2 credits' : '1 credit' },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1459,7 +1551,7 @@ export default function BookingPage() {
               ))}
               {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{willUseToken ? 'Remaining Tokens After' : 'Remaining Credits After'}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = willUseToken ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedHour || (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner)) ? remainingCredits - 2 : remainingCredits - 1); const w = willUseToken ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
               </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
