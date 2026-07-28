@@ -30,5 +30,22 @@ export async function POST(req: NextRequest) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  return NextResponse.json({ ok: true, cancelled_booking_ids: result.cancelledBookingIds })
+  const cancelled = [...(result.cancelledBookingIds || [])]
+
+  // A 60-minute lesson is two linked halves — cancelling one cancels the hour.
+  // Leaving half behind would strand an off-grid 30 minutes nobody can book.
+  const { data: self } = await supabase
+    .from('bookings').select('lesson_group_id').eq('id', booking_id).single()
+  if (self?.lesson_group_id) {
+    const { data: siblings } = await supabase
+      .from('bookings').select('id')
+      .eq('lesson_group_id', self.lesson_group_id)
+      .not('status', 'in', '("cancelled")')
+    for (const sib of siblings || []) {
+      if (cancelled.includes(sib.id)) continue
+      const r = await cancelBookingWithPartner(supabase, sib.id, callerParent?.id || null)
+      if (r.ok) cancelled.push(...(r.cancelledBookingIds || [sib.id]))
+    }
+  }
+  return NextResponse.json({ ok: true, cancelled_booking_ids: cancelled })
 }

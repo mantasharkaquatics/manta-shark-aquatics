@@ -55,7 +55,7 @@ interface Credit {
 interface Booking {
   id: string; status: string
   session_date: string; start_time: string; end_time: string
-  course_name: string; coach_name: string; student_name?: string; _group?: Booking[]
+  course_name: string; coach_name: string; student_name?: string; _group?: Booking[]; lesson_group_id?: string | null; _hour?: boolean
   level_min?: number | null; level_max?: number | null
   lesson_credit_id?: string
   token_package_id?: string
@@ -544,7 +544,7 @@ export default function DashboardPage() {
         .gt('total_credits', 0)
         .is('converted_to_token_at', null),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, token_package_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at')
+        .select('id, status, student_id, lesson_credit_id, token_package_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -687,6 +687,7 @@ export default function DashboardPage() {
           student_name: studentMap[b.student_id]?.full_name ? (b._partner_student_name ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
           lesson_credit_id: b.lesson_credit_id,
           token_package_id: b.token_package_id,
+          lesson_group_id: b.lesson_group_id,
           course_slug: cs?.ct?.slug,
           student_id: b.student_id,
           is_trial: b.is_trial,
@@ -732,8 +733,27 @@ export default function DashboardPage() {
       const [eh, em] = b.end_time.split(':').map(Number)
       return (eh * 60 + em) <= nowMinutesLA
     }
-    const allUpcoming = mergeBySession(parseBookings(rawBookings || []).filter(b => !isLessonPast(b)))
-    const allPast = parseBookings(rawBookings || []).filter(b => isLessonPast(b))
+    // Two linked halves are one 60-minute lesson to the family: show one card
+    // spanning both, keeping the first half's id so actions hit the whole group.
+    const mergeHours = (bookings: Booking[]): Booking[] => {
+      const byGroup: Record<string, Booking[]> = {}
+      const out: Booking[] = []
+      for (const b of bookings) {
+        if (!b.lesson_group_id) { out.push(b); continue }
+        ;(byGroup[b.lesson_group_id] ||= []).push(b)
+      }
+      for (const halves of Object.values(byGroup)) {
+        if (halves.length === 1) { out.push(halves[0]); continue }
+        const sorted = [...halves].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+        const first = sorted[0], last = sorted[sorted.length - 1]
+        const coaches = [...new Set(sorted.map(h => h.coach_name).filter(Boolean))]
+        out.push({ ...first, end_time: last.end_time, coach_name: coaches.join(' → '), _hour: true })
+      }
+      return out
+    }
+
+    const allUpcoming = mergeHours(mergeBySession(parseBookings(rawBookings || []).filter(b => !isLessonPast(b))))
+    const allPast = mergeHours(parseBookings(rawBookings || []).filter(b => isLessonPast(b)))
 
     // Fetch attendance for ALL bookings (incl. today's) so Upcoming cards can show check-in status
     let checkedInSet = new Set<string>()
