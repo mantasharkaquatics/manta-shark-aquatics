@@ -4,7 +4,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
-import { LEAD_TIME_MINUTES } from '@/lib/tokens'
+import { LEAD_TIME_MINUTES, isWithinTokenWindow, tokenSlugsForTarget } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -54,6 +54,23 @@ function coachFree(day: any, coachId: string, startMin: number, endMin: number) 
   }
   if (isBlocked(day.blocks, coachId, toT(startMin), toT(endMin))) return false
   return !(day.busy.get(coachId) || []).some((iv: Iv) => startMin < iv.e && endMin > iv.s)
+}
+
+// Tokens spendable on this course type, earliest-expiring first.
+// Mirrors pickTokenPackage but returns the WHOLE pool: an hour lesson spends
+// two, and pickTokenPackage would hand back the same package twice.
+async function tokenPool(svc: any, parentId: string, targetSlug: string): Promise<{ id: string; remaining: number }[]> {
+  const slugs = tokenSlugsForTarget(targetSlug)
+  if (slugs.length === 0) return []
+  const { data: ctRows } = await svc.from('course_types').select('id, slug').in('slug', slugs)
+  const ctIds = (ctRows ?? []).map((r: any) => r.id)
+  if (ctIds.length === 0) return []
+  const { data: packs } = await svc.from('token_packages')
+    .select('id, total_tokens, used_tokens, expires_at')
+    .eq('parent_id', parentId).in('course_type_id', ctIds)
+    .gt('expires_at', new Date().toISOString())
+    .order('expires_at', { ascending: true })
+  return (packs ?? []).map((x: any) => ({ id: x.id, remaining: x.total_tokens - x.used_tokens })).filter((x: any) => x.remaining > 0)
 }
 
 export async function POST(req: NextRequest) {
@@ -122,7 +139,8 @@ export async function POST(req: NextRequest) {
       .select('total_credits, used_credits').eq('parent_id', parent.id).eq('course_type_id', ct.id)
       .is('converted_to_token_at', null)
     const remaining = (credits || []).reduce((n: number, c: any) => n + (c.total_credits - c.used_credits), 0)
-    return NextResponse.json({ slots: out, credits_remaining: remaining })
+    const tokensRemaining = (await tokenPool(svc, parent.id, ct.slug)).reduce((n: number, x: any) => n + x.remaining, 0)
+    return NextResponse.json({ slots: out, credits_remaining: remaining, tokens_remaining: tokensRemaining })
   }
 
   if (action === 'book') {
@@ -143,20 +161,32 @@ export async function POST(req: NextRequest) {
     if (!coachFree(day, coach2_id, mid, e2))
       return NextResponse.json({ error: 'The second half is no longer available. Please pick another time.' }, { status: 409 })
 
-    const { data: credits } = await svc.from('lesson_credits')
-      .select('id, total_credits, used_credits').eq('parent_id', parent.id).eq('course_type_id', ct.id)
-      .is('converted_to_token_at', null).order('expires_at', { ascending: true })
-    const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits })).filter((c: any) => c.remaining > 0)
-    const total = pool.reduce((n: number, c: any) => n + c.remaining, 0)
-    if (total < 2)
-      return NextResponse.json({ error: `A 60-minute lesson uses 2 credits — you have ${total}.` }, { status: 409 })
+    // Token-first (spec v1.1), all-or-nothing: an hour lesson costs 2 tokens.
+    // One token plus one credit is never accepted — a mixed payment has no clean
+    // refund story, and token bookings are final by design.
+    const tokenAlloc: string[] = []
+    if (isWithinTokenWindow(session_date, start_time)) {
+      const tp = await tokenPool(svc, parent.id, ct.slug)
+      if (tp.reduce((n: number, x: any) => n + x.remaining, 0) >= 2) {
+        for (let i = 0; i < 2; i++) { const x = tp.find((y: any) => y.remaining > 0)!; tokenAlloc.push(x.id); x.remaining-- }
+      }
+    }
     const alloc: string[] = []
-    for (let i = 0; i < 2; i++) { const c = pool.find((p: any) => p.remaining > 0)!; alloc.push(c.id); c.remaining-- }
+    if (tokenAlloc.length === 0) {
+      const { data: credits } = await svc.from('lesson_credits')
+        .select('id, total_credits, used_credits').eq('parent_id', parent.id).eq('course_type_id', ct.id)
+        .is('converted_to_token_at', null).order('expires_at', { ascending: true })
+      const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits })).filter((c: any) => c.remaining > 0)
+      const total = pool.reduce((n: number, c: any) => n + c.remaining, 0)
+      if (total < 2)
+        return NextResponse.json({ error: `A 60-minute lesson uses 2 credits — you have ${total}.` }, { status: 409 })
+      for (let i = 0; i < 2; i++) { const c = pool.find((y: any) => y.remaining > 0)!; alloc.push(c.id); c.remaining-- }
+    }
 
     const groupId = randomUUID()
     const halves = [
-      { coach_id: coach1_id, start: toT(s1), end: toT(mid), credit: alloc[0] },
-      { coach_id: coach2_id, start: toT(mid), end: toT(e2), credit: alloc[1] },
+      { coach_id: coach1_id, start: toT(s1), end: toT(mid), credit: alloc[0] ?? null, token: tokenAlloc[0] ?? null },
+      { coach_id: coach2_id, start: toT(mid), end: toT(e2), credit: alloc[1] ?? null, token: tokenAlloc[1] ?? null },
     ]
     const createdBookings: string[] = []
     const createdSessions: string[] = []
@@ -187,13 +217,21 @@ export async function POST(req: NextRequest) {
         createdSessions.push(created.id)
       }
       const { data: bk, error: bErr } = await svc.from('bookings')
-        .insert({ class_session_id: sessId, parent_id: parent.id, student_id: student.id, lesson_credit_id: h.credit, status: 'confirmed', lesson_group_id: groupId })
+        .insert({ class_session_id: sessId, parent_id: parent.id, student_id: student.id, lesson_credit_id: h.credit, token_package_id: h.token, status: 'confirmed', lesson_group_id: groupId })
         .select('id').single()
       if (bErr || !bk) { await rollback(); return NextResponse.json({ error: bErr?.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not complete the booking.' }, { status: 409 }) }
       createdBookings.push(bk.id)
-      await svc.rpc('increment_used_credits', { credit_id: h.credit })
-      incremented.push(h.credit)
+      if (h.credit) {
+        await svc.rpc('increment_used_credits', { credit_id: h.credit })
+        incremented.push(h.credit)
+      }
     }
+
+    // Tokens are spent only after BOTH halves exist: there is no
+    // decrement_used_tokens RPC, so rollback() cannot hand one back.
+    // Narrow race accepted for now: two concurrent hour bookings by the same
+    // parent could both clear the >= 2 check.
+    for (const tid of tokenAlloc) await svc.rpc('increment_used_tokens', { token_id: tid })
 
     try {
       const { data: p } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
