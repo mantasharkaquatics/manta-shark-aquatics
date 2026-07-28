@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   // Step 1: find all class_sessions for this coach on this date
   const { data: sessions } = await supabase
     .from('class_sessions')
-    .select('id, start_time, course_type_id')
+    .select('id, start_time, end_time, course_type_id')
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
 
@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     const s = sessionMap[b.class_session_id]
     return {
       time: s?.start_time?.slice(0, 5),
+      end: s?.end_time?.slice(0, 5),
       student_id: b.student_id,
       course_type_id: s?.course_type_id,
       session_id: b.class_session_id

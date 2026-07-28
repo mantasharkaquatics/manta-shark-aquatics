@@ -362,16 +362,27 @@ export default function BookingPage() {
     }
     if (allSlots.length === 0) { setTimeSlots([]); return }
 
-    const blockedTimes = new Set<string>()
     const sameTypeSessions: Record<string, any> = {}
-    const studentBookedTimes = new Set<string>()
 
+    // Occupancy is interval-based: a 60-minute lesson's second half starts off-grid
+    // (09:40), so matching on start time alone would leave the 09:45 slot bookable.
+    const toMinX = (x: string) => { const [h, m] = String(x).slice(0, 5).split(':').map(Number); return h * 60 + m }
+    const slotLen = selectedCourse.duration_minutes
+    const bookedIv: { s: number; e: number }[] = []
+    const studentIv: { s: number; e: number }[] = []
     for (const b of bookedTimes || []) {
-      blockedTimes.add(b.time)
-      if (b.student_id === selectedStudent?.id) {
-        studentBookedTimes.add(b.time)
-      }
+      if (!b.time) continue
+      const s = toMinX(b.time)
+      const e = b.end ? toMinX(b.end) : s + 30
+      bookedIv.push({ s, e })
+      if (b.student_id === selectedStudent?.id) studentIv.push({ s, e })
     }
+    const hitsAny = (list: { s: number; e: number }[], t: string) => {
+      const s = toMinX(t)
+      return list.some(iv => s < iv.e && s + slotLen > iv.s)
+    }
+    const blockedTimes = { has: (t: string) => hitsAny(bookedIv, t) }
+    const studentBookedTimes = { has: (t: string) => hitsAny(studentIv, t) }
 
     // Still need session info for the same course type (enrolled_count/max_students)
     const { data: coachBookings } = await supabase
