@@ -232,6 +232,7 @@ export default function BookingPage() {
   const [hourSlots, setHourSlots] = useState<any[]>([])
   const [hourLoading, setHourLoading] = useState(false)
   const [hourCredits, setHourCredits] = useState(0)
+  const [hourTokens, setHourTokens] = useState(0)
   const [selectedHour, setSelectedHour] = useState<any | null>(null)
   const [recurOpen, setRecurOpen] = useState(false)
   const [recurList, setRecurList] = useState<any[]>([])
@@ -256,7 +257,7 @@ export default function BookingPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'options', student_id: selectedStudent.id, session_date: formatDateLA(selectedDate) }),
     }).then(r => r.json())
-      .then(d => { setHourSlots(d?.slots || []); setHourCredits(d?.credits_remaining || 0) })
+      .then(d => { setHourSlots(d?.slots || []); setHourCredits(d?.credits_remaining || 0); setHourTokens(d?.tokens_remaining || 0) })
       .catch(() => setHourSlots([]))
       .finally(() => setHourLoading(false))
   }, [groupFlow, selectedStudent, selectedDate, lessonLength, selectedCourse])
@@ -472,6 +473,11 @@ export default function BookingPage() {
     return d.getTime() === tm.getTime()
   }
   const willUseToken = !!selectedCourse && !!selectedDate && !isTrial && hasTokenForCourse && inTokenWindow(selectedDate)
+  // An hour lesson is token-first too, but all-or-nothing: 2 tokens or none.
+  // With a single token on hand the server falls back to credits, so the
+  // summary must say credits — never a token the parent will not actually spend.
+  const hourPaysWithTokens = willUseToken && hourTokens >= 2
+  const payingWithTokens = selectedHour ? hourPaysWithTokens : willUseToken
 
   const availableCredit = selectedCourse
     ? [...credits]
@@ -1127,7 +1133,11 @@ export default function BookingPage() {
                   return (
                     <div style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px' }}>
-                        One continuous 60-minute lesson · uses 2 credits ({hourCredits} left)
+                        {hourPaysWithTokens
+                          ? `One continuous 60-minute lesson · uses 2 tokens (${hourTokens} left)`
+                          : willUseToken && hourTokens === 1
+                            ? `One continuous 60-minute lesson · uses 2 credits (${hourCredits} left) — a single token cannot cover an hour, so it stays for a 30-minute lesson`
+                            : `One continuous 60-minute lesson · uses 2 credits (${hourCredits} left)`}
                       </div>
                       {hourLoading ? (
                         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading hour-long options…</p>
@@ -1140,7 +1150,7 @@ export default function BookingPage() {
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
-                            const enough = hourCredits >= 2
+                            const enough = hourPaysWithTokens || hourCredits >= 2
                             return (
                               <button key={h.start_time} disabled={!enough}
                                 onClick={() => {
@@ -1539,7 +1549,7 @@ export default function BookingPage() {
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
                 { label: 'Duration', value: selectedHour ? '60 minutes' : `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : willUseToken ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : willUseToken ? '1 token' : (selectedHour || (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner)) ? '2 credits' : '1 credit' },
+                { label: isTrial ? 'Price' : payingWithTokens ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (hourPaysWithTokens ? '2 tokens' : '2 credits') : willUseToken ? '1 token' : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit' },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1550,13 +1560,13 @@ export default function BookingPage() {
                 </div>
               ))}
               {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{willUseToken ? 'Remaining Tokens After' : 'Remaining Credits After'}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedHour || (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner)) ? remainingCredits - 2 : remainingCredits - 1); const w = willUseToken ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{payingWithTokens ? 'Remaining Tokens After' : 'Remaining Credits After'}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (hourPaysWithTokens ? hourTokens - 2 : remainingCredits - 2) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
               </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                {willUseToken ? 'Token bookings are final — they cannot be cancelled or rescheduled.' : 'Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Within 24 hours, rescheduling is unavailable and cancelling converts your credit to a token (valid today or tomorrow; token bookings are final).'}{' '}
+                {payingWithTokens ? 'Token bookings are final — they cannot be cancelled or rescheduled.' : 'Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Within 24 hours, rescheduling is unavailable and cancelling converts your credit to a token (valid today or tomorrow; token bookings are final).'}{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   View full terms
                 </a>
