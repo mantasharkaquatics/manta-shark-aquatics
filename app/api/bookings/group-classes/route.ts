@@ -25,9 +25,12 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
   const [effList, blocksAll, { data: allSess }] = await Promise.all([
     Promise.all(coachIds.map((id: string) => getEffectiveZones(s, id, date))),
     getCoachBlocks(s, coachIds, date),
-    s.from('class_sessions').select('id, coach_id, start_time, course_type_id, enrolled_count, max_students, status').eq('session_date', date),
+    s.from('class_sessions').select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status').eq('session_date', date),
   ])
   const sess = allSess || []
+  // A busy session blocks every slot it overlaps, not just one starting at the same minute
+  const sStart = (x: any) => toMin(String(x.start_time).slice(0, 5))
+  const sEnd = (x: any) => x.end_time ? toMin(String(x.end_time).slice(0, 5)) : sStart(x) + 30
   const ids = sess.map((x: any) => x.id)
   let myTimes = new Set<string>()
   if (ids.length > 0) {
@@ -47,7 +50,7 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
       for (let m = toMin(z.start_time); m + ct.duration_minutes <= toMin(z.end_time); m += SLOT_STEP_MINUTES) {
         const t = idxTime(m)
         if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
-        const clash = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id !== ct.id && x.enrolled_count > 0)
+        const clash = sess.find((x: any) => x.coach_id === cid && x.course_type_id !== ct.id && x.enrolled_count > 0 && m < sEnd(x) && m + ct.duration_minutes > sStart(x))
         if (clash) continue
         const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
         const enrolled = own ? own.enrolled_count : 0

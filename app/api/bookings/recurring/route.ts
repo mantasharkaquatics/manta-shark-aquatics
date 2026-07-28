@@ -44,7 +44,7 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
       .select('coach_id, date, start_time, end_time, block_type')
       .eq('coach_id', coachId).in('date', dates),
     svc.from('class_sessions')
-      .select('id, session_date, start_time, course_type_id, enrolled_count, max_students, status')
+      .select('id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
       .eq('coach_id', coachId).in('session_date', dates).in('status', ['open', 'full']),
   ])
   if (!zrows || zrows.length === 0) return dates.map(ds => ({ date: ds, status: 'no_class' as const, spots: 0 }))
@@ -80,7 +80,12 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
     if (isBlocked(offByDate[ds] || [], coachId, startTime, endTime)) return { date: ds, status: 'time_off' as const, spots: 0 }
     const daySess = sessByDate[ds] || []
     const sameSlot = daySess.filter((s: any) => toMin(s.start_time) === startMin)
-    const foreign = sameSlot.find((s: any) => s.course_type_id !== ct.id && s.enrolled_count > 0)
+    const foreign = daySess.find((s: any) => {
+      if (s.course_type_id === ct.id || s.enrolled_count <= 0) return false
+      const os = toMin(String(s.start_time).slice(0, 5))
+      const oe = s.end_time ? toMin(String(s.end_time).slice(0, 5)) : os + 30
+      return startMin < oe && endMin > os
+    })
     if (foreign) return { date: ds, status: 'conflict' as const, spots: 0 }
     const own = sameSlot.find((s: any) => s.course_type_id === ct.id)
     if (own && bookedSessIds.has(own.id)) return { date: ds, status: 'booked' as const, spots: Math.max(0, own.max_students - own.enrolled_count) }
