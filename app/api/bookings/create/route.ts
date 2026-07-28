@@ -70,17 +70,25 @@ export async function POST(req: NextRequest) {
       groupBand = { min: matched.group_level_min, max: matched.group_level_max }
   }
 
-  // Coach conflict check (any course type, enrolled > 0)
-  const { data: conflicts } = await svc
+  // Coach conflict check (any course type, enrolled > 0). Interval overlap, not equality:
+  // a 60-minute lesson's second half starts off-grid and would slip past a start-time test.
+  const { data: dayBusy } = await svc
     .from('class_sessions')
-    .select('id, course_type_id, enrolled_count, max_students')
+    .select('id, course_type_id, enrolled_count, max_students, start_time, end_time')
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
-    .eq('start_time', start_time)
-    .eq('status', 'open')
+    .in('status', ['open', 'full'])
     .gt('enrolled_count', 0)
-  const sameCourseSession = (conflicts || []).find((c: any) => c.course_type_id === course_type_id)
-  if ((conflicts || []).some((c: any) => c.course_type_id !== course_type_id))
+  const toMinC = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  const newStartMin = toMinC(start_time)
+  const newEndMin = toMinC(end_time)
+  const conflicts = (dayBusy || []).filter((c: any) => {
+    const os = toMinC(c.start_time)
+    const oe = c.end_time ? toMinC(c.end_time) : os + 30
+    return newStartMin < oe && newEndMin > os
+  })
+  const sameCourseSession = conflicts.find((c: any) => c.course_type_id === course_type_id && toMinC(c.start_time) === newStartMin)
+  if (conflicts.some((c: any) => c !== sameCourseSession))
     return NextResponse.json({ error: 'The coach already has another class at this time. Please pick another time.' }, { status: 409 })
   if (sameCourseSession && sameCourseSession.enrolled_count >= sameCourseSession.max_students)
     return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
