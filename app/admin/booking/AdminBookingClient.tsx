@@ -142,6 +142,23 @@ const STRIP_PX: number[] = DAY_SLOTS.map((sl, i) => {
 const STRIP_MIN: number[] = DAY_SLOTS.map((sl, i) =>
   i + 1 >= DAY_SLOTS.length ? 0 : timeToMinutes(DAY_SLOTS[i + 1].start) - timeToMinutes(sl.end)
 )
+const GRID_ROW_PX = 80
+// Pixel height from the top of row `ri` down to the clock time `endMin`.
+// A 60-minute lesson ends five minutes BEFORE its second row's bottom — those
+// minutes are the start of the coach's 10-minute break and must stay unpainted,
+// otherwise the calendar claims the coach is busy longer than they are.
+function spanHeightPx(ri: number, endMin: number): number {
+  let px = 0
+  for (let i = ri; i < DAY_SLOTS.length; i++) {
+    const rs = timeToMinutes(DAY_SLOTS[i].start)
+    const re = timeToMinutes(DAY_SLOTS[i].end)
+    if (endMin <= rs) break
+    if (endMin >= re) { px += GRID_ROW_PX + (STRIP_PX[i] || 0); continue }
+    px += ((endMin - rs) / (re - rs)) * GRID_ROW_PX
+    break
+  }
+  return px
+}
 
 const COURSE_COLORS: Record<string, string> = {
   '1on1': '#2563eb',
@@ -1426,6 +1443,13 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                    timeToMinutes(ROW_END[time] || time) > timeToMinutes(String(b.start_time).slice(0, 5)))
                 ))
               const blkLabelHere = blk && (blk.start_time == null ? time === TIME_SLOTS[0] : String(blk.start_time).slice(0, 5) === time)
+              // An hour lesson's two halves both start inside THIS row, so there
+              // is no second card to hide — the one card just grows downward.
+              const gStart = session ? (session.bookings?.[0] as any)?.group_start_time : null
+              const gEnd = session ? (session.bookings?.[0] as any)?.group_end_time : null
+              const hourSpanPx = (session && gStart && gEnd && String(gStart).slice(0, 5) === String(session.start_time).slice(0, 5))
+                ? spanHeightPx(ri, timeToMinutes(String(gEnd).slice(0, 5)))
+                : undefined
               return (
                 <div key={`${coach.id}-${time}`} className="min-h-20 border-t border-l border-white/5 relative">
                   {(() => {
@@ -1448,7 +1472,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                     )
                   })()}
                   {session && session.enrolled_count > 0 ? (
-                    <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} />
+                    <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} spanPx={hourSpanPx} />
                   ) : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id)}
                       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverKey(`${coach.id}-${time}`) }}
@@ -1510,7 +1534,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
 // ══════════════════════════════════════════════════════════════════════
 // Session Chip
 // ══════════════════════════════════════════════════════════════════════
-function SessionChip({ session, onClick, isCrossAccount, shiftDown }: { session: Session; onClick: () => void; isCrossAccount?: boolean; shiftDown?: boolean }) {
+function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { session: Session; onClick: () => void; isCrossAccount?: boolean; shiftDown?: boolean; spanPx?: number }) {
   if (session.enrolled_count === 0) return null
   const ct = getSessionCourseType(session)
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
@@ -1540,8 +1564,8 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown }: { session:
           }))
           e.dataTransfer.effectAllowed = 'move'
         }}
-        className={`absolute left-0.5 right-0.5 bottom-0.5 z-[2] ${shiftDown ? 'top-8' : 'top-0.5'} rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
-        style={{ backgroundColor: hasTrial ? '#c9a84c' : colorClass }}>
+        className={`absolute left-0.5 right-0.5 z-[2] ${spanPx ? '' : 'bottom-0.5'} ${shiftDown ? 'top-8' : 'top-0.5'} rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        style={{ backgroundColor: hasTrial ? '#c9a84c' : colorClass, height: spanPx ? spanPx - 4 : undefined }}>
         <span className="text-sm font-bold leading-tight truncate w-full text-left" style={{ color: hasTrial ? '#1a2744' : '#ffffff' }}>{hasTrial ? 'Swim Assessment' : ct.name}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
           const st = Array.isArray(b.students) ? b.students[0] : b.students
