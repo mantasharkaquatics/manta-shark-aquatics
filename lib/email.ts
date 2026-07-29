@@ -41,10 +41,19 @@ export interface EmailPayload {
   amount?: number | string
   dates?: string[]
   refundKind?: 'credit' | 'token' | 'token_conversion' | 'mixed' | 'none'
+  requesterStudentName?: string
+  partnerStudentName?: string
+  paymentMethod?: string
+  planName?: string
+  tokenCount?: number
+  validityDays?: number
+  // Loose on purpose: the point of this pass is catching MISSPELLED field
+  // names, not pinning down every value shape. Tighten if these grow legs.
+  courseNames?: any
+  items?: any[]
   code?: string
   changeField?: 'email' | 'phone'
   newValue?: string
-  [key: string]: unknown
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
