@@ -1402,7 +1402,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
         {TIME_SLOTS.map(time => (
           <div key={time} className="contents">
             <div className="h-14 flex items-start justify-end pr-3 pt-1.5 text-xs text-white/25 border-t border-white/5">
-              {time.endsWith(':00') ? formatTime(time) : ''}
+              {formatTime(time)}
             </div>
             {coaches.map(coach => {
               const session = getSessionAt(ds, time, coach.id)
