@@ -151,6 +151,9 @@ export default function BookingPage() {
   const [isReschedule, setIsReschedule] = useState(false)
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
   const rescheduleBookingIdRef = useRef<string | null>(null)
+  // Set when rescheduling a 60-minute lesson: both halves move together and
+  // the server must exclude this lesson's own sessions from conflict checks.
+  const rescheduleGroupIdRef = useRef<string | null>(null)
   const reschedulePartnerBookingIdRef = useRef<string | null>(null)
   const [countdown, setCountdown] = useState(30)
 
@@ -255,7 +258,7 @@ export default function BookingPage() {
     setHourLoading(true)
     fetch('/api/bookings/hour', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'options', student_id: selectedStudent.id, session_date: formatDateLA(selectedDate) }),
+      body: JSON.stringify({ action: 'options', student_id: selectedStudent.id, session_date: formatDateLA(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null }),
     }).then(r => r.json())
       .then(d => { setHourSlots(d?.slots || []); setHourCredits(d?.credits_remaining || 0); setHourTokens(d?.tokens_remaining || 0) })
       .catch(() => setHourSlots([]))
@@ -303,6 +306,7 @@ export default function BookingPage() {
 
       const params = new URLSearchParams(window.location.search)
       const rbId = params.get('reschedule_booking_id')
+      const rGroupId = params.get('reschedule_group_id')
       const rSlug = params.get('reschedule_slug')
       const rStudentId = params.get('reschedule_student_id')
       const rPartnerBookingId = params.get('reschedule_partner_booking_id')
@@ -311,6 +315,7 @@ export default function BookingPage() {
         setIsReschedule(true)
         setRescheduleBookingId(rbId)
         rescheduleBookingIdRef.current = rbId
+        if (rGroupId) { rescheduleGroupIdRef.current = rGroupId; setLessonLength(60) }
       if (rPartnerBookingId) reschedulePartnerBookingIdRef.current = rPartnerBookingId
         const matchCourse = (cts || []).find((c: any) => c.slug === rSlug) || null
         const matchStudent = (studs || []).find((s: any) => s.id === rStudentId) || (studs || [])[0] || null
@@ -570,10 +575,14 @@ export default function BookingPage() {
     }
 
     if (selectedHour) {
+      const rGroup = rescheduleGroupIdRef.current
       const hr = await fetch('/api/bookings/hour', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'book', student_id: selectedStudent.id, session_date: dateStr,
-          start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
+        body: JSON.stringify(rGroup
+          ? { action: 'reschedule', lesson_group_id: rGroup, student_id: selectedStudent.id, session_date: dateStr,
+              start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }
+          : { action: 'book', student_id: selectedStudent.id, session_date: dateStr,
+              start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
       if (!hr.ok) { alert(hj.error || 'Booking failed. Please try again.'); setSubmitting(false); return }
