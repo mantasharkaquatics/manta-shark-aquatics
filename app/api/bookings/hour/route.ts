@@ -263,7 +263,7 @@ export async function POST(req: NextRequest) {
           type: 'booking_confirmed', to: p.email, parentName: p.first_name,
           studentName: student.full_name, courseName: `${ct.name} (60 min)`, coachName: who,
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
-        } as any)
+        })
       }
     } catch {}
 
@@ -326,7 +326,7 @@ export async function POST(req: NextRequest) {
           type: 'booking_rescheduled', to: p.email, parentName: p.first_name,
           studentName: student.full_name, courseName: `${ct.name} (60 min)`, coachName: who,
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
-        } as any)
+        })
       }
     } catch {}
 

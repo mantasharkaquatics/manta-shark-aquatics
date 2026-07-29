@@ -59,10 +59,10 @@ async function applyChange(svc: any, parent: any, field: string, value: string) 
 async function notifyChange(parent: any, field: string, oldValue: string | null, value: string) {
   try {
     if (field === 'email') {
-      if (oldValue) await sendEmail({ type: 'contact_change_notice', to: oldValue, parentName: parent.first_name, changeField: 'email', newValue: value } as any)
-      await sendEmail({ type: 'contact_change_notice', to: value, parentName: parent.first_name, changeField: 'email', newValue: value } as any)
+      if (oldValue) await sendEmail({ type: 'contact_change_notice', to: oldValue, parentName: parent.first_name, changeField: 'email', newValue: value })
+      await sendEmail({ type: 'contact_change_notice', to: value, parentName: parent.first_name, changeField: 'email', newValue: value })
     } else {
-      if (parent.email) await sendEmail({ type: 'contact_change_notice', to: parent.email, parentName: parent.first_name, changeField: 'phone', newValue: maskPhone(value) } as any)
+      if (parent.email) await sendEmail({ type: 'contact_change_notice', to: parent.email, parentName: parent.first_name, changeField: 'phone', newValue: maskPhone(value) })
       await sendSms(value, 'Manta Shark Aquatics: this is now the phone number on your account. If you did not request this, please contact us right away.')
     }
   } catch {}
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
         `Manta Shark Aquatics: your verification code is ${code}. It expires in 10 minutes. Only share it with our staff if you asked to change your account email.`)
     } else {
       try {
-        await sendEmail({ type: 'contact_change_code', to: parent.email, parentName: parent.first_name, code } as any)
+        await sendEmail({ type: 'contact_change_code', to: parent.email, parentName: parent.first_name, code })
         delivered = true
       } catch {}
     }

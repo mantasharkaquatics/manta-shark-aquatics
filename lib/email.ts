@@ -3,8 +3,28 @@ import { TRIAL_PRICE_CENTS } from './plans'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+// Literal union, not `string`: a typo in a type name used to sail through the
+// build and send a blank email. The index signature below still lets extra
+// fields ride along — tightening that is a separate pass.
+export type EmailType =
+  | 'booking_confirmed'
+  | 'contact_change_code'
+  | 'contact_change_notice'
+  | 'trial_payment_link'
+  | 'booking_rescheduled'
+  | 'booking_cancelled'
+  | 'block_cancellation_notice'
+  | 'reminder_24h'
+  | 'partner_booking_invite'
+  | 'partner_booking_confirmed'
+  | 'partner_booking_rejected'
+  | 'partner_reschedule_requested'
+  | 'invoice'
+  | 'credits_converted_to_tokens'
+  | 'booking_series_confirmed'
+
 export interface EmailPayload {
-  type: string
+  type: EmailType
   to: string
   parentName?: string
   studentName?: string
@@ -21,11 +41,14 @@ export interface EmailPayload {
   amount?: number | string
   dates?: string[]
   refundKind?: 'credit' | 'token' | 'token_conversion' | 'mixed' | 'none'
+  code?: string
+  changeField?: 'email' | 'phone'
+  newValue?: string
   [key: string]: unknown
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
-  const { type, to, parentName, studentName, partnerName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, invoiceUrl, amount, refundKind } = payload
+  const { type, to, parentName, studentName, partnerName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, invoiceUrl, amount, refundKind, code, changeField, newValue } = payload
 
   let subject = ''
   let html = ''
@@ -36,16 +59,14 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     subject = `Booking Confirmed – ${courseName} on ${formattedDate}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">✅ Booking Confirmed!</h2><p>Hi ${parentName},</p><p>Your lesson has been booked successfully. Here are the details:</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Student</td><td style="padding: 8px 0; font-weight: 600;">${studentName}</td></tr>${partnerName ? `<tr><td style="padding: 8px 0; color: #666;">Partner</td><td style="padding: 8px 0; font-weight: 600;">${partnerName}</td></tr>` : ''}<tr><td style="padding: 8px 0; color: #666;">Course</td><td style="padding: 8px 0; font-weight: 600;">${courseName}</td></tr><tr><td style="padding: 8px 0; color: #666;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${coachName}</td></tr><tr><td style="padding: 8px 0; color: #666;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 0; color: #666;">Time</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr></table></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
-  } else if ((type as string) === 'contact_change_code') {
-    const p = payload as any
+  } else if (type === 'contact_change_code') {
     subject = `Your Manta Shark Aquatics verification code`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verification code</h2><p>Hi ${parentName},</p><p>You asked us to update the phone number on your account. Share this code with our staff to confirm:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${p.code}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not request this change, do not share the code — reply to this email and let us know.</p></div></div>`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verification code</h2><p>Hi ${parentName},</p><p>You asked us to update the phone number on your account. Share this code with our staff to confirm:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${code}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not request this change, do not share the code — reply to this email and let us know.</p></div></div>`
 
-  } else if ((type as string) === 'contact_change_notice') {
-    const p = payload as any
-    const what = p.changeField === 'email' ? 'email address' : 'phone number'
+  } else if (type === 'contact_change_notice') {
+    const what = changeField === 'email' ? 'email address' : 'phone number'
     subject = `Your Manta Shark Aquatics ${what} was changed`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Account ${what} updated</h2><p>Hi ${parentName},</p><p>The ${what} on your account is now <strong>${p.newValue}</strong>.</p><p style="color:#666; font-size: 13px;">If you did not request this change, contact us immediately by replying to this email or calling the front desk.</p></div></div>`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Account ${what} updated</h2><p>Hi ${parentName},</p><p>The ${what} on your account is now <strong>${newValue}</strong>.</p><p style="color:#666; font-size: 13px;">If you did not request this change, contact us immediately by replying to this email or calling the front desk.</p></div></div>`
 
   } else if (type === 'trial_payment_link') {
     const trialPrice = `$${Number(amount ?? TRIAL_PRICE_CENTS / 100)}`
