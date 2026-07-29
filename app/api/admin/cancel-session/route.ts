@@ -14,16 +14,36 @@ export async function POST(req: NextRequest) {
 
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, lesson_credit_id, token_package_id, parent_id, student_id, status')
+    .select('id, lesson_credit_id, token_package_id, parent_id, student_id, status, class_session_id, lesson_group_id')
     .eq('class_session_id', session_id)
     .neq('status', 'cancelled')
 
   const { data: sessRow } = await svc
     .from('class_sessions').select('course_type_id').eq('id', session_id).single()
 
+  // A 60-minute lesson is two linked bookings living in two different sessions.
+  // Cancelling one half from the admin calendar has to take the whole group:
+  // otherwise the other half survives as an unsellable orphan slot and the
+  // parent is refunded only half of what they actually paid.
+  const allBookings: any[] = [...(bookings || [])]
+  const extraSessionIds = new Set<string>()
+  const groupIds = Array.from(new Set(allBookings.map(b => b.lesson_group_id).filter(Boolean)))
+  if (groupIds.length > 0) {
+    const { data: sibs } = await svc
+      .from('bookings')
+      .select('id, lesson_credit_id, token_package_id, parent_id, student_id, status, class_session_id, lesson_group_id')
+      .in('lesson_group_id', groupIds)
+      .neq('status', 'cancelled')
+    for (const sb of sibs || []) {
+      if (allBookings.some(b => b.id === sb.id)) continue
+      allBookings.push(sb)
+      if (sb.class_session_id && sb.class_session_id !== session_id) extraSessionIds.add(sb.class_session_id)
+    }
+  }
+
   const notified: { parent_id: string; student_id: string; kind: 'credit' | 'token' | 'none' }[] = []
 
-  for (const b of bookings || []) {
+  for (const b of allBookings) {
     if (b.status === 'confirmed') {
       // Claim: only refund if we are the one flipping confirmed -> cancelled
       const { data: c } = await svc
@@ -79,7 +99,7 @@ export async function POST(req: NextRequest) {
   await svc
     .from('class_sessions')
     .update({ status: 'cancelled' })
-    .eq('id', session_id)
+    .in('id', [session_id, ...Array.from(extraSessionIds)])
     .neq('status', 'cancelled')
 
   // Notify affected parents (best effort)
@@ -93,7 +113,13 @@ export async function POST(req: NextRequest) {
       const { data: ct } = await svc.from('course_types').select('name').eq('id', sess.course_type_id).single()
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
       const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
-      const timeStr = formatTime12h(sess.start_time) + ' \u2013 ' + formatTime12h(sess.end_time)
+      let endStr = sess.end_time
+      if (extraSessionIds.size > 0) {
+        const { data: gs } = await svc
+          .from('class_sessions').select('end_time').in('id', Array.from(extraSessionIds))
+        for (const g of gs || []) if (g.end_time && g.end_time > endStr) endStr = g.end_time
+      }
+      const timeStr = formatTime12h(sess.start_time) + ' \u2013 ' + formatTime12h(endStr)
       const kindsByParent = new Map<string, Set<string>>()
       for (const n of notified) {
         if (!n.parent_id || n.kind === 'none') continue
