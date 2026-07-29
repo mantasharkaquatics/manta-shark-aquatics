@@ -1667,7 +1667,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
               {new Date(session.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}
             </p>
             <p className="text-sm text-white/50 mt-0.5">
-              {formatTime(session.start_time)} – {formatTime(session.end_time)}
+              {formatTime((bookings[0] as any)?.group_start_time || session.start_time)} – {formatTime((bookings[0] as any)?.group_end_time || session.end_time)}
               {' · '}Coach {coach?.first_name} {coach?.last_name}
             </p>
           </div>
