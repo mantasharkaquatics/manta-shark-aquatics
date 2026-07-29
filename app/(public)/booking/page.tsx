@@ -1570,7 +1570,7 @@ export default function BookingPage() {
               ))}
               {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{payingWithTokens ? 'Remaining Tokens After' : 'Remaining Credits After'}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (hourPaysWithTokens ? hourTokens - 2 : remainingCredits - 2) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - 2) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
               </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
