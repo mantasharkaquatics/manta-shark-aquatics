@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   // completion, and session UPDATE keeps booking/session ids intact, so Stripe flow is unaffected)
   const { data: activeBookings } = await svc
     .from('bookings')
-    .select('id, parent_id, student_id, status, is_trial')
+    .select('id, parent_id, student_id, status, is_trial, lesson_group_id')
     .eq('class_session_id', session_id)
     .not('status', 'in', '(cancelled,pending_partner)')
   if (!activeBookings || activeBookings.length === 0)
@@ -37,30 +37,66 @@ export async function POST(req: NextRequest) {
   if (activeBookings.some((b: any) => b.status !== 'confirmed' && b.status !== 'pending_payment'))
     return NextResponse.json({ error: 'Session has bookings in cart or pending confirmation and cannot be moved' }, { status: 400 })
 
-  // Target conflict: any session with students at that coach/date/time
-  const { data: conflicts } = await svc
-    .from('class_sessions').select('id')
-    .eq('coach_id', coach_id).eq('session_date', date).eq('start_time', time)
-    .in('status', ['open', 'full']).gt('enrolled_count', 0)
-    .neq('id', session_id)
-  if (conflicts && conflicts.length > 0)
-    return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 400 })
+  // A 60-minute lesson is two linked bookings living in two different sessions.
+  // Moving one half alone tears the hour in two, so the whole group travels:
+  // the halves are re-laid contiguously from the drop target and a relay group
+  // collapses onto the target coach (manual moves are an explicit assignment).
+  const groupId = (activeBookings as any[]).map(b => b.lesson_group_id).find(Boolean) || null
+  let moveSessionIds: string[] = [session_id]
+  if (groupId) {
+    const { data: sibs } = await svc
+      .from('bookings').select('class_session_id')
+      .eq('lesson_group_id', groupId).neq('status', 'cancelled')
+    const ids = Array.from(new Set((sibs || []).map((b: any) => b.class_session_id).filter(Boolean)))
+    if (ids.length > 1) {
+      const { data: gs } = await svc
+        .from('class_sessions').select('id, start_time').in('id', ids).neq('status', 'cancelled')
+      moveSessionIds = (gs || [])
+        .sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))
+        .map((x: any) => x.id)
+    }
+  }
 
   const { data: course } = await svc
     .from('course_types').select('name, duration_minutes').eq('id', sess.course_type_id).single()
   if (!course) return NextResponse.json({ error: 'Course type not found' }, { status: 500 })
 
-  const [h, m] = time.split(':').map(Number)
-  const endMins = h * 60 + m + course.duration_minutes
-  const endTime = String(Math.floor(endMins / 60)).padStart(2, '0') + ':' + String(endMins % 60).padStart(2, '0')
+  const toMin = (t: string) => { const [hh, mm] = String(t).slice(0, 5).split(':').map(Number); return hh * 60 + mm }
+  const toT = (n: number) => String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0')
 
-  // Atomic move: single row update, bookings follow automatically
-  const { error: updErr } = await svc
-    .from('class_sessions')
-    .update({ coach_id, session_date: date, start_time: time, end_time: endTime })
-    .eq('id', session_id)
-  if (updErr)
-    return NextResponse.json({ error: 'Move failed: ' + updErr.message }, { status: 500 })
+  const spanStart = toMin(time)
+  const spanEnd = spanStart + moveSessionIds.length * course.duration_minutes
+  const placements = moveSessionIds.map((id, i) => ({
+    id,
+    start: toT(spanStart + i * course.duration_minutes),
+    end: toT(spanStart + (i + 1) * course.duration_minutes),
+  }))
+
+  // Target conflict, interval-based rather than start-time equality: an hour
+  // lesson's second half sits off-grid, so equality would miss it entirely.
+  const { data: dayRows } = await svc
+    .from('class_sessions').select('id, start_time, end_time')
+    .eq('coach_id', coach_id).eq('session_date', date)
+    .in('status', ['open', 'full']).gt('enrolled_count', 0)
+  const clash = (dayRows || []).some((r: any) => {
+    if (moveSessionIds.includes(r.id)) return false
+    const rs = toMin(r.start_time)
+    const re = r.end_time ? toMin(r.end_time) : rs + course.duration_minutes
+    return spanStart < re && spanEnd > rs
+  })
+  if (clash)
+    return NextResponse.json({ error: 'The coach already has another lesson overlapping that time' }, { status: 400 })
+
+  // One row update per half; bookings follow their session automatically
+  for (const pl of placements) {
+    const { error: updErr } = await svc
+      .from('class_sessions')
+      .update({ coach_id, session_date: date, start_time: pl.start, end_time: pl.end })
+      .eq('id', pl.id)
+    if (updErr)
+      return NextResponse.json({ error: 'Move failed: ' + updErr.message }, { status: 500 })
+  }
+  const endTime = placements[placements.length - 1].end
 
   // Notify every affected parent (cross-account included)
   try {
