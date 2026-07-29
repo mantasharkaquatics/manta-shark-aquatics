@@ -64,18 +64,33 @@ export async function POST(req: NextRequest) {
 
   const { booking_id, student_id, class_session_id, checked_in } = await req.json()
 
+  // A 60-minute lesson is two linked bookings. Attendance follows the whole
+  // group, the way cancellation and credits already do: ticking or un-ticking
+  // one half would otherwise leave the other half silently absent, which also
+  // drops it out of the Missing Progress list.
+  let targets: any[] = [{ booking_id, student_id, class_session_id }]
+  const { data: self } = await supabase.from('bookings')
+    .select('lesson_group_id').eq('id', booking_id).maybeSingle()
+  if (self?.lesson_group_id) {
+    const { data: halves } = await supabase.from('bookings')
+      .select('id, student_id, class_session_id')
+      .eq('lesson_group_id', self.lesson_group_id)
+      .not('status', 'in', '("cancelled")')
+    if (halves && halves.length > 0)
+      targets = halves.map((h: any) => ({
+        booking_id: h.id, student_id: h.student_id, class_session_id: h.class_session_id,
+        is_chained: h.id !== booking_id,
+      }))
+  }
+
   if (checked_in) {
-    const { error } = await supabase.from('attendance').upsert({
-      booking_id,
-      student_id,
-      class_session_id,
-      check_in_method: 'manual',
-      checked_in_by: null,
-      checked_in_at: new Date().toISOString(),
-    }, { onConflict: 'booking_id,student_id' })
+    const nowIso = new Date().toISOString()
+    const { error } = await supabase.from('attendance').upsert(
+      targets.map((t: any) => ({ ...t, check_in_method: 'manual', checked_in_by: null, checked_in_at: nowIso })),
+      { onConflict: 'booking_id,student_id' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   } else {
-    const { error } = await supabase.from('attendance').delete().eq('booking_id', booking_id)
+    const { error } = await supabase.from('attendance').delete().in('booking_id', targets.map((t: any) => t.booking_id))
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
