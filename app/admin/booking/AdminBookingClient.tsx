@@ -2,7 +2,7 @@
 
 import { zoneFill } from '@/lib/zone-colors'
 
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, daySlots } from '@/lib/date'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -120,14 +120,17 @@ function getMonthDates(anchor: Date): Date[] {
   return dates
 }
 
-function generateTimeSlots(): string[] {
-  const slots: string[] = []
-  for (let m = WORK_START * 60; m < WORK_END * 60; m += SLOT_MINUTES) {
-    slots.push(minutesToTime(m))
-  }
-  return slots
-}
-const TIME_SLOTS = generateTimeSlots()
+// The grid rows ARE the real schedule: one row per bookable slot from
+// lib/date (35-minute rhythm = 30-minute lesson + 5-minute turnover, plus the
+// single 10-minute break between the two day segments). Never regenerate this
+// locally again — the parent booking page and this calendar must agree.
+const DAY_SLOTS = daySlots()
+const TIME_SLOTS = DAY_SLOTS.map(s => s.start)
+// A row owns everything from its own start until the next row starts, break
+// included, so nothing can fall into a gap between rows.
+const ROW_END: Record<string, string> = Object.fromEntries(
+  TIME_SLOTS.map((t, i) => [t, TIME_SLOTS[i + 1] ?? DAY_SLOTS[DAY_SLOTS.length - 1].end])
+)
 
 const COURSE_COLORS: Record<string, string> = {
   '1on1': '#2563eb',
@@ -785,11 +788,15 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }
 
   function getSessionAt(date: string, time: string, coachId: string): Session | null {
-    const matches = sessions.filter(s =>
-      s.session_date === date &&
-      s.coach_id === coachId &&
-      s.start_time.slice(0, 5) === time
-    )
+    // Interval match, not equality: the second half of a 60-minute lesson
+    // starts off-grid (e.g. 11:25) by design and would otherwise be invisible.
+    const rowStart = timeToMinutes(time)
+    const rowEnd = timeToMinutes(ROW_END[time] || time)
+    const matches = sessions.filter(s => {
+      if (s.session_date !== date || s.coach_id !== coachId) return false
+      const st = timeToMinutes(String(s.start_time).slice(0, 5))
+      return st >= rowStart && st < rowEnd
+    })
     if (matches.length === 0) return null
     return matches.sort((a, b) => b.enrolled_count - a.enrolled_count)[0]
   }
@@ -1332,7 +1339,14 @@ function NowLine({ ds }: { ds: string }) {
   if (nowMin < startMin || nowMin >= endMin) return null
   const HEADER_PX = 56  // h-14
   const ROW_PX = 80     // min-h-20
-  const top = HEADER_PX + ((nowMin - startMin) / SLOT_MINUTES) * ROW_PX
+  // Rows are no longer evenly spaced in clock time, so find the row holding
+  // "now" and interpolate within it instead of dividing by a fixed step.
+  const rowIdx = TIME_SLOTS.findIndex(t => nowMin < timeToMinutes(ROW_END[t]))
+  if (rowIdx === -1) return null
+  const rStart = timeToMinutes(TIME_SLOTS[rowIdx])
+  const rEnd = timeToMinutes(ROW_END[TIME_SLOTS[rowIdx]])
+  const frac = nowMin <= rStart ? 0 : Math.min(1, (nowMin - rStart) / Math.max(1, rEnd - rStart))
+  const top = HEADER_PX + (rowIdx + frac) * ROW_PX
   const label = formatTime(minutesToTime(nowMin))
   return (
     <div ref={lineRef} className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${top}px` }}>
@@ -1397,7 +1411,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                 b.date === ds && b.coach_id === coach.id && (
                   b.start_time == null ||
                   (timeToMinutes(time) < timeToMinutes(String(b.end_time).slice(0, 5)) &&
-                   timeToMinutes(time) + SLOT_MINUTES > timeToMinutes(String(b.start_time).slice(0, 5)))
+                   timeToMinutes(ROW_END[time] || time) > timeToMinutes(String(b.start_time).slice(0, 5)))
                 ))
               const blkLabelHere = blk && (blk.start_time == null ? time === TIME_SLOTS[0] : String(blk.start_time).slice(0, 5) === time)
               return (
