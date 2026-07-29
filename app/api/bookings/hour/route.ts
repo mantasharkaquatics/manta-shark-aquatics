@@ -4,7 +4,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
-import { LEAD_TIME_MINUTES, isWithinTokenWindow, tokenSlugsForTarget } from '@/lib/tokens'
+import { LEAD_TIME_MINUTES, isWithinTokenWindow, tokenSlugsForTarget, isWithin24Hours } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   if (!body?.action) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const { action, student_id, session_date } = body
+  const { action, student_id, session_date, lesson_group_id } = body
   if (!student_id || !session_date || !DATE_RE.test(session_date))
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
 
@@ -102,11 +102,33 @@ export async function POST(req: NextRequest) {
   const day = await loadDay(svc, session_date, ct.id)
   const nameOf = (id: string) => { const c = day.coaches.find((x: any) => x.id === id); return c ? c.first_name : '' }
 
+  // Rescheduling: the lesson's OWN two sessions must not count as conflicts —
+  // not against the student (they ARE the student's lesson) and not against the
+  // coach, or every candidate near the current time is reported as taken.
+  const excludeSessIds = new Set<string>()
+  if (lesson_group_id) {
+    const { data: grp } = await svc.from('bookings')
+      .select('class_session_id, parent_id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
+    const rows = grp || []
+    if (rows.length === 0 || rows.some((r: any) => r.parent_id !== parent.id))
+      return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+    for (const r of rows) if (r.class_session_id) excludeSessIds.add(r.class_session_id)
+    const nb = new Map<string, Iv[]>()
+    for (const sx of day.sessions) {
+      if (excludeSessIds.has(sx.id) || (sx.enrolled_count || 0) <= 0) continue
+      const st = toMin(sx.start_time)
+      const en = sx.end_time ? toMin(sx.end_time) : st + LESSON_MINUTES
+      if (!nb.has(sx.coach_id)) nb.set(sx.coach_id, [])
+      nb.get(sx.coach_id)!.push({ s: st, e: en })
+    }
+    day.busy = nb
+  }
+
   const { data: myBookings } = await svc.from('bookings')
     .select('class_session_id, status').eq('student_id', student_id)
     .not('status', 'in', '("cancelled","pending_partner")')
   const mySessIds = new Set((myBookings || []).map((b: any) => b.class_session_id))
-  const mine: Iv[] = day.sessions.filter((s: any) => mySessIds.has(s.id)).map((s: any) => {
+  const mine: Iv[] = day.sessions.filter((s: any) => mySessIds.has(s.id) && !excludeSessIds.has(s.id)).map((s: any) => {
     const st = toMin(s.start_time)
     return { s: st, e: s.end_time ? toMin(s.end_time) : st + LESSON_MINUTES }
   })
@@ -246,6 +268,69 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     return NextResponse.json({ ok: true, lesson_group_id: groupId, booking_ids: createdBookings, start_time: toT(s1), end_time: toT(e2), relay: coach1_id !== coach2_id })
+  }
+
+  if (action === 'reschedule') {
+    const { start_time, coach1_id, coach2_id } = body
+    if (!lesson_group_id || !start_time || !TIME_RE.test(start_time) || !coach1_id || !coach2_id)
+      return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+    const s1 = toMin(start_time)
+    const mid = s1 + LESSON_MINUTES
+    const e2 = s1 + HOUR_MINUTES
+    if (!daySlots().some(sl => sl.start === start_time))
+      return NextResponse.json({ error: 'That start time is not on the schedule.' }, { status: 400 })
+    if (minutesUntil(session_date, start_time, today, nowMin) < LEAD_TIME_MINUTES)
+      return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts.' }, { status: 400 })
+
+    const { data: grp } = await svc.from('bookings')
+      .select('id, token_package_id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
+    if ((grp || []).length < 2)
+      return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+    if ((grp || []).some((r: any) => r.token_package_id))
+      return NextResponse.json({ error: 'Token bookings are final and cannot be rescheduled.' }, { status: 400 })
+
+    const { data: curSess } = await svc.from('class_sessions')
+      .select('id, session_date, start_time').in('id', Array.from(excludeSessIds))
+    const ordered = (curSess || []).sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))
+    if (ordered.length < 2)
+      return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+    if (isWithin24Hours(ordered[0].session_date, String(ordered[0].start_time).slice(0, 5)))
+      return NextResponse.json({ error: 'Lessons cannot be rescheduled within 24 hours of the start time.' }, { status: 400 })
+
+    if (studentBusy(s1, e2))
+      return NextResponse.json({ error: 'This swimmer already has a lesson during that hour.' }, { status: 409 })
+    if (!coachFree(day, coach1_id, s1, mid))
+      return NextResponse.json({ error: 'The first half is no longer available. Please pick another time.' }, { status: 409 })
+    if (!coachFree(day, coach2_id, mid, e2))
+      return NextResponse.json({ error: 'The second half is no longer available. Please pick another time.' }, { status: 409 })
+
+    // Move in place: the bookings keep their ids, credits and group link, so
+    // nothing has to be refunded and re-charged.
+    const halves = [
+      { id: ordered[0].id, coach_id: coach1_id, start: toT(s1), end: toT(mid) },
+      { id: ordered[1].id, coach_id: coach2_id, start: toT(mid), end: toT(e2) },
+    ]
+    for (const h of halves) {
+      const { error: uErr } = await svc.from('class_sessions')
+        .update({ coach_id: h.coach_id, session_date, start_time: h.start, end_time: h.end })
+        .eq('id', h.id)
+      if (uErr)
+        return NextResponse.json({ error: uErr.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not move the lesson.' }, { status: 409 })
+    }
+
+    try {
+      const { data: p } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
+      if (p?.email) {
+        const who = coach1_id === coach2_id ? nameOf(coach1_id) : `${nameOf(coach1_id)} → ${nameOf(coach2_id)}`
+        await sendEmail({
+          type: 'booking_rescheduled', to: p.email, parentName: p.first_name,
+          studentName: student.full_name, courseName: `${ct.name} (60 min)`, coachName: who,
+          date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
+        } as any)
+      }
+    } catch {}
+
+    return NextResponse.json({ ok: true, lesson_group_id, start_time: toT(s1), end_time: toT(e2), relay: coach1_id !== coach2_id })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
