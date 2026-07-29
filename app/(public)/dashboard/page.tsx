@@ -1384,7 +1384,7 @@ export default function DashboardPage() {
                   const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
                   const statusLabel = past ? (b.checked_in ? 'Attended ✓' : 'Absent') : b.checked_in ? 'Checked in ✓' : 'Confirmed'
                   const statusColor = past ? (b.checked_in ? '#7fd8a0' : '#e05a4a') : b.checked_in ? '#7fd8a0' : GOLD
-                  const funding = b.is_trial ? 'Swim Assessment' : b.token_package_id ? '1 token' : b.lesson_credit_id ? '1 credit' : '—'
+                  const funding = b.is_trial ? 'Swim Assessment' : b.token_package_id ? (b.lesson_group_id ? '2 tokens' : '1 token') : b.lesson_credit_id ? (b.lesson_group_id ? '2 credits' : '1 credit') : '—'
                   return (
                     <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div onClick={e => e.stopPropagation()} style={{ background: DARK, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
