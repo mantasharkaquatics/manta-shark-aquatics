@@ -131,6 +131,17 @@ const TIME_SLOTS = DAY_SLOTS.map(s => s.start)
 const ROW_END: Record<string, string> = Object.fromEntries(
   TIME_SLOTS.map((t, i) => [t, TIME_SLOTS[i + 1] ?? DAY_SLOTS[DAY_SLOTS.length - 1].end])
 )
+// Turnover strips drawn between lesson rows, same visual language as the Zones
+// editor: 7px for the 5-minute changeover, 14px and labelled for the single
+// 10-minute break after 16:05. Index i is the strip BELOW row i.
+const STRIP_PX: number[] = DAY_SLOTS.map((sl, i) => {
+  if (i + 1 >= DAY_SLOTS.length) return 0
+  const gap = timeToMinutes(DAY_SLOTS[i + 1].start) - timeToMinutes(sl.end)
+  return gap <= 0 ? 0 : gap >= 10 ? 14 : 7
+})
+const STRIP_MIN: number[] = DAY_SLOTS.map((sl, i) =>
+  i + 1 >= DAY_SLOTS.length ? 0 : timeToMinutes(DAY_SLOTS[i + 1].start) - timeToMinutes(sl.end)
+)
 
 const COURSE_COLORS: Record<string, string> = {
   '1on1': '#2563eb',
@@ -1346,7 +1357,8 @@ function NowLine({ ds }: { ds: string }) {
   const rStart = timeToMinutes(TIME_SLOTS[rowIdx])
   const rEnd = timeToMinutes(ROW_END[TIME_SLOTS[rowIdx]])
   const frac = nowMin <= rStart ? 0 : Math.min(1, (nowMin - rStart) / Math.max(1, rEnd - rStart))
-  const top = HEADER_PX + (rowIdx + frac) * ROW_PX
+  const stripsAbove = STRIP_PX.slice(0, rowIdx).reduce((a, b) => a + b, 0)
+  const top = HEADER_PX + (rowIdx + frac) * ROW_PX + stripsAbove
   const label = formatTime(minutesToTime(nowMin))
   return (
     <div ref={lineRef} className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${top}px` }}>
@@ -1399,7 +1411,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
         </div>
       </div>
       <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
-        {TIME_SLOTS.map(time => (
+        {TIME_SLOTS.map((time, ri) => (
           <div key={time} className="contents">
             <div className="h-14 flex items-start justify-end pr-3 pt-1.5 text-xs text-white/25 border-t border-white/5">
               {formatTime(time)}
@@ -1476,6 +1488,18 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                 </div>
               )
             })}
+            {STRIP_PX[ri] > 0 && (
+              <>
+                <div className="flex items-center justify-end pr-3 text-[9px] font-semibold text-white/30 leading-none"
+                  style={{ height: STRIP_PX[ri] }}>
+                  {STRIP_MIN[ri] >= 10 ? `${STRIP_MIN[ri]}m` : ''}
+                </div>
+                {coaches.map(c => (
+                  <div key={`strip-${c.id}-${time}`} className="border-l border-white/5"
+                    style={{ height: STRIP_PX[ri], backgroundColor: 'rgba(255,255,255,0.045)' }} />
+                ))}
+              </>
+            )}
           </div>
         ))}
       </div>
