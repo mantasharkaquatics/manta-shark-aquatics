@@ -1120,7 +1120,7 @@ export default function BookingPage() {
                         <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
                           style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                          {v} min{v === 60 ? ' · 2 credits' : ''}</button>
+                          {v} min{v === 60 ? (hourPaysWithTokens ? ' · 2 tokens' : ' · 2 credits') : ''}</button>
                       ))}
                     </div>
                   )}
@@ -1168,7 +1168,7 @@ export default function BookingPage() {
                                     {o.relay ? `Coach ${o.coach1_name} → Coach ${o.coach2_name} (two coaches)` : `Coach ${o.coach1_name}`}
                                   </span>
                                 </span>
-                                <span style={{ fontSize: '11px', fontWeight: 700, color: sel ? GOLD : 'rgba(255,255,255,0.4)' }}>2 credits</span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: sel ? GOLD : 'rgba(255,255,255,0.4)' }}>{hourPaysWithTokens ? '2 tokens' : '2 credits'}</span>
                               </button>
                             )
                           })}
