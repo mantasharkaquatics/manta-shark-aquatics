@@ -846,6 +846,22 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     return matches.sort((a, b) => b.enrolled_count - a.enrolled_count)[0]
   }
 
+  // A 60-minute lesson keeps running through the rows BELOW the one it starts
+  // in, because its second half begins off-grid. Those rows are NOT free: they
+  // must not offer "+ Book", and a click there belongs to the covering lesson.
+  function getSessionCovering(date: string, time: string, coachId: string): Session | null {
+    const rowStart = timeToMinutes(time)
+    const covering = sessions.filter(s => {
+      if (s.session_date !== date || s.coach_id !== coachId) return false
+      if ((s.enrolled_count || 0) <= 0) return false
+      const st = timeToMinutes(String(s.start_time).slice(0, 5))
+      const en = s.end_time ? timeToMinutes(String(s.end_time).slice(0, 5)) : st + SLOT_MINUTES
+      return st < rowStart && en > rowStart
+    })
+    if (covering.length === 0) return null
+    return covering.sort((a, b) => b.enrolled_count - a.enrolled_count)[0]
+  }
+
   function getSessionsOnDate(date: string): Session[] {
     return sessions.filter(s => s.session_date === date)
   }
@@ -916,6 +932,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               date={anchor}
               coaches={coaches}
               getSessionAt={getSessionAt}
+              getSessionCovering={getSessionCovering}
               isCoachAvailable={isCoachAvailable}
               onSlotClick={openBookModal}
               onSessionClick={openDetailModal}
@@ -1433,12 +1450,13 @@ function NowLine({ ds }: { ds: string }) {
   )
 }
 
-function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks, onBlockClick }: {
+function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks, onBlockClick }: {
   date: Date
   blocks: Block[]
   onBlockClick: (blk: Block) => void
   coaches: Coach[]
   getSessionAt: (date: string, time: string, coachId: string) => Session | null
+  getSessionCovering: (date: string, time: string, coachId: string) => Session | null
   isCoachAvailable: (id: string, date: Date, time: string) => boolean
   onSlotClick: (date: string, time: string, coachId: string) => void
   onSessionClick: (s: Session) => void
@@ -1481,6 +1499,7 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
             </div>
             {coaches.map(coach => {
               const session = getSessionAt(ds, time, coach.id)
+              const covered = session ? null : getSessionCovering(ds, time, coach.id)
               const available = isCoachAvailable(coach.id, date, time)
               const blk = blocks.find(b =>
                 b.date === ds && b.coach_id === coach.id && (
@@ -1519,6 +1538,10 @@ function DayView({ date, coaches, getSessionAt, isCoachAvailable, onSlotClick, o
                   })()}
                   {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} spanPx={hourSpanPx} />
+                  ) : covered ? (
+                    <button onClick={() => onSessionClick(covered)}
+                      title="Part of a 60-minute lesson"
+                      className="absolute inset-0 cursor-pointer" />
                   ) : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id)}
                       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverKey(`${coach.id}-${time}`) }}
