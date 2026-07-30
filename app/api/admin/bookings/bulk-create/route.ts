@@ -37,9 +37,9 @@ function minutesToTime(mins: number): string {
 
 async function evaluateDates(
   svc: any,
-  opts: { coachId: string; courseTypeId: string; startTime: string; startDate: string; count: number; spotsNeeded: number; skipDates: string[] }
+  opts: { coachId: string; courseTypeId: string; startTime: string; startDate: string; count: number; spotsNeeded: number; skipDates: string[]; hour?: boolean; durationMinutes?: number }
 ): Promise<Candidate[]> {
-  const { coachId, courseTypeId, startTime, startDate, count, spotsNeeded, skipDates } = opts
+  const { coachId, courseTypeId, startTime, startDate, count, spotsNeeded, skipDates, hour, durationMinutes } = opts
   const today = getTodayLA()
   const nowMins = getNowMinutesLA()
   const startMins = timeToMinutes(startTime)
@@ -81,6 +81,20 @@ async function evaluateDates(
     // (credits deducted as normal). Conflict/time-off/capacity checks still apply.
     if (skipSet.has(date)) status = 'skipped'
     else if (timeOffSet.has(date)) status = 'coach_time_off'
+    else if (hour) {
+      // An hour occupies two halves and the second one starts OFF the grid, so a
+      // lesson at the next grid slot overlaps it without sharing a start time.
+      // Equality would miss that; the whole span has to be tested as an interval.
+      const spanStart = startMins
+      const spanEnd = startMins + (durationMinutes || 30) * 2
+      const clash = (sessByDate.get(date) || []).some((s: any) => {
+        if ((s.enrolled_count || 0) <= 0) return false
+        const ss = timeToMinutes(s.start_time)
+        const se = s.end_time ? timeToMinutes(s.end_time) : ss + (durationMinutes || 30)
+        return spanStart < se && spanEnd > ss
+      })
+      if (clash) status = 'conflict'
+    }
     else {
       const daySessions = sessByDate.get(date) || []
       const sameSlot = daySessions.filter((s: any) => timeToMinutes(s.start_time) === startMins)
@@ -186,7 +200,7 @@ export async function POST(req: NextRequest) {
     }
     const candidates = await evaluateDates(svc, {
       coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
-      startDate: start_date, count, spotsNeeded, skipDates: skip_dates || [],
+      startDate: start_date, count, spotsNeeded, skipDates: skip_dates || [], hour: !!hour, durationMinutes: ct.duration_minutes,
     })
     const needed1 = twoFromParent1 ? count * 2 : count
     const alloc1 = await allocateCredits(svc, student1.parent_id, course_type_id, needed1)
@@ -227,7 +241,7 @@ export async function POST(req: NextRequest) {
     // Re-validate every confirmed date server-side
     const candidates = await evaluateDates(svc, {
       coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
-      startDate: dates[0], count: 1000, spotsNeeded, skipDates: [],
+      startDate: dates[0], count: 1000, spotsNeeded, skipDates: [], hour: !!hour, durationMinutes: ct.duration_minutes,
     })
     const statusByDate = new Map(candidates.map(c => [c.date, c.status]))
     for (const d of dates) {
