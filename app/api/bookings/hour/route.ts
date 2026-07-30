@@ -143,14 +143,14 @@ export async function POST(req: NextRequest) {
       const e2 = s1 + HOUR_MINUTES
       if (minutesUntil(session_date, sl.start, today, nowMin) < LEAD_TIME_MINUTES) continue
       if (studentBusy(s1, e2)) continue
-      const firstOk = day.coaches.filter((c: any) => coachFree(day, c.id, s1, mid)).map((c: any) => c.id)
-      const secondOk = day.coaches.filter((c: any) => coachFree(day, c.id, mid, e2)).map((c: any) => c.id)
-      if (firstOk.length === 0 || secondOk.length === 0) continue
-      const both = firstOk.filter((id: string) => secondOk.includes(id))
-      const combos = both.length > 0
-        ? both.map((id: string) => ({ coach1_id: id, coach2_id: id, relay: false }))
-        : firstOk.flatMap((a: string) => secondOk.filter((b: string) => b !== a).map((b: string) => ({ coach1_id: a, coach2_id: b, relay: true })))
-      if (combos.length === 0) continue
+      // Relay removed 2026-07-29 (owner decision): a 60-minute lesson is taught by
+      // ONE coach from start to finish. An hour nobody can cover alone is simply
+      // not offered — we no longer stitch two coaches together to fill it.
+      const both = day.coaches
+        .filter((c: any) => coachFree(day, c.id, s1, mid) && coachFree(day, c.id, mid, e2))
+        .map((c: any) => c.id)
+      if (both.length === 0) continue
+      const combos = both.map((id: string) => ({ coach1_id: id, coach2_id: id, relay: false }))
       out.push({
         start_time: sl.start, mid_time: toT(mid), end_time: toT(e2),
         label: `${formatTime12h(sl.start)} – ${formatTime12h(toT(e2))}`,
@@ -169,6 +169,8 @@ export async function POST(req: NextRequest) {
     const { start_time, coach1_id, coach2_id } = body
     if (!start_time || !TIME_RE.test(start_time) || !coach1_id || !coach2_id)
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+    if (coach1_id !== coach2_id)
+      return NextResponse.json({ error: 'A 60-minute lesson must be taught by a single coach.' }, { status: 400 })
     const s1 = toMin(start_time)
     const mid = s1 + LESSON_MINUTES
     const e2 = s1 + HOUR_MINUTES
@@ -274,6 +276,8 @@ export async function POST(req: NextRequest) {
     const { start_time, coach1_id, coach2_id } = body
     if (!lesson_group_id || !start_time || !TIME_RE.test(start_time) || !coach1_id || !coach2_id)
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+    if (coach1_id !== coach2_id)
+      return NextResponse.json({ error: 'A 60-minute lesson must be taught by a single coach.' }, { status: 400 })
     const s1 = toMin(start_time)
     const mid = s1 + LESSON_MINUTES
     const e2 = s1 + HOUR_MINUTES
