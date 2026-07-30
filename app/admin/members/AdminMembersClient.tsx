@@ -43,6 +43,7 @@ type Parent = {
 
 type Booking = {
   lesson_group_id?: string | null
+  is_hour?: boolean
   id: string
   session_date: string
   start_time: string
@@ -452,6 +453,25 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status, student_id: b.student_id, class_session_id: b.class_session_id, lesson_group_id: b.lesson_group_id }
       })
       .filter(Boolean) as Booking[]
+    // A 60-minute lesson is two linked bookings. Every other screen shows it as
+    // ONE row, so this page must too — and the row has to make clear the family
+    // booked a full hour, not a lesson that merely runs long. Attendance still
+    // works off the first half's id; the server cascades to the sibling.
+    const mergeHours = (list: Booking[]): Booking[] => {
+      const byGroup: Record<string, Booking[]> = {}
+      const out: Booking[] = []
+      for (const b of list) {
+        if (!b.lesson_group_id) { out.push(b); continue }
+        ;(byGroup[b.lesson_group_id] ||= []).push(b)
+      }
+      for (const halves of Object.values(byGroup)) {
+        if (halves.length === 1) { out.push(halves[0]); continue }
+        const sorted = [...halves].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+        out.push({ ...sorted[0], end_time: sorted[sorted.length - 1].end_time, is_hour: true })
+      }
+      return out
+    }
+    const merged = mergeHours(bookings)
     const nowMin = getNowMinutesLA()
     const isPast = (b: Booking) => {
       if (b.session_date < today) return true
@@ -459,8 +479,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       const [eh, em] = b.end_time.split(':').map(Number)
       return (eh * 60 + em) <= nowMin
     }
-    const upcoming = bookings.filter(b => !isPast(b)).sort((a, b) => a.session_date.localeCompare(b.session_date))
-    let past = bookings.filter(isPast).sort((a, b) => b.session_date.localeCompare(a.session_date))
+    const upcoming = merged.filter(b => !isPast(b)).sort((a, b) => a.session_date.localeCompare(b.session_date))
+    let past = merged.filter(isPast).sort((a, b) => b.session_date.localeCompare(a.session_date))
     if (past.length > 0) {
       const res = await fetch('/api/admin/attendance?booking_ids=' + past.map(b => b.id).join(','))
       const json = await res.json().catch(() => ({ checkedInBookingIds: [] }))
@@ -779,6 +799,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                         <span className="text-gray-400 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                         <span className="text-gray-500 flex-shrink-0">{formatTime12h(b.start_time)}–{formatTime12h(b.end_time)}</span>
                                         <span className="text-gray-300">{b.course_name}</span>
+                                        {b.is_hour && <span className="px-1.5 py-0.5 rounded border border-[#c9a84c]/50 text-[#c9a84c] text-[10px] font-semibold flex-shrink-0">60 min</span>}
                                         <span className="text-gray-500">Coach {b.coach_name}</span>
                                         {expandedType === 'past' && (
                                           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
