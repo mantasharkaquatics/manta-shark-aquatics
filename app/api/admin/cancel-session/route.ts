@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { tokenExpiryFromNow } from '@/lib/tokens'
 
 export async function POST(req: NextRequest) {
@@ -19,7 +19,20 @@ export async function POST(req: NextRequest) {
     .neq('status', 'cancelled')
 
   const { data: sessRow } = await svc
-    .from('class_sessions').select('course_type_id').eq('id', session_id).single()
+    .from('class_sessions').select('course_type_id, session_date, end_time').eq('id', session_id).single()
+
+  // A lesson that already happened cannot be un-happened. If the swimmer showed
+  // up — or the class has simply ended — the lesson was delivered and stays on
+  // the books. When the school wants to make it good, that is a judgement call
+  // handled by granting a token by hand, not by erasing the lesson.
+  if (sessRow?.session_date) {
+    const today = getTodayLA()
+    const ended = sessRow.session_date < today ||
+      (sessRow.session_date === today && sessRow.end_time &&
+       (() => { const [h, m] = String(sessRow.end_time).slice(0, 5).split(':').map(Number); return h * 60 + m <= getNowMinutesLA() })())
+    if (ended)
+      return NextResponse.json({ error: 'This lesson has already taken place and cannot be cancelled. To compensate the family, issue a token from the Members page.' }, { status: 409 })
+  }
 
   // A 60-minute lesson is two linked bookings living in two different sessions.
   // Cancelling one half from the admin calendar has to take the whole group:
@@ -40,6 +53,11 @@ export async function POST(req: NextRequest) {
       if (sb.class_session_id && sb.class_session_id !== session_id) extraSessionIds.add(sb.class_session_id)
     }
   }
+
+  const { data: attended } = await svc
+    .from('attendance').select('booking_id').in('booking_id', allBookings.map(b => b.id))
+  if ((attended || []).length > 0)
+    return NextResponse.json({ error: 'This swimmer has already checked in, so the lesson counts as delivered and cannot be cancelled. To compensate the family, issue a token from the Members page.' }, { status: 409 })
 
   const notified: { parent_id: string; student_id: string; kind: 'credit' | 'token' | 'none' }[] = []
 
