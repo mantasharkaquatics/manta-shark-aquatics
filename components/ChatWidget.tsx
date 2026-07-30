@@ -168,7 +168,8 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
         <div style={windowStyle}>
           {/* Header */}
           <div style={{ background: NAVY, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>🦈</div>
+            <img src="/logo.png" alt="Manta Shark Aquatics" width={36} height={36}
+              style={{ display: 'block', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: '#fff', fontSize: '15px' }}>Manta Shark Support</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>AI assistant · a team member follows up when needed</div>
