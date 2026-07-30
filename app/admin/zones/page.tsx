@@ -237,6 +237,32 @@ export default function ZonesEditorPage() {
     setMsg({ ok: true, text: `Override cleared — ${ovDate} follows the weekly template` })
   }
 
+  // Team practices are 90 minutes and do not align to the 35-minute lesson
+  // cadence, so they are never painted on the grid — they are managed here as
+  // explicit rows. save() already merges teamRows / ovTeamRows back into the
+  // payload, so editing these arrays is all that is needed.
+  const TEAM_MINUTES = 90
+  const [newTeamDow, setNewTeamDow] = useState(1)
+  const [newTeamStart, setNewTeamStart] = useState('16:00')
+  function addTeamBlock() {
+    if (!/^\d{2}:\d{2}$/.test(newTeamStart)) { setMsg({ ok: false, text: 'Start time must be HH:MM' }); return }
+    if (tiers.length === 0) { setMsg({ ok: false, text: 'No swim team tiers exist yet' }); return }
+    const end = idxSafeEnd(newTeamStart)
+    const row: any = { zone_type: 'team', start_time: newTeamStart, end_time: end, team_tier_id: brushTier || tiers[0].id }
+    if (mode === 'date') { setOvTeamRows(prev => [...prev, row]) }
+    else { setTeamRows(prev => [...prev, { ...row, weekday: newTeamDow }] as any) }
+    setDirty(true); setMsg(null)
+  }
+  function removeTeamBlock(i: number) {
+    if (mode === 'date') setOvTeamRows(prev => prev.filter((_, k) => k !== i))
+    else setTeamRows(prev => prev.filter((_, k) => k !== i))
+    setDirty(true)
+  }
+  function idxSafeEnd(start: string) {
+    const m = toMin(start) + TEAM_MINUTES
+    return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
+  }
+
   const tierName = (id?: string) => tiers.find(t => t.id === id)?.name || ''
   const tierColor = (id?: string) => { const i = tiers.findIndex(t => t.id === id); return TEAM_COLORS[i >= 0 ? i % TEAM_COLORS.length : 0] }
   const cellLabel = (c: Cell) => !c ? '' : c.t === 'team' ? tierName(c.tier) : c.t === 'group' ? (c.band ? 'L' + c.band.replace('-', '–') : 'Group') : 'Private'
@@ -293,6 +319,43 @@ export default function ZonesEditorPage() {
 
       {coachId && (mode === 'weekly' || ovDate) && (
         <>
+          <div style={{ border: '1px solid rgba(224,90,74,0.35)', background: 'rgba(224,90,74,0.06)', borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#e05a4a', marginBottom: 8 }}>
+              Swim team practices · 90 minutes each{mode === 'date' ? ' · this date only' : ' · weekly'}
+            </div>
+            {(mode === 'date' ? ovTeamRows : teamRows.slice().sort((a: any, b: any) => (a.weekday - b.weekday) || String(a.start_time).localeCompare(String(b.start_time)))).length === 0 ? (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>No practices set for this coach yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                {(mode === 'date' ? ovTeamRows : teamRows).map((z: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
+                    <span style={{ fontWeight: 700, minWidth: 90 }}>{mode === 'date' ? 'This date' : DAY_NAMES[z.weekday]}</span>
+                    <span>{String(z.start_time).slice(0, 5)} – {String(z.end_time).slice(0, 5)}</span>
+                    <span style={{ color: '#e05a4a', fontWeight: 700 }}>{tierName(z.team_tier_id) || 'Team'}</span>
+                    <button onClick={() => removeTeamBlock(i)}
+                      style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.5)', background: 'transparent', color: '#e05a4a' }}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {mode === 'weekly' && (
+                <select value={newTeamDow} onChange={e => setNewTeamDow(Number(e.target.value))}
+                  style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>
+                  {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                </select>
+              )}
+              <input type="time" value={newTeamStart} onChange={e => setNewTeamStart(e.target.value)}
+                style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 10px', fontSize: 12 }} />
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>→ {idxSafeEnd(newTeamStart)}</span>
+              <select value={brushTier} onChange={e => setBrushTier(e.target.value)}
+                style={{ background: '#1a2744', color: '#e05a4a', border: '1px solid rgba(224,90,74,0.4)', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700 }}>
+                {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              <button onClick={addTeamBlock}
+                style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.6)', background: 'rgba(224,90,74,0.15)', color: '#e05a4a' }}>+ Add practice</button>
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
             {(['private', 'group', 'team'] as const).map(b => (
               <button key={b} onClick={() => setBrush(b)}
