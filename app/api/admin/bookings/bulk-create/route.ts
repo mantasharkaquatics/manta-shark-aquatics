@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body?.action) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
-  const { action, coach_id, course_type_id, start_time, student_id, student2_id, payment_method } = body
+  const { action, coach_id, course_type_id, start_time, student_id, student2_id, payment_method, hour } = body
   if (!coach_id || !course_type_id || !start_time || !student_id) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -166,7 +167,13 @@ export async function POST(req: NextRequest) {
     if (!data) return NextResponse.json({ error: 'Student 2 not found' }, { status: 404 })
     student2 = data
   }
+  // A 60-minute lesson is 1-on-1 only and single-swimmer, matching the parent
+  // side. It costs two of everything: two half-sessions, two bookings sharing a
+  // lesson_group_id, two credits (or two tokens).
+  if (hour && (ct.slug !== '1on1' || student2))
+    return NextResponse.json({ error: '60-minute lessons are 1-on-1 with a single swimmer.' }, { status: 400 })
   const spotsNeeded = student2 ? 2 : 1
+  const twoFromParent1 = !!hour || (student2 ? student2.parent_id === student1.parent_id : false)
   const sameParent = student2 ? student2.parent_id === student1.parent_id : false
 
   if (action === 'preview') {
@@ -181,7 +188,7 @@ export async function POST(req: NextRequest) {
       coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
       startDate: start_date, count, spotsNeeded, skipDates: skip_dates || [],
     })
-    const needed1 = sameParent ? count * 2 : count
+    const needed1 = twoFromParent1 ? count * 2 : count
     const alloc1 = await allocateCredits(svc, student1.parent_id, course_type_id, needed1)
     let credits2Remaining: number | null = null
     let creditsOk = alloc1.ok
@@ -264,12 +271,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'A token covers one swimmer only. Use credits for a two-swimmer booking.' }, { status: 400 })
       if (!isWithinTokenWindow(dates[0], String(start_time).slice(0, 5)))
         return NextResponse.json({ error: 'Tokens can only be used for a lesson today or tomorrow.' }, { status: 400 })
+      const needTokens = hour ? 2 : 1
       const tp = await tokenPool(svc, student1.parent_id, ct.slug || '')
-      if (tp.reduce((n: number, x: any) => n + x.remaining, 0) < 1)
-        return NextResponse.json({ error: 'This family has no token available for this course type.' }, { status: 409 })
-      tokenAlloc = [tp[0].id]
+      if (tp.reduce((n: number, x: any) => n + x.remaining, 0) < needTokens)
+        return NextResponse.json({ error: `This family needs ${needTokens} token(s) for that booking and does not have enough.` }, { status: 409 })
+      for (let k = 0; k < needTokens; k++) { const x = tp.find((y: any) => y.remaining > 0)!; tokenAlloc.push(x.id); x.remaining-- }
     } else {
-      const needed1 = sameParent ? dates.length * 2 : dates.length
+      const needed1 = twoFromParent1 ? dates.length * 2 : dates.length
       const alloc1 = await allocateCredits(svc, student1.parent_id, course_type_id, needed1)
       if (!alloc1.ok) return NextResponse.json({ error: `Parent 1 has ${alloc1.totalRemaining} credits, needs ${needed1}` }, { status: 409 })
       let alloc2: string[] = []
@@ -279,12 +287,14 @@ export async function POST(req: NextRequest) {
         alloc2 = a2.allocation
       }
       // For same-parent 1on2, allocation covers both bookings interleaved
-      credit1PerDate = sameParent ? alloc1.allocation.filter((_, i) => i % 2 === 0) : alloc1.allocation
-      credit2PerDate = sameParent ? alloc1.allocation.filter((_, i) => i % 2 === 1) : alloc2
+      credit1PerDate = twoFromParent1 ? alloc1.allocation.filter((_, i) => i % 2 === 0) : alloc1.allocation
+      credit2PerDate = twoFromParent1 ? alloc1.allocation.filter((_, i) => i % 2 === 1) : alloc2
     }
 
     const endTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes)
+    const hourEndTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes * 2)
     const createdBookingIds: string[] = []
+    const createdSessionIds: string[] = []
     const incrementedCredits: string[] = []
 
     async function rollback() {
@@ -294,10 +304,65 @@ export async function POST(req: NextRequest) {
       if (createdBookingIds.length > 0) {
         await svc.from('bookings').delete().in('id', createdBookingIds)
       }
+      // Sessions we created ourselves go too, or a failed hour booking leaves an
+      // empty off-grid slot sitting in the calendar.
+      if (createdSessionIds.length > 0) {
+        await svc.from('class_sessions').delete().in('id', createdSessionIds)
+      }
     }
 
     for (let i = 0; i < dates.length; i++) {
       const date = dates[i]
+      if (hour) {
+        const groupId = randomUUID()
+        const legs = [
+          { start: start_time, end: endTime, credit: credit1PerDate[i], token: tokenAlloc[0] },
+          { start: endTime, end: hourEndTime, credit: credit2PerDate[i], token: tokenAlloc[1] },
+        ]
+        for (const leg of legs) {
+          const { data: exist } = await svc
+            .from('class_sessions')
+            .select('id, enrolled_count, max_students')
+            .eq('coach_id', coach_id).eq('session_date', date).eq('start_time', leg.start)
+            .eq('course_type_id', course_type_id).in('status', ['open', 'full'])
+            .maybeSingle()
+          let sid: string
+          if (exist) {
+            if (exist.enrolled_count + 1 > exist.max_students) {
+              await rollback()
+              return NextResponse.json({ error: `The ${leg.start} half on ${date} is already taken` }, { status: 409 })
+            }
+            sid = exist.id
+          } else {
+            const { data: ns, error: se } = await svc
+              .from('class_sessions')
+              .insert({ coach_id, course_type_id, session_date: date, start_time: leg.start, end_time: leg.end, max_students: ct.max_students, enrolled_count: 0, status: 'open' })
+              .select('id').single()
+            if (se || !ns) {
+              await rollback()
+              const conflict = se?.message?.includes('coach_timeslot_conflict')
+              return NextResponse.json({ error: conflict ? `The coach already has another class during the hour on ${date}` : `Failed to create session on ${date}: ${se?.message || 'unknown'}` }, { status: 409 })
+            }
+            sid = ns.id
+            createdSessionIds.push(ns.id)
+          }
+          const { data: bk, error: be } = await svc
+            .from('bookings')
+            .insert({ class_session_id: sid, parent_id: student1.parent_id, student_id: student1.id, lesson_credit_id: payWithToken ? null : leg.credit, token_package_id: payWithToken ? leg.token : null, status: 'confirmed', lesson_group_id: groupId })
+            .select('id').single()
+          if (be || !bk) {
+            await rollback()
+            const conflict = be?.message?.includes('coach_timeslot_conflict')
+            return NextResponse.json({ error: conflict ? `The coach already has another class during the hour on ${date}` : `Failed to book ${date}: ${be?.message || 'unknown'}` }, { status: conflict ? 409 : 500 })
+          }
+          createdBookingIds.push(bk.id)
+          if (!payWithToken) {
+            await svc.rpc('increment_used_credits', { credit_id: leg.credit })
+            incrementedCredits.push(leg.credit)
+          }
+        }
+        continue
+      }
       // find or create session
       const { data: existing } = await svc
         .from('class_sessions')
@@ -322,6 +387,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: `Failed to create session on ${date}: ${sessErr?.message || 'unknown'}` }, { status: 500 })
         }
         sessId = newSess.id
+        createdSessionIds.push(newSess.id)
       }
 
       const toCreate = [
@@ -357,7 +423,7 @@ export async function POST(req: NextRequest) {
     try {
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', coach_id).single()
       const coachName = coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : ''
-      const timeStr = `${formatTime12h(start_time)} \u2013 ${formatTime12h(endTime)}`
+      const timeStr = `${formatTime12h(start_time)} \u2013 ${formatTime12h(hour ? hourEndTime : endTime)}`
       const targets: { parent_id: string; studentName: string; partnerName?: string }[] = sameParent || !student2
         ? [{ parent_id: student1.parent_id, studentName: student2 ? `${student1.full_name} & ${student2.full_name}` : student1.full_name }]
         : [
@@ -370,13 +436,13 @@ export async function POST(req: NextRequest) {
         if (dates.length === 1) {
           await sendEmail({
             type: 'booking_confirmed', to: p.email, parentName: p.first_name,
-            studentName: t.studentName, partnerName: t.partnerName, courseName: ct.name, coachName,
+            studentName: t.studentName, partnerName: t.partnerName, courseName: hour ? `${ct.name} (60 min)` : ct.name, coachName,
             date: dates[0], time: timeStr,
           })
         } else {
           await sendEmail({
             type: 'booking_series_confirmed', to: p.email, parentName: p.first_name,
-            studentName: t.studentName, partnerName: t.partnerName, courseName: ct.name, coachName,
+            studentName: t.studentName, partnerName: t.partnerName, courseName: hour ? `${ct.name} (60 min)` : ct.name, coachName,
             dates, time: timeStr,
           })
         }
