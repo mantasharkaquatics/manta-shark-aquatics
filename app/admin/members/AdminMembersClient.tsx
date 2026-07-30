@@ -42,6 +42,7 @@ type Parent = {
 }
 
 type Booking = {
+  lesson_group_id?: string | null
   id: string
   session_date: string
   start_time: string
@@ -426,7 +427,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     const today = getTodayLA()
     const { data: rawBookings } = await supabase
       .from('bookings')
-      .select('id, status, student_id, class_session_id')
+      .select('id, status, student_id, class_session_id, lesson_group_id')
       .eq('student_id', studentId)
       .neq('status', 'cancelled')
     if (!rawBookings || rawBookings.length === 0) {
@@ -448,7 +449,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       .map((b: any) => {
         const cs = sessionMap[b.class_session_id]
         if (!cs) return null
-        return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status, student_id: b.student_id, class_session_id: b.class_session_id }
+        return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status, student_id: b.student_id, class_session_id: b.class_session_id, lesson_group_id: b.lesson_group_id }
       })
       .filter(Boolean) as Booking[]
     const nowMin = getNowMinutesLA()
@@ -502,7 +503,10 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         ...prev,
         [studentId]: {
           ...sb,
-          past: sb.past.map(b => b.id === booking.id ? { ...b, checked_in: checkedIn } : b),
+          // A 60-minute lesson is two linked bookings and the server toggles BOTH.
+          // Mirror that locally, or the sibling row keeps its old state until a
+          // reload and the operator thinks the cascade failed.
+          past: sb.past.map(b => (b.id === booking.id || (booking.lesson_group_id && b.lesson_group_id === booking.lesson_group_id)) ? { ...b, checked_in: checkedIn } : b),
         },
       }
     })
