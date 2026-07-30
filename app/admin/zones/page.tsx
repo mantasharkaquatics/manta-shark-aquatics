@@ -405,10 +405,21 @@ export default function ZonesEditorPage() {
                 {visDays.map(d => {
                   const c = grid[d][i]
                   const th = teamAt(d, i)
-                  if (th) return (
-                    <div key={`c${d}-${i}`} title={`${tierName(th.tier)} practice · not bookable for lessons`}
-                      style={{ height: 20, borderRadius: 3, cursor: 'not-allowed', background: `${tierColor(th.tier)}55`, border: `1px dashed ${tierColor(th.tier)}aa`, overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '18px', color: 'rgba(255,255,255,0.75)' }}>Team</div>
-                  )
+                  if (th) {
+                    // Draw the practice by its REAL minutes. Tinting the whole row
+                    // made a 16:00 start look like 15:35, because 15:35 is where the
+                    // row it lands in begins.
+                    const ss = toMin(DAY_SLOTS[i].start), se = toMin(DAY_SLOTS[i].end)
+                    const pctA = ((Math.max(th.s, ss) - ss) / (se - ss)) * 100
+                    const pctB = ((Math.min(th.e, se) - ss) / (se - ss)) * 100
+                    const col = tierColor(th.tier)
+                    const hhmm = (m: number) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
+                    const startsHere = th.s >= ss && th.s < se
+                    return (
+                      <div key={`c${d}-${i}`} title={`${tierName(th.tier)} practice ${hhmm(th.s)}–${hhmm(th.e)} · not bookable for lessons`}
+                        style={{ height: 20, borderRadius: 3, cursor: 'not-allowed', background: `linear-gradient(to bottom, transparent 0 ${pctA}%, ${col}55 ${pctA}% ${pctB}%, transparent ${pctB}% 100%)`, border: `1px dashed ${col}66`, overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: 'rgba(255,255,255,0.8)' }}>{startsHere ? hhmm(th.s) : ''}</div>
+                    )
+                  }
                   return (
                     <div key={`c${d}-${i}`}
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
@@ -418,9 +429,15 @@ export default function ZonesEditorPage() {
                   )
                 })}
                 {gap > 0 && <div key={`bt${i}`} style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', textAlign: 'right', paddingRight: 6, lineHeight: `${gapH}px` }}>{gap >= 10 ? `${gap}m` : ''}</div>}
-                {gap > 0 && visDays.map(d => (
-                  <div key={`b${d}-${i}`} title={`${gap}-minute turnover`} style={{ height: gapH, borderRadius: 2, background: gap >= 10 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.035)' }} />
-                ))}
+                {gap > 0 && visDays.map(d => {
+                  // A turnover strip that sits INSIDE a practice gets tinted too,
+                  // or the block reads as several separate pieces.
+                  const gs = toMin(DAY_SLOTS[i].end), ge = toMin(DAY_SLOTS[i + 1].start)
+                  const tiv = teamIvs(d).find(iv => gs < iv.e && ge > iv.s)
+                  return (
+                    <div key={`b${d}-${i}`} title={tiv ? 'team practice' : `${gap}-minute turnover`} style={{ height: gapH, borderRadius: 2, background: tiv ? `${tierColor(tiv.tier)}55` : gap >= 10 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.035)' }} />
+                  )
+                })}
               </>
               )
             })}
