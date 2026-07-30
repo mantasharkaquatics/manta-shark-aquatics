@@ -2,7 +2,7 @@
 
 import { zoneFill } from '@/lib/zone-colors'
 
-import { formatTime12h, daySlots } from '@/lib/date'
+import { formatTime12h, daySlots, getTodayLA } from '@/lib/date'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -357,6 +357,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [parentCreditsCache, setParentCreditsCache] = useState<Record<string, number>>({})
   const [bookMode, setBookMode] = useState<'single' | 'recurring'>('single')
   const [recurCount, setRecurCount] = useState(10)
+  // Admin picks how a single-day booking is paid. Tokens are same-day/next-day
+  // only and cover one swimmer, so the choice is offered only when it applies;
+  // the server re-checks all of it and credits stay the default everywhere else.
+  const [payMethod, setPayMethod] = useState<'credit' | 'token'>('credit')
   const [recurSkips, setRecurSkips] = useState<string[]>([])
   const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; credits: any } | null>(null)
   const [recurLoading, setRecurLoading] = useState(false)
@@ -726,6 +730,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           student2_id: is1on2 && formStudent2 ? formStudent2 : undefined,
           start_time: selectedSlot.time,
           dates: [selectedSlot.date],
+          payment_method: (() => {
+            if (payMethod !== 'token' || is1on2) return 'credit'
+            const t0 = getTodayLA()
+            const d = new Date(t0 + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)
+            return (selectedSlot.date === t0 || selectedSlot.date === d.toISOString().slice(0, 10)) ? 'token' : 'credit'
+          })(),
         }),
       })
       const data = await res.json()
@@ -1102,6 +1112,23 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   {(() => { const st = students.find(s => s.id === formStudent); return st && st.current_level == null && !isTrial ? (
                     <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">⚠️ This student has not completed the Swim Assessment (no level assigned). Admins may still book directly, but please confirm you want to schedule this lesson without an assessment.</p>
                   ) : null })()}
+                  {!isTrial && bookMode !== 'recurring' && courseTypes.find(c => c.id === formCourse)?.slug !== '1on2' && formStudent && selectedSlot && (() => {
+                    const t0 = getTodayLA()
+                    const d = new Date(t0 + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)
+                    if (selectedSlot.date !== t0 && selectedSlot.date !== d.toISOString().slice(0, 10)) return null
+                    return (
+                      <div className="flex items-center flex-wrap gap-2 text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                        <span className="text-white/50">Pay with</span>
+                        {(['credit', 'token'] as const).map(m => (
+                          <button key={m} type="button" onClick={() => setPayMethod(m)}
+                            className={`px-3 py-1 rounded-full border text-[11px] font-semibold transition-colors ${payMethod === m ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-white/20 text-white/50 hover:text-white/80'}`}>
+                            {m === 'credit' ? 'Credit' : 'Token'}
+                          </button>
+                        ))}
+                        <span className="text-white/30">Tokens are valid today or tomorrow only, one swimmer per token</span>
+                      </div>
+                    )
+                  })()}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
                 </>
