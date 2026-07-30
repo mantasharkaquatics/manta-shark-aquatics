@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
+import { isWithinTokenWindow, tokenSlugsForTarget } from '@/lib/tokens'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -114,6 +115,23 @@ async function allocateCredits(svc: any, parentId: string, courseTypeId: string,
   return { ok: true as const, totalRemaining, allocation }
 }
 
+// Tokens spendable on this course type, earliest-expiring first. Mirrors the
+// parent-side pool: pickTokenPackage cannot be reused because it re-picks the
+// same package, and we need the whole pool to count what is available.
+async function tokenPool(svc: any, parentId: string, targetSlug: string): Promise<{ id: string; remaining: number }[]> {
+  const slugs = tokenSlugsForTarget(targetSlug)
+  if (slugs.length === 0) return []
+  const { data: ctRows } = await svc.from('course_types').select('id, slug').in('slug', slugs)
+  const ctIds = (ctRows ?? []).map((r: any) => r.id)
+  if (ctIds.length === 0) return []
+  const { data: packs } = await svc.from('token_packages')
+    .select('id, total_tokens, used_tokens, expires_at')
+    .eq('parent_id', parentId).in('course_type_id', ctIds)
+    .gt('expires_at', new Date().toISOString())
+    .order('expires_at', { ascending: true })
+  return (packs ?? []).map((x: any) => ({ id: x.id, remaining: x.total_tokens - x.used_tokens })).filter((x: any) => x.remaining > 0)
+}
+
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -122,7 +140,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body?.action) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
-  const { action, coach_id, course_type_id, start_time, student_id, student2_id } = body
+  const { action, coach_id, course_type_id, start_time, student_id, student2_id, payment_method } = body
   if (!coach_id || !course_type_id || !start_time || !student_id) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -178,8 +196,14 @@ export async function POST(req: NextRequest) {
       const r = (pRows || []).find(x => x.id === pid)
       return r ? `${r.first_name} ${r.last_name || ''}`.trim() : ''
     }
+    const tp = await tokenPool(svc, student1.parent_id, ct.slug || '')
+    const tokensRemaining = tp.reduce((n: number, x: any) => n + x.remaining, 0)
     return NextResponse.json({
       candidates,
+      tokens: {
+        remaining: tokensRemaining,
+        eligible: !student2 && count === 1 && isWithinTokenWindow(start_date, String(start_time).slice(0, 5)),
+      },
       credits: {
         parent1_name: nameOf(student1.parent_id), parent1_remaining: alloc1.totalRemaining, parent1_needed: needed1,
         parent2_name: student2 && !sameParent ? nameOf(student2.parent_id) : null,
@@ -224,18 +248,40 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const needed1 = sameParent ? dates.length * 2 : dates.length
-    const alloc1 = await allocateCredits(svc, student1.parent_id, course_type_id, needed1)
-    if (!alloc1.ok) return NextResponse.json({ error: `Parent 1 has ${alloc1.totalRemaining} credits, needs ${needed1}` }, { status: 409 })
-    let alloc2: string[] = []
-    if (student2 && !sameParent) {
-      const a2 = await allocateCredits(svc, student2.parent_id, course_type_id, dates.length)
-      if (!a2.ok) return NextResponse.json({ error: `Parent 2 has ${a2.totalRemaining} credits, needs ${dates.length}` }, { status: 409 })
-      alloc2 = a2.allocation
+    // Payment method is the operator's explicit choice; credits stay the default
+    // so every existing caller behaves exactly as before. Tokens are same-day /
+    // next-day only and weekly dates sit seven days apart, so at most one date in
+    // a series could ever qualify — a token booking is therefore single-date and
+    // single-swimmer by construction, matching the parent-side rule.
+    const payWithToken = payment_method === 'token'
+    let tokenAlloc: string[] = []
+    let credit1PerDate: string[] = []
+    let credit2PerDate: string[] = []
+    if (payWithToken) {
+      if (dates.length !== 1)
+        return NextResponse.json({ error: 'Tokens are valid today or tomorrow only, so they cannot pay for a recurring series — book a single date.' }, { status: 400 })
+      if (student2)
+        return NextResponse.json({ error: 'A token covers one swimmer only. Use credits for a two-swimmer booking.' }, { status: 400 })
+      if (!isWithinTokenWindow(dates[0], String(start_time).slice(0, 5)))
+        return NextResponse.json({ error: 'Tokens can only be used for a lesson today or tomorrow.' }, { status: 400 })
+      const tp = await tokenPool(svc, student1.parent_id, ct.slug || '')
+      if (tp.reduce((n: number, x: any) => n + x.remaining, 0) < 1)
+        return NextResponse.json({ error: 'This family has no token available for this course type.' }, { status: 409 })
+      tokenAlloc = [tp[0].id]
+    } else {
+      const needed1 = sameParent ? dates.length * 2 : dates.length
+      const alloc1 = await allocateCredits(svc, student1.parent_id, course_type_id, needed1)
+      if (!alloc1.ok) return NextResponse.json({ error: `Parent 1 has ${alloc1.totalRemaining} credits, needs ${needed1}` }, { status: 409 })
+      let alloc2: string[] = []
+      if (student2 && !sameParent) {
+        const a2 = await allocateCredits(svc, student2.parent_id, course_type_id, dates.length)
+        if (!a2.ok) return NextResponse.json({ error: `Parent 2 has ${a2.totalRemaining} credits, needs ${dates.length}` }, { status: 409 })
+        alloc2 = a2.allocation
+      }
+      // For same-parent 1on2, allocation covers both bookings interleaved
+      credit1PerDate = sameParent ? alloc1.allocation.filter((_, i) => i % 2 === 0) : alloc1.allocation
+      credit2PerDate = sameParent ? alloc1.allocation.filter((_, i) => i % 2 === 1) : alloc2
     }
-    // For same-parent 1on2, allocation covers both bookings interleaved
-    const credit1PerDate = sameParent ? alloc1.allocation.filter((_, i) => i % 2 === 0) : alloc1.allocation
-    const credit2PerDate = sameParent ? alloc1.allocation.filter((_, i) => i % 2 === 1) : alloc2
 
     const endTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes)
     const createdBookingIds: string[] = []
@@ -285,7 +331,7 @@ export async function POST(req: NextRequest) {
       for (const b of toCreate) {
         const { data: created, error: bookErr } = await svc
           .from('bookings')
-          .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id, lesson_credit_id: b.credit_id, status: 'confirmed' })
+          .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id, lesson_credit_id: payWithToken ? null : b.credit_id, token_package_id: payWithToken ? tokenAlloc[0] : null, status: 'confirmed' })
           .select('id').single()
         if (bookErr || !created) {
           await rollback()
@@ -296,10 +342,16 @@ export async function POST(req: NextRequest) {
           )
         }
         createdBookingIds.push(created.id)
-        await svc.rpc('increment_used_credits', { credit_id: b.credit_id })
-        incrementedCredits.push(b.credit_id)
+        if (!payWithToken) {
+          await svc.rpc('increment_used_credits', { credit_id: b.credit_id })
+          incrementedCredits.push(b.credit_id)
+        }
       }
     }
+
+    // Tokens are spent only after every booking exists: there is no
+    // decrement_used_tokens RPC, so rollback() could never hand one back.
+    for (const tid of tokenAlloc) await svc.rpc('increment_used_tokens', { token_id: tid })
 
     // One summary email per parent (best effort)
     try {
