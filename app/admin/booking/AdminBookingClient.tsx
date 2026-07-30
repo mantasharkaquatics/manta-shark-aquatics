@@ -1515,13 +1515,29 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
               const hourSpanPx = (session && gStart && gEnd && String(gStart).slice(0, 5) === String(session.start_time).slice(0, 5))
                 ? spanHeightPx(ri, timeToMinutes(String(gEnd).slice(0, 5)))
                 : undefined
+              // A 90-minute team practice does not align to the 35-minute grid, so it
+              // is one block drawn from its real start to its real end — never a set
+              // of separately clickable rows.
+              const slotS = timeToMinutes(time)
+              const slotE = timeToMinutes(DAY_SLOTS[ri].end)
+              const rowEndMin = timeToMinutes(ROW_END[time] || time)
+              const teamIv = (zoneMap[coach.id] || []).find((tz: any) => tz.zone_type === 'team'
+                && slotS < timeToMinutes(String(tz.end_time).slice(0, 5))
+                && rowEndMin > timeToMinutes(String(tz.start_time).slice(0, 5)))
+              const teamStartMin = teamIv ? timeToMinutes(String(teamIv.start_time).slice(0, 5)) : 0
+              const teamStartsHere = !!teamIv && teamStartMin >= slotS && teamStartMin < rowEndMin
+              const teamTop = teamStartsHere ? Math.min(GRID_ROW_PX, Math.max(0, ((teamStartMin - slotS) / Math.max(1, slotE - slotS)) * GRID_ROW_PX)) : 0
+              const teamH = teamStartsHere && teamIv ? spanHeightPx(ri, timeToMinutes(String(teamIv.end_time).slice(0, 5))) - teamTop : 0
+              const teamColor = teamIv ? (zoneFill(teamIv, tierOrder) || '#e05a4a') : '#e05a4a'
               return (
                 <div key={`${coach.id}-${time}`} className="min-h-20 border-t border-l border-white/5 relative">
                   {(() => {
                     const zr = zoneMap[coach.id]
                     if (!zr) return null
                     const m = timeToMinutes(time)
-                    const z = zr.find((z: any) => timeToMinutes(String(z.start_time).slice(0, 5)) <= m && m < timeToMinutes(String(z.end_time).slice(0, 5)))
+                    // Team practices are drawn below as ONE real-minute block; tinting
+                    // their rows here would bring back the whole-row look.
+                    const z = zr.find((z: any) => z.zone_type !== 'team' && timeToMinutes(String(z.start_time).slice(0, 5)) <= m && m < timeToMinutes(String(z.end_time).slice(0, 5)))
                     const fill = z ? zoneFill(z, tierOrder) : null
                     if (!fill) return null
                     const zoneLabel = z.zone_type === 'team'
@@ -1536,13 +1552,23 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                       </>
                     )
                   })()}
+                  {teamStartsHere && teamIv && (
+                    <button onClick={() => onSlotClick(ds, String(teamIv.start_time).slice(0, 5), coach.id)}
+                      title={`${tierNames[teamIv.team_tier_id] || 'Team'} practice ${String(teamIv.start_time).slice(0, 5)}–${String(teamIv.end_time).slice(0, 5)}`}
+                      className="absolute left-0.5 right-0.5 z-[3] rounded text-left"
+                      style={{ top: teamTop, height: Math.max(0, teamH - 2), backgroundColor: teamColor + '3d', border: `1px dashed ${teamColor}aa` }}>
+                      <span className="block text-[10px] font-bold px-1.5 pt-0.5" style={{ color: teamColor }}>
+                        {tierNames[teamIv.team_tier_id] || 'Team'} · {formatTime(String(teamIv.start_time).slice(0, 5))}
+                      </span>
+                    </button>
+                  )}
                   {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} spanPx={hourSpanPx} />
                   ) : covered ? (
                     <button onClick={() => onSessionClick(covered)}
                       title="Part of a 60-minute lesson"
                       className="absolute inset-0 cursor-pointer" />
-                  ) : available ? (
+                  ) : teamIv ? null : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id)}
                       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverKey(`${coach.id}-${time}`) }}
                       onDragLeave={() => setOverKey(k => (k === `${coach.id}-${time}` ? null : k))}
