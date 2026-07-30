@@ -361,6 +361,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   // only and cover one swimmer, so the choice is offered only when it applies;
   // the server re-checks all of it and credits stay the default everywhere else.
   const [payMethod, setPayMethod] = useState<'credit' | 'token'>('credit')
+  // 60-minute lessons: 1-on-1 only, one swimmer, two credits or two tokens.
+  // Recurring hour lessons need preview and commit changed together, so the
+  // toggle stays out of recurring mode until that lands.
+  const [hourMode, setHourMode] = useState(false)
   const [recurSkips, setRecurSkips] = useState<string[]>([])
   const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; credits: any } | null>(null)
   const [recurLoading, setRecurLoading] = useState(false)
@@ -730,6 +734,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           student2_id: is1on2 && formStudent2 ? formStudent2 : undefined,
           start_time: selectedSlot.time,
           dates: [selectedSlot.date],
+          hour: hourMode && !is1on2,
           payment_method: (() => {
             if (payMethod !== 'token' || is1on2) return 'credit'
             const t0 = getTodayLA()
@@ -1037,6 +1042,18 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       ))}
                     </div>
                   </div>
+                  {!isTrial && bookMode !== 'recurring' && courseTypes.find(c => c.id === formCourse)?.slug === '1on1' && (
+                    <div className="flex items-center flex-wrap gap-2 text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                      <span className="text-white/50">Lesson length</span>
+                      {([30, 60] as const).map(v => (
+                        <button key={v} type="button" onClick={() => setHourMode(v === 60)}
+                          className={`px-3 py-1 rounded-full border text-[11px] font-semibold transition-colors ${(v === 60) === hourMode ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-white/20 text-white/50 hover:text-white/80'}`}>
+                          {v} min
+                        </button>
+                      ))}
+                      <span className="text-white/30">One continuous hour · costs 2 credits or 2 tokens</span>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm text-white/60 mb-2">Select student</label>
                     <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentCreditsCache={parentCreditsCache} />
