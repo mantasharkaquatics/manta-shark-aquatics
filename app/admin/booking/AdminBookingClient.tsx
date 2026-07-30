@@ -362,8 +362,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   // the server re-checks all of it and credits stay the default everywhere else.
   const [payMethod, setPayMethod] = useState<'credit' | 'token'>('credit')
   // 60-minute lessons: 1-on-1 only, one swimmer, two credits or two tokens.
-  // Recurring hour lessons need preview and commit changed together, so the
-  // toggle stays out of recurring mode until that lands.
+  // Recurring hour lessons are allowed: preview and commit both send the flag,
+  // so the credit estimate and the actual deduction can never disagree.
   const [hourMode, setHourMode] = useState(false)
   const [recurSkips, setRecurSkips] = useState<string[]>([])
   const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; credits: any } | null>(null)
@@ -497,6 +497,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'preview',
+          hour: hourMode && courseTypes.find(c => c.id === formCourse)?.slug === '1on1',
           coach_id: selectedSlot.coachId,
           course_type_id: formCourse,
           student_id: formStudent,
@@ -531,6 +532,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           student2_id: courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && formStudent2 ? formStudent2 : undefined,
           start_time: selectedSlot.time,
           dates: okDates,
+          hour: hourMode && courseTypes.find(c => c.id === formCourse)?.slug === '1on1',
         }),
       })
       const data = await res.json()
@@ -1042,7 +1044,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       ))}
                     </div>
                   </div>
-                  {!isTrial && bookMode !== 'recurring' && courseTypes.find(c => c.id === formCourse)?.slug === '1on1' && (
+                  {!isTrial && courseTypes.find(c => c.id === formCourse)?.slug === '1on1' && (
                     <div className="flex items-center flex-wrap gap-2 text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2">
                       <span className="text-white/50">Lesson length</span>
                       {([30, 60] as const).map(v => (
