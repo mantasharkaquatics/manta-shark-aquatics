@@ -1542,7 +1542,13 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                     const m = timeToMinutes(time)
                     // Team practices are drawn below as ONE real-minute block; tinting
                     // their rows here would bring back the whole-row look.
-                    const z = zr.find((z: any) => z.zone_type !== 'team' && timeToMinutes(String(z.start_time).slice(0, 5)) <= m && m < timeToMinutes(String(z.end_time).slice(0, 5)))
+                    // Interval overlap, not "row start inside zone": a zone that ends
+                    // partway through a row must not colour the rest of it, or it
+                    // visually collides with whatever really owns those minutes.
+                    const cs = timeToMinutes(DAY_SLOTS[ri].start), ce = timeToMinutes(DAY_SLOTS[ri].end)
+                    const z = zr.find((z: any) => z.zone_type !== 'team'
+                      && timeToMinutes(String(z.start_time).slice(0, 5)) < ce
+                      && timeToMinutes(String(z.end_time).slice(0, 5)) > cs)
                     const fill = z ? zoneFill(z, tierOrder) : null
                     if (!fill) return null
                     const zoneLabel = z.zone_type === 'team'
@@ -1550,7 +1556,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                       : (z.group_level_min != null ? `L${z.group_level_min}\u2013${z.group_level_max} Group` : 'Group')
                     return (
                       <>
-                        <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: fill + '2b' }} />
+                        <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0 ${((Math.max(timeToMinutes(String(z.start_time).slice(0, 5)), cs) - cs) / Math.max(1, ce - cs)) * 100}%, ${fill}2b ${((Math.max(timeToMinutes(String(z.start_time).slice(0, 5)), cs) - cs) / Math.max(1, ce - cs)) * 100}% ${((Math.min(timeToMinutes(String(z.end_time).slice(0, 5)), ce) - cs) / Math.max(1, ce - cs)) * 100}%, transparent ${((Math.min(timeToMinutes(String(z.end_time).slice(0, 5)), ce) - cs) / Math.max(1, ce - cs)) * 100}% 100%)` }} />
                         {zoneLabel && (
                           <div className="absolute top-0.5 left-1.5 pointer-events-none z-[1] text-[10px] font-bold tracking-wide" style={{ color: fill }}>{zoneLabel}</div>
                         )}
