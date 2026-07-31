@@ -765,12 +765,12 @@ export default function DashboardPage() {
       }
     }
 
-    setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) })).sort((a, b) => a.session_date.localeCompare(b.session_date)))
+    setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
 
     const allPastWithCheckin = allPast.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     // No display cap: the history list already paginates at 10 per page, and the
     // Month view reads this same array — capping it made older months lose lessons.
-    setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date)))
+    setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date) || (b.start_time || '').localeCompare(a.start_time || '')))
     // Fetch each student's latest approved progress_history
     const studentIdList = (studs || []).map((s: any) => s.id)
     if (studentIdList.length > 0) {
