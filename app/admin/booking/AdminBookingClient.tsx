@@ -1558,14 +1558,14 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                     )
                   })()}
                   {teamStartsHere && teamIv && (
-                    <button onClick={() => onSlotClick(ds, String(teamIv.start_time).slice(0, 5), coach.id, 'team')}
+                    <div
                       title={`${tierNames[teamIv.team_tier_id] || 'Team'} practice ${String(teamIv.start_time).slice(0, 5)}–${String(teamIv.end_time).slice(0, 5)}`}
                       className="absolute left-0.5 right-0.5 z-[3] rounded text-left flex flex-col items-start justify-start"
                       style={{ top: teamTop, height: Math.max(0, teamH - 2), backgroundColor: teamColor + '3d', border: `1px dashed ${teamColor}aa` }}>
                       <span className="block text-[10px] font-bold px-1.5 pt-0.5" style={{ color: teamColor }}>
                         {tierNames[teamIv.team_tier_id] || 'Team'} · {formatTime(String(teamIv.start_time).slice(0, 5))}
                       </span>
-                    </button>
+                    </div>
                   )}
                   {session && session.enrolled_count > 0 ? (
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} spanPx={hourSpanPx} />
