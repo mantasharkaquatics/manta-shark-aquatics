@@ -286,7 +286,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                 <tr key={r.id} className="border-t border-white/5">
                   <td className="px-6 py-3 text-white">{r.student_name}{r.detail && <div className="text-[#c9a84c] text-xs mt-0.5">{r.detail}</div>}</td>
                   <td className="px-6 py-3 text-white/60">{r.parent_name}</td>
-                  <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr_code' ? 'QR' : 'Manual'}</td>
+                  <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr' ? 'QR' : 'Manual'}</td>
                   <td className="px-6 py-3 text-white/60">{formatDateTime(r.checked_in_at)}</td>
                 </tr>
               ))}

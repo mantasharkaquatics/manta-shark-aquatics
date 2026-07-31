@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
           team_tier_id: membership.team_tier_id,
           practice_date: todayStr,
           start_time: startHH,
-          check_in_method: check_in_method || 'manual',
+          check_in_method: check_in_method === 'qr_code' ? 'qr' : 'manual',
         }, { onConflict: 'student_id,practice_date,start_time' })
         if (taErr) return NextResponse.json({ error: taErr.message }, { status: 500 })
         return NextResponse.json({
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
     booking_id: b.id,
     student_id: student.id,
     class_session_id: b.class_session_id,
-    check_in_method: check_in_method === 'qr_code' ? 'qr_code' : 'manual',
+    check_in_method: check_in_method === 'qr_code' ? 'qr' : 'manual',
     checked_in_by: null,
     checked_in_at: nowIso,
     is_chained: b.id !== anchorId,
