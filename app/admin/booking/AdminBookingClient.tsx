@@ -361,6 +361,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   // only and cover one swimmer, so the choice is offered only when it applies;
   // the server re-checks all of it and credits stay the default everywhere else.
   const [payMethod, setPayMethod] = useState<'credit' | 'token'>('credit')
+  // Clicking a zone constrains what can be booked there: a 1-on-4 zone only
+  // takes 1-on-4, a team block only Swim Team. Private stays free by owner's
+  // choice — that zone serves both 1-on-1 and 1-on-2 anyway.
+  const [lockedSlug, setLockedSlug] = useState<string | null>(null)
   // 60-minute lessons: 1-on-1 only, one swimmer, two credits or two tokens.
   // Recurring hour lessons are allowed: preview and commit both send the flag,
   // so the credit estimate and the actual deduction can never disagree.
@@ -682,11 +686,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       .catch(() => setTrialCreditStatus('none'))
   }, [isTrial, formStudent]) // eslint-disable-line
 
-  function openBookModal(date: string, time: string, coachId: string) {
+  function openBookModal(date: string, time: string, coachId: string, lockSlug?: string) {
     setSelectedSlot({ date, time, coachId })
+    setLockedSlug(lockSlug || null)
     setFormStudent('')
     setFormStudent2('')
-    setFormCourse(courseTypes[0]?.id || '')
+    setFormCourse((lockSlug ? courseTypes.find(c => c.slug === lockSlug)?.id : undefined) || courseTypes[0]?.id || '')
     setIsTrial(false)
     setTrialUrl('')
     setError('')
@@ -1048,13 +1053,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     <div className="grid grid-cols-2 gap-2">
                       {courseTypes.map(ct => (
                         <button key={ct.id}
-                          onClick={() => { if (!isTrial) setFormCourse(ct.id) }}
-                          disabled={isTrial && ct.slug !== '1on1'}
+                          onClick={() => { if (!isTrial && !(lockedSlug && ct.slug !== lockedSlug)) setFormCourse(ct.id) }}
+                          disabled={(isTrial && ct.slug !== '1on1') || (!!lockedSlug && ct.slug !== lockedSlug)}
                           className={`px-3 py-2.5 rounded-lg border text-sm text-left transition-all ${
                             formCourse === ct.id
                               ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]'
                               : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
-                          } ${isTrial && ct.slug !== '1on1' ? 'opacity-30 cursor-not-allowed' : ''}`}>
+                          } ${(isTrial && ct.slug !== '1on1') || (lockedSlug && ct.slug !== lockedSlug) ? 'opacity-30 cursor-not-allowed' : ''}`}>
                           <span className="block font-medium">{ct.name}</span>
                           <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} min · up to {ct.max_students} students</span>
                         </button>
@@ -1458,7 +1463,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
   getSessionAt: (date: string, time: string, coachId: string) => Session | null
   getSessionCovering: (date: string, time: string, coachId: string) => Session | null
   isCoachAvailable: (id: string, date: Date, time: string) => boolean
-  onSlotClick: (date: string, time: string, coachId: string) => void
+  onSlotClick: (date: string, time: string, coachId: string, lockSlug?: string) => void
   onSessionClick: (s: Session) => void
   onBookingDrop: (payload: any, date: string, time: string, coachId: string) => void
   crossAccountSessionIds: Set<string>
@@ -1553,9 +1558,9 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                     )
                   })()}
                   {teamStartsHere && teamIv && (
-                    <button onClick={() => onSlotClick(ds, String(teamIv.start_time).slice(0, 5), coach.id)}
+                    <button onClick={() => onSlotClick(ds, String(teamIv.start_time).slice(0, 5), coach.id, 'team')}
                       title={`${tierNames[teamIv.team_tier_id] || 'Team'} practice ${String(teamIv.start_time).slice(0, 5)}–${String(teamIv.end_time).slice(0, 5)}`}
-                      className="absolute left-0.5 right-0.5 z-[3] rounded text-left"
+                      className="absolute left-0.5 right-0.5 z-[3] rounded text-left flex flex-col items-start justify-start"
                       style={{ top: teamTop, height: Math.max(0, teamH - 2), backgroundColor: teamColor + '3d', border: `1px dashed ${teamColor}aa` }}>
                       <span className="block text-[10px] font-bold px-1.5 pt-0.5" style={{ color: teamColor }}>
                         {tierNames[teamIv.team_tier_id] || 'Team'} · {formatTime(String(teamIv.start_time).slice(0, 5))}
@@ -1569,7 +1574,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                       title="Part of a 60-minute lesson"
                       className="absolute inset-0 cursor-pointer" />
                   ) : teamIv ? null : available ? (
-                    <button onClick={() => onSlotClick(ds, time, coach.id)}
+                    <button onClick={() => onSlotClick(ds, time, coach.id, (zoneMap[coach.id] || []).find((zz: any) => zz.zone_type === 'group' && timeToMinutes(String(zz.start_time).slice(0, 5)) <= timeToMinutes(time) && timeToMinutes(time) < timeToMinutes(String(zz.end_time).slice(0, 5))) ? '1on4' : undefined)}
                       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverKey(`${coach.id}-${time}`) }}
                       onDragLeave={() => setOverKey(k => (k === `${coach.id}-${time}` ? null : k))}
                       onDrop={e => {
