@@ -357,18 +357,12 @@ export default function ZonesEditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-            {(['private', 'group', 'team'] as const).map(b => (
+            {(['private', 'group'] as const).map(b => (
               <button key={b} onClick={() => setBrush(b)}
                 style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', border: brush === b ? `2px solid ${COLORS[b]}` : '1px solid rgba(255,255,255,0.15)', background: brush === b ? `${COLORS[b]}22` : 'transparent', color: COLORS[b] }}>
                 {b === 'private' ? 'Private (1-on-1 / 1-on-2)' : b === 'group' ? 'Group (1-on-4)' : 'Team'}
               </button>
             ))}
-            {brush === 'team' && (
-              <select value={brushTier} onChange={e => setBrushTier(e.target.value)}
-                style={{ background: '#1a2744', color: '#e05a4a', border: '1px solid rgba(224,90,74,0.4)', borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: 700 }}>
-                {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            )}
             {brush === 'group' && (
               <select value={brushBand} onChange={e => setBrushBand(e.target.value)}
                 style={{ background: '#1a2744', color: '#4caf72', border: '1px solid rgba(76,175,114,0.4)', borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: 700 }}>
