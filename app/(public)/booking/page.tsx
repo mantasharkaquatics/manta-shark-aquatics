@@ -355,8 +355,8 @@ export default function BookingPage() {
     const dateStr = formatDateLA(selectedDate)
 
     // Server API bypasses RLS: booked slots, coach blocks, and availability zones in one call
-    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}`)
-    const { times: bookedTimes, blocked: coachBlocked, zones } = await bookedRes.json()
+    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}&student_id=${selectedStudent?.id || ''}`)
+    const { times: bookedTimes, blocked: coachBlocked, zones, studentBusy } = await bookedRes.json()
 
     const fillByTime: Record<string, string> = {}
     const allSlots: string[] = []
@@ -400,6 +400,10 @@ export default function BookingPage() {
       const e = b.end ? toMinX(b.end) : s + 30
       bookedIv.push({ s, e })
       if (b.student_id === selectedStudent?.id) studentIv.push({ s, e })
+    }
+    // Lessons this student already has that day with ANY OTHER coach
+    for (const sb of ((studentBusy || []) as { start: string; end: string }[])) {
+      studentIv.push({ s: toMinX(sb.start), e: toMinX(sb.end) })
     }
     const hitsAny = (list: { s: number; e: number }[], t: string) => {
       const s = toMinX(t)

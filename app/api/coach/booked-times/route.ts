@@ -15,6 +15,28 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // The student's own lessons that day with ANY coach, so the picker can grey out clashes
+  const student_id = searchParams.get('student_id')
+  let studentBusy: { start: string; end: string }[] = []
+  if (student_id) {
+    const { data: myBookings } = await supabase
+      .from('bookings')
+      .select('class_session_id')
+      .eq('student_id', student_id)
+      .not('status', 'in', '("cancelled","pending_partner")')
+    const myIds = (myBookings || []).map((b: any) => b.class_session_id).filter(Boolean)
+    if (myIds.length > 0) {
+      const { data: mySessions } = await supabase
+        .from('class_sessions')
+        .select('start_time, end_time')
+        .in('id', myIds)
+        .eq('session_date', session_date)
+      studentBusy = (mySessions || [])
+        .filter((x: any) => x.start_time && x.end_time)
+        .map((x: any) => ({ start: x.start_time.slice(0, 5), end: x.end_time.slice(0, 5) }))
+    }
+  }
+
   const coachBlocks = await getCoachBlocks(supabase, [coach_id], session_date)
   const blocked = blockedIntervalsFor(coachBlocks, coach_id)
   const zones = await getEffectiveZones(supabase, coach_id, session_date)
@@ -26,7 +48,7 @@ export async function GET(req: NextRequest) {
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
 
-  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked, zones })
+  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked, zones, studentBusy })
 
   const sessionIds = sessions.map(s => s.id)
   const sessionMap: Record<string, any> = {}
@@ -50,5 +72,5 @@ export async function GET(req: NextRequest) {
     }
   }).filter(x => x.time)
 
-  return NextResponse.json({ times, blocked, zones })
+  return NextResponse.json({ times, blocked, zones, studentBusy })
 }
