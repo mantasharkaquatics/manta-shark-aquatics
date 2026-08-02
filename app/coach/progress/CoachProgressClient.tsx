@@ -29,17 +29,17 @@ function barColor(pct: number): string {
   return 'rgba(255,255,255,0.1)'
 }
 
-export default function CoachProgressClient({ coach, sessions, today, completedSessionIds }: {
+export default function CoachProgressClient({ coach, sessions, today, completedKeys }: {
   coach: { id: string; first_name: string }
   sessions: any[]
   today: string
-  completedSessionIds: string[]
+  completedKeys: string[]
 }) {
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null)
   const [studentDataMap, setStudentDataMap] = useState<Record<string, StudentProgress>>({})
   const [localProgressMap, setLocalProgressMap] = useState<Record<string, Record<string, number>>>({})
   const [savingMap, setSavingMap] = useState<Record<string, boolean>>({})
-  const [completedSet, setCompletedSet] = useState<Set<string>>(new Set(completedSessionIds))
+  const [completedSet, setCompletedSet] = useState<Set<string>>(new Set(completedKeys))
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
   const [recommendedLevelMap, setRecommendedLevelMap] = useState<Record<string, string>>({})
   const [recommendLevelInput, setRecommendLevelInput] = useState<Record<string, string>>({})
@@ -57,19 +57,37 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
     return () => clearInterval(t)
   }, [])
 
-  // Display per session; same student in different lessons stays independent (keyed by sessionId)
-  const sessionEntries = sessions.flatMap(s =>
-    s.bookings.map((b: any) => ({
-      studentId: b.students?.id || '',
-      full_name: b.students?.full_name || '',
-      current_level: b.students?.current_level || null,
-      sessionId: s.id,
-      sessionDate: s.session_date || today,
-      sessionTime: `${formatTime12h(s.start_time)} - ${formatTime12h(s.end_time)}`,
-      courseName: s.course_types?.name || '',
-      entryKey: `${b.students?.id}_${s.id}`,
-    }))
-  ).filter(e => e.studentId)
+  // One entry per (student, lesson). A lesson is lesson_group_id when set, else the session,
+  // so an hour lesson's two halves collapse into a single card spanning both.
+  const entryMap = new Map<string, any>()
+  for (const s of sessions) {
+    for (const b of ((s as any).bookings || [])) {
+      const studentId = b.students?.id || ''
+      if (!studentId) continue
+      const lessonKey = b.lesson_group_id || s.id
+      const entryKey = `${studentId}_${lessonKey}`
+      const prev = entryMap.get(entryKey)
+      if (prev) {
+        if ((s.start_time || '') < prev.start_time) { prev.start_time = s.start_time; prev.sessionId = s.id }
+        if ((s.end_time || '') > prev.end_time) prev.end_time = s.end_time
+        continue
+      }
+      entryMap.set(entryKey, {
+        studentId,
+        full_name: b.students?.full_name || '',
+        current_level: b.students?.current_level || null,
+        sessionId: s.id,
+        start_time: s.start_time || '',
+        end_time: s.end_time || '',
+        sessionDate: (s as any).session_date || today,
+        courseName: s.course_types?.name || '',
+        entryKey,
+      })
+    }
+  }
+  const sessionEntries = Array.from(entryMap.values())
+    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    .map(e => ({ ...e, sessionTime: `${formatTime12h(e.start_time)} - ${formatTime12h(e.end_time)}` }))
 
   async function toggleStudent(entryKey: string, studentId: string, sessionId: string) {
     if (expandedStudent === entryKey) {
@@ -90,7 +108,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
 
     setStudentDataMap(prev => ({ ...prev, [entryKey]: data }))
     setLocalProgressMap(prev => ({ ...prev, [entryKey]: { ...data.progress } }))
-    if (data.todayLocked) setCompletedSet(prev => new Set([...prev, sessionId]))
+    if (data.todayLocked) setCompletedSet(prev => new Set([...prev, entryKey]))
     if (recData.recommended_level) {
       setRecommendedLevelMap(prev => ({ ...prev, [entryKey]: String(recData.recommended_level) }))
     }
@@ -98,7 +116,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
   }
 
   async function saveProgress(entryKey: string, studentId: string, sessionId: string) {
-    if (locked || completedSet.has(sessionId)) return
+    if (locked || completedSet.has(entryKey)) return
     setSavingMap(prev => ({ ...prev, [entryKey]: true }))
     const progress = localProgressMap[entryKey] || {}
     const res = await fetch('/api/coach/progress', {
@@ -108,7 +126,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
     })
     if (res.ok) {
       // Mark completed and collapse this card
-      setCompletedSet(prev => new Set([...prev, sessionId]))
+      setCompletedSet(prev => new Set([...prev, entryKey]))
       setExpandedStudent(null)
       // Update studentData for this entryKey (next lesson expand gets fresh progress)
       setStudentDataMap(prev => ({
@@ -156,7 +174,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedS
           {sessionEntries.map(s => {
             const lvl = s.current_level || ''
             const color = LEVEL_COLORS[lvl] || '#6b7280'
-            const isCompleted = completedSet.has(s.sessionId)
+            const isCompleted = completedSet.has(s.entryKey)
             const isExpanded = expandedStudent === s.entryKey
             const data = studentDataMap[s.entryKey]
             const loading = loadingMap[s.entryKey]

@@ -41,7 +41,7 @@ export default async function CoachProgressPage() {
     .order('start_time')
 
   if (!sessions || sessions.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedSessionIds={[]} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedKeys={[]} />
   }
 
   const sessionIds = sessions.map(s => s.id)
@@ -59,7 +59,7 @@ export default async function CoachProgressPage() {
   // Step 3: fetch confirmed bookings
   const { data: bookingsRaw } = await supabase
     .from('bookings')
-    .select('id, class_session_id, student_id')
+    .select('id, class_session_id, student_id, lesson_group_id')
     .in('class_session_id', sessionIds)
     .eq('status', 'confirmed')
 
@@ -75,7 +75,7 @@ export default async function CoachProgressPage() {
   }
 
   if (!bookings || bookings.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedSessionIds={[]} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedKeys={[]} />
   }
 
   const studentIds = [...new Set(bookings.map(b => b.student_id).filter(Boolean))]
@@ -97,7 +97,7 @@ export default async function CoachProgressPage() {
     course_types: { name: courseTypeMap[s.course_type_id] || '' },
     bookings: bookings
       .filter(b => b.class_session_id === s.id)
-      .map(b => ({ id: b.id, students: studentMap[b.student_id] || null }))
+      .map(b => ({ id: b.id, lesson_group_id: b.lesson_group_id, students: studentMap[b.student_id] || null }))
       .filter(b => b.students)
   }))
 
@@ -106,17 +106,24 @@ export default async function CoachProgressPage() {
     enrichedSessions.flatMap(s => s.bookings.map((b: any) => b.students?.id).filter(Boolean))
   )]
 
-  // Use class_session_id to determine completed lessons so multiple same-day lessons don't lock each other
+  // Completed = (student, lesson) pair; a lesson is lesson_group_id when set, else the session
+  const groupOf: Record<string, string | null> = {}
+  for (const b of bookings) groupOf[`${b.student_id}_${b.class_session_id}`] = b.lesson_group_id || null
   const allSessionIds = enrichedSessions.map(s => s.id)
-  let completedSessionIds: string[] = []
+  let completedKeys: string[] = []
   if (allSessionIds.length > 0) {
     const { data: completedRows } = await supabase
       .from('progress_history')
-      .select('class_session_id')
+      .select('class_session_id, student_id')
       .in('class_session_id', allSessionIds)
       .eq('session_date', today)
-    completedSessionIds = (completedRows || []).map((r: any) => r.class_session_id).filter(Boolean)
+    completedKeys = (completedRows || [])
+      .filter((r: any) => r.class_session_id && r.student_id)
+      .map((r: any) => {
+        const g = groupOf[`${r.student_id}_${r.class_session_id}`]
+        return `${r.student_id}_${g || r.class_session_id}`
+      })
   }
 
-  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} completedSessionIds={completedSessionIds} />
+  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} completedKeys={completedKeys} />
 }
