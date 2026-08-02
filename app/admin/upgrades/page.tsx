@@ -143,7 +143,7 @@ export default async function AdminUpgradesPage() {
   // Missing: students with a confirmed booking but no progress_history on any day, today or earlier (not just today, so forgotten days aren't lost)
   const { data: pastBookingsRaw } = await svc
     .from('bookings')
-    .select('id, student_id, class_session_id')
+    .select('id, student_id, class_session_id, lesson_group_id')
     .eq('status', 'confirmed')
 
   // Absent students need no progress: keep only bookings with an attendance row (checked in)
@@ -178,6 +178,7 @@ export default async function AdminUpgradesPage() {
       .filter((b: any) => sessionMap[b.class_session_id])
       .map((b: any) => ({
         student_id: b.student_id,
+        lessonKey: b.lesson_group_id || b.class_session_id,
         session: sessionMap[b.class_session_id],
       }))
       .filter((c: any) => c.student_id)
@@ -186,17 +187,46 @@ export default async function AdminUpgradesPage() {
       const candidateStudentIds = [...new Set(candidates.map((c: any) => c.student_id))]
       const { data: existingHistory } = await svc
         .from('progress_history')
-        .select('student_id, session_date')
+        .select('student_id, session_date, class_session_id')
         .in('student_id', candidateStudentIds)
         .lte('session_date', todayDate)
 
-      const doneSet = new Set((existingHistory || []).map((p: any) => `${p.student_id}|${p.session_date}`))
-      const missingCandidates = candidates.filter((c: any) => !doneSet.has(`${c.student_id}|${c.session.session_date}`))
+      // A lesson = lesson_group_id when set, else the single session. An hour lesson is
+      // two class_sessions but ONE lesson; two separate lessons the same day are two.
+      const lessonOf: Record<string, string> = {}
+      for (const b of pastBookings) {
+        if (b.class_session_id) lessonOf[b.class_session_id] = b.lesson_group_id || b.class_session_id
+      }
+      const doneLessons = new Set<string>()
+      const doneDays = new Set<string>()
+      for (const p of existingHistory || []) {
+        if (p.class_session_id) {
+          doneLessons.add(`${p.student_id}|${lessonOf[p.class_session_id] || p.class_session_id}`)
+        } else {
+          // Legacy rows with no session reference: fall back to the old per-day rule
+          doneDays.add(`${p.student_id}|${p.session_date}`)
+        }
+      }
+      const missingCandidates = candidates.filter((c: any) =>
+        !doneLessons.has(`${c.student_id}|${c.lessonKey}`) &&
+        !doneDays.has(`${c.student_id}|${c.session.session_date}`)
+      )
+      missingCandidates.sort((a: any, b: any) =>
+        String(a.session.session_date).localeCompare(String(b.session.session_date)) ||
+        String(a.session.start_time).localeCompare(String(b.session.start_time)))
 
-      // At most one row per student per day (avoids duplicates from multiple same-day lessons)
+      // One row per lesson; an hour lesson's two halves merge into a single span
+      const spanOf: Record<string, { start: string; end: string }> = {}
+      for (const c of missingCandidates as any[]) {
+        const k = `${c.student_id}|${c.lessonKey}`
+        const cur = spanOf[k]
+        if (!cur) { spanOf[k] = { start: c.session.start_time, end: c.session.end_time }; continue }
+        if (String(c.session.start_time) < cur.start) cur.start = c.session.start_time
+        if (String(c.session.end_time) > cur.end) cur.end = c.session.end_time
+      }
       const dedupKey = new Set<string>()
       const dedupedCandidates = missingCandidates.filter((c: any) => {
-        const key = `${c.student_id}|${c.session.session_date}`
+        const key = `${c.student_id}|${c.lessonKey}`
         if (dedupKey.has(key)) return false
         dedupKey.add(key)
         return true
@@ -225,14 +255,16 @@ export default async function AdminUpgradesPage() {
 
         missingProgressList = dedupedCandidates
           .filter((c: any) => studentMap[c.student_id])
-          .sort((a: any, b: any) => a.session.session_date.localeCompare(b.session.session_date))
-          .map((c: any) => ({
-            ...studentMap[c.student_id],
-            id: `${c.student_id}_${c.session.session_date}`,
-            student_id: c.student_id,
-            session: c.session,
-            existingProgress: progressByStudent[c.student_id] || {},
-          }))
+          .map((c: any) => {
+            const sp = spanOf[`${c.student_id}|${c.lessonKey}`]
+            return {
+              ...studentMap[c.student_id],
+              id: `${c.student_id}_${c.lessonKey}`,
+              student_id: c.student_id,
+              session: sp ? { ...c.session, start_time: sp.start, end_time: sp.end } : c.session,
+              existingProgress: progressByStudent[c.student_id] || {},
+            }
+          })
       }
     }
   }
