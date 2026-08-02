@@ -1808,9 +1808,11 @@ export default function DashboardPage() {
                   <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
                     {displayed.map((booking, i) => {
                       const isNoShow = booking.status === 'confirmed' && !booking.checked_in
+                      const isAttended = booking.status === 'confirmed' && booking.checked_in
                       const noShowColor = '#e05a4a'
-                      const badgeColor = isNoShow ? noShowColor : (STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)')
-                      const badgeLabel = isNoShow ? 'Absent' : booking.status
+                      const attendedColor = '#7fd8a0'
+                      const badgeColor = isNoShow ? noShowColor : isAttended ? attendedColor : (STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)')
+                      const badgeLabel = isNoShow ? 'Absent' : isAttended ? 'Attended \u2713' : booking.status
                       return (
                       <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
