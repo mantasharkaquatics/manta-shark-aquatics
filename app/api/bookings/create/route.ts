@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
   let student2: any = null
   if (student2_id) {
     const { data: s2 } = await svc
-      .from('students').select('id, parent_id, current_level').eq('id', student2_id).single()
+      .from('students').select('id, parent_id, current_level, full_name').eq('id', student2_id).single()
     if (!s2 || s2.parent_id !== parent.id)
       return NextResponse.json({ error: 'Second student not found' }, { status: 403 })
     if (s2.current_level == null)
@@ -225,7 +225,10 @@ export async function POST(req: NextRequest) {
     })
     .select('id').single()
   if (bookErr || !newBooking) {
-    const msg = bookErr?.message?.includes('coach_timeslot_conflict')
+    const m = bookErr?.message || ''
+    const msg = m.includes('STUDENT_DOUBLE_BOOKED')
+      ? 'This swimmer already has a lesson at this time. Please pick another time.'
+      : m.includes('coach_timeslot_conflict')
       ? 'The coach already has another class at this time. Please pick another time.'
       : 'Booking failed. Please try again.'
     return NextResponse.json({ error: msg }, { status: 409 })
@@ -249,9 +252,24 @@ export async function POST(req: NextRequest) {
       status: 'confirmed',
       original_booking_id: rootOriginalId,
     })
-    if (!s2Err) {
-      await svc.rpc('increment_used_credits', { credit_id: credit2.id })
+    if (s2Err) {
+      // A 1-on-2 with only one swimmer is not a lesson - undo the initiator booking.
+      // token1 is always null here (the token path is single-student only), which is
+      // just as well: there is no decrement_used_tokens RPC to roll one back with.
+      if (!inheritCredit) {
+        await svc.rpc('decrement_used_credits', { credit_id: credit.id })
+      }
+      await svc.from('bookings')
+        .update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' })
+        .eq('id', newBooking.id)
+
+      const who = student2.full_name || 'The second swimmer'
+      const msg2 = (s2Err.message || '').includes('STUDENT_DOUBLE_BOOKED')
+        ? `${who} already has a lesson at this time. Neither booking was made - please pick another time.`
+        : 'Booking failed. Please try again.'
+      return NextResponse.json({ error: msg2 }, { status: 409 })
     }
+    await svc.rpc('increment_used_credits', { credit_id: credit2.id })
   }
 
   const { data: parentRow } = await svc
