@@ -734,7 +734,11 @@ export default function BookingPage() {
               {isReschedule ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
             </h2>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
-              <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> is booked for
+              <strong style={{ color: '#fff' }}>
+                {selectedCourse?.slug === '1on2' && selectedStudent2
+                  ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
+                  : selectedStudent?.full_name}
+              </strong> {selectedCourse?.slug === '1on2' && selectedStudent2 ? 'are' : 'is'} booked for
             </p>
             <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
               {selectedCourse?.name} with {selectedCoach?.first_name}
@@ -1556,7 +1560,10 @@ export default function BookingPage() {
             <SectionTitle eyebrow="Step 5" title="Confirm your booking" />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
               {[
-                { label: 'Swimmer', value: selectedStudent?.full_name },
+                { label: selectedCourse?.slug === '1on2' && selectedStudent2 ? 'Swimmers' : 'Swimmer',
+                  value: selectedCourse?.slug === '1on2' && selectedStudent2
+                    ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
+                    : selectedStudent?.full_name },
                 { label: 'Course', value: selectedCourse?.name },
                 { label: 'Coach', value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
