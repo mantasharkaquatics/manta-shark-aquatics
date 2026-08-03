@@ -335,13 +335,18 @@ export default function BookingPage() {
     if (!success) return
     setCountdown(30)
     const interval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) { clearInterval(interval); router.push('/dashboard'); return 0 }
-        return prev - 1
-      })
+      setCountdown(prev => (prev <= 1 ? 0 : prev - 1))
     }, 1000)
     return () => clearInterval(interval)
   }, [success])
+
+  // Navigate from an effect, never from inside the setState updater above:
+  // React may run updaters during render, which made router.push a
+  // cross-component update mid-render.
+  useEffect(() => {
+    if (!success || countdown > 0) return
+    router.push('/dashboard')
+  }, [success, countdown])
 
   useEffect(() => {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
