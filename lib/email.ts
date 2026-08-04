@@ -62,7 +62,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   let subject = ''
   let html = ''
 
-  const formattedDate = date ? new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''
+  const formattedDate = date ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date + 'T00:00:00Z' : date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : ''
 
   if (type === 'booking_confirmed') {
     subject = `Booking Confirmed – ${courseName} on ${formattedDate}`
