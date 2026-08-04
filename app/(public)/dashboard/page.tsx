@@ -487,6 +487,23 @@ export default function DashboardPage() {
   const [expandedProgress, setExpandedProgress] = useState<Set<string>>(new Set())
   const [progressPage, setProgressPage] = useState<Record<string, number>>({})
   const [expandedRecord, setExpandedRecord] = useState<Record<string, string | null>>({})
+  // An hour invitation arrives as two rows (one per half). Show ONE card
+  // spanning both, priced at the number of rows this family actually owes.
+  // Confirming from it sends the first row's id; the server resolves the group.
+  const mergePendingInvites = (rows: any[]): any[] => {
+    const sessOf = (x: any) => Array.isArray(x.class_sessions) ? x.class_sessions[0] : x.class_sessions
+    const groups = new Map<string, any[]>()
+    for (const b of rows) {
+      const key = b.lesson_group_id || `single:${b.id}`
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(b)
+    }
+    return Array.from(groups.values()).map(g => {
+      const sorted = [...g].sort((a, b) =>
+        String(sessOf(a)?.start_time || '').localeCompare(String(sessOf(b)?.start_time || '')))
+      return { ...sorted[0], _seats: g.length, _endTime: sessOf(sorted[sorted.length - 1])?.end_time || null }
+    })
+  }
   const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
@@ -549,7 +566,7 @@ export default function DashboardPage() {
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
       supabase.from('bookings')
-        .select('id, student_id, pending_expires_at, partner_parent_id, class_session_id')
+        .select('id, student_id, pending_expires_at, partner_parent_id, class_session_id, lesson_group_id')
         .eq('parent_id', parentData.id)
         .eq('status', 'pending_partner')
         .eq('pending_action', 'confirm')
@@ -1227,7 +1244,7 @@ export default function DashboardPage() {
           <section style={{ marginBottom: '28px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ Pending Invitations</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {pendingPartnerBookings.map((b: any) => {
+              {mergePendingInvites(pendingPartnerBookings).map((b: any) => {
                 const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
                 const student = Array.isArray(b.students) ? b.students[0] : b.students
                 const coach = cs ? (Array.isArray(cs.coaches) ? cs.coaches[0] : cs.coaches) : null
@@ -1247,7 +1264,7 @@ export default function DashboardPage() {
                           {student?.full_name} is invited to a lesson
                         </div>
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>
-                          {ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}
+                          {ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}
                         </div>
                         <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
                           ⏱ {countdownStr} left to confirm or the invitation auto-cancels
@@ -1264,7 +1281,7 @@ export default function DashboardPage() {
                           onClick={() => confirmPartnerBooking(b.id)}
                           disabled={confirmingId === b.id || rejectingId === b.id}
                           style={{ padding: '8px 16px', background: '#7b61c4', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                          {confirmingId === b.id ? 'Confirming...' : 'Confirm (uses 1 credit)'}
+                          {confirmingId === b.id ? 'Confirming...' : `Confirm (uses ${b._seats} credit${b._seats === 1 ? '' : 's'})`}
                         </button>
                       </div>
                     </div>
