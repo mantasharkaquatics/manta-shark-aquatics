@@ -145,45 +145,55 @@ export async function cancelBookingWithPartner(
     }
   }
 
-  // Cross-account partner: bookings on any session with same date + time + coach
-  const { data: session } = await svc
-    .from('class_sessions')
-    .select('session_date, start_time, coach_id')
-    .eq('id', booking.class_session_id)
-    .single()
-
-  if (session) {
-    const { data: sameSessions } = await svc
+  // Cross-account partner: bookings on any session with same date + time + coach.
+  //
+  // 1-on-2 ONLY. This block finds "the other family" by matching date + start_time
+  // + coach_id, which is exactly right for a two-family 1-on-2 pairing but is NOT
+  // a partnership test. A banded 1-on-4 group class is up to four UNRELATED
+  // families sharing one class_session, all matching that heuristic — without this
+  // gate, one parent cancelling would cancel and refund every other family in the
+  // class and email them a cancellation notice. Owner's rule: cancelling a group
+  // class cancels that family's booking and nothing else.
+  if (primaryCt?.slug === '1on2') {
+    const { data: session } = await svc
       .from('class_sessions')
-      .select('id')
-      .eq('session_date', session.session_date)
-      .eq('start_time', session.start_time)
-      .eq('coach_id', session.coach_id)
+      .select('session_date, start_time, coach_id')
+      .eq('id', booking.class_session_id)
+      .single()
 
-    const sessionIds = (sameSessions || []).map((s: any) => s.id)
+    if (session) {
+      const { data: sameSessions } = await svc
+        .from('class_sessions')
+        .select('id')
+        .eq('session_date', session.session_date)
+        .eq('start_time', session.start_time)
+        .eq('coach_id', session.coach_id)
 
-    if (sessionIds.length > 0) {
-      const { data: partnerBookings } = await svc
-        .from('bookings')
-        .select('id, lesson_credit_id, class_session_id, parent_id, student_id')
-        .neq('parent_id', booking.parent_id)
-        .in('class_session_id', sessionIds)
-        .neq('status', 'cancelled')
-        .neq('status', 'pending_payment')
-    .neq('status', 'in_cart')
+      const sessionIds = (sameSessions || []).map((s: any) => s.id)
 
-      for (const pb of partnerBookings || []) {
-        const { data: c } = await svc
+      if (sessionIds.length > 0) {
+        const { data: partnerBookings } = await svc
           .from('bookings')
-          .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
-          .eq('id', pb.id)
+          .select('id, lesson_credit_id, class_session_id, parent_id, student_id')
+          .neq('parent_id', booking.parent_id)
+          .in('class_session_id', sessionIds)
           .neq('status', 'cancelled')
-          .select('id')
-        if (!c || c.length === 0) continue
-        cancelledBookingIds.push(pb.id)
-        cancelledPartners.push({ parent_id: pb.parent_id, student_id: pb.student_id })
-        if (pb.lesson_credit_id) {
-          await svc.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
+          .neq('status', 'pending_payment')
+          .neq('status', 'in_cart')
+
+        for (const pb of partnerBookings || []) {
+          const { data: c } = await svc
+            .from('bookings')
+            .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
+            .eq('id', pb.id)
+            .neq('status', 'cancelled')
+            .select('id')
+          if (!c || c.length === 0) continue
+          cancelledBookingIds.push(pb.id)
+          cancelledPartners.push({ parent_id: pb.parent_id, student_id: pb.student_id })
+          if (pb.lesson_credit_id) {
+            await svc.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
+          }
         }
       }
     }

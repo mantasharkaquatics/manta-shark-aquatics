@@ -701,7 +701,7 @@ export default function DashboardPage() {
           course_name: cs?.ct?.name,
           level_min: cs?.level_min ?? null, level_max: cs?.level_max ?? null,
           coach_name: cs?.coach?.first_name,
-          student_name: studentMap[b.student_id]?.full_name ? (b._partner_student_name ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
+          student_name: studentMap[b.student_id]?.full_name ? ((cs?.ct?.slug === '1on2' && b._partner_student_name) ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
           lesson_credit_id: b.lesson_credit_id,
           token_package_id: b.token_package_id,
           lesson_group_id: b.lesson_group_id,
