@@ -80,12 +80,14 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   if (!body?.action) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const { action, student_id, session_date, lesson_group_id } = body
+  const { action, student_id, student2_id, session_date, lesson_group_id } = body
   if (!student_id || !session_date || !DATE_RE.test(session_date))
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
 
+  // Whitelist, not pass-through: only these two shapes may be booked as an hour.
+  const courseSlug = body.course_slug === '1on2' ? '1on2' : '1on1'
   const { data: ct } = await svc.from('course_types')
-    .select('id, name, slug, duration_minutes, max_students').eq('slug', '1on1').single()
+    .select('id, name, slug, duration_minutes, max_students').eq('slug', courseSlug).single()
   if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
 
   const { data: student } = await svc.from('students')
@@ -94,6 +96,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
   if (student.current_level == null)
     return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
+
+  // A 1-on-2 always books BOTH seats at once - it never joins a stranger's
+  // half-full session - so the second swimmer is required, not optional.
+  let student2: any = null
+  if (ct.slug === '1on2' && (student2_id || action === 'book')) {
+    // Only a fresh booking must name the second swimmer. `options` and
+    // `reschedule` act on a lesson that already exists, so its roster is read
+    // back from lesson_group_id instead - requiring it here returned 400 and
+    // left the reschedule picker with no slots at all.
+    if (!student2_id)
+      return NextResponse.json({ error: 'A 1-on-2 lesson needs a second swimmer.' }, { status: 400 })
+    if (student2_id === student_id)
+      return NextResponse.json({ error: 'Please pick two different swimmers.' }, { status: 400 })
+    const { data: s2 } = await svc.from('students')
+      .select('id, parent_id, full_name, current_level').eq('id', student2_id).single()
+    if (!s2 || s2.parent_id !== parent.id)
+      return NextResponse.json({ error: 'Second student not found' }, { status: 403 })
+    if (s2.current_level == null)
+      return NextResponse.json({ error: 'The second student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
+    student2 = s2
+  }
+  const students: any[] = student2 ? [student, student2] : [student]
+  const seats = students.length
 
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
@@ -106,13 +131,27 @@ export async function POST(req: NextRequest) {
   // not against the student (they ARE the student's lesson) and not against the
   // coach, or every candidate near the current time is reported as taken.
   const excludeSessIds = new Set<string>()
+  const groupStudentIds = new Set<string>()
+  let currentDate: string | null = null
+  let currentStart: string | null = null
   if (lesson_group_id) {
     const { data: grp } = await svc.from('bookings')
-      .select('class_session_id, parent_id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
+      .select('class_session_id, parent_id, student_id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
     const rows = grp || []
     if (rows.length === 0 || rows.some((r: any) => r.parent_id !== parent.id))
       return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
     for (const r of rows) if (r.class_session_id) excludeSessIds.add(r.class_session_id)
+    // Rescheduling moves an EXISTING lesson, so who is in it comes from the
+    // group itself - the caller need not resend student2_id, and a 1-on-2's
+    // second swimmer is conflict-checked either way.
+    for (const r of rows) if (r.student_id) groupStudentIds.add(r.student_id)
+    // The picker must be able to SAY which slot is the lesson's present time —
+    // it stays selectable (moving coach but not time is legitimate) but should
+    // not look like a fresh opening.
+    const { data: curRows } = await svc.from('class_sessions')
+      .select('session_date, start_time').in('id', Array.from(excludeSessIds))
+    const first = (curRows || []).sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))[0]
+    if (first) { currentDate = first.session_date; currentStart = String(first.start_time).slice(0, 5) }
     const nb = new Map<string, Iv[]>()
     for (const sx of day.sessions) {
       if (excludeSessIds.has(sx.id) || (sx.enrolled_count || 0) <= 0) continue
@@ -125,7 +164,8 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: myBookings } = await svc.from('bookings')
-    .select('class_session_id, status').eq('student_id', student_id)
+    .select('class_session_id, status')
+    .in('student_id', Array.from(new Set([...students.map((x: any) => x.id), ...groupStudentIds])))
     .not('status', 'in', '("cancelled","pending_partner")')
   const mySessIds = new Set((myBookings || []).map((b: any) => b.class_session_id))
   const mine: Iv[] = day.sessions.filter((s: any) => mySessIds.has(s.id) && !excludeSessIds.has(s.id)).map((s: any) => {
@@ -154,6 +194,7 @@ export async function POST(req: NextRequest) {
       out.push({
         start_time: sl.start, mid_time: toT(mid), end_time: toT(e2),
         label: `${formatTime12h(sl.start)} – ${formatTime12h(toT(e2))}`,
+        is_current: session_date === currentDate && sl.start === currentStart,
         options: combos.map((c: any) => ({ ...c, coach1_name: nameOf(c.coach1_id), coach2_name: nameOf(c.coach2_id) })),
       })
     }
@@ -162,7 +203,12 @@ export async function POST(req: NextRequest) {
       .is('converted_to_token_at', null)
     const remaining = (credits || []).reduce((n: number, c: any) => n + (c.total_credits - c.used_credits), 0)
     const tokensRemaining = (await tokenPool(svc, parent.id, ct.slug)).reduce((n: number, x: any) => n + x.remaining, 0)
-    return NextResponse.json({ slots: out, credits_remaining: remaining, tokens_remaining: tokensRemaining })
+    const { data: rosterRows } = groupStudentIds.size
+      ? await svc.from('students').select('id, full_name').in('id', Array.from(groupStudentIds))
+      : { data: [] as any[] }
+    return NextResponse.json({ slots: out, credits_remaining: remaining, tokens_remaining: tokensRemaining,
+      seats_needed: 2 * (ct.slug === '1on2' ? 2 : 1),
+      roster: (rosterRows || []).map((x: any) => ({ id: x.id, full_name: x.full_name })) })
   }
 
   if (action === 'book') {
@@ -189,7 +235,7 @@ export async function POST(req: NextRequest) {
     // One token plus one credit is never accepted — a mixed payment has no clean
     // refund story, and token bookings are final by design.
     const tokenAlloc: string[] = []
-    if (isWithinTokenWindow(session_date, start_time)) {
+    if (ct.slug === '1on1' && isWithinTokenWindow(session_date, start_time)) {
       const tp = await tokenPool(svc, parent.id, ct.slug)
       if (tp.reduce((n: number, x: any) => n + x.remaining, 0) >= 2) {
         for (let i = 0; i < 2; i++) { const x = tp.find((y: any) => y.remaining > 0)!; tokenAlloc.push(x.id); x.remaining-- }
@@ -202,16 +248,20 @@ export async function POST(req: NextRequest) {
         .is('converted_to_token_at', null).order('expires_at', { ascending: true })
       const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits })).filter((c: any) => c.remaining > 0)
       const total = pool.reduce((n: number, c: any) => n + c.remaining, 0)
-      if (total < 2)
-        return NextResponse.json({ error: `A 60-minute lesson uses 2 credits — you have ${total}.` }, { status: 409 })
-      for (let i = 0; i < 2; i++) { const c = pool.find((y: any) => y.remaining > 0)!; alloc.push(c.id); c.remaining-- }
+      const needed = 2 * seats
+      if (total < needed)
+        return NextResponse.json({ error: `This 60-minute lesson uses ${needed} credits — you have ${total}.` }, { status: 409 })
+      for (let i = 0; i < needed; i++) { const c = pool.find((y: any) => y.remaining > 0)!; alloc.push(c.id); c.remaining-- }
     }
 
     const groupId = randomUUID()
     const halves = [
-      { coach_id: coach1_id, start: toT(s1), end: toT(mid), credit: alloc[0] ?? null, token: tokenAlloc[0] ?? null },
-      { coach_id: coach2_id, start: toT(mid), end: toT(e2), credit: alloc[1] ?? null, token: tokenAlloc[1] ?? null },
+      { coach_id: coach1_id, start: toT(s1), end: toT(mid) },
+      { coach_id: coach2_id, start: toT(mid), end: toT(e2) },
     ]
+    // alloc holds 2 credits per swimmer; hand them out in order as the
+    // (half, swimmer) pairs are written so every row carries its own.
+    let payCursor = 0
     const createdBookings: string[] = []
     const createdSessions: string[] = []
     const incremented: string[] = []
@@ -227,7 +277,7 @@ export async function POST(req: NextRequest) {
         .eq('coach_id', h.coach_id).eq('session_date', session_date).eq('start_time', h.start)
         .eq('course_type_id', ct.id).in('status', ['open', 'full']).maybeSingle()
       let sessId: string
-      if (existing && existing.enrolled_count < existing.max_students) {
+      if (existing && existing.enrolled_count + seats <= existing.max_students) {
         sessId = existing.id
       } else if (existing) {
         await rollback()
@@ -240,14 +290,28 @@ export async function POST(req: NextRequest) {
         sessId = created.id
         createdSessions.push(created.id)
       }
-      const { data: bk, error: bErr } = await svc.from('bookings')
-        .insert({ class_session_id: sessId, parent_id: parent.id, student_id: student.id, lesson_credit_id: h.credit, token_package_id: h.token, status: 'confirmed', lesson_group_id: groupId })
-        .select('id').single()
-      if (bErr || !bk) { await rollback(); return NextResponse.json({ error: bErr?.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not complete the booking.' }, { status: 409 }) }
-      createdBookings.push(bk.id)
-      if (h.credit) {
-        await svc.rpc('increment_used_credits', { credit_id: h.credit })
-        incremented.push(h.credit)
+      for (const st of students) {
+        const creditId = alloc[payCursor] ?? null
+        const tokenId = tokenAlloc[payCursor] ?? null
+        payCursor++
+        const { data: bk, error: bErr } = await svc.from('bookings')
+          .insert({ class_session_id: sessId, parent_id: parent.id, student_id: st.id, lesson_credit_id: creditId, token_package_id: tokenId, status: 'confirmed', lesson_group_id: groupId })
+          .select('id').single()
+        if (bErr || !bk) {
+          await rollback()
+          const m = bErr?.message || ''
+          const msg = m.includes('STUDENT_DOUBLE_BOOKED')
+            ? `${st.full_name} already has a lesson at this time.`
+            : m.includes('coach_timeslot_conflict')
+            ? 'The coach already has another class at this time.'
+            : 'Could not complete the booking.'
+          return NextResponse.json({ error: msg }, { status: 409 })
+        }
+        createdBookings.push(bk.id)
+        if (creditId) {
+          await svc.rpc('increment_used_credits', { credit_id: creditId })
+          incremented.push(creditId)
+        }
       }
     }
 
@@ -263,7 +327,7 @@ export async function POST(req: NextRequest) {
         const who = coach1_id === coach2_id ? nameOf(coach1_id) : `${nameOf(coach1_id)} → ${nameOf(coach2_id)}`
         await sendEmail({
           type: 'booking_confirmed', to: p.email, parentName: p.first_name,
-          studentName: student.full_name, courseName: `${ct.name} (60 min)`, coachName: who,
+          studentName: students.map((x: any) => x.full_name).join(' & '), courseName: `${ct.name} (60 min)`, coachName: who,
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
         })
       }
@@ -322,13 +386,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: uErr.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not move the lesson.' }, { status: 409 })
     }
 
+    // Name everyone actually in the lesson, read back from the group rather
+    // than from the request body.
+    const { data: grpStudents } = await svc.from('students')
+      .select('full_name').in('id', Array.from(groupStudentIds))
+    const rescheduledNames = (grpStudents || []).map((x: any) => x.full_name).join(' & ') || student.full_name
+
     try {
       const { data: p } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
       if (p?.email) {
         const who = coach1_id === coach2_id ? nameOf(coach1_id) : `${nameOf(coach1_id)} → ${nameOf(coach2_id)}`
         await sendEmail({
           type: 'booking_rescheduled', to: p.email, parentName: p.first_name,
-          studentName: student.full_name, courseName: `${ct.name} (60 min)`, coachName: who,
+          studentName: rescheduledNames, courseName: `${ct.name} (60 min)`, coachName: who,
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
         })
       }

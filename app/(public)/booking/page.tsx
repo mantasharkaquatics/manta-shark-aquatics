@@ -235,6 +235,9 @@ export default function BookingPage() {
   const [hourSlots, setHourSlots] = useState<any[]>([])
   const [hourLoading, setHourLoading] = useState(false)
   const [hourCredits, setHourCredits] = useState(0)
+  // Who is in the lesson being moved. The reschedule URL only carries one
+  // student id, so for a 1-on-2 the second name has to come from the server.
+  const [hourRoster, setHourRoster] = useState<any[]>([])
   const [hourTokens, setHourTokens] = useState(0)
   const [selectedHour, setSelectedHour] = useState<any | null>(null)
   const [recurOpen, setRecurOpen] = useState(false)
@@ -254,16 +257,24 @@ export default function BookingPage() {
 
   useEffect(() => {
     setSelectedHour(null)
-    if (groupFlow || !selectedStudent || !selectedDate || lessonLength !== 60 || selectedCourse?.slug !== '1on1') { setHourSlots([]); return }
+    // 1-on-2 may run an hour too, but only with a SAME-ACCOUNT second swimmer
+    // (the cross-account partner flow is not group-aware yet), or when moving an
+    // hour lesson that already exists.
+    const hourOk = selectedCourse?.slug === '1on1'
+      || (selectedCourse?.slug === '1on2' && !!selectedStudent2 && !(selectedStudent2 as any).isPartner)
+      || (selectedCourse?.slug === '1on2' && !!rescheduleGroupIdRef.current)
+    if (groupFlow || !selectedStudent || !selectedDate || lessonLength !== 60 || !hourOk) { setHourSlots([]); return }
     setHourLoading(true)
     fetch('/api/bookings/hour', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'options', student_id: selectedStudent.id, session_date: formatDateLA(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null }),
+      body: JSON.stringify({ action: 'options', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
+        student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
+        session_date: formatDateLA(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null }),
     }).then(r => r.json())
-      .then(d => { setHourSlots(d?.slots || []); setHourCredits(d?.credits_remaining || 0); setHourTokens(d?.tokens_remaining || 0) })
+      .then(d => { setHourSlots(d?.slots || []); setHourCredits(d?.credits_remaining || 0); setHourTokens(d?.tokens_remaining || 0); setHourRoster(d?.roster || []) })
       .catch(() => setHourSlots([]))
       .finally(() => setHourLoading(false))
-  }, [groupFlow, selectedStudent, selectedDate, lessonLength, selectedCourse])
+  }, [groupFlow, selectedStudent, selectedStudent2, selectedDate, lessonLength, selectedCourse])
 
   useEffect(() => {
     async function init() {
@@ -588,9 +599,11 @@ export default function BookingPage() {
       const hr = await fetch('/api/bookings/hour', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rGroup
-          ? { action: 'reschedule', lesson_group_id: rGroup, student_id: selectedStudent.id, session_date: dateStr,
+          ? { action: 'reschedule', course_slug: selectedCourse?.slug, lesson_group_id: rGroup, student_id: selectedStudent.id, session_date: dateStr,
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }
-          : { action: 'book', student_id: selectedStudent.id, session_date: dateStr,
+          : { action: 'book', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
+              student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
+              session_date: dateStr,
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
@@ -740,10 +753,12 @@ export default function BookingPage() {
             </h2>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
               <strong style={{ color: '#fff' }}>
-                {selectedCourse?.slug === '1on2' && selectedStudent2
+                {hourRoster.length > 1
+                  ? hourRoster.map((x: any) => x.full_name).join(' & ')
+                  : selectedCourse?.slug === '1on2' && selectedStudent2
                   ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
                   : selectedStudent?.full_name}
-              </strong> {selectedCourse?.slug === '1on2' && selectedStudent2 ? 'are' : 'is'} booked for
+              </strong> {(hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'are' : 'is'} booked for
             </p>
             <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
               {selectedCourse?.name} with {selectedCoach?.first_name}
@@ -1136,13 +1151,14 @@ export default function BookingPage() {
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
                     Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                   </div>
-                  {selectedCourse?.slug === '1on1' && (
+                  {(selectedCourse?.slug === '1on1'
+                    || (selectedCourse?.slug === '1on2' && !!selectedStudent2 && !(selectedStudent2 as any).isPartner)) && (
                     <div style={{ display: 'inline-flex', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (
                         <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
                           style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                          {v} min{v === 60 ? (hourPaysWithTokens ? ' · 2 tokens' : ' · 2 credits') : ''}</button>
+                          {v} min{v === 60 ? (hourPaysWithTokens ? ' · 2 tokens' : ` · ${selectedCourse?.slug === '1on2' ? 4 : 2} credits`) : ''}</button>
                       ))}
                     </div>
                   )}
@@ -1158,8 +1174,8 @@ export default function BookingPage() {
                         {hourPaysWithTokens
                           ? `One continuous 60-minute lesson · uses 2 tokens (${hourTokens} left)`
                           : willUseToken && hourTokens === 1
-                            ? `One continuous 60-minute lesson · uses 2 credits (${hourCredits} left) — a single token cannot cover an hour, so it stays for a 30-minute lesson`
-                            : `One continuous 60-minute lesson · uses 2 credits (${hourCredits} left)`}
+                            ? `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? 4 : 2} credits (${hourCredits} left) — a single token cannot cover an hour, so it stays for a 30-minute lesson`
+                            : `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? 4 : 2} credits (${hourCredits} left)`}
                       </div>
                       {hourLoading ? (
                         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading hour-long options…</p>
@@ -1172,25 +1188,30 @@ export default function BookingPage() {
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
-                            const enough = hourPaysWithTokens || hourCredits >= 2
+                            const enough = hourPaysWithTokens || hourCredits >= (selectedCourse?.slug === '1on2' ? 4 : 2)
+                            const seats = selectedCourse?.slug === '1on2' ? 4 : 2
+                            const priceLabel = isReschedule ? 'no extra charge' : hourPaysWithTokens ? '2 tokens' : `${seats} credits`
                             return (
-                              <button key={h.start_time} disabled={!enough}
+                              <button key={h.start_time} disabled={!enough || !!h.is_current}
                                 onClick={() => {
                                   setSelectedHour({ ...h, ...o })
                                   setSelectedSlot({ time: h.start_time, label: `${formatTime(h.start_time)} – ${formatTime(h.end_time)}`, available: true, enrolled: 0, max: 1 })
                                 }}
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '14px 16px', borderRadius: '10px', textAlign: 'left',
                                   border: `2px solid ${sel ? GOLD : enough ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}`,
-                                  background: sel ? `${GOLD}20` : 'rgba(255,255,255,0.03)', cursor: enough ? 'pointer' : 'not-allowed' }}>
+                                  background: sel ? `${GOLD}20` : 'rgba(255,255,255,0.03)', opacity: h.is_current ? 0.55 : 1, cursor: (enough && !h.is_current) ? 'pointer' : 'not-allowed' }}>
                                 <span>
-                                  <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: sel ? GOLD : enough ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                  {h.is_current && (
+                                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>CURRENT TIME</span>
+                                )}
+                                <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: sel ? GOLD : enough ? '#fff' : 'rgba(255,255,255,0.3)' }}>
                                     {formatTime(h.start_time)} – {formatTime(h.end_time)}
                                   </span>
                                   <span style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
                                     {o.relay ? `Coach ${o.coach1_name} → Coach ${o.coach2_name} (two coaches)` : `Coach ${o.coach1_name}`}
                                   </span>
                                 </span>
-                                <span style={{ fontSize: '11px', fontWeight: 700, color: sel ? GOLD : 'rgba(255,255,255,0.4)' }}>{hourPaysWithTokens ? '2 tokens' : '2 credits'}</span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: sel ? GOLD : 'rgba(255,255,255,0.4)' }}>{priceLabel}</span>
                               </button>
                             )
                           })}
@@ -1565,8 +1586,10 @@ export default function BookingPage() {
             <SectionTitle eyebrow="Step 5" title="Confirm your booking" />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
               {[
-                { label: selectedCourse?.slug === '1on2' && selectedStudent2 ? 'Swimmers' : 'Swimmer',
-                  value: selectedCourse?.slug === '1on2' && selectedStudent2
+                { label: (hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'Swimmers' : 'Swimmer',
+                  value: hourRoster.length > 1
+                    ? hourRoster.map((x: any) => x.full_name).join(' & ')
+                    : selectedCourse?.slug === '1on2' && selectedStudent2
                     ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
                     : selectedStudent?.full_name },
                 { label: 'Course', value: selectedCourse?.name },
@@ -1574,7 +1597,7 @@ export default function BookingPage() {
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
                 { label: 'Duration', value: selectedHour ? '60 minutes' : `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : payingWithTokens ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (hourPaysWithTokens ? '2 tokens' : '2 credits') : willUseToken ? '1 token' : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit' },
+                { label: isTrial ? 'Price' : payingWithTokens ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (isReschedule ? 'No extra charge' : hourPaysWithTokens ? '2 tokens' : `${selectedCourse?.slug === '1on2' ? 4 : 2} credits`) : willUseToken ? '1 token' : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit' },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1586,7 +1609,7 @@ export default function BookingPage() {
               ))}
               {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{payingWithTokens ? 'Remaining Tokens After' : 'Remaining Credits After'}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - 2) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? 4 : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
               </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
