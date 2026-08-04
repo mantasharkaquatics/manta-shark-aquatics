@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   if (!body?.action) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const { action, student_id, student2_id, session_date, lesson_group_id } = body
+  const { action, student_id, student2_id, partner, session_date, lesson_group_id } = body
   if (!student_id || !session_date || !DATE_RE.test(session_date))
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
 
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
   // A 1-on-2 always books BOTH seats at once - it never joins a stranger's
   // half-full session - so the second swimmer is required, not optional.
   let student2: any = null
-  if (ct.slug === '1on2' && (student2_id || action === 'book')) {
+  if (ct.slug === '1on2' && (student2_id || (action === 'book' && !partner))) {
     // Only a fresh booking must name the second swimmer. `options` and
     // `reschedule` act on a lesson that already exists, so its roster is read
     // back from lesson_group_id instead - requiring it here returned 400 and
@@ -117,8 +117,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'The second student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
     student2 = s2
   }
+  // Cross-account: the second seat belongs to another family. Their child is
+  // validated here but NOT charged - credits are taken when they accept.
+  let partnerStudent: any = null
+  const isPartnerBooking = ct.slug === '1on2' && !!partner && !student2
+  if (isPartnerBooking) {
+    const { data: ps } = await svc.from('students')
+      .select('id, parent_id, full_name, current_level').eq('id', partner.student_id).single()
+    if (!ps || ps.parent_id !== partner.parent_id)
+      return NextResponse.json({ error: 'Partner student not found' }, { status: 400 })
+    if (ps.current_level == null)
+      return NextResponse.json({ error: 'The partner student must complete a Swim Assessment before booking lessons.' }, { status: 400 })
+    partnerStudent = ps
+  }
   const students: any[] = student2 ? [student, student2] : [student]
-  const seats = students.length
+  const seats = students.length + (isPartnerBooking ? 1 : 0)
 
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
@@ -242,7 +255,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const alloc: string[] = []
-    if (tokenAlloc.length === 0) {
+    if (tokenAlloc.length === 0 && !isPartnerBooking) {
       const { data: credits } = await svc.from('lesson_credits')
         .select('id, total_credits, used_credits').eq('parent_id', parent.id).eq('course_type_id', ct.id)
         .is('converted_to_token_at', null).order('expires_at', { ascending: true })
@@ -255,6 +268,7 @@ export async function POST(req: NextRequest) {
     }
 
     const groupId = randomUUID()
+    const partnerExpiry = isPartnerBooking ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null
     const halves = [
       { coach_id: coach1_id, start: toT(s1), end: toT(mid) },
       { coach_id: coach2_id, start: toT(mid), end: toT(e2) },
@@ -290,6 +304,32 @@ export async function POST(req: NextRequest) {
         sessId = created.id
         createdSessions.push(created.id)
       }
+      // Cross-account: this half gets TWO pending rows (ours + theirs), linked to
+      // each other, unpaid. Nobody is charged until the partner accepts, and the
+      // whole group of four lives or dies together on lesson_group_id.
+      if (isPartnerBooking) {
+        const { data: mine, error: mErr } = await svc.from('bookings').insert({
+          class_session_id: sessId, parent_id: parent.id, student_id: student.id,
+          lesson_credit_id: null, status: 'pending_partner', pending_action: null,
+          pending_expires_at: partnerExpiry, lesson_group_id: groupId,
+        }).select('id').single()
+        if (mErr || !mine) { await rollback(); return NextResponse.json({ error: 'Could not complete the booking.' }, { status: 409 }) }
+        createdBookings.push(mine.id)
+
+        const { data: guest, error: gErr } = await svc.from('bookings').insert({
+          class_session_id: sessId, parent_id: partner.parent_id, student_id: partnerStudent.id,
+          lesson_credit_id: null, status: 'pending_partner', pending_action: 'confirm',
+          pending_expires_at: partnerExpiry, partner_parent_id: parent.id,
+          partner_booking_id: mine.id, partnership_id: partner.partnership_id || null,
+          is_guest: true, lesson_group_id: groupId,
+        }).select('id').single()
+        if (gErr || !guest) { await rollback(); return NextResponse.json({ error: 'Could not create partner invitation. Please try again.' }, { status: 409 }) }
+        createdBookings.push(guest.id)
+
+        await svc.from('bookings').update({ partner_booking_id: guest.id }).eq('id', mine.id)
+        continue
+      }
+
       for (const st of students) {
         const creditId = alloc[payCursor] ?? null
         const tokenId = tokenAlloc[payCursor] ?? null
@@ -321,7 +361,26 @@ export async function POST(req: NextRequest) {
     // parent could both clear the >= 2 check.
     for (const tid of tokenAlloc) await svc.rpc('increment_used_tokens', { token_id: tid })
 
-    try {
+    // Partner mode: invite the other family instead of confirming anything.
+    if (isPartnerBooking) try {
+      const [{ data: me }, { data: pp }] = await Promise.all([
+        svc.from('parents').select('first_name, last_name').eq('id', parent.id).single(),
+        svc.from('parents').select('first_name, email').eq('id', partner.parent_id).single(),
+      ])
+      if (pp?.email) {
+        await sendEmail({
+          type: 'partner_booking_invite', to: pp.email, parentName: pp.first_name,
+          studentName: partnerStudent.full_name,
+          inviterName: ((me?.first_name || '') + ' ' + (me?.last_name || '')).trim(),
+          courseName: `${ct.name} (60 min)`, coachName: nameOf(coach1_id),
+          date: session_date, time: `${formatTime12h(toT(s1))} - ${formatTime12h(toT(e2))}`,
+        })
+      }
+    } catch {}
+
+    // Nothing is confirmed yet in partner mode, so the confirmation email would
+    // be a lie. The invitation email is sent above.
+    if (!isPartnerBooking) try {
       const { data: p } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
       if (p?.email) {
         const who = coach1_id === coach2_id ? nameOf(coach1_id) : `${nameOf(coach1_id)} → ${nameOf(coach2_id)}`
@@ -333,7 +392,7 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    return NextResponse.json({ ok: true, lesson_group_id: groupId, booking_ids: createdBookings, start_time: toT(s1), end_time: toT(e2), relay: coach1_id !== coach2_id })
+    return NextResponse.json({ ok: true, pending_partner: isPartnerBooking, lesson_group_id: groupId, booking_ids: createdBookings, start_time: toT(s1), end_time: toT(e2), relay: coach1_id !== coach2_id })
   }
 
   if (action === 'reschedule') {
