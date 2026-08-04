@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const { data: pending } = await svc
     .from('bookings')
-    .select('id, parent_id, student_id, class_session_id, partner_parent_id, partner_booking_id, status')
+    .select('id, parent_id, student_id, class_session_id, partner_parent_id, partner_booking_id, status, lesson_group_id')
     .eq('id', booking_id)
     .single()
 
@@ -25,14 +25,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // An hour lesson is four pending rows on one lesson_group_id; declining any
+  // one of them declines the lesson, so cancel the whole group. Rows without a
+  // group id are the original 30-minute pair.
+  let targetIds: string[] = [booking_id]
+  if (pending.lesson_group_id) {
+    const { data: groupRows } = await svc.from('bookings')
+      .select('id').eq('lesson_group_id', pending.lesson_group_id).eq('status', 'pending_partner')
+    targetIds = (groupRows || []).map((r: any) => r.id)
+    if (!targetIds.includes(booking_id)) targetIds.push(booking_id)
+  } else if (pending.partner_booking_id) {
+    targetIds.push(pending.partner_booking_id)
+  }
   await svc.from('bookings')
     .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'partner_rejected' })
-    .eq('id', booking_id)
-  if (pending.partner_booking_id) {
-    await svc.from('bookings')
-      .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'partner_rejected' })
-      .eq('id', pending.partner_booking_id)
-  }
+    .in('id', targetIds)
 
   // Notify the initiator (two-step queries)
   try {
