@@ -3,12 +3,96 @@ import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { getCancellationQuota, tokenExpiryFromNow } from '@/lib/tokens'
 
+export type CancelTarget = {
+  parent_id: string
+  student_id: string
+  kind: 'credit' | 'token_conversion' | 'none'
+}
+
 export type CancelResult = {
   ok: boolean
   status: number
   error?: string
   cancelledBookingIds: string[]
   convertedToToken?: boolean
+  // Who should be told, and what they got back. The caller keeps these when it
+  // is cancelling a 60-minute lesson half by half, so one email can cover the
+  // whole hour instead of one per half.
+  emailTargets?: CancelTarget[]
+}
+
+export type CancelOptions = {
+  // Suppress this call's own email. Used when a caller is cancelling several
+  // linked bookings and will send a single consolidated message itself.
+  skipEmail?: boolean
+}
+
+// Sends one booking_cancelled email per affected parent. The time range spans
+// from the earliest cancelled session's start to the latest one's end, so a
+// 60-minute lesson reads "9:10 AM – 10:10 AM" rather than one message per half.
+// Best effort: never throws, never blocks the cancellation itself.
+export async function notifyCancellation(
+  svc: SupabaseClient,
+  opts: { bookingIds: string[]; targets: CancelTarget[] }
+): Promise<void> {
+  try {
+    if (!opts.bookingIds?.length || !opts.targets?.length) return
+
+    const { data: rows } = await svc
+      .from('bookings')
+      .select('class_session_id')
+      .in('id', opts.bookingIds)
+    const sessionIds = [...new Set((rows || []).map((r: any) => r.class_session_id).filter(Boolean))]
+    if (!sessionIds.length) return
+
+    const { data: sessions } = await svc
+      .from('class_sessions')
+      .select('id, session_date, start_time, end_time, course_type_id, coach_id')
+      .in('id', sessionIds)
+      .order('start_time', { ascending: true })
+    if (!sessions?.length) return
+
+    const first = sessions[0] as any
+    const last = sessions[sessions.length - 1] as any
+
+    const { data: ct } = await svc.from('course_types').select('name').eq('id', first.course_type_id).single()
+    const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', first.coach_id).single()
+    const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
+    const timeStr = formatTime12h(first.start_time) + ' \u2013 ' + formatTime12h(last.end_time)
+
+    const studentIds = [...new Set(opts.targets.map((t) => t.student_id).filter(Boolean))]
+    const { data: studs } = await svc.from('students').select('id, full_name').in('id', studentIds)
+    const nameOf: Record<string, string> = {}
+    for (const s of studs || []) { nameOf[(s as any).id] = (s as any).full_name }
+
+    // One message per parent, naming every swimmer of theirs in the lesson.
+    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind'] }>()
+    for (const t of opts.targets) {
+      if (!t.parent_id) continue
+      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind }
+      const n = nameOf[t.student_id]
+      if (n && !entry.names.includes(n)) entry.names.push(n)
+      // A real refund anywhere in the group outranks 'none'.
+      if (entry.kind === 'none' && t.kind !== 'none') entry.kind = t.kind
+      byParent.set(t.parent_id, entry)
+    }
+
+    for (const [parentId, entry] of byParent) {
+      const { data: p } = await svc.from('parents').select('first_name, email').eq('id', parentId).single()
+      if (!p?.email) continue
+      await sendEmail({
+        type: 'booking_cancelled',
+        to: p.email,
+        parentName: p.first_name,
+        studentName: entry.names.join(' & '),
+        courseName: ct?.name || '',
+        coachName,
+        date: first.session_date,
+        time: timeStr,
+        refundKind: entry.kind,
+      })
+    }
+  } catch {}
 }
 
 // Cancels one booking plus any same-account and cross-account partner bookings
@@ -18,7 +102,8 @@ export type CancelResult = {
 export async function cancelBookingWithPartner(
   svc: SupabaseClient,
   bookingId: string,
-  callerParentId: string | null
+  callerParentId: string | null,
+  options: CancelOptions = {}
 ): Promise<CancelResult> {
   const { data: booking } = await svc
     .from('bookings')
@@ -47,7 +132,8 @@ export async function cancelBookingWithPartner(
 
   // Parent-initiated cancellation within 24h: convert the spent credit to a
   // token (quota-gated) instead of refunding. Admin/system callers keep the
-  // plain credit refund. 1-on-2 within 24h stays human-handled (v1 exclusion).
+  // plain credit refund. 1-on-2 within 24h stays human-handled (v1 exclusion):
+  // the family contacts the school and staff sort it out by hand.
   let convertToToken = false
   let convertCourseTypeId: string | null = null
   if (callerParentId) {
@@ -199,44 +285,16 @@ export async function cancelBookingWithPartner(
     }
   }
 
-  // Notify cancelling parent + cross-account partner parents (best effort)
-  try {
-    const { data: sess2 } = await svc
-      .from('class_sessions')
-      .select('session_date, start_time, end_time, course_type_id, coach_id')
-      .eq('id', booking.class_session_id)
-      .single()
-    if (sess2) {
-      const { data: ct } = await svc.from('course_types').select('name').eq('id', sess2.course_type_id).single()
-      const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', sess2.coach_id).single()
-      const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
-      const timeStr = formatTime12h(sess2.start_time) + ' \u2013 ' + formatTime12h(sess2.end_time)
-      const targets: { parent_id: string; student_id: string; kind: 'credit' | 'token_conversion' | 'none' }[] = [
-        { parent_id: booking.parent_id, student_id: booking.student_id, kind: booking.lesson_credit_id ? (convertToToken ? 'token_conversion' : 'credit') : 'none' },
-        ...cancelledPartners.map((p) => ({ ...p, kind: 'credit' as const })),
-      ]
-      const seen = new Set<string>()
-      for (const t of targets) {
-        if (!t.parent_id || seen.has(t.parent_id)) continue
-        seen.add(t.parent_id)
-        const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
-        const { data: s } = await svc.from('students').select('full_name').eq('id', t.student_id).single()
-        if (p?.email) {
-          await sendEmail({
-            type: 'booking_cancelled',
-            to: p.email,
-            parentName: p.first_name,
-            studentName: s?.full_name || '',
-            courseName: ct?.name || '',
-            coachName,
-            date: sess2.session_date,
-            time: timeStr,
-            refundKind: t.kind,
-          })
-        }
-      }
-    }
-  } catch {}
+  // Who to tell. Handed back to the caller so a 60-minute cancellation can send
+  // one message covering both halves instead of one per half.
+  const emailTargets: CancelTarget[] = [
+    { parent_id: booking.parent_id, student_id: booking.student_id, kind: booking.lesson_credit_id ? (convertToToken ? 'token_conversion' : 'credit') : 'none' },
+    ...cancelledPartners.map((p) => ({ ...p, kind: 'credit' as const })),
+  ]
 
-  return { ok: true, status: 200, cancelledBookingIds, convertedToToken: convertToToken }
+  if (!options.skipEmail) {
+    await notifyCancellation(svc, { bookingIds: cancelledBookingIds, targets: emailTargets })
+  }
+
+  return { ok: true, status: 200, cancelledBookingIds, convertedToToken: convertToToken, emailTargets }
 }
