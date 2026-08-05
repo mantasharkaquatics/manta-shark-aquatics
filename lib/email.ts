@@ -18,6 +18,7 @@ export type EmailType =
   | 'partner_booking_invite'
   | 'partner_booking_confirmed'
   | 'partner_booking_rejected'
+  | 'partner_invite_expired'
   | 'partner_reschedule_requested'
   | 'invoice'
   | 'credits_converted_to_tokens'
@@ -112,6 +113,10 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'partner_booking_rejected') {
     subject = `❌ ${studentName} Declined – ${courseName} on ${formattedDate}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">❌ Invitation Declined</h2><p>Hi ${parentName},</p><p><strong>${studentName}</strong> has declined your 1-on-2 invitation. The second student spot for this session has been released.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Course</td><td style="padding: 8px 0; font-weight: 600;">${courseName}</td></tr><tr><td style="padding: 8px 0; color: #666;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 0; color: #666;">Time</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr></table><p style="color: #666;">Your own booking (first student) is still active.</p></div></div>`
+
+  } else if (type === 'partner_invite_expired') {
+    subject = `Invitation Expired \u2013 ${courseName} on ${formattedDate}`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">\u23f3 Invitation Expired</h2><p>Hi ${parentName},</p><p>The partner lesson invitation below was not confirmed in time, so the reserved time has been released. <strong>No lesson credits were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Student</td><td style="padding: 8px 0; font-weight: 600;">${studentName}</td></tr><tr><td style="padding: 8px 0; color: #666;">Course</td><td style="padding: 8px 0; font-weight: 600;">${courseName}</td></tr><tr><td style="padding: 8px 0; color: #666;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${coachName}</td></tr><tr><td style="padding: 8px 0; color: #666;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 0; color: #666;">Time</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr></table><p style="margin-top: 16px;">You're welcome to book again at any available time on your dashboard.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #1a2744; color: white; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Go to My Dashboard</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
   } else if (type === 'partner_reschedule_requested') {
     subject = `Reschedule Request – ${courseName}`
