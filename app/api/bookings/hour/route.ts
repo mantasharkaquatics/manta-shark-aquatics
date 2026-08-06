@@ -374,6 +374,9 @@ export async function POST(req: NextRequest) {
           inviterName: ((me?.first_name || '') + ' ' + (me?.last_name || '')).trim(),
           courseName: `${ct.name} (60 min)`, coachName: nameOf(coach1_id),
           date: session_date, time: `${formatTime12h(toT(s1))} - ${formatTime12h(toT(e2))}`,
+          // Two halves, so the partner owes two credits - not the single one
+          // the 30-minute template used to state for every invitation.
+          creditCount: 2,
         })
       }
     } catch {}
