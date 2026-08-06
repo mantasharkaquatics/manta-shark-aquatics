@@ -60,5 +60,14 @@ export default async function CoachSchedulePage() {
     })),
   }))
 
-  return <CoachScheduleClient coach={coach} sessions={sessions} today={today} />
+  // An empty 1-on-1 or 1-on-2 slot is a leftover shell: a session is created when
+  // a lesson is booked but is never removed when that lesson is cancelled or the
+  // invitation expires. A group class with nobody in it is a real scheduled
+  // class, so that one stays visible.
+  const visible = sessions.filter((s: any) =>
+    s.course_types?.slug === '1on4'
+    || (s.bookings || []).some((b: any) => b.status !== 'cancelled')
+  )
+
+  return <CoachScheduleClient coach={coach} sessions={visible} today={today} />
 }
