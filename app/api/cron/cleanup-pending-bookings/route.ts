@@ -1,91 +1,167 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
-import { cancelBookingWithPartner, notifyCancellation, type CancelTarget } from '@/lib/bookings/cancel'
+import { sendEmail } from '@/lib/email'
+import { formatTime12h } from '@/lib/date'
 
-export async function POST(req: NextRequest) {
-  const cookieStore = await cookies()
-  const supabaseAuth = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user } } = await supabaseAuth.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+type ExpiryNotice = {
+  to: string
+  parentName: string
+  studentName: string
+  courseName: string
+  coachName: string
+  date: string
+  time: string
+}
 
-  const { booking_id } = await req.json()
-  if (!booking_id) return NextResponse.json({ error: 'Missing booking_id' }, { status: 400 })
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // A parent may only cancel their own bookings (admin accounts have no parents row)
-  const { data: callerParent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
-  const parentId = callerParent?.id || null
+  // Find all expired pending_partner bookings
+  const now = new Date().toISOString()
+  const { data: expired } = await supabase
+    .from('bookings')
+    .select('id, class_session_id, parent_id, student_id, status, lesson_group_id')
+    .in('status', ['pending_partner', 'in_cart'])
+    .lt('pending_expires_at', now)
 
-  // Is this booking half of a 60-minute lesson? Decided BEFORE cancelling, so
-  // every half can suppress its own email and one message covering the whole
-  // hour goes out at the end. Otherwise the family gets one email per half,
-  // each naming only 30 minutes of a lesson that is one lesson.
-  const { data: self } = await supabase
-    .from('bookings').select('lesson_group_id').eq('id', booking_id).single()
-  const groupId: string | null = self?.lesson_group_id || null
+  // Also clean up expired reschedule pendings
+  const { data: expiredReschedule } = await supabase
+    .from('bookings')
+    .select('id')
+    .in('pending_action', ['reschedule', 'reschedule_initiator'])
+    .lt('pending_expires_at', now)
 
-  const result = await cancelBookingWithPartner(supabase, booking_id, parentId, { skipEmail: !!groupId })
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+  if ((expiredReschedule || []).length > 0) {
+    const rids = (expiredReschedule || []).map((b: any) => b.id)
+    await supabase.from('bookings').update({
+      pending_action: null,
+      pending_new_session_id: null,
+      pending_expires_at: null,
+    }).in('id', rids)
   }
 
-  const cancelled = [...(result.cancelledBookingIds || [])]
-  const targets: CancelTarget[] = [...(result.emailTargets || [])]
+  // Work out who to tell BEFORE deleting anything: once the rows are gone, so
+  // are the links to the parent, the swimmer and the session. Cart holds are
+  // skipped — an abandoned cart is not something to email anyone about.
+  const invites = (expired || []).filter((b: any) => b.status === 'pending_partner')
+  const notices: ExpiryNotice[] = []
 
-  if (!groupId) {
-    // Ordinary 30-minute booking: the library already emailed.
-    return NextResponse.json({ ok: true, cancelled_booking_ids: cancelled })
-  }
+  if (invites.length > 0) {
+    try {
+      const sessionIds = [...new Set(invites.map((b: any) => b.class_session_id).filter(Boolean))]
+      const { data: sessions } = await supabase
+        .from('class_sessions')
+        .select('id, session_date, start_time, end_time, course_type_id, coach_id')
+        .in('id', sessionIds)
+      const sessionById: Record<string, any> = {}
+      for (const s of sessions || []) { sessionById[(s as any).id] = s }
 
-  // A 60-minute lesson is two linked halves — cancelling one cancels the hour.
-  // Leaving half behind would strand an off-grid 30 minutes nobody can book.
-  const { data: siblings } = await supabase
-    .from('bookings').select('id')
-    .eq('lesson_group_id', groupId)
-    .not('status', 'in', '("cancelled")')
+      const { data: cts } = await supabase
+        .from('course_types').select('id, name')
+        .in('id', [...new Set((sessions || []).map((s: any) => s.course_type_id).filter(Boolean))])
+      const courseName: Record<string, string> = {}
+      for (const c of cts || []) { courseName[(c as any).id] = (c as any).name }
 
-  for (const sib of siblings || []) {
-    if (cancelled.includes(sib.id)) continue
-    const r = await cancelBookingWithPartner(supabase, sib.id, parentId, { skipEmail: true })
-    if (r.ok) {
-      cancelled.push(...(r.cancelledBookingIds || [sib.id]))
-      targets.push(...(r.emailTargets || []))
+      const { data: coaches } = await supabase
+        .from('coaches').select('id, first_name, last_name')
+        .in('id', [...new Set((sessions || []).map((s: any) => s.coach_id).filter(Boolean))])
+      const coachName: Record<string, string> = {}
+      for (const c of coaches || []) {
+        coachName[(c as any).id] = ((c as any).first_name + ' ' + ((c as any).last_name || '')).trim()
+      }
+
+      const { data: parents } = await supabase
+        .from('parents').select('id, first_name, email')
+        .in('id', [...new Set(invites.map((b: any) => b.parent_id).filter(Boolean))])
+      const parentById: Record<string, any> = {}
+      for (const p of parents || []) { parentById[(p as any).id] = p }
+
+      const { data: students } = await supabase
+        .from('students').select('id, full_name')
+        .in('id', [...new Set(invites.map((b: any) => b.student_id).filter(Boolean))])
+      const studentName: Record<string, string> = {}
+      for (const s of students || []) { studentName[(s as any).id] = (s as any).full_name }
+
+      // One lesson per key. A 60-minute invitation is four rows sharing a
+      // lesson_group_id; an old 30-minute pairing has no group id, but both
+      // families sit on the same class_session, so that works as the key.
+      const groups = new Map<string, any[]>()
+      for (const b of invites) {
+        const key = b.lesson_group_id || b.class_session_id
+        if (!key) continue
+        groups.set(key, [...(groups.get(key) || []), b])
+      }
+
+      for (const rows of groups.values()) {
+        // Distinct sessions in start order, so an hour reads 9:10 – 10:10
+        // rather than one message per half.
+        const seen = new Set<string>()
+        const sess: any[] = []
+        for (const r of rows) {
+          const s = sessionById[r.class_session_id]
+          if (s && !seen.has(s.id)) { seen.add(s.id); sess.push(s) }
+        }
+        if (!sess.length) continue
+        sess.sort((a, b) => (a.start_time < b.start_time ? -1 : 1))
+        const first = sess[0]
+        const last = sess[sess.length - 1]
+        const timeStr = formatTime12h(first.start_time) + ' \u2013 ' + formatTime12h(last.end_time)
+
+        // One message per family, naming every swimmer of theirs in the lesson.
+        const byParent = new Map<string, string[]>()
+        for (const r of rows) {
+          if (!r.parent_id) continue
+          const names = byParent.get(r.parent_id) || []
+          const n = studentName[r.student_id]
+          if (n && !names.includes(n)) names.push(n)
+          byParent.set(r.parent_id, names)
+        }
+
+        for (const [parentId, names] of byParent) {
+          const p = parentById[parentId]
+          if (!p?.email) continue
+          notices.push({
+            to: p.email,
+            parentName: p.first_name,
+            studentName: names.join(' & '),
+            courseName: courseName[first.course_type_id] || '',
+            coachName: coachName[first.coach_id] || '',
+            date: first.session_date,
+            time: timeStr,
+          })
+        }
+      }
+    } catch (err) {
+      // Notification is a courtesy; never let it stop the cleanup below.
+      console.error('cleanup-pending-bookings: could not build expiry notices', err)
     }
-    // A 403 here is expected and harmless: rows belonging to the other family
-    // are not ours to cancel directly, and the cross-account sweep inside their
-    // own half picks them up. Any other failure is caught by the check below.
   }
 
-  // Trust the database, not the loop. Whatever is still standing means the hour
-  // is only half cancelled, which is the one outcome the spec forbids — so say
-  // so instead of returning success. Nothing is un-cancelled here: the halves
-  // that did go are refunded, and staff can finish the rest by hand.
-  const { data: leftover } = await supabase
-    .from('bookings').select('id')
-    .eq('lesson_group_id', groupId)
-    .not('status', 'in', '("cancelled")')
-
-  if (leftover && leftover.length > 0) {
-    return NextResponse.json({
-      error: 'Part of this 60-minute lesson could not be cancelled. Please contact us so we can finish it.',
-      cancelled_booking_ids: cancelled,
-      remaining_booking_ids: leftover.map((r: any) => r.id),
-    }, { status: 409 })
+  const ids = (expired || []).map(b => b.id)
+  let deleted = 0
+  if (ids.length > 0) {
+    await supabase.from('bookings').delete().in('id', ids)
+    deleted = ids.length
   }
 
-  // One email per family, spanning the full hour.
-  await notifyCancellation(supabase, { bookingIds: cancelled, targets })
+  // Deletion is done and committed; emails are best effort from here.
+  let notified = 0
+  for (const n of notices) {
+    try {
+      const ok = await sendEmail({ type: 'partner_invite_expired', ...n })
+      if (ok) notified++
+    } catch (err) {
+      console.error('cleanup-pending-bookings: expiry email failed', err)
+    }
+  }
 
-  return NextResponse.json({ ok: true, cancelled_booking_ids: cancelled })
+  return NextResponse.json({ deleted, checked: (expired || []).length, notified })
 }
