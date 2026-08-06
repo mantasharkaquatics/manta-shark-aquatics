@@ -30,12 +30,15 @@ export default async function CoachSchedulePage() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
-  const { data: rawSessions } = await supabase
+  // bookings reaches class_sessions through TWO foreign keys - class_session_id
+  // and pending_new_session_id - so an unqualified embed is ambiguous and
+  // PostgREST rejects the entire query. Name the column it should follow.
+  const { data: rawSessions, error: sessionsError } = await supabase
     .from('class_sessions')
     .select(`
       id, session_date, start_time, end_time, status, enrolled_count, max_students,
       course_types(name, slug),
-      bookings(id, status, students(id, full_name, current_level))
+      bookings!class_session_id(id, status, students(id, full_name, current_level))
     `)
     .eq('coach_id', coach.id)
     .gte('session_date', today)
@@ -43,6 +46,10 @@ export default async function CoachSchedulePage() {
     .neq('status', 'cancelled')
     .order('session_date')
     .order('start_time')
+
+  // A failed query and a genuinely empty week look identical to a coach standing
+  // at the poolside. Say so in the log rather than rendering a quiet blank page.
+  if (sessionsError) console.error('coach/schedule: session query failed', sessionsError)
 
   const sessions = (rawSessions || []).map((s: any) => ({
     ...s,

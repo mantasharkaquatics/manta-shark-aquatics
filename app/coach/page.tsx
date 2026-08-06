@@ -29,12 +29,14 @@ export default async function CoachDashboardPage() {
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
-  const { data: rawSessions } = await supabase
+  // Same ambiguity as /coach/schedule: bookings reaches class_sessions through
+  // both class_session_id and pending_new_session_id, so the embed must name one.
+  const { data: rawSessions, error: sessionsError } = await supabase
     .from('class_sessions')
     .select(`
       id, session_date, start_time, end_time, status,
       course_types(name, slug),
-      bookings(
+      bookings!class_session_id(
         id, status,
         students(id, full_name, current_level, profile_photo_url)
       )
@@ -43,6 +45,8 @@ export default async function CoachDashboardPage() {
     .eq('session_date', today)
     .neq('status', 'cancelled')
     .order('start_time')
+
+  if (sessionsError) console.error('coach/today: session query failed', sessionsError)
 
   // normalize course_types from array to object
   const todaySessions = (rawSessions || []).map((s: any) => ({
