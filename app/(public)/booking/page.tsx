@@ -257,11 +257,10 @@ export default function BookingPage() {
 
   useEffect(() => {
     setSelectedHour(null)
-    // 1-on-2 may run an hour too, but only with a SAME-ACCOUNT second swimmer
-    // (the cross-account partner flow is not group-aware yet), or when moving an
-    // hour lesson that already exists.
+    // 1-on-2 may run an hour too, with a second swimmer from EITHER account -
+    // the cross-account path is group-aware now - or when moving an existing one.
     const hourOk = selectedCourse?.slug === '1on1'
-      || (selectedCourse?.slug === '1on2' && !!selectedStudent2 && !(selectedStudent2 as any).isPartner)
+      || (selectedCourse?.slug === '1on2' && !!selectedStudent2)
       || (selectedCourse?.slug === '1on2' && !!rescheduleGroupIdRef.current)
     if (groupFlow || !selectedStudent || !selectedDate || lessonLength !== 60 || !hourOk) { setHourSlots([]); return }
     setHourLoading(true)
@@ -603,13 +602,23 @@ export default function BookingPage() {
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }
           : { action: 'book', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
               student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
+              // Cross-account: the other family is INVITED, not charged. Same
+              // shape create/route.ts sends for a 30-minute partner booking.
+              partner: (selectedStudent2 && (selectedStudent2 as any).isPartner) ? {
+                parent_id: (selectedStudent2 as any).partnerParentId,
+                student_id: selectedStudent2.id,
+                partnership_id: (selectedStudent2 as any).partnershipId || null,
+                student_name: selectedStudent2.full_name,
+              } : null,
               session_date: dateStr,
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
       if (!hr.ok) { alert(hj.error || 'Booking failed. Please try again.'); setSubmitting(false); return }
       setSubmitting(false)
-      setIsPartnerBookingSuccess(false)
+      // A cross-account hour is only PENDING until the other family confirms,
+      // so show the invitation screen rather than "Lesson Booked".
+      setIsPartnerBookingSuccess(!!hj?.pending_partner)
       setSuccess(true)
       return
     }
@@ -1152,13 +1161,13 @@ export default function BookingPage() {
                     Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                   </div>
                   {(selectedCourse?.slug === '1on1'
-                    || (selectedCourse?.slug === '1on2' && !!selectedStudent2 && !(selectedStudent2 as any).isPartner)) && (
+                    || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
                     <div style={{ display: 'inline-flex', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (
                         <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
                           style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                          {v} min{v === 60 ? (hourPaysWithTokens ? ' · 2 tokens' : ` · ${selectedCourse?.slug === '1on2' ? 4 : 2} credits`) : ''}</button>
+                          {v} min{v === 60 ? (hourPaysWithTokens ? ' · 2 tokens' : ` · ${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits`) : ''}</button>
                       ))}
                     </div>
                   )}
@@ -1174,8 +1183,8 @@ export default function BookingPage() {
                         {hourPaysWithTokens
                           ? `One continuous 60-minute lesson · uses 2 tokens (${hourTokens} left)`
                           : willUseToken && hourTokens === 1
-                            ? `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? 4 : 2} credits (${hourCredits} left) — a single token cannot cover an hour, so it stays for a 30-minute lesson`
-                            : `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? 4 : 2} credits (${hourCredits} left)`}
+                            ? `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits (${hourCredits} left) — a single token cannot cover an hour, so it stays for a 30-minute lesson`
+                            : `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits (${hourCredits} left)`}
                       </div>
                       {hourLoading ? (
                         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading hour-long options…</p>
@@ -1188,8 +1197,8 @@ export default function BookingPage() {
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
-                            const enough = hourPaysWithTokens || hourCredits >= (selectedCourse?.slug === '1on2' ? 4 : 2)
-                            const seats = selectedCourse?.slug === '1on2' ? 4 : 2
+                            const enough = hourPaysWithTokens || hourCredits >= (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)
+                            const seats = selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2
                             const priceLabel = isReschedule ? 'no extra charge' : hourPaysWithTokens ? '2 tokens' : `${seats} credits`
                             return (
                               <button key={h.start_time} disabled={!enough || !!h.is_current}
@@ -1597,7 +1606,7 @@ export default function BookingPage() {
                 { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: 'Time', value: selectedSlot?.label },
                 { label: 'Duration', value: selectedHour ? '60 minutes' : `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : payingWithTokens ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (isReschedule ? 'No extra charge' : hourPaysWithTokens ? '2 tokens' : `${selectedCourse?.slug === '1on2' ? 4 : 2} credits`) : willUseToken ? '1 token' : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit' },
+                { label: isTrial ? 'Price' : payingWithTokens ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (isReschedule ? 'No extra charge' : hourPaysWithTokens ? '2 tokens' : `${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits`) : willUseToken ? '1 token' : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit' },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1609,7 +1618,7 @@ export default function BookingPage() {
               ))}
               {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{payingWithTokens ? 'Remaining Tokens After' : 'Remaining Credits After'}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? 4 : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
               </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
