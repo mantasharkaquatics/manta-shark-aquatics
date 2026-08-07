@@ -28,6 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: null, label: '|' },
     { href: '/admin/upgrades', label: 'Upgrades' },
     { href: '/admin/progress-history', label: 'Progress' },
+    { href: '/admin/lesson-notes', label: 'Notes' },
     { href: null, label: '|' },
     { href: '/admin/checkin', label: 'Check-in' },
     { href: '/admin/time-off', label: 'Time Off' },
