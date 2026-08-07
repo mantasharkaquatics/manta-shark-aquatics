@@ -23,6 +23,8 @@ const LEVEL_NAMES: Record<number, string> = {
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
 interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string; trial_used_at: string | null }
+import LessonNotesPanel from './LessonNotesPanel'
+
 interface SkillProgress {
   skill_id: string
   skill_name: string
@@ -1233,6 +1235,8 @@ export default function DashboardPage() {
                       </div>
                     )
                   })()}
+
+                  <LessonNotesPanel studentId={student.id} />
                 </div>
               )
             })}
