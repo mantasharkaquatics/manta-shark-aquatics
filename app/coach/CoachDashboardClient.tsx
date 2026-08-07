@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import LessonNoteRecorder from './LessonNoteRecorder'
 
 const PROGRESS_OPTIONS = [0, 20, 40, 60, 80, 100]
 
@@ -15,6 +16,7 @@ type Student = {
 type Booking = {
   id: string
   status: string
+  lesson_group_id: string | null
   students: Student
 }
 
@@ -40,13 +42,14 @@ export default function CoachDashboardClient({
   todaySessions,
   today,
 }: {
-  coach: { id: string; first_name: string; last_name: string }
+  coach: { id: string; first_name: string; last_name: string; default_note_language?: 'zh' | 'en' }
   todaySessions: Session[]
   today: string
 }) {
   const supabase = createClient()
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
   const [loadingSkills, setLoadingSkills] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -197,7 +200,7 @@ export default function CoachDashboardClient({
                     {activeBookings(session).map(booking => (
                       <button
                         key={booking.id}
-                        onClick={e => { e.stopPropagation(); setSelectedSession(session); loadStudentSkills(booking.students) }}
+                        onClick={e => { e.stopPropagation(); setSelectedSession(session); setSelectedBooking(booking); loadStudentSkills(booking.students) }}
                         className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
                           selectedStudent?.id === booking.students.id
                             ? 'bg-[#c9a84c]/20 border border-[#c9a84c]/50'
@@ -221,8 +224,20 @@ export default function CoachDashboardClient({
           )}
         </div>
 
-        {/* Right: Skill Progress */}
+        {/* Right: Lesson note, then Skill Progress */}
         <div>
+          {selectedStudent && selectedSession && selectedBooking && (
+            <LessonNoteRecorder
+              key={selectedStudent.id + '-' + selectedSession.id}
+              studentId={selectedStudent.id}
+              studentName={selectedStudent.full_name}
+              classSessionId={selectedSession.id}
+              lessonGroupId={selectedBooking.lesson_group_id ?? null}
+              sessionDate={selectedSession.session_date}
+              defaultLanguage={coach.default_note_language ?? 'en'}
+            />
+          )}
+
           <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider">
             Skill Progress
           </h2>

@@ -21,7 +21,7 @@ export default async function CoachDashboardPage() {
 
   const { data: coach } = await supabase
     .from('coaches')
-    .select('id, first_name, last_name')
+    .select('id, first_name, last_name, default_note_language')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -37,7 +37,7 @@ export default async function CoachDashboardPage() {
       id, session_date, start_time, end_time, status,
       course_types(name, slug),
       bookings!class_session_id(
-        id, status,
+        id, status, lesson_group_id,
         students(id, full_name, current_level, profile_photo_url)
       )
     `)
