@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/api-auth'
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { history_id, student_id, updated_snapshot } = await req.json()
+  const { history_id, student_id, updated_snapshot, note_id, note_text } = await req.json()
   const admin_id = auth.admin.id
   const supabase = auth.svc
 
@@ -36,5 +36,22 @@ export async function POST(req: NextRequest) {
     .eq('id', history_id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // The lesson note is approved in the same breath. The transcript is never
+  // touched: editing changes only what the family reads.
+  if (note_id) {
+    const { error: noteError } = await supabase
+      .from('lesson_notes')
+      .update({
+        note: String(note_text ?? '').trim(),
+        status: 'approved',
+        reviewed_by: admin_id,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', note_id)
+    if (noteError) return NextResponse.json({ error: noteError.message }, { status: 500 })
+  }
+
   return NextResponse.json({ ok: true })
 }

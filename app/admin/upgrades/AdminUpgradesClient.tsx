@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatTime12h } from '@/lib/date'
+import AdminLessonNoteReview from './AdminLessonNoteReview'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
@@ -67,6 +68,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   const [pastPendingProgressList, setPastPendingProgressList] = useState(initialPastPending)
   const [editingPendingId, setEditingPendingId] = useState<string | null>(null)
   const [editedSnapshots, setEditedSnapshots] = useState<Record<string, Record<string, number>>>({})
+  const [editedNotes, setEditedNotes] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<string>('')
@@ -151,7 +153,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     window.location.reload()
   }
 
-  async function reviewProgress(historyId: string, studentId: string) {
+  async function reviewProgress(historyId: string, studentId: string, noteId?: string | null, noteText?: string) {
     const edited = editedSnapshots[historyId]
     await fetch('/api/admin/review-progress', {
       method: 'POST',
@@ -161,6 +163,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         admin_id: adminId,
         student_id: studentId,
         updated_snapshot: edited || undefined,
+        // Approved as one thing: the family sees the skills and the note together.
+        note_id: noteId || undefined,
+        note_text: noteId ? (editedNotes[historyId] ?? noteText ?? '') : undefined,
       })
     })
     setPendingProgressList(prev => prev.filter(p => p.id !== historyId))
@@ -330,13 +335,20 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         {isEditing ? 'Done Editing' : 'Edit'}
                       </button>
                       <button
-                        onClick={() => reviewProgress(p.id, p.student_id)}
+                        onClick={() => reviewProgress(p.id, p.student_id, (p as any).note?.id, (p as any).note?.note)}
                         className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
                       >
                         Confirm → Publish to Parent
                       </button>
                     </div>
                   </div>
+                  {(p as any).note && (
+                    <AdminLessonNoteReview
+                      note={(p as any).note}
+                      value={editedNotes[p.id] ?? (p as any).note.note}
+                      onChange={v => setEditedNotes(prev => ({ ...prev, [p.id]: v }))}
+                    />
+                  )}
                   {isEditing && (
                     <div className="space-y-2 mt-3">
                       {allEntries.map(([skillId, pct]) => {
@@ -427,13 +439,20 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         {isEditing ? 'Done Editing' : 'Edit'}
                       </button>
                       <button
-                        onClick={() => reviewProgress(p.id, p.student_id)}
+                        onClick={() => reviewProgress(p.id, p.student_id, (p as any).note?.id, (p as any).note?.note)}
                         className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all"
                       >
                         Confirm → Publish to Parent
                       </button>
                     </div>
                   </div>
+                  {(p as any).note && (
+                    <AdminLessonNoteReview
+                      note={(p as any).note}
+                      value={editedNotes[p.id] ?? (p as any).note.note}
+                      onChange={v => setEditedNotes(prev => ({ ...prev, [p.id]: v }))}
+                    />
+                  )}
                   {isEditing && (
                     <div className="space-y-2 mt-3">
                       {allEntries.map(([skillId, pct]) => {

@@ -101,7 +101,7 @@ export default async function AdminUpgradesPage() {
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   const { data: allPendingProgress } = await svc
     .from('progress_history')
-    .select('id, student_id, coach_id, snapshot, session_date, created_at, class_session_id')
+    .select('id, student_id, coach_id, snapshot, session_date, created_at, class_session_id, lesson_key')
     .eq('status', 'pending_review')
     .order('created_at', { ascending: false })
 
@@ -136,6 +136,42 @@ export default async function AdminUpgradesPage() {
       skills: ppSkills || [],
       session_info: ppSessionMap[p.class_session_id] || null,
     }))
+    // The note half of the same lesson. Paired on (student, lesson_key) rather
+    // than by date, because a student can have two lessons in one day and an
+    // hour lesson is two sessions but one lesson.
+    const ppKeys = [...new Set(enriched.map((p: any) => p.lesson_key).filter(Boolean))]
+    const noteByPair: Record<string, any> = {}
+    if (ppKeys.length > 0) {
+      const { data: ppNotes } = await svc
+        .from('lesson_notes')
+        .select('id, student_id, lesson_key, transcript, note, language, audio_seconds, audio_path')
+        .in('lesson_key', ppKeys)
+        .neq('status', 'rejected')
+      const notePaths = (ppNotes || []).map((n: any) => n.audio_path).filter(Boolean)
+      const signedByPath: Record<string, string> = {}
+      if (notePaths.length > 0) {
+        const { data: signed } = await svc.storage
+          .from('lesson-audio').createSignedUrls(notePaths, 60 * 60)
+        for (const s of signed || []) {
+          if (s.path && s.signedUrl) signedByPath[s.path] = s.signedUrl
+        }
+      }
+      for (const n of ppNotes || []) {
+        noteByPair[`${n.student_id}|${n.lesson_key}`] = {
+          id: n.id,
+          transcript: n.transcript || '',
+          note: n.note || '',
+          language: n.language || 'en',
+          audio_seconds: n.audio_seconds,
+          audio_url: n.audio_path ? (signedByPath[n.audio_path] || null) : null,
+        }
+      }
+    }
+    for (const p of enriched as any[]) {
+      // Older rows predate the merge and have no note; the card copes with null.
+      p.note = noteByPair[`${p.student_id}|${p.lesson_key}`] || null
+    }
+
     pendingProgressList = enriched.filter((p: any) => p.session_date === todayDate)
     pastPendingProgressList = enriched.filter((p: any) => p.session_date !== todayDate)
   }

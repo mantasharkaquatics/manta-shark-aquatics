@@ -23,8 +23,6 @@ const LEVEL_NAMES: Record<number, string> = {
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
 interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string; trial_used_at: string | null }
-import LessonNotesPanel from './LessonNotesPanel'
-
 interface SkillProgress {
   skill_id: string
   skill_name: string
@@ -33,6 +31,11 @@ interface SkillProgress {
 }
 interface ProgressRecord {
   session_date: string
+  lesson_key?: string
+  start_time?: string
+  course_name?: string
+  minutes?: number
+  note?: string
   skills: SkillProgress[]
 }
 interface StudentProgress {
@@ -645,7 +648,7 @@ export default function DashboardPage() {
     const histStudentIdsEarly = (studs || []).map((s: any) => s.id)
     const histPromise: Promise<{ data: any[] | null }> = histStudentIdsEarly.length > 0
       ? Promise.resolve(supabase.from('progress_history')
-          .select('student_id, session_date, snapshot')
+          .select('student_id, session_date, snapshot, lesson_key, class_session_id')
           .in('student_id', histStudentIdsEarly)
           .eq('status', 'approved')
           .order('session_date', { ascending: false })) as any
@@ -796,14 +799,46 @@ export default function DashboardPage() {
       const { data: histRows } = await histPromise
 
       // Group all records by student
-      const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number> }[]> = {}
+      const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number>; lesson_key: string | null; class_session_id: string | null }[]> = {}
       for (const row of histRows || []) {
         const sid = (row as any).student_id
         if (!allByStudent[sid]) allByStudent[sid] = []
         allByStudent[sid].push({
           session_date: (row as any).session_date,
           snapshot: (row as any).snapshot || {},
+          lesson_key: (row as any).lesson_key || null,
+          class_session_id: (row as any).class_session_id || null,
         })
+      }
+
+      // What lesson each record belongs to, and what the coach said about it.
+      // Keyed on lesson_key so an hour lesson is one entry and two lessons on the
+      // same day stay apart - a date alone cannot tell them apart.
+      const lessonInfo: Record<string, { start_time: string; course_name: string; minutes: number }> = {}
+      const noteByKey: Record<string, string> = {}
+      const histSessionIds = [...new Set((histRows || []).map((r: any) => r.class_session_id).filter(Boolean))]
+      const histLessonKeys = [...new Set((histRows || []).map((r: any) => r.lesson_key).filter(Boolean))]
+      if (histSessionIds.length > 0) {
+        const { data: hSessions } = await supabase
+          .from('class_sessions')
+          .select('id, start_time, course_types(name)')
+          .in('id', histSessionIds)
+        for (const cs of hSessions || []) {
+          const ct = Array.isArray((cs as any).course_types) ? (cs as any).course_types[0] : (cs as any).course_types
+          lessonInfo[(cs as any).id] = {
+            start_time: (cs as any).start_time || '',
+            course_name: ct?.name || '',
+            minutes: 30,
+          }
+        }
+      }
+      if (histLessonKeys.length > 0) {
+        const { data: hNotes } = await supabase
+          .from('lesson_notes')
+          .select('lesson_key, note')
+          .in('lesson_key', histLessonKeys)
+          .eq('status', 'approved')
+        for (const n of hNotes || []) noteByKey[(n as any).lesson_key] = (n as any).note || ''
       }
 
       // Fetch skill names (including all skills used in snapshots)
@@ -863,7 +898,18 @@ export default function DashboardPage() {
                     progress_percent: pct as number,
                     sort_order: skillNameMap[skill_id]?.sort_order || 999,
                   })).sort((a, b) => a.sort_order - b.sort_order)
-              return { session_date: hist.session_date, skills: skillsForRecord }
+              const info = hist.class_session_id ? lessonInfo[hist.class_session_id] : null
+              return {
+                session_date: hist.session_date,
+                lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
+                start_time: info?.start_time || '',
+                course_name: info?.course_name || '',
+                // An hour is two sessions but one lesson; the record is stored
+                // against the first half, so its own end time would read short.
+                minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
+                note: hist.lesson_key ? (noteByKey[hist.lesson_key] || '') : '',
+                skills: skillsForRecord,
+              }
             })
             progressMap[sid] = { student_id: sid, records }
           }
@@ -879,6 +925,11 @@ export default function DashboardPage() {
         for (const [sid, hists] of Object.entries(allByStudent)) {
           const records: ProgressRecord[] = hists.map(hist => ({
             session_date: hist.session_date,
+            lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
+            start_time: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.start_time : '') || '',
+            course_name: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_name : '') || '',
+            minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
+            note: hist.lesson_key ? (noteByKey[hist.lesson_key] || '') : '',
             skills: Object.entries(hist.snapshot).map(([skill_id, pct]) => ({
               skill_id, skill_name: skillNameMap[skill_id]?.name || skill_id,
               progress_percent: pct as number, sort_order: skillNameMap[skill_id]?.sort_order || 999,
@@ -1182,25 +1233,36 @@ export default function DashboardPage() {
                             letterSpacing: '0.5px',
                           }}
                         >
-                          <span>📊 Skill Progress ({prog.records.length} records)</span>
+                          <span>📋 Lesson Records ({prog.records.length})</span>
                           <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>
                         </button>
                         {isOpen && (
                           <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {pageRecords.map(rec => {
-                              const recKey = student.id + '_' + rec.session_date
+                              const recKey = student.id + '_' + (rec.lesson_key || rec.session_date)
                               const recOpen = expandedRecord[recKey]
                               return (
-                                <div key={rec.session_date} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                                <div key={recKey} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', overflow: 'hidden' }}>
                                   <button
                                     onClick={() => setExpandedRecord(prev => ({ ...prev, [recKey]: prev[recKey] ? null : rec.session_date }))}
                                     style={{ width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                                   >
-                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{rec.session_date}</span>
+                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                                      {rec.session_date}
+                                      {rec.start_time ? ` · ${formatTime(rec.start_time)}` : ''}
+                                      {rec.minutes ? ` · ${rec.minutes} min` : ''}
+                                      {rec.course_name ? ` · ${rec.course_name}` : ''}
+                                    </span>
                                     <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>{recOpen ? '▲' : '▼'}</span>
                                   </button>
                                   {recOpen && (
                                     <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                      {rec.note && (
+                                        <div style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}40`, borderRadius: '6px', padding: '8px 10px', marginBottom: '4px' }}>
+                                          <div style={{ fontSize: '10px', color: GOLD, fontWeight: 700, letterSpacing: '0.5px', marginBottom: '3px' }}>COACH&apos;S NOTE</div>
+                                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{rec.note}</div>
+                                        </div>
+                                      )}
                                       {rec.skills.map(sk => (
                                         <div key={sk.skill_id}>
                                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
@@ -1235,8 +1297,6 @@ export default function DashboardPage() {
                       </div>
                     )
                   })()}
-
-                  <LessonNotesPanel studentId={student.id} />
                 </div>
               )
             })}
