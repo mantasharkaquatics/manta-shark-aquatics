@@ -75,11 +75,18 @@ export async function GET(req: NextRequest) {
     todayLocked = !!(todayHistoryRows && todayHistoryRows.length > 0)
   }
 
+  // The coach's preset note language, so the recorder opens on the right one
+  // without the page needing to thread it down from the layout.
+  const { data: me } = await supabase
+    .from('coaches').select('default_note_language')
+    .eq('auth_user_id', staff.user.id).maybeSingle()
+
   return NextResponse.json({
     student: { ...student, level: levelData },
     skills: skills || [],
     progress: progressMap,
-    todayLocked
+    todayLocked,
+    coachDefaultLanguage: me?.default_note_language || 'en'
   })
 }
 

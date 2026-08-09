@@ -3,6 +3,7 @@
 import { formatTime12h } from '@/lib/date'
 
 import { useState, useEffect } from 'react'
+import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
 
 type Skill = { id: string; name: string; sort_order: number }
 type StudentProgress = {
@@ -46,6 +47,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   const [recommendingMap, setRecommendingMap] = useState<Record<string, boolean>>({})
   const [showChangeMap, setShowChangeMap] = useState<Record<string, boolean>>({})
   const [locked, setLocked] = useState(false)
+  const [captureMap, setCaptureMap] = useState<Record<string, Capture | null>>({})
+  const [errorMap, setErrorMap] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const check = () => {
@@ -74,6 +77,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       }
       entryMap.set(entryKey, {
         studentId,
+        lessonGroupId: b.lesson_group_id || null,
         full_name: b.students?.full_name || '',
         current_level: b.students?.current_level || null,
         sessionId: s.id,
@@ -115,15 +119,31 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     setLoadingMap(prev => ({ ...prev, [entryKey]: false }))
   }
 
-  async function saveProgress(entryKey: string, studentId: string, sessionId: string) {
+  // Progress and the recording leave together. The owner's rule is that a coach
+  // cannot send one without the other, so there is no half-submission to handle.
+  async function sendReport(entryKey: string, studentId: string, sessionId: string, lessonGroupId: string | null, sessionDate: string) {
     if (locked || completedSet.has(entryKey)) return
+    const capture = captureMap[entryKey]
+    if (!capture) return
     setSavingMap(prev => ({ ...prev, [entryKey]: true }))
+    setErrorMap(prev => ({ ...prev, [entryKey]: '' }))
     const progress = localProgressMap[entryKey] || {}
-    const res = await fetch('/api/coach/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: studentId, progress, coach_id: coach.id, class_session_id: sessionId })
-    })
+
+    const form = new FormData()
+    form.append('audio', capture.blob, 'note.' + (capture.blob.type.includes('mp4') ? 'mp4' : 'webm'))
+    form.append('student_id', studentId)
+    form.append('class_session_id', sessionId)
+    if (lessonGroupId) form.append('lesson_group_id', lessonGroupId)
+    form.append('session_date', sessionDate)
+    form.append('language', capture.language)
+    form.append('seconds', String(capture.seconds))
+    form.append('progress', JSON.stringify(progress))
+
+    const res = await fetch('/api/coach/lesson-note', { method: 'POST', body: form })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      setErrorMap(prev => ({ ...prev, [entryKey]: j.error || 'Could not send. Please try again.' }))
+    }
     if (res.ok) {
       // Mark completed and collapse this card
       setCompletedSet(prev => new Set([...prev, entryKey]))
@@ -281,20 +301,38 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                         {/* Assigned — skill progress */}
                         {data.skills.length > 0 && (
                           <>
+                            {!isCompleted && (
+                              <LessonNoteCapture
+                                key={s.entryKey}
+                                studentName={s.full_name}
+                                defaultLanguage={(data as any).coachDefaultLanguage === 'zh' ? 'zh' : 'en'}
+                                disabled={locked || saving}
+                                onChange={cap => setCaptureMap(prev => ({ ...prev, [s.entryKey]: cap }))}
+                              />
+                            )}
+
                             <div className="flex justify-between items-center mb-3">
                               <p className="text-gray-500 text-xs uppercase tracking-wider">Skill Progress</p>
                               <button
-                                onClick={() => saveProgress(s.entryKey, s.studentId, s.sessionId)}
-                                disabled={saving || !hasChanges || locked || isCompleted}
+                                onClick={() => sendReport(s.entryKey, s.studentId, s.sessionId, s.lessonGroupId, s.sessionDate)}
+                                disabled={saving || !hasChanges || !captureMap[s.entryKey] || locked || isCompleted}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                                   isCompleted ? 'bg-green-700/50 text-green-400 cursor-not-allowed' :
-                                  hasChanges && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
+                                  hasChanges && captureMap[s.entryKey] && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
                                   'bg-gray-700 text-gray-500 cursor-not-allowed'
                                 }`}
                               >
-                                {saving ? 'Saving...' : isCompleted ? '✓ Done for Today' : locked ? 'Locked' : 'Save Progress'}
+                                {saving ? 'Sending...'
+                                  : isCompleted ? '\u2713 Done for Today'
+                                  : locked ? 'Locked'
+                                  : !hasChanges ? 'Set the skills first'
+                                  : !captureMap[s.entryKey] ? 'Record a note first'
+                                  : 'Send Lesson Report'}
                               </button>
                             </div>
+                            {errorMap[s.entryKey] && (
+                              <p className="text-red-400 text-xs mb-3">{errorMap[s.entryKey]}</p>
+                            )}
                             <div className="space-y-3">
                               {data.skills.map(skill => {
                                 const pct = localProgress[skill.id] ?? 0

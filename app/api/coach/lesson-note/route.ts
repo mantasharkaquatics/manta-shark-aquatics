@@ -3,8 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-// Match whatever /api/chat/ai-reply already uses so there is one model string
-// to change, not two.
+// Match /api/chat/ai-reply so there is one model string to change, not two.
 const POLISH_MODEL = 'claude-sonnet-4-6'
 
 export async function POST(req: NextRequest) {
@@ -36,11 +35,23 @@ export async function POST(req: NextRequest) {
   const language = String(form.get('language') || 'en') === 'zh' ? 'zh' : 'en'
   const seconds = parseInt(String(form.get('seconds') || '0'), 10) || null
 
+  // The skill percentages travel with the recording: the owner's rule is that a
+  // coach cannot send one without the other, so they arrive as one submission.
+  let progress: Record<string, number> = {}
+  try {
+    progress = JSON.parse(String(form.get('progress') || '{}'))
+  } catch {
+    return NextResponse.json({ error: 'Bad progress payload' }, { status: 400 })
+  }
+
   if (!audio || !studentId || !classSessionId || !sessionDate) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
+  if (Object.keys(progress).length === 0) {
+    return NextResponse.json({ error: 'Skill progress is missing' }, { status: 400 })
+  }
 
-  // A coach may only write notes for a lesson they are actually teaching.
+  // A coach may only report on a lesson they are actually teaching.
   const { data: session } = await svc
     .from('class_sessions').select('id, coach_id').eq('id', classSessionId).single()
   if (!session || session.coach_id !== coach.id) {
@@ -51,14 +62,12 @@ export async function POST(req: NextRequest) {
     .from('students').select('id, full_name').eq('id', studentId).single()
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
-  // Terms the school wants left in English, kept as editable data so the office
-  // can add words without a deploy.
   const { data: glossaryRows } = await svc
     .from('note_glossary').select('term').eq('is_active', true).order('term')
   const glossary = (glossaryRows || []).map((g: any) => g.term)
 
   // Everyone in the lesson, so the transcriber has the names to hand. This is
-  // what stopped "Kayden" coming back as "Caden" in the August 3 probe.
+  // what stopped "Kayden" coming back as "Caden".
   const { data: roster } = await svc
     .from('bookings').select('students(full_name)')
     .eq('class_session_id', classSessionId).neq('status', 'cancelled')
@@ -77,6 +86,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- 2. Speech to text ----
+  // Deliberately before any writing of progress: if this fails the coach retries
+  // and both halves go together, rather than progress landing on its own.
   let transcript = ''
   try {
     const sttForm = new FormData()
@@ -104,8 +115,6 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- 3. Turn speech into a note a parent can read ----
-  // The raw transcript is stored untouched; if the polish drifts, the office can
-  // compare the two side by side during review.
   let note = transcript
   try {
     const wanted = language === 'zh' ? 'Traditional Chinese (繁體中文)' : 'English'
@@ -136,14 +145,15 @@ export async function POST(req: NextRequest) {
     const text = (anthJson.content || []).map((c: any) => c.text || '').join('').trim()
     if (text) note = text
   } catch (err: any) {
-    // Falling back to the raw transcript is better than losing the coach's work;
-    // the admin can tidy it during review.
+    // Falling back to the raw transcript beats losing the coach's work.
     console.error('lesson-note: polish failed, keeping raw transcript', err)
   }
 
-  // ---- 4. One note per student per lesson: an hour is ONE lesson ----
+  // ---- 4. One report per student per lesson: an hour is ONE lesson ----
   const lessonKey = lessonGroupId || classSessionId
-  const row = {
+  const now = new Date().toISOString()
+
+  const noteRow = {
     student_id: studentId,
     coach_id: coach.id,
     class_session_id: classSessionId,
@@ -155,20 +165,61 @@ export async function POST(req: NextRequest) {
     transcript,
     note,
     status: 'pending_review',
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   }
 
-  const { data: existing } = await svc
+  const { data: existingNote } = await svc
     .from('lesson_notes').select('id')
     .eq('student_id', studentId).eq('lesson_key', lessonKey).maybeSingle()
 
-  const { error: saveError } = existing
-    ? await svc.from('lesson_notes').update(row).eq('id', existing.id)
-    : await svc.from('lesson_notes').insert(row)
+  const { error: noteError } = existingNote
+    ? await svc.from('lesson_notes').update(noteRow).eq('id', existingNote.id)
+    : await svc.from('lesson_notes').insert(noteRow)
 
-  if (saveError) {
-    console.error('lesson-note: save failed', saveError)
+  if (noteError) {
+    console.error('lesson-note: note save failed', noteError)
     return NextResponse.json({ error: 'Could not save the note' }, { status: 500 })
+  }
+
+  // ---- 5. The progress half, same lesson key ----
+  // student_skill_progress is the live picture and is written now; the family
+  // only ever sees the approved progress_history row, so nothing leaks early.
+  const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
+    student_id: studentId,
+    skill_id,
+    progress_percent: pct as number,
+    last_updated_by: coach.id,
+    last_updated_at: now,
+  }))
+  const { error: sspError } = await svc
+    .from('student_skill_progress')
+    .upsert(upserts, { onConflict: 'student_id,skill_id' })
+  if (sspError) {
+    console.error('lesson-note: skill progress save failed', sspError)
+    return NextResponse.json({ error: 'Could not save the skill progress' }, { status: 500 })
+  }
+
+  const historyRow = {
+    student_id: studentId,
+    coach_id: coach.id,
+    snapshot: progress,
+    session_date: sessionDate,
+    class_session_id: classSessionId,
+    lesson_group_id: lessonGroupId,
+    status: 'pending_review',
+  }
+
+  const { data: existingHistory } = await svc
+    .from('progress_history').select('id')
+    .eq('student_id', studentId).eq('lesson_key', lessonKey).maybeSingle()
+
+  const { error: historyError } = existingHistory
+    ? await svc.from('progress_history').update(historyRow).eq('id', existingHistory.id)
+    : await svc.from('progress_history').insert(historyRow)
+
+  if (historyError) {
+    console.error('lesson-note: progress history save failed', historyError)
+    return NextResponse.json({ error: 'Could not save the progress record' }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true, note })

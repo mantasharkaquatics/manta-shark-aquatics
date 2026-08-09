@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import LessonNoteRecorder from './LessonNoteRecorder'
 
 const PROGRESS_OPTIONS = [0, 20, 40, 60, 80, 100]
 
@@ -226,18 +225,6 @@ export default function CoachDashboardClient({
 
         {/* Right: Lesson note, then Skill Progress */}
         <div>
-          {selectedStudent && selectedSession && selectedBooking && (
-            <LessonNoteRecorder
-              key={selectedStudent.id + '-' + selectedSession.id}
-              studentId={selectedStudent.id}
-              studentName={selectedStudent.full_name}
-              classSessionId={selectedSession.id}
-              lessonGroupId={selectedBooking.lesson_group_id ?? null}
-              sessionDate={selectedSession.session_date}
-              defaultLanguage={coach.default_note_language ?? 'en'}
-            />
-          )}
-
           <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider">
             Skill Progress
           </h2>
@@ -289,7 +276,7 @@ export default function CoachDashboardClient({
                       {PROGRESS_OPTIONS.map(val => (
                         <button
                           key={val}
-                          onClick={() => updateSkillProgress(skill.id, val)}
+                          disabled
                           className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
                             skill.progress === val ? 'bg-[#c9a84c] text-[#111d38]' : 'bg-[#0d1529] text-gray-400 hover:bg-[#1e3a6e]'
                           }`}
@@ -304,14 +291,10 @@ export default function CoachDashboardClient({
 
               {skills.length > 0 && (
                 <div className="p-5 border-t border-[#1e3a6e]">
-                  {saveSuccess && <p className="text-green-400 text-sm text-center mb-3">✓ Progress saved!</p>}
-                  <button
-                    onClick={saveProgress}
-                    disabled={saving}
-                    className="w-full bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] font-semibold py-3 rounded-lg transition-all"
-                  >
-                    {saving ? 'Saving...' : 'Save Progress'}
-                  </button>
+                  {/* Read-only here on purpose: a lesson report is progress AND a
+                      recording together, so it is filled in on one screen only. */}
+                  <p className="text-gray-500 text-xs text-center mb-3">Today&apos;s picture. Record the lesson under Progress.</p>
+                  <a href="/coach/progress" className="block text-center w-full bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold py-3 rounded-lg transition-all">Go to Progress</a>
                 </div>
               )}
             </div>
