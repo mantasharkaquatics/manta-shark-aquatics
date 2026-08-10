@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
   // An unlevelled swimmer reaching here is therefore always wrong, admin or not.
   for (const stu of [student1, student2].filter(Boolean)) {
     if (stu.current_level == null)
-      return NextResponse.json({ error: `${stu.full_name} has not been assessed yet. Book a Swim Assessment first, or assign a level on the Members page.` }, { status: 409 })
+      return NextResponse.json({ error: `${stu.full_name} has not been assessed yet. Book a Swim Assessment first, or assign a level on the Upgrades page.` }, { status: 409 })
   }
 
   // A 60-minute lesson is 1-on-1 only and single-swimmer, matching the parent

@@ -24,15 +24,22 @@ export async function POST(req: NextRequest) {
       upgraded_by: admin_id,
       notes: notes || null,
     })
-    .select('id, from_level, to_level, upgraded_at, notes, students(full_name), admins(first_name, last_name)')
+    .select('id, from_level, to_level, upgraded_at, notes')
     .single()
 
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
 
+  // Two-step instead of a nested join: there is no FK from level_upgrades to
+  // admins for PostgREST to embed, and nested joins fail silently in production.
+  const [{ data: stu }, { data: adm }] = await Promise.all([
+    supabase.from('students').select('full_name').eq('id', student_id).single(),
+    supabase.from('admins').select('first_name, last_name').eq('id', admin_id).single(),
+  ])
+
   const normalized = {
     ...record,
-    students: Array.isArray((record as any).students) ? (record as any).students[0] : (record as any).students,
-    admins: Array.isArray((record as any).admins) ? (record as any).admins[0] : (record as any).admins,
+    students: stu || null,
+    admins: adm || null,
   }
 
   return NextResponse.json(normalized)
