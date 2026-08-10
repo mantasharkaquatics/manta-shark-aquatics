@@ -181,6 +181,15 @@ export async function POST(req: NextRequest) {
     if (!data) return NextResponse.json({ error: 'Student 2 not found' }, { status: 404 })
     student2 = data
   }
+  // Swim assessment gate (owner rule): a swimmer with no level must take the
+  // Swim Assessment first. This route never writes is_trial, so it can never
+  // book an assessment itself - that is /api/admin/bookings/trial-credit-book.
+  // An unlevelled swimmer reaching here is therefore always wrong, admin or not.
+  for (const stu of [student1, student2].filter(Boolean)) {
+    if (stu.current_level == null)
+      return NextResponse.json({ error: `${stu.full_name} has not been assessed yet. Book a Swim Assessment first, or assign a level on the Members page.` }, { status: 409 })
+  }
+
   // A 60-minute lesson is 1-on-1 only and single-swimmer, matching the parent
   // side. It costs two of everything: two half-sessions, two bookings sharing a
   // lesson_group_id, two credits (or two tokens).
