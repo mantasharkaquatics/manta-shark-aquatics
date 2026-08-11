@@ -82,12 +82,37 @@ export default async function AdminProgressHistoryPage() {
     }
   }
 
+  // The edit trail: a published report can be corrected, and every correction
+  // stores what the family saw before it.
+  const editsByPair: Record<string, any[]> = {}
+  if (noteKeys.length > 0) {
+    const { data: edits } = await svc
+      .from('report_edits')
+      .select('id, student_id, lesson_key, prev_note, prev_snapshot, edited_by, edited_at')
+      .in('lesson_key', noteKeys)
+      .order('edited_at', { ascending: false })
+    const editorIds = [...new Set((edits || []).map((e: any) => e.edited_by).filter(Boolean))]
+    let editors: any[] = []
+    if (editorIds.length > 0) {
+      const { data } = await svc.from('admins').select('id, first_name, last_name').in('id', editorIds)
+      editors = data || []
+    }
+    const edMap: Record<string, any> = {}
+    for (const a of editors) edMap[a.id] = a
+    for (const e of edits || []) {
+      const k = `${e.student_id}|${e.lesson_key}`
+      if (!editsByPair[k]) editsByPair[k] = []
+      editsByPair[k].push({ ...e, editor: edMap[e.edited_by] || null })
+    }
+  }
+
   const enriched = records.map((r: any) => ({
     ...r,
     student: sMap[r.student_id],
     coach: cMap[r.coach_id],
     reviewer: aMap[r.reviewed_by],
     note: noteByPair[`${r.student_id}|${r.lesson_key}`] || null,
+    edits: editsByPair[`${r.student_id}|${r.lesson_key}`] || [],
   }))
 
   return <AdminProgressHistoryClient records={enriched} skills={skills || []} />

@@ -20,6 +20,13 @@ type Record_ = {
     audio_seconds: number | null
     audio_url: string | null
   } | null
+  edits: {
+    id: string
+    prev_note: string | null
+    prev_snapshot: Record<string, number> | null
+    edited_at: string
+    editor: { first_name: string; last_name: string } | null
+  }[]
 }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
 
@@ -41,6 +48,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
   const [editSnapshot, setEditSnapshot] = useState<Record<string, number>>({})
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState('')
+  const [openHistory, setOpenHistory] = useState<string | null>(null)
 
   function startEdit(rec: Record_) {
     setEditingId(rec.id)
@@ -169,15 +177,20 @@ export default function AdminProgressHistoryClient({ records, skills }: {
 
                         {isOpen && (
                           <div className="border-t border-[#1e3a6e] px-5 py-4 space-y-2">
-                            <div className="flex justify-end gap-2 pb-1">
-                              {editingId === rec.id ? (
-                                <>
-                                  <button onClick={() => setEditingId(null)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Cancel</button>
-                                  <button onClick={() => saveEdit(rec)} disabled={saving} className="px-3 py-1 rounded-lg bg-[#c9a84c] text-[#0b1526] text-xs font-semibold disabled:opacity-40">{saving ? 'Saving...' : 'Save changes'}</button>
-                                </>
-                              ) : (
-                                <button onClick={() => startEdit(rec)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Edit</button>
-                              )}
+                            <div className="flex items-center justify-between pb-1">
+                              <span className="text-[11px] text-gray-500">
+                                {rec.edits.length > 0 && `Edited \u00b7 ${new Date(rec.edits[0].edited_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                              </span>
+                              <span className="flex gap-2">
+                                {editingId === rec.id ? (
+                                  <>
+                                    <button onClick={() => setEditingId(null)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Cancel</button>
+                                    <button onClick={() => saveEdit(rec)} disabled={saving} className="px-3 py-1 rounded-lg bg-[#c9a84c] text-[#0b1526] text-xs font-semibold disabled:opacity-40">{saving ? 'Saving...' : 'Save changes'}</button>
+                                  </>
+                                ) : (
+                                  <button onClick={() => startEdit(rec)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Edit</button>
+                                )}
+                              </span>
                             </div>
                             {editingId === rec.id && editError && (
                               <p className="text-red-400 text-xs">{editError}</p>
@@ -248,6 +261,38 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                 </div>
                               )
                             })}
+                            {rec.edits.length > 0 && (
+                              <div className="pt-2">
+                                <button
+                                  onClick={() => setOpenHistory(openHistory === rec.id ? null : rec.id)}
+                                  className="text-gray-500 text-xs hover:text-gray-300 transition-colors"
+                                >
+                                  {openHistory === rec.id
+                                    ? 'Hide previous versions'
+                                    : `Show ${rec.edits.length} previous version${rec.edits.length === 1 ? '' : 's'}`}
+                                </button>
+                                {openHistory === rec.id && (
+                                  <div className="mt-2 space-y-3">
+                                    {rec.edits.map(ed => (
+                                      <div key={ed.id} className="border-l-2 border-[#1e3a6e] pl-3">
+                                        <p className="text-gray-500 text-xs">
+                                          Before {new Date(ed.edited_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                          {ed.editor ? ` \u00b7 ${ed.editor.first_name} ${ed.editor.last_name || ''}`.trimEnd() : ''}
+                                        </p>
+                                        {ed.prev_note && (
+                                          <p className="text-gray-400 text-xs leading-relaxed mt-1">{ed.prev_note}</p>
+                                        )}
+                                        {ed.prev_snapshot && (
+                                          <p className="text-gray-500 text-xs mt-1">
+                                            {Object.entries(ed.prev_snapshot).map(([sid, v]) => `${skillMap[sid] || sid} ${v}%`).join(' \u00b7 ')}
+                                          </p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             <p className="text-gray-600 text-xs pt-2">
                               Reviewed at: {new Date(rec.reviewed_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </p>
