@@ -182,7 +182,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Progress Entry</h1>
-          <p className="text-gray-400 text-sm mt-1">{today} · {sessionEntries.length} students today</p>
+          <p className="text-gray-400 text-sm mt-1">{today} · {sessionEntries.length} {sessionEntries.length === 1 ? 'lesson' : 'lessons'} today</p>
         </div>
 
       </div>
