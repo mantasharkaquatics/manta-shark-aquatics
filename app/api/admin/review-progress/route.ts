@@ -8,13 +8,18 @@ export async function POST(req: NextRequest) {
   const admin_id = auth.admin.id
   const supabase = auth.svc
 
+  // student_skill_progress.last_updated_by is a FK to coaches, so the lesson's
+  // coach belongs there, not the admin. Who reviewed is recorded on the history row.
+  const { data: histRow } = await supabase
+    .from('progress_history').select('coach_id').eq('id', history_id).single()
+
   // If the admin edited percentages before confirming, sync them into the student's actual skill progress first
   if (updated_snapshot && student_id) {
     const upserts = Object.entries(updated_snapshot).map(([skill_id, pct]) => ({
       student_id,
       skill_id,
       progress_percent: pct as number,
-      last_updated_by: admin_id,
+      last_updated_by: histRow?.coach_id ?? null,
       last_updated_at: new Date().toISOString()
     }))
     const { error: upsertError } = await supabase

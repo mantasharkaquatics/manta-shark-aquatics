@@ -11,6 +11,7 @@ type Record_ = {
   student: { id: string; full_name: string; current_level: string | null }
   coach: { first_name: string }
   reviewer: { first_name: string; last_name: string }
+  lesson_key: string
   note: {
     id: string
     transcript: string
@@ -35,6 +36,43 @@ export default function AdminProgressHistoryClient({ records, skills }: {
 }) {
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editNote, setEditNote] = useState('')
+  const [editSnapshot, setEditSnapshot] = useState<Record<string, number>>({})
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  function startEdit(rec: Record_) {
+    setEditingId(rec.id)
+    setEditNote(rec.note?.note || '')
+    setEditSnapshot({ ...(rec.snapshot || {}) })
+    setEditError('')
+  }
+
+  async function saveEdit(rec: Record_) {
+    setSaving(true)
+    setEditError('')
+    try {
+      const res = await fetch('/api/admin/report-edit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          history_id: rec.id,
+          note_id: rec.note?.id || null,
+          student_id: rec.student?.id,
+          lesson_key: rec.lesson_key,
+          note_text: editNote,
+          snapshot: editSnapshot,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Could not save the changes')
+      window.location.reload()
+    } catch (err: any) {
+      setEditError(err.message || 'Could not save the changes')
+      setSaving(false)
+    }
+  }
 
   const skillMap = useMemo(() => {
     const m: Record<string, string> = {}
@@ -131,6 +169,19 @@ export default function AdminProgressHistoryClient({ records, skills }: {
 
                         {isOpen && (
                           <div className="border-t border-[#1e3a6e] px-5 py-4 space-y-2">
+                            <div className="flex justify-end gap-2 pb-1">
+                              {editingId === rec.id ? (
+                                <>
+                                  <button onClick={() => setEditingId(null)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Cancel</button>
+                                  <button onClick={() => saveEdit(rec)} disabled={saving} className="px-3 py-1 rounded-lg bg-[#c9a84c] text-[#0b1526] text-xs font-semibold disabled:opacity-40">{saving ? 'Saving...' : 'Save changes'}</button>
+                                </>
+                              ) : (
+                                <button onClick={() => startEdit(rec)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Edit</button>
+                              )}
+                            </div>
+                            {editingId === rec.id && editError && (
+                              <p className="text-red-400 text-xs">{editError}</p>
+                            )}
                             {rec.note && (
                               <div className="mb-4 pb-4 border-b border-[#1e3a6e] space-y-3">
                                 <div className="flex items-center justify-between">
@@ -152,7 +203,16 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                 {rec.note.note && (
                                   <div>
                                     <p className="text-gray-500 text-xs mb-1">What the family read</p>
-                                    <p className="text-gray-200 text-xs leading-relaxed">{rec.note.note}</p>
+                                    {editingId === rec.id ? (
+                                      <textarea
+                                        value={editNote}
+                                        onChange={e => setEditNote(e.target.value)}
+                                        rows={4}
+                                        className="w-full bg-[#0b1526] border border-[#1e3a6e] rounded-lg px-3 py-2 text-gray-200 text-xs leading-relaxed focus:outline-none focus:border-[#c9a84c]"
+                                      />
+                                    ) : (
+                                      <p className="text-gray-200 text-xs leading-relaxed">{rec.note.note}</p>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -163,10 +223,28 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                               return (
                                 <div key={skillId} className="flex items-center gap-3">
                                   <p className="text-gray-300 text-xs w-52 flex-shrink-0">{skillMap[skillId] || skillId}</p>
-                                  <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                    <div className="h-full rounded-full" style={{ width: `${p}%`, backgroundColor: color }} />
-                                  </div>
-                                  <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p}%</span>
+                                  {editingId === rec.id ? (
+                                    <div className="flex-1 flex gap-1">
+                                      {[0, 20, 40, 60, 80, 100].map(v => (
+                                        <button
+                                          key={v}
+                                          onClick={() => setEditSnapshot(prev => ({ ...prev, [skillId]: v }))}
+                                          className="flex-1 rounded py-1 text-[11px] font-mono border transition-colors"
+                                          style={{
+                                            borderColor: editSnapshot[skillId] === v ? barColor(v) : 'rgba(255,255,255,0.12)',
+                                            color: editSnapshot[skillId] === v ? barColor(v) : 'rgba(255,255,255,0.45)',
+                                          }}
+                                        >{v}%</button>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                        <div className="h-full rounded-full" style={{ width: `${p}%`, backgroundColor: color }} />
+                                      </div>
+                                      <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p}%</span>
+                                    </>
+                                  )}
                                 </div>
                               )
                             })}
