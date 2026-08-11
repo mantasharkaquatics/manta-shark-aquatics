@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (partnerParentIds.length > 0) {
     const { data: students } = await supabase
       .from('students')
-      .select('id, full_name, parent_id')
+      .select('id, full_name, parent_id, current_level')
       .in('parent_id', partnerParentIds)
     partnerStudents = students || []
   }

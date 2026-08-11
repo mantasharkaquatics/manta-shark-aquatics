@@ -979,20 +979,20 @@ export default function BookingPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {students.filter(s => s.id !== selectedStudent?.id).map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => setSelectedStudent2(s)} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4a90c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
                           <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · Same account</div>
+                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? `Level ${s.current_level} · Same account` : 'Needs a Swim Assessment first'}</div>
                         </div>
                       </div>
                     </SelectCard>
                   ))}
                   {partnerStudents.map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => setSelectedStudent2(s)} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#7b61c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
@@ -1002,7 +1002,7 @@ export default function BookingPage() {
                             <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
                             <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>Linked</span>
                           </div>
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'} · Partner must confirm within 15 min</div>
+                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? `Level ${s.current_level} · Partner must confirm within 15 min` : 'Needs a Swim Assessment first'}</div>
                         </div>
                       </div>
                     </SelectCard>
