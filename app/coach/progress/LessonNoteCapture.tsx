@@ -116,7 +116,7 @@ export default function LessonNoteCapture({
                   language === l ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-transparent text-gray-400'
                 }`}
               >
-                {l === 'en' ? 'English' : '中文'}
+                {l === 'en' ? 'English' : 'Chinese'}
               </button>
             ))}
           </div>
