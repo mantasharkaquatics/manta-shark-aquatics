@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
+import { refreshNoteTranslations } from '@/lib/ai/translate-note'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -42,6 +43,10 @@ export async function POST(req: NextRequest) {
       .update({ note: String(note_text ?? '').trim(), updated_at: new Date().toISOString() })
       .eq('id', note_id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  
+    // The correction has to reach the other language too, or a family reading it
+    // keeps seeing the wording that was just fixed.
+    await refreshNoteTranslations(supabase, note_id)
   }
 
   // student_skill_progress holds the LATEST value per skill, so it is rebuilt
