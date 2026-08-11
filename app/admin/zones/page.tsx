@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS } from '@/lib/zone-colors'
 import { daySlots, SLOT_STEP_MINUTES } from '@/lib/date'
 
@@ -55,6 +55,7 @@ export default function ZonesEditorPage() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; warn?: boolean; text: string } | null>(null)
   const [hasZones, setHasZones] = useState(false)
+  const [hasWeekly, setHasWeekly] = useState(false)
   const [mode, setMode] = useState<'weekly' | 'date'>('weekly')
   const [ovDate, setOvDate] = useState('')
   const [dayClosed, setDayClosed] = useState(false)
@@ -93,7 +94,8 @@ export default function ZonesEditorPage() {
       setTeamRows((d.weekly || []).filter((z: ZoneRow) => z.zone_type === 'team'))
       if ((d.tiers || []).length > 0 && !brushTier) setBrushTier(d.tiers[0].id)
       setGrid(buildWeeklyGrid(d.weekly || []))
-      setHasZones((d.weekly || []).length > 0)
+      setHasZones((d.weekly || []).length > 0 || (d.overrideDates || []).length > 0)
+      setHasWeekly((d.weekly || []).length > 0)
       setOvDates(d.overrideDates || [])
     })
   }, [coachId])
@@ -293,6 +295,11 @@ export default function ZonesEditorPage() {
             )}
           </div>
         )}
+        {coachId && mode === 'weekly' && hasZones && !hasWeekly && (
+          <span style={{ fontSize: 12, color: '#e8883a' }}>
+            No weekly template yet, so this coach is closed on every date except the ones with an override.
+          </span>
+        )}
         {coachId && mode === 'weekly' && !hasZones && (
           <span style={{ fontSize: 12, color: '#e8883a' }}>
             This coach is on the legacy hours table (all course types).{legacy.length > 0 && <> <button onClick={loadLegacyAsPrivate} style={{ color: '#c9a84c', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textDecoration: 'underline', padding: 0 }}>Copy current hours as Private zones</button></>}
@@ -394,7 +401,7 @@ export default function ZonesEditorPage() {
               const gap = i < SLOTS - 1 ? toMin(DAY_SLOTS[i + 1].start) - toMin(DAY_SLOTS[i].end) : 0
               const gapH = gap >= 10 ? 14 : 7
               return (
-              <>
+              <Fragment key={i}>
                 <div key={`t${i}`} style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textAlign: 'right', paddingRight: 6, lineHeight: '20px' }}>{idxToTime(i)}</div>
                 {visDays.map(d => {
                   const c = grid[d][i]
@@ -432,7 +439,7 @@ export default function ZonesEditorPage() {
                     <div key={`b${d}-${i}`} title={tiv ? 'team practice' : `${gap}-minute turnover`} style={{ height: gapH, borderRadius: 2, background: tiv ? `${tierColor(tiv.tier)}55` : gap >= 10 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.035)' }} />
                   )
                 })}
-              </>
+              </Fragment>
               )
             })}
           </div>
