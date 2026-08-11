@@ -835,10 +835,29 @@ export default function DashboardPage() {
       if (histLessonKeys.length > 0) {
         const { data: hNotes } = await supabase
           .from('lesson_notes')
-          .select('lesson_key, note')
+          .select('id, lesson_key, language, note')
           .in('lesson_key', histLessonKeys)
           .eq('status', 'approved')
         for (const n of hNotes || []) noteByKey[(n as any).lesson_key] = (n as any).note || ''
+
+        // A family reads notes in the language they chose. Only notes recorded
+        // in another language have a translation stored, and a missing one just
+        // leaves the original in place.
+        const wantLang = (parentData as any).preferred_language || 'en'
+        const foreignIds = (hNotes || []).filter((n: any) => n.language !== wantLang).map((n: any) => n.id)
+        if (foreignIds.length > 0) {
+          const { data: hTrans } = await supabase
+            .from('lesson_note_translations')
+            .select('lesson_note_id, text')
+            .in('lesson_note_id', foreignIds)
+            .eq('language', wantLang)
+          const keyById: Record<string, string> = {}
+          for (const n of hNotes || []) keyById[(n as any).id] = (n as any).lesson_key
+          for (const t of hTrans || []) {
+            const k = keyById[(t as any).lesson_note_id]
+            if (k && (t as any).text) noteByKey[k] = (t as any).text
+          }
+        }
       }
 
       // Fetch skill names (including all skills used in snapshots)

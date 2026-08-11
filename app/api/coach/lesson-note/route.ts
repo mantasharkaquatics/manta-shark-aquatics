@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 // Match /api/chat/ai-reply so there is one model string to change, not two.
-const POLISH_MODEL = 'claude-sonnet-4-6'
+import { POLISH_MODEL } from '@/lib/ai/models'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()

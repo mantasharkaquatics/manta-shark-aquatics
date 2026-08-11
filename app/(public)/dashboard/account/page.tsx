@@ -10,7 +10,7 @@ const GOLD = '#c9a84c'
 
 interface Parent {
   id: string; first_name: string; last_name: string; email: string; phone: string
-  registered_at: string | null; newsletter_subscribed: boolean
+  registered_at: string | null; newsletter_subscribed: boolean; preferred_language: string
 }
 interface Student { id: string; full_name: string; date_of_birth: string | null; added_by_parent?: boolean }
 
@@ -20,6 +20,7 @@ export default function AccountPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [newsletterSaving, setNewsletterSaving] = useState(false)
+  const [langSaving, setLangSaving] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDob, setNewDob] = useState('')
@@ -47,6 +48,16 @@ export default function AccountPage() {
     await supabase.from('parents').update({ newsletter_subscribed: newVal }).eq('id', parent.id)
     setParent(prev => prev ? { ...prev, newsletter_subscribed: newVal } : prev)
     setNewsletterSaving(false)
+  }
+
+  // Same shape as the newsletter toggle: a parent editing one column of their
+  // own row, which RLS already allows, so no API route is needed.
+  async function setLanguage(code: string) {
+    if (!parent || parent.preferred_language === code) return
+    setLangSaving(true)
+    await supabase.from('parents').update({ preferred_language: code }).eq('id', parent.id)
+    setParent(prev => prev ? { ...prev, preferred_language: code } : prev)
+    setLangSaving(false)
   }
 
   const MAX_STUDENTS = 3
@@ -114,6 +125,28 @@ export default function AccountPage() {
                   <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{item.value}</div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Language section */}
+          <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>Language</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Your coach&apos;s lesson notes are written in this language</div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              {[{ code: 'en', label: 'English' }, { code: 'zh', label: 'Chinese' }].map(o => {
+                const on = parent?.preferred_language === o.code
+                return (
+                  <button key={o.code} onClick={() => setLanguage(o.code)} disabled={langSaving}
+                    style={{
+                      padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                      background: on ? GOLD : 'transparent',
+                      color: on ? '#111d38' : 'rgba(255,255,255,0.6)',
+                      border: on ? 'none' : '1px solid rgba(255,255,255,0.15)',
+                    }}>{o.label}</button>
+                )
+              })}
             </div>
           </div>
 
