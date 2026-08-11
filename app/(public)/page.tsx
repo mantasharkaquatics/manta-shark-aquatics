@@ -1,4 +1,5 @@
 'use client'
+import TestimonialCarousel from './TestimonialCarousel'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -185,30 +186,7 @@ export default function HomePage() {
 
       {/* FOOTER */}
 
-      <script dangerouslySetInnerHTML={{ __html: `
-        (function() {
-          var current = 0;
-          var total = 4;
-          var timer;
-
-          function goTo(n) {
-            var target = document.querySelector('.tcard[data-slide="' + n + '"]');
-            if (!target) { clearInterval(timer); return; }
-            document.querySelectorAll('.tcard').forEach(function(el) { el.classList.remove('active'); });
-            document.querySelectorAll('.dot').forEach(function(el, i) { el.classList.toggle('active', i === n); });
-            target.classList.add('active');
-            current = n;
-            clearInterval(timer);
-            timer = setInterval(function() { goTo((current + 1) % total); }, 15000);
-          }
-
-          document.getElementById('t-prev').addEventListener('click', function() { goTo((current - 1 + total) % total); });
-          document.getElementById('t-next').addEventListener('click', function() { goTo((current + 1) % total); });
-          document.querySelectorAll('.dot').forEach(function(el, i) { el.addEventListener('click', function() { goTo(i); }); });
-
-          timer = setInterval(function() { goTo((current + 1) % total); }, 15000);
-        })();
-      ` }} />
+      <TestimonialCarousel />
     </>
   )
 }
