@@ -68,12 +68,19 @@ export async function POST(req: NextRequest) {
 
   // Everyone in the lesson, so the transcriber has the names to hand. This is
   // what stopped "Kayden" coming back as "Caden".
+  // two-step, never a nested join: those come back empty in production, and the
+  // `|| student.full_name` fallback below hides it - a 1-on-4 would silently
+  // send one name instead of four.
   const { data: roster } = await svc
-    .from('bookings').select('students(full_name)')
+    .from('bookings').select('student_id')
     .eq('class_session_id', classSessionId).neq('status', 'cancelled')
-  const names = [...new Set(
-    (roster || []).map((b: any) => (Array.isArray(b.students) ? b.students[0] : b.students)?.full_name).filter(Boolean)
-  )]
+  const rosterIds = [...new Set((roster || []).map((b: any) => b.student_id).filter(Boolean))]
+  let names: string[] = []
+  if (rosterIds.length > 0) {
+    const { data: rosterStudents } = await svc
+      .from('students').select('full_name').in('id', rosterIds)
+    names = [...new Set((rosterStudents || []).map((r: any) => r.full_name).filter(Boolean))]
+  }
 
   // ---- 1. Keep the audio. Retention is deliberate: nothing purges this. ----
   const ext = (audio.type || '').includes('mp4') ? 'm4a' : 'webm'
