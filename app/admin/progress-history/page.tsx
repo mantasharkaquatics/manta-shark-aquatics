@@ -25,7 +25,7 @@ export default async function AdminProgressHistoryPage() {
   // Fetch all approved records
   const { data: records } = await svc
     .from('progress_history')
-    .select('id, student_id, coach_id, snapshot, session_date, created_at, reviewed_at, reviewed_by')
+    .select('id, student_id, coach_id, snapshot, session_date, created_at, reviewed_at, reviewed_by, lesson_key')
     .eq('status', 'approved')
     .order('session_date', { ascending: false })
     .order('created_at', { ascending: false })
@@ -50,11 +50,44 @@ export default async function AdminProgressHistoryPage() {
   const aMap: Record<string, any> = {}
   for (const a of admins || []) aMap[a.id] = a
 
-  const enriched = records.map(r => ({
+  // Notes pair by (student_id, lesson_key), not by date: a student can have two
+  // lessons in one day and an hour lesson is two sessions but one lesson. Signed
+  // urls are made here so the client only ever receives a ready link.
+  const noteKeys = [...new Set(records.map((r: any) => r.lesson_key).filter(Boolean))]
+  const noteByPair: Record<string, any> = {}
+  if (noteKeys.length > 0) {
+    const { data: notes } = await svc
+      .from('lesson_notes')
+      .select('id, student_id, lesson_key, transcript, note, language, audio_seconds, audio_path')
+      .in('lesson_key', noteKeys)
+      .neq('status', 'rejected')
+    const notePaths = (notes || []).map((n: any) => n.audio_path).filter(Boolean)
+    const signedByPath: Record<string, string> = {}
+    if (notePaths.length > 0) {
+      const { data: signed } = await svc.storage
+        .from('lesson-audio').createSignedUrls(notePaths, 60 * 60)
+      for (const s of signed || []) {
+        if (s.path && s.signedUrl) signedByPath[s.path] = s.signedUrl
+      }
+    }
+    for (const n of notes || []) {
+      noteByPair[`${n.student_id}|${n.lesson_key}`] = {
+        id: n.id,
+        transcript: n.transcript || '',
+        note: n.note || '',
+        language: n.language || 'en',
+        audio_seconds: n.audio_seconds,
+        audio_url: n.audio_path ? (signedByPath[n.audio_path] || null) : null,
+      }
+    }
+  }
+
+  const enriched = records.map((r: any) => ({
     ...r,
     student: sMap[r.student_id],
     coach: cMap[r.coach_id],
     reviewer: aMap[r.reviewed_by],
+    note: noteByPair[`${r.student_id}|${r.lesson_key}`] || null,
   }))
 
   return <AdminProgressHistoryClient records={enriched} skills={skills || []} />

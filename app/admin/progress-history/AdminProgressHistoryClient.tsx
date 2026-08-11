@@ -11,6 +11,14 @@ type Record_ = {
   student: { id: string; full_name: string; current_level: string | null }
   coach: { first_name: string }
   reviewer: { first_name: string; last_name: string }
+  note: {
+    id: string
+    transcript: string
+    note: string
+    language: string
+    audio_seconds: number | null
+    audio_url: string | null
+  } | null
 }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
 
@@ -123,6 +131,32 @@ export default function AdminProgressHistoryClient({ records, skills }: {
 
                         {isOpen && (
                           <div className="border-t border-[#1e3a6e] px-5 py-4 space-y-2">
+                            {rec.note && (
+                              <div className="mb-4 pb-4 border-b border-[#1e3a6e] space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[#c9a84c] text-xs font-semibold tracking-wide">LESSON NOTE</p>
+                                  <p className="text-gray-500 text-xs">
+                                    recorded in {rec.note.language === 'zh' ? 'Chinese' : 'English'}
+                                    {rec.note.audio_seconds ? ` \u00b7 ${rec.note.audio_seconds}s` : ''}
+                                  </p>
+                                </div>
+                                {rec.note.audio_url && (
+                                  <audio controls src={rec.note.audio_url} className="w-full" />
+                                )}
+                                {rec.note.transcript && (
+                                  <div>
+                                    <p className="text-gray-500 text-xs mb-1">What the coach said</p>
+                                    <p className="text-gray-300 text-xs leading-relaxed">{rec.note.transcript}</p>
+                                  </div>
+                                )}
+                                {rec.note.note && (
+                                  <div>
+                                    <p className="text-gray-500 text-xs mb-1">What the family read</p>
+                                    <p className="text-gray-200 text-xs leading-relaxed">{rec.note.note}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {entries.map(([skillId, pct]) => {
                               const p = pct as number
                               const color = barColor(p)

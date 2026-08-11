@@ -24,7 +24,7 @@ export default function AdminLessonNoteReview({
       <div className="flex items-center justify-between">
         <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">Lesson Note</p>
         <span className="text-gray-500 text-xs">
-          recorded in {note.language === 'zh' ? '中文' : 'English'}
+          recorded in {note.language === 'zh' ? 'Chinese' : 'English'}
           {note.audio_seconds ? ` · ${note.audio_seconds}s` : ''}
         </span>
       </div>
