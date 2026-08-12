@@ -39,6 +39,10 @@ export default function LessonNoteCapture({
   const streamRef = useRef<MediaStream | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const urlRef = useRef<string | null>(null)
+  // Kept in step with the seconds state so onstop can read the elapsed time
+  // directly. Reading it through a setSeconds updater instead would call
+  // onChange during React's render phase, which updates the parent mid-render.
+  const secondsRef = useRef(0)
 
   useEffect(() => {
     return () => {
@@ -79,13 +83,17 @@ export default function LessonNoteCapture({
         streamRef.current?.getTracks().forEach(t => t.stop())
         streamRef.current = null
         setPhase('review')
-        setSeconds(s => { onChange({ blob, seconds: s, language }); return s })
+        onChange({ blob, seconds: secondsRef.current, language })
       }
       recorder.start()
       recorderRef.current = recorder
 
+      secondsRef.current = 0
       setSeconds(0)
-      tickRef.current = setInterval(() => setSeconds(s => s + 1), 1000)
+      tickRef.current = setInterval(() => {
+        secondsRef.current += 1
+        setSeconds(secondsRef.current)
+      }, 1000)
       setPhase('recording')
     } catch {
       setMessage('Could not open the microphone. Check this site has permission.')
