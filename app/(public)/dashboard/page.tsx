@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
+import { useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -52,7 +54,7 @@ interface Credit {
   student_id: string | null
   created_at?: string
   expires_at?: string | null
-  course_types?: { name: string } | { name: string }[]
+  course_types?: { id: string; name: string } | { id: string; name: string }[]
   purchases?: { paid_at: string | null; created_at: string } | { paid_at: string | null; created_at: string }[]
   invoice_id?: string | null
   invoices?: { id: string } | { id: string }[] | null
@@ -444,6 +446,7 @@ function TokenCard({ tokens }: { tokens: TokenPack[] }) {
 
 export default function DashboardPage() {
   const supabase = createClient()
+  const locale = useLocale()
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
@@ -1873,7 +1876,7 @@ export default function DashboardPage() {
                   const key = credit.is_trial ? '__assessment__' : credit.course_type_id
                   const itemDate = pur?.paid_at || pur?.created_at || credit.created_at || null
                   if (!grouped[key]) {
-                    grouped[key] = { name: credit.is_trial ? 'Swim Assessment' : (ct?.name || 'Lesson Credits'), total: 0, used: 0, items: [] }
+                    grouped[key] = { name: credit.is_trial ? 'Swim Assessment' : (ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : (ct?.name || 'Lesson Credits')), total: 0, used: 0, items: [] }
                   }
                   grouped[key].total += credit.total_credits
                   grouped[key].used += credit.used_credits
