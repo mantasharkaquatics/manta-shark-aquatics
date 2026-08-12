@@ -25,6 +25,18 @@ export function toLocale(value: unknown): Locale {
   return isLocale(value) ? value : DEFAULT_LOCALE;
 }
 
+export function matchLocaleTags(tags: readonly string[]): Locale | null {
+  for (const raw of tags) {
+    const tag = raw.trim().toLowerCase();
+    if (!tag) continue;
+    if (tag === 'en' || tag.startsWith('en-')) return 'en';
+    if (tag.includes('hant') || tag === 'zh-tw' || tag === 'zh-hk' || tag === 'zh-mo') return 'zh-Hant';
+    if (tag.includes('hans') || tag === 'zh-cn' || tag === 'zh-sg') return 'zh-Hans';
+    if (tag === 'zh') return 'zh-Hant';
+  }
+  return null;
+}
+
 function interpolate(text: string, vars?: Record<string, string | number>): string {
   if (!vars) return text;
   return text.replace(/\{(\w+)\}/g, (match, name) =>

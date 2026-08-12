@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useT, useLocale, useSetLocale } from '@/lib/i18n/provider'
+import { LOCALES, type Locale } from '@/lib/i18n'
 
 const navLinks = [
-  { label: 'Services', href: '/services' },
-  { label: 'Swim Levels', href: '/levels' },
-  { label: 'Swim Plans', href: '/plans' },
-  { label: 'About Us', href: '/about' },
-  { label: 'Policies', href: '/policies' },
+  { labelKey: 'page.services', href: '/services' },
+  { labelKey: 'page.levels', href: '/levels' },
+  { labelKey: 'page.plans', href: '/plans' },
+  { labelKey: 'page.about', href: '/about' },
+  { labelKey: 'page.policies', href: '/policies' },
 ]
 
 export default function Navbar() {
@@ -21,6 +23,9 @@ export default function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const t = useT()
+  const locale = useLocale()
+  const setLocale = useSetLocale()
 
   useEffect(() => {
     async function loadUser() {
@@ -65,6 +70,18 @@ export default function Navbar() {
     router.push('/')
   }
 
+  const localeSelect = (extraClass: string) => (
+    <select
+      aria-label="Language"
+      value={locale}
+      onChange={e => setLocale(e.target.value as Locale)}
+      className={`bg-[#111d38] text-gray-300 text-sm border border-white/15 rounded px-2 py-1 cursor-pointer ${extraClass}`}>
+      {LOCALES.map(l => (
+        <option key={l} value={l}>{t('locale.' + l + '.native')}</option>
+      ))}
+    </select>
+  )
+
   return (
     <nav className="bg-[#1a2744] sticky top-0 z-50 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -80,33 +97,34 @@ export default function Navbar() {
             {navLinks.map(link => (
               <Link key={link.href} href={link.href}
                 className={`text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
-                {link.label}
+                {t(link.labelKey)}
               </Link>
             ))}
           </div>
 
           <div className="flex items-center gap-3">
+            {localeSelect('hidden sm:block')}
             {authLoading ? <div className="w-24 h-8" /> : isLoggedIn ? (
               <>
                 <Link href="/dashboard"
                   className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
-                  Hi, {firstName}
+                  {t('nav.greeting', { name: firstName })}
                 </Link>
                 <button
                   onClick={handleSignOut}
                   className="bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-5 py-2 rounded transition-colors">
-                  Sign Out
+                  {t('nav.signOut')}
                 </button>
               </>
             ) : (
               <>
                 <Link href="/login"
                   className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
-                  Sign In
+                  {t('nav.signIn')}
                 </Link>
                 <Link href="/register"
                   className="bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                  Create Account
+                  {t('nav.createAccount')}
                 </Link>
               </>
             )}
@@ -127,17 +145,18 @@ export default function Navbar() {
             <Link key={link.href} href={link.href}
               onClick={() => setMenuOpen(false)}
               className={`block py-2 text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
-              {link.label}
+              {t(link.labelKey)}
             </Link>
           ))}
           {isLoggedIn ? (
             <>
-              <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">My Dashboard</Link>
-              <button onClick={handleSignOut} className="block py-2 text-sm text-gray-300 hover:text-white w-full text-left">Sign Out</button>
+              <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">{t('nav.dashboard')}</Link>
+              <button onClick={handleSignOut} className="block py-2 text-sm text-gray-300 hover:text-white w-full text-left">{t('nav.signOut')}</button>
             </>
           ) : (
-            <Link href="/login" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">Sign In</Link>
+            <Link href="/login" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">{t('nav.signIn')}</Link>
           )}
+          <div className="pt-2 sm:hidden">{localeSelect('')}</div>
         </div>
       )}
     </nav>

@@ -1,22 +1,26 @@
+'use client'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useT } from '@/lib/i18n/provider'
 
 const LINKS = [
-  { label: 'Services', href: '/services' },
-  { label: 'Swim Levels', href: '/levels' },
-  { label: 'Swim Plans', href: '/plans' },
-  { label: 'About Us', href: '/about' },
+  { labelKey: 'page.services', href: '/services' },
+  { labelKey: 'page.levels', href: '/levels' },
+  { labelKey: 'page.plans', href: '/plans' },
+  { labelKey: 'page.about', href: '/about' },
 ]
 
 const LEGAL = [
-  { label: 'User Agreement', href: '/terms' },
-  { label: 'Privacy Policy', href: '/privacy-policy' },
-  { label: 'Liability Waiver', href: '/waiver' },
-  { label: 'Photo & Video Release', href: '/media-release' },
-  { label: 'SMS Terms', href: '/sms-terms' },
+  { labelKey: 'legal.terms', href: '/terms' },
+  { labelKey: 'legal.privacy', href: '/privacy-policy' },
+  { labelKey: 'legal.waiver', href: '/waiver' },
+  { labelKey: 'legal.mediaRelease', href: '/media-release' },
+  { labelKey: 'legal.smsTerms', href: '/sms-terms' },
 ]
 
 export default function Footer() {
+  const t = useT()
+
   return (
     <footer style={{ background: '#0d1529', padding: '48px 48px 24px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
@@ -26,41 +30,41 @@ export default function Footer() {
               <Image src="/logo.png" alt="Manta Shark Aquatics" width={48} height={48} />
               <div>
                 <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '16px', fontWeight: 700, color: 'white' }}>Manta Shark Aquatics</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>Southern California</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{t('footer.region')}</div>
               </div>
             </div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7 }}>Professional swim coaching with expertise in education, psychology, and child development.</p>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7 }}>{t('footer.tagline')}</p>
           </div>
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>Links</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>{t('footer.links')}</div>
             {LINKS.map(l => (
-              <div key={l.label} style={{ marginBottom: '8px' }}>
-                <Link href={l.href} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{l.label}</Link>
+              <div key={l.href} style={{ marginBottom: '8px' }}>
+                <Link href={l.href} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{t(l.labelKey)}</Link>
               </div>
             ))}
           </div>
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>Legal</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>{t('footer.legal')}</div>
             {LEGAL.map(l => (
-              <div key={l.label} style={{ marginBottom: '8px' }}>
-                <Link href={l.href} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{l.label}</Link>
+              <div key={l.href} style={{ marginBottom: '8px' }}>
+                <Link href={l.href} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{t(l.labelKey)}</Link>
               </div>
             ))}
           </div>
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>Contact</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>{t('footer.contact')}</div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.8 }}>
               info@mantasharkaquatics.net<br />
-              Brea, California<br />
-              Open daily · 6:00 AM &ndash; 9:00 PM
+              {t('footer.location')}<br />
+              {t('footer.hours')}
             </p>
             <div style={{ marginTop: '14px' }}>
-              <Link href="/coach-login" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>Coach Login →</Link>
+              <Link href="/coach-login" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>{t('footer.coachLogin')} →</Link>
             </div>
           </div>
         </div>
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
-          &copy; 2026 Manta Shark Aquatics. All rights reserved.
+          {t('footer.copyright', { year: 2026 })}
         </div>
       </div>
     </footer>
