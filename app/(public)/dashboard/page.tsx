@@ -36,6 +36,7 @@ interface ProgressRecord {
   lesson_key?: string
   start_time?: string
   course_name?: string
+  course_type_id?: string
   minutes?: number
   note?: string
   skills: SkillProgress[]
@@ -928,6 +929,7 @@ export default function DashboardPage() {
                 lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
                 start_time: info?.start_time || '',
                 course_name: info?.course_name || '',
+                course_type_id: info?.course_type_id || '',
                 // An hour is two sessions but one lesson; the record is stored
                 // against the first half, so its own end time would read short.
                 minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
@@ -952,6 +954,7 @@ export default function DashboardPage() {
             lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
             start_time: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.start_time : '') || '',
             course_name: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_name : '') || '',
+            course_type_id: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_type_id : '') || '',
             minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
             note: hist.lesson_key ? (noteByKey[hist.lesson_key] || '') : '',
             skills: Object.entries(hist.snapshot).map(([skill_id, pct]) => ({
@@ -1275,7 +1278,7 @@ export default function DashboardPage() {
                                       {rec.session_date}
                                       {rec.start_time ? ` · ${formatTime(rec.start_time)}` : ''}
                                       {rec.minutes ? ` · ${rec.minutes} min` : ''}
-                                      {rec.course_name ? ` · ${rec.course_name}` : ''}
+                                      {rec.course_name ? ` · ${rec.course_type_id ? tDb(locale, 'course_types', rec.course_type_id, rec.course_name) : rec.course_name}` : ''}
                                     </span>
                                     <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>{recOpen ? '▲' : '▼'}</span>
                                   </button>
