@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 // Match /api/chat/ai-reply so there is one model string to change, not two.
-import { POLISH_MODEL } from '@/lib/ai/models'
+import { POLISH_MODEL, RECORDING_LANGUAGES, LANGUAGE_NAMES } from '@/lib/ai/models'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
   const classSessionId = String(form.get('class_session_id') || '')
   const lessonGroupId = (form.get('lesson_group_id') as string) || null
   const sessionDate = String(form.get('session_date') || '')
-  const language = String(form.get('language') || 'en') === 'zh' ? 'zh' : 'en'
+  const posted = String(form.get('language') || 'en')
+  const language = (RECORDING_LANGUAGES as readonly string[]).includes(posted) ? posted : 'en'
   const seconds = parseInt(String(form.get('seconds') || '0'), 10) || null
 
   // The skill percentages travel with the recording: the owner's rule is that a
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
   // ---- 3. Turn speech into a note a parent can read ----
   let note = transcript
   try {
-    const wanted = language === 'zh' ? 'Traditional Chinese (繁體中文)' : 'English'
+    const wanted = LANGUAGE_NAMES[language] || LANGUAGE_NAMES.en
     const anthRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {

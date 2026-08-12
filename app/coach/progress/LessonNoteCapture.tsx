@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-export type Capture = { blob: Blob; seconds: number; language: 'zh' | 'en' }
+export type Capture = { blob: Blob; seconds: number; language: 'zh-Hant' | 'en' }
 
 type Props = {
   studentName: string
-  defaultLanguage: 'zh' | 'en'
+  defaultLanguage: 'zh-Hant' | 'en'
   disabled?: boolean
   // Handed up rather than submitted here: progress and the recording go to the
   // server together in one action, so this component only captures.
@@ -29,7 +29,7 @@ export default function LessonNoteCapture({
   studentName, defaultLanguage, disabled, onChange,
 }: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
-  const [language, setLanguage] = useState<'zh' | 'en'>(defaultLanguage)
+  const [language, setLanguage] = useState<'zh-Hant' | 'en'>(defaultLanguage)
   const [seconds, setSeconds] = useState(0)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [message, setMessage] = useState('')
@@ -107,7 +107,7 @@ export default function LessonNoteCapture({
         <p className="text-gray-500 text-xs uppercase tracking-wider">Lesson Note</p>
         {phase === 'idle' && (
           <div className="inline-flex rounded-lg overflow-hidden border border-[#1e3a6e]">
-            {(['en', 'zh'] as const).map(l => (
+            {(['en', 'zh-Hant'] as const).map(l => (
               <button
                 key={l}
                 onClick={() => setLanguage(l)}

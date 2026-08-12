@@ -305,7 +305,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                               <LessonNoteCapture
                                 key={s.entryKey}
                                 studentName={s.full_name}
-                                defaultLanguage={(data as any).coachDefaultLanguage === 'zh' ? 'zh' : 'en'}
+                                defaultLanguage={(data as any).coachDefaultLanguage === 'zh-Hant' ? 'zh-Hant' : 'en'}
                                 disabled={locked || saving}
                                 onChange={cap => setCaptureMap(prev => ({ ...prev, [s.entryKey]: cap }))}
                               />

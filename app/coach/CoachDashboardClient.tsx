@@ -41,7 +41,7 @@ export default function CoachDashboardClient({
   todaySessions,
   today,
 }: {
-  coach: { id: string; first_name: string; last_name: string; default_note_language?: 'zh' | 'en' }
+  coach: { id: string; first_name: string; last_name: string; default_note_language?: 'zh-Hant' | 'en' }
   todaySessions: Session[]
   today: string
 }) {

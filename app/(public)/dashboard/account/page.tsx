@@ -1,5 +1,6 @@
 'use client'
 
+import { SUPPORTED_NOTE_LANGUAGES, LANGUAGE_LABELS } from '@/lib/ai/models'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -134,20 +135,19 @@ export default function AccountPage() {
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>Language</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Your coach&apos;s lesson notes are written in this language</div>
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-              {[{ code: 'en', label: 'English' }, { code: 'zh', label: 'Chinese' }].map(o => {
-                const on = parent?.preferred_language === o.code
-                return (
-                  <button key={o.code} onClick={() => setLanguage(o.code)} disabled={langSaving}
-                    style={{
-                      padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-                      background: on ? GOLD : 'transparent',
-                      color: on ? '#111d38' : 'rgba(255,255,255,0.6)',
-                      border: on ? 'none' : '1px solid rgba(255,255,255,0.15)',
-                    }}>{o.label}</button>
-                )
-              })}
-            </div>
+            <select
+              value={parent?.preferred_language || 'en'}
+              onChange={e => setLanguage(e.target.value)}
+              disabled={langSaving}
+              style={{
+                background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '10px', padding: '9px 12px', fontSize: '13px', fontWeight: 600,
+                cursor: 'pointer', flexShrink: 0,
+              }}>
+              {SUPPORTED_NOTE_LANGUAGES.map(code => (
+                <option key={code} value={code}>{LANGUAGE_LABELS[code]}</option>
+              ))}
+            </select>
           </div>
 
           {/* Newsletter section */}

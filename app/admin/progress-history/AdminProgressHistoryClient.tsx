@@ -1,5 +1,6 @@
 'use client'
 
+import { LANGUAGE_LABELS } from '@/lib/ai/models'
 import { useState, useMemo } from 'react'
 
 type Record_ = {
@@ -200,7 +201,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                 <div className="flex items-center justify-between">
                                   <p className="text-[#c9a84c] text-xs font-semibold tracking-wide">LESSON NOTE</p>
                                   <p className="text-gray-500 text-xs">
-                                    recorded in {rec.note.language === 'zh' ? 'Chinese' : 'English'}
+                                    recorded in {LANGUAGE_LABELS[rec.note.language] || rec.note.language}
                                     {rec.note.audio_seconds ? ` \u00b7 ${rec.note.audio_seconds}s` : ''}
                                   </p>
                                 </div>

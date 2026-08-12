@@ -24,7 +24,7 @@ export default function AdminLessonNoteReview({
       <div className="flex items-center justify-between">
         <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">Lesson Note</p>
         <span className="text-gray-500 text-xs">
-          recorded in {note.language === 'zh' ? 'Chinese' : 'English'}
+          recorded in {LANGUAGE_LABELS[note.language] || note.language}
           {note.audio_seconds ? ` · ${note.audio_seconds}s` : ''}
         </span>
       </div>
@@ -54,4 +54,5 @@ export default function AdminLessonNoteReview({
       </div>
     </div>
   )
-}
+}import { LANGUAGE_LABELS } from '@/lib/ai/models'
+
