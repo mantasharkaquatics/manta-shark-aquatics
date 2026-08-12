@@ -561,7 +561,7 @@ export default function DashboardPage() {
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase
         .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, expires_at, is_trial, course_types(name), purchases(paid_at, created_at), invoices(id)')
+        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, expires_at, is_trial, course_types(id, name), purchases(paid_at, created_at), invoices(id)')
         .eq('parent_id', parentData.id)
         .gt('total_credits', 0)
         .is('converted_to_token_at', null),
@@ -591,16 +591,16 @@ export default function DashboardPage() {
 
     const [{ data: sessionsData }, { data: studentsData }, { data: newSessionsData }, { data: pSessions }, { data: pStudents }] = await Promise.all([
       sessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(name, slug), coaches(first_name)').in('id', sessionIds)
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', sessionIds)
         : Promise.resolve({ data: [] }),
       studentIds.length > 0
         ? supabase.from('students').select('id, full_name').in('id', studentIds)
         : Promise.resolve({ data: [] }),
       newSessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(name, slug), coaches(first_name)').in('id', newSessionIds)
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', newSessionIds)
         : Promise.resolve({ data: [] }),
       pendingSessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(name), coaches(first_name)').in('id', pendingSessionIds)
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(id, name), coaches(first_name)').in('id', pendingSessionIds)
         : Promise.resolve({ data: [] }),
       pendingStudentIds.length > 0
         ? supabase.from('students').select('id, full_name').in('id', pendingStudentIds)
@@ -821,7 +821,7 @@ export default function DashboardPage() {
       if (histSessionIds.length > 0) {
         const { data: hSessions } = await supabase
           .from('class_sessions')
-          .select('id, start_time, course_types(name)')
+          .select('id, start_time, course_types(id, name)')
           .in('id', histSessionIds)
         for (const cs of hSessions || []) {
           const ct = Array.isArray((cs as any).course_types) ? (cs as any).course_types[0] : (cs as any).course_types
