@@ -1,16 +1,5 @@
 {
   "skills": {},
-  "levels": {
-    "11cb28cf-df84-4c36-85c0-f95e66bf95de": { "en": "Level 1", "zh-Hant": "等級 1", "zh-Hans": "等级 1" },
-    "a7508f3b-90e1-442a-9543-c2ee39ece05a": { "en": "Level 2", "zh-Hant": "等級 2", "zh-Hans": "等级 2" },
-    "d43bd4ad-818a-47cc-b984-340f1a86778e": { "en": "Level 3", "zh-Hant": "等級 3", "zh-Hans": "等级 3" },
-    "ed7884c1-bf10-4725-830a-981ee8b52246": { "en": "Level 4", "zh-Hant": "等級 4", "zh-Hans": "等级 4" },
-    "83479c5f-2ca6-45db-a09b-d2aaa919162b": { "en": "Level 5", "zh-Hant": "等級 5", "zh-Hans": "等级 5" },
-    "627c3128-814c-481c-9925-7b435a2a6dc4": { "en": "Level 6", "zh-Hant": "等級 6", "zh-Hans": "等级 6" },
-    "4469a2ca-f251-40d6-a280-3b1df7fb15a1": { "en": "Level 7", "zh-Hant": "等級 7", "zh-Hans": "等级 7" },
-    "12043d23-0ca3-443f-9c1b-b03cca9d940c": { "en": "Level 8", "zh-Hant": "等級 8", "zh-Hans": "等级 8" },
-    "0eaaeab3-64bb-433d-8a92-bad24fde96f8": { "en": "Level 9", "zh-Hant": "等級 9", "zh-Hans": "等级 9" }
-  },
   "course_types": {
     "cb380ad9-6142-495e-8a62-3cdb7d85889c": { "en": "1-on-1 Private", "zh-Hant": "1 對 1 個人班", "zh-Hans": "1 对 1 个人班" },
     "d963831d-aad2-4ad9-9310-d01efae9e5a3": { "en": "1-on-2 Semi-Private", "zh-Hant": "1 對 2 半私人班", "zh-Hans": "1 对 2 半私人班" },
