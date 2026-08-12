@@ -707,6 +707,7 @@ export default function DashboardPage() {
           start_time: cs?.start_time,
           end_time: cs?.end_time,
           course_name: cs?.ct?.name,
+          course_type_id: cs?.ct?.id,
           level_min: cs?.level_min ?? null, level_max: cs?.level_max ?? null,
           coach_name: cs?.coach?.first_name,
           student_name: studentMap[b.student_id]?.full_name ? ((cs?.ct?.slug === '1on2' && b._partner_student_name) ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
@@ -817,7 +818,7 @@ export default function DashboardPage() {
       // What lesson each record belongs to, and what the coach said about it.
       // Keyed on lesson_key so an hour lesson is one entry and two lessons on the
       // same day stay apart - a date alone cannot tell them apart.
-      const lessonInfo: Record<string, { start_time: string; course_name: string; minutes: number }> = {}
+      const lessonInfo: Record<string, { start_time: string; course_name: string; course_type_id: string; minutes: number }> = {}
       const noteByKey: Record<string, string> = {}
       const histSessionIds = [...new Set((histRows || []).map((r: any) => r.class_session_id).filter(Boolean))]
       const histLessonKeys = [...new Set((histRows || []).map((r: any) => r.lesson_key).filter(Boolean))]
@@ -831,6 +832,7 @@ export default function DashboardPage() {
           lessonInfo[(cs as any).id] = {
             start_time: (cs as any).start_time || '',
             course_name: ct?.name || '',
+            course_type_id: ct?.id || '',
             minutes: 30,
           }
         }
