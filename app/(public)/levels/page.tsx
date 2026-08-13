@@ -2,148 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useT } from '@/lib/i18n/provider'
 
 const levels = [
-  {
-    num: 1,
-    name: 'Water Intro',
-    color: '#e05a4a',
-    tagline: 'Building trust, comfort, and safety in the water.',
-    desc: 'At this level, your child will learn how to enjoy the water safely while developing the foundation for swimming skills through playful, supportive instruction.',
-    goals: [
-      'Enter and exit the pool safely using safety techniques',
-      'Blow bubbles and submerge their entire face with confidence',
-      'Identify pool safety zones (shallow vs. deep)',
-      'Float on their front and back with light assistance',
-      'Move from floating to standing position independently',
-    ],
-  },
-  {
-    num: 2,
-    name: 'Water Comfort',
-    color: '#e8883a',
-    tagline: 'Building early water confidence through kicking, floating, and breath control.',
-    desc: 'At this level, your child will build foundational water skills through kicking, breath control, and body positioning, while gaining confidence with floating and shallow water movement.',
-    goals: [
-      'Demonstrate proper kicking motion on land for 20 seconds',
-      'Kick with a kickboard for 7 yards with proper breathing and body position',
-      'Kick on their back with a kickboard for 5 yards while keeping their face up and body afloat',
-      'Flip back and forth while hugging the kickboard 3 times with control',
-      'Push off the wall and maintain a horizontal float for 5 seconds',
-      'Perform 10 shallow water bubble jumps with controlled breathing',
-      'Hold their breath for 10 seconds underwater',
-      'Retrieve an object from a depth of 2–3 feet',
-    ],
-  },
-  {
-    num: 3,
-    name: 'Pool Safety',
-    color: '#d4a825',
-    tagline: 'Mastering basic swim independence and essential water safety skills.',
-    desc: 'At this level, your child will build confidence moving through the water unassisted while learning critical safety techniques like breath control, floating, and survival skills.',
-    goals: [
-      'Demonstrate proper kicking technique: small, fast flutter kicks with straight legs and pointed toes',
-      'Float independently on their back (starfish position) for 20 seconds',
-      'Perform 10 bubble jumps in deeper water (4–5 ft.) to practice breath control',
-      'Jump in and retrieve an object from 4–5 ft. depth',
-      'Swim 15 yards independently and comfortably using BBQ swim technique',
-      'Tread water for 15 seconds while keeping their head above water',
-    ],
-  },
-  {
-    num: 4,
-    name: 'Beginner',
-    color: '#4caf72',
-    tagline: 'Building stroke fundamentals and early endurance.',
-    desc: 'At this level, your child will begin swimming independently using proper technique, with a focus on freestyle, backstroke, and swimming with confidence in different conditions.',
-    goals: [
-      'Demonstrate proper streamline push-off',
-      'Swim 15 meters of freestyle with rotary (side) breathing, strong flutter kicks, and using straight-arm pulls and recovery',
-      'Kick on their back for 15 meters while keeping a straight body line',
-      'Swim 15 meters of early backstroke with proper technique (straight-arm recovery, pinky-first entry)',
-      'Float on their back independently for at least 30 seconds',
-      'Swim 7 meters without goggles while wearing a t-shirt to practice water safety skills',
-    ],
-  },
-  {
-    num: 5,
-    name: 'Intermediate',
-    color: '#4a90c4',
-    tagline: 'Improving stroke technique and building stamina.',
-    desc: 'At this level, your child will gain more endurance while refining freestyle and backstroke. They will also be introduced to butterfly and more challenging swim tasks.',
-    goals: [
-      'Swim 25 meters of freestyle with rotary breathing, breath control (2-stroke and 3-stroke breathing), and high-elbow techniques',
-      'Perform 5 meters of underwater freestyle kick starting below the surface',
-      'Kick 25 meters on their back with proper streamline body position',
-      'Swim 15 meters of backstroke using alternating arms and proper timing',
-      'Swim 25 meters of butterfly kick with basic coordination',
-      'Swim 15 meters without goggles while wearing a short-sleeved shirt',
-    ],
-  },
-  {
-    num: 6,
-    name: 'Advanced',
-    color: '#7b5ea7',
-    tagline: 'Mastering technique and learning advanced strokes.',
-    desc: 'At this level, your child will refine all four strokes and build stronger swim efficiency, flip turns, and more advanced water movement skills.',
-    goals: [
-      'Swim 50 meters of freestyle with rotary breathing, high elbow recovery, and efficient catch of water',
-      'Perform freestyle flip turns and streamline push-offs with 10 underwater flutter kicks and/or 5 underwater dolphin kicks',
-      'Swim 25 meters of backstroke using high elbow catch and strong underwater push',
-      'Swim 25 meters of single-arm butterfly with correct body wave and timing',
-      'Swim 25 meters of breaststroke with proper kick technique',
-      'Swim 25 meters without goggles while wearing a short-sleeved shirt and shorts',
-    ],
-  },
-  {
-    num: 7,
-    name: 'Bronze',
-    color: '#9c7a3c',
-    tagline: 'Blending speed, technique, and endurance.',
-    desc: 'At this level, your child will train with more focus on time, efficiency, and advanced coordination across all four competitive strokes.',
-    goals: [
-      'Swim 50 meters of freestyle within a set time limit using flip turns, high elbow recovery, and full stroke mechanics',
-      'Swim 75 meters of freestyle nonstop with endurance and efficient breathing',
-      'Swim 50 meters of backstroke with strong technique, alternating arm strokes, and smooth body position',
-      'Perform backstroke flip turns and stroke-count finishes',
-      'Swim 10 meters of butterfly with full stroke form and rhythm',
-      'Swim 25 meters of breaststroke with proper arm-kick-glide rhythm and breathing',
-      'Perform 7 meters of underwater butterfly kick on one breath',
-      'Swim 25 meters without goggles while wearing a short-sleeved shirt and shorts',
-    ],
-  },
-  {
-    num: 8,
-    name: 'Silver',
-    color: '#a0a0a0',
-    tagline: 'Training for endurance, efficiency, and competitive-level technique.',
-    desc: 'At this level, your child will strengthen their stamina and refine the technical skills needed for competitive swimming, including legal turns, pullouts, and full-stroke performance.',
-    goals: [
-      'Swim 50 meters of freestyle with rotary breathing within a set target time using proper technique and flip turns',
-      'Swim 100 meters of freestyle without stopping, focusing on efficient stroke technique, breathing, and endurance',
-      'Perform legal open turns by touching the wall with both hands before rotating and pushing off',
-      'Complete a proper breaststroke underwater pullout (one dolphin kick, one arm pull, one breaststroke kick) after each start and turn',
-      'Swim 50 meters of breaststroke in a competitive format with one open turn and one underwater pullout',
-      'Swim 25 meters of butterfly using full-stroke technique and competitive form',
-    ],
-  },
-  {
-    num: 9,
-    name: 'Gold',
-    color: '#c8a020',
-    tagline: 'Mastering endurance and all four strokes in a competitive format.',
-    desc: 'At this level, your child will demonstrate advanced endurance, stroke proficiency, and knowledge of competitive swim formats, including the individual medley.',
-    goals: [
-      'Swim 50 meters of freestyle with rotary breathing within a set target time using strong stroke mechanics and flip turns',
-      'Swim 200 meters of freestyle nonstop with efficient breathing, turns, and pacing',
-      'Swim 100 meters individual medley (25m each of butterfly, backstroke, breaststroke, freestyle) without stopping and in the correct order',
-      'Perform legal transitions and turns between each stroke during the individual medley',
-      'Demonstrate solid understanding of all four strokes in a competitive format',
-    ],
-  },
+  { num: 1, color: '#e05a4a', goalCount: 5 },
+  { num: 2, color: '#e8883a', goalCount: 8 },
+  { num: 3, color: '#d4a825', goalCount: 6 },
+  { num: 4, color: '#4caf72', goalCount: 6 },
+  { num: 5, color: '#4a90c4', goalCount: 6 },
+  { num: 6, color: '#7b5ea7', goalCount: 6 },
+  { num: 7, color: '#9c7a3c', goalCount: 8 },
+  { num: 8, color: '#a0a0a0', goalCount: 6 },
+  { num: 9, color: '#c8a020', goalCount: 5 },
 ]
 
 export default function LevelsPage() {
+  const t = useT()
   const [activeLevel, setActiveLevel] = useState(0)
   const [openAccordion, setOpenAccordion] = useState<number | null>(null)
 
@@ -211,7 +85,7 @@ export default function LevelsPage() {
             }}
           >
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c9a84c', display: 'inline-block' }} />
-            Swim Curriculum
+            {t('levels.hero.eyebrow')}
           </div>
 
           <h1
@@ -225,8 +99,8 @@ export default function LevelsPage() {
               marginBottom: '10px',
             }}
           >
-            MantaShark <br />
-            <em style={{ color: '#c9a84c', fontStyle: 'italic' }}>Levels</em>
+            {t('levels.hero.title1')} <br />
+            <em style={{ color: '#c9a84c', fontStyle: 'italic' }}>{t('levels.hero.title2')}</em>
           </h1>
 
           <p
@@ -238,7 +112,7 @@ export default function LevelsPage() {
               marginBottom: '16px',
             }}
           >
-            Building capable swimmers from start to finish — from their first splash to competitive aquatic skills.
+            {t('levels.hero.subtitle')}
           </p>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
@@ -248,12 +122,12 @@ export default function LevelsPage() {
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {[
-              { label: '9 Levels', dot: '#e05a4a' },
-              { label: 'Progression-Based', dot: '#4caf72' },
-              { label: 'All Ages', dot: '#c9a84c' },
+              { slug: 'nine', dot: '#e05a4a' },
+              { slug: 'progression', dot: '#4caf72' },
+              { slug: 'allAges', dot: '#c9a84c' },
             ].map((chip) => (
               <span
-                key={chip.label}
+                key={chip.slug}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -270,7 +144,7 @@ export default function LevelsPage() {
                 }}
               >
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: chip.dot, display: 'inline-block' }} />
-                {chip.label}
+                {t('levels.chip.' + chip.slug)}
               </span>
             ))}
           </div>
@@ -333,10 +207,10 @@ export default function LevelsPage() {
               </span>
               <span style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
-                  Level {lv.num}
+                  {t('levels.levelN', { n: lv.num })}
                 </span>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: activeLevel === i ? '#fff' : 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' }}>
-                  {lv.name}
+                  {t('level.' + lv.num + '.name')}
                 </span>
               </span>
               <span
@@ -380,7 +254,7 @@ export default function LevelsPage() {
               }}
             />
             <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>
-              Level {current.num}
+              {t('levels.levelN', { n: current.num })}
             </div>
             <div
               style={{
@@ -390,7 +264,7 @@ export default function LevelsPage() {
                 color: '#fff',
               }}
             >
-              {current.name}
+              {t('level.' + current.num + '.name')}
             </div>
           </div>
 
@@ -404,7 +278,7 @@ export default function LevelsPage() {
             }}
           >
             <p style={{ fontSize: '15px', fontWeight: 700, color: '#1a2744', marginBottom: '10px', lineHeight: 1.5 }}>
-              {current.tagline}
+              {t('levels.' + current.num + '.tagline')}
             </p>
             <p
               style={{
@@ -416,13 +290,13 @@ export default function LevelsPage() {
                 borderBottom: '1px solid rgba(0,0,0,0.07)',
               }}
             >
-              {current.desc}
+              {t('levels.' + current.num + '.desc')}
             </p>
             <div style={{ fontSize: '13px', fontWeight: 700, color: '#1a2744', marginBottom: '14px' }}>
-              By the end of this level, your child will be able to:
+              {t('levels.goalsHeading')}
             </div>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '11px', padding: 0, margin: 0 }}>
-              {current.goals.map((goal, i) => (
+              {Array.from({ length: current.goalCount }, (_, gi) => gi + 1).map((g, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '11px', fontSize: '13.5px', color: '#3a4a6a', lineHeight: 1.65 }}>
                   <span
                     style={{
@@ -435,7 +309,7 @@ export default function LevelsPage() {
                       display: 'inline-block',
                     }}
                   />
-                  {goal}
+                  {t('levels.' + current.num + '.goal.' + g)}
                 </li>
               ))}
             </ul>
@@ -496,8 +370,8 @@ export default function LevelsPage() {
                 {lv.num}
               </span>
               <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '8px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: '#aaa' }}>Level {lv.num}</span>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#2a3a5c' }}>{lv.name}</span>
+                <span style={{ fontSize: '8px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: '#aaa' }}>{t('levels.levelN', { n: lv.num })}</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#2a3a5c' }}>{t('level.' + lv.num + '.name')}</span>
               </span>
               <span
                 style={{
@@ -522,7 +396,7 @@ export default function LevelsPage() {
               }}
             >
               <div style={{ padding: '4px 0 20px' }}>
-                <p style={{ fontSize: '13px', fontWeight: 600, color: '#1a2744', marginBottom: '8px', lineHeight: 1.5 }}>{lv.tagline}</p>
+                <p style={{ fontSize: '13px', fontWeight: 600, color: '#1a2744', marginBottom: '8px', lineHeight: 1.5 }}>{t('levels.' + lv.num + '.tagline')}</p>
                 <p
                   style={{
                     fontSize: '12px',
@@ -533,13 +407,13 @@ export default function LevelsPage() {
                     borderBottom: '1px solid rgba(0,0,0,0.07)',
                   }}
                 >
-                  {lv.desc}
+                  {t('levels.' + lv.num + '.desc')}
                 </p>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#1a2744', marginBottom: '10px' }}>
-                  By the end of this level, your child will be able to:
+                  {t('levels.goalsHeading')}
                 </div>
                 <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: 0, margin: 0 }}>
-                  {lv.goals.map((goal, gi) => (
+                  {Array.from({ length: lv.goalCount }, (_, k) => k + 1).map((g, gi) => (
                     <li key={gi} style={{ display: 'flex', alignItems: 'flex-start', gap: '9px', fontSize: '12px', color: '#3a4a6a', lineHeight: 1.6 }}>
                       <span
                         style={{
@@ -552,7 +426,7 @@ export default function LevelsPage() {
                           display: 'inline-block',
                         }}
                       />
-                      {goal}
+                      {t('levels.' + lv.num + '.goal.' + g)}
                     </li>
                   ))}
                 </ul>
@@ -607,7 +481,7 @@ export default function LevelsPage() {
             }}
           >
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c9a84c', display: 'inline-block' }} />
-            Join the Program
+            {t('levels.cta.eyebrow')}
           </div>
 
           <h2
@@ -620,8 +494,8 @@ export default function LevelsPage() {
               marginBottom: '20px',
             }}
           >
-            More Than Swimming —<br />
-            <em style={{ color: '#c9a84c', fontStyle: 'italic' }}>Skills for Life.</em>
+            {t('levels.cta.title1')}<br />
+            <em style={{ color: '#c9a84c', fontStyle: 'italic' }}>{t('levels.cta.title2')}</em>
           </h2>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '24px' }}>
@@ -631,22 +505,24 @@ export default function LevelsPage() {
           </div>
 
           <p style={{ fontSize: 'clamp(13px, 1.3vw, 15px)', color: 'rgba(255,255,255,0.68)', lineHeight: 1.85, marginBottom: '12px' }}>
-            The MantaShark Level program takes swimmers from their very first strokes to{' '}
-            <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>competitive-level technique</strong>. Whether your child dreams of joining a swim team, ocean sports, water safety programs, or simply a lifetime of aquatic confidence —
+            {t('levels.cta.p1a')}
+            <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{t('levels.cta.p1strong')}</strong>
+            {t('levels.cta.p1b')}
           </p>
           <p style={{ fontSize: 'clamp(13px, 1.3vw, 15px)', color: 'rgba(255,255,255,0.68)', lineHeight: 1.85, marginBottom: '12px' }}>
-            our coaches focus on{' '}
-            <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>water safety, technique, and endurance</strong>, ensuring each student progresses at their own pace while having fun.
+            {t('levels.cta.p2a')}
+            <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{t('levels.cta.p2strong')}</strong>
+            {t('levels.cta.p2b')}
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap', margin: '28px 0 36px' }}>
             {[
-              { icon: '🏊', label: 'Levels', value: '9' },
-              { icon: '⭐', label: 'Rating', value: '5.0' },
-              { icon: '👶', label: 'All Ages', value: 'Welcome' },
+              { icon: '🏊', slug: 'levels', value: '9' },
+              { icon: '⭐', slug: 'rating', value: '5.0' },
+              { icon: '👶', slug: 'ages', value: null },
             ].map((hl) => (
               <div
-                key={hl.label}
+                key={hl.slug}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -660,7 +536,7 @@ export default function LevelsPage() {
                 }}
               >
                 <span style={{ fontSize: '22px' }}>{hl.icon}</span>
-                <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>{hl.label}</span>
+                <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>{t('levels.hl.' + hl.slug + '.label')}</span>
                 <span
                   style={{
                     fontFamily: "'Playfair Display', serif",
@@ -669,7 +545,7 @@ export default function LevelsPage() {
                     color: '#c9a84c',
                   }}
                 >
-                  {hl.value}
+                  {hl.value ?? t('levels.hl.ages.value')}
                 </span>
               </div>
             ))}
@@ -707,10 +583,10 @@ export default function LevelsPage() {
               el.style.transform = 'translateY(0)'
             }}
           >
-            Sign Up Now
+            {t('levels.cta.button')}
           </Link>
           <p style={{ marginTop: '10px', fontSize: '11px', color: 'rgba(255,255,255,0.32)' }}>
-            Create a free account to get started
+            {t('levels.cta.note')}
           </p>
         </div>
       </div>
