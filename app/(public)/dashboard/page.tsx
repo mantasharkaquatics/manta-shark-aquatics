@@ -303,10 +303,11 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [schedOpen, setSchedOpen] = useState<Record<string, boolean>>({})
+  const t = useT()
   if (memberships.length === 0) return null
   const RED = '#e05a4a'
   const DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const t12tc = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
+  const t12tc = (v: string) => { const [h, m] = String(v).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
   const practiceLines = (slots: { weekday: number; start_time: string; end_time: string; coach_name: string }[]) => {
     const g: Record<string, { days: string[]; st: string; en: string; coach: string }> = {}
     for (const s of slots) {
@@ -321,26 +322,26 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
       const r = await fetch('/api/team/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ membership_id: id }) })
       const j = await r.json()
       if (r.ok && j.url) { window.location.href = j.url; return }
-      alert(j.error || 'Could not open the subscription portal')
+      alert(j.error || t('team.portalError'))
     } finally { setPortalLoading(null) }
   }
   return (
     <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>Swim Team</div>
+      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>{t('team.title')}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {memberships.map((m, mi) => (
           <div key={m.id} style={{ borderTop: mi > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', marginTop: mi > 0 ? '16px' : 0, paddingTop: mi > 0 ? '16px' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? 'Prepaid' : '$399/mo'}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>unlimited practices</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? t('team.prepaid') : '$399/mo'}</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{t('team.unlimited')}</div>
               {(m.weekly_slots || []).length > 0 && (
                 <div style={{ marginTop: '8px' }}>
                   <button onClick={() => setSchedOpen(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
                     style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
                     <span style={{ fontSize: '9px' }}>{schedOpen[m.id] ? '\u25b2' : '\u25bc'}</span>
-                    {schedOpen[m.id] ? 'Hide' : 'Show'} practice schedule
+                    {t(schedOpen[m.id] ? 'team.hideSchedule' : 'team.showSchedule')}
                   </button>
                   {schedOpen[m.id] && (
                     <div style={{ marginTop: '8px', borderLeft: `2px solid ${RED}55`, paddingLeft: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -359,16 +360,16 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
             {m.is_prepaid ? (() => {
               const exp = m.expires_at ? new Date(m.expires_at) : null
               const expired = exp ? exp.getTime() < Date.now() : false
-              const label = exp ? `${expired ? 'Expired' : 'Paid thru'} ${exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Prepaid'
+              const label = exp ? t(expired ? 'team.expired' : 'team.paidThru', { date: exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }) : t('team.prepaid')
               const c = expired ? '#e05a4a' : '#86efac'
               const bg = expired ? 'rgba(224,90,74,0.12)' : 'rgba(134,239,172,0.12)'
               const bd = expired ? '1px solid rgba(224,90,74,0.3)' : '1px solid rgba(134,239,172,0.3)'
               return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: c, background: bg, border: bd, borderRadius: '20px', padding: '3px 10px', whiteSpace: 'nowrap' }}>{label}</span>
-            })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#e8883a', background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>Cancels {new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? 'Active' : 'Past Due'}</span>}
+            })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#e8883a', background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? t('team.active') : t('team.pastDue')}</span>}
             {!m.is_prepaid && (
             <button onClick={() => openPortal(m.id)} disabled={portalLoading === m.id}
               style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-              {portalLoading === m.id ? '...' : 'Manage'}
+              {portalLoading === m.id ? '...' : t('team.manage')}
             </button>
             )}
             </div>
@@ -378,7 +379,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               <button onClick={() => setExpanded(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
                 style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
                 <span style={{ fontSize: '9px' }}>{expanded[m.id] ? '\u25b2' : '\u25bc'}</span>
-                {expanded[m.id] ? 'Hide' : 'Show'} {(m.invoices || []).length} invoice{(m.invoices || []).length > 1 ? 's' : ''}
+                {t(`team.${expanded[m.id] ? 'hide' : 'show'}Invoice${(m.invoices || []).length === 1 ? '' : 's'}`, { n: (m.invoices || []).length })}
               </button>
               {expanded[m.id] && (
                 <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -409,8 +410,8 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
 }
 
 function TokenCard({ tokens }: { tokens: TokenPack[] }) {
-  if (tokens.length === 0) return null
   const t = useT()
+  if (tokens.length === 0) return null
   const totalTokens = tokens.reduce((s, tp) => s + tp.remaining, 0)
   const ORANGE = '#e8883a'
   return (

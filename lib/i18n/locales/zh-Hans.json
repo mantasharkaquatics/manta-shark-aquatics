@@ -93,5 +93,21 @@
   "dash.showAllRecords": "显示全部 {n} 笔记录",
   "dash.prev": "上一页",
   "dash.next": "下一页",
-  "dash.withCoach": "教练：{name}"
+  "dash.withCoach": "教练：{name}",
+  "team.title": "泳队",
+  "team.prepaid": "已预付",
+  "team.unlimited": "无限次练习",
+  "team.showSchedule": "显示练习时段",
+  "team.hideSchedule": "收起练习时段",
+  "team.manage": "管理",
+  "team.active": "生效中",
+  "team.pastDue": "逾期未付",
+  "team.expired": "{date} 到期",
+  "team.paidThru": "已付至 {date}",
+  "team.cancels": "{date} 终止",
+  "team.showInvoice": "显示 {n} 张账单",
+  "team.showInvoices": "显示 {n} 张账单",
+  "team.hideInvoice": "收起 {n} 张账单",
+  "team.hideInvoices": "收起 {n} 张账单",
+  "team.portalError": "无法开启订阅管理页面"
 }

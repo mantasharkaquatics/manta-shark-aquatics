@@ -93,5 +93,21 @@
   "dash.showAllRecords": "Show all {n} records",
   "dash.prev": "Prev",
   "dash.next": "Next",
-  "dash.withCoach": "with {name}"
+  "dash.withCoach": "with {name}",
+  "team.title": "Swim Team",
+  "team.prepaid": "Prepaid",
+  "team.unlimited": "unlimited practices",
+  "team.showSchedule": "Show practice schedule",
+  "team.hideSchedule": "Hide practice schedule",
+  "team.manage": "Manage",
+  "team.active": "Active",
+  "team.pastDue": "Past Due",
+  "team.expired": "Expired {date}",
+  "team.paidThru": "Paid thru {date}",
+  "team.cancels": "Cancels {date}",
+  "team.showInvoice": "Show {n} invoice",
+  "team.showInvoices": "Show {n} invoices",
+  "team.hideInvoice": "Hide {n} invoice",
+  "team.hideInvoices": "Hide {n} invoices",
+  "team.portalError": "Could not open the subscription portal"
 }

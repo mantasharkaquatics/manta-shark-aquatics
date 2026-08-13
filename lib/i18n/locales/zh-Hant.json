@@ -93,5 +93,21 @@
   "dash.showAllRecords": "顯示全部 {n} 筆紀錄",
   "dash.prev": "上一頁",
   "dash.next": "下一頁",
-  "dash.withCoach": "教練：{name}"
+  "dash.withCoach": "教練：{name}",
+  "team.title": "泳隊",
+  "team.prepaid": "已預付",
+  "team.unlimited": "無限次練習",
+  "team.showSchedule": "顯示練習時段",
+  "team.hideSchedule": "收起練習時段",
+  "team.manage": "管理",
+  "team.active": "生效中",
+  "team.pastDue": "逾期未付",
+  "team.expired": "{date} 到期",
+  "team.paidThru": "已付至 {date}",
+  "team.cancels": "{date} 終止",
+  "team.showInvoice": "顯示 {n} 張帳單",
+  "team.showInvoices": "顯示 {n} 張帳單",
+  "team.hideInvoice": "收起 {n} 張帳單",
+  "team.hideInvoices": "收起 {n} 張帳單",
+  "team.portalError": "無法開啟訂閱管理頁面"
 }
