@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useT } from '@/lib/i18n/provider'
 
 const privatePackages = [
   { lessons: 10, price: 650, perLesson: 65, savings: 0 },
@@ -17,18 +18,20 @@ const semiPackages = [
 ]
 
 const groupOptions = [
-  { label: '4 classes / month', price: 160 },
-  { label: '8 classes / month', price: 300 },
+  { classes: 4, price: 160 },
+  { classes: 8, price: 300 },
 ]
 
 export default function ServicesContent() {
+  const t = useT()
+
   return (
     <div className="min-h-screen bg-white">
 
       <section className="bg-[#1a2744] text-white py-16 text-center">
-        <p className="text-[#c9a84c] text-sm font-semibold tracking-widest uppercase mb-3">What We Offer</p>
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4">Our Programs & Pricing</h1>
-        <p className="text-gray-300 max-w-xl mx-auto">Choose the program that fits your child. All sessions are with certified coaches.</p>
+        <p className="text-[#c9a84c] text-sm font-semibold tracking-widest uppercase mb-3">{t('services.hero.eyebrow')}</p>
+        <h1 className="text-4xl sm:text-5xl font-bold mb-4">{t('services.hero.title')}</h1>
+        <p className="text-gray-300 max-w-xl mx-auto">{t('services.hero.subtitle')}</p>
       </section>
 
       <div className="max-w-6xl mx-auto px-4 py-16 space-y-20">
@@ -36,20 +39,20 @@ export default function ServicesContent() {
           <div className="flex items-center gap-4 mb-6">
             <div className="text-4xl">🏊</div>
             <div>
-              <h2 className="text-2xl font-bold text-[#1a2744]">1-on-1 Private Lessons</h2>
-              <p className="text-gray-500 mt-1">30 minutes · Fully personalized coaching</p>
+              <h2 className="text-2xl font-bold text-[#1a2744]">{t('services.private.title')}</h2>
+              <p className="text-gray-500 mt-1">{t('services.private.meta')}</p>
             </div>
           </div>
-          <p className="text-gray-600 mb-8 max-w-2xl">Your child gets the coach's full attention for every minute. Perfect for swimmers at any level who want to progress quickly.</p>
+          <p className="text-gray-600 mb-8 max-w-2xl">{t('services.private.desc')}</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {privatePackages.map(pkg => (
               <div key={pkg.lessons} className={`border-2 rounded-2xl p-5 text-center transition-all hover:shadow-md ${pkg.lessons === 20 ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-gray-200'}`}>
-                {pkg.lessons === 20 && <div className="text-[#c9a84c] text-xs font-bold uppercase tracking-wide mb-2">Most Popular</div>}
+                {pkg.lessons === 20 && <div className="text-[#c9a84c] text-xs font-bold uppercase tracking-wide mb-2">{t('services.pkg.popular')}</div>}
                 <div className="text-3xl font-bold text-[#1a2744]">{pkg.lessons}</div>
-                <div className="text-gray-500 text-sm mb-3">lessons</div>
+                <div className="text-gray-500 text-sm mb-3">{t('services.pkg.lessons')}</div>
                 <div className="text-2xl font-bold text-[#1a2744]">${pkg.price.toLocaleString()}</div>
-                <div className="text-gray-400 text-xs mt-1">${pkg.perLesson}/lesson</div>
-                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">Save ${pkg.savings.toLocaleString()}</div>}
+                <div className="text-gray-400 text-xs mt-1">{t('services.pkg.perLesson', { price: pkg.perLesson })}</div>
+                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">{t('services.pkg.save', { amount: pkg.savings.toLocaleString() })}</div>}
               </div>
             ))}
           </div>
@@ -61,20 +64,20 @@ export default function ServicesContent() {
           <div className="flex items-center gap-4 mb-6">
             <div className="text-4xl">👫</div>
             <div>
-              <h2 className="text-2xl font-bold text-[#1a2744]">1-on-2 Semi-Private Lessons</h2>
-              <p className="text-gray-500 mt-1">30 minutes · You arrange the pair</p>
+              <h2 className="text-2xl font-bold text-[#1a2744]">{t('services.semi.title')}</h2>
+              <p className="text-gray-500 mt-1">{t('services.semi.meta')}</p>
             </div>
           </div>
-          <p className="text-gray-600 mb-8 max-w-2xl">Great for siblings or friends at similar skill level. Parents arrange their own pairs for a focused, social learning experience.</p>
+          <p className="text-gray-600 mb-8 max-w-2xl">{t('services.semi.desc')}</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {semiPackages.map(pkg => (
               <div key={pkg.lessons} className={`border-2 rounded-2xl p-5 text-center transition-all hover:shadow-md ${pkg.lessons === 20 ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-gray-200'}`}>
-                {pkg.lessons === 20 && <div className="text-[#c9a84c] text-xs font-bold uppercase tracking-wide mb-2">Most Popular</div>}
+                {pkg.lessons === 20 && <div className="text-[#c9a84c] text-xs font-bold uppercase tracking-wide mb-2">{t('services.pkg.popular')}</div>}
                 <div className="text-3xl font-bold text-[#1a2744]">{pkg.lessons}</div>
-                <div className="text-gray-500 text-sm mb-3">lessons</div>
+                <div className="text-gray-500 text-sm mb-3">{t('services.pkg.lessons')}</div>
                 <div className="text-2xl font-bold text-[#1a2744]">${pkg.price.toLocaleString()}</div>
-                <div className="text-gray-400 text-xs mt-1">${pkg.perLesson}/lesson</div>
-                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">Save ${pkg.savings.toLocaleString()}</div>}
+                <div className="text-gray-400 text-xs mt-1">{t('services.pkg.perLesson', { price: pkg.perLesson })}</div>
+                {pkg.savings > 0 && <div className="text-green-600 text-xs font-semibold mt-2">{t('services.pkg.save', { amount: pkg.savings.toLocaleString() })}</div>}
               </div>
             ))}
           </div>
@@ -86,16 +89,16 @@ export default function ServicesContent() {
           <div className="flex items-center gap-4 mb-6">
             <div className="text-4xl">👥</div>
             <div>
-              <h2 className="text-2xl font-bold text-[#1a2744]">Group Lessons (1-on-4)</h2>
-              <p className="text-gray-500 mt-1">30 minutes · Fixed schedule · Limited spots per class</p>
+              <h2 className="text-2xl font-bold text-[#1a2744]">{t('services.group.title')}</h2>
+              <p className="text-gray-500 mt-1">{t('services.group.meta')}</p>
             </div>
           </div>
-          <p className="text-gray-600 mb-8 max-w-2xl">Structured group classes with max 4 students per coach. Book online and see real-time availability.</p>
+          <p className="text-gray-600 mb-8 max-w-2xl">{t('services.group.desc')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-sm">
             {groupOptions.map(opt => (
-              <div key={opt.label} className="border-2 border-gray-200 rounded-2xl p-5 text-center hover:border-[#c9a84c] hover:shadow-md transition-all">
+              <div key={opt.classes} className="border-2 border-gray-200 rounded-2xl p-5 text-center hover:border-[#c9a84c] hover:shadow-md transition-all">
                 <div className="text-2xl font-bold text-[#1a2744]">${opt.price}</div>
-                <div className="text-gray-500 text-sm mt-1">{opt.label}</div>
+                <div className="text-gray-500 text-sm mt-1">{t('services.group.perMonth', { n: opt.classes })}</div>
               </div>
             ))}
           </div>
@@ -107,19 +110,19 @@ export default function ServicesContent() {
           <div className="flex items-center gap-4 mb-6">
             <div className="text-4xl">🏅</div>
             <div>
-              <h2 className="text-2xl font-bold text-[#1a2744]">Swim Team</h2>
-              <p className="text-gray-500 mt-1">90-minute practices · squads by swim level · max 24 swimmers per squad</p>
+              <h2 className="text-2xl font-bold text-[#1a2744]">{t('services.team.title')}</h2>
+              <p className="text-gray-500 mt-1">{t('services.team.meta')}</p>
             </div>
           </div>
-          <p className="text-gray-600 mb-8 max-w-2xl">Competitive swim training for dedicated swimmers. Focus on stroke technique, endurance, turns, and race strategy.</p>
+          <p className="text-gray-600 mb-8 max-w-2xl">{t('services.team.desc')}</p>
         </section>
       </div>
 
       <section className="bg-[#1a2744] py-16 text-center text-white">
-        <h2 className="text-3xl font-bold mb-4">Ready to Sign Up?</h2>
-        <p className="text-gray-300 mb-8">Create your account and enroll your child today.</p>
+        <h2 className="text-3xl font-bold mb-4">{t('services.cta.title')}</h2>
+        <p className="text-gray-300 mb-8">{t('services.cta.subtitle')}</p>
         <Link href="/register" className="inline-block bg-[#c9a84c] hover:bg-[#b8962e] text-white font-bold px-10 py-4 rounded-xl text-lg transition-colors">
-          Create Account
+          {t('services.cta.button')}
         </Link>
       </section>
 
