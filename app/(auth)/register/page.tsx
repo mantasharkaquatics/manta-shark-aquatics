@@ -5,11 +5,14 @@ import { LEGAL_VERSIONS } from '@/lib/legal'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useT } from '@/lib/i18n/provider'
+import { errorKey } from '@/lib/i18n/errors'
 
 const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
 const DOB_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 function DobSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT()
   const [vy = '', vm = '', vd = ''] = (value || '').split('-')
   const [y, setY] = useState(vy)
   const [m, setM] = useState(vm)
@@ -35,15 +38,15 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
   return (
     <div className="grid grid-cols-3 gap-2">
       <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls}>
-        <option value="">Month</option>
+        <option value="">{t('register.dob.month')}</option>
         {DOB_MONTHS.map((mm, i) => <option key={mm} value={mm}>{DOB_MONTH_NAMES[i]}</option>)}
       </select>
       <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls}>
-        <option value="">Day</option>
+        <option value="">{t('register.dob.day')}</option>
         {days.map(dd => <option key={dd} value={dd}>{Number(dd)}</option>)}
       </select>
       <select value={y} onChange={e => emit(e.target.value, m, d)} className={selCls}>
-        <option value="">Year</option>
+        <option value="">{t('register.dob.year')}</option>
         {years.map(yr => <option key={yr} value={String(yr)}>{yr}</option>)}
       </select>
     </div>
@@ -54,11 +57,19 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
 const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 
 export default function RegisterPage() {
+  const t = useT()
   const supabase = createClient()
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const tErr = (raw?: string | null, fallbackKey?: string): string => {
+    const k = errorKey(raw)
+    if (k) return t(k)
+    if (raw) return raw
+    return fallbackKey ? t(fallbackKey) : ''
+  }
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -86,6 +97,7 @@ export default function RegisterPage() {
   const [phoneVerifying, setPhoneVerifying] = useState(false)
   const [phoneError, setPhoneError] = useState('')
   const [phoneCooldown, setPhoneCooldown] = useState(0)
+  const [phoneWarning, setPhoneWarning] = useState('')
 
   const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '' }])
   const [termsAccepted, setTermsAccepted] = useState(false)
@@ -106,7 +118,7 @@ export default function RegisterPage() {
   }, [phoneCooldown])
 
   useEffect(() => { setEmailVerified(false); setEmailOtpSent(false); setEmailOtpCode(''); setEmailError('') }, [email])
-  useEffect(() => { setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode(''); setPhoneError('') }, [phone])
+  useEffect(() => { setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode(''); setPhoneError(''); setPhoneWarning('') }, [phone])
 
   const addressInputRef = useRef<HTMLInputElement>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -154,7 +166,7 @@ export default function RegisterPage() {
   }
 
   async function sendEmailOtp() {
-    if (!email.trim()) { setEmailError('Please enter your email first'); return }
+    if (!email.trim()) { setEmailError(t('register.err.enterEmail')); return }
     setEmailSending(true); setEmailError('')
     try {
       const res = await fetch('/api/auth/send-email-otp', {
@@ -163,17 +175,17 @@ export default function RegisterPage() {
         body: JSON.stringify({ email, context: 'register' }),
       })
       const data = await res.json()
-      if (!res.ok) { setEmailError(data.error || 'Failed to send'); setEmailSending(false); return }
+      if (!res.ok) { setEmailError(tErr(data.error, 'register.err.sendFailed')); setEmailSending(false); return }
       setEmailOtpSent(true)
       setEmailCooldown(60)
     } catch {
-      setEmailError('Failed to send. Please try again later')
+      setEmailError(t('register.err.sendFailedRetry'))
     }
     setEmailSending(false)
   }
 
   async function verifyEmailOtp() {
-    if (!emailOtpCode.trim()) { setEmailError('Please enter the verification code'); return }
+    if (!emailOtpCode.trim()) { setEmailError(t('register.err.enterCode')); return }
     setEmailVerifying(true); setEmailError('')
     try {
       const res = await fetch('/api/auth/verify-email-otp', {
@@ -182,17 +194,17 @@ export default function RegisterPage() {
         body: JSON.stringify({ email, otp_code: emailOtpCode.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) { setEmailError(data.error || 'Verification failed'); setEmailVerifying(false); return }
+      if (!res.ok) { setEmailError(tErr(data.error, 'register.err.verifyFailed')); setEmailVerifying(false); return }
       setEmailVerified(true)
     } catch {
-      setEmailError('Verification failed. Please try again later')
+      setEmailError(t('register.err.verifyFailedRetry'))
     }
     setEmailVerifying(false)
   }
 
   async function sendPhoneOtp() {
-    if (!phone.trim()) { setPhoneError('Please enter your phone number first'); return }
-    setPhoneSending(true); setPhoneError('')
+    if (!phone.trim()) { setPhoneError(t('register.err.enterPhone')); return }
+    setPhoneSending(true); setPhoneError(''); setPhoneWarning('')
     try {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
@@ -200,17 +212,18 @@ export default function RegisterPage() {
         body: JSON.stringify({ phone, context: 'register' }),
       })
       const data = await res.json()
-      if (!res.ok) { setPhoneError(data.error || 'Failed to send'); setPhoneSending(false); return }
+      if (!res.ok) { setPhoneError(tErr(data.error, 'register.err.sendFailed')); setPhoneSending(false); return }
       setPhoneOtpSent(true)
       setPhoneCooldown(60)
+      if (data.warning) setPhoneWarning(tErr(data.warning))
     } catch {
-      setPhoneError('Failed to send. Please try again later')
+      setPhoneError(t('register.err.sendFailedRetry'))
     }
     setPhoneSending(false)
   }
 
   async function verifyPhoneOtp() {
-    if (!phoneOtpCode.trim()) { setPhoneError('Please enter the verification code'); return }
+    if (!phoneOtpCode.trim()) { setPhoneError(t('register.err.enterCode')); return }
     setPhoneVerifying(true); setPhoneError('')
     try {
       const res = await fetch('/api/auth/verify-otp', {
@@ -219,30 +232,30 @@ export default function RegisterPage() {
         body: JSON.stringify({ phone, otp_code: phoneOtpCode.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) { setPhoneError(data.error || 'Verification failed'); setPhoneVerifying(false); return }
+      if (!res.ok) { setPhoneError(tErr(data.error, 'register.err.verifyFailed')); setPhoneVerifying(false); return }
       setPhoneVerified(true)
     } catch {
-      setPhoneError('Verification failed. Please try again later')
+      setPhoneError(t('register.err.verifyFailedRetry'))
     }
     setPhoneVerifying(false)
   }
 
   function handleContinue() {
     if (!firstName || !lastName || !email || !phone || !password || !addressLine1 || !city || !state || !zipCode) {
-      setError('Please fill in all required fields.'); return
+      setError(t('register.err.fillAll')); return
     }
-    if (!emailVerified) { setError('Please verify your email first'); return }
-    if (!phoneVerified) { setError('Please verify your phone number first'); return }
+    if (!emailVerified) { setError(t('register.err.verifyEmail')); return }
+    if (!phoneVerified) { setError(t('register.err.verifyPhone')); return }
     setError(''); setStep(2)
   }
 
   async function handleSubmit() {
-    if (!termsAccepted || !waiverAccepted) { setError('Please accept the Terms of Service and Liability Waiver to continue.'); return }
-    if (!students[0].fullName.trim()) { setError('Please enter at least one student name.'); return }
+    if (!termsAccepted || !waiverAccepted) { setError(t('register.err.acceptTerms')); return }
+    if (!students[0].fullName.trim()) { setError(t('register.err.studentName')); return }
     setLoading(true); setError('')
     const now = new Date().toISOString()
     const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
-    if (authError || !authData.user) { setError(authError?.message || 'Sign up failed'); setLoading(false); return }
+    if (authError || !authData.user) { setError(tErr(authError?.message, 'register.err.signupFailed')); setLoading(false); return }
     const { data: parent, error: parentError } = await supabase.from('parents').insert({
       auth_user_id: authData.user.id,
       first_name: firstName, last_name: lastName, email, phone: normalizePhoneForSave(phone),
@@ -253,7 +266,7 @@ export default function RegisterPage() {
       address_line1: addressLine1, address_line2: addressLine2 || null,
       city, state, zip_code: zipCode,
     }).select().single()
-    if (parentError || !parent) { setError('Failed to create account: ' + parentError?.message); setLoading(false); return }
+    if (parentError || !parent) { setError(t('register.err.createFailed') + tErr(parentError?.message)); setLoading(false); return }
     let sortOrder = 1
     for (const s of students.filter(s => s.fullName.trim())) {
       await supabase.from('students').insert({
@@ -270,36 +283,36 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
-          <p className="text-sm text-gray-500 mt-1">Step {step} of 2</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('register.title')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('register.step', { n: step })}</p>
         </div>
 
         {step === 1 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.firstName')} <span className="text-red-500">*</span></label>
                 <input value={firstName} onChange={e => setFirstName(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.lastName')} <span className="text-red-500">*</span></label>
                 <input value={lastName} onChange={e => setLastName(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.email')} <span className="text-red-500">*</span></label>
               <div className="flex gap-2">
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailVerified}
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500" />
                 {emailVerified ? (
-                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">Verified</span>
+                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
                 ) : (
                   <button type="button" onClick={sendEmailOtp} disabled={emailSending || emailCooldown > 0 || !email.trim()}
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap">
-                    {emailCooldown > 0 ? `${emailCooldown}s` : emailSending ? 'Sending...' : emailOtpSent ? 'Resend Code' : 'Send Verification Code'}
+                    {emailCooldown > 0 ? t('register.cooldown', { n: emailCooldown }) : emailSending ? t('register.sending') : emailOtpSent ? t('register.resendCode') : t('register.sendCode')}
                   </button>
                 )}
               </div>
@@ -309,11 +322,11 @@ export default function RegisterPage() {
                     type="text" inputMode="numeric" maxLength={6}
                     value={emailOtpCode}
                     onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Enter the 6-digit code from your email"
+                    placeholder={t('register.emailCodePh')}
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-blue-500" />
                   <button type="button" onClick={verifyEmailOtp} disabled={emailVerifying || emailOtpCode.length !== 6}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
-                    {emailVerifying ? 'Verifying...' : 'Verify'}
+                    {emailVerifying ? t('register.verifying') : t('register.verify')}
                   </button>
                 </div>
               )}
@@ -321,17 +334,17 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.phone')} <span className="text-red-500">*</span></label>
               <div className="flex gap-2">
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={phoneVerified}
                   placeholder="(555) 123-4567"
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500" />
                 {phoneVerified ? (
-                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">Verified</span>
+                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
                 ) : (
                   <button type="button" onClick={sendPhoneOtp} disabled={phoneSending || phoneCooldown > 0 || !phone.trim()}
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap">
-                    {phoneCooldown > 0 ? `${phoneCooldown}s` : phoneSending ? 'Sending...' : phoneOtpSent ? 'Resend Code' : 'Send Verification Code'}
+                    {phoneCooldown > 0 ? t('register.cooldown', { n: phoneCooldown }) : phoneSending ? t('register.sending') : phoneOtpSent ? t('register.resendCode') : t('register.sendCode')}
                   </button>
                 )}
               </div>
@@ -341,30 +354,31 @@ export default function RegisterPage() {
                     type="text" inputMode="numeric" maxLength={6}
                     value={phoneOtpCode}
                     onChange={e => setPhoneOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Enter the 6-digit SMS code"
+                    placeholder={t('register.smsCodePh')}
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-blue-500" />
                   <button type="button" onClick={verifyPhoneOtp} disabled={phoneVerifying || phoneOtpCode.length !== 6}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
-                    {phoneVerifying ? 'Verifying...' : 'Verify'}
+                    {phoneVerifying ? t('register.verifying') : t('register.verify')}
                   </button>
                 </div>
               )}
               {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
-              <p className="text-xs text-gray-400 mt-2 leading-relaxed">By tapping &quot;Send Verification Code&quot;, you agree to receive a one-time passcode by SMS from Manta Shark Aquatics. Msg frequency: 1 msg per request. Msg &amp; data rates may apply. Reply HELP for help, STOP to opt out. Consent is not a condition of purchase. See our <a href="/privacy-policy" target="_blank" className="underline hover:text-gray-600">Privacy Policy</a> and <a href="/sms-terms" target="_blank" className="underline hover:text-gray-600">SMS Terms</a>.</p>
+              {phoneWarning && <p className="text-amber-600 text-xs mt-1">{phoneWarning}</p>}
+              <p className="text-xs text-gray-400 mt-2 leading-relaxed">{t('register.sms.body')}<a href="/privacy-policy" target="_blank" className="underline hover:text-gray-600">{t('register.sms.privacy')}</a>{t('register.sms.mid')}<a href="/sms-terms" target="_blank" className="underline hover:text-gray-600">{t('register.sms.terms')}</a>{t('register.sms.end')}</p>
             </div>
 
             <div className="border-t border-gray-100 pt-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Home Address (US Only)</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">{t('register.addrHeading')}</p>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1 <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.addr1')} <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <input
                       ref={addressInputRef}
                       value={addressLine1}
                       onChange={e => handleAddressInput(e.target.value)}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                      placeholder="Start typing your address..."
+                      placeholder={t('register.addrPh')}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                     {showSuggestions && suggestions.length > 0 && (
                       <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
@@ -380,29 +394,29 @@ export default function RegisterPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2 <span className="text-gray-400 font-normal">(Optional)</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.addr2')} <span className="text-gray-400 font-normal">{t('register.optional')}</span></label>
                   <input value={addressLine2} onChange={e => setAddressLine2(e.target.value)}
-                    placeholder="Apt, Suite, Unit, etc."
+                    placeholder={t('register.aptPh')}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">City <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.city')} <span className="text-red-500">*</span></label>
                     <input value={city} onChange={e => setCity(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.zip')} <span className="text-red-500">*</span></label>
                     <input value={zipCode} onChange={e => setZipCode(e.target.value)}
                       placeholder="90210" maxLength={10}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.state')} <span className="text-red-500">*</span></label>
                   <select value={state} onChange={e => setState(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white">
-                    <option value="">Select state...</option>
+                    <option value="">{t('register.selectState')}</option>
                     {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
@@ -410,7 +424,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
             </div>
@@ -420,10 +434,10 @@ export default function RegisterPage() {
               disabled={!emailVerified || !phoneVerified}
               className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {(!emailVerified || !phoneVerified) ? 'Verify your email and phone to continue' : 'Continue →'}
+              {(!emailVerified || !phoneVerified) ? t('register.verifyFirst') : t('register.continue')}
             </button>
             <p className="text-center text-sm text-gray-500">
-              Already have an account? <Link href="/login" className="text-blue-600 hover:underline">Sign in</Link>
+              {t('register.haveAccount')} <Link href="/login" className="text-blue-600 hover:underline">{t('register.signIn')}</Link>
             </p>
           </div>
         )}
@@ -432,15 +446,15 @@ export default function RegisterPage() {
           <div className="space-y-4">
             {students.map((s, i) => (
               <div key={i} className="border border-gray-200 rounded-xl p-4">
-                <p className="text-sm font-semibold text-gray-700 mb-3">Student {i + 1} {i === 0 && <span className="text-red-500">*</span>}</p>
+                <p className="text-sm font-semibold text-gray-700 mb-3">{t('register.student', { n: i + 1 })} {i === 0 && <span className="text-red-500">*</span>}</p>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Full Name</label>
+                    <label className="block text-sm text-gray-600 mb-1">{t('register.fullName')}</label>
                     <input value={s.fullName} onChange={e => updateStudent(i, 'fullName', e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Date of Birth</label>
+                    <label className="block text-sm text-gray-600 mb-1">{t('register.dob')}</label>
                     <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} />
                   </div>
                 </div>
@@ -448,42 +462,42 @@ export default function RegisterPage() {
             ))}
             {students.length < 3 && (
               <button onClick={addStudent} className="w-full border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors">
-                + Add Another Student
+                {t('register.addStudent')}
               </button>
             )}
             <div className="space-y-3 pt-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">I have read and agree to the <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms of Service</Link> and <Link href="/policies" target="_blank" className="text-blue-600 hover:underline">School Policies</Link><span className="text-red-500 ml-1">*</span></span>
+                <span className="text-sm text-gray-600">{t('register.terms.pre')}<Link href="/terms" target="_blank" className="text-blue-600 hover:underline">{t('register.terms.tos')}</Link>{t('register.terms.mid')}<Link href="/policies" target="_blank" className="text-blue-600 hover:underline">{t('register.terms.policies')}</Link><span className="text-red-500 ml-1">*</span></span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={waiverAccepted} onChange={e => setWaiverAccepted(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">I have read and agree to the <Link href="/waiver" target="_blank" className="text-blue-600 hover:underline">Liability Waiver</Link>, signing electronically as parent/legal guardian<span className="text-red-500 ml-1">*</span></span>
+                <span className="text-sm text-gray-600">{t('register.waiver.pre')}<Link href="/waiver" target="_blank" className="text-blue-600 hover:underline">{t('register.waiver.link')}</Link>{t('register.waiver.post')}<span className="text-red-500 ml-1">*</span></span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={mediaAccepted} onChange={e => setMediaAccepted(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">(Optional) I agree to the <Link href="/media-release" target="_blank" className="text-blue-600 hover:underline">Photo & Video Release</Link></span>
+                <span className="text-sm text-gray-600">{t('register.media.pre')}<Link href="/media-release" target="_blank" className="text-blue-600 hover:underline">{t('register.media.link')}</Link></span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={newsletter} onChange={e => setNewsletter(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">Subscribe to newsletter</span>
+                <span className="text-sm text-gray-600">{t('register.newsletter')}</span>
               </label>
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <div className="flex gap-3 pt-2">
               <button onClick={() => { setStep(1); setError('') }}
-                className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm">← Back</button>
+                className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm">{t('register.back')}</button>
               <button onClick={handleSubmit} disabled={loading}
                 className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
-                {loading ? 'Creating...' : 'Create Account'}
+                {loading ? t('register.creating') : t('register.createAccount')}
               </button>
             </div>
             <p className="text-center text-sm text-gray-500">
-              Already have an account? <Link href="/login" className="text-blue-600 hover:underline">Sign in</Link>
+              {t('register.haveAccount')} <Link href="/login" className="text-blue-600 hover:underline">{t('register.signIn')}</Link>
             </p>
           </div>
         )}
