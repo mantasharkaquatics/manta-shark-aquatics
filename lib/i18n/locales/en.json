@@ -29,5 +29,15 @@
   "legal.privacy": "Privacy Policy",
   "legal.waiver": "Liability Waiver",
   "legal.mediaRelease": "Photo & Video Release",
-  "legal.smsTerms": "SMS Terms"
+  "legal.smsTerms": "SMS Terms",
+  "level.badge": "Level {n} · {name}",
+  "level.1.name": "Water Intro",
+  "level.2.name": "Water Comfort",
+  "level.3.name": "Pool Safety",
+  "level.4.name": "Beginner",
+  "level.5.name": "Intermediate",
+  "level.6.name": "Advanced",
+  "level.7.name": "Bronze",
+  "level.8.name": "Silver",
+  "level.9.name": "Gold"
 }

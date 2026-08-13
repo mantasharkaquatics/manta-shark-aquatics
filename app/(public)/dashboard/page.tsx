@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
-import { useLocale } from '@/lib/i18n/provider'
+import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 
 const NAVY = '#1a2744'
@@ -17,10 +17,6 @@ const GOLD = '#c9a84c'
 const LEVEL_COLORS: Record<number, string> = {
   1: '#e05a4a', 2: '#e8883a', 3: '#d4a825', 4: '#4caf72',
   5: '#4a90c4', 6: '#7b5ea7', 7: '#9c7a3c', 8: '#a0a0a0', 9: '#c9a84c',
-}
-const LEVEL_NAMES: Record<number, string> = {
-  1: 'Water Intro', 2: 'Water Comfort', 3: 'Pool Safety', 4: 'Beginner',
-  5: 'Intermediate', 6: 'Advanced', 7: 'Bronze', 8: 'Silver', 9: 'Gold',
 }
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
@@ -448,6 +444,7 @@ function TokenCard({ tokens }: { tokens: TokenPack[] }) {
 export default function DashboardPage() {
   const supabase = createClient()
   const locale = useLocale()
+  const t = useT()
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [credits, setCredits] = useState<Credit[]>([])
@@ -1182,7 +1179,7 @@ export default function DashboardPage() {
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
               const levelColor = hasLevel ? (LEVEL_COLORS[Number(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
-              const levelName = hasLevel ? LEVEL_NAMES[Number(student.current_level)] : null
+              const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
               const age = student.date_of_birth ? getAge(student.date_of_birth) : null
               return (
                 <div key={student.id} style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', position: 'relative', overflow: 'hidden' }}>
@@ -1203,7 +1200,7 @@ export default function DashboardPage() {
                     <div>
                       <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>Current Level</div>
                       {hasLevel ? (
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>Level {student.current_level} · {levelName}</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}</div>
                       ) : (
                         <div style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>Pending Assessment</div>
                       )}

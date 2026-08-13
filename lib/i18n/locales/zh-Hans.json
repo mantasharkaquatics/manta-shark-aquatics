@@ -29,5 +29,15 @@
   "legal.privacy": "隐私政策",
   "legal.waiver": "免责同意书",
   "legal.mediaRelease": "影像使用同意书",
-  "legal.smsTerms": "短信条款"
+  "legal.smsTerms": "短信条款",
+  "level.badge": "等级 {n} · {name}",
+  "level.1.name": "初学游泳",
+  "level.2.name": "水中适应",
+  "level.3.name": "泳池安全",
+  "level.4.name": "初级",
+  "level.5.name": "中级",
+  "level.6.name": "进阶",
+  "level.7.name": "铜级",
+  "level.8.name": "银级",
+  "level.9.name": "金级"
 }
