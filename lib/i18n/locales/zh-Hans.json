@@ -73,5 +73,14 @@
   "dash.lessonCredits": "课程堂数",
   "dash.buyCredits": "购买堂数",
   "dash.noCredits": "目前没有可用的课程堂数。",
-  "dash.browsePlans": "浏览课程方案"
+  "dash.browsePlans": "浏览课程方案",
+  "token.title": "补课点数",
+  "token.available": "可用于当日或隔日预约",
+  "token.final": "补课点数预约后不可取消或改期。",
+  "token.courtesy": "招待",
+  "token.makeup": "补课",
+  "token.count": "{n} 点",
+  "token.countPlural": "{n} 点",
+  "token.dayLeft": "剩 {n} 天",
+  "token.daysLeft": "剩 {n} 天"
 }

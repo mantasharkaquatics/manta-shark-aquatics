@@ -73,5 +73,14 @@
   "dash.lessonCredits": "課程堂數",
   "dash.buyCredits": "購買堂數",
   "dash.noCredits": "目前沒有可用的課程堂數。",
-  "dash.browsePlans": "瀏覽課程方案"
+  "dash.browsePlans": "瀏覽課程方案",
+  "token.title": "補課點數",
+  "token.available": "可用於當日或隔日預約",
+  "token.final": "補課點數預約後不可取消或改期。",
+  "token.courtesy": "招待",
+  "token.makeup": "補課",
+  "token.count": "{n} 點",
+  "token.countPlural": "{n} 點",
+  "token.dayLeft": "剩 {n} 天",
+  "token.daysLeft": "剩 {n} 天"
 }

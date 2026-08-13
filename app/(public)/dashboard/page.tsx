@@ -410,29 +410,30 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
 
 function TokenCard({ tokens }: { tokens: TokenPack[] }) {
   if (tokens.length === 0) return null
-  const totalTokens = tokens.reduce((s, t) => s + t.remaining, 0)
+  const t = useT()
+  const totalTokens = tokens.reduce((s, tp) => s + tp.remaining, 0)
   const ORANGE = '#e8883a'
   return (
     <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${ORANGE}55`, padding: '20px' }}>
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: ORANGE, marginBottom: '8px' }}>
-        Tokens
+        {t('token.title')}
       </div>
       <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: ORANGE, lineHeight: 1 }}>{totalTokens}</div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '10px' }}>available for same-day or next-day booking</div>
-      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>Token bookings are final — no cancellation or reschedule.</div>
+      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '10px' }}>{t('token.available')}</div>
+      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>{t('token.final')}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
-        {tokens.map(t => {
-          const daysLeft = Math.max(0, Math.ceil((new Date(t.expires_at).getTime() - Date.now()) / 86400000))
+        {tokens.map(tp => {
+          const daysLeft = Math.max(0, Math.ceil((new Date(tp.expires_at).getTime() - Date.now()) / 86400000))
           const urgent = daysLeft <= 7
           return (
-            <div key={t.id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+            <div key={tp.id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.course_name}</div>
-                <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, borderRadius: '8px', padding: '1px 7px', color: t.source === 'manual' ? '#c9a84c' : ORANGE, background: t.source === 'manual' ? 'rgba(201,168,76,0.12)' : 'rgba(232,136,58,0.1)', border: t.source === 'manual' ? '1px solid rgba(201,168,76,0.35)' : '1px solid rgba(232,136,58,0.3)' }}>{t.source === 'manual' ? 'Courtesy' : 'Make-up'}</span>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tp.course_name}</div>
+                <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, borderRadius: '8px', padding: '1px 7px', color: tp.source === 'manual' ? '#c9a84c' : ORANGE, background: tp.source === 'manual' ? 'rgba(201,168,76,0.12)' : 'rgba(232,136,58,0.1)', border: tp.source === 'manual' ? '1px solid rgba(201,168,76,0.35)' : '1px solid rgba(232,136,58,0.3)' }}>{tp.source === 'manual' ? t('token.courtesy') : t('token.makeup')}</span>
               </div>
               <div style={{ fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                <span style={{ fontWeight: 600, color: ORANGE }}>{t.remaining} token{t.remaining === 1 ? '' : 's'}</span>
-                <span style={{ color: urgent ? '#e05a4a' : 'rgba(255,255,255,0.35)', fontWeight: urgent ? 700 : 400 }}> · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>
+                <span style={{ fontWeight: 600, color: ORANGE }}>{t(tp.remaining === 1 ? 'token.count' : 'token.countPlural', { n: tp.remaining })}</span>
+                <span style={{ color: urgent ? '#e05a4a' : 'rgba(255,255,255,0.35)', fontWeight: urgent ? 700 : 400 }}> · {t(daysLeft === 1 ? 'token.dayLeft' : 'token.daysLeft', { n: daysLeft })}</span>
               </div>
             </div>
           )

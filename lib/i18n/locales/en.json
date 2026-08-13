@@ -73,5 +73,14 @@
   "dash.lessonCredits": "Lesson Credits",
   "dash.buyCredits": "Buy Credits",
   "dash.noCredits": "No active lesson credits.",
-  "dash.browsePlans": "Browse Plans"
+  "dash.browsePlans": "Browse Plans",
+  "token.title": "Tokens",
+  "token.available": "available for same-day or next-day booking",
+  "token.final": "Token bookings are final — no cancellation or reschedule.",
+  "token.courtesy": "Courtesy",
+  "token.makeup": "Make-up",
+  "token.count": "{n} token",
+  "token.countPlural": "{n} tokens",
+  "token.dayLeft": "{n} day left",
+  "token.daysLeft": "{n} days left"
 }
