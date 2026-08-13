@@ -61,5 +61,17 @@
   "dash.greeting.morning": "早安，",
   "dash.greeting.afternoon": "午安，",
   "dash.greeting.evening": "晚安，",
-  "dash.greeting.bang": "！"
+  "dash.greeting.bang": "！",
+  "credit.remaining": "共 {total} 堂",
+  "credit.showPackage": "顯示 {n} 個方案",
+  "credit.showPackages": "顯示 {n} 個方案",
+  "credit.hidePackage": "收起 {n} 個方案",
+  "credit.hidePackages": "收起 {n} 個方案",
+  "dash.bookNow": "立即預約",
+  "dash.upcomingLessons": "即將上課",
+  "dash.noUpcoming": "目前沒有即將到來的課程。",
+  "dash.lessonCredits": "課程堂數",
+  "dash.buyCredits": "購買堂數",
+  "dash.noCredits": "目前沒有可用的課程堂數。",
+  "dash.browsePlans": "瀏覽課程方案"
 }

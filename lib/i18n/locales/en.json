@@ -61,5 +61,17 @@
   "dash.greeting.morning": "Good morning, ",
   "dash.greeting.afternoon": "Good afternoon, ",
   "dash.greeting.evening": "Good evening, ",
-  "dash.greeting.bang": "!"
+  "dash.greeting.bang": "!",
+  "credit.remaining": "of {total} remaining",
+  "credit.showPackage": "Show {n} package",
+  "credit.showPackages": "Show {n} packages",
+  "credit.hidePackage": "Hide {n} package",
+  "credit.hidePackages": "Hide {n} packages",
+  "dash.bookNow": "Book Now",
+  "dash.upcomingLessons": "Upcoming Lessons",
+  "dash.noUpcoming": "No upcoming lessons.",
+  "dash.lessonCredits": "Lesson Credits",
+  "dash.buyCredits": "Buy Credits",
+  "dash.noCredits": "No active lesson credits.",
+  "dash.browsePlans": "Browse Plans"
 }
