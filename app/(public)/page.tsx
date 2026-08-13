@@ -2,8 +2,11 @@
 import TestimonialCarousel from './TestimonialCarousel'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useT } from '@/lib/i18n/provider'
 
 export default function HomePage() {
+  const t = useT()
+
   return (
     <>
       <style>{`
@@ -58,22 +61,22 @@ export default function HomePage() {
       {/* HERO */}
       <section style={{ background: '#111d38', position: 'relative', minHeight: '500px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div className="hero-content" style={{ position: 'relative', zIndex: 5, textAlign: 'center', padding: '56px 48px 130px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>Serious · Structured · Science-Based</div>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>{t('home.hero.eyebrow')}</div>
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '52px', fontWeight: 900, color: 'white', lineHeight: 1.1, marginBottom: '16px' }}>
-            Serious About Swimming.<br /><em style={{ color: '#c9a84c' }}>Designed for Peace of Mind.</em>
+            {t('home.hero.title1')}<br /><em style={{ color: '#c9a84c' }}>{t('home.hero.title2')}</em>
           </h1>
           <p className="hero-sub" style={{ fontSize: '16px', color: 'rgba(255,255,255,0.6)', maxWidth: '540px', margin: '0 auto 32px', lineHeight: 1.7 }}>
-            We combine professional swim coaching with expertise in education, psychology, and child development — delivering safe, structured, and progression-based instruction for every student.
+            {t('home.hero.subtitle')}
           </p>
           <div className="hero-stats" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
-            {[['5.0★', 'Average Rating'], ['500+', 'Students Coached'], ['100%', 'Progress-Focused']].map(([num, label]) => (
-              <div key={label} className="hero-stat" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '12px 20px', textAlign: 'center' }}>
+            {[['5.0★', 'home.stat.rating'], ['500+', 'home.stat.students'], ['100%', 'home.stat.progress']].map(([num, labelKey]) => (
+              <div key={labelKey} className="hero-stat" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '12px 20px', textAlign: 'center' }}>
                 <div style={{ fontSize: '22px', fontWeight: 700, color: '#c9a84c' }}>{num}</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{label}</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{t(labelKey)}</div>
               </div>
             ))}
           </div>
-          <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '16px 40px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none', display: 'inline-block' }}>Create Account</Link>
+          <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '16px 40px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none', display: 'inline-block' }}>{t('home.hero.cta')}</Link>
         </div>
 
         {/* Waves */}
@@ -94,25 +97,25 @@ export default function HomePage() {
       {/* PROGRAMS */}
       <section className="section-pad" style={{ background: 'white', padding: '64px 48px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>What We Offer</div>
-          <h2 style={{ fontSize: '32px', fontWeight: 700, color: '#111d38', textAlign: 'center', marginBottom: '40px' }}>Our Programs</h2>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>{t('home.programs.eyebrow')}</div>
+          <h2 style={{ fontSize: '32px', fontWeight: 700, color: '#111d38', textAlign: 'center', marginBottom: '40px' }}>{t('home.programs.title')}</h2>
           <div className="program-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }} id="program-grid">
             {[
-              { icon: '🏊', name: '1-on-1 Lessons', desc: `30-minute private sessions tailored entirely to your child's pace and goals.` },
-              { icon: '👫', name: '1-on-2 Lessons', desc: '30-minute semi-private sessions — parent-arranged pairs for a shared experience.' },
-              { icon: '👥', name: 'Group (1-on-4)', desc: '30-minute group classes with real-time availability. Book online, limited spots.' },
-              { icon: '🏅', name: 'Swim Team', desc: '90-minute competitive training. Mon & Wed 6–7:30 PM. Max 24 swimmers.' },
+              { icon: '🏊', slug: 'private' },
+              { icon: '👫', slug: 'semi' },
+              { icon: '👥', slug: 'group' },
+              { icon: '🏅', slug: 'team' },
             ].map((p, i) => (
               <div key={i} className="program-card" onClick={(e) => e.currentTarget.classList.toggle('open')}>
                 <div style={{ fontSize: '36px', marginBottom: '14px' }}>{p.icon}</div>
-                <div style={{ fontSize: '16px', fontWeight: 700, color: '#111d38' }}>{p.name}</div>
-                <div className="program-desc">{p.desc}</div>
-                <div className="program-hint">Tap to learn more</div>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: '#111d38' }}>{t('home.program.' + p.slug + '.name')}</div>
+                <div className="program-desc">{t('home.program.' + p.slug + '.desc')}</div>
+                <div className="program-hint">{t('home.programs.hint')}</div>
               </div>
             ))}
           </div>
           <div style={{ textAlign: 'center', marginTop: '40px' }}>
-            <Link href="/services" style={{ display: 'inline-block', padding: '12px 32px', border: '1px solid #111d38', borderRadius: '10px', color: '#111d38', fontWeight: 600, fontSize: '14px', textDecoration: 'none' }}>View All Services</Link>
+            <Link href="/services" style={{ display: 'inline-block', padding: '12px 32px', border: '1px solid #111d38', borderRadius: '10px', color: '#111d38', fontWeight: 600, fontSize: '14px', textDecoration: 'none' }}>{t('home.programs.viewAll')}</Link>
           </div>
         </div>
       </section>
@@ -120,9 +123,9 @@ export default function HomePage() {
       {/* TESTIMONIALS */}
       <section className="section-pad" style={{ background: '#1a2744', padding: '64px 48px' }} id="testimonials-section">
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>Testimonials</div>
-          <h2 style={{ fontSize: '32px', fontWeight: 700, color: 'white', textAlign: 'center', marginBottom: '8px' }}>Our Parents & Swimmers Love Us!</h2>
-          <div style={{ textAlign: 'center', color: '#c9a84c', fontSize: '14px', marginBottom: '40px' }}>★★★★★ 5.0 · 13 reviews</div>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>{t('home.testimonials.eyebrow')}</div>
+          <h2 style={{ fontSize: '32px', fontWeight: 700, color: 'white', textAlign: 'center', marginBottom: '8px' }}>{t('home.testimonials.title')}</h2>
+          <div style={{ textAlign: 'center', color: '#c9a84c', fontSize: '14px', marginBottom: '40px' }}>{t('home.testimonials.rating', { n: 13 })}</div>
 
           {[
             [
@@ -167,7 +170,7 @@ export default function HomePage() {
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
             <button className="carousel-btn" id="t-prev">&#8592;</button>
             <div style={{ display: 'flex', gap: '8px' }}>
-              {[0,1,2,3].map(i => <button key={i} className={`dot${i===0?' active':''}`} data-dot={i} aria-label={`Go to slide ${i+1}`} />)}
+              {[0,1,2,3].map(i => <button key={i} className={`dot${i===0?' active':''}`} data-dot={i} aria-label={t('home.carousel.goToSlide', { n: i + 1 })} />)}
             </div>
             <button className="carousel-btn" id="t-next">&#8594;</button>
           </div>
@@ -176,11 +179,11 @@ export default function HomePage() {
 
       {/* CTA */}
       <section className="section-pad" style={{ background: '#111d38', padding: '64px 48px', textAlign: 'center' }}>
-        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: 'white', marginBottom: '12px' }}>Ready to Get Started?</h2>
-        <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '32px' }}>Create your family account today and take the first step toward confident, capable swimming.</p>
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: 'white', marginBottom: '12px' }}>{t('home.cta.title')}</h2>
+        <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '32px' }}>{t('home.cta.subtitle')}</p>
         <div className="cta-btns" style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-          <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, textDecoration: 'none', fontSize: '15px' }}>Create Account</Link>
-          <Link href="/plans" style={{ background: 'transparent', color: 'white', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)', textDecoration: 'none', fontSize: '15px' }}>View Swim Plans</Link>
+          <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, textDecoration: 'none', fontSize: '15px' }}>{t('home.cta.createAccount')}</Link>
+          <Link href="/plans" style={{ background: 'transparent', color: 'white', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)', textDecoration: 'none', fontSize: '15px' }}>{t('home.cta.viewPlans')}</Link>
         </div>
       </section>
 
