@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale, useSetLocale } from '@/lib/i18n/provider'
-import { LOCALES, type Locale } from '@/lib/i18n'
+import { LOCALES, isLocale, type Locale } from '@/lib/i18n'
 
 const navLinks = [
   { labelKey: 'page.services', href: '/services' },
@@ -19,6 +19,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [firstName, setFirstName] = useState('')
+  const [parentId, setParentId] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const pathname = usePathname()
   const router = useRouter()
@@ -34,10 +35,14 @@ export default function Navbar() {
         setIsLoggedIn(true)
         const { data: parent } = await supabase
           .from('parents')
-          .select('first_name')
+          .select('id, first_name, preferred_language')
           .eq('auth_user_id', user.id)
           .single()
-        if (parent) setFirstName(parent.first_name)
+        if (parent) {
+          setFirstName(parent.first_name)
+          setParentId(parent.id)
+          if (isLocale(parent.preferred_language)) setLocale(parent.preferred_language)
+        }
       } else {
         setIsLoggedIn(false)
         setFirstName('')
@@ -51,10 +56,14 @@ export default function Navbar() {
         setIsLoggedIn(true)
         const { data: parent } = await supabase
           .from('parents')
-          .select('first_name')
+          .select('id, first_name, preferred_language')
           .eq('auth_user_id', session.user.id)
           .single()
-        if (parent) setFirstName(parent.first_name)
+        if (parent) {
+          setFirstName(parent.first_name)
+          setParentId(parent.id)
+          if (isLocale(parent.preferred_language)) setLocale(parent.preferred_language)
+        }
       } else {
         setIsLoggedIn(false)
         setFirstName('')
@@ -62,6 +71,13 @@ export default function Navbar() {
     })
     return () => subscription.unsubscribe()
   }, [pathname])
+
+  async function changeLocale(next: Locale) {
+    setLocale(next)
+    if (!isLoggedIn || !parentId) return
+    const { error } = await supabase.from('parents').update({ preferred_language: next }).eq('id', parentId)
+    if (error) console.error('[i18n] failed to save preferred_language', error)
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -74,7 +90,7 @@ export default function Navbar() {
     <select
       aria-label="Language"
       value={locale}
-      onChange={e => setLocale(e.target.value as Locale)}
+      onChange={e => changeLocale(e.target.value as Locale)}
       className={`bg-[#111d38] text-gray-300 text-sm border border-white/15 rounded px-2 py-1 cursor-pointer ${extraClass}`}>
       {LOCALES.map(l => (
         <option key={l} value={l}>{t('locale.' + l + '.native')}</option>
