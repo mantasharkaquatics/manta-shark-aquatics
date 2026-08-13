@@ -1293,7 +1293,7 @@ export default function DashboardPage() {
                                       {rec.skills.map(sk => (
                                         <div key={sk.skill_id}>
                                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>{sk.skill_name}</span>
+                                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>{sk.skill_id ? tDb(locale, 'skills', sk.skill_id, sk.skill_name) : sk.skill_name}</span>
                                             <span style={{ fontSize: '11px', fontWeight: 700, color: sk.progress_percent >= 100 ? '#4caf72' : sk.progress_percent > 0 ? GOLD : 'rgba(255,255,255,0.25)' }}>{sk.progress_percent}%</span>
                                           </div>
                                           <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
