@@ -1,6 +1,5 @@
 'use client'
 
-import { SUPPORTED_NOTE_LANGUAGES, LANGUAGE_LABELS } from '@/lib/ai/models'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -21,7 +20,6 @@ export default function AccountPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [newsletterSaving, setNewsletterSaving] = useState(false)
-  const [langSaving, setLangSaving] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDob, setNewDob] = useState('')
@@ -49,16 +47,6 @@ export default function AccountPage() {
     await supabase.from('parents').update({ newsletter_subscribed: newVal }).eq('id', parent.id)
     setParent(prev => prev ? { ...prev, newsletter_subscribed: newVal } : prev)
     setNewsletterSaving(false)
-  }
-
-  // Same shape as the newsletter toggle: a parent editing one column of their
-  // own row, which RLS already allows, so no API route is needed.
-  async function setLanguage(code: string) {
-    if (!parent || parent.preferred_language === code) return
-    setLangSaving(true)
-    await supabase.from('parents').update({ preferred_language: code }).eq('id', parent.id)
-    setParent(prev => prev ? { ...prev, preferred_language: code } : prev)
-    setLangSaving(false)
   }
 
   const MAX_STUDENTS = 3
@@ -127,27 +115,6 @@ export default function AccountPage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Language section */}
-          <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>Language</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Your coach&apos;s lesson notes are written in this language</div>
-            </div>
-            <select
-              value={parent?.preferred_language || 'en'}
-              onChange={e => setLanguage(e.target.value)}
-              disabled={langSaving}
-              style={{
-                background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '10px', padding: '9px 12px', fontSize: '13px', fontWeight: 600,
-                cursor: 'pointer', flexShrink: 0,
-              }}>
-              {SUPPORTED_NOTE_LANGUAGES.map(code => (
-                <option key={code} value={code}>{LANGUAGE_LABELS[code]}</option>
-              ))}
-            </select>
           </div>
 
           {/* Newsletter section */}
