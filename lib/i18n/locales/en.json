@@ -82,5 +82,16 @@
   "token.count": "{n} token",
   "token.countPlural": "{n} tokens",
   "token.dayLeft": "{n} day left",
-  "token.daysLeft": "{n} days left"
+  "token.daysLeft": "{n} days left",
+  "status.attended": "Attended ✓",
+  "status.absent": "Absent",
+  "status.checkedIn": "Checked in ✓",
+  "status.confirmed": "Confirmed",
+  "dash.lessonHistory": "Lesson History",
+  "dash.collapse": "Collapse",
+  "dash.showAllLessons": "Show all {n} lessons",
+  "dash.showAllRecords": "Show all {n} records",
+  "dash.prev": "Prev",
+  "dash.next": "Next",
+  "dash.withCoach": "with {name}"
 }

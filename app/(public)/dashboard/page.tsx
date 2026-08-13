@@ -1494,7 +1494,7 @@ export default function DashboardPage() {
                   const b = lessonDetail
                   const past = !!(b.session_date && b.session_date < todayDs)
                   const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
-                  const statusLabel = past ? (b.checked_in ? 'Attended ✓' : 'Absent') : b.checked_in ? 'Checked in ✓' : 'Confirmed'
+                  const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn') : t('status.confirmed')
                   const statusColor = past ? (b.checked_in ? '#7fd8a0' : '#e05a4a') : b.checked_in ? '#7fd8a0' : GOLD
                   const funding = b.is_trial ? 'Swim Assessment' : b.token_package_id ? (b.lesson_group_id ? '2 tokens' : '1 token') : b.lesson_credit_id ? (b.lesson_group_id ? '2 credits' : '1 credit') : '—'
                   return (
@@ -1851,7 +1851,7 @@ export default function DashboardPage() {
               onClick={() => setShowAllUpcoming(v => !v)}
               style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
             >
-              {showAllUpcoming ? '▲ Collapse' : `▼ Show all ${upcomingBookings.length} lessons`}
+              {showAllUpcoming ? '▲ ' + t('dash.collapse') : '▼ ' + t('dash.showAllLessons', { n: upcomingBookings.length })}
             </button>
           )}
         </section>
@@ -1904,7 +1904,7 @@ export default function DashboardPage() {
         {/* LESSON HISTORY */}
         {pastBookings.length > 0 && (
           <section style={{ marginBottom: '36px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Lesson History</h2>
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.lessonHistory')}</h2>
             {(() => {
               const displayed = showAllHistory
                 ? pastBookings.slice(historyPage * 10, historyPage * 10 + 10)
@@ -1919,7 +1919,7 @@ export default function DashboardPage() {
                       const noShowColor = '#e05a4a'
                       const attendedColor = '#7fd8a0'
                       const badgeColor = isNoShow ? noShowColor : isAttended ? attendedColor : (STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)')
-                      const badgeLabel = isNoShow ? 'Absent' : isAttended ? 'Attended \u2713' : booking.status
+                      const badgeLabel = isNoShow ? t('status.absent') : isAttended ? t('status.attended') : booking.status
                       return (
                       <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
@@ -1927,7 +1927,7 @@ export default function DashboardPage() {
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
                           <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>{booking.is_trial ? 'Swim Assessment' : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</div>
                           {booking.student_name && <div style={{ fontSize: '12px', color: '#7dd3fc', flexShrink: 0 }}>{booking.student_name}</div>}
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>with {booking.coach_name}</div>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{t('dash.withCoach', { name: booking.coach_name })}</div>
                         </div>
                         <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: badgeColor, background: `${badgeColor}18`, borderRadius: '10px', padding: '2px 8px' }}>
                           {badgeLabel}
@@ -1942,7 +1942,7 @@ export default function DashboardPage() {
                       onClick={() => { setShowAllHistory(v => !v); setHistoryPage(0) }}
                       style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
                     >
-                      {showAllHistory ? '▲ Collapse' : `▼ Show all ${pastBookings.length} records`}
+                      {showAllHistory ? '▲ ' + t('dash.collapse') : '▼ ' + t('dash.showAllRecords', { n: pastBookings.length })}
                     </button>
                   )}
                   {/* Pagination (shown when expanded) */}
@@ -1952,7 +1952,7 @@ export default function DashboardPage() {
                         onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
                         disabled={historyPage === 0}
                         style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === 0 ? 'not-allowed' : 'pointer' }}
-                      >← Prev</button>
+                      >← {t('dash.prev')}</button>
                       {Array.from({ length: totalPages }, (_, i) => (
                         <button key={i}
                           onClick={() => setHistoryPage(i)}
@@ -1963,7 +1963,7 @@ export default function DashboardPage() {
                         onClick={() => setHistoryPage(p => Math.min(totalPages - 1, p + 1))}
                         disabled={historyPage === totalPages - 1}
                         style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === totalPages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === totalPages - 1 ? 'not-allowed' : 'pointer' }}
-                      >Next →</button>
+                      >{t('dash.next')} →</button>
                     </div>
                   )}
                 </>

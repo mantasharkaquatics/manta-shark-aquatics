@@ -82,5 +82,16 @@
   "token.count": "{n} 点",
   "token.countPlural": "{n} 点",
   "token.dayLeft": "剩 {n} 天",
-  "token.daysLeft": "剩 {n} 天"
+  "token.daysLeft": "剩 {n} 天",
+  "status.attended": "已出席 ✓",
+  "status.absent": "未到",
+  "status.checkedIn": "已报到 ✓",
+  "status.confirmed": "已确认",
+  "dash.lessonHistory": "历史课程",
+  "dash.collapse": "收起",
+  "dash.showAllLessons": "显示全部 {n} 堂课",
+  "dash.showAllRecords": "显示全部 {n} 笔记录",
+  "dash.prev": "上一页",
+  "dash.next": "下一页",
+  "dash.withCoach": "教练：{name}"
 }
