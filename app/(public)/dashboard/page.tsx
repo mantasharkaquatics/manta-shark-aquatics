@@ -1149,7 +1149,7 @@ export default function DashboardPage() {
         {/* GREETING */}
         <div style={{ marginBottom: '36px' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            {(() => { const d = new Date(); return t('date.header', { weekday: t('date.weekday.' + d.getDay()), month: t('date.month.' + (d.getMonth() + 1)), day: d.getDate() }) })()}
           </div>
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,3vw,34px)', fontWeight: 900, color: '#fff', margin: 0 }}>
             {t('dash.greeting.' + greeting)}<em style={{ color: GOLD, fontStyle: 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
@@ -1159,7 +1159,7 @@ export default function DashboardPage() {
 
         {/* QUICK LINKS */}
         <section>
-          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Quick Links</h2>
+          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.quickLinks')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
             {QUICK_LINKS.map((link) => (
               <Link key={link.href} href={link.href} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px 20px', textDecoration: 'none' }}
@@ -1414,7 +1414,7 @@ export default function DashboardPage() {
                     style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                       background: lessonView === v ? GOLD : 'transparent',
                       color: lessonView === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                    {v === 'list' ? 'List' : 'Month'}</button>
+                    {v === 'list' ? t('dash.viewList') : t('dash.viewMonth')}</button>
                 ))}
               </div>
               <button onClick={() => window.location.href = '/booking'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
