@@ -57,5 +57,9 @@
   "dash.pendingAssessment": "等待评估",
   "dash.viewQr": "查看报到 QR Code",
   "dash.lessonRecords": "上课记录（{n}）",
-  "dash.coachNote": "教练评语"
+  "dash.coachNote": "教练评语",
+  "dash.greeting.morning": "早安，",
+  "dash.greeting.afternoon": "午安，",
+  "dash.greeting.evening": "晚上好，",
+  "dash.greeting.bang": "！"
 }

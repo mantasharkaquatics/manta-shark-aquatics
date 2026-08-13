@@ -458,7 +458,7 @@ export default function DashboardPage() {
   const [lvMonth, setLvMonth] = useState(() => new Date().getMonth())
   const [lvYear, setLvYear] = useState(() => new Date().getFullYear())
   const [loading, setLoading] = useState(true)
-  const [greeting, setGreeting] = useState('Good morning')
+  const [greeting, setGreeting] = useState('morning')
 
   async function loadTokens() {
     try {
@@ -527,9 +527,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const hour = new Date().getHours()
-    if (hour < 12) setGreeting('Good morning')
-    else if (hour < 17) setGreeting('Good afternoon')
-    else setGreeting('Good evening')
+    if (hour < 12) setGreeting('morning')
+    else if (hour < 17) setGreeting('afternoon')
+    else setGreeting('evening')
   }, [])
 
   useEffect(() => { fetchAll() }, [])
@@ -1149,7 +1149,7 @@ export default function DashboardPage() {
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,3vw,34px)', fontWeight: 900, color: '#fff', margin: 0 }}>
-            {greeting}, <em style={{ color: GOLD, fontStyle: 'italic' }}>{parent?.first_name}!</em>
+            {t('dash.greeting.' + greeting)}<em style={{ color: GOLD, fontStyle: 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
           </h1>
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginTop: '6px' }}>{t('dash.summary')}</p>
         </div>

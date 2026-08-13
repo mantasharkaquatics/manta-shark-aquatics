@@ -57,5 +57,9 @@
   "dash.pendingAssessment": "Pending Assessment",
   "dash.viewQr": "View Check-in QR Code",
   "dash.lessonRecords": "Lesson Records ({n})",
-  "dash.coachNote": "COACH'S NOTE"
+  "dash.coachNote": "COACH'S NOTE",
+  "dash.greeting.morning": "Good morning, ",
+  "dash.greeting.afternoon": "Good afternoon, ",
+  "dash.greeting.evening": "Good evening, ",
+  "dash.greeting.bang": "!"
 }
