@@ -39,5 +39,14 @@
   "level.6.name": "进阶",
   "level.7.name": "铜级",
   "level.8.name": "银级",
-  "level.9.name": "金级"
+  "level.9.name": "金级",
+  "quick.account": "我的账户",
+  "quick.account.desc": "个人资料与订阅设置",
+  "quick.book": "预约课程",
+  "quick.book.desc": "安排你的下一堂课",
+  "quick.levels.desc": "查看课程内容与进度",
+  "quick.plans.desc": "浏览课程方案",
+  "quick.policies.desc": "规则与条款",
+  "quick.partnerships": "共同预约",
+  "quick.partnerships.desc": "与另一个家庭一起预约课程"
 }

@@ -115,12 +115,12 @@ function makeQRPayload(studentId: string): string {
 }
 
 const QUICK_LINKS = [
-  { label: 'My Account', icon: '👤', href: '/dashboard/account', color: '#4a90c4', desc: 'Profile & subscription settings' },
-  { label: 'Book a Lesson', icon: '📅', href: '/booking', color: GOLD, desc: 'Schedule your next session' },
-  { label: 'Swim Levels', icon: '🏊', href: '/levels', color: '#4a90c4', desc: 'View curriculum & progress' },
-  { label: 'Swim Plans', icon: '📦', href: '/plans', color: '#4caf72', desc: 'Browse lesson packages' },
-  { label: 'Policies', icon: '📋', href: '/policies', color: '#9c7a3c', desc: 'Rules & terms' },
-  { label: 'Partnerships', icon: '🤝', href: '/dashboard/partnerships', color: '#7b5ea7', desc: 'Book lessons together with another family' },
+  { labelKey: 'quick.account', icon: '👤', href: '/dashboard/account', color: '#4a90c4', descKey: 'quick.account.desc' },
+  { labelKey: 'quick.book', icon: '📅', href: '/booking', color: GOLD, descKey: 'quick.book.desc' },
+  { labelKey: 'page.levels', icon: '🏊', href: '/levels', color: '#4a90c4', descKey: 'quick.levels.desc' },
+  { labelKey: 'page.plans', icon: '📦', href: '/plans', color: '#4caf72', descKey: 'quick.plans.desc' },
+  { labelKey: 'page.policies', icon: '📋', href: '/policies', color: '#9c7a3c', descKey: 'quick.policies.desc' },
+  { labelKey: 'quick.partnerships', icon: '🤝', href: '/dashboard/partnerships', color: '#7b5ea7', descKey: 'quick.partnerships.desc' },
 ]
 
 const STATUS_COLORS: Record<string, string> = {
@@ -1159,13 +1159,13 @@ export default function DashboardPage() {
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Quick Links</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
             {QUICK_LINKS.map((link) => (
-              <Link key={link.label} href={link.href} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px 20px', textDecoration: 'none' }}
+              <Link key={link.href} href={link.href} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px 20px', textDecoration: 'none' }}
                 onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = link.color + '60'; el.style.transform = 'translateY(-2px)' }}
                 onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(255,255,255,0.08)'; el.style.transform = 'translateY(0)' }}>
                 <span style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${link.color}18`, border: `1px solid ${link.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>{link.icon}</span>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{link.label}</div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{link.desc}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{t(link.labelKey)}</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{t(link.descKey)}</div>
                 </div>
               </Link>
             ))}

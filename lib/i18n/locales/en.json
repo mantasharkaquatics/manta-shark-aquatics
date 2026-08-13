@@ -39,5 +39,14 @@
   "level.6.name": "Advanced",
   "level.7.name": "Bronze",
   "level.8.name": "Silver",
-  "level.9.name": "Gold"
+  "level.9.name": "Gold",
+  "quick.account": "My Account",
+  "quick.account.desc": "Profile & subscription settings",
+  "quick.book": "Book a Lesson",
+  "quick.book.desc": "Schedule your next session",
+  "quick.levels.desc": "View curriculum & progress",
+  "quick.plans.desc": "Browse lesson packages",
+  "quick.policies.desc": "Rules & terms",
+  "quick.partnerships": "Partnerships",
+  "quick.partnerships.desc": "Book lessons together with another family"
 }

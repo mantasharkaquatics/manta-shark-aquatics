@@ -39,5 +39,14 @@
   "level.6.name": "進階",
   "level.7.name": "銅級",
   "level.8.name": "銀級",
-  "level.9.name": "金級"
+  "level.9.name": "金級",
+  "quick.account": "我的帳戶",
+  "quick.account.desc": "個人資料與訂閱設定",
+  "quick.book": "預約課程",
+  "quick.book.desc": "安排你的下一堂課",
+  "quick.levels.desc": "查看課程內容與進度",
+  "quick.plans.desc": "瀏覽課程方案",
+  "quick.policies.desc": "規則與條款",
+  "quick.partnerships": "共同預約",
+  "quick.partnerships.desc": "與另一個家庭一起預約課程"
 }
