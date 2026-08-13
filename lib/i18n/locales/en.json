@@ -48,5 +48,14 @@
   "quick.plans.desc": "Browse lesson packages",
   "quick.policies.desc": "Rules & terms",
   "quick.partnerships": "Partnerships",
-  "quick.partnerships.desc": "Book lessons together with another family"
+  "quick.partnerships.desc": "Book lessons together with another family",
+  "dash.summary": "Here's a summary of your swimmers.",
+  "dash.mySwimmers": "My Swimmers",
+  "dash.age": "Age {n}",
+  "dash.ageUnknown": "Age unknown",
+  "dash.currentLevel": "Current Level",
+  "dash.pendingAssessment": "Pending Assessment",
+  "dash.viewQr": "View Check-in QR Code",
+  "dash.lessonRecords": "Lesson Records ({n})",
+  "dash.coachNote": "COACH'S NOTE"
 }

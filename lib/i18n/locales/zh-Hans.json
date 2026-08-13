@@ -48,5 +48,14 @@
   "quick.plans.desc": "浏览课程方案",
   "quick.policies.desc": "规则与条款",
   "quick.partnerships": "共同预约",
-  "quick.partnerships.desc": "与另一个家庭一起预约课程"
+  "quick.partnerships.desc": "与另一个家庭一起预约课程",
+  "dash.summary": "以下是您孩子的学习概况。",
+  "dash.mySwimmers": "我的孩子",
+  "dash.age": "{n} 岁",
+  "dash.ageUnknown": "年龄未知",
+  "dash.currentLevel": "当前等级",
+  "dash.pendingAssessment": "等待评估",
+  "dash.viewQr": "查看报到 QR Code",
+  "dash.lessonRecords": "上课记录（{n}）",
+  "dash.coachNote": "教练评语"
 }

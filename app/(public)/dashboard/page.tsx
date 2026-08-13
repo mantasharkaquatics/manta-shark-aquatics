@@ -1151,7 +1151,7 @@ export default function DashboardPage() {
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,3vw,34px)', fontWeight: 900, color: '#fff', margin: 0 }}>
             {greeting}, <em style={{ color: GOLD, fontStyle: 'italic' }}>{parent?.first_name}!</em>
           </h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginTop: '6px' }}>Here's a summary of your swimmers.</p>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginTop: '6px' }}>{t('dash.summary')}</p>
         </div>
 
         {/* QUICK LINKS */}
@@ -1174,7 +1174,7 @@ export default function DashboardPage() {
 
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
-          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>My Swimmers</h2>
+          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.mySwimmers')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
@@ -1191,18 +1191,18 @@ export default function DashboardPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{student.full_name}</div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {age !== null ? `Age ${age}` : 'Age unknown'}
+                        {age !== null ? t('dash.age', { n: age }) : t('dash.ageUnknown')}
                         {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
                       </div>
                     </div>
                   </div>
                   <div style={{ marginTop: '16px', background: hasLevel ? `${levelColor}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${hasLevel ? levelColor + '35' : 'rgba(255,255,255,0.1)'}`, borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>Current Level</div>
+                      <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>{t('dash.currentLevel')}</div>
                       {hasLevel ? (
                         <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}</div>
                       ) : (
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>Pending Assessment</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>{t('dash.pendingAssessment')}</div>
                       )}
                     </div>
                     {hasLevel ? (
@@ -1229,7 +1229,7 @@ export default function DashboardPage() {
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${GOLD}15` }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                   >
-                    <span style={{ fontSize: '14px' }}>⊞</span> View Check-in QR Code
+                    <span style={{ fontSize: '14px' }}>⊞</span> {t('dash.viewQr')}
                   </button>
 
                   {studentProgressMap[student.id] && (() => {
@@ -1257,7 +1257,7 @@ export default function DashboardPage() {
                             letterSpacing: '0.5px',
                           }}
                         >
-                          <span>📋 Lesson Records ({prog.records.length})</span>
+                          <span>📋 {t('dash.lessonRecords', { n: prog.records.length })}</span>
                           <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>
                         </button>
                         {isOpen && (
@@ -1283,7 +1283,7 @@ export default function DashboardPage() {
                                     <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                       {rec.note && (
                                         <div style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}40`, borderRadius: '6px', padding: '8px 10px', marginBottom: '4px' }}>
-                                          <div style={{ fontSize: '10px', color: GOLD, fontWeight: 700, letterSpacing: '0.5px', marginBottom: '3px' }}>COACH&apos;S NOTE</div>
+                                          <div style={{ fontSize: '10px', color: GOLD, fontWeight: 700, letterSpacing: '0.5px', marginBottom: '3px' }}>{t('dash.coachNote')}</div>
                                           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{rec.note}</div>
                                         </div>
                                       )}

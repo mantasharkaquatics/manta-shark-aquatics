@@ -48,5 +48,14 @@
   "quick.plans.desc": "瀏覽課程方案",
   "quick.policies.desc": "規則與條款",
   "quick.partnerships": "共同預約",
-  "quick.partnerships.desc": "與另一個家庭一起預約課程"
+  "quick.partnerships.desc": "與另一個家庭一起預約課程",
+  "dash.summary": "以下是您孩子的學習概況。",
+  "dash.mySwimmers": "我的孩子",
+  "dash.age": "{n} 歲",
+  "dash.ageUnknown": "年齡未知",
+  "dash.currentLevel": "目前等級",
+  "dash.pendingAssessment": "等待評估",
+  "dash.viewQr": "查看報到 QR Code",
+  "dash.lessonRecords": "上課紀錄（{n}）",
+  "dash.coachNote": "教練評語"
 }
