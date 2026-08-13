@@ -1174,7 +1174,7 @@ export default function DashboardPage() {
 
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
-          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.mySwimmers')}</h2>
+          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '28px 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.mySwimmers')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
