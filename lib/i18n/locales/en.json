@@ -489,5 +489,15 @@
   "err.userExists": "An account with this email already exists. Please log in instead.",
   "err.passwordShort": "Password is too short. Please use at least 6 characters.",
   "err.emailInvalid": "That email address does not look valid.",
-  "err.rateLimit": "Too many requests. Please wait a moment and try again."
+  "err.rateLimit": "Too many requests. Please wait a moment and try again.",
+  "login.subtitle": "Sign in to your account",
+  "login.email": "Email",
+  "login.password": "Password",
+  "login.signingIn": "Signing in...",
+  "login.signIn": "Sign In",
+  "login.noAccount": "Don't have an account? ",
+  "login.signUp": "Sign up",
+  "login.err.failed": "Sign in failed",
+  "err.invalidCredentials": "That email or password is incorrect.",
+  "err.emailNotConfirmed": "This email address has not been confirmed yet."
 }

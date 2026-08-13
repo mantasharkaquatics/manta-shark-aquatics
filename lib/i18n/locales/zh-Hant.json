@@ -489,5 +489,15 @@
   "err.userExists": "這個電子郵件已經有帳號了，請直接登入。",
   "err.passwordShort": "密碼太短，請至少使用 6 個字元。",
   "err.emailInvalid": "這個電子郵件地址看起來不正確。",
-  "err.rateLimit": "請求次數過多，請稍候再試。"
+  "err.rateLimit": "請求次數過多，請稍候再試。",
+  "login.subtitle": "登入您的帳號",
+  "login.email": "電子郵件",
+  "login.password": "密碼",
+  "login.signingIn": "登入中…",
+  "login.signIn": "登入",
+  "login.noAccount": "還沒有帳號嗎？",
+  "login.signUp": "註冊",
+  "login.err.failed": "登入失敗",
+  "err.invalidCredentials": "電子郵件或密碼不正確。",
+  "err.emailNotConfirmed": "這個電子郵件地址尚未完成驗證。"
 }

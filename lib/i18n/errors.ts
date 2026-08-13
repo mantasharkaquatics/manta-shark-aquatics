@@ -21,6 +21,8 @@ const MAP: readonly (readonly [string, string])[] = [
   ['Missing phone number', 'err.missingPhone'],
   ['SMS delivery may be delayed (carrier registration pending)', 'err.smsDelayedPending'],
   ['SMS delivery may be delayed', 'err.smsDelayed'],
+  ['Invalid login credentials', 'err.invalidCredentials'],
+  ['Email not confirmed', 'err.emailNotConfirmed'],
   ['User already registered', 'err.userExists'],
   ['Password should be at least', 'err.passwordShort'],
   ['Unable to validate email address', 'err.emailInvalid'],

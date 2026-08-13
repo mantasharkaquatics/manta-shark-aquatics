@@ -489,5 +489,15 @@
   "err.userExists": "这个电子邮件已经有账号了，请直接登录。",
   "err.passwordShort": "密码太短，请至少使用 6 个字符。",
   "err.emailInvalid": "这个电子邮件地址看起来不正确。",
-  "err.rateLimit": "请求次数过多，请稍候再试。"
+  "err.rateLimit": "请求次数过多，请稍候再试。",
+  "login.subtitle": "登录您的账号",
+  "login.email": "电子邮件",
+  "login.password": "密码",
+  "login.signingIn": "登录中…",
+  "login.signIn": "登录",
+  "login.noAccount": "还没有账号吗？",
+  "login.signUp": "注册",
+  "login.err.failed": "登录失败",
+  "err.invalidCredentials": "电子邮件或密码不正确。",
+  "err.emailNotConfirmed": "这个电子邮件地址尚未完成验证。"
 }
