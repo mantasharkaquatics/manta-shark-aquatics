@@ -1,98 +1,28 @@
 'use client'
 
 import Link from 'next/link'
+import { useT } from '@/lib/i18n/provider'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
 const coaches = [
-  {
-    name: 'Shane',
-    role: 'Swim Coach',
-    accent: '#4a90c4',
-    initials: 'SH',
-    sections: [
-      {
-        label: 'Competitive Swim Coach',
-        text: 'Horizon Swimming Team Head Coach 2018–2021 · Certified USA Swimming Coach · Certified Personal Trainer (ACE) · Private Coach (swimmer age group 10–26) 2016–',
-      },
-      {
-        label: '15 Years Athletic Experience',
-        text: 'National Swimmer representing Chinese Taipei · Former Taiwan National Record Holder 50FLY 24.48 LCH · FuJen Catholic University Men\'s Swimming Team',
-      },
-      {
-        label: 'International Competition',
-        text: 'Asian Age Group Games (Bangkok) — 50m FLY Bronze Medalist 24.91 LCH · Japan Open (Tokyo)',
-      },
-    ],
-  },
-  {
-    name: 'Mitch',
-    role: 'Swim Coach',
-    accent: '#4caf72',
-    initials: 'MT',
-    sections: [
-      {
-        label: 'Profile',
-        text: 'Former professional swimmer with 15+ years of competitive swimming experience and professional lifesaving competition experience. Patient and encouraging with students — his favorite part of coaching is helping students gain confidence with water.',
-      },
-      {
-        label: 'Coaching Experience',
-        text: 'Manta Shark Aquatics Senior Coach 2022– · Pre-team Competitive Swim Coach · Wen-Shan Civil Sports Center Invitational Coach 2018–2019 · Master\'s Swim Coach · Formosa University Teaching Assistant 2016–2019',
-      },
-      {
-        label: 'Swim Team Representation',
-        text: 'Taipei Team of Professional Lifesaving · National Formosa University Swim Team · Taipei Municipal ChengGong High School · Taipei Municipal NamMen Junior High School',
-      },
-    ],
-  },
-  {
-    name: 'Mitzi',
-    role: 'Swim Coach',
-    accent: '#e05a4a',
-    initials: 'MZ',
-    sections: [
-      {
-        label: 'Competitive Swim Coach',
-        text: 'Horizon Swimming Team Head Coach 2018–2021 · Taipei American School Varsity Team Coach · 2020 IASAS Conference Boys Team Gold Medalist, Girls Team Bronze Medalist · Private Coach (swimmer age group 10–18) 2016–',
-      },
-      {
-        label: '15 Years Athletic Experience',
-        text: 'National Swimmer Representing Chinese Taipei · National Taiwan University Women\'s Swimming · Taiwan High School Girls 100FLY Record Holder 1:00.76 LCH',
-      },
-      {
-        label: 'International Competition',
-        text: 'FINA World Championships (Rome, Dubai, Beijing, Singapore, Tokyo) · ISF International School Sport Federation Games 2010 Malta — 50 FLY Gold, 100 FLY Gold, 200 IM Silver · Asian Championships · East Asian Games (Hong Kong)',
-      },
-    ],
-  },
+  { name: 'Shane', slug: 'shane', accent: '#4a90c4', initials: 'SH' },
+  { name: 'Mitch', slug: 'mitch', accent: '#4caf72', initials: 'MT' },
+  { name: 'Mitzi', slug: 'mitzi', accent: '#e05a4a', initials: 'MZ' },
 ]
 
 const differentiators = [
-  {
-    title: 'Patient, Efficient Progression',
-    text: 'We don\'t believe in "quick fixes." If a skill is vital to your child\'s safety, we take the effort to ensure they master it completely.',
-    color: GOLD,
-  },
-  {
-    title: 'No Re-Learning Required',
-    text: 'We eliminate the frustration of half-built skills. While students have fun, the correct learning foundations are being repeatedly practiced.',
-    color: '#4a90c4',
-  },
-  {
-    title: 'Total Peace of Mind',
-    text: 'With certified lifeguards, experienced instructors, and educational psychologists on the team, your child is in the safest hands.',
-    color: '#4caf72',
-  },
-  {
-    title: 'Holistic Student Wellbeing',
-    text: 'We ensure students are healthy, learning at their own comfortable pace, and having genuine fun — turning a scary experience into a joyful routine.',
-    color: '#e05a4a',
-  },
+  { slug: 'patient', color: GOLD },
+  { slug: 'noRelearn', color: '#4a90c4' },
+  { slug: 'peace', color: '#4caf72' },
+  { slug: 'wellbeing', color: '#e05a4a' },
 ]
 
 export default function AboutPage() {
+  const t = useT()
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: DARK }}>
 
@@ -134,28 +64,28 @@ export default function AboutPage() {
             marginBottom: '16px',
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-            Who We Are
+            {t('about.hero.eyebrow')}
           </div>
           <h1 style={{
             fontFamily: "'Playfair Display', serif",
             fontSize: 'clamp(28px,4vw,52px)', fontWeight: 900,
             color: '#fff', lineHeight: 1.1, marginBottom: '8px',
           }}>
-            More Than Swimming.
+            {t('about.hero.title1')}
           </h1>
           <h1 style={{
             fontFamily: "'Playfair Display', serif",
             fontSize: 'clamp(28px,4vw,52px)', fontWeight: 900,
             color: GOLD, fontStyle: 'italic', lineHeight: 1.1, marginBottom: '24px',
           }}>
-            Built for Life.
+            {t('about.hero.title2')}
           </h1>
           <p style={{
             fontSize: 'clamp(13px,1.4vw,16px)',
             color: 'rgba(255,255,255,0.65)',
             lineHeight: 1.7, maxWidth: '560px', margin: '0 auto',
           }}>
-            Professional coaching rooted in education, psychology, sports science, and child development — serious about swimming, designed for peace of mind.
+            {t('about.hero.subtitle')}
           </p>
         </div>
       </div>
@@ -175,23 +105,23 @@ export default function AboutPage() {
               textTransform: 'uppercase', color: GOLD, marginBottom: '16px',
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              About Us
+              {t('about.us.eyebrow')}
             </div>
             <h2 style={{
               fontFamily: "'Playfair Display', serif",
               fontSize: 'clamp(22px,2.8vw,36px)', fontWeight: 900,
               color: NAVY, lineHeight: 1.2, marginBottom: '24px',
             }}>
-              Serious About Swimming.<br />Designed for Peace of Mind.
+              {t('about.us.title1')}<br />{t('about.us.title2')}
             </h2>
             <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8, marginBottom: '16px' }}>
-              At Manta Shark Aquatics, we believe swimming lessons should be more than just learning how to move through the water. They should build confidence, safety, discipline, and lifelong comfort in aquatic environments.
+              {t('about.us.p1')}
             </p>
             <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8, marginBottom: '16px' }}>
-              Our team combines professional swimming experience with backgrounds in education, psychology, sports science, behavioral health, and child development — from beginner swimmers to advanced athletes, we focus on structured, progression-based instruction that builds strong fundamentals correctly from day one.
+              {t('about.us.p2')}
             </p>
             <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8 }}>
-              Parents choose Manta Shark because they know their children are learning in a safe, supportive, and highly professional environment. We aim to make every lesson productive, encouraging, and stress-free for families.
+              {t('about.us.p3')}
             </p>
           </div>
 
@@ -210,7 +140,7 @@ export default function AboutPage() {
             <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
               <div style={{ fontSize: '48px', marginBottom: '12px' }}>🏊</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', textTransform: 'uppercase' }}>
-                Pool Photo
+                {t('about.photo.pool')}
               </div>
             </div>
           </div>
@@ -240,7 +170,7 @@ export default function AboutPage() {
             <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
               <div style={{ fontSize: '48px', marginBottom: '12px' }}>🌊</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', textTransform: 'uppercase' }}>
-                Swimmer Photo
+                {t('about.photo.swimmer')}
               </div>
             </div>
           </div>
@@ -253,23 +183,24 @@ export default function AboutPage() {
               textTransform: 'uppercase', color: GOLD, marginBottom: '16px',
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              Our Philosophy
+              {t('about.phil.eyebrow')}
             </div>
             <h2 style={{
               fontFamily: "'Playfair Display', serif",
               fontSize: 'clamp(22px,2.8vw,34px)', fontWeight: 900,
               color: NAVY, lineHeight: 1.2, marginBottom: '20px',
             }}>
-              Serious About Swimming,<br />Designed for Peace of Mind
+              {t('about.phil.title1')}<br />{t('about.phil.title2')}
             </h2>
             <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8, marginBottom: '16px' }}>
-              Having a team of professionals from unique training and backgrounds, our teaching and training philosophy is like no other. When we say we are{' '}
-              <strong style={{ color: NAVY, fontWeight: 700 }}>"serious about swimming,"</strong>{' '}
-              we mean that we take our craft of teaching seriously, and your child's learning experience, safety, and long-term development are our absolute priorities.
+              {t('about.phil.p1a')}
+              <strong style={{ color: NAVY, fontWeight: 700 }}>{t('about.phil.p1strong')}</strong>
+              {t('about.phil.p1b')}
             </p>
             <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8 }}>
-              As busy professional parents, your time is valuable and your child's well-being is paramount. When you join the Manta Shark family, you can{' '}
-              <strong style={{ color: NAVY, fontWeight: 700 }}>rest assured and breathe easy</strong>. We handle the technique, the safety, and the motivation, making swim day a seamless, rewarding, and stress-free part of your family's routine.
+              {t('about.phil.p2a')}
+              <strong style={{ color: NAVY, fontWeight: 700 }}>{t('about.phil.p2strong')}</strong>
+              {t('about.phil.p2b')}
             </p>
           </div>
         </div>
@@ -285,18 +216,18 @@ export default function AboutPage() {
               textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '12px',
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              The Difference
+              {t('about.diff.eyebrow')}
             </div>
             <h2 style={{
               fontFamily: "'Playfair Display', serif",
               fontSize: 'clamp(24px,3vw,38px)', fontWeight: 900,
               color: '#fff', lineHeight: 1.2,
             }}>
-              Proper Progression,{' '}
-              <em style={{ color: GOLD, fontStyle: 'italic' }}>No Shortcuts.</em>
+              {t('about.diff.title1')}{' '}
+              <em style={{ color: GOLD, fontStyle: 'italic' }}>{t('about.diff.title2')}</em>
             </h2>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginTop: '12px', maxWidth: '520px', margin: '12px auto 0', lineHeight: 1.7 }}>
-              What makes us different is that we focus on fundamental swim techniques from day one. Our parents stay for the long term because they value a deep, correct foundation over rushed shortcuts.
+              {t('about.diff.subtitle')}
             </p>
           </div>
 
@@ -306,7 +237,7 @@ export default function AboutPage() {
             gap: '20px',
           }}>
             {differentiators.map((item) => (
-              <div key={item.title} style={{
+              <div key={item.slug} style={{
                 background: NAVY,
                 borderRadius: '16px',
                 padding: '28px 24px',
@@ -332,10 +263,10 @@ export default function AboutPage() {
                   fontSize: '15px', fontWeight: 700,
                   color: '#fff', marginBottom: '10px', lineHeight: 1.3,
                 }}>
-                  {item.title}
+                  {t('about.diff.' + item.slug + '.title')}
                 </h3>
                 <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
-                  {item.text}
+                  {t('about.diff.' + item.slug + '.text')}
                 </p>
               </div>
             ))}
@@ -353,17 +284,17 @@ export default function AboutPage() {
               textTransform: 'uppercase', color: '#8a9ab8', marginBottom: '12px',
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              Meet the Team
+              {t('about.team.eyebrow')}
             </div>
             <h2 style={{
               fontFamily: "'Playfair Display', serif",
               fontSize: 'clamp(24px,3vw,38px)', fontWeight: 900,
               color: NAVY, lineHeight: 1.2, marginBottom: '12px',
             }}>
-              The Manta Shark <em style={{ color: GOLD, fontStyle: 'italic' }}>Dream Team</em>
+              {t('about.team.title1')} <em style={{ color: GOLD, fontStyle: 'italic' }}>{t('about.team.title2')}</em>
             </h2>
             <p style={{ fontSize: '14px', color: '#8a9ab8', maxWidth: '480px', margin: '0 auto', lineHeight: 1.7 }}>
-              Passionate, professional, and effective — we love seeing our students enjoy the fun of swim lessons and demonstrate improvement and progress!
+              {t('about.team.subtitle')}
             </p>
           </div>
 
@@ -406,7 +337,7 @@ export default function AboutPage() {
                     border: `1px solid ${coach.accent}30`,
                     borderRadius: '20px', padding: '3px 10px',
                   }}>
-                    {coach.role}
+                    {t('about.coach.role')}
                   </div>
                 </div>
 
@@ -421,17 +352,17 @@ export default function AboutPage() {
                   </h3>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {coach.sections.map((sec) => (
-                      <div key={sec.label}>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i}>
                         <div style={{
                           fontSize: '9px', fontWeight: 700, letterSpacing: '2px',
                           textTransform: 'uppercase', color: coach.accent,
                           marginBottom: '5px',
                         }}>
-                          {sec.label}
+                          {t('about.coach.' + coach.slug + '.s' + i + '.label')}
                         </div>
                         <p style={{ fontSize: '12.5px', color: '#5a6a8a', lineHeight: 1.65 }}>
-                          {sec.text}
+                          {t('about.coach.' + coach.slug + '.s' + i + '.text')}
                         </p>
                       </div>
                     ))}
@@ -461,7 +392,7 @@ export default function AboutPage() {
             fontSize: 'clamp(26px,3.5vw,44px)', fontWeight: 900,
             color: '#fff', lineHeight: 1.15, marginBottom: '20px',
           }}>
-            We've Got It <em style={{ color: GOLD, fontStyle: 'italic' }}>Covered.</em>
+            {t('about.cta.title1')} <em style={{ color: GOLD, fontStyle: 'italic' }}>{t('about.cta.title2')}</em>
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '24px' }}>
             <div style={{ width: 36, height: 2, background: 'rgba(201,168,76,0.35)', borderRadius: 1 }} />
@@ -469,9 +400,9 @@ export default function AboutPage() {
             <div style={{ width: 36, height: 2, background: 'rgba(201,168,76,0.35)', borderRadius: 1 }} />
           </div>
           <p style={{ fontSize: 'clamp(13px,1.4vw,16px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.8, marginBottom: '36px' }}>
-            At Manta Shark Aquatics, we make sure all students don't just learn to swim — they master the water for life. We provide your family with a{' '}
-            <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>dependable, high-quality aquatic home</strong>{' '}
-            for years to come.
+            {t('about.cta.p1')}
+            <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{t('about.cta.pStrong')}</strong>
+            {t('about.cta.p2')}
           </p>
           <Link
             href="/register"
@@ -499,10 +430,10 @@ export default function AboutPage() {
               el.style.transform = 'translateY(0)'
             }}
           >
-            Join the Family
+            {t('about.cta.button')}
           </Link>
           <p style={{ marginTop: '12px', fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
-            Create a free account to get started
+            {t('about.cta.note')}
           </p>
         </div>
       </section>
