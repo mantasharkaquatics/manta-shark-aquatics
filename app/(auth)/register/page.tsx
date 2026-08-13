@@ -5,7 +5,7 @@ import { LEGAL_VERSIONS } from '@/lib/legal'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 
 const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
@@ -58,6 +58,7 @@ const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','
 
 export default function RegisterPage() {
   const t = useT()
+  const locale = useLocale()
   const supabase = createClient()
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -262,7 +263,7 @@ export default function RegisterPage() {
       registered_at: now, terms_accepted_at: now, terms_version: LEGAL_VERSIONS.terms,
       waiver_accepted_at: now, waiver_version: LEGAL_VERSIONS.waiver,
       media_release_accepted: mediaAccepted, media_release_at: mediaAccepted ? now : null,
-      newsletter_subscribed: newsletter, last_login_at: now,
+      newsletter_subscribed: newsletter, last_login_at: now, preferred_language: locale,
       address_line1: addressLine1, address_line2: addressLine2 || null,
       city, state, zip_code: zipCode,
     }).select().single()
