@@ -1,9 +1,386 @@
 {
-  "skills": {},
+  "skills": {
+    "3aa56665-8ce2-4524-819d-efcf30057a02": {
+      "en": "Safe Entry and Recognition",
+      "zh-Hant": "安全入水與辨識",
+      "zh-Hans": "安全入水与辨识"
+    },
+    "a5ec094e-4338-4259-9e43-4b913cd02ca3": {
+      "en": "Wall Grasping",
+      "zh-Hant": "抓握池壁",
+      "zh-Hans": "抓握池壁"
+    },
+    "2eb2c769-054f-4e44-9769-779c7972318b": {
+      "en": "Kicking on Land",
+      "zh-Hant": "陸上打腿",
+      "zh-Hans": "陆上打腿"
+    },
+    "0d151d1b-8492-49bc-824e-c4e26a657046": {
+      "en": "Underwater Bubble Blowing",
+      "zh-Hant": "水下吐氣",
+      "zh-Hans": "水下吐气"
+    },
+    "92751613-6a3c-465f-bcdb-251754df1dff": {
+      "en": "Assisted Floating",
+      "zh-Hant": "輔助漂浮",
+      "zh-Hans": "辅助漂浮"
+    },
+    "52ad780b-a73d-418d-988f-f49651cbc088": {
+      "en": "Float-to-Stand Transition",
+      "zh-Hant": "漂浮站立轉換",
+      "zh-Hans": "漂浮站立转换"
+    },
+    "58842492-eacd-4c4d-9506-a18e562c64b5": {
+      "en": "Water Walking",
+      "zh-Hant": "水中行走",
+      "zh-Hans": "水中行走"
+    },
+    "d6915327-5d9d-4907-be40-b59ad3536c8d": {
+      "en": "Superman Glide",
+      "zh-Hant": "超人滑行",
+      "zh-Hans": "超人滑行"
+    },
+    "f0b828a0-63a5-4aea-8000-13e1b05b1682": {
+      "en": "Safe Exit",
+      "zh-Hant": "安全出水",
+      "zh-Hans": "安全出水"
+    },
+    "35250d84-1461-4c39-85fc-7686d9576753": {
+      "en": "Bubble Jumps (Basic)",
+      "zh-Hant": "吐氣跳躍（基礎）",
+      "zh-Hans": "吐气跳跃（基础）"
+    },
+    "084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7": {
+      "en": "Underwater Breath Holding",
+      "zh-Hant": "水下閉氣",
+      "zh-Hans": "水下闭气"
+    },
+    "ed0e69e4-3edb-4668-84d8-a39064fe2425": {
+      "en": "Object Retrieval",
+      "zh-Hant": "水中撿物",
+      "zh-Hans": "水中捡物"
+    },
+    "b46c9773-7e09-4da4-8beb-d79050075710": {
+      "en": "Push-Off Float",
+      "zh-Hant": "推牆漂浮",
+      "zh-Hans": "推墙漂浮"
+    },
+    "4fd1fce7-9293-475e-a142-5a8d2ecf954d": {
+      "en": "Freestyle Kicking (Basic)",
+      "zh-Hant": "自由式打腿（基礎）",
+      "zh-Hans": "自由泳打腿（基础）"
+    },
+    "77dcafb5-fee7-4fde-8020-9691b99f5064": {
+      "en": "Backstroke Kicking (Basic)",
+      "zh-Hant": "仰式打腿（基礎）",
+      "zh-Hans": "仰泳打腿（基础）"
+    },
+    "ed4c463b-6c65-497b-b370-18e9bd945468": {
+      "en": "BBQ Roll (Body Rotation)",
+      "zh-Hant": "BBQ身體旋轉",
+      "zh-Hans": "BBQ身体旋转"
+    },
+    "c7022acb-3075-471f-8c45-4d5330139369": {
+      "en": "Bubble Jumps (Advanced)",
+      "zh-Hant": "吐氣跳躍（進階）",
+      "zh-Hans": "吐气跳跃（进阶）"
+    },
+    "1b90e0d5-e21d-4991-9d97-a16394d3913b": {
+      "en": "Starfish Float (Basic)",
+      "zh-Hant": "海星漂浮（基礎）",
+      "zh-Hans": "海星漂浮（基础）"
+    },
+    "e8fd87dc-4e41-4ea5-adda-d8038881f573": {
+      "en": "Freestyle Kicking (Advanced)",
+      "zh-Hant": "自由式打腿（進階）",
+      "zh-Hans": "自由泳打腿（进阶）"
+    },
+    "4a0a72ff-a39f-404c-a40f-49b83b5ea4ff": {
+      "en": "Backstroke Kicking (Advanced)",
+      "zh-Hant": "仰式打腿（進階）",
+      "zh-Hans": "仰泳打腿（进阶）"
+    },
+    "580a979a-e3f7-458f-b0f8-c39c7c20d686": {
+      "en": "BBQ Swim Technique",
+      "zh-Hant": "BBQ游泳技巧",
+      "zh-Hans": "BBQ游泳技巧"
+    },
+    "4dd3928b-8433-40c4-8057-29b454ce5a03": {
+      "en": "Treading Water (Basic)",
+      "zh-Hant": "踩水（基礎）",
+      "zh-Hans": "踩水（基础）"
+    },
+    "5aa1716e-8d05-41b0-a660-7fce60b69390": {
+      "en": "Butterfly Kicking (Basic)",
+      "zh-Hant": "蝶式打腿（基礎）",
+      "zh-Hans": "蝶泳打腿（基础）"
+    },
+    "997642b0-c290-48cf-a53f-ccb46d52d539": {
+      "en": "Water Safety Test",
+      "zh-Hant": "水域安全測驗",
+      "zh-Hans": "水域安全测验"
+    },
+    "89ca69a6-6f96-4c1d-a52d-6ba16edab33b": {
+      "en": "Streamline Push-Off",
+      "zh-Hant": "流線推牆",
+      "zh-Hans": "流线推墙"
+    },
+    "dff814b2-90df-4043-aeb3-dd4e4df64fbe": {
+      "en": "Freestyle (Basic)",
+      "zh-Hant": "自由式（基礎）",
+      "zh-Hans": "自由泳（基础）"
+    },
+    "91e61121-5528-456b-9e7d-b97953ed0c39": {
+      "en": "Freestyle (Advanced)",
+      "zh-Hant": "自由式（進階）",
+      "zh-Hans": "自由泳（进阶）"
+    },
+    "9194c9af-7e03-4d13-969b-4284d49b3a84": {
+      "en": "Deep Water Object Retrieval",
+      "zh-Hant": "深水撿物",
+      "zh-Hans": "深水捡物"
+    },
+    "96c47b53-df33-4b4a-9a8e-a84eed10c7b8": {
+      "en": "Backstroke (Basic)",
+      "zh-Hant": "仰式（基礎）",
+      "zh-Hans": "仰泳（基础）"
+    },
+    "806e2b61-f66e-460b-b31b-264097fee097": {
+      "en": "Starfish Float (Advanced)",
+      "zh-Hant": "海星漂浮（進階）",
+      "zh-Hans": "海星漂浮（进阶）"
+    },
+    "95bf3bc3-79b3-48a4-9a90-cf53103ca965": {
+      "en": "No-Goggles Swim",
+      "zh-Hant": "無蛙鏡游泳",
+      "zh-Hans": "无泳镜游泳"
+    },
+    "7a62a560-01cd-4199-b464-68a78a8ee98a": {
+      "en": "In-Water Turn",
+      "zh-Hant": "水中轉身",
+      "zh-Hans": "水中转身"
+    },
+    "be760433-09d7-4cac-9863-fa758abc9009": {
+      "en": "Freestyle (Mastery)",
+      "zh-Hant": "自由式（精通）",
+      "zh-Hans": "自由泳（精通）"
+    },
+    "9722f505-b208-43dc-868d-495ba0f3c10e": {
+      "en": "Underwater Freestyle Kicking",
+      "zh-Hant": "水下自由式打腿",
+      "zh-Hans": "水下自由泳打腿"
+    },
+    "818b6b3b-63b9-4e13-9a52-f3f466f57cc7": {
+      "en": "Streamline Freestyle Kicking",
+      "zh-Hant": "流線自由式打腿",
+      "zh-Hans": "流线自由泳打腿"
+    },
+    "daefdc4c-aa3f-4df6-b001-4e95569c4d78": {
+      "en": "Backstroke (Advanced)",
+      "zh-Hant": "仰式（進階）",
+      "zh-Hans": "仰泳（进阶）"
+    },
+    "b02f51e3-1e69-487e-86b1-18e21ddb6812": {
+      "en": "Breaststroke Kick (Basic)",
+      "zh-Hant": "蛙式打腿（基礎）",
+      "zh-Hans": "蛙泳打腿（基础）"
+    },
+    "327265d2-e212-4917-90d9-21daa2a5520e": {
+      "en": "Butterfly Kicking (Advanced)",
+      "zh-Hant": "蝶式打腿（進階）",
+      "zh-Hans": "蝶泳打腿（进阶）"
+    },
+    "81568486-d273-49b0-a824-d53569fefc37": {
+      "en": "Clothed Swim Without Goggles",
+      "zh-Hant": "著衣無蛙鏡游泳",
+      "zh-Hans": "着衣无泳镜游泳"
+    },
+    "b4e9ff8e-535c-4e5e-bc9a-8ceb9c252113": {
+      "en": "Treading Water (Advanced)",
+      "zh-Hant": "踩水（進階）",
+      "zh-Hans": "踩水（进阶）"
+    },
+    "18a6462c-4c67-4e93-8838-8bc03717b463": {
+      "en": "Freestyle (Proficiency)",
+      "zh-Hant": "自由式（熟練）",
+      "zh-Hans": "自由泳（熟练）"
+    },
+    "22e00423-edc5-4626-8e7f-8bc4e846203f": {
+      "en": "Freestyle Flip Turn",
+      "zh-Hant": "自由式翻滾轉身",
+      "zh-Hans": "自由泳翻滚转身"
+    },
+    "97804fbb-13d4-4367-ab9d-0276b25591d6": {
+      "en": "Backstroke (Mastery)",
+      "zh-Hant": "仰式（精通）",
+      "zh-Hans": "仰泳（精通）"
+    },
+    "31dc4fc7-ef0b-4e4c-a80c-419ceebc7360": {
+      "en": "Butterfly (Basic)",
+      "zh-Hant": "蝶式（基礎）",
+      "zh-Hans": "蝶泳（基础）"
+    },
+    "e858562b-a3aa-4875-84ef-e1f6875770e5": {
+      "en": "Breaststroke Kick (Advanced)",
+      "zh-Hant": "蛙式打腿（進階）",
+      "zh-Hans": "蛙泳打腿（进阶）"
+    },
+    "9f37e0f9-68d5-4bae-8349-c9d2d99d8225": {
+      "en": "Breaststroke (Basic)",
+      "zh-Hant": "蛙式（基礎）",
+      "zh-Hans": "蛙泳（基础）"
+    },
+    "0b50339e-3764-40f3-8d12-fa53502831ec": {
+      "en": "Underwater Breath Holding (Advanced)",
+      "zh-Hant": "水下閉氣（進階）",
+      "zh-Hans": "水下闭气（进阶）"
+    },
+    "b7525cfb-5d9b-43b2-9868-393578adf991": {
+      "en": "Individual Medley Kicking",
+      "zh-Hant": "個人混合式打腿",
+      "zh-Hans": "个人混合泳打腿"
+    },
+    "c4b854b3-f337-4799-9631-33c6459951c6": {
+      "en": "Freestyle (Timed)",
+      "zh-Hant": "自由式（計時）",
+      "zh-Hans": "自由泳（计时）"
+    },
+    "456f3041-33b2-4583-9f0a-4543ca2464c0": {
+      "en": "Freestyle (Endurance)",
+      "zh-Hant": "自由式（耐力）",
+      "zh-Hans": "自由泳（耐力）"
+    },
+    "fe6b4f6e-cfa9-4cfe-979a-6cd3cf6d5af9": {
+      "en": "Backstroke (Proficiency)",
+      "zh-Hant": "仰式（熟練）",
+      "zh-Hans": "仰泳（熟练）"
+    },
+    "3e66c970-61b6-4189-9fa8-353809086556": {
+      "en": "Backstroke Flip Turn",
+      "zh-Hant": "仰式翻滾轉身",
+      "zh-Hans": "仰泳翻滚转身"
+    },
+    "eb420091-b357-41af-892a-73a1059ecfda": {
+      "en": "Butterfly (Advanced)",
+      "zh-Hant": "蝶式（進階）",
+      "zh-Hans": "蝶泳（进阶）"
+    },
+    "1b7d1a52-bac5-44a5-9bc4-18a7ab70903f": {
+      "en": "Breaststroke (Advanced)",
+      "zh-Hant": "蛙式（進階）",
+      "zh-Hans": "蛙泳（进阶）"
+    },
+    "61765b4c-fd81-458d-acb9-1f4c19201994": {
+      "en": "Underwater Dolphin Kick",
+      "zh-Hant": "水下海豚式打腿",
+      "zh-Hans": "水下海豚式打腿"
+    },
+    "e9374f19-259b-4c49-85c2-a6faebae05e9": {
+      "en": "Clothed Swim Without Goggles",
+      "zh-Hant": "著衣無蛙鏡游泳",
+      "zh-Hans": "着衣无泳镜游泳"
+    },
+    "0280911e-9a79-4eed-8916-883e64dee3de": {
+      "en": "Freestyle (Sprint)",
+      "zh-Hant": "自由式（衝刺）",
+      "zh-Hans": "自由泳（冲刺）"
+    },
+    "eaa47012-b0e4-4e77-ba05-f87b6acc80db": {
+      "en": "Freestyle (Advanced Endurance)",
+      "zh-Hant": "自由式（進階耐力）",
+      "zh-Hans": "自由泳（进阶耐力）"
+    },
+    "840dbdc7-1774-46ce-95ca-fe2f87d23475": {
+      "en": "Backstroke (Endurance)",
+      "zh-Hant": "仰式（耐力）",
+      "zh-Hans": "仰泳（耐力）"
+    },
+    "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
+      "en": "Open Turn",
+      "zh-Hant": "開放式轉身",
+      "zh-Hans": "开放式转身"
+    },
+    "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
+      "en": "Breaststroke Underwater Pullout",
+      "zh-Hant": "蛙式水下划手",
+      "zh-Hans": "蛙泳水下划手"
+    },
+    "de916eb5-53b3-4ab3-b451-53f793a1666f": {
+      "en": "Breaststroke (Mastery)",
+      "zh-Hant": "蛙式（精通）",
+      "zh-Hans": "蛙泳（精通）"
+    },
+    "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
+      "en": "Butterfly (Mastery)",
+      "zh-Hant": "蝶式（精通）",
+      "zh-Hans": "蝶泳（精通）"
+    },
+    "3c01a30f-147d-4880-9738-75c245fc3325": {
+      "en": "Treading Water (Proficient)",
+      "zh-Hant": "踩水（熟練）",
+      "zh-Hans": "踩水（熟练）"
+    },
+    "a8d00e21-01af-4ad5-a90d-a7e8bd59e6a8": {
+      "en": "Freestyle (Long Distance)",
+      "zh-Hant": "自由式（長距離）",
+      "zh-Hans": "自由泳（长距离）"
+    },
+    "e9f7b834-3e50-446f-a775-33d547ba776b": {
+      "en": "Individual Medley",
+      "zh-Hant": "個人混合式",
+      "zh-Hans": "个人混合泳"
+    },
+    "58b20bb7-23a5-4ee2-affb-5f16284a7563": {
+      "en": "Stroke Transitions and Turns",
+      "zh-Hant": "泳式轉換與轉身",
+      "zh-Hans": "泳式转换与转身"
+    },
+    "6d6b6afb-ed92-47b1-b557-52904c7931ab": {
+      "en": "Freestyle (Competitive)",
+      "zh-Hant": "自由式（競賽）",
+      "zh-Hans": "自由泳（竞赛）"
+    },
+    "11f3d107-8ea1-43f9-9301-3875cd71dad0": {
+      "en": "Backstroke (Competitive)",
+      "zh-Hant": "仰式（競賽）",
+      "zh-Hans": "仰泳（竞赛）"
+    },
+    "1ed417e9-431d-46db-837b-adabbdde74f3": {
+      "en": "Breaststroke (Competitive)",
+      "zh-Hant": "蛙式（競賽）",
+      "zh-Hans": "蛙泳（竞赛）"
+    },
+    "b617a73c-8da4-4526-9420-58ed4c682a94": {
+      "en": "Butterfly (Competitive)",
+      "zh-Hant": "蝶式（競賽）",
+      "zh-Hans": "蝶泳（竞赛）"
+    },
+    "91adaea7-aefa-432c-8b9a-44ca43976bdb": {
+      "en": "Clothed Swim Without Goggles",
+      "zh-Hant": "著衣無蛙鏡游泳",
+      "zh-Hans": "着衣无泳镜游泳"
+    }
+  },
   "course_types": {
-    "cb380ad9-6142-495e-8a62-3cdb7d85889c": { "en": "1-on-1 Private", "zh-Hant": "1 對 1 個人班", "zh-Hans": "1 对 1 个人班" },
-    "d963831d-aad2-4ad9-9310-d01efae9e5a3": { "en": "1-on-2 Semi-Private", "zh-Hant": "1 對 2 半私人班", "zh-Hans": "1 对 2 半私人班" },
-    "2b65ca6b-d07c-4fb1-9878-c520cfb2de5d": { "en": "1-on-4 Group", "zh-Hant": "1 對 4 團體班", "zh-Hans": "1 对 4 团体班" },
-    "c6320884-c262-4274-89d8-a12bedd76a06": { "en": "Swim Team", "zh-Hant": "泳隊", "zh-Hans": "泳队" }
+    "cb380ad9-6142-495e-8a62-3cdb7d85889c": {
+      "en": "1-on-1 Private",
+      "zh-Hant": "1 對 1 個人班",
+      "zh-Hans": "1 对 1 个人班"
+    },
+    "d963831d-aad2-4ad9-9310-d01efae9e5a3": {
+      "en": "1-on-2 Semi-Private",
+      "zh-Hant": "1 對 2 半私人班",
+      "zh-Hans": "1 对 2 半私人班"
+    },
+    "2b65ca6b-d07c-4fb1-9878-c520cfb2de5d": {
+      "en": "1-on-4 Group",
+      "zh-Hant": "1 對 4 團體班",
+      "zh-Hans": "1 对 4 团体班"
+    },
+    "c6320884-c262-4274-89d8-a12bedd76a06": {
+      "en": "Swim Team",
+      "zh-Hant": "泳隊",
+      "zh-Hans": "泳队"
+    }
   }
 }
