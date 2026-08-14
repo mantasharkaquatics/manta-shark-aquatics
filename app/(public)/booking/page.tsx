@@ -14,6 +14,8 @@ import BookingCart from '@/components/BookingCart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
 import ChatWidget from '@/components/ChatWidget'
 import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
@@ -61,8 +63,9 @@ function formatTime(t: string): string {
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`
 }
 
-function Steps({ current, labels }: { current: number; labels?: string[] }) {
-  const steps = labels || ['Select Student', 'Course Type', 'Choose Coach', 'Pick Date & Time', 'Confirm']
+function Steps({ current, labelKeys }: { current: number; labelKeys?: string[] }) {
+  const t = useT()
+  const steps = labelKeys || ['booking.step.student', 'booking.step.course', 'booking.step.coach', 'booking.step.datetime', 'booking.step.confirm']
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '36px', overflowX: 'auto' }}>
       {steps.map((s, i) => (
@@ -82,7 +85,7 @@ function Steps({ current, labels }: { current: number; labels?: string[] }) {
               fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px',
               color: i === current ? '#fff' : i < current ? GOLD : 'rgba(255,255,255,0.3)',
               whiteSpace: 'nowrap',
-            }}>{s}</span>
+            }}>{t(s)}</span>
           </div>
           {i < steps.length - 1 && (
             <div style={{
@@ -140,6 +143,8 @@ function SelectCard({ selected, onClick, color = GOLD, children }: {
 }
 
 export default function BookingPage() {
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
   const supabase = createClient()
 
@@ -536,7 +541,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert(j.error || 'Could not book. Please try again.')
+        alert(j.error || t('booking.err.couldNotBook'))
         setSubmitting(false)
         return
       }
@@ -556,7 +561,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok || !j.url) {
-        alert(j.error || 'Could not start payment. Please try again.')
+        alert(j.error || t('booking.err.couldNotPay'))
         setSubmitting(false)
         return
       }
@@ -580,13 +585,13 @@ export default function BookingPage() {
         }),
       })
       const rj = await r.json().catch(() => ({}))
-      if (!r.ok || !rj.session_id) { alert(rj.error || 'Could not get that time slot. Please try again.'); setSubmitting(false); return }
+      if (!r.ok || !rj.session_id) { alert(rj.error || t('booking.err.slotGone')); setSubmitting(false); return }
       const res = await fetch('/api/bookings/reschedule-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: rbId, new_session_id: rj.session_id }),
       })
-      if (!res.ok) { alert('Reschedule request failed. Please try again.'); setSubmitting(false); return }
+      if (!res.ok) { alert(t('booking.err.rescheduleFailed')); setSubmitting(false); return }
       setIsPartnerBookingSuccess(true)
       setSuccess(true)
       setSubmitting(false)
@@ -614,7 +619,7 @@ export default function BookingPage() {
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
-      if (!hr.ok) { alert(hj.error || 'Booking failed. Please try again.'); setSubmitting(false); return }
+      if (!hr.ok) { alert(hj.error || t('booking.err.bookingFailed')); setSubmitting(false); return }
       setSubmitting(false)
       // A cross-account hour is only PENDING until the other family confirms,
       // so show the invitation screen rather than "Lesson Booked".
@@ -647,7 +652,7 @@ export default function BookingPage() {
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) {
-      alert(j.error || 'Booking failed. Please try again.')
+      alert(j.error || t('booking.err.bookingFailed'))
       setSubmitting(false)
       return
     }
@@ -676,7 +681,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setCartMsg(j.error || 'Could not add to cart. Please try again.')
+        setCartMsg(j.error || t('booking.err.addToCart'))
       } else {
         setCartRefresh(n => n + 1)
         setSelectedSlot(null)
@@ -684,7 +689,7 @@ export default function BookingPage() {
         loadTimeSlots()
       }
     } catch {
-      setCartMsg('Network error. Please try again.')
+      setCartMsg(t('cart.err.network'))
     }
     setAddingToCart(false)
   }
@@ -716,7 +721,7 @@ export default function BookingPage() {
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
           style={{ display: 'block', margin: '0 auto 16px', borderRadius: '50%', objectFit: 'cover', animation: 'msaPulse 1.6s ease-in-out infinite' }} />
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>Loading...</div>
+        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{t('booking.loading')}</div>
       </div>
     </div>
   )
@@ -732,16 +737,16 @@ export default function BookingPage() {
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px', color: '#a78bfa' }}>⏳</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
-              Invitation Sent
+              {t('booking.success.invitationSent')}
             </h2>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
-              The linked account has been invited to confirm
+              {t('booking.success.invitedDesc')}
             </p>
             <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
-              {selectedCourse?.name} with {selectedCoach?.first_name}
+              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
-              {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {selectedSlot?.label}
+              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -750,7 +755,7 @@ export default function BookingPage() {
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>🔔</span>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
-                They must confirm within <strong style={{ color: '#fff' }}>15 minutes</strong> for the lesson to be finalized. If they don't, the booking is automatically cancelled and no credits are deducted from either account.
+                {t('booking.success.window.a')}<strong style={{ color: '#fff' }}>{t('booking.success.window.strong')}</strong>{t('booking.success.window.b')}
               </p>
             </div>
           </>
@@ -758,7 +763,7 @@ export default function BookingPage() {
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
-              {isReschedule ? 'Lesson Rescheduled!' : 'Lesson Booked!'}
+              {isReschedule ? t('booking.success.rescheduled') : t('booking.success.booked')}
             </h2>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
               <strong style={{ color: '#fff' }}>
@@ -767,13 +772,13 @@ export default function BookingPage() {
                   : selectedCourse?.slug === '1on2' && selectedStudent2
                   ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
                   : selectedStudent?.full_name}
-              </strong> {(hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'are' : 'is'} booked for
+              </strong> {t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.success.areBookedFor' : 'booking.success.isBookedFor')}
             </p>
             <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
-              {selectedCourse?.name} with {selectedCoach?.first_name}
+              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
-              {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {selectedSlot?.label}
+              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -782,7 +787,7 @@ export default function BookingPage() {
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
-                A confirmation email has been sent to your inbox.
+                {t('booking.success.emailSent')}
               </p>
             </div>
           </>
@@ -794,10 +799,10 @@ export default function BookingPage() {
           fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
           textTransform: 'uppercase', textDecoration: 'none', marginBottom: '12px',
         }}>
-          Back to Dashboard
+          {t('common.backToDashboard')}
         </Link>
         <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
-          Redirecting in {countdown}s...
+          {t('booking.success.redirecting', { n: countdown })}
         </p>
       </div>
     </div>
@@ -816,11 +821,11 @@ export default function BookingPage() {
           </Link>
           <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.12)' }} />
           <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
-            {isReschedule ? 'Reschedule Lesson' : 'Book a Lesson'}
+            {isReschedule ? t('booking.header.reschedule') : t('booking.header.book')}
           </span>
         </div>
         <Link href="/dashboard" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>
-          ← Dashboard
+          ← {t('booking.header.dashboard')}
         </Link>
       </div>
 
@@ -828,21 +833,21 @@ export default function BookingPage() {
 
         {isReschedule && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>📅</span> Rescheduling — pick a new coach, date and time below. Your current lesson will be cancelled only after you confirm.
+            <span>📅</span> {t('booking.rescheduleBanner')}
           </div>
         )}
 
         {lockedStudent && selectedStudent && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-            <span>📌 Booking for: <strong style={{ color: '#fff' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? ' · Swim Assessment (Prepaid)' : ''}</span>
+            <span>📌 {t('booking.lockedFor')}<strong style={{ color: '#fff' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? t('booking.assessmentPrepaid') : ''}</span>
             <button onClick={() => { setLockedStudent(false); setSelectedStudent(null); setIsTrial(false); setSelectedCourse(null); setStep(0) }}
               style={{ background: 'none', border: 'none', padding: 0, color: 'rgba(255,255,255,0.5)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
-              Not {selectedStudent.full_name.split(' ')[0]}? Change student
+              {t('booking.changeStudent', { name: selectedStudent.full_name.split(' ')[0] })}
             </button>
           </div>
         )}
 
-        <Steps current={groupFlow && step >= 3 ? step - 1 : step} labels={groupFlow ? ['Select Student', 'Course Type', 'Pick Date & Time', 'Confirm'] : undefined} />
+        <Steps current={groupFlow && step >= 3 ? step - 1 : step} labelKeys={groupFlow ? ['booking.step.student', 'booking.step.course', 'booking.step.datetime', 'booking.step.confirm'] : undefined} />
 
         {step === 0 && (
           <div>
