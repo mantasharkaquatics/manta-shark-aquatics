@@ -851,7 +851,7 @@ export default function BookingPage() {
 
         {step === 0 && (
           <div>
-            <SectionTitle eyebrow="Step 1" title="Who is this lesson for?" />
+            <SectionTitle eyebrow={t('booking.s1.eyebrow')} title={t('booking.s1.title')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {students.map(s => (
                 <SelectCard key={s.id} selected={selectedStudent?.id === s.id} onClick={() => setSelectedStudent(s)}>
@@ -866,7 +866,7 @@ export default function BookingPage() {
                     <div>
                       <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {s.current_level ? `Level ${s.current_level}` : 'Pending Assessment'}
+                        {s.current_level ? t('levels.levelN', { n: s.current_level }) : t('dash.pendingAssessment')}
                       </div>
                     </div>
                   </div>
@@ -884,20 +884,20 @@ export default function BookingPage() {
                 fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                 textTransform: 'uppercase', cursor: selectedStudent ? 'pointer' : 'not-allowed',
               }}
-            >Continue →</button>
+            >{t('booking.continue')}</button>
           </div>
         )}
 
         {step === 1 && (
           <div>
-            <SectionTitle eyebrow="Step 2" title="What type of lesson?" />
+            <SectionTitle eyebrow={t('booking.s2.eyebrow')} title={t('booking.s2.title')} />
             {needsAssessment && (
               <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: GOLD, lineHeight: 1.5 }}>
                 {trialHasCredit
-                  ? 'Your Swim Assessment is prepaid — pick a time below to schedule it.'
+                  ? t('booking.notice.prepaid')
                   : trialEligible
-                  ? 'First lesson must be a Swim Assessment. Other lessons unlock once a level is assigned after the assessment.'
-                  : 'Swim Assessment completed — level pending. Please contact the front desk to have a level assigned before booking other lessons.'}
+                  ? t('booking.notice.first')
+                  : t('booking.notice.pending')}
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -907,11 +907,11 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <span style={{ fontSize: '28px' }}>⭐</span>
                       <div>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>Swim Assessment</div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>30 min · 1-on-1 · One per student</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{t('booking.assessment')}</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.assessmentMeta')}</div>
                       </div>
                     </div>
-                    <div style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, color: GOLD }}>{trialHasCredit ? 'Prepaid' : '$85'}</div>
+                    <div style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, color: GOLD }}>{trialHasCredit ? t('booking.prepaid') : '$' + TRIAL_PRICE_CENTS / 100}</div>
                   </div>
                 </SelectCard>
               )}
@@ -929,13 +929,13 @@ export default function BookingPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
                         <div>
-                          <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{ct.name}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{tDb(locale, 'course_types', ct.id, ct.name)}</div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                            {ct.duration_minutes} min · Max {ct.max_students} student{ct.max_students > 1 ? 's' : ''}
+                            {t(ct.max_students > 1 ? 'booking.courseMeta' : 'booking.courseMetaOne', { n: ct.duration_minutes, max: ct.max_students })}
                           </div>
                           {ct.slug === '1on4' && myGroupBand && (
                             <div style={{ marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
-                              Your class: L{myGroupBand.min}–{myGroupBand.max} Group
+                              {t('booking.yourClass', { min: myGroupBand.min, max: myGroupBand.max })}
                             </div>
                           )}
                         </div>
@@ -945,19 +945,19 @@ export default function BookingPage() {
                           background: `${color}20`, border: `1px solid ${color}40`,
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '12px', fontWeight: 700, color,
-                        }}>{remaining} credits</div>
+                        }}>{t(remaining === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n: remaining })}</div>
                       ) : ctTokens > 0 ? (
                         <div style={{
                           background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.4)',
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '12px', fontWeight: 700, color: '#e8883a',
-                        }}>{ctTokens} token{ctTokens === 1 ? '' : 's'}</div>
+                        }}>{t(ctTokens === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge', { n: ctTokens })}</div>
                       ) : (
                         <div style={{
                           background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '11px', color: 'rgba(255,255,255,0.3)',
-                        }}>No credits</div>
+                        }}>{t('booking.noCredits')}</div>
                       )}
                     </div>
                   </SelectCard>
@@ -971,8 +971,8 @@ export default function BookingPage() {
                 background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)',
                 borderRadius: '10px', fontSize: '13px', color: '#e05a4a',
               }}>
-                ⚠️ You don't have credits for this course type.{' '}
-                <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>Browse Plans →</Link>
+                ⚠️ {t('booking.noCreditsWarn')}
+                <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>{t('booking.browsePlans')}</Link>
               </div>
             )}
 
@@ -980,7 +980,7 @@ export default function BookingPage() {
             {selectedCourse?.slug === '1on2' && availableCredit && (
               <div style={{ marginTop: '20px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
-                  👥 Select 2nd Student
+                  👥 {t('booking.select2nd')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {students.filter(s => s.id !== selectedStudent?.id).map(s => (
@@ -991,7 +991,7 @@ export default function BookingPage() {
                         </div>
                         <div>
                           <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? `Level ${s.current_level} · Same account` : 'Needs a Swim Assessment first'}</div>
+                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? t('booking.sameAccount', { n: s.current_level }) : t('booking.needsAssessmentFirst')}</div>
                         </div>
                       </div>
                     </SelectCard>
@@ -1005,28 +1005,28 @@ export default function BookingPage() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                            <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>Linked</span>
+                            <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>{t('booking.linked')}</span>
                           </div>
-                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? `Level ${s.current_level} · Partner must confirm within 15 min` : 'Needs a Swim Assessment first'}</div>
+                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? t('booking.partnerConfirm', { n: s.current_level }) : t('booking.needsAssessmentFirst')}</div>
                         </div>
                       </div>
                     </SelectCard>
                   ))}
                   {students.filter(s => s.id !== selectedStudent?.id).length === 0 && partnerStudents.length === 0 && (
                     <div style={{ padding: '16px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
-                      No other students available. Add a student or link an account.
+                      {t('booking.noOtherStudents')}
                     </div>
                   )}
                 </div>
                 {selectedStudent2 && !(selectedStudent2 as any).isPartner && remainingCredits < 2 && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '12px', color: '#e05a4a' }}>
-                    ⚠️ 1-on-2 requires 2 credits. You have {remainingCredits} remaining.{' '}
-                    <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>Buy a Plan →</Link>
+                    ⚠️ {t('booking.needTwoCredits', { n: remainingCredits })}
+                    <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>{t('booking.buyPlan')}</Link>
                   </div>
                 )}
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.3)', borderRadius: '8px', fontSize: '12px', color: '#a78bfa' }}>
-                    📋 Cross-account booking: the other parent must confirm within 15 minutes, and 1 credit is deducted from their account.
+                    📋 {t('booking.crossAccount')}
                   </div>
                 )}
               </div>
@@ -1037,7 +1037,7 @@ export default function BookingPage() {
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>← Back</button>
+              }}>{t('booking.back')}</button>
               <button
                 onClick={() => {
                   if (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse)) return
@@ -1060,7 +1060,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: 'pointer',
                 }}
-              >Continue →</button>
+              >{t('booking.continue')}</button>
             </div>
           </div>
         )}
@@ -1096,7 +1096,7 @@ export default function BookingPage() {
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>{isReschedule ? '← Cancel' : '← Back'}</button>
+              }}>{isReschedule ? t('booking.cancelBack') : t('booking.back')}</button>
               <button
                 onClick={() => { if (selectedCoach) setStep(3) }}
                 disabled={!selectedCoach}
@@ -1108,7 +1108,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: selectedCoach ? 'pointer' : 'not-allowed',
                 }}
-              >Continue →</button>
+              >{t('booking.continue')}</button>
             </div>
           </div>
         )}
@@ -1578,7 +1578,7 @@ export default function BookingPage() {
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>← Back</button>
+              }}>{t('booking.back')}</button>
               <button
                 onClick={() => { if (selectedSlot) setStep(4) }}
                 disabled={!selectedSlot}
@@ -1590,7 +1590,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: selectedSlot ? 'pointer' : 'not-allowed',
                 }}
-              >Continue →</button>
+              >{t('booking.continue')}</button>
             </div>
           </div>
         )}
@@ -1644,7 +1644,7 @@ export default function BookingPage() {
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>← Back</button>
+              }}>{t('booking.back')}</button>
               {!isTrial && !isReschedule && selectedCourse?.slug !== '1on2' && (
                 <button
                   onClick={handleAddToCart}
