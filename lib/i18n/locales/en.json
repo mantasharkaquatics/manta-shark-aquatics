@@ -540,5 +540,22 @@
   "checkout.redirecting": "Redirecting to payment...",
   "checkout.subscribe": "Subscribe · {price}/month",
   "checkout.proceed": "Proceed to Payment · {price}",
-  "checkout.stripeNote": "Payments securely processed by Stripe · Credit cards accepted"
+  "checkout.stripeNote": "Payments securely processed by Stripe · Credit cards accepted",
+  "success.eyebrow": "Payment Successful",
+  "success.titleTeam": "Welcome to the Team!",
+  "success.titlePackage": "Purchase Complete!",
+  "success.descTeam": "Your Swim Team membership is now active. See you at practice!",
+  "success.descPackage": "Your lesson credits have been added to your account. You can start booking lessons now.",
+  "success.emailSent": "Confirmation email sent",
+  "success.team.1": "Team membership active",
+  "success.team.2": "Unlimited team practices — check the team schedule",
+  "success.team.4": "Renews monthly · cancel anytime by contacting us",
+  "success.pkg.1": "Credits added to your account",
+  "success.pkg.2": "Ready to book lessons",
+  "success.pkg.4": "Credits are valid from the purchase date — see your dashboard for the expiration date",
+  "success.ctaTeam": "View My Dashboard",
+  "success.ctaBook": "Book a Lesson Now",
+  "success.backToDashboard": "Back to Dashboard",
+  "success.redirecting": "Redirecting to Dashboard in {n}s...",
+  "success.loading": "Loading..."
 }

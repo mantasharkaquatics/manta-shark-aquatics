@@ -540,5 +540,22 @@
   "checkout.redirecting": "正在前往付款頁面…",
   "checkout.subscribe": "訂閱 · 每月 {price}",
   "checkout.proceed": "前往付款 · {price}",
-  "checkout.stripeNote": "由 Stripe 安全處理付款 · 接受信用卡"
+  "checkout.stripeNote": "由 Stripe 安全處理付款 · 接受信用卡",
+  "success.eyebrow": "付款成功",
+  "success.titleTeam": "歡迎加入泳隊！",
+  "success.titlePackage": "購買完成！",
+  "success.descTeam": "您的泳隊訂閱已經生效，練習時見！",
+  "success.descPackage": "課程堂數已加入您的帳戶，現在就可以開始預約課程。",
+  "success.emailSent": "確認信已寄出",
+  "success.team.1": "泳隊訂閱已生效",
+  "success.team.2": "無限次泳隊訓練 — 請查看泳隊課表",
+  "success.team.4": "每月自動續約 · 隨時可聯絡我們取消",
+  "success.pkg.1": "堂數已加入您的帳戶",
+  "success.pkg.2": "可以開始預約課程了",
+  "success.pkg.4": "堂數自購買日起計算有效期限 — 到期日請見「我的帳戶」",
+  "success.ctaTeam": "前往我的帳戶",
+  "success.ctaBook": "立即預約課程",
+  "success.backToDashboard": "返回我的帳戶",
+  "success.redirecting": "{n} 秒後自動前往我的帳戶…",
+  "success.loading": "載入中…"
 }
