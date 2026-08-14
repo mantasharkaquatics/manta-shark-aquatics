@@ -3,25 +3,28 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useT } from '@/lib/i18n/provider'
+import { errorKey } from '@/lib/i18n/errors'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
-const PLANS: Record<string, { name: string; sessions: number; total: number; perSession: number; courseSlug: string; badge?: string; validityMonths: number }> = {
-  '1on1-10':  { name: '1-on-1 Private',      sessions: 10, total: 650,  perSession: 65,    courseSlug: '1on1', validityMonths: 4 },
-  '1on1-20':  { name: '1-on-1 Private',      sessions: 20, total: 1260, perSession: 63,    courseSlug: '1on1', validityMonths: 8 },
-  '1on1-30':  { name: '1-on-1 Private',      sessions: 30, total: 1850, perSession: 61.67, courseSlug: '1on1', badge: 'Most Popular', validityMonths: 12 },
-  '1on1-50':  { name: '1-on-1 Private',      sessions: 50, total: 3000, perSession: 60,    courseSlug: '1on1', badge: 'Best Value', validityMonths: 18 },
-  '1on2-10':  { name: '1-on-2 Semi-Private', sessions: 10, total: 1050, perSession: 105,   courseSlug: '1on2', validityMonths: 4 },
-  '1on2-20':  { name: '1-on-2 Semi-Private', sessions: 20, total: 2000, perSession: 100,   courseSlug: '1on2', validityMonths: 8 },
-  '1on2-30':  { name: '1-on-2 Semi-Private', sessions: 30, total: 2850, perSession: 95,    courseSlug: '1on2', badge: 'Most Popular', validityMonths: 12 },
-  '1on2-50':  { name: '1-on-2 Semi-Private', sessions: 50, total: 4500, perSession: 90,    courseSlug: '1on2', badge: 'Best Value', validityMonths: 18 },
-  '1on4-10':  { name: '1-on-4 Group',        sessions: 10, total: 400,  perSession: 40,    courseSlug: '1on4', validityMonths: 4 },
-  '1on4-20':  { name: '1-on-4 Group',        sessions: 20, total: 760,  perSession: 38,    courseSlug: '1on4', validityMonths: 8 },
+const PLANS: Record<string, { name: string; slug: string; sessions: number; total: number; perSession: number; courseSlug: string; badge?: string; validityMonths: number }> = {
+  '1on1-10':  { name: '1-on-1 Private',      sessions: 10, total: 650,  perSession: 65,    courseSlug: '1on1', slug: 'private', validityMonths: 4 },
+  '1on1-20':  { name: '1-on-1 Private',      sessions: 20, total: 1260, perSession: 63,    courseSlug: '1on1', slug: 'private', validityMonths: 8 },
+  '1on1-30':  { name: '1-on-1 Private',      sessions: 30, total: 1850, perSession: 61.67, courseSlug: '1on1', slug: 'private', badge: 'popular', validityMonths: 12 },
+  '1on1-50':  { name: '1-on-1 Private',      sessions: 50, total: 3000, perSession: 60,    courseSlug: '1on1', slug: 'private', badge: 'best', validityMonths: 18 },
+  '1on2-10':  { name: '1-on-2 Semi-Private', sessions: 10, total: 1050, perSession: 105,   courseSlug: '1on2', slug: 'semi', validityMonths: 4 },
+  '1on2-20':  { name: '1-on-2 Semi-Private', sessions: 20, total: 2000, perSession: 100,   courseSlug: '1on2', slug: 'semi', validityMonths: 8 },
+  '1on2-30':  { name: '1-on-2 Semi-Private', sessions: 30, total: 2850, perSession: 95,    courseSlug: '1on2', slug: 'semi', badge: 'popular', validityMonths: 12 },
+  '1on2-50':  { name: '1-on-2 Semi-Private', sessions: 50, total: 4500, perSession: 90,    courseSlug: '1on2', slug: 'semi', badge: 'best', validityMonths: 18 },
+  '1on4-10':  { name: '1-on-4 Group',        sessions: 10, total: 400,  perSession: 40,    courseSlug: '1on4', slug: 'group', validityMonths: 4 },
+  '1on4-20':  { name: '1-on-4 Group',        sessions: 20, total: 760,  perSession: 38,    courseSlug: '1on4', slug: 'group', validityMonths: 8 },
 }
 
 function CheckoutContent() {
+  const t = useT()
   const searchParams = useSearchParams()
   const router = useRouter()
   const supabase = createClient()
@@ -57,7 +60,7 @@ function CheckoutContent() {
   }, [])
 
   async function handleCheckout() {
-    if (isTeam && !selectedStudentId) { setError('Please select a student to enroll.'); return }
+    if (isTeam && !selectedStudentId) { setError(t('checkout.err.selectStudent')); return }
     setPaying(true)
     setError('')
     const res = await fetch('/api/stripe/checkout', {
@@ -69,7 +72,8 @@ function CheckoutContent() {
     if (data.url) {
       window.location.href = data.url
     } else {
-      setError(data.error || 'Payment failed. Please try again.')
+      const k = errorKey(data.error)
+      setError(k ? t(k) : (data.error || t('checkout.err.payment')))
       setPaying(false)
     }
   }
@@ -77,10 +81,10 @@ function CheckoutContent() {
   if (!plan && !isTeam) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
-        <p style={{ fontSize: '18px', marginBottom: '16px' }}>Plan not found</p>
+        <p style={{ fontSize: '18px', marginBottom: '16px' }}>{t('checkout.notFound')}</p>
         <button onClick={() => router.push('/plans')}
           style={{ padding: '10px 24px', background: GOLD, color: NAVY, border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
-          Back to Plans
+          {t('checkout.backToPlans')}
         </button>
       </div>
     </div>
@@ -88,7 +92,7 @@ function CheckoutContent() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>Loading...</div>
+      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{t('checkout.loading')}</div>
     </div>
   )
 
@@ -97,27 +101,27 @@ function CheckoutContent() {
       <div style={{ width: '100%', maxWidth: '480px' }}>
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>Confirm Purchase</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>{isTeam ? 'Join the Swim Team' : 'Purchase Lesson Package'}</h1>
+          <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('checkout.eyebrow')}</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: 0 }}>{isTeam ? t('checkout.titleTeam') : t('checkout.titlePackage')}</h1>
         </div>
 
         {isTeam && (
           <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(224,90,74,0.4)', padding: '24px', marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <p style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Swim Team · Monthly Membership</p>
-                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>Unlimited team practices · squad matched to swim level</p>
+                <p style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>{t('checkout.team.name')}</p>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>{t('checkout.team.desc')}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#e05a4a', margin: 0, lineHeight: 1 }}>$399</p>
-                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>per month</p>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>{t('checkout.perMonth')}</p>
               </div>
             </div>
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '16px', paddingTop: '16px' }}>
               <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', flexWrap: 'wrap' }}>
-                <span>✓ Unlimited practices</span>
-                <span>✓ Renews monthly · cancel anytime</span>
-                <span>✓ Team assigned by swim level (Level 4+)</span>
+                <span>✓ {t('checkout.team.feat1')}</span>
+                <span>✓ {t('checkout.team.feat2')}</span>
+                <span>✓ {t('checkout.team.feat3')}</span>
               </div>
             </div>
           </div>
@@ -130,27 +134,27 @@ function CheckoutContent() {
             <div>
               {plan.badge && (
                 <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', background: GOLD, color: NAVY, borderRadius: '20px', padding: '3px 10px', display: 'inline-block', marginBottom: '8px' }}>
-                  {plan.badge}
+                  {t('plans.badge.' + plan.badge)}
                 </span>
               )}
-              <p style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>{plan.name}</p>
+              <p style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>{t('plans.chip.' + plan.slug)}</p>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-                {plan.sessions} sessions · ${plan.perSession % 1 === 0 ? plan.perSession : plan.perSession.toFixed(2)}/session
+                {t('checkout.sessionLine', { n: plan.sessions, price: plan.perSession % 1 === 0 ? plan.perSession : plan.perSession.toFixed(2) })}
               </p>
             </div>
             <div style={{ textAlign: 'right' }}>
               <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: GOLD, margin: 0, lineHeight: 1 }}>
                 ${plan.total.toLocaleString()}
               </p>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>One-time payment</p>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>{t('checkout.oneTime')}</p>
             </div>
           </div>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '16px', paddingTop: '16px' }}>
             <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', flexWrap: 'wrap' }}>
-              <span>✓ Active immediately after payment</span>
-              <span>✓ Valid for {plan.validityMonths} months from purchase</span>
-              <span>✓ Shared across your family</span>
-              <span>✓ Flexible booking</span>
+              <span>✓ {t('checkout.feat1')}</span>
+              <span>✓ {t('checkout.feat2', { n: plan.validityMonths })}</span>
+              <span>✓ {t('checkout.feat3')}</span>
+              <span>✓ {t('checkout.feat4')}</span>
             </div>
           </div>
         </div>
@@ -163,15 +167,15 @@ function CheckoutContent() {
           </div>
           <div>
             <p style={{ fontSize: '13px', fontWeight: 600, color: '#fff', margin: '0 0 2px' }}>{parentName}</p>
-            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{isTeam ? 'Each membership covers one student — select the swimmer below' : 'The package applies to this account and can be used by all students'}</p>
+            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{isTeam ? t('checkout.acctTeam') : t('checkout.acctPackage')}</p>
           </div>
         </div>
 
         {isTeam && (
           <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px 24px', marginBottom: '16px' }}>
-            <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', margin: '0 0 12px' }}>Select Student</p>
+            <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', margin: '0 0 12px' }}>{t('checkout.selectStudent')}</p>
             {students.length === 0 ? (
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>No students on this account yet.</p>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{t('checkout.noStudents')}</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {students.map(st => {
@@ -181,7 +185,7 @@ function CheckoutContent() {
                     <button key={st.id} onClick={() => eligible && setSelectedStudentId(st.id)} disabled={!eligible}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: '10px', border: sel ? `2px solid ${GOLD}` : '1px solid rgba(255,255,255,0.12)', background: sel ? 'rgba(201,168,76,0.1)' : 'transparent', color: eligible ? '#fff' : 'rgba(255,255,255,0.3)', fontSize: '14px', fontWeight: 600, cursor: eligible ? 'pointer' : 'not-allowed', textAlign: 'left' }}>
                       <span>{st.full_name}</span>
-                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{st.current_level ? `Level ${st.current_level}` : 'Pending assessment'}{!eligible ? ' · not eligible' : ''}</span>
+                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{st.current_level ? t('levels.levelN', { n: st.current_level }) : t('dash.pendingAssessment')}{!eligible ? ' · ' + t('checkout.notEligible') : ''}</span>
                     </button>
                   )
                 })}
@@ -208,18 +212,18 @@ function CheckoutContent() {
             transition: 'all 0.15s', marginBottom: '12px',
           }}
         >
-          {paying ? 'Redirecting to payment...' : isTeam ? 'Subscribe · $399/month' : `Proceed to Payment · $${plan.total.toLocaleString()}`}
+          {paying ? t('checkout.redirecting') : isTeam ? t('checkout.subscribe', { price: '$399' }) : t('checkout.proceed', { price: '$' + plan.total.toLocaleString() })}
         </button>
 
         <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '0 0 12px' }}>
-          🔒 Payments securely processed by Stripe · Credit cards accepted
+          🔒 {t('checkout.stripeNote')}
         </p>
 
         <button
           onClick={() => router.push('/plans')}
           style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer' }}
         >
-          ← Back to Plans
+          ← {t('checkout.backToPlans')}
         </button>
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
@@ -228,10 +232,11 @@ function CheckoutContent() {
 }
 
 export default function CheckoutPage() {
+  const t = useT()
   return (
     <Suspense fallback={
       <div style={{ minHeight: '100vh', background: '#111d38', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>Loading...</div>
+        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{t('checkout.loading')}</div>
       </div>
     }>
       <CheckoutContent />
