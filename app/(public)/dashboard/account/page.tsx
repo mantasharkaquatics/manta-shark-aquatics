@@ -204,7 +204,7 @@ export default function AccountPage() {
                     onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setAddError(null) }}
                     style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    {t('account.cancel')}
+                    {t('common.cancel')}
                   </button>
                   <button
                     onClick={() => setConfirmingAdd(true)}
@@ -236,7 +236,7 @@ export default function AccountPage() {
                 disabled={adding}
                 style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
               >
-                {t('account.cancel')}
+                {t('common.cancel')}
               </button>
               <button
                 onClick={submitAddStudent}

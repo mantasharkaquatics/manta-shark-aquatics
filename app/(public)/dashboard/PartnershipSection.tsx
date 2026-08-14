@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useT } from '@/lib/i18n/provider'
+import { errorKey } from '@/lib/i18n/errors'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -21,6 +23,11 @@ type PartnerStudent = {
 }
 
 export default function PartnershipSection({ parentId }: { parentId: string }) {
+  const t = useT()
+  const tErr = (raw?: string | null): string => {
+    const k = errorKey(raw)
+    return k ? t(k) : (raw || t('link.err.join'))
+  }
   const [partnerships, setPartnerships] = useState<Partnership[]>([])
   const [partnerStudents, setPartnerStudents] = useState<PartnerStudent[]>([])
   const [myInviteCode, setMyInviteCode] = useState<string | null>(null)
@@ -59,7 +66,7 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
       body: JSON.stringify({ invite_code: inputCode.trim().toUpperCase() }),
     })
     const data = await res.json()
-    if (!res.ok) { setJoinError(data.error || 'Failed to link accounts'); return }
+    if (!res.ok) { setJoinError(tErr(data.error)); return }
     setJoinSuccess(true)
     setInputCode('')
     await load()
@@ -89,9 +96,7 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
 
   return (
     <section style={{ marginBottom: '36px' }}>
-      <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-        Account Linking
-      </h2>
+      <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('link.title')}</h2>
 
       {/* Linked accounts */}
       {partnerships.length > 0 && (
@@ -110,17 +115,15 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
                     🤝
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '3px' }}>Linked Account</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '3px' }}>{t('link.linkedAccount')}</div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                      {students.length > 0 ? `Students: ${students.map(s => s.full_name).join(', ')}` : 'No students on their account yet'}
+                      {students.length > 0 ? t('link.students', { names: students.map(s => s.full_name).join(', ') }) : t('link.noStudents')}
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => { setRevokeId(p.id); setRevokeConfirm(true) }}
-                  style={{ color: '#f87171', fontSize: '12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', flexShrink: 0, fontWeight: 600 }}>
-                  Unlink
-                </button>
+                  style={{ color: '#f87171', fontSize: '12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', flexShrink: 0, fontWeight: 600 }}>{t('link.unlink')}</button>
               </div>
             )
           })}
@@ -131,18 +134,14 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
       {revokeConfirm && (
         <div onClick={() => { setRevokeConfirm(false); setRevokeId(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: DARK, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#f87171', marginBottom: '8px' }}>Unlink Account</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>Unlink this account?</div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>After unlinking, neither side can see the other's students, and all pending cross-account bookings will be cancelled.</p>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#f87171', marginBottom: '8px' }}>{t('link.unlinkEyebrow')}</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>{t('link.unlinkTitle')}</div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{t('link.unlinkDesc')}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => { setRevokeConfirm(false); setRevokeId(null) }}
-                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                Cancel
-              </button>
+                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               <button onClick={handleRevoke}
-                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#f87171', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                Yes, Unlink
-              </button>
+                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#f87171', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('link.confirmUnlink')}</button>
             </div>
           </div>
         </div>
@@ -152,8 +151,8 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         {/* My invite code */}
         <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>My Invite Code</div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>Send your invite code to the other parent; once they enter it, the accounts are linked</div>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>{t('link.myCode')}</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>{t('link.myCodeDesc')}</div>
           {myInviteCode ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ background: 'rgba(201,168,76,0.1)', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '8px 14px', color: GOLD, fontWeight: 700, fontSize: '16px', letterSpacing: '0.15em', flex: 1, textAlign: 'center' }}>
@@ -161,24 +160,22 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
               </span>
               <button onClick={() => { navigator.clipboard.writeText(myInviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
                 style={{ background: copied ? '#4caf72' : GOLD, color: NAVY, border: 'none', borderRadius: '8px', padding: '8px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', flexShrink: 0 }}>
-                {copied ? '✓ Copied' : 'Copy'}
+                {copied ? '✓ ' + t('link.copied') : t('link.copy')}
               </button>
             </div>
           ) : (
             <button onClick={getMyCode}
-              style={{ width: '100%', background: GOLD, color: NAVY, border: 'none', borderRadius: '10px', padding: '10px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
-              Generate Invite Code
-            </button>
+              style={{ width: '100%', background: GOLD, color: NAVY, border: 'none', borderRadius: '10px', padding: '10px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>{t('link.generateCode')}</button>
           )}
         </div>
 
         {/* Enter invite code */}
         <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Enter Invite Code</div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>Enter the other parent's invite code to link accounts</div>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>{t('link.enterCode')}</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', lineHeight: 1.5 }}>{t('link.enterCodeDesc')}</div>
           {joinSuccess ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4caf72', fontWeight: 600, fontSize: '13px' }}>
-              <span>✓</span><span>Accounts linked!</span>
+              <span>✓</span><span>{t('link.linked')}</span>
             </div>
           ) : (
             <>
@@ -192,9 +189,7 @@ export default function PartnershipSection({ parentId }: { parentId: string }) {
                   style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', color: '#fff', fontSize: '14px', outline: 'none', letterSpacing: '0.1em' }}
                 />
                 <button onClick={handleJoin} disabled={!inputCode.trim()}
-                  style={{ background: inputCode.trim() ? GOLD : 'rgba(255,255,255,0.08)', color: inputCode.trim() ? NAVY : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 700, fontSize: '13px', cursor: inputCode.trim() ? 'pointer' : 'not-allowed', flexShrink: 0 }}>
-                  Link
-                </button>
+                  style={{ background: inputCode.trim() ? GOLD : 'rgba(255,255,255,0.08)', color: inputCode.trim() ? NAVY : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 700, fontSize: '13px', cursor: inputCode.trim() ? 'pointer' : 'not-allowed', flexShrink: 0 }}>{t('link.linkBtn')}</button>
               </div>
               {joinError && <div style={{ fontSize: '12px', color: '#f87171', marginTop: '8px', padding: '6px 10px', background: 'rgba(248,113,113,0.08)', borderRadius: '6px' }}>{joinError}</div>}
             </>
