@@ -499,5 +499,17 @@
   "login.signUp": "注册",
   "login.err.failed": "登录失败",
   "err.invalidCredentials": "电子邮件或密码不正确。",
-  "err.emailNotConfirmed": "这个电子邮件地址尚未完成验证。"
+  "err.emailNotConfirmed": "这个电子邮件地址尚未完成验证。",
+  "cart.button": "购物车",
+  "cart.title": "您的购物车",
+  "cart.reserved": "名额为您保留 {time}，请在时间结束前完成结账。",
+  "cart.booked": "所有课程都预约好了！确认信即将寄出。",
+  "cart.empty": "购物车是空的。",
+  "cart.coach": "{name} 教练",
+  "cart.creditLine": "需要 {needed} 堂／剩余 {remaining} 堂",
+  "cart.booking": "预约中…",
+  "cart.confirmAll": "全部确认（{n}）",
+  "cart.notEnough": "堂数不足",
+  "cart.err.generic": "发生问题，请再试一次。",
+  "cart.err.network": "网络错误，请再试一次。"
 }

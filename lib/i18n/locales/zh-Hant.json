@@ -499,5 +499,17 @@
   "login.signUp": "註冊",
   "login.err.failed": "登入失敗",
   "err.invalidCredentials": "電子郵件或密碼不正確。",
-  "err.emailNotConfirmed": "這個電子郵件地址尚未完成驗證。"
+  "err.emailNotConfirmed": "這個電子郵件地址尚未完成驗證。",
+  "cart.button": "購物車",
+  "cart.title": "您的購物車",
+  "cart.reserved": "名額為您保留 {time}，請在時間結束前完成結帳。",
+  "cart.booked": "所有課程都預約好了！確認信即將寄出。",
+  "cart.empty": "購物車是空的。",
+  "cart.coach": "{name} 教練",
+  "cart.creditLine": "需要 {needed} 堂／剩餘 {remaining} 堂",
+  "cart.booking": "預約中…",
+  "cart.confirmAll": "全部確認（{n}）",
+  "cart.notEnough": "堂數不足",
+  "cart.err.generic": "發生問題，請再試一次。",
+  "cart.err.network": "網路錯誤，請再試一次。"
 }

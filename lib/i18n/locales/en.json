@@ -499,5 +499,17 @@
   "login.signUp": "Sign up",
   "login.err.failed": "Sign in failed",
   "err.invalidCredentials": "That email or password is incorrect.",
-  "err.emailNotConfirmed": "This email address has not been confirmed yet."
+  "err.emailNotConfirmed": "This email address has not been confirmed yet.",
+  "cart.button": "Cart",
+  "cart.title": "Your Cart",
+  "cart.reserved": "Slots reserved for {time} — complete checkout before the timer ends.",
+  "cart.booked": "All lessons booked! Confirmation email is on the way.",
+  "cart.empty": "Your cart is empty.",
+  "cart.coach": "Coach {name}",
+  "cart.creditLine": "{needed} needed / {remaining} available",
+  "cart.booking": "Booking...",
+  "cart.confirmAll": "Confirm All ({n})",
+  "cart.notEnough": "Not Enough Credits",
+  "cart.err.generic": "Something went wrong. Please try again.",
+  "cart.err.network": "Network error. Please try again."
 }

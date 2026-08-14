@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
+import { errorKey } from '@/lib/i18n/errors'
 
 const GOLD = '#c9a84c'
 const NAVY = '#1a2744'
@@ -33,6 +36,8 @@ function fmt12h(t: string): string {
 // refreshSignal: bump the number to make the cart reload (e.g. after add-to-cart).
 // onCommitted: parent page can refresh slot availability after checkout.
 export default function BookingCart({ refreshSignal, onCommitted }: { refreshSignal: number; onCommitted?: () => void }) {
+  const t = useT()
+  const locale = useLocale()
   const [open, setOpen] = useState(false)
   const [cart, setCart] = useState<CartState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -95,13 +100,14 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(j.error || 'Something went wrong. Please try again.')
+        const k = errorKey(j.error)
+        setError(k ? t(k) : (j.error || t('cart.err.generic')))
         await load()
         return null
       }
       return j
     } catch {
-      setError('Network error. Please try again.')
+      setError(t('cart.err.network'))
       return null
     } finally {
       setBusy(false)
@@ -144,7 +150,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
           boxShadow: '0 6px 24px rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', gap: '8px',
         }}
       >
-        🛒 Cart
+        🛒 {t('cart.button')}
         <span style={{
           background: NAVY, color: '#fff', borderRadius: '999px',
           fontSize: '12px', fontWeight: 700, padding: '2px 8px',
@@ -169,7 +175,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#fff', fontFamily: 'Playfair Display, serif' }}>Your Cart</h2>
+              <h2 style={{ margin: 0, fontSize: '18px', color: '#fff', fontFamily: 'Playfair Display, serif' }}>{t('cart.title')}</h2>
               <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
 
@@ -179,7 +185,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                 borderRadius: '10px', padding: '10px 14px', marginBottom: '16px',
                 fontSize: '13px', color: GOLD, fontWeight: 600,
               }}>
-                Slots reserved for {mins}:{String(secs).padStart(2, '0')} — complete checkout before the timer ends.
+                {t('cart.reserved', { time: `${mins}:${String(secs).padStart(2, '0')}` })}
               </div>
             )}
 
@@ -188,7 +194,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                 background: 'rgba(80,200,120,0.12)', border: '1px solid rgba(80,200,120,0.4)',
                 borderRadius: '10px', padding: '14px', marginBottom: '16px', color: '#7fdca4', fontSize: '14px', fontWeight: 600,
               }}>
-                ✓ All lessons booked! Confirmation email is on the way.
+                ✓ {t('cart.booked')}
               </div>
             )}
 
@@ -200,7 +206,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
             )}
 
             {count === 0 && !done && (
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>Your cart is empty.</p>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>{t('cart.empty')}</p>
             )}
 
             {cart?.items.map(it => (
@@ -212,7 +218,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                   <div>
                     <div style={{ color: '#fff', fontSize: '14px', fontWeight: 600 }}>{it.student_name}</div>
                     <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginTop: '4px' }}>
-                      {it.course_name} · Coach {it.coach_name}
+                      {it.course_type_id ? tDb(locale, 'course_types', it.course_type_id, it.course_name) : it.course_name} · {t('cart.coach', { name: it.coach_name })}
                     </div>
                     <div style={{ color: GOLD, fontSize: '12px', marginTop: '4px', fontWeight: 600 }}>
                       {it.session_date} · {fmt12h(it.start_time)} – {fmt12h(it.end_time)}
@@ -232,9 +238,9 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '12px 0', paddingTop: '12px' }}>
                   {cart.credits.byCourse.map(c => (
                     <div key={c.course_type_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{c.course_name}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{tDb(locale, 'course_types', c.course_type_id, c.course_name)}</span>
                       <span style={{ color: c.sufficient ? '#7fdca4' : '#f0a0a0', fontWeight: 600 }}>
-                        {c.needed} needed / {c.remaining} available
+                        {t('cart.creditLine', { needed: c.needed, remaining: c.remaining })}
                       </span>
                     </div>
                   ))}
@@ -249,7 +255,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                     fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase',
                     cursor: busy || !cart.credits.sufficient ? 'not-allowed' : 'pointer', marginTop: '4px',
                   }}
-                >{busy ? 'Booking...' : cart.credits.sufficient ? `Confirm All (${count}) ✓` : 'Not Enough Credits'}</button>
+                >{busy ? t('cart.booking') : cart.credits.sufficient ? t('cart.confirmAll', { n: count }) + ' ✓' : t('cart.notEnough')}</button>
               </>
             )}
           </div>
