@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useT } from '@/lib/i18n/provider'
+import { errorKey } from '@/lib/i18n/errors'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -15,6 +17,7 @@ interface Parent {
 interface Student { id: string; full_name: string; date_of_birth: string | null; added_by_parent?: boolean }
 
 export default function AccountPage() {
+  const t = useT()
   const supabase = createClient()
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
@@ -65,7 +68,8 @@ export default function AccountPage() {
       sort_order: students.length + 1,
     })
     if (error) {
-      setAddError('Failed to add swimmer: ' + error.message)
+      const k = errorKey(error.message)
+      setAddError(t('account.err.addFailed') + (k ? t(k) : error.message))
       setAdding(false)
       setConfirmingAdd(false)
       return
@@ -81,7 +85,7 @@ export default function AccountPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#0d1529', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
+      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('account.loading')}</div>
     </div>
   )
 
@@ -91,23 +95,23 @@ export default function AccountPage() {
 
         <div style={{ marginBottom: '36px' }}>
           <Link href="/dashboard" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '20px' }}>
-            ← Back to Dashboard
+            ← {t('common.backToDashboard')}
           </Link>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,4vw,32px)', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>My Account</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>Manage your profile, password, and notification settings</p>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,4vw,32px)', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>{t('account.title')}</h1>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{t('account.subtitle')}</p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
           {/* Profile section */}
           <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>Profile</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>{t('account.profile')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
               {[
-                { label: 'Name', value: `${parent?.first_name} ${parent?.last_name}` },
-                { label: 'Email', value: parent?.email },
-                { label: 'Phone', value: parent?.phone || '—' },
-                { label: 'Member Since', value: parent?.registered_at ? new Date(parent.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
+                { label: t('account.name'), value: `${parent?.first_name} ${parent?.last_name}` },
+                { label: t('account.email'), value: parent?.email },
+                { label: t('account.phone'), value: parent?.phone || '—' },
+                { label: t('account.memberSince'), value: parent?.registered_at ? new Date(parent.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase' }}>{item.label}</div>
@@ -120,8 +124,8 @@ export default function AccountPage() {
           {/* Newsletter section */}
           <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>Newsletter</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Receive lesson deals and the latest news</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{t('account.newsletter')}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{t('account.newsletterDesc')}</div>
             </div>
             <button
               onClick={toggleNewsletter}
@@ -143,7 +147,7 @@ export default function AccountPage() {
 
           {/* Students (read-only, add-only) */}
           <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>Students</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>{t('account.students')}</div>
             {students.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
                 {students.map(s => (
@@ -151,18 +155,18 @@ export default function AccountPage() {
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>{s.full_name}</div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No birthday on file'}
+                        {s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : t('account.noBirthday')}
                       </div>
                       {s.added_by_parent && (
-                        <div style={{ fontSize: '11px', color: GOLD, marginTop: '2px' }}>Added by you</div>
+                        <div style={{ fontSize: '11px', color: GOLD, marginTop: '2px' }}>{t('account.addedByYou')}</div>
                       )}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>Read-only</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>{t('account.readOnly')}</div>
                   </div>
                 ))}
               </div>
             )}
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginBottom: '14px' }}>To change existing swimmer info, please contact the swim school.</div>
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginBottom: '14px' }}>{t('account.contactSchool')}</div>
 
             {!showAddForm || students.length >= MAX_STUDENTS ? (
               <button
@@ -170,22 +174,22 @@ export default function AccountPage() {
                 disabled={students.length >= MAX_STUDENTS}
                 style={{ width: '100%', padding: '10px', borderRadius: '10px', border: `1px solid ${GOLD}`, background: 'transparent', color: GOLD, fontSize: '13px', fontWeight: 700, cursor: students.length >= MAX_STUDENTS ? 'not-allowed' : 'pointer', opacity: students.length >= MAX_STUDENTS ? 0.35 : 1 }}
               >
-                + Add Swimmer
+                + {t('account.addSwimmer')}
               </button>
             ) : (
               <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '4px' }}>Full Name</label>
+                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '4px' }}>{t('register.fullName')}</label>
                   <input
                     type="text"
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
-                    placeholder="Swimmer's full name"
+                    placeholder={t('account.namePlaceholder')}
                     style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '13px', outline: 'none' }}
                   />
                 </div>
                 <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '4px' }}>Date of Birth</label>
+                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '4px' }}>{t('account.dob')}</label>
                   <input
                     type="date"
                     value={newDob}
@@ -200,14 +204,14 @@ export default function AccountPage() {
                     onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setAddError(null) }}
                     style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    Cancel
+                    {t('account.cancel')}
                   </button>
                   <button
                     onClick={() => setConfirmingAdd(true)}
                     disabled={!newName.trim()}
                     style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: newName.trim() ? 'pointer' : 'not-allowed', opacity: newName.trim() ? 1 : 0.5 }}
                   >
-                    Submit
+                    {t('account.submit')}
                   </button>
                 </div>
               </div>
@@ -222,10 +226,9 @@ export default function AccountPage() {
           onClick={() => !adding && setConfirmingAdd(false)}>
           <div style={{ background: NAVY, borderRadius: '16px', width: '100%', maxWidth: '380px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}
             onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>Confirm New Swimmer</h2>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>{t('account.confirmTitle')}</h2>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: '0 0 20px', lineHeight: 1.5 }}>
-              Add <strong style={{ color: '#fff' }}>{newName}</strong> as a new swimmer on this account?
-              This cannot be undone by you afterward — please contact the swim school for any corrections.
+              {t('account.confirmA')}<strong style={{ color: '#fff' }}>{newName}</strong>{t('account.confirmB')}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -233,14 +236,14 @@ export default function AccountPage() {
                 disabled={adding}
                 style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
               >
-                Cancel
+                {t('account.cancel')}
               </button>
               <button
                 onClick={submitAddStudent}
                 disabled={adding}
                 style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
               >
-                {adding ? 'Adding...' : 'Confirm'}
+                {adding ? t('account.adding') : t('account.confirm')}
               </button>
             </div>
           </div>

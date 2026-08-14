@@ -65,7 +65,7 @@ function SuccessContent() {
           {isTeam ? t('success.ctaTeam') : t('success.ctaBook')}
         </Link>
         <Link href="/dashboard" style={{ display: 'block', padding: '14px', borderRadius: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
-          {t('success.backToDashboard')}
+          {t('common.backToDashboard')}
         </Link>
         <p style={{ marginTop: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
           {t('success.redirecting', { n: countdown })}
