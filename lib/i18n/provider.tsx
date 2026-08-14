@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
+  LOCALE_EXPLICIT_COOKIE,
   getT,
   isLocale,
   matchLocaleTags,
@@ -32,6 +33,26 @@ function readLocaleCookie(): Locale | null {
 export function rememberLocale(locale: Locale) {
   const oneYear = 60 * 60 * 24 * 365;
   document.cookie = LOCALE_COOKIE + '=' + locale + '; path=/; max-age=' + oneYear + '; samesite=lax';
+}
+
+// A short-lived flag meaning "the visitor picked this themselves just now".
+// Only the language switcher sets it; seeding the locale from the database never
+// does. On sign-in a deliberate choice therefore wins over the stored preference
+// exactly once, and is then written to the account and cleared -- so a stale
+// cookie on one device can never keep undoing a change made on another.
+export function rememberExplicitLocale(locale: Locale) {
+  const oneDay = 60 * 60 * 24;
+  document.cookie = LOCALE_EXPLICIT_COOKIE + '=' + locale + '; path=/; max-age=' + oneDay + '; samesite=lax';
+}
+
+export function readExplicitLocale(): Locale | null {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + LOCALE_EXPLICIT_COOKIE + '=([^;]*)'));
+  const value = match ? decodeURIComponent(match[1]) : null;
+  return isLocale(value) ? value : null;
+}
+
+export function clearExplicitLocale() {
+  document.cookie = LOCALE_EXPLICIT_COOKIE + '=; path=/; max-age=0; samesite=lax';
 }
 
 export function LocaleProvider({ locale, children }: { locale?: Locale; children: ReactNode }) {

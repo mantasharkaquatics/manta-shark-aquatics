@@ -8,6 +8,7 @@ export type Locale = (typeof LOCALES)[number];
 
 export const DEFAULT_LOCALE: Locale = 'en';
 export const LOCALE_COOKIE = 'msa_locale';
+export const LOCALE_EXPLICIT_COOKIE = 'msa_locale_explicit';
 
 type Dict = Record<string, string>;
 

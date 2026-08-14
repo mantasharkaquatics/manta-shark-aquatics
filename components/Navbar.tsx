@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useT, useLocale, useSetLocale } from '@/lib/i18n/provider'
+import { useT, useLocale, useSetLocale, rememberExplicitLocale, readExplicitLocale, clearExplicitLocale } from '@/lib/i18n/provider'
 import { LOCALES, isLocale, type Locale } from '@/lib/i18n'
 
 const navLinks = [
@@ -41,7 +41,14 @@ export default function Navbar() {
         if (parent) {
           setFirstName(parent.first_name)
           setParentId(parent.id)
-          if (isLocale(parent.preferred_language)) setLocale(parent.preferred_language)
+          const chosen = readExplicitLocale()
+          if (chosen) {
+            setLocale(chosen)
+            clearExplicitLocale()
+            await supabase.from('parents').update({ preferred_language: chosen }).eq('id', parent.id)
+          } else if (isLocale(parent.preferred_language)) {
+            setLocale(parent.preferred_language)
+          }
         }
       } else {
         setIsLoggedIn(false)
@@ -62,7 +69,14 @@ export default function Navbar() {
         if (parent) {
           setFirstName(parent.first_name)
           setParentId(parent.id)
-          if (isLocale(parent.preferred_language)) setLocale(parent.preferred_language)
+          const chosen = readExplicitLocale()
+          if (chosen) {
+            setLocale(chosen)
+            clearExplicitLocale()
+            await supabase.from('parents').update({ preferred_language: chosen }).eq('id', parent.id)
+          } else if (isLocale(parent.preferred_language)) {
+            setLocale(parent.preferred_language)
+          }
         }
       } else {
         setIsLoggedIn(false)
@@ -74,7 +88,8 @@ export default function Navbar() {
 
   async function changeLocale(next: Locale) {
     setLocale(next)
-    if (!isLoggedIn || !parentId) return
+    if (!isLoggedIn || !parentId) { rememberExplicitLocale(next); return }
+    clearExplicitLocale()
     const { error } = await supabase.from('parents').update({ preferred_language: next }).eq('id', parentId)
     if (error) console.error('[i18n] failed to save preferred_language', error)
   }
