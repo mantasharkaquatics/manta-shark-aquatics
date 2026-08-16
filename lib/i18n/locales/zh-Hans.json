@@ -703,5 +703,18 @@
   "booking.tokenBooking.body": "这堂课将使用 {tokens}（可用 {n} 点）。点数预约无法取消或改期。",
   "booking.tokenBooking.today": "30 分钟内的时段无法预约。",
   "booking.noSlots": "这一天没有可预约的时段。",
-  "booking.spotsLeft": "剩 {n} 位"
+  "booking.spotsLeft": "剩 {n} 位",
+  "booking.groupLoading": "正在载入课程…",
+  "booking.group.noneBand": "这一天没有等级 {min}–{max} 的团体班 — 请找有圆点标记的日期。",
+  "booking.group.none": "这一天没有团体班 — 请找有圆点标记的日期。",
+  "booking.group.coachBand": "{name} 教练 · 等级 {min}–{max} 团体班",
+  "booking.booked": "已预约 ✓",
+  "booking.full": "额满",
+  "booking.group.prev": "‹ 上个月",
+  "booking.group.next": "下个月 ›",
+  "booking.group.tokenMode": "使用补课点数预约 — 只能选择今天或明天。",
+  "booking.group.showing": "仅显示 {name} 的课程",
+  "booking.group.showingBand": "仅显示 {name} 的等级 {min}–{max} 团体班课程",
+  "booking.group.withCoach": "{name} 教练",
+  "booking.group.ready": "已选好 ✓"
 }

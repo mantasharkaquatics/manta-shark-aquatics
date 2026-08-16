@@ -38,8 +38,6 @@ const COURSE_ICONS: Record<string, string> = {
   '1on1': '👤', '1on2': '👥', '1on4': '👨‍👩‍👧‍👦', 'team': '🏊',
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 function generateSlots(start: string, end: string): string[] {
   const slots: string[] = []
@@ -1263,7 +1261,7 @@ export default function BookingPage() {
                 )}
                 {groupFlow ? (
                   groupLoading ? (
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading classes...</p>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.groupLoading')}</p>
                   ) : (() => {
                     const ds2 = formatDateLA(selectedDate)
                     const tokenBlocked = !availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate)
@@ -1271,7 +1269,7 @@ export default function BookingPage() {
                     if (visible.length === 0) return (
                       <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
                         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
-                          No {myGroupBand ? `Level ${myGroupBand.min}–${myGroupBand.max} Group` : 'group'} classes this day — look for dates marked with a dot.
+                          {myGroupBand ? t('booking.group.noneBand', { min: myGroupBand.min, max: myGroupBand.max }) : t('booking.group.none')}
                         </p>
                       </div>
                     )
@@ -1302,7 +1300,7 @@ export default function BookingPage() {
                                   {formatTime(gc.time)} – {formatTime(gc.end_time)}
                                 </span>
                                 <span style={{ display: 'block', fontSize: '12px', color: clickable ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
-                                  Coach {gc.coach_name} · L{myGroupBand?.min}–{myGroupBand?.max} Group
+                                  {t('booking.group.coachBand', { name: gc.coach_name, min: myGroupBand?.min ?? '', max: myGroupBand?.max ?? '' })}
                                 </span>
                               </span>
                               <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -1310,7 +1308,7 @@ export default function BookingPage() {
                                 <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px',
                                   color: gc.already_booked ? 'rgba(255,255,255,0.4)' : gc.full ? 'rgba(255,255,255,0.3)' : myBandColor,
                                   background: gc.already_booked || gc.full ? 'rgba(255,255,255,0.06)' : myBandColor + '22' }}>
-                                  {gc.already_booked ? 'Booked ✓' : gc.full ? 'Full' : `${gc.max - gc.enrolled} left`}
+                                  {gc.already_booked ? t('booking.booked') : gc.full ? t('booking.full') : t('booking.spotsLeft', { n: gc.max - gc.enrolled })}
                                 </span>
                               </span>
                             </button>
@@ -1363,17 +1361,17 @@ export default function BookingPage() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                     <button disabled={atCurrentMonth} onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) } else setCalMonth(calMonth - 1) }}
-                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: atCurrentMonth ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)', cursor: atCurrentMonth ? 'not-allowed' : 'pointer' }}>‹ Prev</button>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{MONTHS[calMonth]} {calYear}</span>
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: atCurrentMonth ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)', cursor: atCurrentMonth ? 'not-allowed' : 'pointer' }}>{t('booking.group.prev')}</button>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
                     <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) } else setCalMonth(calMonth + 1) }}
-                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>Next ›</button>
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>{t('booking.group.next')}</button>
                   </div>
                   {tokenMode && (
-                    <div style={{ fontSize: '12px', color: '#e8883a', marginBottom: '10px' }}>Booking with a token — only today and tomorrow can be selected.</div>
+                    <div style={{ fontSize: '12px', color: '#e8883a', marginBottom: '10px' }}>{t('booking.group.tokenMode')}</div>
                   )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
-                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
-                      <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{d}</div>
+                    {[0, 1, 2, 3, 4, 5, 6].map(d => (
+                      <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                     ))}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '16px' }}>
@@ -1415,7 +1413,7 @@ export default function BookingPage() {
                                   <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
                                     {formatTime(sl.time)}
                                     <span style={{ fontWeight: 600, marginLeft: '4px', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
-                                      {sl.already_booked ? '✓' : sl.full ? 'Full' : `${sl.max - sl.enrolled} left`}
+                                      {sl.already_booked ? '✓' : sl.full ? t('booking.full') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
                                     </span>
                                     {w24 && clickable ? <span style={{ color: '#c9a84c', marginLeft: '3px' }}>24h</span> : null}
                                   </span>
@@ -1428,15 +1426,15 @@ export default function BookingPage() {
                     })}
                   </div>
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '8px' }}>
-                    Showing {selectedStudent?.full_name}{myGroupBand ? ` · Level ${myGroupBand.min}–${myGroupBand.max} Group` : ''} classes only
+                    {myGroupBand ? t('booking.group.showingBand', { name: selectedStudent?.full_name || '', min: myGroupBand.min, max: myGroupBand.max }) : t('booking.group.showing', { name: selectedStudent?.full_name || '' })}
                   </div>
                   {selectedSlot && selectedDate && selectedCoach && (
                     <div style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>
                         {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {selectedSlot.label}
-                        <span style={{ fontSize: '12px', fontWeight: 400, color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>with {selectedCoach.first_name}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 400, color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>{t('booking.group.withCoach', { name: selectedCoach.first_name })}</span>
                       </span>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: GOLD }}>Ready ✓</span>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: GOLD }}>{t('booking.group.ready')}</span>
                     </div>
                   )}
                   {recurMsg && (

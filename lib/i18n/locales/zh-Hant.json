@@ -703,5 +703,18 @@
   "booking.tokenBooking.body": "這堂課將使用 {tokens}（可用 {n} 點）。點數預約無法取消或改期。",
   "booking.tokenBooking.today": "30 分鐘內的時段無法預約。",
   "booking.noSlots": "這一天沒有可預約的時段。",
-  "booking.spotsLeft": "剩 {n} 位"
+  "booking.spotsLeft": "剩 {n} 位",
+  "booking.groupLoading": "正在載入課程…",
+  "booking.group.noneBand": "這一天沒有等級 {min}–{max} 的團體班 — 請找有圓點標記的日期。",
+  "booking.group.none": "這一天沒有團體班 — 請找有圓點標記的日期。",
+  "booking.group.coachBand": "{name} 教練 · 等級 {min}–{max} 團體班",
+  "booking.booked": "已預約 ✓",
+  "booking.full": "額滿",
+  "booking.group.prev": "‹ 上個月",
+  "booking.group.next": "下個月 ›",
+  "booking.group.tokenMode": "使用補課點數預約 — 只能選擇今天或明天。",
+  "booking.group.showing": "僅顯示 {name} 的課程",
+  "booking.group.showingBand": "僅顯示 {name} 的等級 {min}–{max} 團體班課程",
+  "booking.group.withCoach": "{name} 教練",
+  "booking.group.ready": "已選好 ✓"
 }

@@ -703,5 +703,18 @@
   "booking.tokenBooking.body": "This lesson will use {tokens} ({n} available). Token bookings are final — no cancellation or reschedule.",
   "booking.tokenBooking.today": " Times within 30 minutes are unavailable.",
   "booking.noSlots": "No available slots for this day.",
-  "booking.spotsLeft": "{n} left"
+  "booking.spotsLeft": "{n} left",
+  "booking.groupLoading": "Loading classes...",
+  "booking.group.noneBand": "No Level {min}–{max} Group classes this day — look for dates marked with a dot.",
+  "booking.group.none": "No group classes this day — look for dates marked with a dot.",
+  "booking.group.coachBand": "Coach {name} · L{min}–{max} Group",
+  "booking.booked": "Booked ✓",
+  "booking.full": "Full",
+  "booking.group.prev": "‹ Prev",
+  "booking.group.next": "Next ›",
+  "booking.group.tokenMode": "Booking with a token — only today and tomorrow can be selected.",
+  "booking.group.showing": "Showing {name} classes only",
+  "booking.group.showingBand": "Showing {name} · Level {min}–{max} Group classes only",
+  "booking.group.withCoach": "with {name}",
+  "booking.group.ready": "Ready ✓"
 }
