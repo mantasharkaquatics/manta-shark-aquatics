@@ -54,6 +54,8 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 
+const MAX_STUDENTS = 3
+
 const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 
 export default function RegisterPage() {
@@ -157,7 +159,7 @@ export default function RegisterPage() {
   }
 
   function addStudent() {
-    if (students.length < 5) setStudents([...students, { fullName: '', dateOfBirth: '' }])
+    if (students.length < MAX_STUDENTS) setStudents([...students, { fullName: '', dateOfBirth: '' }])
   }
 
   function updateStudent(i: number, field: string, value: string) {
@@ -461,7 +463,7 @@ export default function RegisterPage() {
                 </div>
               </div>
             ))}
-            {students.length < 3 && (
+            {students.length < MAX_STUDENTS && (
               <button onClick={addStudent} className="w-full border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors">
                 {t('register.addStudent')}
               </button>
