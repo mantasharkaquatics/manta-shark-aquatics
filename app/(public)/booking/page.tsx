@@ -1067,7 +1067,7 @@ export default function BookingPage() {
 
         {step === 2 && (
           <div>
-            <SectionTitle eyebrow="Step 3" title="Choose your coach" />
+            <SectionTitle eyebrow={t('booking.s3.eyebrow')} title={t('booking.s3.title')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {coaches.map((coach, i) => {
                 const colors = [GOLD, '#4a90c4', '#e05a4a']
@@ -1084,7 +1084,7 @@ export default function BookingPage() {
                       </div>
                       <div>
                         <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{coach.first_name}</div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Swim Coach</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.coachRole')}</div>
                       </div>
                     </div>
                   </SelectCard>
@@ -1115,22 +1115,22 @@ export default function BookingPage() {
 
         {step === 3 && (
           <div>
-            <SectionTitle eyebrow="Step 4" title="Pick a date & time" />
+            <SectionTitle eyebrow={t('booking.s4.eyebrow')} title={t('booking.s4.title')} />
             {!groupFlow && <div style={{ background: NAVY, borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <button onClick={() => {
                   if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) }
                   else setCalMonth(calMonth - 1)
                 }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer' }}>‹</button>
-                <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{MONTHS[calMonth]} {calYear}</span>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
                 <button onClick={() => {
                   if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) }
                   else setCalMonth(calMonth + 1)
                 }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer' }}>›</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
-                {DAYS.map(d => (
-                  <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', padding: '4px 0' }}>{d}</div>
+                {[0, 1, 2, 3, 4, 5, 6].map(d => (
+                  <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
@@ -1163,7 +1163,7 @@ export default function BookingPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
-                    Available times for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                    {t('booking.availableTimes', { date: selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) })}
                   </div>
                   {(selectedCourse?.slug === '1on1'
                     || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
@@ -1172,7 +1172,7 @@ export default function BookingPage() {
                         <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
                           style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                          {v} min{v === 60 ? (hourPaysWithTokens ? ' · 2 tokens' : ` · ${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits`) : ''}</button>
+                          {t('booking.lenMin', { n: v })}{v === 60 ? ' · ' + (hourPaysWithTokens ? t('booking.tokensBadge', { n: 2 }) : t('booking.creditsBadge', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2 })) : ''}</button>
                       ))}
                     </div>
                   )}
@@ -1186,16 +1186,16 @@ export default function BookingPage() {
                     <div style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px' }}>
                         {hourPaysWithTokens
-                          ? `One continuous 60-minute lesson · uses 2 tokens (${hourTokens} left)`
+                          ? t('booking.hour.tokens', { n: hourTokens })
                           : willUseToken && hourTokens === 1
-                            ? `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits (${hourCredits} left) — a single token cannot cover an hour, so it stays for a 30-minute lesson`
-                            : `One continuous 60-minute lesson · uses ${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits (${hourCredits} left)`}
+                            ? t('booking.hour.creditsSingleToken', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2, left: hourCredits })
+                            : t('booking.hour.credits', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2, left: hourCredits })}
                       </div>
                       {hourLoading ? (
-                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading hour-long options…</p>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.hourLoading')}</p>
                       ) : rows.length === 0 ? (
                         <div style={{ background: NAVY, borderRadius: '12px', padding: '20px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
-                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>No 60-minute openings with this coach on this day. Try another date, or book two 30-minute lessons.</p>
+                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>{t('booking.noHourOptions')}</p>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1204,7 +1204,7 @@ export default function BookingPage() {
                             const sel = selectedHour?.start_time === h.start_time
                             const enough = hourPaysWithTokens || hourCredits >= (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)
                             const seats = selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2
-                            const priceLabel = isReschedule ? 'no extra charge' : hourPaysWithTokens ? '2 tokens' : `${seats} credits`
+                            const priceLabel = isReschedule ? t('booking.noExtraCharge') : hourPaysWithTokens ? t('booking.tokensBadge', { n: 2 }) : t('booking.creditsBadge', { n: seats })
                             return (
                               <button key={h.start_time} disabled={!enough || !!h.is_current}
                                 onClick={() => {
@@ -1216,13 +1216,13 @@ export default function BookingPage() {
                                   background: sel ? `${GOLD}20` : 'rgba(255,255,255,0.03)', opacity: h.is_current ? 0.55 : 1, cursor: (enough && !h.is_current) ? 'pointer' : 'not-allowed' }}>
                                 <span>
                                   {h.is_current && (
-                                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>CURRENT TIME</span>
+                                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>{t('booking.currentTime')}</span>
                                 )}
                                 <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: sel ? GOLD : enough ? '#fff' : 'rgba(255,255,255,0.3)' }}>
                                     {formatTime(h.start_time)} – {formatTime(h.end_time)}
                                   </span>
                                   <span style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
-                                    {o.relay ? `Coach ${o.coach1_name} → Coach ${o.coach2_name} (two coaches)` : `Coach ${o.coach1_name}`}
+                                    {o.relay ? t('booking.relayCoaches', { a: o.coach1_name, b: o.coach2_name }) : t('booking.oneCoach', { name: o.coach1_name })}
                                   </span>
                                 </span>
                                 <span style={{ fontSize: '11px', fontWeight: 700, color: sel ? GOLD : 'rgba(255,255,255,0.4)' }}>{priceLabel}</span>
@@ -1238,8 +1238,8 @@ export default function BookingPage() {
                   <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>Tokens Are Valid Today or Tomorrow Only</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>You have no credits for this course — your token can only book lessons starting today or tomorrow. <a href="/plans" style={{ color: '#c9a84c', textDecoration: 'underline', fontWeight: 600 }}>Browse Plans →</a></div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>{t('booking.tokenWindow.title')}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenWindow.body')}<a href="/plans" style={{ color: '#c9a84c', textDecoration: 'underline', fontWeight: 600 }}>{t('booking.browsePlans')}</a></div>
                     </div>
                   </div>
                 )}
@@ -1247,8 +1247,8 @@ export default function BookingPage() {
                   <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>⚠️</span>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>Booking Within 24 Hours</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Slots marked "24h" start within 24 hours. These bookings cannot be rescheduled — cancelling converts your credit to a token (valid today or tomorrow; token bookings are final).</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>{t('booking.within24.title')}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.within24.body')}</div>
                     </div>
                   </div>
                 )}
@@ -1256,8 +1256,8 @@ export default function BookingPage() {
                   <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>Booking with a Token</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>This lesson will use {selectedCourse?.slug === '1on1' && lessonLength === 60 ? '2 tokens' : '1 token'} ({selectedCourse?.slug === '1on1' && lessonLength === 60 ? hourTokens : tokenRemaining} available). Token bookings are final — no cancellation or reschedule.{isToday(selectedDate) ? ' Times within 30 minutes are unavailable.' : ''}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>{t('booking.tokenBooking.title')}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenBooking.body', { tokens: selectedCourse?.slug === '1on1' && lessonLength === 60 ? t('booking.tokensBadge', { n: 2 }) : t('booking.tokenBadge', { n: 1 }), n: selectedCourse?.slug === '1on1' && lessonLength === 60 ? hourTokens : tokenRemaining })}{isToday(selectedDate) ? t('booking.tokenBooking.today') : ''}</div>
                     </div>
                   </div>
                 )}
@@ -1321,7 +1321,7 @@ export default function BookingPage() {
                   })()
                 ) : timeSlots.length === 0 ? (
                   <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>No available slots for this day.</p>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.noSlots')}</p>
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
@@ -1343,7 +1343,7 @@ export default function BookingPage() {
                           <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
                         )}
                         {selectedCourse && (selectedCourse.slug === '1on4' || selectedCourse.slug === 'team') && (
-                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{slot.max - slot.enrolled} left</div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{t('booking.spotsLeft', { n: slot.max - slot.enrolled })}</div>
                         )}
                       </button>
                     ))}
