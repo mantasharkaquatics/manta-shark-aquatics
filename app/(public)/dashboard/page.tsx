@@ -1581,32 +1581,32 @@ export default function DashboardPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.is_trial ? 'Swim Assessment' : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</span>
-                        {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>Level {booking.level_min}–{booking.level_max}</span> : null })()}
-                        {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>TODAY</span>}
-                        {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>TOMORROW</span>}
+                        {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.levelBadge', { min: booking.level_min ?? '', max: booking.level_max ?? '' })}</span> : null })()}
+                        {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
+                        {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
                         {booking._group && <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {(() => {
-                            if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; Checked In</span>
+                            if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
                             if (booking.session_date !== getTodayLA()) return null
                             const [sh, sm] = booking.start_time.split(':').map(Number)
                             const [eh, em] = booking.end_time.split(':').map(Number)
                             const nowMin = getNowMinutesLA()
-                            if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>Check-in Open</span>
-                            if (nowMin < sh * 60 + sm - 30) return <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>Check-in opens 30 min before class</span>
+                            if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.up.checkinOpen')}</span>
+                            if (nowMin < sh * 60 + sm - 30) return <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>{t('dash.up.checkinSoon')}</span>
                             return null
                           })()}
-                          <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{booking.status}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.status.' + booking.status)}</span>
                         </span>}
                       </div>
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
                           <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                            <span style={{ color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' }}>Coach {booking.coach_name}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' }}>{t('dash.up.coach', { name: booking.coach_name })}</span>
                             {booking.student_name ? <span style={{ color: 'rgba(255,255,255,0.25)', textDecoration: 'line-through' }}> · ({booking.student_name})</span> : ''}
                           </div>
                           <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
                           <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                            <span style={{ color: '#c9a84c' }}>Coach {booking.new_coach_name}</span>
+                            <span style={{ color: '#c9a84c' }}>{t('dash.up.coach', { name: booking.new_coach_name })}</span>
                             {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
                           </div>
                         </div>
@@ -1620,27 +1620,27 @@ export default function DashboardPage() {
                             return (
                               <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
                                 <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                                  <span style={{ color: '#c9a84c' }}>Coach {m.coach_name}</span>
+                                  <span style={{ color: '#c9a84c' }}>{t('dash.up.coach', { name: m.coach_name })}</span>
                                   {m.student_name ? <span style={{ color: '#7dd3fc' }}> · ({m.student_name})</span> : ''}
                                 </div>
                                 {m.token_package_id ? (
-                                  <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '10px', fontWeight: 600 }}>🎫 Token · Final</div>
+                                  <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '10px', fontWeight: 600 }}>🎫 {t('dash.up.tokenFinal')}</div>
                                 ) : (m.course_slug === '1on2' && mi > 0) ? null : (
                                   <div style={{ display: 'flex', gap: '6px' }}>
                                     <button
                                       onClick={() => m.lesson_credit_id && setRescheduleTarget({ id: m.id, creditId: m.lesson_credit_id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
                                       disabled={rDis}
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: rDis ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
-                                      {reschedulingId === m.id ? '...' : 'Reschedule'}
+                                      {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>
                                     {cEnabled ? (
                                       <button
                                         onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late })}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
-                                        {cancellingId === m.id ? '...' : late ? 'Cancel → Token' : 'Cancel'}
+                                        {cancellingId === m.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
                                       </button>
                                     ) : (
-                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.2)', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>Cancel</div>
+                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.2)', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>{t('dash.up.cancel')}</div>
                                     )}
                                   </div>
                                 )}
@@ -1650,7 +1650,7 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '2px' }}>
-                          <span style={{ color: '#c9a84c' }}>Coach {booking.coach_name}</span>
+                          <span style={{ color: '#c9a84c' }}>{t('dash.up.coach', { name: booking.coach_name })}</span>
                           {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
                         </div>
                       )}
@@ -1665,8 +1665,8 @@ export default function DashboardPage() {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? 'Expired' : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ Reschedule confirmation: {str} left</div>
+                            const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
                           })()}
                         </div>
                       ) : (
@@ -1676,15 +1676,15 @@ export default function DashboardPage() {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? 'Expired' : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ Reschedule confirmation: {str} left</div>
+                            const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
                           })()}
                         {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? 'Expired' : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {str} left to confirm or booking auto-cancels</div>
+                            const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {t('dash.up.partnerCountdown', { time: str })}</div>
                           })()}
                         </div>
                       )}
@@ -1692,18 +1692,18 @@ export default function DashboardPage() {
                     <div style={{ display: booking._group ? 'none' : 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {(() => {
-                        if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; Checked In</span>
+                        if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
                         if (booking.session_date !== getTodayLA()) return null
                         const [sh, sm] = booking.start_time.split(':').map(Number)
                         const [eh, em] = booking.end_time.split(':').map(Number)
                         const nowMin = getNowMinutesLA()
                         if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) {
-                          return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>Check-in Open</span>
+                          return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.up.checkinOpen')}</span>
                         }
                         return null
                       })()}
                       {!booking._group && <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
-                        {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? 'PENDING RESCHEDULE' : booking.status}
+                        {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? t('dash.up.pendingReschedule') : t('dash.status.' + booking.status)}
                       </span>}
                       </div>
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? (
@@ -1719,14 +1719,14 @@ export default function DashboardPage() {
                               setReschedulingId(null)
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(134,239,172,0.4)', background: 'transparent', color: '#86efac', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                            Accept Reschedule
+                            {t('dash.up.acceptReschedule')}
                           </button>
                           <button
                             onClick={async () => {
                               setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: 'Decline this reschedule?', message: 'The lesson will keep its original time.' })
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                            Decline
+                            {t('dash.up.decline')}
                           </button>
                           </>}
                           {booking.pending_action === 'reschedule_initiator' && (
@@ -1735,7 +1735,7 @@ export default function DashboardPage() {
                                 setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: 'Cancel this reschedule request?', message: 'The lesson will keep its original time.' })
                               }}
                               style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                              Cancel Reschedule
+                              {t('dash.up.cancelReschedule')}
                             </button>
                           )}
                         </div>
@@ -1821,7 +1821,7 @@ export default function DashboardPage() {
                             onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
-                            {reschedulingId === booking.id ? '...' : 'Reschedule'}
+                            {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
                           </button>
                           {(() => {
                             const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
@@ -1831,7 +1831,7 @@ export default function DashboardPage() {
                               <button
                                 onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time), isLate: late })}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {cancellingId === booking.id ? '...' : late ? 'Cancel → Token' : 'Cancel'}
+                                {cancellingId === booking.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
                               </button>
                             ) : (
                               <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
