@@ -1098,21 +1098,21 @@ export default function DashboardPage() {
       {cancelTarget && (
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>{cancelTarget.type === 'reject' ? 'REJECT INVITATION' : 'CANCEL LESSON'}</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{cancelTarget.type === 'reject' ? 'Decline this invitation?' : 'Cancel this booking?'}</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : 'dash.cancelModal.eyebrowCancel')}</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : 'dash.cancelModal.titleCancel')}</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
-              {cancelTarget.type === 'reject' ? 'The invitation will be cancelled.' : cancelTarget.isLate ? `This lesson starts within 24 hours. Cancelling now converts your credit into 1 token — valid 60 days, same-day/next-day bookings only, and final once booked. You have ${cancelQuota?.remaining ?? 0} late-cancellation conversion${(cancelQuota?.remaining ?? 0) === 1 ? '' : 's'} remaining.` : 'This lesson will be cancelled and your credit will be returned to your account.'}
+              {cancelTarget.type === 'reject' ? t('dash.cancelModal.bodyReject') : cancelTarget.isLate ? t((cancelQuota?.remaining ?? 0) === 1 ? 'dash.cancelModal.bodyLateOne' : 'dash.cancelModal.bodyLate', { n: cancelQuota?.remaining ?? 0 }) : t('dash.cancelModal.bodyNormal')}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                {cancelTarget.type === 'reject' ? 'Keep Invitation' : 'Keep Lesson'}
+                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.keepInvitation' : 'dash.cancelModal.keepLesson')}
               </button>
               <button onClick={async () => { if (cancelTarget.type === 'reject') { await rejectPartnerBooking(cancelTarget.id) } else { await cancelBooking(cancelTarget.id) } setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                {cancelTarget.type === 'reject' ? 'Yes, Decline' : 'Yes, Cancel'}
+                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : 'dash.cancelModal.yesCancel')}
               </button>
             </div>
           </div>
@@ -1123,21 +1123,21 @@ export default function DashboardPage() {
       {rescheduleTarget && (
         <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>Reschedule Lesson</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>Change this booking?</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{rescheduleTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
-              You'll be taken to the booking page to pick a new time. Your current lesson will only be cancelled after you confirm the new booking.
+              {t('dash.resModal.body')}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setRescheduleTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                Keep Lesson
+                {t('dash.cancelModal.keepLesson')}
               </button>
               <button onClick={confirmReschedule} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#c9a84c', color: '#1a2744', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                Yes, Reschedule
+                {t('dash.resModal.confirm')}
               </button>
             </div>
           </div>
@@ -1387,17 +1387,17 @@ export default function DashboardPage() {
       {rescheduleActionModal && (
         <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>RESCHEDULE</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>{t('dash.resAction.eyebrow')}</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('dash.up.cancel')}</button>
               <button onClick={async () => {
                 const id = rescheduleActionModal.bookingId
                 setRescheduleActionModal(null)
                 const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
                 if (res.ok) await fetchAll()
-              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>Confirm</button>
+              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('dash.resAction.confirm')}</button>
             </div>
           </div>
         </div>
@@ -1714,7 +1714,7 @@ export default function DashboardPage() {
                               setReschedulingId(booking.id)
                               const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               const json = await res.json()
-                              if (!res.ok) alert(json.error || 'Reschedule failed')
+                              if (!res.ok) alert(json.error || t('dash.resAction.failed'))
                               await fetchAll()
                               setReschedulingId(null)
                             }}
@@ -1723,7 +1723,7 @@ export default function DashboardPage() {
                           </button>
                           <button
                             onClick={async () => {
-                              setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: 'Decline this reschedule?', message: 'The lesson will keep its original time.' })
+                              setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: t('dash.resAction.declineTitle'), message: t('dash.resAction.keepsTime') })
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             {t('dash.up.decline')}
@@ -1732,7 +1732,7 @@ export default function DashboardPage() {
                           {booking.pending_action === 'reschedule_initiator' && (
                             <button
                               onClick={async () => {
-                                setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: 'Cancel this reschedule request?', message: 'The lesson will keep its original time.' })
+                                setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: t('dash.resAction.cancelTitle'), message: t('dash.resAction.keepsTime') })
                               }}
                               style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                               {t('dash.up.cancelReschedule')}
