@@ -1451,7 +1451,7 @@ export default function BookingPage() {
                             body: JSON.stringify({ action: 'preview', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, start_date: formatDateLA(selectedDate) }),
                           })
                           const j = await res.json().catch(() => ({}))
-                          if (!res.ok) { setRecurMsg(j.error || 'Could not load the weekly schedule.') }
+                          if (!res.ok) { setRecurMsg(j.error || t('booking.recur.err.preview')) }
                           else {
                             const cands = j.candidates || []
                             const okDates = cands.filter((c: any) => c.status === 'ok').map((c: any) => c.date)
@@ -1460,25 +1460,25 @@ export default function BookingPage() {
                             setRecurSel(new Set(okDates.slice(0, j.credits_remaining || 0)))
                             setRecurOpen(true)
                           }
-                        } catch { setRecurMsg('Network error. Please try again.') }
+                        } catch { setRecurMsg(t('cart.err.network')) }
                         setRecurBusy(false)
                       }}
                       style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
-                      {recurBusy ? 'Loading…' : `Book ${selectedDate.toLocaleDateString('en-US', { weekday: 'long' })}s ${selectedSlot.label} weekly →`}
+                      {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label })}
                     </button>
                   )}
                   {recurOpen && selectedSlot && selectedDate && selectedCoach && (
                     <div style={{ marginTop: '10px', background: NAVY, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
-                        Every {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })} at {selectedSlot.label} through Dec 31
+                        {t('booking.recur.title', { weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label })}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '12px' }}>Tap a date to skip it. Grayed dates can't be booked.</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '12px' }}>{t('booking.recur.hint')}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '320px', overflowY: 'auto' }}>
                         {recurList.map((c: any) => {
                           const on = recurSel.has(c.date)
                           const selectable = c.status === 'ok'
                           const label = new Date(c.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                          const statusText = c.status === 'ok' ? `${c.spots} left` : c.status === 'full' ? 'Full' : c.status === 'booked' ? 'Booked ✓' : c.status === 'time_off' ? 'No class (time off)' : c.status === 'too_soon' ? 'Too soon' : 'No class'
+                          const statusText = c.status === 'ok' ? t('booking.spotsLeft', { n: c.spots }) : c.status === 'full' ? t('booking.full') : c.status === 'booked' ? t('booking.booked') : c.status === 'time_off' ? t('booking.recur.status.timeOff') : c.status === 'too_soon' ? t('booking.recur.status.tooSoon') : t('booking.recur.status.noClass')
                           return (
                             <button key={c.date} disabled={!selectable}
                               onClick={() => {
@@ -1500,7 +1500,7 @@ export default function BookingPage() {
                         })}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Using {recurSel.size} of {recurCredits} credits</span>
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.using', { n: recurSel.size, total: recurCredits })}</span>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button onClick={() => {
                               setRecurSel(prev => {
@@ -1510,20 +1510,20 @@ export default function BookingPage() {
                               })
                             }}
                             style={{ padding: '10px 16px', background: 'transparent', border: `1px solid ${GOLD}55`, borderRadius: '8px', color: GOLD, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                            {recurSel.size > 0 ? 'Deselect all' : 'Select all'}</button>
+                            {recurSel.size > 0 ? t('booking.recur.deselectAll') : t('booking.recur.selectAll')}</button>
                           <button onClick={() => { setRecurOpen(false); setRecurMsg(''); setRecurConfirm(false) }}
-                            style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                            style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
                           <button disabled={recurSel.size === 0}
                             onClick={() => setRecurConfirm(true)}
                             style={{ padding: '10px 20px', background: recurSel.size === 0 ? 'rgba(255,255,255,0.1)' : GOLD, border: 'none', borderRadius: '8px', color: recurSel.size === 0 ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurSel.size === 0 ? 'not-allowed' : 'pointer' }}>
-                            Confirm {recurSel.size} lessons</button>
+                            {t('booking.recur.confirmN', { n: recurSel.size })}</button>
                         </div>
                       </div>
                       {recurConfirm && (
                         <div style={{ marginTop: '14px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${GOLD}66`, borderRadius: '10px', padding: '16px' }}>
-                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '6px' }}>Please confirm your weekly booking</div>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '6px' }}>{t('booking.recur.confirmTitle')}</div>
                           <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', marginBottom: '10px' }}>
-                            {selectedStudent?.full_name} · every {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })} at {selectedSlot.label} · Coach {selectedCoach.first_name} · 1 credit per lesson
+                            {t('booking.recur.confirmLine', { name: selectedStudent?.full_name || '', weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label, coach: selectedCoach.first_name })}
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '150px', overflowY: 'auto', marginBottom: '12px' }}>
                             {[...recurSel].sort().map(d => (
@@ -1533,10 +1533,10 @@ export default function BookingPage() {
                             ))}
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{recurSel.size} lesson{recurSel.size === 1 ? '' : 's'} · {recurSel.size} credit{recurSel.size === 1 ? '' : 's'}</span>
+                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{t(recurSel.size === 1 ? 'booking.recur.summaryOne' : 'booking.recur.summary', { n: recurSel.size })}</span>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <button onClick={() => setRecurConfirm(false)}
-                                style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Go back</button>
+                                style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>{t('booking.recur.goBack')}</button>
                               <button disabled={recurBusy}
                                 onClick={async () => {
                                   if (!selectedStudent) return
@@ -1547,20 +1547,22 @@ export default function BookingPage() {
                                       body: JSON.stringify({ action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, dates: [...recurSel].sort() }),
                                     })
                                     const j = await res.json().catch(() => ({}))
-                                    if (!res.ok) setRecurMsg(j.error || 'Could not complete the weekly booking.')
+                                    if (!res.ok) setRecurMsg(j.error || t('booking.recur.err.commit'))
                                     else {
                                       const skippedN = (j.skipped || []).filter((s: any) => recurSel.has(s.date)).length
-                                      setRecurMsg(`Booked ${j.booked} lesson${j.booked === 1 ? '' : 's'}${skippedN > 0 ? `, ${skippedN} skipped (no longer available)` : ''}. Confirmation email sent.`)
+                                      setRecurMsg(skippedN > 0
+                                        ? t(j.booked === 1 ? 'booking.recur.doneSkippedOne' : 'booking.recur.doneSkipped', { n: j.booked, m: skippedN })
+                                        : t(j.booked === 1 ? 'booking.recur.doneOne' : 'booking.recur.done', { n: j.booked }))
                                       setRecurConfirm(false)
                                       setRecurOpen(false)
                                       setSelectedSlot(null); setSelectedDate(null)
                                       setCartRefresh(n => n + 1)
                                     }
-                                  } catch { setRecurMsg('Network error. Please try again.') }
+                                  } catch { setRecurMsg(t('cart.err.network')) }
                                   setRecurBusy(false)
                                 }}
                                 style={{ padding: '10px 20px', background: recurBusy ? 'rgba(255,255,255,0.1)' : GOLD, border: 'none', borderRadius: '8px', color: recurBusy ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'not-allowed' : 'pointer' }}>
-                                {recurBusy ? 'Booking…' : `Yes, book ${recurSel.size} lessons`}</button>
+                                {recurBusy ? t('booking.recur.booking') : t('booking.recur.yesBook', { n: recurSel.size })}</button>
                             </div>
                           </div>
                         </div>
@@ -1595,21 +1597,21 @@ export default function BookingPage() {
 
         {step === 4 && (
           <div>
-            <SectionTitle eyebrow="Step 5" title="Confirm your booking" />
+            <SectionTitle eyebrow={t('booking.s5.eyebrow')} title={t('booking.s5.title')} />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
               {[
-                { label: (hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'Swimmers' : 'Swimmer',
+                { label: t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: hourRoster.length > 1
                     ? hourRoster.map((x: any) => x.full_name).join(' & ')
                     : selectedCourse?.slug === '1on2' && selectedStudent2
                     ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
                     : selectedStudent?.full_name },
-                { label: 'Course', value: selectedCourse?.name },
-                { label: 'Coach', value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
-                { label: 'Date', value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
-                { label: 'Time', value: selectedSlot?.label },
-                { label: 'Duration', value: selectedHour ? '60 minutes' : `${selectedCourse?.duration_minutes} minutes` },
-                { label: isTrial ? 'Price' : payingWithTokens ? 'Tokens Used' : 'Credits Used', value: isTrial ? (trialHasCredit ? 'Prepaid credit' : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (isReschedule ? 'No extra charge' : hourPaysWithTokens ? '2 tokens' : `${selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2} credits`) : willUseToken ? '1 token' : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? '2 credits' : '1 credit' },
+                { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
+                { label: t('booking.sum.coach'), value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
+                { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
+                { label: t('booking.sum.time'), value: selectedSlot?.label },
+                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0 }) },
+                { label: t(isTrial ? 'booking.sum.price' : payingWithTokens ? 'booking.sum.tokensUsed' : 'booking.sum.creditsUsed'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaidCredit') : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (isReschedule ? t('booking.noExtraCharge') : hourPaysWithTokens ? t('booking.tokensBadge', { n: 2 }) : t('booking.creditsBadge', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2 })) : willUseToken ? t('booking.tokenBadge', { n: 1 }) : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? t('booking.creditsBadge', { n: 2 }) : t('booking.creditBadge', { n: 1 }) },
               ].map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1620,15 +1622,15 @@ export default function BookingPage() {
                 </div>
               ))}
               {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{payingWithTokens ? 'Remaining Tokens After' : 'Remaining Credits After'}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); const w = payingWithTokens ? 'token' : 'credit'; return `${n} ${w}${n === 1 ? '' : 's'}` })()}</span>
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t(payingWithTokens ? 'booking.sum.tokensLeftLabel' : 'booking.sum.creditsLeftLabel')}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); return t(payingWithTokens ? (n === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge') : (n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge'), { n }) })()}</span>
               </div>}
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                {payingWithTokens ? 'Token bookings are final — they cannot be cancelled or rescheduled.' : 'Cancellation policy: You may cancel or reschedule up to 24 hours before the lesson start time for a full credit refund. Within 24 hours, rescheduling is unavailable and cancelling converts your credit to a token (valid today or tomorrow; token bookings are final).'}{' '}
+                {t(payingWithTokens ? 'booking.policy.token' : 'booking.policy.credit')}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
-                  View full terms
+                  {t('booking.viewTerms')}
                 </a>
               </span>
             </div>
@@ -1654,7 +1656,7 @@ export default function BookingPage() {
                     fontSize: '13px', fontWeight: 700, letterSpacing: '1px',
                     textTransform: 'uppercase', cursor: (submitting || addingToCart) ? 'not-allowed' : 'pointer',
                   }}
-                >{addingToCart ? 'Adding...' : 'Add to Cart +'}</button>
+                >{addingToCart ? t('booking.addingToCart') : t('booking.addToCart')}</button>
               )}
               <button
                 onClick={handleConfirm}
@@ -1667,7 +1669,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
-              >{submitting ? (isTrial && !trialHasCredit ? 'Redirecting...' : 'Booking...') : isTrial ? (trialHasCredit ? 'Confirm Booking ✓' : 'Continue to Payment →') : isReschedule ? 'Confirm Reschedule ✓' : 'Confirm Booking ✓'}</button>
+              >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
             </div>
           </div>
         )}
