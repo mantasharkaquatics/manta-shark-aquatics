@@ -297,7 +297,7 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
   )
 }
 
-interface TokenPack { id: string; course_name: string; remaining: number; expires_at: string; source: string }
+interface TokenPack { id: string; course_type_id?: string; course_name: string; remaining: number; expires_at: string; source: string }
 
 function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
@@ -411,6 +411,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
 
 function TokenCard({ tokens }: { tokens: TokenPack[] }) {
   const t = useT()
+  const locale = useLocale()
   if (tokens.length === 0) return null
   const totalTokens = tokens.reduce((s, tp) => s + tp.remaining, 0)
   const ORANGE = '#e8883a'
@@ -429,7 +430,7 @@ function TokenCard({ tokens }: { tokens: TokenPack[] }) {
           return (
             <div key={tp.id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tp.course_name}</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tp.course_type_id ? tDb(locale, 'course_types', tp.course_type_id, tp.course_name) : tp.course_name}</div>
                 <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, borderRadius: '8px', padding: '1px 7px', color: tp.source === 'manual' ? '#c9a84c' : ORANGE, background: tp.source === 'manual' ? 'rgba(201,168,76,0.12)' : 'rgba(232,136,58,0.1)', border: tp.source === 'manual' ? '1px solid rgba(201,168,76,0.35)' : '1px solid rgba(232,136,58,0.3)' }}>{tp.source === 'manual' ? t('token.courtesy') : t('token.makeup')}</span>
               </div>
               <div style={{ fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
