@@ -812,5 +812,14 @@
   "dash.resAction.cancelTitle": "Cancel this reschedule request?",
   "dash.resAction.keepsTime": "The lesson will keep its original time.",
   "dash.resAction.failed": "Reschedule failed",
-  "common.assessment": "Swim Assessment"
+  "common.assessment": "Swim Assessment",
+  "dash.invite.section": "Pending Invitations",
+  "dash.invite.badge": "Partner Booking Invitation",
+  "dash.invite.line": "{name} is invited to a lesson",
+  "dash.invite.countdown": "{time} left to confirm or the invitation auto-cancels",
+  "dash.invite.expired": "Expired",
+  "dash.invite.decline": "Decline",
+  "dash.invite.confirming": "Confirming...",
+  "dash.invite.confirmOne": "Confirm (uses {n} credit)",
+  "dash.invite.confirm": "Confirm (uses {n} credits)"
 }

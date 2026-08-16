@@ -812,5 +812,14 @@
   "dash.resAction.cancelTitle": "要取消这次改期申请吗？",
   "dash.resAction.keepsTime": "课程会维持原本的时间。",
   "dash.resAction.failed": "改期失败",
-  "common.assessment": "游泳评估"
+  "common.assessment": "游泳评估",
+  "dash.invite.section": "待确认的邀请",
+  "dash.invite.badge": "伙伴预约邀请",
+  "dash.invite.line": "{name} 受邀一起上课",
+  "dash.invite.countdown": "剩余 {time} 未确认，邀请将自动取消",
+  "dash.invite.expired": "已逾时",
+  "dash.invite.decline": "婉拒",
+  "dash.invite.confirming": "确认中…",
+  "dash.invite.confirmOne": "确认（使用 {n} 堂）",
+  "dash.invite.confirm": "确认（使用 {n} 堂）"
 }

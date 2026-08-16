@@ -812,5 +812,14 @@
   "dash.resAction.cancelTitle": "要取消這次改期申請嗎？",
   "dash.resAction.keepsTime": "課程會維持原本的時間。",
   "dash.resAction.failed": "改期失敗",
-  "common.assessment": "游泳評估"
+  "common.assessment": "游泳評估",
+  "dash.invite.section": "待確認的邀請",
+  "dash.invite.badge": "夥伴預約邀請",
+  "dash.invite.line": "{name} 受邀一起上課",
+  "dash.invite.countdown": "剩餘 {time} 未確認，邀請將自動取消",
+  "dash.invite.expired": "已逾時",
+  "dash.invite.decline": "婉拒",
+  "dash.invite.confirming": "確認中…",
+  "dash.invite.confirmOne": "確認（使用 {n} 堂）",
+  "dash.invite.confirm": "確認（使用 {n} 堂）"
 }

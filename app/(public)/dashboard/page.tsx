@@ -1334,7 +1334,7 @@ export default function DashboardPage() {
         {/* Pending partner bookings notice */}
         {pendingPartnerBookings.length > 0 && (
           <section style={{ marginBottom: '28px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ Pending Invitations</h2>
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ {t('dash.invite.section')}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {mergePendingInvites(pendingPartnerBookings).map((b: any) => {
                 const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
@@ -1346,20 +1346,20 @@ export default function DashboardPage() {
                 const msLeft = Math.max(0, expiresAt.getTime() - now)
                 const minsLeft = Math.floor(msLeft / 60000)
                 const secsLeft = Math.floor((msLeft % 60000) / 1000)
-                const countdownStr = msLeft <= 0 ? 'Expired' : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
+                const countdownStr = msLeft <= 0 ? t('dash.invite.expired') : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
                 return (
                   <div key={b.id} style={{ background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)', borderRadius: '14px', padding: '16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 Partner Booking Invitation</div>
+                        <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 {t('dash.invite.badge')}</div>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>
-                          {student?.full_name} is invited to a lesson
+                          {t('dash.invite.line', { name: student?.full_name || '' })}
                         </div>
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>
-                          {ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}
+                          {ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}
                         </div>
                         <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
-                          ⏱ {countdownStr} left to confirm or the invitation auto-cancels
+                          ⏱ {t('dash.invite.countdown', { time: countdownStr })}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
@@ -1367,13 +1367,13 @@ export default function DashboardPage() {
                           onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || 'Lesson', date: formatDate(cs?.session_date || ''), time: formatTime(cs?.start_time || ''), type: 'reject' })}
                           disabled={rejectingId === b.id || confirmingId === b.id}
                           style={{ padding: '8px 16px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: '8px', color: '#f87171', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                          {rejectingId === b.id ? '...' : 'Decline'}
+                          {rejectingId === b.id ? '...' : t('dash.invite.decline')}
                         </button>
                         <button
                           onClick={() => confirmPartnerBooking(b.id)}
                           disabled={confirmingId === b.id || rejectingId === b.id}
                           style={{ padding: '8px 16px', background: '#7b61c4', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                          {confirmingId === b.id ? 'Confirming...' : `Confirm (uses ${b._seats} credit${b._seats === 1 ? '' : 's'})`}
+                          {confirmingId === b.id ? t('dash.invite.confirming') : t(b._seats === 1 ? 'dash.invite.confirmOne' : 'dash.invite.confirm', { n: b._seats })}
                         </button>
                       </div>
                     </div>
