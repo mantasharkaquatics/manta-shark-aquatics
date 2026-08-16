@@ -649,7 +649,6 @@
   "booking.notice.prepaid": "您的游泳评估已付款 — 请在下方选择时间安排。",
   "booking.notice.first": "第一堂课必须是游泳评估。评估后取得等级，才能预约其他课程。",
   "booking.notice.pending": "游泳评估已完成 — 等级待定。请联络柜台安排等级，才能预约其他课程。",
-  "booking.assessment": "游泳评估",
   "booking.assessmentMeta": "30 分钟 · 1 对 1 · 每位学员限一次",
   "booking.prepaid": "已付款",
   "booking.courseMeta": "{n} 分钟 · 每班最多 {max} 人",
@@ -812,5 +811,6 @@
   "dash.resAction.declineTitle": "要婉拒这次改期吗？",
   "dash.resAction.cancelTitle": "要取消这次改期申请吗？",
   "dash.resAction.keepsTime": "课程会维持原本的时间。",
-  "dash.resAction.failed": "改期失败"
+  "dash.resAction.failed": "改期失败",
+  "common.assessment": "游泳评估"
 }

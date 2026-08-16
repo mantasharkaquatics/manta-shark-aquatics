@@ -649,7 +649,6 @@
   "booking.notice.prepaid": "Your Swim Assessment is prepaid — pick a time below to schedule it.",
   "booking.notice.first": "First lesson must be a Swim Assessment. Other lessons unlock once a level is assigned after the assessment.",
   "booking.notice.pending": "Swim Assessment completed — level pending. Please contact the front desk to have a level assigned before booking other lessons.",
-  "booking.assessment": "Swim Assessment",
   "booking.assessmentMeta": "30 min · 1-on-1 · One per student",
   "booking.prepaid": "Prepaid",
   "booking.courseMeta": "{n} min · Max {max} students",
@@ -812,5 +811,6 @@
   "dash.resAction.declineTitle": "Decline this reschedule?",
   "dash.resAction.cancelTitle": "Cancel this reschedule request?",
   "dash.resAction.keepsTime": "The lesson will keep its original time.",
-  "dash.resAction.failed": "Reschedule failed"
+  "dash.resAction.failed": "Reschedule failed",
+  "common.assessment": "Swim Assessment"
 }

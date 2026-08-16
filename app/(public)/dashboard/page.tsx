@@ -488,9 +488,9 @@ export default function DashboardPage() {
   }, [lessonView, lvMonth, lvYear])
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
-  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
@@ -1102,7 +1102,7 @@ export default function DashboardPage() {
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : 'dash.cancelModal.eyebrowCancel')}</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : 'dash.cancelModal.titleCancel')}</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{cancelTarget.courseName}</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
@@ -1127,7 +1127,7 @@ export default function DashboardPage() {
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{rescheduleTarget.courseName}</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{rescheduleTarget.courseTypeId ? tDb(locale, 'course_types', rescheduleTarget.courseTypeId, rescheduleTarget.courseName) : rescheduleTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
@@ -1498,7 +1498,7 @@ export default function DashboardPage() {
                   const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
                   const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn') : t('status.confirmed')
                   const statusColor = past ? (b.checked_in ? '#7fd8a0' : '#e05a4a') : b.checked_in ? '#7fd8a0' : GOLD
-                  const funding = b.is_trial ? 'Swim Assessment' : b.token_package_id ? (b.lesson_group_id ? '2 tokens' : '1 token') : b.lesson_credit_id ? (b.lesson_group_id ? '2 credits' : '1 credit') : '—'
+                  const funding = b.is_trial ? t('common.assessment') : b.token_package_id ? (b.lesson_group_id ? '2 tokens' : '1 token') : b.lesson_credit_id ? (b.lesson_group_id ? '2 credits' : '1 credit') : '—'
                   return (
                     <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div onClick={e => e.stopPropagation()} style={{ background: DARK, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
@@ -1581,7 +1581,7 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.is_trial ? 'Swim Assessment' : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</span>
                         {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.levelBadge', { min: booking.level_min ?? '', max: booking.level_max ?? '' })}</span> : null })()}
                         {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
                         {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
@@ -1629,14 +1629,14 @@ export default function DashboardPage() {
                                 ) : (m.course_slug === '1on2' && mi > 0) ? null : (
                                   <div style={{ display: 'flex', gap: '6px' }}>
                                     <button
-                                      onClick={() => m.lesson_credit_id && setRescheduleTarget({ id: m.id, creditId: m.lesson_credit_id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
+                                      onClick={() => m.lesson_credit_id && setRescheduleTarget({ id: m.id, creditId: m.lesson_credit_id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
                                       disabled={rDis}
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: rDis ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>
                                     {cEnabled ? (
                                       <button
-                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late })}
+                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late })}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {cancellingId === m.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
                                       </button>
@@ -1819,7 +1819,7 @@ export default function DashboardPage() {
                       ) : (
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
+                            onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
@@ -1830,7 +1830,7 @@ export default function DashboardPage() {
                             const enabled = (!late || lateOk) && cancellingId !== booking.id && booking.status !== 'pending_partner'
                             return enabled ? (
                               <button
-                                onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, date: formatDate(booking.session_date), time: formatTime(booking.start_time), isLate: late })}
+                                onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), isLate: late })}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {cancellingId === booking.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
                               </button>
@@ -1882,7 +1882,7 @@ export default function DashboardPage() {
                   const key = credit.is_trial ? '__assessment__' : credit.course_type_id
                   const itemDate = pur?.paid_at || pur?.created_at || credit.created_at || null
                   if (!grouped[key]) {
-                    grouped[key] = { name: credit.is_trial ? 'Swim Assessment' : (ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : (ct?.name || 'Lesson Credits')), total: 0, used: 0, items: [] }
+                    grouped[key] = { name: credit.is_trial ? t('common.assessment') : (ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : (ct?.name || 'Lesson Credits')), total: 0, used: 0, items: [] }
                   }
                   grouped[key].total += credit.total_credits
                   grouped[key].used += credit.used_credits
@@ -1927,7 +1927,7 @@ export default function DashboardPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>{booking.is_trial ? 'Swim Assessment' : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</div>
                           {booking.student_name && <div style={{ fontSize: '12px', color: '#7dd3fc', flexShrink: 0 }}>{booking.student_name}</div>}
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{t('dash.withCoach', { name: booking.coach_name })}</div>
                         </div>

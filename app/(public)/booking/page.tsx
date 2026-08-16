@@ -905,7 +905,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <span style={{ fontSize: '28px' }}>⭐</span>
                       <div>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{t('booking.assessment')}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{t('common.assessment')}</div>
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.assessmentMeta')}</div>
                       </div>
                     </div>
