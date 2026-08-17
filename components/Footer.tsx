@@ -1,7 +1,8 @@
 'use client'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { localePath } from '@/lib/i18n/paths'
 
 const LINKS = [
   { labelKey: 'page.services', href: '/services' },
@@ -20,6 +21,7 @@ const LEGAL = [
 
 export default function Footer() {
   const t = useT()
+  const locale = useLocale()
 
   return (
     <footer style={{ background: '#0d1529', padding: '48px 48px 24px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
@@ -39,7 +41,7 @@ export default function Footer() {
             <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>{t('footer.links')}</div>
             {LINKS.map(l => (
               <div key={l.href} style={{ marginBottom: '8px' }}>
-                <Link href={l.href} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{t(l.labelKey)}</Link>
+                <Link href={localePath(l.href, locale)} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>{t(l.labelKey)}</Link>
               </div>
             ))}
           </div>

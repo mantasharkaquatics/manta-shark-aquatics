@@ -70,6 +70,14 @@ export function LocaleProvider({ locale, children }: { locale?: Locale; children
     document.documentElement.lang = active;
   }, [active]);
 
+  // A visitor who arrives on /zh-Hant/... has never touched the switcher, so the
+  // cookie is unset. Persist the URL's locale, otherwise the first click onto a
+  // page with no localised route (legal pages, /login, /booking, the dashboard)
+  // silently drops them back to English.
+  useEffect(() => {
+    if (locale) rememberLocale(locale);
+  }, [locale]);
+
   const setLocale = useCallback((next: Locale) => {
     rememberLocale(next);
     setDetected(next);

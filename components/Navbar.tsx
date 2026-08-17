@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale, useSetLocale, rememberExplicitLocale, readExplicitLocale, clearExplicitLocale } from '@/lib/i18n/provider'
 import { LOCALES, isLocale, type Locale } from '@/lib/i18n'
+import { localePath } from '@/lib/i18n/paths'
 
 const navLinks = [
   { labelKey: 'page.services', href: '/services' },
@@ -117,7 +118,7 @@ export default function Navbar() {
     <nav className="bg-[#1a2744] sticky top-0 z-50 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href={localePath('/', locale)} className="flex items-center gap-3">
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="rounded-full object-cover" />
             <span className="text-white font-bold text-lg leading-tight hidden sm:block">
               Manta Shark<br /><span className="text-[#c9a84c] font-normal text-sm">Aquatics</span>
@@ -126,7 +127,7 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center gap-6">
             {navLinks.map(link => (
-              <Link key={link.href} href={link.href}
+              <Link key={link.href} href={localePath(link.href, locale)}
                 className={`text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
                 {t(link.labelKey)}
               </Link>
@@ -173,7 +174,7 @@ export default function Navbar() {
       {menuOpen && (
         <div className="md:hidden bg-[#111d38] px-4 pb-4 space-y-2">
           {navLinks.map(link => (
-            <Link key={link.href} href={link.href}
+            <Link key={link.href} href={localePath(link.href, locale)}
               onClick={() => setMenuOpen(false)}
               className={`block py-2 text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
               {t(link.labelKey)}
