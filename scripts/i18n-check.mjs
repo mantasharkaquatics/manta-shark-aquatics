@@ -7,6 +7,7 @@ const DIR = 'lib/i18n/locales';
 const TABLES = {
   skills: { table: 'skills', column: 'name' },
   course_types: { table: 'course_types', column: 'name' },
+  team_tiers: { table: 'team_tiers', column: 'name' },
 };
 
 const load = (name) => JSON.parse(readFileSync(DIR + '/' + name + '.json', 'utf8'));
