@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
 
     if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
 
-    // Swim Team: per-student monthly subscription (spec v1.1) — $399/mo, level-matched tier, 24 cap
+    // Swim Team: per-student monthly subscription (spec v1.1) — price comes from
+    // team_tiers.monthly_price_cents, level-matched tier, 24 cap
     if (planId === 'team') {
       if (!studentId) return NextResponse.json({ error: 'Please select a student to enroll.' }, { status: 400 })
       const svc = createSvcClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'This student needs a swim assessment before joining the team.' }, { status: 400 })
 
       const { data: tier } = await svc
-        .from('team_tiers').select('id, name')
+        .from('team_tiers').select('id, name, monthly_price_cents')
         .lte('level_min', student.current_level).gte('level_max', student.current_level)
         .eq('active', true).limit(1).single()
       if (!tier)
@@ -82,6 +83,11 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: `${tier.name} is currently full — please contact us to join the waitlist.` }, { status: 409 })
       }
 
+      // Never fall back to a guessed amount — this is a real charge.
+      const priceCents = tier.monthly_price_cents
+      if (!priceCents || priceCents <= 0)
+        return NextResponse.json({ error: 'Team pricing is not configured. Please contact us.' }, { status: 500 })
+
       const subMeta: Record<string, string> = { type: 'team_subscription', parent_id: parent.id, student_id: student.id, team_tier_id: tier.id }
       if (prepaid) subMeta.prepaid_membership_id = prepaid.id
       // Stripe checkout requires trial_end >48h in the future; if expiry is closer, bill immediately
@@ -97,7 +103,7 @@ export async function POST(req: NextRequest) {
           price_data: {
             currency: 'usd',
             product_data: { name: `${tier.name} · Monthly Membership (${student.full_name})` },
-            unit_amount: 39900,
+            unit_amount: priceCents,
             recurring: { interval: 'month' },
           },
           quantity: 1,
