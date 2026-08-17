@@ -30,7 +30,7 @@ export async function GET(req: Request) {
 
   const { data: tms } = await svc
     .from('team_memberships')
-    .select('id, student_id, status, started_at, cancels_at, stripe_subscription_id, expires_at, team_tier_id, team_tiers(name)')
+    .select('id, student_id, status, started_at, cancels_at, stripe_subscription_id, expires_at, team_tier_id, team_tiers(name, monthly_price_cents)')
     .in('student_id', ids)
     .neq('status', 'cancelled')
 
@@ -55,6 +55,7 @@ export async function GET(req: Request) {
       team_tier_id: m.team_tier_id || null,
       student_name: nameById[m.student_id] || '',
       tier_name: Array.isArray(m.team_tiers) ? m.team_tiers[0]?.name : m.team_tiers?.name,
+      monthly_price_cents: Array.isArray(m.team_tiers) ? m.team_tiers[0]?.monthly_price_cents : m.team_tiers?.monthly_price_cents,
       status: m.status,
       started_at: m.started_at,
       cancels_at: m.cancels_at || null,

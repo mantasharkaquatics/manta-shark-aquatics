@@ -826,5 +826,7 @@
   "dash.practice.optional": "Optional",
   "dash.practice.note": "Come whenever it works for you — just check in when you arrive.",
   "dash.practice.squad": "Squad",
-  "dash.practice.close": "Close"
+  "dash.practice.close": "Close",
+  "dash.team.perMonth": "{price}/mo",
+  "checkout.priceFrom": "from {price}"
 }

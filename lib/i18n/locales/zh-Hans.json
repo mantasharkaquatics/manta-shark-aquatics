@@ -826,5 +826,7 @@
   "dash.practice.optional": "自由参加",
   "dash.practice.note": "任何时段都欢迎参加，到场时报到即可。",
   "dash.practice.squad": "所属组别",
-  "dash.practice.close": "关闭"
+  "dash.practice.close": "关闭",
+  "dash.team.perMonth": "每月 {price}",
+  "checkout.priceFrom": "{price} 起"
 }

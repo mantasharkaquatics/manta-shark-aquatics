@@ -39,6 +39,7 @@ function CheckoutContent() {
   const [parentName, setParentName] = useState('')
   const [students, setStudents] = useState<{ id: string; full_name: string; current_level: number | null }[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState('')
+  const [teamPrice, setTeamPrice] = useState<{ cents: number; varies: boolean } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -53,6 +54,12 @@ function CheckoutContent() {
           .from('students').select('id, full_name, current_level')
           .eq('parent_id', (parent as any).id).eq('is_active', true).order('sort_order')
         setStudents(studs || [])
+        try {
+          const r = await fetch('/api/team/tiers')
+          const j = r.ok ? await r.json() : null
+          const cents = (j?.tiers || []).map((x: any) => x.monthly_price_cents).filter(Boolean)
+          if (cents.length) setTeamPrice({ cents: Math.min(...cents), varies: new Set(cents).size > 1 })
+        } catch {}
       }
       setLoading(false)
     }
@@ -113,7 +120,7 @@ function CheckoutContent() {
                 <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>{t('checkout.team.desc')}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#e05a4a', margin: 0, lineHeight: 1 }}>$399</p>
+                <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#e05a4a', margin: 0, lineHeight: 1 }}>{teamPrice?.varies ? t('checkout.priceFrom', { price: (teamPrice ? '$' + (teamPrice.cents / 100).toLocaleString() : '') }) : (teamPrice ? '$' + (teamPrice.cents / 100).toLocaleString() : '')}</p>
                 <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0' }}>{t('checkout.perMonth')}</p>
               </div>
             </div>
@@ -212,7 +219,7 @@ function CheckoutContent() {
             transition: 'all 0.15s', marginBottom: '12px',
           }}
         >
-          {paying ? t('checkout.redirecting') : isTeam ? t('checkout.subscribe', { price: '$399' }) : t('checkout.proceed', { price: '$' + plan.total.toLocaleString() })}
+          {paying ? t('checkout.redirecting') : isTeam ? t('checkout.subscribe', { price: (teamPrice ? '$' + (teamPrice.cents / 100).toLocaleString() : '') }) : t('checkout.proceed', { price: '$' + plan.total.toLocaleString() })}
         </button>
 
         <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '0 0 12px' }}>
