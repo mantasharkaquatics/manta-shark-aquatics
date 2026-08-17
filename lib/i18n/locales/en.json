@@ -178,7 +178,7 @@
   "home.programs.viewAll": "View All Services",
   "home.testimonials.eyebrow": "Testimonials",
   "home.testimonials.title": "Our Parents & Swimmers Love Us!",
-  "home.testimonials.rating": "★★★★★ 5.0 · {n} reviews",
+  "home.testimonials.rating": "★★★★★ {rating} · {n} reviews",
   "home.carousel.goToSlide": "Go to slide {n}",
   "home.cta.title": "Ready to Get Started?",
   "home.cta.subtitle": "Create your family account today and take the first step toward confident, capable swimming.",

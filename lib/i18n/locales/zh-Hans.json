@@ -178,7 +178,7 @@
   "home.programs.viewAll": "查看所有课程",
   "home.testimonials.eyebrow": "家长评价",
   "home.testimonials.title": "家长与学员的真实回馈",
-  "home.testimonials.rating": "★★★★★ 5.0 · {n} 条评价",
+  "home.testimonials.rating": "★★★★★ {rating} · {n} 条评价",
   "home.carousel.goToSlide": "前往第 {n} 页",
   "home.cta.title": "准备开始了吗？",
   "home.cta.subtitle": "立即创建家庭账号，迈出走向自信游泳的第一步。",

@@ -178,7 +178,7 @@
   "home.programs.viewAll": "查看所有課程",
   "home.testimonials.eyebrow": "家長評價",
   "home.testimonials.title": "家長與學員的真實回饋",
-  "home.testimonials.rating": "★★★★★ 5.0 · {n} 則評價",
+  "home.testimonials.rating": "★★★★★ {rating} · {n} 則評價",
   "home.carousel.goToSlide": "前往第 {n} 頁",
   "home.cta.title": "準備開始了嗎？",
   "home.cta.subtitle": "立即建立家庭帳號，踏出邁向自信游泳的第一步。",

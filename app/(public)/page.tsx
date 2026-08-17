@@ -3,6 +3,7 @@ import TestimonialCarousel from './TestimonialCarousel'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useT } from '@/lib/i18n/provider'
+import { SITE_STATS } from '@/lib/site-config'
 
 export default function HomePage() {
   const t = useT()
@@ -69,7 +70,7 @@ export default function HomePage() {
             {t('home.hero.subtitle')}
           </p>
           <div className="hero-stats" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
-            {[['5.0★', 'home.stat.rating'], ['500+', 'home.stat.students'], ['100%', 'home.stat.progress']].map(([num, labelKey]) => (
+            {[[SITE_STATS.googleRating + '★', 'home.stat.rating'], [SITE_STATS.studentsCoached, 'home.stat.students'], [SITE_STATS.progressFocused, 'home.stat.progress']].map(([num, labelKey]) => (
               <div key={labelKey} className="hero-stat" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '12px 20px', textAlign: 'center' }}>
                 <div style={{ fontSize: '22px', fontWeight: 700, color: '#c9a84c' }}>{num}</div>
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{t(labelKey)}</div>
@@ -125,7 +126,7 @@ export default function HomePage() {
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>{t('home.testimonials.eyebrow')}</div>
           <h2 style={{ fontSize: '32px', fontWeight: 700, color: 'white', textAlign: 'center', marginBottom: '8px' }}>{t('home.testimonials.title')}</h2>
-          <div style={{ textAlign: 'center', color: '#c9a84c', fontSize: '14px', marginBottom: '40px' }}>{t('home.testimonials.rating', { n: 13 })}</div>
+          <div style={{ textAlign: 'center', color: '#c9a84c', fontSize: '14px', marginBottom: '40px' }}>{t('home.testimonials.rating', { rating: SITE_STATS.googleRating, n: SITE_STATS.googleReviewCount })}</div>
 
           {[
             [
