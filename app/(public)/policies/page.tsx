@@ -1,5 +1,8 @@
-import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
+import PoliciesContent from './PoliciesContent'
+
+export const metadata: Metadata = { title: 'Terms & Policies — Manta Shark Aquatics' }
 
 export default function Page() {
-  redirect('/terms')
+  return <PoliciesContent />
 }

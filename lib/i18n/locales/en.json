@@ -10,7 +10,7 @@
   "page.levels": "Swim Levels",
   "page.plans": "Swim Plans",
   "page.about": "About Us",
-  "page.policies": "Policies",
+  "page.policies": "Terms & Policies",
   "nav.greeting": "Hi, {name}",
   "nav.signIn": "Sign In",
   "nav.signOut": "Sign Out",
@@ -848,5 +848,12 @@
   "meta.about.title": "About Us | Manta Shark Aquatics",
   "meta.about.description": "Coaching rooted in education, psychology, sports science and child development.",
   "meta.levels.title": "Swim Levels | Manta Shark Aquatics",
-  "meta.levels.description": "The nine MantaShark levels, from first splash to competitive technique."
+  "meta.levels.description": "The nine MantaShark levels, from first splash to competitive technique.",
+  "policies.title": "Terms & Policies",
+  "policies.subtitle": "The agreements and policies that apply to your account, your lessons, and your family.",
+  "policies.terms.desc": "Your account, bookings, payments, credits and refunds.",
+  "policies.privacy.desc": "What information we collect and how we use it.",
+  "policies.waiver.desc": "The liability release signed by a parent or legal guardian before lessons.",
+  "policies.mediaRelease.desc": "Optional consent for photos and video of your child.",
+  "policies.smsTerms.desc": "Message frequency, rates, and how to opt out."
 }

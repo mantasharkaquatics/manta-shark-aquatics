@@ -10,7 +10,7 @@
   "page.levels": "游泳分級",
   "page.plans": "課程方案",
   "page.about": "關於我們",
-  "page.policies": "政策說明",
+  "page.policies": "條款與政策",
   "nav.greeting": "您好，{name}",
   "nav.signIn": "登入",
   "nav.signOut": "登出",
@@ -848,5 +848,12 @@
   "meta.about.title": "關於我們 | Manta Shark Aquatics",
   "meta.about.description": "以教育、心理、運動科學與兒童發展為根基的專業游泳教學。",
   "meta.levels.title": "游泳分級 | Manta Shark Aquatics",
-  "meta.levels.description": "MantaShark 九個等級，從第一次下水到競技水準。"
+  "meta.levels.description": "MantaShark 九個等級，從第一次下水到競技水準。",
+  "policies.title": "條款與政策",
+  "policies.subtitle": "適用於您的帳戶、課程與家庭的各項條款與政策。",
+  "policies.terms.desc": "帳戶、預約、付款、堂數與退費的規範。",
+  "policies.privacy.desc": "我們蒐集哪些資料，以及如何使用。",
+  "policies.waiver.desc": "上課前由家長或法定監護人簽署的責任聲明。",
+  "policies.mediaRelease.desc": "選填：是否同意我們使用孩子的照片與影片。",
+  "policies.smsTerms.desc": "簡訊的頻率、費用，以及如何取消訂閱。"
 }
