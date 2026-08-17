@@ -1470,7 +1470,7 @@ export default function BookingPage() {
                   {recurOpen && selectedSlot && selectedDate && selectedCoach && (
                     <div style={{ marginTop: '10px', background: NAVY, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
-                        {t('booking.recur.title', { weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label })}
+                        {t('booking.recur.title', { weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label, year: selectedDate.getFullYear() })}
                       </div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '12px' }}>{t('booking.recur.hint')}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '320px', overflowY: 'auto' }}>

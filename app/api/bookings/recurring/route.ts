@@ -26,7 +26,10 @@ type Cand = { date: string; status: 'ok' | 'full' | 'booked' | 'time_off' | 'no_
 async function buildCandidates(svc: any, coachId: string, ct: any, studentId: string, level: number, startTime: string, startDate: string): Promise<Cand[]> {
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
-  const yearEnd = `${today.slice(0, 4)}-12-31`
+  // Horizon follows the START DATE's year, not today's: the calendar allows
+  // dates up to 60 days out, so a November booking for a January start would
+  // otherwise get a horizon already in the past and an empty candidate list.
+  const yearEnd = `${startDate.slice(0, 4)}-12-31`
   const dates: string[] = []
   for (let ds = startDate; ds <= yearEnd; ds = addDays(ds, 7)) dates.push(ds)
   if (dates.length === 0) return []

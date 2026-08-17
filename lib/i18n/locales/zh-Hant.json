@@ -720,7 +720,7 @@
   "booking.recur.cta": "每週{weekday} {time} 固定預約 →",
   "booking.recur.err.preview": "無法載入每週課表。",
   "booking.recur.err.commit": "無法完成每週預約。",
-  "booking.recur.title": "每週{weekday} {time}，到 12 月 31 日為止",
+  "booking.recur.title": "每週{weekday} {time}，到 {year} 年 12 月 31 日為止",
   "booking.recur.hint": "點一下日期即可略過。灰色的日期無法預約。",
   "booking.recur.status.timeOff": "停課（教練休假）",
   "booking.recur.status.tooSoon": "時間太近",

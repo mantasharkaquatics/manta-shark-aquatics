@@ -720,7 +720,7 @@
   "booking.recur.cta": "Book {weekday}s {time} weekly →",
   "booking.recur.err.preview": "Could not load the weekly schedule.",
   "booking.recur.err.commit": "Could not complete the weekly booking.",
-  "booking.recur.title": "Every {weekday} at {time} through Dec 31",
+  "booking.recur.title": "Every {weekday} at {time} through Dec 31, {year}",
   "booking.recur.hint": "Tap a date to skip it. Grayed dates can't be booked.",
   "booking.recur.status.timeOff": "No class (time off)",
   "booking.recur.status.tooSoon": "Too soon",
