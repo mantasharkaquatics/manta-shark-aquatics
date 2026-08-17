@@ -9,6 +9,7 @@ import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
+import { errorKey } from '@/lib/i18n/errors'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -323,7 +324,8 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
       const r = await fetch('/api/team/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ membership_id: id }) })
       const j = await r.json()
       if (r.ok && j.url) { window.location.href = j.url; return }
-      alert(j.error || t('team.portalError'))
+      const k = errorKey(j.error)
+      alert(k ? t(k) : (j.error || t('team.portalError')))
     } finally { setPortalLoading(null) }
   }
   return (
