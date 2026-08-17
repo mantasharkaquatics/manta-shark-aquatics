@@ -16,6 +16,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
+import { errorKey } from '@/lib/i18n/errors'
 import ChatWidget from '@/components/ChatWidget'
 import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
@@ -143,6 +144,10 @@ function SelectCard({ selected, onClick, color = GOLD, children }: {
 export default function BookingPage() {
   const t = useT()
   const locale = useLocale()
+  const tErr = (raw: string | null | undefined, fallbackKey: string): string => {
+    const k = errorKey(raw)
+    return k ? t(k) : (raw || t(fallbackKey))
+  }
   const router = useRouter()
   const supabase = createClient()
 
@@ -539,7 +544,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert(j.error || t('booking.err.couldNotBook'))
+        alert(tErr(j.error, 'booking.err.couldNotBook'))
         setSubmitting(false)
         return
       }
@@ -559,7 +564,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok || !j.url) {
-        alert(j.error || t('booking.err.couldNotPay'))
+        alert(tErr(j.error, 'booking.err.couldNotPay'))
         setSubmitting(false)
         return
       }
@@ -583,7 +588,7 @@ export default function BookingPage() {
         }),
       })
       const rj = await r.json().catch(() => ({}))
-      if (!r.ok || !rj.session_id) { alert(rj.error || t('booking.err.slotGone')); setSubmitting(false); return }
+      if (!r.ok || !rj.session_id) { alert(tErr(rj.error, 'booking.err.slotGone')); setSubmitting(false); return }
       const res = await fetch('/api/bookings/reschedule-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -617,7 +622,7 @@ export default function BookingPage() {
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
-      if (!hr.ok) { alert(hj.error || t('booking.err.bookingFailed')); setSubmitting(false); return }
+      if (!hr.ok) { alert(tErr(hj.error, 'booking.err.bookingFailed')); setSubmitting(false); return }
       setSubmitting(false)
       // A cross-account hour is only PENDING until the other family confirms,
       // so show the invitation screen rather than "Lesson Booked".
@@ -650,7 +655,7 @@ export default function BookingPage() {
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) {
-      alert(j.error || t('booking.err.bookingFailed'))
+      alert(tErr(j.error, 'booking.err.bookingFailed'))
       setSubmitting(false)
       return
     }
@@ -679,7 +684,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setCartMsg(j.error || t('booking.err.addToCart'))
+        setCartMsg(tErr(j.error, 'booking.err.addToCart'))
       } else {
         setCartRefresh(n => n + 1)
         setSelectedSlot(null)
@@ -1451,7 +1456,7 @@ export default function BookingPage() {
                             body: JSON.stringify({ action: 'preview', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, start_date: formatDateLA(selectedDate) }),
                           })
                           const j = await res.json().catch(() => ({}))
-                          if (!res.ok) { setRecurMsg(j.error || t('booking.recur.err.preview')) }
+                          if (!res.ok) { setRecurMsg(tErr(j.error, 'booking.recur.err.preview')) }
                           else {
                             const cands = j.candidates || []
                             const okDates = cands.filter((c: any) => c.status === 'ok').map((c: any) => c.date)
@@ -1547,7 +1552,7 @@ export default function BookingPage() {
                                       body: JSON.stringify({ action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, dates: [...recurSel].sort() }),
                                     })
                                     const j = await res.json().catch(() => ({}))
-                                    if (!res.ok) setRecurMsg(j.error || t('booking.recur.err.commit'))
+                                    if (!res.ok) setRecurMsg(tErr(j.error, 'booking.recur.err.commit'))
                                     else {
                                       const skippedN = (j.skipped || []).filter((s: any) => recurSel.has(s.date)).length
                                       setRecurMsg(skippedN > 0
