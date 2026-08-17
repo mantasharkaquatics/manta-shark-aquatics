@@ -27,6 +27,16 @@ const MAP: readonly (readonly [string, string])[] = [
   ['Password should be at least', 'err.passwordShort'],
   ['Unable to validate email address', 'err.emailInvalid'],
   ['For security purposes, you can only request this after', 'err.rateLimit'],
+  ['This student already has an active team membership.', 'err.teamActive'],
+  ['This student is not eligible for the swim team yet.', 'err.teamNotEligible'],
+  ['That squad is full.', 'err.squadFull'],
+  ['No squad matches this swim level.', 'err.noSquad'],
+  ['Trial already used', 'err.trialUsed'],
+  ['Student not found', 'err.studentNotFound'],
+  ['Parent not found', 'err.parentNotFound'],
+  ['Team pricing is not configured. Please contact us.', 'err.teamPricing'],
+  ['No active subscription', 'err.noSubscription'],
+  ['Unauthorized', 'err.unauthorized'],
 ]
 
 export function errorKey(raw?: string | null): string | null {

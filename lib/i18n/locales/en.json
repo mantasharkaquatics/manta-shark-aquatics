@@ -828,5 +828,15 @@
   "dash.practice.squad": "Squad",
   "dash.practice.close": "Close",
   "dash.team.perMonth": "{price}/mo",
-  "checkout.priceFrom": "from {price}"
+  "checkout.priceFrom": "from {price}",
+  "err.teamActive": "This student already has an active team membership.",
+  "err.teamNotEligible": "This student is not eligible for the swim team yet.",
+  "err.squadFull": "That squad is full.",
+  "err.noSquad": "No squad matches this swim level.",
+  "err.trialUsed": "This student has already used their Swim Assessment.",
+  "err.studentNotFound": "Student not found",
+  "err.parentNotFound": "Parent not found",
+  "err.teamPricing": "Team pricing is not set up yet. Please contact us.",
+  "err.noSubscription": "No active subscription",
+  "err.unauthorized": "Unauthorized"
 }

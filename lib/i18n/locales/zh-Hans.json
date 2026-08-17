@@ -828,5 +828,15 @@
   "dash.practice.squad": "所属组别",
   "dash.practice.close": "关闭",
   "dash.team.perMonth": "每月 {price}",
-  "checkout.priceFrom": "{price} 起"
+  "checkout.priceFrom": "{price} 起",
+  "err.teamActive": "这位学员已经有生效中的泳队订阅。",
+  "err.teamNotEligible": "这位学员还不符合加入泳队的资格。",
+  "err.squadFull": "这一组已经额满。",
+  "err.noSquad": "目前没有符合这个游泳等级的分组。",
+  "err.trialUsed": "这位学员已经使用过游泳评估。",
+  "err.studentNotFound": "找不到这位学员",
+  "err.parentNotFound": "找不到家长资料",
+  "err.teamPricing": "泳队费用尚未设定，请联络我们。",
+  "err.noSubscription": "没有生效中的订阅",
+  "err.unauthorized": "没有权限"
 }
