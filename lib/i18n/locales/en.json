@@ -821,5 +821,10 @@
   "dash.invite.decline": "Decline",
   "dash.invite.confirming": "Confirming...",
   "dash.invite.confirmOne": "Confirm (uses {n} credit)",
-  "dash.invite.confirm": "Confirm (uses {n} credits)"
+  "dash.invite.confirm": "Confirm (uses {n} credits)",
+  "dash.practice.title": "Team Practice",
+  "dash.practice.optional": "Optional",
+  "dash.practice.note": "Come whenever it works for you — just check in when you arrive.",
+  "dash.practice.squad": "Squad",
+  "dash.practice.close": "Close"
 }

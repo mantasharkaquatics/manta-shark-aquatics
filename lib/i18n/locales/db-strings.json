@@ -382,5 +382,22 @@
       "zh-Hant": "泳隊",
       "zh-Hans": "泳队"
     }
+  },
+  "team_tiers": {
+    "638702cb-a2e7-4961-94dc-bca1b17bda83": {
+      "en": "Junior Team",
+      "zh-Hant": "初階泳隊",
+      "zh-Hans": "初阶泳队"
+    },
+    "f5737be6-c2ee-4e31-83e1-dbcf9b8aa68b": {
+      "en": "Intermediate Team",
+      "zh-Hant": "中階泳隊",
+      "zh-Hans": "中阶泳队"
+    },
+    "74d3c84f-62c6-48d0-97b5-77c5289cd5cb": {
+      "en": "Elite Team",
+      "zh-Hant": "菁英泳隊",
+      "zh-Hans": "精英泳队"
+    }
   }
 }

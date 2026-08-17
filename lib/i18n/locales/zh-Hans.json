@@ -821,5 +821,10 @@
   "dash.invite.decline": "婉拒",
   "dash.invite.confirming": "确认中…",
   "dash.invite.confirmOne": "确认（使用 {n} 堂）",
-  "dash.invite.confirm": "确认（使用 {n} 堂）"
+  "dash.invite.confirm": "确认（使用 {n} 堂）",
+  "dash.practice.title": "泳队练习",
+  "dash.practice.optional": "自由参加",
+  "dash.practice.note": "任何时段都欢迎参加，到场时报到即可。",
+  "dash.practice.squad": "所属组别",
+  "dash.practice.close": "关闭"
 }

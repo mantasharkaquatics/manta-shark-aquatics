@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
 
 const PRIVATE_PACKAGES = [
   { id: '1on1-10', sessions: 10, total: 650,  perSession: 65,    savings: null, badge: null,      validityMonths: 4 },
@@ -56,6 +57,7 @@ function Divider({ center = false }: { center?: boolean }) {
 
 function TeamTierList() {
   const t = useT()
+  const locale = useLocale()
   const [tiers, setTiers] = useState<{ id: string; name: string; level_min: number; level_max: number; spots_left: number }[]>([])
   useEffect(() => {
     fetch('/api/team/tiers').then(r => r.ok ? r.json() : null).then(d => { if (d?.tiers) setTiers(d.tiers) }).catch(() => {})
@@ -66,7 +68,7 @@ function TeamTierList() {
       {tiers.map(tier => (
         <div key={tier.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{tier.name}</span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{tDb(locale, 'team_tiers', tier.id, tier.name)}</span>
             <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}> · {t('plans.team.levelRange', { min: tier.level_min, max: tier.level_max })}</span>
           </div>
           {tier.spots_left === 0 ? (

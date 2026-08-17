@@ -299,7 +299,8 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
 
 interface TokenPack { id: string; course_type_id?: string; course_name: string; remaining: number; expires_at: string; source: string }
 
-function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
+function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
+  const locale = useLocale()
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [schedOpen, setSchedOpen] = useState<Record<string, boolean>>({})
@@ -334,7 +335,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.tier_name} · {m.is_prepaid ? t('team.prepaid') : '$399/mo'}</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name} · {m.is_prepaid ? t('team.prepaid') : '$399/mo'}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{t('team.unlimited')}</div>
               {(m.weekly_slots || []).length > 0 && (
                 <div style={{ marginTop: '8px' }}>
@@ -1436,7 +1437,7 @@ export default function DashboardPage() {
               const active = tm.status === 'active' || tm.status === 'trialing'
               if (!active) continue
               for (const p of tm.practice_days || []) {
-                (practiceByDate[p.date] ||= []).push({ ...p, student_name: tm.student_name, tier_name: tm.tier_name })
+                (practiceByDate[p.date] ||= []).push({ ...p, student_name: tm.student_name, tier_name: tm.tier_name, team_tier_id: tm.team_tier_id })
               }
             }
             for (const k of Object.keys(practiceByDate)) practiceByDate[k].sort((a, b) => a.start_time.localeCompare(b.start_time) || a.student_name.localeCompare(b.student_name))
@@ -1533,16 +1534,16 @@ export default function DashboardPage() {
                   <div onClick={() => setPracticeDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                     <div onClick={e => e.stopPropagation()} style={{ background: DARK, border: '1px solid rgba(224,90,74,0.4)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                        <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff' }}>Team Practice</div>
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: '#e05a4a', background: 'rgba(224,90,74,0.15)', whiteSpace: 'nowrap' }}>Optional</span>
+                        <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff' }}>{t('dash.practice.title')}</div>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: '#e05a4a', background: 'rgba(224,90,74,0.15)', whiteSpace: 'nowrap' }}>{t('dash.practice.optional')}</span>
                       </div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px' }}>Come whenever it works for you — just check in when you arrive.</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px' }}>{t('dash.practice.note')}</div>
                       {[
-                        { label: 'Swimmer', value: practiceDetail.student_name || '—' },
-                        { label: 'Squad', value: practiceDetail.tier_name || '—' },
-                        { label: 'Date', value: practiceDetail.date ? new Date(practiceDetail.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '' },
-                        { label: 'Time', value: `${t12(practiceDetail.start_time)} – ${t12(practiceDetail.end_time)}` },
-                        { label: 'Coach', value: practiceDetail.coach_name ? `Coach ${practiceDetail.coach_name}` : '—' },
+                        { label: t('booking.sum.swimmer'), value: practiceDetail.student_name || '—' },
+                        { label: t('dash.practice.squad'), value: practiceDetail.team_tier_id ? tDb(locale, 'team_tiers', practiceDetail.team_tier_id, practiceDetail.tier_name) : (practiceDetail.tier_name || '—') },
+                        { label: t('booking.sum.date'), value: practiceDetail.date ? new Date(practiceDetail.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '' },
+                        { label: t('booking.sum.time'), value: `${t12(practiceDetail.start_time)} – ${t12(practiceDetail.end_time)}` },
+                        { label: t('booking.sum.coach'), value: practiceDetail.coach_name ? t('dash.up.coach', { name: practiceDetail.coach_name }) : '—' },
                       ].map(row => (
                         <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                           <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{row.label}</span>
@@ -1550,7 +1551,7 @@ export default function DashboardPage() {
                         </div>
                       ))}
                       <button onClick={() => setPracticeDetail(null)}
-                        style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#e05a4a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+                        style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#e05a4a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('dash.practice.close')}</button>
                     </div>
                   </div>
                 )}
