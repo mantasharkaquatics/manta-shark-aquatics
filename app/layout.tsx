@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Figtree } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LocaleProvider } from "@/lib/i18n/provider";
+import ScrollRestoration from "@/components/ScrollRestoration";
 
 const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
 
@@ -37,6 +38,7 @@ export default function RootLayout({
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", figtree.variable)}
     >
       <body className="min-h-full flex flex-col">
+        <ScrollRestoration />
         <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
