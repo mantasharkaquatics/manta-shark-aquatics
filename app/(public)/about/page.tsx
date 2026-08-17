@@ -1,10 +1,7 @@
-import type { Metadata } from 'next'
+import { marketingMetadata } from '@/lib/marketing-metadata'
 import AboutContent from './AboutContent'
 
-export const metadata: Metadata = {
-  title: 'About Us | Manta Shark Aquatics',
-  description: 'Coaching rooted in education, psychology, sports science and child development.',
-}
+export const metadata = marketingMetadata('about', '/about')
 
 export default function AboutPage() {
   return <AboutContent />

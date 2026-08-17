@@ -838,5 +838,15 @@
   "err.parentNotFound": "找不到家长资料",
   "err.teamPricing": "泳队费用尚未设定，请联络我们。",
   "err.noSubscription": "没有生效中的订阅",
-  "err.unauthorized": "没有权限"
+  "err.unauthorized": "没有权限",
+  "meta.home.title": "Manta Shark Aquatics — 加州 Brea 游泳课程",
+  "meta.home.description": "加州 Brea 的专业游泳教学。1 对 1、半私人、团体班与泳队。",
+  "meta.services.title": "课程与收费 | Manta Shark Aquatics",
+  "meta.services.description": "加州 Brea 的个人班、半私人班与团体班课程方案。",
+  "meta.plans.title": "课程方案与定价 | Manta Shark Aquatics",
+  "meta.plans.description": "适合各种程度的课程方案与泳队订阅，位于加州 Brea。",
+  "meta.about.title": "关于我们 | Manta Shark Aquatics",
+  "meta.about.description": "以教育、心理、运动科学与儿童发展为根基的专业游泳教学。",
+  "meta.levels.title": "游泳分级 | Manta Shark Aquatics",
+  "meta.levels.description": "MantaShark 九个等级，从第一次下水到竞技水准。"
 }

@@ -838,5 +838,15 @@
   "err.parentNotFound": "Parent not found",
   "err.teamPricing": "Team pricing is not set up yet. Please contact us.",
   "err.noSubscription": "No active subscription",
-  "err.unauthorized": "Unauthorized"
+  "err.unauthorized": "Unauthorized",
+  "meta.home.title": "Manta Shark Aquatics — Swim Lessons in Brea, CA",
+  "meta.home.description": "Professional swim lessons in Brea, California. 1-on-1, semi-private, group classes, and swim team.",
+  "meta.services.title": "Lessons & Pricing | Manta Shark Aquatics",
+  "meta.services.description": "Private, semi-private and group swim lesson packages in Brea, California.",
+  "meta.plans.title": "Plans & Pricing | Manta Shark Aquatics",
+  "meta.plans.description": "Lesson packages and swim team membership for every level, in Brea, California.",
+  "meta.about.title": "About Us | Manta Shark Aquatics",
+  "meta.about.description": "Coaching rooted in education, psychology, sports science and child development.",
+  "meta.levels.title": "Swim Levels | Manta Shark Aquatics",
+  "meta.levels.description": "The nine MantaShark levels, from first splash to competitive technique."
 }

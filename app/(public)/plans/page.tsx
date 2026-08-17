@@ -1,10 +1,7 @@
-import type { Metadata } from 'next'
+import { marketingMetadata } from '@/lib/marketing-metadata'
 import PlansContent from './PlansContent'
 
-export const metadata: Metadata = {
-  title: 'Plans & Pricing | Manta Shark Aquatics',
-  description: 'Lesson packages and swim team membership for every level, in Brea, California.',
-}
+export const metadata = marketingMetadata('plans', '/plans')
 
 export default function PlansPage() {
   return <PlansContent />

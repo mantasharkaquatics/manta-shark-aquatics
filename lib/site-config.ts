@@ -5,6 +5,9 @@
 //
 // Last verified: 2026-08-17
 
+/** Canonical origin, no trailing slash. The apex is canonical — www redirects to it. */
+export const SITE_URL = 'https://mantasharkaquatics.net'
+
 export const SITE_STATS = {
   /** Google rating shown in the hero and above the testimonials. */
   googleRating: '5.0',
