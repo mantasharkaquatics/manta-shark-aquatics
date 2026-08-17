@@ -133,6 +133,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // QR Modal Component
 function QRModal({ student, onClose }: { student: Student; onClose: () => void }) {
+  const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string>('')
 
@@ -204,7 +205,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
             <img src={qrDataUrl} alt="QR Code" style={{ display: 'block', width: '200px', height: '200px' }} />
           ) : (
             <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-              Loading...
+              {t('common.loading')}
             </div>
           )}
         </div>
@@ -1067,7 +1068,7 @@ export default function DashboardPage() {
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
           style={{ display: 'block', margin: '0 auto 16px', borderRadius: '50%', objectFit: 'cover', animation: 'msaPulse 1.6s ease-in-out infinite' }} />
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>Loading your dashboard...</div>
+        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{t('common.loading')}</div>
       </div>
     </div>
   )
