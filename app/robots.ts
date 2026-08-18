@@ -8,7 +8,7 @@ const SEARCH_ENGINES_ALLOWED = false
 
 export default function robots(): MetadataRoute.Robots {
   if (!SEARCH_ENGINES_ALLOWED) {
-    return { rules: [{ userAgent: '*', disallow: '/' }] }
+    return { rules: [{ userAgent: '*', allow: '/careers', disallow: '/' }] }
   }
   return {
     rules: [{ userAgent: '*', allow: '/', disallow: ['/admin', '/coach', '/api', '/dashboard'] }],
