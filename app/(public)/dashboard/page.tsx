@@ -87,6 +87,14 @@ function getAge(dob: string): number {
   return age
 }
 
+function getAgeMonths(dob: string): number {
+  const birth = new Date(dob)
+  const today = new Date()
+  let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth())
+  if (today.getDate() < birth.getDate()) months--
+  return months < 0 ? 0 : months
+}
+
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
@@ -1189,6 +1197,8 @@ export default function DashboardPage() {
               const levelColor = hasLevel ? (LEVEL_COLORS[Number(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
               const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
               const age = student.date_of_birth ? getAge(student.date_of_birth) : null
+              const ageMonths = student.date_of_birth && age === 0 ? getAgeMonths(student.date_of_birth) : null
+              const ageLabel = age === null ? t('dash.ageUnknown') : age >= 1 ? t('dash.age', { n: age }) : ageMonths !== null && ageMonths >= 1 ? t(ageMonths === 1 ? 'dash.ageMonth' : 'dash.ageMonths', { n: ageMonths }) : t('dash.ageNewborn')
               return (
                 <div key={student.id} style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: levelColor }} />
@@ -1199,7 +1209,7 @@ export default function DashboardPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{student.full_name}</div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {age !== null ? t('dash.age', { n: age }) : t('dash.ageUnknown')}
+                        {ageLabel}
                         {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
                       </div>
                     </div>

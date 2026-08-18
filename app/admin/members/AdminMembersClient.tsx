@@ -81,7 +81,10 @@ function calcAge(dob: string | null): string {
   let age = today.getFullYear() - birth.getFullYear()
   const m = today.getMonth() - birth.getMonth()
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
-  return `${age} yrs`
+  if (age >= 1) return `${age} yrs`
+  let mo = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth())
+  if (today.getDate() < birth.getDate()) mo--
+  return mo >= 1 ? `${mo} mo` : '<1 mo'
 }
 
 function formatDate(ts: string | null): string {
