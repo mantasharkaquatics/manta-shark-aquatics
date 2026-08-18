@@ -178,7 +178,7 @@ export default function CareersContent() {
         <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', margin: '0 0 24px', maxWidth: '520px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.7 }}>
           Tell us about your swimming background and your availability. We read every application.
         </p>
-        <a href="mailto:info@mantasharkaquatics.net?subject=Swim%20instructor%20application"
+        <a href="/careers/register"
           style={{ display: 'inline-block', background: GOLD, color: DARK, fontSize: '15px', fontWeight: 700, padding: '13px 30px', borderRadius: '10px', textDecoration: 'none' }}>
           Apply now
         </a>
