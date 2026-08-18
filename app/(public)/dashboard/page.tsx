@@ -490,7 +490,6 @@ export default function DashboardPage() {
       if (tmRes.ok) { const tmData = await tmRes.json(); setTeamMemberships(tmData.memberships || []) }
     } catch {}
   }
-  useEffect(() => { loadTokens() }, [])
   const [practiceDetail, setPracticeDetail] = useState<any | null>(null)
   useEffect(() => {
     if (lessonView !== 'month') return
