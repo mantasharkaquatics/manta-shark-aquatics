@@ -26,6 +26,7 @@ setError(tErr(error.message))
 setLoading(false)
     } else {
 const { data: { user } } = await supabase.auth.getUser()
+if (!user) { setError(t('login.err.failed')); setLoading(false); return }
 if (user) {
 const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
 if (admin) { router.push('/admin'); return }
