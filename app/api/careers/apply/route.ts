@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { serviceClient } from '@/lib/api-auth'
+import { sendEmail } from '@/lib/email'
 import { getApplicant, isFullyVerified, hashIp } from '@/lib/applicant-auth'
 
 export const runtime = 'nodejs'
+
+const ROLE_LABELS: Record<string, string> = {
+  swim_coach: 'Swim coach',
+  front_desk: 'Front desk',
+  lifeguard: 'Lifeguard',
+  other: 'Something else',
+}
 
 const ROLES = ['swim_coach', 'front_desk', 'lifeguard', 'other']
 const MAX_RESUME_BYTES = 5 * 1024 * 1024
@@ -139,6 +147,27 @@ export async function POST(req: Request) {
       { error: 'We could not submit your application. Please try again.' },
       { status: 500 }
     )
+  }
+
+  const notifyTo = process.env.CAREERS_NOTIFY_EMAIL
+  if (notifyTo) {
+    try {
+      await sendEmail({
+        type: 'applicant_application_received',
+        to: notifyTo,
+        applicantName: `${applicant.legal_first_name} ${applicant.legal_last_name}`,
+        applicantEmail: applicant.email,
+        applicantPhone: applicant.phone,
+        applicantCity: clean(form.get('city'), 120),
+        roleLabel: ROLE_LABELS[roleApplied] || roleApplied,
+        hasResume: Boolean(resumePath),
+        appUrl: process.env.NEXT_PUBLIC_APP_URL || '',
+      })
+    } catch (e) {
+      console.error('applicant notification failed', e)
+    }
+  } else {
+    console.error('CAREERS_NOTIFY_EMAIL is not set; no application notification sent')
   }
 
   return NextResponse.json({ ok: true })

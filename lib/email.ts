@@ -24,6 +24,7 @@ export type EmailType =
   | 'credits_converted_to_tokens'
   | 'booking_series_confirmed'
   | 'applicant_verification_code'
+  | 'applicant_application_received'
 
 export interface EmailPayload {
   type: EmailType
@@ -56,12 +57,18 @@ export interface EmailPayload {
   items?: any[]
   code?: string
   applicantName?: string
+  applicantEmail?: string
+  applicantPhone?: string
+  applicantCity?: string
+  roleLabel?: string
+  hasResume?: boolean
+  appUrl?: string
   changeField?: 'email' | 'phone'
   newValue?: string
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
-  const { type, to, parentName, studentName, partnerName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, invoiceUrl, amount, refundKind, code, changeField, newValue, applicantName } = payload
+  const { type, to, parentName, studentName, partnerName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, invoiceUrl, amount, refundKind, code, changeField, newValue, applicantName, applicantEmail, applicantPhone, applicantCity, roleLabel, hasResume, appUrl } = payload
 
   let subject = ''
   let html = ''
@@ -79,6 +86,10 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'applicant_verification_code') {
     subject = `Your Manta Shark Aquatics application code`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verify your email</h2><p>Hi ${applicantName},</p><p>Thanks for starting an application with us. Enter this code to verify your email address and continue:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${code}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not start an application, you can ignore this email.</p></div></div>`
+
+  } else if (type === 'applicant_application_received') {
+    subject = `New application: ${applicantName} for ${roleLabel}`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">New application</h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Name</td><td style="padding: 8px 0; font-weight: 600;">${applicantName}</td></tr><tr><td style="padding: 8px 0; color: #666;">Position</td><td style="padding: 8px 0; font-weight: 600;">${roleLabel}</td></tr><tr><td style="padding: 8px 0; color: #666;">Email</td><td style="padding: 8px 0; font-weight: 600;">${applicantEmail}</td></tr><tr><td style="padding: 8px 0; color: #666;">Phone</td><td style="padding: 8px 0; font-weight: 600;">${applicantPhone}</td></tr><tr><td style="padding: 8px 0; color: #666;">City</td><td style="padding: 8px 0; font-weight: 600;">${applicantCity || 'Not given'}</td></tr><tr><td style="padding: 8px 0; color: #666;">Resume</td><td style="padding: 8px 0; font-weight: 600;">${hasResume ? 'Attached' : 'None'}</td></tr></table><div style="text-align: center; margin-top: 24px;"><a href="${appUrl}/admin/applications" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Review application</a></div></div></div>`
 
   } else if (type === 'contact_change_notice') {
     const what = changeField === 'email' ? 'email address' : 'phone number'
