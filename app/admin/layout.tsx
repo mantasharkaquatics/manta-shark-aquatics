@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import AdminSidebar from './AdminSidebar'
+import AdminSidebar, { AdminMenuButton } from './AdminNav'
 import Image from 'next/image'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +21,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-screen bg-[#0d1529]">
       <nav className="bg-[#111d38] border-b border-[#1e3a6e] px-6 py-4">
         <div className="flex items-center gap-3">
+          <AdminMenuButton />
           <Image src="/logo.png" alt="Manta Shark" width={40} height={40} />
           <div>
             <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
