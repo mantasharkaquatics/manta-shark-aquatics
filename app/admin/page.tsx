@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { serviceClient } from '@/lib/api-auth'
 import Link from 'next/link'
+import AdminLauncher from './AdminLauncher'
 
 function formatTimeRange(start: string, end: string): string {
   const fmt = (t: string) => {
@@ -44,6 +46,13 @@ export default async function AdminDashboardPage() {
     supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').gt('enrolled_count', 0).order('start_time'),
   ])
 
+  // coach_applications has RLS on with zero policies, so the cookie-scoped
+  // client above always reads 0 rows. This one query needs the service client.
+  const { count: newApplications } = await serviceClient()
+    .from('coach_applications')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'new')
+
   const studentsBySession: Record<string, string[]> = {}
   if (todaySessions && todaySessions.length > 0) {
     const { data: sessionBookings } = await supabase
@@ -80,6 +89,7 @@ export default async function AdminDashboardPage() {
     { label: 'Active Students', value: totalStudents ?? 0, href: '/admin/members', color: 'text-green-400' },
     { label: 'Pending Upgrades', value: pendingUpgrades?.length ?? 0, href: '/admin/upgrades', color: 'text-[#c9a84c]' },
     { label: 'Time Off Requests', value: pendingTimeOff?.length ?? 0, href: '/admin/time-off', color: 'text-purple-400' },
+    { label: 'New Applications', value: newApplications ?? 0, href: '/admin/applications', color: 'text-orange-400' },
   ]
 
   return (
@@ -99,6 +109,8 @@ export default async function AdminDashboardPage() {
           </Link>
         ))}
       </div>
+
+      <AdminLauncher />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Today's schedule */}

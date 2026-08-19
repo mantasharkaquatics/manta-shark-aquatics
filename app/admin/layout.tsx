@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import AdminSidebar from './AdminSidebar'
 import Link from 'next/link'
 import Image from 'next/image'
 import MessagesNavBadge from './components/MessagesNavBadge'
@@ -18,23 +19,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: admin } = await supabase.from('admins').select('id, first_name, last_name, role').eq('auth_user_id', user.id).single()
   if (!admin) redirect('/dashboard')
 
-  const navLinks = [
-    { href: '/admin', label: 'Dashboard' },
-    { href: '/admin/members', label: 'Members' },
-    { href: '/admin/coaches', label: 'Coaches' },
-    { href: '/admin/booking', label: 'Booking' },
-    { href: '/admin/schedule', label: 'Schedule' },
-    { href: '/admin/zones', label: 'Zones' },
-    { href: null, label: '|' },
-    { href: '/admin/upgrades', label: 'Upgrades' },
-    { href: '/admin/applications', label: 'Applications' },
-    { href: '/admin/progress-history', label: 'Progress' },
-    { href: null, label: '|' },
-    { href: '/admin/checkin', label: 'Check-in' },
-    { href: '/admin/time-off', label: 'Time Off' },
-    { href: '/admin/sales', label: 'Sales' },
-    { href: '/admin/pos', label: 'POS' },
-  ]
 
   return (
     <div className="min-h-screen bg-[#0d1529]">
@@ -42,28 +26,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="Manta Shark" width={64} height={64} />
+              <Image src="/logo.png" alt="Manta Shark" width={40} height={40} />
               <div>
                 <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
-                <p className="text-white text-sm font-semibold">{admin.first_name} {admin.last_name}</p>
+                <p className="text-white text-sm font-semibold whitespace-nowrap">{admin.first_name} {admin.last_name}</p>
               </div>
             </div>
-            <div className="hidden md:flex items-center gap-1">
-              {navLinks.map((link, i) => (
-                link.href === null
-                  ? <span key={i} className="text-[#1e3a6e] text-lg px-1 select-none">|</span>
-                  : <Link key={link.href} href={link.href}
-                      className="text-gray-300 hover:text-[#c9a84c] hover:bg-[#1e3a6e] px-3 py-2 rounded-lg text-sm transition-all">
-                      {link.label}
-                    </Link>
-              ))}
+            <div className="hidden md:flex flex-wrap items-center gap-1">
+              <Link href="/admin" className="text-gray-300 hover:text-[#c9a84c] hover:bg-[#1e3a6e] px-2.5 py-1.5 rounded-lg text-sm whitespace-nowrap transition-all">Dashboard</Link>
               <MessagesNavBadge />
             </div>
           </div>
           <SignOutButton />
         </div>
       </nav>
-      <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
+      <div className="flex">
+        <AdminSidebar />
+        <main className="flex-1 min-w-0 px-6 py-8">{children}</main>
+      </div>
     </div>
   )
 }
