@@ -5,7 +5,7 @@ import { serviceClient } from '@/lib/api-auth'
 
 export const APPLICANT_COOKIE = 'msa_applicant_session'
 export const SESSION_DAYS = 30
-export const MIN_PASSWORD_LENGTH = 8
+export const MIN_PASSWORD_LENGTH = 6
 const BCRYPT_COST = 12
 
 export type Applicant = {

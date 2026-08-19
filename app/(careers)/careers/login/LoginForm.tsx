@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import PasswordInput from '../apply/PasswordInput'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -59,9 +60,7 @@ export default function LoginForm() {
 
         <div style={FIELD}>
           <label style={LABEL} htmlFor="password">Password</label>
-          <input id="password" type="password" style={INPUT} value={password}
-            autoComplete="current-password"
-            onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput id="password" value={password} autoComplete="current-password" onChange={setPassword} />
         </div>
 
         <button
@@ -72,6 +71,9 @@ export default function LoginForm() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
 
+        <p style={FOOT}>
+          <Link href="/careers/forgot-password" style={LINK}>Forgot your password?</Link>
+        </p>
         <p style={FOOT}>
           New here? <Link href="/careers/register" style={LINK}>Create an account</Link>
         </p>

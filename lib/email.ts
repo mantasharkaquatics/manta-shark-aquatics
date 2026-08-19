@@ -25,6 +25,7 @@ export type EmailType =
   | 'booking_series_confirmed'
   | 'applicant_verification_code'
   | 'applicant_application_received'
+  | 'applicant_password_reset'
 
 export interface EmailPayload {
   type: EmailType
@@ -86,6 +87,10 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'applicant_verification_code') {
     subject = `Your Manta Shark Aquatics application code`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verify your email</h2><p>Hi ${applicantName},</p><p>Thanks for starting an application with us. Enter this code to verify your email address and continue:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${code}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not start an application, you can ignore this email.</p></div></div>`
+
+  } else if (type === 'applicant_password_reset') {
+    subject = `Reset your Manta Shark Aquatics password`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Reset your password</h2><p>Hi ${applicantName || 'there'},</p><p>Enter this code on the reset page to choose a new password:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${code}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not ask to reset your password, you can ignore this email and your password will stay the same.</p></div></div>`
 
   } else if (type === 'applicant_application_received') {
     subject = `New application: ${applicantName} for ${roleLabel}`

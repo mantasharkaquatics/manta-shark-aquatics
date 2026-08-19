@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import PasswordInput from '../apply/PasswordInput'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -94,11 +95,9 @@ export default function RegisterForm() {
 
         <div style={FIELD}>
           <label style={LABEL} htmlFor="password">Password</label>
-          <input id="password" type="password" style={INPUT} value={password}
-            autoComplete="new-password"
-            onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput id="password" value={password} autoComplete="new-password" onChange={setPassword} />
           <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', margin: '6px 0 0' }}>
-            At least 8 characters.
+            At least 6 characters.
           </p>
         </div>
 
