@@ -131,11 +131,17 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   async function handleReview(rec: Recommendation, action: 'approved' | 'modified' | 'rejected') {
     setReviewingId(rec.id)
     const finalLevel = action === 'modified' ? parseInt(overrideLevel[rec.id] || String(rec.recommended_level)) : rec.recommended_level
-    await fetch('/api/admin/review-level', {
+    const res = await fetch('/api/admin/review-level', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recommendation_id: rec.id, action, final_level: finalLevel, admin_id: adminId })
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || 'Failed to record the review. Please try again.')
+      setReviewingId(null)
+      return
+    }
     setRecommendations(prev => prev.filter(r => r.id !== rec.id))
     if (action !== 'rejected') {
       const newRecord = {
