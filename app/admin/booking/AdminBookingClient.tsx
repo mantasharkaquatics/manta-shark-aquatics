@@ -193,8 +193,8 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
       </div>
       {/* Weekday labels */}
       <div className="grid grid-cols-7 mb-1">
-        {WEEKDAY_HEADERS.map(d => (
-          <div key={d} className="text-center text-[9px] text-white/20 py-0.5">{d}</div>
+        {WEEKDAY_HEADERS.map((d, di) => (
+          <div key={di} className="text-center text-[9px] text-white/20 py-0.5">{d}</div>
         ))}
       </div>
       {/* Days */}
@@ -1360,8 +1360,8 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
   return (
     <div>
       <div className="grid grid-cols-7 mb-1">
-        {WEEKDAY_HEADERS.map(d => (
-          <div key={d} className="text-center text-xs text-white/30 py-2 font-medium">{d}</div>
+        {WEEKDAY_HEADERS.map((d, di) => (
+          <div key={di} className="text-center text-xs text-white/30 py-2 font-medium">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">

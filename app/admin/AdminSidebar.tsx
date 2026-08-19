@@ -3,16 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { NAV_GROUPS } from './nav-groups'
+import SignOutButton from './components/SignOutButton'
 
 export default function AdminSidebar() {
   const pathname = usePathname()
 
-  // The dashboard is its own launcher grid, so no sidebar there.
-  if (pathname === '/admin') return null
-
   return (
-    <aside className="hidden lg:block w-52 shrink-0 border-r border-[#1e3a6e] bg-[#111d38] min-h-[calc(100vh-89px)] py-6 px-3">
-      <div className="space-y-6">
+    <aside className="hidden lg:flex flex-col w-52 shrink-0 border-r border-[#1e3a6e] bg-[#111d38] min-h-[calc(100vh-89px)] py-6 px-3">
+      <div className="flex-1 space-y-6">
         {NAV_GROUPS.map((group) => (
           <div key={group.title}>
             <p className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">
@@ -20,7 +18,12 @@ export default function AdminSidebar() {
             </p>
             <div className="space-y-0.5">
               {group.items.map((item) => {
-                const active = pathname === item.href || pathname.startsWith(item.href + '/')
+                // '/admin' is a prefix of every other admin route, so it only
+                // counts as active on an exact match.
+                const active =
+                  item.href === '/admin'
+                    ? pathname === '/admin'
+                    : pathname === item.href || pathname.startsWith(item.href + '/')
                 return (
                   <Link
                     key={item.href}
@@ -40,6 +43,10 @@ export default function AdminSidebar() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="pt-6 mt-6 border-t border-[#1e3a6e] px-3">
+        <SignOutButton />
       </div>
     </aside>
   )

@@ -3,7 +3,6 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { serviceClient } from '@/lib/api-auth'
 import Link from 'next/link'
-import AdminLauncher from './AdminLauncher'
 
 function formatTimeRange(start: string, end: string): string {
   const fmt = (t: string) => {
@@ -109,8 +108,6 @@ export default async function AdminDashboardPage() {
           </Link>
         ))}
       </div>
-
-      <AdminLauncher />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Today's schedule */}
