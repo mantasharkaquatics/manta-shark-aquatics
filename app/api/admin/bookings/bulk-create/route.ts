@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { isWithinTokenWindow, tokenSlugsForTarget } from '@/lib/tokens'
+import { refundCredit, spendCredit, spendToken } from '@/lib/ledger'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -322,7 +323,7 @@ export async function POST(req: NextRequest) {
 
     async function rollback() {
       for (const cid of incrementedCredits) {
-        await svc.rpc('decrement_used_credits', { credit_id: cid })
+        await refundCredit(svc, cid)
       }
       if (createdBookingIds.length > 0) {
         await svc.from('bookings').delete().in('id', createdBookingIds)
@@ -380,7 +381,7 @@ export async function POST(req: NextRequest) {
           }
           createdBookingIds.push(bk.id)
           if (!payWithToken) {
-            await svc.rpc('increment_used_credits', { credit_id: leg.credit })
+            await spendCredit(svc, leg.credit)
             incrementedCredits.push(leg.credit)
           }
         }
@@ -432,7 +433,7 @@ export async function POST(req: NextRequest) {
         }
         createdBookingIds.push(created.id)
         if (!payWithToken) {
-          await svc.rpc('increment_used_credits', { credit_id: b.credit_id })
+          await spendCredit(svc, b.credit_id)
           incrementedCredits.push(b.credit_id)
         }
       }
@@ -440,7 +441,7 @@ export async function POST(req: NextRequest) {
 
     // Tokens are spent only after every booking exists: there is no
     // decrement_used_tokens RPC, so rollback() could never hand one back.
-    for (const tid of tokenAlloc) await svc.rpc('increment_used_tokens', { token_id: tid })
+    for (const tid of tokenAlloc) await spendToken(svc, tid)
 
     // One summary email per parent (best effort)
     try {

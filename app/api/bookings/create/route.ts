@@ -5,6 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil 
 import { LEAD_TIME_MINUTES, pickTokenPackage } from '@/lib/tokens'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
+import { refundCredit, spendCredit, spendToken } from '@/lib/ledger'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -236,9 +237,9 @@ export async function POST(req: NextRequest) {
 
   if (!isPartnerBooking) {
     if (token1) {
-      await svc.rpc('increment_used_tokens', { token_id: token1.id })
+      await spendToken(svc, token1.id)
     } else if (!inheritCredit) {
-      await svc.rpc('increment_used_credits', { credit_id: credit.id })
+      await spendCredit(svc, credit.id)
     }
   }
 
@@ -257,7 +258,7 @@ export async function POST(req: NextRequest) {
       // token1 is always null here (the token path is single-student only), which is
       // just as well: there is no decrement_used_tokens RPC to roll one back with.
       if (!inheritCredit) {
-        await svc.rpc('decrement_used_credits', { credit_id: credit.id })
+        await refundCredit(svc, credit.id)
       }
       await svc.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' })
@@ -269,7 +270,7 @@ export async function POST(req: NextRequest) {
         : 'Booking failed. Please try again.'
       return NextResponse.json({ error: msg2 }, { status: 409 })
     }
-    await svc.rpc('increment_used_credits', { credit_id: credit2.id })
+    await spendCredit(svc, credit2.id)
   }
 
   const { data: parentRow } = await svc
@@ -332,7 +333,7 @@ export async function POST(req: NextRequest) {
       .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
       .eq('id', oldBooking.id)
     if (isPartnerBooking && oldBooking.lesson_credit_id) {
-      await svc.rpc('decrement_used_credits', { credit_id: oldBooking.lesson_credit_id })
+      await refundCredit(svc, oldBooking.lesson_credit_id)
     }
   }
 

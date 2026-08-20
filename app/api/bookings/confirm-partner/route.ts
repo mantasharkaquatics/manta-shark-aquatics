@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { spendCredit } from '@/lib/ledger'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
         pending_action: null,
         pending_expires_at: null,
       }).eq('id', rows[i].id)
-      await supabase.rpc('increment_used_credits', { credit_id: pool[i] })
+      await spendCredit(supabase, pool[i])
     }
   }
   await assign(mine, myPool)

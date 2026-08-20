@@ -4,6 +4,7 @@ import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
+import { refundCredit, spendCredit } from '@/lib/ledger'
 
 // Parent-facing weekly recurring 1on4 booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (credit-funded, no hold).
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
     const createdIds: string[] = []
     const incremented: string[] = []
     async function rollback() {
-      for (const cid of incremented) await svc.rpc('decrement_used_credits', { credit_id: cid })
+      for (const cid of incremented) await refundCredit(svc, cid)
       if (createdIds.length > 0) await svc.from('bookings').delete().in('id', createdIds)
     }
 
@@ -201,7 +202,7 @@ export async function POST(req: NextRequest) {
         .select('id').single()
       if (bookErr || !created) { await rollback(); return NextResponse.json({ error: `Failed to book ${date}: ${bookErr?.message || 'unknown'}` }, { status: 500 }) }
       createdIds.push(created.id)
-      await svc.rpc('increment_used_credits', { credit_id: allocation[i] })
+      await spendCredit(svc, allocation[i])
       incremented.push(allocation[i])
       bookedDates.push(date)
     }

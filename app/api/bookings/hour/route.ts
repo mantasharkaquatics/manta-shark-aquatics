@@ -6,6 +6,7 @@ import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithinTokenWindow, tokenSlugsForTarget, isWithin24Hours } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
+import { refundCredit, spendCredit, spendToken } from '@/lib/ledger'
 
 export const runtime = 'nodejs'
 
@@ -280,7 +281,7 @@ export async function POST(req: NextRequest) {
     const createdSessions: string[] = []
     const incremented: string[] = []
     async function rollback() {
-      for (const cid of incremented) await svc.rpc('decrement_used_credits', { credit_id: cid })
+      for (const cid of incremented) await refundCredit(svc, cid)
       if (createdBookings.length > 0) await svc.from('bookings').delete().in('id', createdBookings)
       if (createdSessions.length > 0) await svc.from('class_sessions').delete().in('id', createdSessions)
     }
@@ -349,7 +350,7 @@ export async function POST(req: NextRequest) {
         }
         createdBookings.push(bk.id)
         if (creditId) {
-          await svc.rpc('increment_used_credits', { credit_id: creditId })
+          await spendCredit(svc, creditId)
           incremented.push(creditId)
         }
       }
@@ -359,7 +360,7 @@ export async function POST(req: NextRequest) {
     // decrement_used_tokens RPC, so rollback() cannot hand one back.
     // Narrow race accepted for now: two concurrent hour bookings by the same
     // parent could both clear the >= 2 check.
-    for (const tid of tokenAlloc) await svc.rpc('increment_used_tokens', { token_id: tid })
+    for (const tid of tokenAlloc) await spendToken(svc, tid)
 
     // Partner mode: invite the other family instead of confirming anything.
     if (isPartnerBooking) try {

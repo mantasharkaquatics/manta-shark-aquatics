@@ -4,6 +4,7 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
+import { refundCredit, spendCredit } from '@/lib/ledger'
 
 // Parent shopping cart. Items are real `in_cart` bookings so the DB trigger
 // counts them into enrolled_count (slot is reserved the moment it enters the
@@ -265,7 +266,7 @@ export async function POST(req: NextRequest) {
     const confirmed: { id: string; expiry: string | null }[] = []
     const incremented: string[] = []
     async function rollback() {
-      for (const cid of incremented) await svc.rpc('decrement_used_credits', { credit_id: cid })
+      for (const cid of incremented) await refundCredit(svc, cid)
       for (const b of confirmed)
         await svc.from('bookings').update({ status: 'in_cart', pending_expires_at: b.expiry, lesson_credit_id: null }).eq('id', b.id)
     }
@@ -284,8 +285,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `"${it.course_name} ${it.session_date}" is no longer available. Please review your cart.` }, { status: 409 })
       }
       confirmed.push({ id: it.booking_id, expiry: cart.expiresAt })
-      const { error: rpcErr } = await svc.rpc('increment_used_credits', { credit_id: credit.id })
-      if (rpcErr) {
+      const ok = await spendCredit(svc, credit.id)
+      if (!ok) {
         await rollback()
         return NextResponse.json({ error: 'Credit deduction failed. Please try again.' }, { status: 500 })
       }

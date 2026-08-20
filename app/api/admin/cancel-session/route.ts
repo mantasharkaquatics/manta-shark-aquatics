@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { tokenExpiryFromNow } from '@/lib/tokens'
+import { refundCredit } from '@/lib/ledger'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
         .select('id')
       if (!c || c.length === 0) continue
       if (b.lesson_credit_id) {
-        await svc.rpc('decrement_used_credits', { credit_id: b.lesson_credit_id })
+        await refundCredit(svc, b.lesson_credit_id)
       } else if (b.token_package_id && sessRow?.course_type_id) {
         // School cancelled a token lesson: reissue a fresh 60-day token rather
         // than crediting back the original package (its remaining days may be

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { getCancellationQuota, tokenExpiryFromNow } from '@/lib/tokens'
+import { refundCredit } from '@/lib/ledger'
 
 export type CancelTarget = {
   parent_id: string
@@ -187,11 +188,11 @@ export async function cancelBookingWithPartner(
       })
       if (tokenErr) {
         // Never leave the parent short: fall back to a plain credit refund.
-        await svc.rpc('decrement_used_credits', { credit_id: booking.lesson_credit_id })
+        await refundCredit(svc, booking.lesson_credit_id)
         convertToToken = false
       }
     } else {
-      await svc.rpc('decrement_used_credits', { credit_id: booking.lesson_credit_id })
+      await refundCredit(svc, booking.lesson_credit_id)
     }
   }
 
@@ -227,7 +228,7 @@ export async function cancelBookingWithPartner(
     if (!c || c.length === 0) continue
     cancelledBookingIds.push(pb.id)
     if (pb.lesson_credit_id) {
-      await svc.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
+      await refundCredit(svc, pb.lesson_credit_id)
     }
   }
 
@@ -278,7 +279,7 @@ export async function cancelBookingWithPartner(
           cancelledBookingIds.push(pb.id)
           cancelledPartners.push({ parent_id: pb.parent_id, student_id: pb.student_id })
           if (pb.lesson_credit_id) {
-            await svc.rpc('decrement_used_credits', { credit_id: pb.lesson_credit_id })
+            await refundCredit(svc, pb.lesson_credit_id)
           }
         }
       }

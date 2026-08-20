@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { tokenExpiryFromNow } from '@/lib/tokens'
+import { refundCredit } from '@/lib/ledger'
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
         .select('id')
       if (!c || c.length === 0) continue
       if (b.lesson_credit_id) {
-        await svc.rpc('decrement_used_credits', { credit_id: b.lesson_credit_id })
+        await refundCredit(svc, b.lesson_credit_id)
       } else if (b.token_package_id) {
         // Coach time-off is a school-side cancellation: refund in kind with a
         // fresh 60-day expiry. source is 'school_cancellation', NOT
