@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { formatTime12h } from '@/lib/date'
 import AdminLessonNoteReview from './AdminLessonNoteReview'
+import AlertModal from '@/components/AlertModal'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
@@ -61,7 +61,6 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   pastPendingProgressList: PendingProgress[]
   missingProgressList: MissingProgress[]
 }) {
-  const router = useRouter()
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
   const [recommendations, setRecommendations] = useState(initialRecs)
   const [pendingProgressList, setPendingProgressList] = useState(initialPending)
@@ -78,6 +77,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [alertMsg, setAlertMsg] = useState<string | null>(null)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [missingProgressList, setMissingProgressList] = useState(initialMissing)
   const [missingProgress, setMissingProgress] = useState<Record<string, Record<string, number>>>({})
@@ -138,23 +138,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || 'Failed to record the review. Please try again.')
+      setAlertMsg(data.error || 'Failed to record the review. Please try again.')
       setReviewingId(null)
       return
     }
     setRecommendations(prev => prev.filter(r => r.id !== rec.id))
-    if (action !== 'rejected') {
-      const newRecord = {
-        id: rec.id,
-        from_level: rec.student.current_level,
-        to_level: String(finalLevel),
-        upgraded_at: new Date().toISOString(),
-        notes: null,
-        students: { full_name: rec.student.full_name },
-        admins: { first_name: 'Admin', last_name: '' }
-      }
-      setUpgradeHistory(prev => [newRecord as any, ...prev])
-    }
     setReviewingId(null)
     window.location.reload()
   }
@@ -207,7 +195,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       window.location.reload()
     } else {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || 'Failed to submit progress. Please try again.')
+      setAlertMsg(data.error || 'Failed to submit progress. Please try again.')
     }
     setSubmittingMissing(null)
   }
@@ -748,6 +736,8 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
           </div>
         )}
       </div>
+
+      <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
 
       {/* Confirm Modal */}
       {showConfirm && selectedStudent && selectedLevel && (
