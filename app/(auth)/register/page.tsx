@@ -100,7 +100,6 @@ export default function RegisterPage() {
   const [phoneVerifying, setPhoneVerifying] = useState(false)
   const [phoneError, setPhoneError] = useState('')
   const [phoneCooldown, setPhoneCooldown] = useState(0)
-  const [phoneWarning, setPhoneWarning] = useState('')
 
   const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '' }])
   const [termsAccepted, setTermsAccepted] = useState(false)
@@ -121,7 +120,7 @@ export default function RegisterPage() {
   }, [phoneCooldown])
 
   useEffect(() => { setEmailVerified(false); setEmailOtpSent(false); setEmailOtpCode(''); setEmailError('') }, [email])
-  useEffect(() => { setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode(''); setPhoneError(''); setPhoneWarning('') }, [phone])
+  useEffect(() => { setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode(''); setPhoneError('') }, [phone])
 
   const addressInputRef = useRef<HTMLInputElement>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -207,7 +206,7 @@ export default function RegisterPage() {
 
   async function sendPhoneOtp() {
     if (!phone.trim()) { setPhoneError(t('register.err.enterPhone')); return }
-    setPhoneSending(true); setPhoneError(''); setPhoneWarning('')
+    setPhoneSending(true); setPhoneError('')
     try {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
@@ -218,7 +217,6 @@ export default function RegisterPage() {
       if (!res.ok) { setPhoneError(tErr(data.error, 'register.err.sendFailed')); setPhoneSending(false); return }
       setPhoneOtpSent(true)
       setPhoneCooldown(60)
-      if (data.warning) setPhoneWarning(tErr(data.warning))
     } catch {
       setPhoneError(t('register.err.sendFailedRetry'))
     }
@@ -366,7 +364,6 @@ export default function RegisterPage() {
                 </div>
               )}
               {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
-              {phoneWarning && <p className="text-amber-600 text-xs mt-1">{phoneWarning}</p>}
               <p className="text-xs text-gray-400 mt-2 leading-relaxed">{t('register.sms.body')}<a href="/privacy-policy" target="_blank" className="underline hover:text-gray-600">{t('register.sms.privacy')}</a>{t('register.sms.mid')}<a href="/sms-terms" target="_blank" className="underline hover:text-gray-600">{t('register.sms.terms')}</a>{t('register.sms.end')}</p>
             </div>
 
