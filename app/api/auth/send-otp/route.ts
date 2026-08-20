@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { randomInt } from 'crypto'
+import { serviceClient } from '@/lib/api-auth'
+import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 
 export const runtime = 'nodejs'
+
+const CODE_TTL_MS = 10 * 60 * 1000
+const RESEND_COOLDOWN_MS = 60 * 1000
+const MAX_PER_HOUR = 5
 
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -15,10 +21,7 @@ export async function POST(req: NextRequest) {
   if (!phone) return NextResponse.json({ error: 'Missing phone number' }, { status: 400 })
 
   const normalizedPhone = normalizePhone(phone)
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const supabase = serviceClient()
 
   if (context === 'register') {
     const last10 = normalizedPhone.replace(/\D/g, '').slice(-10)
@@ -35,46 +38,49 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const otpCode = String(Math.floor(100000 + Math.random() * 900000))
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+  // Throttle server-side. The register page has a 60s cooldown of its own, but
+  // that only slows the browser down, and every text costs money -- the limit
+  // has to live here, where a direct POST cannot step around it.
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { data: recent, error: recentError } = await supabase
+    .from('phone_otps')
+    .select('created_at')
+    .eq('phone', normalizedPhone)
+    .gte('created_at', hourAgo)
+    .order('created_at', { ascending: false })
+
+  if (recentError) {
+    return NextResponse.json({ error: 'Failed to create verification code' }, { status: 500 })
+  }
+  if (recent && recent.length >= MAX_PER_HOUR) {
+    return NextResponse.json({ error: 'Too many codes requested for this number. Please try again later.' }, { status: 429 })
+  }
+  if (recent && recent[0] && Date.now() - new Date(recent[0].created_at).getTime() < RESEND_COOLDOWN_MS) {
+    return NextResponse.json({ error: 'Please wait a minute before requesting another code.' }, { status: 429 })
+  }
+
+  // randomInt, not Math.random: this code is a login boundary and V8's PRNG is
+  // predictable from enough observed output.
+  const otpCode = String(randomInt(100000, 1000000))
+
+  // Send BEFORE writing the row. The reverse leaves a row for a code that was
+  // never delivered, and the cooldown above would then run from that row --
+  // locking the caller out behind a text they are never going to receive.
+  const sent = await sendSms(
+    normalizedPhone,
+    `Your Manta Shark Aquatics verification code is: ${otpCode}. It expires in 10 minutes.${SMS_COMPLIANCE_SUFFIX}`
+  )
+  if (!sent.ok) {
+    return NextResponse.json({ error: sent.reason }, { status: 502 })
+  }
 
   const { error: insertError } = await supabase.from('phone_otps').insert({
     phone: normalizedPhone,
     otp_code: otpCode,
-    expires_at: expiresAt,
+    expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString(),
   })
   if (insertError) {
     return NextResponse.json({ error: 'Failed to create verification code' }, { status: 500 })
-  }
-
-  const accountSid = process.env.TWILIO_ACCOUNT_SID!
-  const authToken = process.env.TWILIO_AUTH_TOKEN!
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID!
-
-  try {
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          MessagingServiceSid: messagingServiceSid,
-          To: normalizedPhone,
-          Body: `Your Manta Shark Aquatics verification code is: ${otpCode}. It expires in 10 minutes. Msg&Data rates may apply. Reply HELP for help, STOP to opt out.`,
-        }),
-      }
-    )
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}))
-      console.error('Twilio send error:', errData)
-      return NextResponse.json({ ok: true, warning: 'SMS delivery may be delayed (carrier registration pending)' })
-    }
-  } catch (e) {
-    console.error('Twilio fetch error:', e)
-    return NextResponse.json({ ok: true, warning: 'SMS delivery may be delayed' })
   }
 
   return NextResponse.json({ ok: true })
