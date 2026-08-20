@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendSms } from '@/lib/sms'
 
 export const runtime = 'nodejs'
 
@@ -105,10 +106,6 @@ export async function GET(request: Request) {
   const courseTypeMap = new Map((courseTypesRes.data || []).map((r) => [r.id, r]))
   const coachMap = new Map((coachesRes.data || []).map((r) => [r.id, r]))
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID!
-  const authToken = process.env.TWILIO_AUTH_TOKEN!
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID!
-
   const results: Array<Record<string, unknown>> = []
   let sent = 0
 
@@ -124,32 +121,20 @@ export async function GET(request: Request) {
     const message = `Hi ${parent.first_name}! Reminder: ${student?.full_name} has a ${courseType?.name} lesson tomorrow at ${time} with Coach ${coach?.first_name}. See you then! - Manta Shark Aquatics`
 
     try {
-      const response = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            MessagingServiceSid: messagingServiceSid,
-            To: parent.phone,
-            Body: message,
-          }),
-        }
-      )
-      const data = await response.json()
-      if (response.ok && data.sid) {
+      const result = await sendSms(parent.phone, message)
+      if (result.ok && result.sid) {
         const { error: updErr } = await supabase
           .from('bookings')
           .update({ reminder_sent_at: new Date().toISOString() })
           .eq('id', booking.id)
         if (updErr) console.error('Error stamping reminder_sent_at:', booking.id, updErr)
         sent += 1
-        results.push({ booking_id: booking.id, status: data.status, to: parent.phone, stamped: !updErr })
+        results.push({ booking_id: booking.id, status: result.status, to: parent.phone, stamped: !updErr })
       } else {
-        results.push({ booking_id: booking.id, error: data.message || data.code || 'twilio rejected' })
+        results.push({
+          booking_id: booking.id,
+          error: result.ok ? 'twilio accepted the message but returned no sid' : result.code ?? result.reason,
+        })
       }
     } catch (err) {
       results.push({ booking_id: booking.id, error: String(err) })

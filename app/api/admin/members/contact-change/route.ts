@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHash, randomInt } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
+import { sendSms } from '@/lib/sms'
 
 export const runtime = 'nodejs'
 
@@ -23,23 +24,6 @@ function normalizePhone(phone: string): string {
 const hashCode = (c: string) => createHash('sha256').update(String(c).trim()).digest('hex')
 const maskEmail = (e: string) => String(e).replace(/^(.)[^@]*(@.*)$/, '$1•••$2')
 const maskPhone = (p: string) => '•••-•••-' + String(p).replace(/\D/g, '').slice(-4)
-
-async function sendSms(to: string, body: string): Promise<boolean> {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID!
-  const authToken = process.env.TWILIO_AUTH_TOKEN!
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID!
-  try {
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ MessagingServiceSid: messagingServiceSid, To: to, Body: body }),
-    })
-    return r.ok
-  } catch { return false }
-}
 
 async function applyChange(svc: any, parent: any, field: string, value: string) {
   if (field === 'email') {
@@ -169,8 +153,9 @@ export async function POST(req: NextRequest) {
 
     let delivered = false
     if (field === 'email') {
-      delivered = await sendSms(normalizePhone(parent.phone),
+      const smsResult = await sendSms(normalizePhone(parent.phone),
         `Manta Shark Aquatics: your verification code is ${code}. It expires in 10 minutes. Only share it with our staff if you asked to change your account email.`)
+      delivered = smsResult.ok
     } else {
       try {
         await sendEmail({ type: 'contact_change_code', to: parent.email, parentName: parent.first_name, code })

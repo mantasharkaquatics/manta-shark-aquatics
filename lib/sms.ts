@@ -1,4 +1,10 @@
-export type SmsResult = { ok: true } | { ok: false; reason: string }
+// Every outbound SMS in the codebase goes through here. Callers get a shaped
+// result instead of a raw Response: `reason` is safe to show a parent, while
+// `sid` / `status` / `code` are the operator-facing details a cron or an admin
+// route wants in its log. Twilio credentials are read here and nowhere else.
+export type SmsResult =
+  | { ok: true; sid?: string; status?: string }
+  | { ok: false; reason: string; code?: number }
 
 export async function sendSms(to: string, body: string): Promise<SmsResult> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID
@@ -28,20 +34,27 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
       }
     )
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}))
-      console.error('sendSms: Twilio rejected the message', response.status, errData)
-      const code = (errData as { code?: number }).code
-      if (code === 21211 || code === 21614) {
-        return { ok: false, reason: 'That phone number could not receive a text. Please check it and try again.' }
-      }
-      if (code === 21610) {
-        return { ok: false, reason: 'This number has opted out of our texts. Reply START to re-subscribe, then try again.' }
-      }
-      return { ok: false, reason: 'We could not send the text message. Please try again in a moment.' }
+    const data = (await response.json().catch(() => ({}))) as {
+      sid?: string
+      status?: string
+      code?: number
     }
 
-    return { ok: true }
+    if (!response.ok) {
+      console.error('sendSms: Twilio rejected the message', response.status, data)
+      const code = data.code
+      if (code === 21211 || code === 21614) {
+        return { ok: false, reason: 'That phone number could not receive a text. Please check it and try again.', code }
+      }
+      if (code === 21610) {
+        return { ok: false, reason: 'This number has opted out of our texts. Reply START to re-subscribe, then try again.', code }
+      }
+      return { ok: false, reason: 'We could not send the text message. Please try again in a moment.', code }
+    }
+
+    // A 2xx with no sid is not a delivery Twilio ever promised to make. Callers
+    // that stamp a "we texted them" row check for the sid, not just ok.
+    return { ok: true, sid: data.sid, status: data.status }
   } catch (e) {
     console.error('sendSms: network error reaching Twilio', e)
     return { ok: false, reason: 'We could not send the text message. Please try again in a moment.' }
