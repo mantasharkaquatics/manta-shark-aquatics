@@ -7,6 +7,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // nobody finds out either way. The three RPCs used to be called bare, with the
 // result thrown away, at 22 of their 23 call sites.
 //
+// Postgres refuses to overdraw. Both tables carry a ceiling constraint added
+// 2026-08-19 -- token_packages_used_within_total and
+// lesson_credits_used_within_total -- because the balance check lives in
+// TypeScript while the increment lives in SQL, so two concurrent bookings by
+// one parent could both read "one left" and both spend it. The RPCs have no
+// upper guard of their own (decrement_used_credits has had a greatest(0, ...)
+// floor all along; nobody had written the ceiling). When the race happens the
+// second increment now raises, and it arrives here as an ordinary error.
+//
 // A failure is logged and reported back, never thrown. By the time these run
 // the booking row has already been written, so failing the request would
 // punish the family for an accounting write they cannot see. The log carries
