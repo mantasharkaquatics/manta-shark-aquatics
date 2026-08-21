@@ -155,3 +155,23 @@
   .booking-step-label { display: none !important; }
   .booking-step-line { width: 24px !important; margin-bottom: 0 !important; }
 }
+
+/* Chrome paints autofilled fields pale blue with black text and will not let a
+   background-color declaration win -- the colour is applied by the UA above the
+   cascade. The one thing it does honour is an inset box-shadow, so a 1000px
+   inset shadow in the field's own colour covers the blue, and -webkit-text-fill-color
+   overrides the black. Without this a returning parent lands on the navy sign-in
+   card and sees two pale blue boxes.
+
+   Scoped to .auth-shell on purpose: several admin screens (members, invoices, POS,
+   checkin...) are still light-themed, and a global version of this rule would paint
+   navy blocks over their white inputs. */
+.auth-shell input:-webkit-autofill,
+.auth-shell input:-webkit-autofill:hover,
+.auth-shell input:-webkit-autofill:focus,
+.auth-shell input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0d1529 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+  border-color: #1e3a6e;
+}

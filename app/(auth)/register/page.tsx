@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import { LEGAL_VERSIONS } from '@/lib/legal'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -34,7 +35,7 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
     onChange(ny && nm && fd ? `${ny}-${nm}-${fd}` : '')
   }
 
-  const selCls = "border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
+  const selCls = "bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-2 py-2.5 text-sm"
   return (
     <div className="grid grid-cols-3 gap-2">
       <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls}>
@@ -281,38 +282,41 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
+    <div className="auth-shell min-h-screen bg-[#0d1529] flex items-center justify-center py-10 px-4">
+      <div className="bg-[#111d38] rounded-2xl border border-[#1e3a6e] w-full max-w-lg p-6 sm:p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">{t('register.title')}</h1>
-          <p className="text-sm text-gray-500 mt-1">{t('register.step', { n: step })}</p>
+          <Link href="/" className="inline-block">
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={56} height={56} className="mx-auto mb-3 rounded-full object-cover" />
+          </Link>
+          <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('register.title')}</h1>
+          <p className="text-sm text-gray-400 mt-1">{t('register.step', { n: step })}</p>
         </div>
 
         {step === 1 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.firstName')} <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.firstName')} <span className="text-red-400">*</span></label>
                 <input value={firstName} onChange={e => setFirstName(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.lastName')} <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.lastName')} <span className="text-red-400">*</span></label>
                 <input value={lastName} onChange={e => setLastName(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.email')} <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.email')} <span className="text-red-400">*</span></label>
               <div className="flex gap-2">
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailVerified}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500" />
+                  className="flex-1 bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {emailVerified ? (
-                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
+                  <span className="flex items-center px-3 text-green-400 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
                 ) : (
                   <button type="button" onClick={sendEmailOtp} disabled={emailSending || emailCooldown > 0 || !email.trim()}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap">
+                    className="px-4 min-h-11 bg-[#1e3a6e] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap">
                     {emailCooldown > 0 ? t('register.cooldown', { n: emailCooldown }) : emailSending ? t('register.sending') : emailOtpSent ? t('register.resendCode') : t('register.sendCode')}
                   </button>
                 )}
@@ -324,27 +328,27 @@ export default function RegisterPage() {
                     value={emailOtpCode}
                     onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.emailCodePh')}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-blue-500" />
+                    className="flex-1 bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm tracking-widest" />
                   <button type="button" onClick={verifyEmailOtp} disabled={emailVerifying || emailOtpCode.length !== 6}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
+                    className="px-4 min-h-11 bg-[#c9a84c] text-[#111d38] rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-50 whitespace-nowrap">
                     {emailVerifying ? t('register.verifying') : t('register.verify')}
                   </button>
                 </div>
               )}
-              {emailError && <p className="text-red-500 text-xs mt-1">{emailError}</p>}
+              {emailError && <p className="text-red-400 text-xs mt-1">{emailError}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.phone')} <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.phone')} <span className="text-red-400">*</span></label>
               <div className="flex gap-2">
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={phoneVerified}
                   placeholder="(555) 123-4567"
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500" />
+                  className="flex-1 bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {phoneVerified ? (
-                  <span className="flex items-center px-3 text-green-600 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
+                  <span className="flex items-center px-3 text-green-400 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
                 ) : (
                   <button type="button" onClick={sendPhoneOtp} disabled={phoneSending || phoneCooldown > 0 || !phone.trim()}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap">
+                    className="px-4 min-h-11 bg-[#1e3a6e] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap">
                     {phoneCooldown > 0 ? t('register.cooldown', { n: phoneCooldown }) : phoneSending ? t('register.sending') : phoneOtpSent ? t('register.resendCode') : t('register.sendCode')}
                   </button>
                 )}
@@ -356,22 +360,22 @@ export default function RegisterPage() {
                     value={phoneOtpCode}
                     onChange={e => setPhoneOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.smsCodePh')}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-blue-500" />
+                    className="flex-1 bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm tracking-widest" />
                   <button type="button" onClick={verifyPhoneOtp} disabled={phoneVerifying || phoneOtpCode.length !== 6}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
+                    className="px-4 min-h-11 bg-[#c9a84c] text-[#111d38] rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-50 whitespace-nowrap">
                     {phoneVerifying ? t('register.verifying') : t('register.verify')}
                   </button>
                 </div>
               )}
-              {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
-              <p className="text-xs text-gray-400 mt-2 leading-relaxed">{t('register.sms.body')}<a href="/privacy-policy" target="_blank" className="underline hover:text-gray-600">{t('register.sms.privacy')}</a>{t('register.sms.mid')}<a href="/sms-terms" target="_blank" className="underline hover:text-gray-600">{t('register.sms.terms')}</a>{t('register.sms.end')}</p>
+              {phoneError && <p className="text-red-400 text-xs mt-1">{phoneError}</p>}
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">{t('register.sms.body')}<a href="/privacy-policy" target="_blank" className="underline hover:text-gray-300">{t('register.sms.privacy')}</a>{t('register.sms.mid')}<a href="/sms-terms" target="_blank" className="underline hover:text-gray-300">{t('register.sms.terms')}</a>{t('register.sms.end')}</p>
             </div>
 
-            <div className="border-t border-gray-100 pt-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">{t('register.addrHeading')}</p>
+            <div className="border-t border-[#1e3a6e] pt-4">
+              <p className="text-xs font-semibold text-[#c9a84c] uppercase tracking-wider mb-3">{t('register.addrHeading')}</p>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.addr1')} <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.addr1')} <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <input
                       ref={addressInputRef}
@@ -379,13 +383,13 @@ export default function RegisterPage() {
                       onChange={e => handleAddressInput(e.target.value)}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                       placeholder={t('register.addrPh')}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
                     {showSuggestions && suggestions.length > 0 && (
-                      <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                      <ul className="absolute z-50 w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto">
                         {suggestions.map((s: any) => (
                           <li key={s.place_id}
                             onMouseDown={() => selectSuggestion(s.place_id, s.description)}
-                            className="px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer">
+                            className="px-3 py-2.5 text-sm text-gray-200 hover:bg-[#1e3a6e] cursor-pointer">
                             {s.description}
                           </li>
                         ))}
@@ -394,28 +398,28 @@ export default function RegisterPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.addr2')} <span className="text-gray-400 font-normal">{t('register.optional')}</span></label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.addr2')} <span className="text-gray-500 font-normal">{t('register.optional')}</span></label>
                   <input value={addressLine2} onChange={e => setAddressLine2(e.target.value)}
                     placeholder={t('register.aptPh')}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.city')} <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.city')} <span className="text-red-400">*</span></label>
                     <input value={city} onChange={e => setCity(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.zip')} <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.zip')} <span className="text-red-400">*</span></label>
                     <input value={zipCode} onChange={e => setZipCode(e.target.value)}
                       placeholder="90210" maxLength={10}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.state')} <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.state')} <span className="text-red-400">*</span></label>
                   <select value={state} onChange={e => setState(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white">
+                    className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm">
                     <option value="">{t('register.selectState')}</option>
                     {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -424,20 +428,20 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('register.password')} <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.password')} <span className="text-red-400">*</span></label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
             </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && <p className="text-red-400 text-sm">{error}</p>}
             <button
               onClick={handleContinue}
               disabled={!emailVerified || !phoneVerified}
-              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#c9a84c] text-[#111d38] py-3 rounded-lg font-bold hover:opacity-90 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {(!emailVerified || !phoneVerified) ? t('register.verifyFirst') : t('register.continue')}
             </button>
-            <p className="text-center text-sm text-gray-500">
-              {t('register.haveAccount')} <Link href="/login" className="text-blue-600 hover:underline">{t('register.signIn')}</Link>
+            <p className="text-center text-sm text-gray-400">
+              {t('register.haveAccount')} <Link href="/login" className="text-[#c9a84c] hover:underline">{t('register.signIn')}</Link>
             </p>
           </div>
         )}
@@ -445,59 +449,59 @@ export default function RegisterPage() {
         {step === 2 && (
           <div className="space-y-4">
             {students.map((s, i) => (
-              <div key={i} className="border border-gray-200 rounded-xl p-4">
-                <p className="text-sm font-semibold text-gray-700 mb-3">{t('register.student', { n: i + 1 })} {i === 0 && <span className="text-red-500">*</span>}</p>
+              <div key={i} className="border border-[#1e3a6e] rounded-xl p-4">
+                <p className="text-sm font-semibold text-gray-200 mb-3">{t('register.student', { n: i + 1 })} {i === 0 && <span className="text-red-400">*</span>}</p>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">{t('register.fullName')}</label>
+                    <label className="block text-sm text-gray-400 mb-1">{t('register.fullName')}</label>
                     <input value={s.fullName} onChange={e => updateStudent(i, 'fullName', e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">{t('register.dob')}</label>
+                    <label className="block text-sm text-gray-400 mb-1">{t('register.dob')}</label>
                     <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} />
                   </div>
                 </div>
               </div>
             ))}
             {students.length < MAX_STUDENTS && (
-              <button onClick={addStudent} className="w-full border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors">
+              <button onClick={addStudent} className="w-full border-2 border-dashed border-[#1e3a6e] rounded-xl py-3 text-sm text-gray-400 hover:border-[#c9a84c] hover:text-[#c9a84c] transition-colors">
                 {t('register.addStudent')}
               </button>
             )}
             <div className="space-y-3 pt-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">{t('register.terms.pre')}<Link href="/terms" target="_blank" className="text-blue-600 hover:underline">{t('register.terms.tos')}</Link>{t('register.terms.mid')}<Link href="/policies" target="_blank" className="text-blue-600 hover:underline">{t('register.terms.policies')}</Link><span className="text-red-500 ml-1">*</span></span>
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#1e3a6e] bg-[#0d1529] accent-[#c9a84c]" />
+                <span className="text-sm text-gray-300">{t('register.terms.pre')}<Link href="/terms" target="_blank" className="text-[#c9a84c] hover:underline">{t('register.terms.tos')}</Link>{t('register.terms.mid')}<Link href="/policies" target="_blank" className="text-[#c9a84c] hover:underline">{t('register.terms.policies')}</Link><span className="text-red-400 ml-1">*</span></span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={waiverAccepted} onChange={e => setWaiverAccepted(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">{t('register.waiver.pre')}<Link href="/waiver" target="_blank" className="text-blue-600 hover:underline">{t('register.waiver.link')}</Link>{t('register.waiver.post')}<span className="text-red-500 ml-1">*</span></span>
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#1e3a6e] bg-[#0d1529] accent-[#c9a84c]" />
+                <span className="text-sm text-gray-300">{t('register.waiver.pre')}<Link href="/waiver" target="_blank" className="text-[#c9a84c] hover:underline">{t('register.waiver.link')}</Link>{t('register.waiver.post')}<span className="text-red-400 ml-1">*</span></span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={mediaAccepted} onChange={e => setMediaAccepted(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">{t('register.media.pre')}<Link href="/media-release" target="_blank" className="text-blue-600 hover:underline">{t('register.media.link')}</Link></span>
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#1e3a6e] bg-[#0d1529] accent-[#c9a84c]" />
+                <span className="text-sm text-gray-300">{t('register.media.pre')}<Link href="/media-release" target="_blank" className="text-[#c9a84c] hover:underline">{t('register.media.link')}</Link></span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={newsletter} onChange={e => setNewsletter(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span className="text-sm text-gray-600">{t('register.newsletter')}</span>
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#1e3a6e] bg-[#0d1529] accent-[#c9a84c]" />
+                <span className="text-sm text-gray-300">{t('register.newsletter')}</span>
               </label>
             </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3 pt-2">
               <button onClick={() => { setStep(1); setError('') }}
-                className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm">{t('register.back')}</button>
+                className="flex-1 border border-[#1e3a6e] text-gray-300 py-3 rounded-lg font-medium hover:bg-[#1e3a6e] transition-colors text-sm">{t('register.back')}</button>
               <button onClick={handleSubmit} disabled={loading}
-                className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
+                className="flex-1 bg-[#c9a84c] text-[#111d38] py-3 rounded-lg font-bold hover:opacity-90 transition text-sm disabled:opacity-50">
                 {loading ? t('register.creating') : t('register.createAccount')}
               </button>
             </div>
-            <p className="text-center text-sm text-gray-500">
-              {t('register.haveAccount')} <Link href="/login" className="text-blue-600 hover:underline">{t('register.signIn')}</Link>
+            <p className="text-center text-sm text-gray-400">
+              {t('register.haveAccount')} <Link href="/login" className="text-[#c9a84c] hover:underline">{t('register.signIn')}</Link>
             </p>
           </div>
         )}
