@@ -3,6 +3,7 @@ import ChatWidget from '@/components/ChatWidget'
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
@@ -479,6 +480,7 @@ export default function DashboardPage() {
   const [lvYear, setLvYear] = useState(() => new Date().getFullYear())
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('morning')
+  const router = useRouter()
 
   async function loadTokens() {
     try {
@@ -557,11 +559,23 @@ export default function DashboardPage() {
   async function fetchAll() {
     loadTokens()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    // Both of these used to be a bare `return`, which left loading at true and
+    // the page on its spinner for ever. A coach or an admin who follows a link
+    // here -- or anyone whose session has expired -- just watched it turn.
+    if (!user) { router.replace('/login'); return }
 
     const { data: parentData } = await supabase
       .from('parents').select('*').eq('auth_user_id', user.id).single()
-    if (!parentData) return
+    if (!parentData) {
+      const { data: admin } = await supabase
+        .from('admins').select('id').eq('auth_user_id', user.id).maybeSingle()
+      if (admin) { router.replace('/admin'); return }
+      const { data: coach } = await supabase
+        .from('coaches').select('id').eq('auth_user_id', user.id).maybeSingle()
+      if (coach) { router.replace('/coach'); return }
+      router.replace('/login')
+      return
+    }
     setParent(parentData)
 
     const today = getTodayLA()
