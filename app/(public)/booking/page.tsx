@@ -379,12 +379,11 @@ export default function BookingPage() {
   async function loadTimeSlots() {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
 
-    const dow = selectedDate.getDay()
     const dateStr = formatDateLA(selectedDate)
 
     // Server API bypasses RLS: booked slots, coach blocks, and availability zones in one call
     const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}&student_id=${selectedStudent?.id || ''}`)
-    const { times: bookedTimes, blocked: coachBlocked, zones, studentBusy } = await bookedRes.json()
+    const { times: bookedTimes, blocked: coachBlocked, zones, studentBusy, legacyWindows } = await bookedRes.json()
 
     const fillByTime: Record<string, string> = {}
     const allSlots: string[] = []
@@ -402,13 +401,9 @@ export default function BookingPage() {
         allSlots.push(...gs)
       }
     } else {
-      const { data: avail } = await supabase
-        .from('coach_availability')
-        .select('start_time, end_time')
-        .eq('coach_id', selectedCoach.id)
-        .eq('day_of_week', dow)
-        .eq('is_active', true)
-      for (const a of avail || []) {
+      // Legacy coach: the windows come from the same server call as everything
+      // else, because coach_availability is not readable from the browser.
+      for (const a of legacyWindows || []) {
         allSlots.push(...generateSlots(a.start_time, a.end_time))
       }
     }

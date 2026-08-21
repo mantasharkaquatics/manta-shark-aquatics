@@ -41,6 +41,27 @@ export async function GET(req: NextRequest) {
   const blocked = blockedIntervalsFor(coachBlocks, coach_id)
   const zones = await getEffectiveZones(supabase, coach_id, session_date)
 
+  // A coach with no zone rows is still on the old coach_availability table, and
+  // that day has to be resolved HERE. The booking page used to read the table
+  // straight from the browser with the publishable key: if RLS blocks it the
+  // query returns an empty array rather than an error, the page finds zero
+  // windows, and the parent is shown "no times" for a coach who is working all
+  // day. Same service client as everything else this route returns.
+  let legacyWindows: { start_time: string; end_time: string }[] = []
+  if (zones.legacy) {
+    const dow = new Date(session_date + 'T00:00:00Z').getUTCDay()
+    const { data: avail } = await supabase
+      .from('coach_availability')
+      .select('start_time, end_time')
+      .eq('coach_id', coach_id)
+      .eq('day_of_week', dow)
+      .eq('is_active', true)
+    legacyWindows = (avail || []).map((a: any) => ({
+      start_time: String(a.start_time).slice(0, 5),
+      end_time: String(a.end_time).slice(0, 5),
+    }))
+  }
+
   // Step 1: find all class_sessions for this coach on this date
   const { data: sessions } = await supabase
     .from('class_sessions')
@@ -48,7 +69,7 @@ export async function GET(req: NextRequest) {
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
 
-  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked, zones, studentBusy })
+  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked, zones, studentBusy, legacyWindows })
 
   const sessionIds = sessions.map(s => s.id)
   const sessionMap: Record<string, any> = {}
@@ -72,5 +93,5 @@ export async function GET(req: NextRequest) {
     }
   }).filter(x => x.time)
 
-  return NextResponse.json({ times, blocked, zones, studentBusy })
+  return NextResponse.json({ times, blocked, zones, studentBusy, legacyWindows })
 }
