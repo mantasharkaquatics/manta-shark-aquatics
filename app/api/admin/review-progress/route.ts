@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { refreshNoteTranslations } from '@/lib/ai/translate-note'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { history_id, student_id, updated_snapshot, note_id, note_text } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { history_id, student_id, updated_snapshot, note_id, note_text } = body
   const admin_id = auth.admin.id
   const supabase = auth.svc
 

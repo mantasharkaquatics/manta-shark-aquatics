@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { requireStaff } from '@/lib/api-auth'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function GET(req: NextRequest) {
   const staff = await requireStaff()
@@ -105,7 +106,9 @@ export async function POST(req: NextRequest) {
 
   const staff = await requireStaff()
   if (!staff) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { student_id, progress, session_date, class_session_id, coach_id: bodyCoachId } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { student_id, progress, session_date, class_session_id, coach_id: bodyCoachId } = body
   let coach_id: string | null = null
   if (staff.role === 'coach') {
     const { data: self } = await supabase.from('coaches').select('id').eq('auth_user_id', staff.user.id).single()

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
+import { readJson, badRequest } from '@/lib/http'
 
 const svc = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,7 +30,9 @@ export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { first_name, last_name, email, pin } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { first_name, last_name, email, pin } = body
   if (!first_name?.trim() || !email?.trim()) {
     return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
   }
@@ -72,7 +75,9 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { id, first_name, last_name, pin, is_active } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { id, first_name, last_name, pin, is_active } = body
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const s = svc()

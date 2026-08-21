@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -13,7 +14,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabaseAuth.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { session_ids, parent_id: requestedParentId } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { session_ids, parent_id: requestedParentId } = body
   if (!session_ids?.length) return NextResponse.json({ partners: {} })
 
   const supabase = createClient(

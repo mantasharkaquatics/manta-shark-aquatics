@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { readJson, badRequest } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(req: NextRequest) {
-  const { email, context } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { email, context } = body
   if (!email) return NextResponse.json({ error: 'Missing email' }, { status: 400 })
 
   const normalizedEmail = email.trim().toLowerCase()

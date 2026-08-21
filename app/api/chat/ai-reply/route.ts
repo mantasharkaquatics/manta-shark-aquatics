@@ -9,6 +9,7 @@ import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { PLANS } from '@/lib/plans'
 import { getTodayLA, getNowMinutesLA, formatTime12h, SLOT_STEP_MINUTES } from '@/lib/date'
 import { cancelBookingWithPartner } from '@/lib/bookings/cancel'
+import { readJson, badRequest } from '@/lib/http'
 
 const FALLBACK = 'Thanks for your message! A member of our team will get back to you shortly.'
 const MODEL = 'claude-sonnet-4-6'
@@ -217,7 +218,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabaseAuth.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { thread_id } = await req.json()
+  const reqBody = await readJson(req)
+  if (!reqBody) return badRequest()
+  const { thread_id } = reqBody
   if (!thread_id) return NextResponse.json({ error: 'Missing thread_id' }, { status: 400 })
 
   const svc = createServiceClient(

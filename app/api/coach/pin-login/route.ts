@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
-  const { pin } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { pin } = body
   if (!pin || pin.length !== 8) {
     return NextResponse.json({ error: 'Invalid PIN' }, { status: 400 })
   }

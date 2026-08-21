@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA } from '@/lib/date'
+import { readJson, badRequest } from '@/lib/http'
 
 // Admin CRUD for coach availability zones (spec v1.1).
 // GET ?coach_id → weekly template + legacy hours + tiers
@@ -110,7 +111,9 @@ export async function PUT(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const svc = auth.svc
 
-  const { coach_id, zones } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { coach_id, zones } = body
   if (!coach_id || !Array.isArray(zones))
     return NextResponse.json({ error: 'coach_id and zones[] required' }, { status: 400 })
   const err = validateZones(zones, true)
@@ -149,7 +152,9 @@ export async function POST(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const svc = auth.svc
 
-  const { coach_id, date, clear, closed, zones } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { coach_id, date, clear, closed, zones } = body
   if (!coach_id || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date))
     return NextResponse.json({ error: 'coach_id and date required' }, { status: 400 })
 

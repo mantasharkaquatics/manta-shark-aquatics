@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies()
@@ -62,7 +63,9 @@ export async function POST(req: NextRequest) {
 
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { booking_id, student_id, class_session_id, checked_in } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { booking_id, student_id, class_session_id, checked_in } = body
 
   // A 60-minute lesson is two linked bookings. Attendance follows the whole
   // group, the way cancellation and credits already do: ticking or un-ticking

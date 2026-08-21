@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/api-auth'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const internalKey = req.headers.get('x-internal-key')
@@ -13,7 +14,9 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { parent_id, lesson_credit_id, amount, payment_method, items, stripe_payment_intent_id, notes } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { parent_id, lesson_credit_id, amount, payment_method, items, stripe_payment_intent_id, notes } = body
 
   const year = new Date().getFullYear()
   const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')

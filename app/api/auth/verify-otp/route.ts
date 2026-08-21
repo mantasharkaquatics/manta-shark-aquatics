@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/api-auth'
+import { readJson, badRequest } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
@@ -13,7 +14,9 @@ function normalizePhone(phone: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { phone, otp_code } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { phone, otp_code } = body
   if (!phone || !otp_code) return NextResponse.json({ error: 'Missing phone or code' }, { status: 400 })
 
   const normalizedPhone = normalizePhone(phone)

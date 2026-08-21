@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -26,7 +27,9 @@ export async function POST(req: NextRequest) {
 
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { student_id, level } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { student_id, level } = body
   if (!student_id || !level) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
   const { error } = await supabase

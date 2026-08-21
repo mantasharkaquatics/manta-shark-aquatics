@@ -4,11 +4,14 @@ import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { tokenExpiryFromNow } from '@/lib/tokens'
 import { refundCredit } from '@/lib/ledger'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { session_id } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { session_id } = body
   if (!session_id) return NextResponse.json({ error: 'Missing session_id' }, { status: 400 })
 
   const svc = auth.svc

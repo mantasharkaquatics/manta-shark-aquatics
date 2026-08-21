@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { readJson, badRequest } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
-  const { email, otp_code } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { email, otp_code } = body
   if (!email || !otp_code) return NextResponse.json({ error: 'Missing email or code' }, { status: 400 })
 
   const normalizedEmail = email.trim().toLowerCase()

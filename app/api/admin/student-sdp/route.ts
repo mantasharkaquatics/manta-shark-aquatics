@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/api-auth'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { student_id, legal_full_name, uci_number, service_code } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { student_id, legal_full_name, uci_number, service_code } = body
   if (!student_id) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
   const svc = createClient(

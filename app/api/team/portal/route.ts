@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { readJson, badRequest } from '@/lib/http'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -29,7 +30,9 @@ export async function POST(req: NextRequest) {
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 403 })
 
-  const { membership_id } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { membership_id } = body
   if (!membership_id) return NextResponse.json({ error: 'membership_id required' }, { status: 400 })
 
   const { data: tm } = await svc

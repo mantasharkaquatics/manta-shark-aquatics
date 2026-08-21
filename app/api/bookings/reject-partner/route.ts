@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { parent, svc } = auth
 
-  const { booking_id } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { booking_id } = body
 
   const { data: pending } = await svc
     .from('bookings')

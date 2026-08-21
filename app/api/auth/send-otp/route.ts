@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomInt } from 'crypto'
 import { serviceClient } from '@/lib/api-auth'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
+import { readJson, badRequest } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
@@ -17,7 +18,9 @@ function normalizePhone(phone: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { phone, context } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { phone, context } = body
   if (!phone) return NextResponse.json({ error: 'Missing phone number' }, { status: 400 })
 
   const normalizedPhone = normalizePhone(phone)

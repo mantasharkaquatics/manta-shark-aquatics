@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cancelBookingWithPartner, notifyCancellation, type CancelTarget } from '@/lib/bookings/cancel'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -14,7 +15,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabaseAuth.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { booking_id } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { booking_id } = body
   if (!booking_id) return NextResponse.json({ error: 'Missing booking_id' }, { status: 400 })
 
   const supabase = createClient(

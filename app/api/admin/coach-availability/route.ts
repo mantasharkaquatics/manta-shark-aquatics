@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/api-auth'
+import { readJson, badRequest } from '@/lib/http'
 
 const svc = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,7 +29,9 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { coach_id, days } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { coach_id, days } = body
   if (!coach_id || !Array.isArray(days)) {
     return NextResponse.json({ error: 'coach_id and days[] required' }, { status: 400 })
   }

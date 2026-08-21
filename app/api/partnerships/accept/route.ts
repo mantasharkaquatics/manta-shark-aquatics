@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
-  const { invite_code } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { invite_code } = body
   if (!invite_code) return NextResponse.json({ error: 'Missing invite_code' }, { status: 400 })
 
   const cookieStore = await cookies()

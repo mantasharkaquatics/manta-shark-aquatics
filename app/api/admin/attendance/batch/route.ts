@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
+import { readJson, badRequest } from '@/lib/http'
 
 const EARLY_WINDOW_MIN = 30
 const CHAIN_GAP_MIN = 30
@@ -15,7 +16,9 @@ export async function POST(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const supabase = auth.svc
 
-  const { student_id, check_in_method } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { student_id, check_in_method } = body
   if (!student_id) return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
 
   const { data: student } = await supabase

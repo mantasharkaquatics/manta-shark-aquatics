@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
-  const { partnership_id } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { partnership_id } = body
   if (!partnership_id) return NextResponse.json({ error: 'Missing partnership_id' }, { status: 400 })
 
   const cookieStore = await cookies()

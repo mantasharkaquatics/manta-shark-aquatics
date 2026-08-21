@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
+import { readJson, badRequest } from '@/lib/http'
 
 function t12(t: string) {
   const [h, m] = t.split(':').map(Number)
@@ -13,7 +14,9 @@ export async function POST(req: NextRequest) {
   if (!adminCtx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const svc = adminCtx.svc
 
-  const { session_id, coach_id, date, time } = await req.json()
+  const body = await readJson(req)
+  if (!body) return badRequest()
+  const { session_id, coach_id, date, time } = body
   if (!session_id || !coach_id || !date || !time)
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
 
