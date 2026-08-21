@@ -76,7 +76,7 @@ export default function CoachLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d1529] flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-[#0d1529] flex flex-col items-center justify-center px-4 sm:px-6">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-10">
           <Image src="/logo.png" alt="Manta Shark" width={72} height={72} className="mb-4" />
@@ -85,7 +85,10 @@ export default function CoachLoginPage() {
           <p className="text-gray-400 text-sm mt-1">Enter your 8-digit PIN</p>
         </div>
 
-        <div className="flex gap-2 justify-center mb-6">
+        {/* Eight fixed 40px boxes plus seven 8px gaps is 376px, which does not fit a
+            360px phone -- the last digit sat off-screen. They share the row instead
+            now and cap at the old 40px, so the desktop layout is unchanged. */}
+        <div className="flex gap-1.5 sm:gap-2 justify-center mb-6">
           {pin.map((digit, i) => (
             <input
               key={i}
@@ -97,7 +100,7 @@ export default function CoachLoginPage() {
               onChange={e => handleChange(i, e.target.value)}
               onKeyDown={e => handleKey(i, e)}
               autoFocus={i === 0}
-              className="w-10 h-12 text-center text-xl font-bold bg-[#111d38] border border-[#1e3a6e] rounded-lg text-white focus:outline-none focus:border-[#c9a84c] transition-colors"
+              className="flex-1 min-w-0 max-w-10 h-12 text-center text-xl font-bold bg-[#111d38] border border-[#1e3a6e] rounded-lg text-white focus:outline-none focus:border-[#c9a84c] transition-colors"
             />
           ))}
         </div>

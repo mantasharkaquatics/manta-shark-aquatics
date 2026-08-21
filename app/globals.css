@@ -152,6 +152,19 @@
      strip is 420px wide, so on a phone the last two steps sit off-screen behind
      a sideways scroll most people never discover. Numbers only: five 32px
      circles and four 24px rules come to 288px and fit any phone. */
+  /* Checkboxes across this app are w-4 h-4 -- a 16px square. That is small on a
+     desk with a mouse and genuinely hard on a phone, and the ones that matter are
+     the worst place to miss: a coach ticking "all day" on a time-off request with
+     wet hands, a parent ticking the waiver. 20px is the smallest that reads as a
+     deliberate target without shifting any of the rows they sit in.
+
+     !important because every one of them carries a w-4/h-4 utility class. */
+  input[type="checkbox"], input[type="radio"] {
+    width: 20px !important;
+    height: 20px !important;
+    flex-shrink: 0;
+  }
+
   .booking-step-label { display: none !important; }
   .booking-step-line { width: 24px !important; margin-bottom: 0 !important; }
 }

@@ -66,7 +66,8 @@ export default function CareersNav() {
                   border: '1px solid rgba(255,255,255,0.25)',
                   color: '#fff',
                   borderRadius: '6px',
-                  padding: '7px 14px',
+                  padding: '0 14px',
+                  minHeight: '44px',
                   fontSize: '14px',
                   cursor: 'pointer',
                 }}
