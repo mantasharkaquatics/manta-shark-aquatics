@@ -813,21 +813,20 @@ export default function BookingPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
+      {/* A page-context strip, not a second masthead. The Navbar directly above
+          already carries the logo and the brand; repeating them here read as two
+          stacked headers and spent about 150px of a phone screen before any
+          content appeared. What this bar is actually for is telling you which
+          page you are on and giving you a way back, so that is all it holds. */}
       <div style={{
         background: NAVY, borderBottom: '1px solid rgba(255,255,255,0.08)',
-        padding: '16px clamp(20px,5vw,48px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px clamp(16px,5vw,48px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <img src="/logo.png" alt="Manta Shark" style={{ height: '64px' }} />
-          </Link>
-          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.12)' }} />
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
-            {isReschedule ? t('booking.header.reschedule') : t('booking.header.book')}
-          </span>
-        </div>
-        <Link href="/dashboard" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>
+          {isReschedule ? t('booking.header.reschedule') : t('booking.header.book')}
+        </span>
+        <Link href="/dashboard" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
           ← {t('booking.header.dashboard')}
         </Link>
       </div>
