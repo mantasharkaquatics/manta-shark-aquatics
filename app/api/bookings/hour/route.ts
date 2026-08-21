@@ -6,7 +6,7 @@ import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithinTokenWindow, tokenSlugsForTarget, isWithin24Hours } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
-import { refundCredit, spendCredit, spendToken } from '@/lib/ledger'
+import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
 
 export const runtime = 'nodejs'
 
@@ -280,10 +280,35 @@ export async function POST(req: NextRequest) {
     const createdBookings: string[] = []
     const createdSessions: string[] = []
     const incremented: string[] = []
+    const tokensSpent: string[] = []
     async function rollback() {
       for (const cid of incremented) await refundCredit(svc, cid)
+      for (const tid of tokensSpent) await refundToken(svc, tid)
       if (createdBookings.length > 0) await svc.from('bookings').delete().in('id', createdBookings)
       if (createdSessions.length > 0) await svc.from('class_sessions').delete().in('id', createdSessions)
+    }
+
+    // Spend BEFORE a single row exists. The balance check above runs in
+    // TypeScript and the spend runs in SQL, so two concurrent hour bookings by
+    // one parent both clear it; the ceiling constraints on lesson_credits and
+    // token_packages are the only real arbiter. Letting them arbitrate FIRST
+    // turns the loser away while there is still nothing to undo -- the old
+    // order wrote the bookings, then discarded the spend result, which handed
+    // out a lesson nobody paid for. Both spends are reversible, so any later
+    // failure in this handler unwinds them through rollback().
+    for (const cid of alloc) {
+      if (!(await spendCredit(svc, cid))) {
+        await rollback()
+        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+      }
+      incremented.push(cid)
+    }
+    for (const tid of tokenAlloc) {
+      if (!(await spendToken(svc, tid))) {
+        await rollback()
+        return NextResponse.json({ error: 'Your make-up credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+      }
+      tokensSpent.push(tid)
     }
 
     for (const h of halves) {
@@ -349,18 +374,8 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: msg }, { status: 409 })
         }
         createdBookings.push(bk.id)
-        if (creditId) {
-          await spendCredit(svc, creditId)
-          incremented.push(creditId)
-        }
       }
     }
-
-    // Tokens are spent only after BOTH halves exist: there is no
-    // decrement_used_tokens RPC, so rollback() cannot hand one back.
-    // Narrow race accepted for now: two concurrent hour bookings by the same
-    // parent could both clear the >= 2 check.
-    for (const tid of tokenAlloc) await spendToken(svc, tid)
 
     // Partner mode: invite the other family instead of confirming anything.
     if (isPartnerBooking) try {

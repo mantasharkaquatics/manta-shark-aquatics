@@ -844,6 +844,8 @@
   "err.teamNotEligible": "这位学员还不符合加入泳队的资格。",
   "err.squadFull": "这一组已经额满。",
   "err.noSquad": "目前没有符合这个游泳等级的分组。",
+  "err.creditsRanOut": "这笔预约送出的同时,你的堂数刚好用完了。请刷新后再试一次。",
+  "err.tokensRanOut": "这笔预约送出的同时,你的补课点数刚好用完了。请刷新后再试一次。",
   "err.trialUsed": "这位学员已经使用过游泳评估。",
   "err.studentNotFound": "找不到这位学员",
   "err.parentNotFound": "找不到家长资料",

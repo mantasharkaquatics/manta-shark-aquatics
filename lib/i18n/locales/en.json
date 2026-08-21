@@ -844,6 +844,8 @@
   "err.teamNotEligible": "This student is not eligible for the swim team yet.",
   "err.squadFull": "That squad is full.",
   "err.noSquad": "No squad matches this swim level.",
+  "err.creditsRanOut": "Your lesson credits ran out while this booking was going through. Please refresh and try again.",
+  "err.tokensRanOut": "Your make-up credits ran out while this booking was going through. Please refresh and try again.",
   "err.trialUsed": "This student has already used their Swim Assessment.",
   "err.studentNotFound": "Student not found",
   "err.parentNotFound": "Parent not found",

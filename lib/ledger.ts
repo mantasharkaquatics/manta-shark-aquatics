@@ -16,12 +16,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // floor all along; nobody had written the ceiling). When the race happens the
 // second increment now raises, and it arrives here as an ordinary error.
 //
-// A failure is logged and reported back, never thrown. By the time these run
-// the booking row has already been written, so failing the request would
-// punish the family for an accounting write they cannot see. The log carries
-// the row id, which is what makes the balance correctable by hand afterwards.
-// The caller decides what to do with false; most correctly ignore it, and the
-// cart route -- which still holds a rollback -- does not.
+// A failure is logged and reported back, never thrown. The caller decides what
+// to do with false, and the right answer depends on the order it chose. A route
+// that spends AFTER writing the booking row cannot fail the request without
+// punishing the family for an accounting write they cannot see, so it ignores
+// false and relies on the log -- which carries the row id, and is what makes the
+// balance correctable by hand. A route that spends BEFORE writing anything, as
+// the cart and hour routes do, treats false as "the race was lost" and turns the
+// caller away while there is still nothing to undo.
 
 async function ledgerRpc(
   svc: SupabaseClient,
@@ -46,4 +48,8 @@ export function refundCredit(svc: SupabaseClient, creditId: string): Promise<boo
 
 export function spendToken(svc: SupabaseClient, tokenId: string): Promise<boolean> {
   return ledgerRpc(svc, 'increment_used_tokens', { token_id: tokenId })
+}
+
+export function refundToken(svc: SupabaseClient, tokenId: string): Promise<boolean> {
+  return ledgerRpc(svc, 'decrement_used_tokens', { token_id: tokenId })
 }
