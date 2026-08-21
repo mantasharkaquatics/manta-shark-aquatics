@@ -197,13 +197,20 @@ export async function POST(req: NextRequest) {
         if (sessErr || !newSess) { await rollback(); return NextResponse.json({ error: `Failed on ${date}: ${sessErr?.message || 'unknown'}` }, { status: 500 }) }
         sessId = newSess.id
       }
+      // Settle this date's credit before its row exists. Dates can be skipped in
+      // the loop above, so the series cannot pay for everything up front the way
+      // the hour route does -- but each date can still settle before it writes,
+      // which is what keeps a lost race from producing an unpaid booking.
+      if (!(await spendCredit(svc, allocation[i]))) {
+        await rollback()
+        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+      }
+      incremented.push(allocation[i])
       const { data: created, error: bookErr } = await svc.from('bookings')
         .insert({ class_session_id: sessId, parent_id: parent.id, student_id: student.id, lesson_credit_id: allocation[i], status: 'confirmed' })
         .select('id').single()
       if (bookErr || !created) { await rollback(); return NextResponse.json({ error: `Failed to book ${date}: ${bookErr?.message || 'unknown'}` }, { status: 500 }) }
       createdIds.push(created.id)
-      await spendCredit(svc, allocation[i])
-      incremented.push(allocation[i])
       bookedDates.push(date)
     }
 

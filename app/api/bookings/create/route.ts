@@ -5,7 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil 
 import { LEAD_TIME_MINUTES, pickTokenPackage } from '@/lib/tokens'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
-import { refundCredit, spendCredit, spendToken } from '@/lib/ledger'
+import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -210,6 +210,25 @@ export async function POST(req: NextRequest) {
 
   const rootOriginalId = oldBooking ? (oldBooking.original_booking_id || oldBooking.id) : null
 
+  // Settle up BEFORE the row exists. The balance check above runs in TypeScript
+  // and the spend runs in SQL, so two concurrent bookings by one parent both
+  // clear it -- the ceiling constraints on lesson_credits and token_packages are
+  // the only real arbiter. Letting them arbitrate first turns the loser away
+  // with nothing to undo, instead of leaving a booking nobody paid for.
+  let spentToken: string | null = null
+  let spentCredit: string | null = null
+  if (!isPartnerBooking) {
+    if (token1) {
+      if (!(await spendToken(svc, token1.id)))
+        return NextResponse.json({ error: 'Your make-up credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+      spentToken = token1.id
+    } else if (!inheritCredit) {
+      if (!(await spendCredit(svc, credit.id)))
+        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+      spentCredit = credit.id
+    }
+  }
+
   // Insert initiator booking
   const { data: newBooking, error: bookErr } = await svc
     .from('bookings')
@@ -226,6 +245,8 @@ export async function POST(req: NextRequest) {
     })
     .select('id').single()
   if (bookErr || !newBooking) {
+    if (spentToken) await refundToken(svc, spentToken)
+    if (spentCredit) await refundCredit(svc, spentCredit)
     const m = bookErr?.message || ''
     const msg = m.includes('STUDENT_DOUBLE_BOOKED')
       ? 'This swimmer already has a lesson at this time. Please pick another time.'
@@ -235,16 +256,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 409 })
   }
 
-  if (!isPartnerBooking) {
-    if (token1) {
-      await spendToken(svc, token1.id)
-    } else if (!inheritCredit) {
-      await spendCredit(svc, credit.id)
-    }
-  }
-
   // Second student (same account)
   if (student2 && credit2) {
+    // Same order as above: the second swimmer's credit settles before its row,
+    // so losing the race here costs a 409 and nothing else.
+    if (!(await spendCredit(svc, credit2.id))) {
+      if (spentCredit) await refundCredit(svc, spentCredit)
+      await svc.from('bookings')
+        .update({ status: 'cancelled', cancellation_reason: 'cancelled_before_payment' })
+        .eq('id', newBooking.id)
+      return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+    }
     const { error: s2Err } = await svc.from('bookings').insert({
       class_session_id: sessionId,
       parent_id: parent.id,
@@ -255,11 +277,10 @@ export async function POST(req: NextRequest) {
     })
     if (s2Err) {
       // A 1-on-2 with only one swimmer is not a lesson - undo the initiator booking.
-      // token1 is always null here (the token path is single-student only), which is
-      // just as well: there is no decrement_used_tokens RPC to roll one back with.
-      if (!inheritCredit) {
-        await refundCredit(svc, credit.id)
-      }
+      // token1 is always null here (the token path is single-student only), so
+      // there is only ever credit to hand back.
+      await refundCredit(svc, credit2.id)
+      if (spentCredit) await refundCredit(svc, spentCredit)
       await svc.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' })
         .eq('id', newBooking.id)
@@ -270,7 +291,6 @@ export async function POST(req: NextRequest) {
         : 'Booking failed. Please try again.'
       return NextResponse.json({ error: msg2 }, { status: 409 })
     }
-    await spendCredit(svc, credit2.id)
   }
 
   const { data: parentRow } = await svc
