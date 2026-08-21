@@ -5,7 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { isWithinTokenWindow, tokenSlugsForTarget } from '@/lib/tokens'
-import { refundCredit, spendCredit, spendToken } from '@/lib/ledger'
+import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -320,10 +320,14 @@ export async function POST(req: NextRequest) {
     const createdBookingIds: string[] = []
     const createdSessionIds: string[] = []
     const incrementedCredits: string[] = []
+    const incrementedTokens: string[] = []
 
     async function rollback() {
       for (const cid of incrementedCredits) {
         await refundCredit(svc, cid)
+      }
+      for (const tid of incrementedTokens) {
+        await refundToken(svc, tid)
       }
       if (createdBookingIds.length > 0) {
         await svc.from('bookings').delete().in('id', createdBookingIds)
@@ -333,6 +337,19 @@ export async function POST(req: NextRequest) {
       if (createdSessionIds.length > 0) {
         await svc.from('class_sessions').delete().in('id', createdSessionIds)
       }
+    }
+
+    // Tokens settle before anything is written, same as credits below. This had
+    // to run last until decrement_used_tokens existed, because rollback() could
+    // never hand one back; now a lost race costs a 409 and nothing else. A token
+    // booking is single-date and single-swimmer by construction, so every entry
+    // in tokenAlloc is used exactly once and can safely be spent up front.
+    for (const tid of tokenAlloc) {
+      if (!(await spendToken(svc, tid))) {
+        await rollback()
+        return NextResponse.json({ error: "This family's make-up credits ran out while the booking was going through. Please refresh and try again." }, { status: 409 })
+      }
+      incrementedTokens.push(tid)
     }
 
     for (let i = 0; i < dates.length; i++) {
@@ -370,6 +387,13 @@ export async function POST(req: NextRequest) {
             sid = ns.id
             createdSessionIds.push(ns.id)
           }
+          if (!payWithToken) {
+            if (!(await spendCredit(svc, leg.credit))) {
+              await rollback()
+              return NextResponse.json({ error: `This family's credits ran out while ${date} was being booked. Please refresh and try again.` }, { status: 409 })
+            }
+            incrementedCredits.push(leg.credit)
+          }
           const { data: bk, error: be } = await svc
             .from('bookings')
             .insert({ class_session_id: sid, parent_id: student1.parent_id, student_id: student1.id, lesson_credit_id: payWithToken ? null : leg.credit, token_package_id: payWithToken ? leg.token : null, status: 'confirmed', lesson_group_id: groupId })
@@ -380,10 +404,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: conflict ? `The coach already has another class during the hour on ${date}` : `Failed to book ${date}: ${be?.message || 'unknown'}` }, { status: conflict ? 409 : 500 })
           }
           createdBookingIds.push(bk.id)
-          if (!payWithToken) {
-            await spendCredit(svc, leg.credit)
-            incrementedCredits.push(leg.credit)
-          }
         }
         continue
       }
@@ -419,6 +439,13 @@ export async function POST(req: NextRequest) {
         ...(student2 ? [{ parent_id: student2.parent_id, student_id: student2.id, credit_id: credit2PerDate[i] }] : []),
       ]
       for (const b of toCreate) {
+        if (!payWithToken) {
+          if (!(await spendCredit(svc, b.credit_id))) {
+            await rollback()
+            return NextResponse.json({ error: `This family's credits ran out while ${date} was being booked. Please refresh and try again.` }, { status: 409 })
+          }
+          incrementedCredits.push(b.credit_id)
+        }
         const { data: created, error: bookErr } = await svc
           .from('bookings')
           .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id, lesson_credit_id: payWithToken ? null : b.credit_id, token_package_id: payWithToken ? tokenAlloc[0] : null, status: 'confirmed' })
@@ -432,16 +459,8 @@ export async function POST(req: NextRequest) {
           )
         }
         createdBookingIds.push(created.id)
-        if (!payWithToken) {
-          await spendCredit(svc, b.credit_id)
-          incrementedCredits.push(b.credit_id)
-        }
       }
     }
-
-    // Tokens are spent only after every booking exists: there is no
-    // decrement_used_tokens RPC, so rollback() could never hand one back.
-    for (const tid of tokenAlloc) await spendToken(svc, tid)
 
     // One summary email per parent (best effort)
     try {

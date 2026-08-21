@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { spendCredit } from '@/lib/ledger'
+import { refundCredit, spendCredit } from '@/lib/ledger'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -146,6 +146,21 @@ export async function POST(req: NextRequest) {
   if (theirPool.length < theirs.length)
     return NextResponse.json({ error: 'The inviting family does not have enough credits.' }, { status: 402 })
 
+  // Settle both families' credits BEFORE the claim. The pool checks above run in
+  // TypeScript while the spend runs in SQL, so two confirmations racing each
+  // other both clear them; the ceiling constraint is the only real arbiter.
+  // Spending first means a lost race is a 409 with nothing claimed, instead of a
+  // confirmed lesson that nobody was charged for.
+  const spent: string[] = []
+  const refundSpent = async () => { for (const cid of spent) await refundCredit(supabase, cid) }
+  for (const cid of [...myPool.slice(0, mine.length), ...theirPool.slice(0, theirs.length)]) {
+    if (!(await spendCredit(supabase, cid))) {
+      await refundSpent()
+      return NextResponse.json({ error: 'Credits ran out while this invitation was being confirmed. Please refresh and try again.' }, { status: 409 })
+    }
+    spent.push(cid)
+  }
+
   // Claim the WHOLE group in one update - the status filter is the lock. If the
   // count comes back short somebody else moved part of it, so hand back what we
   // took rather than leaving half the lesson confirmed.
@@ -157,6 +172,7 @@ export async function POST(req: NextRequest) {
     if (claimed && claimed.length > 0) {
       await supabase.from('bookings').update({ status: 'pending_partner' }).in('id', claimed.map((r: any) => r.id))
     }
+    await refundSpent()
     return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })
   }
 
@@ -167,7 +183,6 @@ export async function POST(req: NextRequest) {
         pending_action: null,
         pending_expires_at: null,
       }).eq('id', rows[i].id)
-      await spendCredit(supabase, pool[i])
     }
   }
   await assign(mine, myPool)

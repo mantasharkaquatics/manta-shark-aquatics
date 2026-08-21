@@ -844,6 +844,7 @@
   "err.teamNotEligible": "This student is not eligible for the swim team yet.",
   "err.squadFull": "That squad is full.",
   "err.noSquad": "No squad matches this swim level.",
+  "err.confirmCreditsRanOut": "Credits ran out while this invitation was being confirmed. Please refresh and try again.",
   "err.creditsRanOut": "Your lesson credits ran out while this booking was going through. Please refresh and try again.",
   "err.tokensRanOut": "Your make-up credits ran out while this booking was going through. Please refresh and try again.",
   "err.trialUsed": "This student has already used their Swim Assessment.",
