@@ -268,7 +268,12 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
           <div className="px-6 py-4 border-b border-white/10">
             <h2 className="text-white font-semibold text-sm">Check-in Records</h2>
           </div>
-          <table className="w-full text-sm">
+          {/* The card around this table is overflow-hidden for its rounded corners, so on
+              a narrow screen the last columns were being clipped away entirely -- no
+              scrollbar, no hint they existed. This wrapper scrolls instead of clipping,
+              and the min-width stops the columns collapsing into unreadable slivers. */}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] text-sm">
             <thead>
               <tr className="text-white/40 text-xs uppercase tracking-wider">
                 <th className="text-left px-6 py-2">Student</th>
@@ -291,7 +296,8 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
           <div className="flex items-center justify-between px-6 py-4 border-t border-white/10">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="text-white/50 text-xs disabled:opacity-30">← Previous</button>
             <span className="text-white/40 text-xs">{page} / {totalPages}</span>

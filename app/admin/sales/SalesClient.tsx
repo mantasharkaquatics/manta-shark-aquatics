@@ -186,7 +186,12 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       ) : (
         <>
           <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden mb-4">
-            <table className="w-full">
+            {/* The card around this table is overflow-hidden for its rounded corners, so on
+              a narrow screen the last columns were being clipped away entirely -- no
+              scrollbar, no hint they existed. This wrapper scrolls instead of clipping,
+              and the min-width stops the columns collapsing into unreadable slivers. */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px]">
               <thead>
                 <tr className="border-b border-[#1e3a6e]">
                   <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Invoice #</th>
@@ -219,7 +224,8 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                   )
                 })}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
 
           {/* Pagination */}
