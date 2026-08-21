@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getTodayLA } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, minutesUntil, formatTime12h } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,9 +42,8 @@ export default async function AdminSchedulePage() {
       .select('id, pending_action, pending_new_session_id, class_session_id, parent_id, student_id, pending_expires_at')
       .in('pending_action', ['reschedule', 'reschedule_initiator']),
     supabase.from('bookings')
-      .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason')
+      .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason, lesson_credit_id, token_package_id')
       .eq('status', 'cancelled').is('pending_action', null)
-      .not('lesson_credit_id', 'is', null)
       .or('cancellation_reason.is.null,cancellation_reason.neq.rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('updated_at', { ascending: false }).limit(50),
@@ -122,12 +121,7 @@ export default async function AdminSchedulePage() {
   for (const p of parentsData || []) parentMap[(p as any).id] = p
 
   const n = (x: any) => Array.isArray(x) ? x[0] : x
-  const fTime = (t: string) => {
-    if (!t) return ''
-    const [h, m] = t.split(':')
-    const hour = parseInt(h)
-    return `${hour > 12 ? hour - 12 : hour === 0 ? 12 : hour}:${m} ${hour >= 12 ? 'PM' : 'AM'}`
-  }
+  const fTime = formatTime12h
   const fDate = (d: string) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
   const fDT = (iso: string) => iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''
   const minsLeft = (exp: string) => Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 60000))
@@ -306,8 +300,13 @@ export default async function AdminSchedulePage() {
             }
 
             // Cancellations
+            // A cancellation is only activity worth showing if the lesson had been
+            // paid for. This used to be a `lesson_credit_id is not null` filter in
+            // the query itself -- but that column is null on every token booking, so
+            // a cancelled make-up lesson never appeared here at all, even though the
+            // same booking showed up under New Booking when it was made.
             const mergedCancelled: Record<string, any[]> = {}
-            for (const b of rawCancelled || []) {
+            for (const b of (rawCancelled || []).filter((b: any) => b.lesson_credit_id || b.token_package_id)) {
               const key = b.class_session_id || b.id
               if (!mergedCancelled[key]) mergedCancelled[key] = []
               mergedCancelled[key].push(b)
@@ -369,16 +368,24 @@ export default async function AdminSchedulePage() {
               items.push({ key: 'r-' + rep.id, type: 'rescheduled', names, cs: steps[0]?.fromCs, newCs: steps[steps.length-1]?.toCs, updatedAt: steps[steps.length-1]?.updatedAt, isCrossAccount: isCrossAccountR, steps })
             }
 
-            // Filter out completed lessons (judged by final session_date + start_time)
-            const nowLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+            // Filter out lessons that have already started.
+            //
+            // This used to build a Date from `session_date + 'T00:00:00'`, which has
+            // no offset and is therefore parsed in the SERVER's zone -- UTC on
+            // Vercel -- then ran it through toLocaleString('America/Los_Angeles')
+            // and parsed THAT as local again. The offset was applied twice, in
+            // opposite directions, on both the session time and "now": in
+            // production items vanished about seven hours before the lesson began.
+            // It looked correct on a Mac set to Los Angeles, where the two
+            // conversions cancel out, which is why it survived.
+            //
+            // minutesUntil compares wall-clock LA dates as strings and minutes as
+            // numbers, with no Date parsing at all.
+            const nowMinLA = getNowMinutesLA()
             const filteredItems = items.filter((item: any) => {
               const finalCs = item.newCs || item.cs
               if (!finalCs?.session_date || !finalCs?.start_time) return true
-              const [h, m] = finalCs.start_time.split(':').map(Number)
-              const sessionStart = new Date(finalCs.session_date + 'T00:00:00')
-              sessionStart.setHours(h, m, 0, 0)
-              const sessionStartLA = new Date(sessionStart.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
-              return nowLA < sessionStartLA
+              return minutesUntil(finalCs.session_date, String(finalCs.start_time).slice(0, 5), todayDate, nowMinLA) > 0
             })
             filteredItems.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
