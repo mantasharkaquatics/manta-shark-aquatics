@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
+import AlertModal from '@/components/AlertModal'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
 
@@ -401,6 +402,7 @@ function CopyButton({ value }: { value: string }) {
 export default function AdminMembersClient({ parents: initialParents }: { parents: Parent[] }) {
   const supabase = createClient()
   const [search, setSearch] = useState('')
+  const [alertMsg, setAlertMsg] = useState<string | null>(null)
 
   useEffect(() => {
     const id = setInterval(async () => {
@@ -516,7 +518,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert((checkedIn ? 'Failed to mark as checked in: ' : 'Failed to mark as absent: ') + (data.error || res.statusText))
+      setAlertMsg((checkedIn ? 'Could not mark this student as checked in. ' : 'Could not mark this student as absent. ') + (data.error || res.statusText))
       return
     }
     setStudentBookings(prev => {
@@ -581,6 +583,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
 
   return (
     <div>
+      <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Members</h1>
         <p className="text-gray-400 mt-1">

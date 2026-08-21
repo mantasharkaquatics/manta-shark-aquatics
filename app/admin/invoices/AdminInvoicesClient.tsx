@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import AlertModal from '@/components/AlertModal'
 
 const GOLD = '#c9a84c'
 const NAVY = '#1a2744'
@@ -12,6 +13,11 @@ export default function AdminInvoicesClient({ invoices, parents, courseTypes }: 
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [resendingId, setResendingId] = useState<string | null>(null)
+  // alert() blocks the thread; a React modal does not. Anything that used to run
+  // "after the admin clicked OK" has to move into onDismiss, or it fires while the
+  // modal is still on screen -- which is how a success message gets erased by the
+  // reload that followed it.
+  const [notice, setNotice] = useState<{ title: string; message: string; onDismiss?: () => void } | null>(null)
   const [form, setForm] = useState({
     parent_id: '',
     amount: '',
@@ -23,7 +29,7 @@ export default function AdminInvoicesClient({ invoices, parents, courseTypes }: 
 
   async function handleCreate() {
     if (!form.parent_id || !form.amount || !form.course_type_id || !form.sessions) {
-      alert('Please fill in all required fields')
+      setNotice({ title: 'Missing information', message: 'Please fill in the family, amount, course type and number of sessions.' })
       return
     }
     setSubmitting(true)
@@ -47,8 +53,12 @@ export default function AdminInvoicesClient({ invoices, parents, courseTypes }: 
       const { invoice } = await res.json()
       // Send email
       const parent = parents.find(p => p.id === form.parent_id)
+      let emailed = false
       if (parent?.email) {
-        await fetch('/api/email', {
+        // This response used to be discarded, and the admin was told the invoice
+        // was "created and sent" either way. An invoice email that never left but
+        // reports success is the same lie as a silent write failure.
+        const mailRes = await fetch('/api/email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -60,13 +70,23 @@ export default function AdminInvoicesClient({ invoices, parents, courseTypes }: 
             amount,
           }),
         })
+        emailed = mailRes.ok
       }
-      alert(`Invoice ${invoice.invoice_number} created and sent`)
       setShowForm(false)
       setForm({ parent_id: '', amount: '', payment_method: 'cash', course_type_id: '', sessions: '', notes: '' })
-      window.location.reload()
+      const emailNote = !parent?.email
+        ? 'This family has no email address on file, so nothing was sent.'
+        : emailed
+          ? `Emailed to ${parent.email}.`
+          : `The email to ${parent.email} did not go out — use Resend once that is sorted out.`
+      setNotice({
+        title: 'Invoice created',
+        message: `Invoice ${invoice.invoice_number} was created. ${emailNote}`,
+        onDismiss: () => window.location.reload(),
+      })
     } else {
-      alert('Failed to create. Please try again.')
+      const data = await res.json().catch(() => ({}))
+      setNotice({ title: 'Could not create the invoice', message: data.error || 'Please try again in a moment.' })
     }
     setSubmitting(false)
   }
@@ -74,7 +94,7 @@ export default function AdminInvoicesClient({ invoices, parents, courseTypes }: 
   async function handleResend(invoice: any) {
     setResendingId(invoice.id)
     const parent = Array.isArray(invoice.parents) ? invoice.parents[0] : invoice.parents
-    await fetch('/api/email', {
+    const res = await fetch('/api/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -86,7 +106,9 @@ export default function AdminInvoicesClient({ invoices, parents, courseTypes }: 
         amount: invoice.amount,
       }),
     })
-    alert(`Invoice resent to ${parent?.email}`)
+    setNotice(res.ok
+      ? { title: 'Invoice resent', message: `Invoice ${invoice.invoice_number} was emailed to ${parent?.email}.` }
+      : { title: 'Could not resend', message: `The email to ${parent?.email} did not go out. Check the address and try again.` })
     setResendingId(null)
   }
 
@@ -205,6 +227,12 @@ export default function AdminInvoicesClient({ invoices, parents, courseTypes }: 
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: '40px', fontSize: '14px' }}>No invoices yet</div>
         )}
       </div>
+
+      <AlertModal
+        message={notice?.message ?? null}
+        title={notice?.title}
+        onClose={() => { const after = notice?.onDismiss; setNotice(null); after?.() }}
+      />
     </div>
   )
 }

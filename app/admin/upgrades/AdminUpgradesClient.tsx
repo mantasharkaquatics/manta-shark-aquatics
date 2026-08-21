@@ -131,11 +131,18 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   async function handleReview(rec: Recommendation, action: 'approved' | 'modified' | 'rejected') {
     setReviewingId(rec.id)
     const finalLevel = action === 'modified' ? parseInt(overrideLevel[rec.id] || String(rec.recommended_level)) : rec.recommended_level
+    // .catch here, not try/catch: a dropped connection used to become an
+    // unhandled rejection and the button just span forever.
     const res = await fetch('/api/admin/review-level', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recommendation_id: rec.id, action, final_level: finalLevel, admin_id: adminId })
-    })
+    }).catch(() => null)
+    if (!res) {
+      setAlertMsg('Could not reach the server. Check your connection and try again.')
+      setReviewingId(null)
+      return
+    }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       setAlertMsg(data.error || 'Failed to record the review. Please try again.')
@@ -189,7 +196,12 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         class_session_id: classSessionId,
         admin_override: true,
       })
-    })
+    }).catch(() => null)
+    if (!res) {
+      setAlertMsg('Could not reach the server. Check your connection and try again.')
+      setSubmittingMissing(null)
+      return
+    }
     if (res.ok) {
       setMissingProgressList(prev => prev.filter(s => s.id !== listId))
       window.location.reload()
