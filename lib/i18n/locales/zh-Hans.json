@@ -3,6 +3,7 @@
   "common.cancel": "取消",
   "common.save": "保存",
   "common.close": "关闭",
+  "common.noticeTitle": "出了点问题",
   "locale.en.native": "English",
   "locale.zh-Hant.native": "繁體中文",
   "locale.zh-Hans.native": "简体中文",

@@ -18,6 +18,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import ChatWidget from '@/components/ChatWidget'
+import NoticeModal from '@/components/NoticeModal'
 import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
@@ -150,6 +151,10 @@ export default function BookingPage() {
   }
   const router = useRouter()
   const supabase = createClient()
+  // Replaces the six native alert() calls below. Every one of them was already
+  // followed by setSubmitting(false) + return, so nothing relied on alert()
+  // blocking the thread.
+  const [notice, setNotice] = useState<string | null>(null)
 
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -544,7 +549,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert(tErr(j.error, 'booking.err.couldNotBook'))
+        setNotice(tErr(j.error, 'booking.err.couldNotBook'))
         setSubmitting(false)
         return
       }
@@ -564,7 +569,7 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok || !j.url) {
-        alert(tErr(j.error, 'booking.err.couldNotPay'))
+        setNotice(tErr(j.error, 'booking.err.couldNotPay'))
         setSubmitting(false)
         return
       }
@@ -588,13 +593,13 @@ export default function BookingPage() {
         }),
       })
       const rj = await r.json().catch(() => ({}))
-      if (!r.ok || !rj.session_id) { alert(tErr(rj.error, 'booking.err.slotGone')); setSubmitting(false); return }
+      if (!r.ok || !rj.session_id) { setNotice(tErr(rj.error, 'booking.err.slotGone')); setSubmitting(false); return }
       const res = await fetch('/api/bookings/reschedule-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: rbId, new_session_id: rj.session_id }),
       })
-      if (!res.ok) { alert(t('booking.err.rescheduleFailed')); setSubmitting(false); return }
+      if (!res.ok) { setNotice(t('booking.err.rescheduleFailed')); setSubmitting(false); return }
       setIsPartnerBookingSuccess(true)
       setSuccess(true)
       setSubmitting(false)
@@ -622,7 +627,7 @@ export default function BookingPage() {
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
-      if (!hr.ok) { alert(tErr(hj.error, 'booking.err.bookingFailed')); setSubmitting(false); return }
+      if (!hr.ok) { setNotice(tErr(hj.error, 'booking.err.bookingFailed')); setSubmitting(false); return }
       setSubmitting(false)
       // A cross-account hour is only PENDING until the other family confirms,
       // so show the invitation screen rather than "Lesson Booked".
@@ -655,7 +660,7 @@ export default function BookingPage() {
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) {
-      alert(tErr(j.error, 'booking.err.bookingFailed'))
+      setNotice(tErr(j.error, 'booking.err.bookingFailed'))
       setSubmitting(false)
       return
     }
@@ -1680,6 +1685,7 @@ export default function BookingPage() {
         )}
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+      <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
       {parentId && <ChatWidget parentId={parentId} />}
       {parentId && <BookingCart refreshSignal={cartRefresh} onCommitted={() => { if (selectedCoach && selectedDate) loadTimeSlots() }} />}
     </div>

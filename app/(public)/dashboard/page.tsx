@@ -10,6 +10,7 @@ import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
+import NoticeModal from '@/components/NoticeModal'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -312,6 +313,7 @@ interface TokenPack { id: string; course_type_id?: string; course_name: string; 
 function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; monthly_price_cents?: number; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const locale = useLocale()
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [schedOpen, setSchedOpen] = useState<Record<string, boolean>>({})
   const t = useT()
@@ -334,11 +336,12 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
       const j = await r.json()
       if (r.ok && j.url) { window.location.href = j.url; return }
       const k = errorKey(j.error)
-      alert(k ? t(k) : (j.error || t('team.portalError')))
+      setNotice(k ? t(k) : (j.error || t('team.portalError')))
     } finally { setPortalLoading(null) }
   }
   return (
     <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
+      <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>{t('team.title')}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {memberships.map((m, mi) => (
@@ -501,6 +504,7 @@ export default function DashboardPage() {
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
@@ -1398,6 +1402,7 @@ export default function DashboardPage() {
         )}
 
         {/* Reschedule Action Modal */}
+      <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
       {rescheduleActionModal && (
         <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
@@ -1728,7 +1733,7 @@ export default function DashboardPage() {
                               setReschedulingId(booking.id)
                               const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               const json = await res.json()
-                              if (!res.ok) alert(json.error || t('dash.resAction.failed'))
+                              if (!res.ok) setNotice(json.error || t('dash.resAction.failed'))
                               await fetchAll()
                               setReschedulingId(null)
                             }}
