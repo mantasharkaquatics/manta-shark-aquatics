@@ -128,3 +128,12 @@
     @apply font-sans;
   }
 }
+
+/* Shared responsive rules.
+   Anything that styles a component used on more than one page belongs HERE, not
+   in a page's own <style> block. A page-scoped block only exists while that page
+   is mounted, so this exact rule -- living in HomeContent -- collapsed the footer
+   on the home page and left it four columns wide on every other page in the site. */
+@media (max-width: 768px) {
+  .footer-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+}

@@ -53,7 +53,6 @@ export default function HomeContent() {
           .tcard.active { grid-template-columns: 1fr !important; }
           .tcard.active .titem:not(:first-child) { display: none; }
           .cta-btns { flex-direction: column; align-items: center; }
-          .footer-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
           .hero-content { padding: 32px 20px 100px !important; }
           .section-pad { padding: 48px 20px !important; }
         }
