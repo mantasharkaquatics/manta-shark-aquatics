@@ -119,7 +119,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href={localePath('/', locale)} className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="rounded-full object-cover" />
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="rounded-full object-cover w-12 h-12 sm:w-16 sm:h-16" />
             <span className="text-white font-bold text-lg leading-tight hidden sm:block">
               Manta Shark<br /><span className="text-[#c9a84c] font-normal text-sm">Aquatics</span>
             </span>
@@ -144,7 +144,7 @@ export default function Navbar() {
                 </Link>
                 <button
                   onClick={handleSignOut}
-                  className="bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-5 py-2 rounded transition-colors">
+                  className="hidden md:inline-flex items-center min-h-11 bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-5 rounded transition-colors">
                   {t('nav.signOut')}
                 </button>
               </>
@@ -155,7 +155,7 @@ export default function Navbar() {
                   {t('nav.signIn')}
                 </Link>
                 <Link href="/register"
-                  className="bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                  className="inline-flex items-center min-h-11 bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-4 rounded-lg transition-colors">
                   {t('nav.createAccount')}
                 </Link>
               </>
@@ -176,19 +176,19 @@ export default function Navbar() {
           {navLinks.map(link => (
             <Link key={link.href} href={localePath(link.href, locale)}
               onClick={() => setMenuOpen(false)}
-              className={`block py-2 text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
+              className={`flex items-center min-h-11 text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
               {t(link.labelKey)}
             </Link>
           ))}
           {isLoggedIn ? (
             <>
-              <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">{t('nav.dashboard')}</Link>
-              <button onClick={handleSignOut} className="block py-2 text-sm text-gray-300 hover:text-white w-full text-left">{t('nav.signOut')}</button>
+              <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="flex items-center min-h-11 text-sm text-gray-300 hover:text-white">{t('nav.dashboard')}</Link>
+              <button onClick={handleSignOut} className="flex items-center min-h-11 text-sm text-gray-300 hover:text-white w-full text-left">{t('nav.signOut')}</button>
             </>
           ) : (
-            <Link href="/login" onClick={() => setMenuOpen(false)} className="block py-2 text-sm text-gray-300 hover:text-white">{t('nav.signIn')}</Link>
+            <Link href="/login" onClick={() => setMenuOpen(false)} className="flex items-center min-h-11 text-sm text-gray-300 hover:text-white">{t('nav.signIn')}</Link>
           )}
-          <div className="pt-2 sm:hidden">{localeSelect('')}</div>
+          <div className="pt-2 sm:hidden">{localeSelect('w-full min-h-11')}</div>
         </div>
       )}
     </nav>
