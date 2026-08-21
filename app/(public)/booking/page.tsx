@@ -67,7 +67,7 @@ function Steps({ current, labelKeys }: { current: number; labelKeys?: string[] }
   const t = useT()
   const steps = labelKeys || ['booking.step.student', 'booking.step.course', 'booking.step.coach', 'booking.step.datetime', 'booking.step.confirm']
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '36px', overflowX: 'auto' }}>
+    <div className="booking-steps" style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '36px', overflowX: 'auto' }}>
       {steps.map((s, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
@@ -81,14 +81,14 @@ function Steps({ current, labelKeys }: { current: number; labelKeys?: string[] }
             }}>
               {i < current ? '✓' : i + 1}
             </div>
-            <span style={{
+            <span className="booking-step-label" style={{
               fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px',
               color: i === current ? '#fff' : i < current ? GOLD : 'rgba(255,255,255,0.3)',
               whiteSpace: 'nowrap',
             }}>{t(s)}</span>
           </div>
           {i < steps.length - 1 && (
-            <div style={{
+            <div className="booking-step-line" style={{
               width: '40px', height: '2px', margin: '0 4px', marginBottom: '20px',
               background: i < current ? GOLD : 'rgba(255,255,255,0.1)',
             }} />
@@ -1124,12 +1124,12 @@ export default function BookingPage() {
                 <button onClick={() => {
                   if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) }
                   else setCalMonth(calMonth - 1)
-                }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer' }}>‹</button>
+                }} aria-label="Previous month" style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
                 <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
                 <button onClick={() => {
                   if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) }
                   else setCalMonth(calMonth + 1)
-                }} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer' }}>›</button>
+                }} aria-label="Next month" style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
                 {[0, 1, 2, 3, 4, 5, 6].map(d => (

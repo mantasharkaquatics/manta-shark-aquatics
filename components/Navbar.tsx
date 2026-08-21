@@ -160,7 +160,7 @@ export default function Navbar() {
                 </Link>
               </>
             )}
-            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-white p-1">
+            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-white p-1 min-w-11 min-h-11 flex items-center justify-center">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {menuOpen
                   ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

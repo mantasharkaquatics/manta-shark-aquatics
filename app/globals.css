@@ -146,4 +146,12 @@
      !important is load-bearing here rather than lazy: most of these fields carry
      an inline style, and an inline style outranks any stylesheet rule without it. */
   input, textarea, select { font-size: 16px !important; }
+
+  /* The booking step strip repeats what the heading right beneath it already
+     says -- "步驟 4" and then "選擇日期與時間" in full size. With the labels the
+     strip is 420px wide, so on a phone the last two steps sit off-screen behind
+     a sideways scroll most people never discover. Numbers only: five 32px
+     circles and four 24px rules come to 288px and fit any phone. */
+  .booking-step-label { display: none !important; }
+  .booking-step-line { width: 24px !important; margin-bottom: 0 !important; }
 }
