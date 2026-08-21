@@ -180,16 +180,20 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
   const selectedStr = toDateStr(selected)
 
   return (
-    <div className="w-56 flex-shrink-0 bg-[#111d38] rounded-xl p-3 self-start sticky top-4">
+    // 224px of mini calendar next to the main grid leaves roughly 70px for seven
+    // day columns on a phone. The header's arrows and Today button reach every
+    // date the mini calendar does, so it steps aside below lg rather than
+    // squeezing the calendar people actually work in.
+    <div className="hidden lg:block w-56 flex-shrink-0 bg-[#111d38] rounded-xl p-3 self-start sticky top-4">
       {/* Mini header */}
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() - 1, 1))}
-          className="p-1 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">‹</button>
+        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() - 1, 1))} aria-label="Previous month"
+          className="w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">‹</button>
         <span className="text-xs font-semibold text-white/70">
           {mini.getFullYear()} {MONTH_NAMES[mini.getMonth()]}
         </span>
-        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() + 1, 1))}
-          className="p-1 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">›</button>
+        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() + 1, 1))} aria-label="Next month"
+          className="w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">›</button>
       </div>
       {/* Weekday labels */}
       <div className="grid grid-cols-7 mb-1">
@@ -889,22 +893,27 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           <div className="flex rounded-lg overflow-hidden border border-white/20">
             {(['month', 'day'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
-                className={`px-4 py-1.5 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'}`}>
+                className={`px-4 min-h-11 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'}`}>
                 {v === 'month' ? 'Month' : 'Day'}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">‹</button>
-            <span className="text-sm text-white/80 min-w-[200px] text-center">{headerLabel}</span>
-            <button onClick={() => navigate(1)} className="p-1.5 rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">›</button>
+            {/* These two arrows are the only way to leave the current month, and at
+                18x30 they were the smallest controls on the page. Same fix already
+                applied to the parent-facing booking calendar. */}
+            <button onClick={() => navigate(-1)} aria-label="Previous"
+              className="w-11 h-11 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">‹</button>
+            <span className="text-sm text-white/80 min-w-[150px] sm:min-w-[200px] text-center">{headerLabel}</span>
+            <button onClick={() => navigate(1)} aria-label="Next"
+              className="w-11 h-11 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">›</button>
             <button
               onClick={() => {
                 const t = new Date()
                 setAnchor(new Date(t.getFullYear(), t.getMonth(), t.getDate()))
                 setView('month')
               }}
-              className="px-3 py-1 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+              className="px-3 min-h-11 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
             >Today</button>
           </div>
           {loading && <span className="text-xs text-white/40 animate-pulse">Loading...</span>}
@@ -912,7 +921,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       </div>
 
       {/* Body: sidebar + main */}
-      <div className="flex gap-4 p-4" style={{ height: 'calc(100vh - 130px)' }}>
+      <div className="flex gap-4 p-3 sm:p-4" style={{ height: 'calc(100vh - 130px)' }}>
         {/* Left: Mini Calendar */}
         <MiniCalendar selected={anchor} onSelect={handleMiniSelect} />
 

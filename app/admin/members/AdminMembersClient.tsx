@@ -621,26 +621,32 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                     if (isUnread(parent)) markReviewed(parent.id)
                   }
                 }}
-                className="w-full flex items-center justify-between p-5 text-left hover:bg-[#1e3a6e]/30 transition-all"
+                className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left hover:bg-[#1e3a6e]/30 transition-all"
               >
-                <div className="flex items-center gap-4">
+                {/* This row is an avatar, a name, a long email and three status items.
+                    The card is overflow-hidden, so at phone width the right-hand
+                    column was being cut off rather than wrapped -- the student count
+                    and the expand arrow simply vanished. The email truncates now and
+                    the last-seen stamp, the least useful of the three, drops out on
+                    phones so the count and the arrow always survive. */}
+                <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                   <div className="relative w-10 h-10 rounded-full bg-[#1e3a6e] flex items-center justify-center flex-shrink-0">
                     <span className="text-[#c9a84c] font-bold">{parent.first_name.charAt(0)}</span>
                     {isOnline(parent) && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-[#111d38]" title="Online now" />
                     )}
                   </div>
-                  <div>
-                    <p className="text-white font-medium">{parent.first_name} {parent.last_name}</p>
-                    <p className="text-gray-400 text-sm">{parent.email}</p>
+                  <div className="min-w-0">
+                    <p className="text-white font-medium truncate">{parent.first_name} {parent.last_name}</p>
+                    <p className="text-gray-400 text-sm truncate">{parent.email}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                   {isUnread(parent) && (
                     <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="New activity" />
                   )}
-                  <span className={`text-xs ${isOnline(parent) ? 'text-green-400' : 'text-gray-500'}`}>{isOnline(parent) ? 'Online' : timeAgo(parent.last_activity_at)}</span>
-                  <span className="text-gray-500 text-sm">{parent.students.length} student{parent.students.length !== 1 ? 's' : ''}</span>
+                  <span className={`hidden sm:inline text-xs ${isOnline(parent) ? 'text-green-400' : 'text-gray-500'}`}>{isOnline(parent) ? 'Online' : timeAgo(parent.last_activity_at)}</span>
+                  <span className="text-gray-500 text-sm whitespace-nowrap">{parent.students.length} student{parent.students.length !== 1 ? 's' : ''}</span>
                   <span className="text-gray-500">{expanded === parent.id ? '▲' : '▼'}</span>
                 </div>
               </button>

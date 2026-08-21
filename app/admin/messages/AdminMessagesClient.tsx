@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/lib/use-is-mobile'
 
 const NAVY = '#1a2744'
 const DARKER = '#0d1529'
@@ -108,7 +109,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
     loadThreads()
   }
 
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const isMobile = useIsMobile()
   const unreadCount = threads.filter(t => t.unread_by_admin).length
 
   return (

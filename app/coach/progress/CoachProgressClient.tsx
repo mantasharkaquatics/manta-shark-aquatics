@@ -30,11 +30,12 @@ function barColor(pct: number): string {
   return 'rgba(255,255,255,0.1)'
 }
 
-export default function CoachProgressClient({ coach, sessions, today, completedKeys }: {
+export default function CoachProgressClient({ coach, sessions, today, completedKeys, scheduledToday = 0 }: {
   coach: { id: string; first_name: string }
   sessions: any[]
   today: string
   completedKeys: string[]
+  scheduledToday?: number
 }) {
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null)
   const [studentDataMap, setStudentDataMap] = useState<Record<string, StudentProgress>>({})
@@ -184,13 +185,31 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Progress Entry</h1>
-          <p className="text-gray-400 text-sm mt-1">{today} · {sessionEntries.length} {sessionEntries.length === 1 ? 'lesson' : 'lessons'} today</p>
+          <p className="text-gray-400 text-sm mt-1">
+            {today} · {sessionEntries.length === 0 && scheduledToday > 0
+              ? `${scheduledToday} ${scheduledToday === 1 ? 'lesson' : 'lessons'} scheduled`
+              : `${sessionEntries.length} ${sessionEntries.length === 1 ? 'lesson' : 'lessons'} today`}
+          </p>
         </div>
 
       </div>
 
+      {/* This page only lists students with an attendance row, because an absent
+          student needs no progress written. That made a day with lessons but no
+          check-ins yet look identical to a day off -- so say which one it is. */}
       {sessionEntries.length === 0 ? (
-        <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center text-gray-400">No lessons scheduled today</div>
+        <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center">
+          {scheduledToday > 0 ? (
+            <>
+              <p className="text-gray-300">No students checked in yet</p>
+              <p className="text-gray-500 text-sm mt-1.5">
+                You have {scheduledToday} {scheduledToday === 1 ? 'lesson' : 'lessons'} today. Progress can be written once a student is checked in.
+              </p>
+            </>
+          ) : (
+            <p className="text-gray-400">No lessons scheduled today</p>
+          )}
+        </div>
       ) : (
         <div className="space-y-3">
           {sessionEntries.map(s => {

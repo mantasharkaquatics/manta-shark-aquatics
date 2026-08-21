@@ -165,6 +165,19 @@
     flex-shrink: 0;
   }
 
+  /* The staff screens were laid out for a mouse: rows of 30px text-xs buttons
+     sitting 8px apart -- Schedule / Change PIN / Deactivate, Approve / Reject.
+     They are all reachable with a cursor and all a coin toss with a thumb, and
+     some of the neighbours are destructive.
+
+     A floor rather than a fixed height: min-height only ever grows a button, so
+     anything already 44px or taller is untouched, and no layout can collapse.
+     Buttons that are deliberately square (calendar cells, icon toggles) grow to
+     44px too, which is the right answer for them as well.
+
+     Opted out with .tap-auto where a button is really a link inside a sentence. */
+  button:not(.tap-auto), [role="button"]:not(.tap-auto) { min-height: 44px; }
+
   .booking-step-label { display: none !important; }
   .booking-step-line { width: 24px !important; margin-bottom: 0 !important; }
 }
@@ -187,4 +200,12 @@
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff;
   border-color: #1e3a6e;
+}
+
+/* The point-of-sale till is a three-column grid set in an inline style, so this
+   rule needs !important to reach it. Below 900px the three columns stopped
+   fitting and the page simply ran off the side, taking the order summary and
+   both payment buttons with it. */
+@media (max-width: 900px) {
+  .pos-grid { grid-template-columns: 1fr !important; }
 }

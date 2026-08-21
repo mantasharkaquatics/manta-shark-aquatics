@@ -40,8 +40,14 @@ export default async function CoachProgressPage() {
     .neq('status', 'cancelled')
     .order('start_time')
 
+  // scheduledToday separates "nothing on the calendar" from "nobody has checked
+  // in yet". Both arrive at the client as an empty session list, and telling a
+  // coach "no lessons scheduled" on a day they are about to teach reads as the
+  // schedule being broken.
+  const scheduledToday = sessions?.length || 0
+
   if (!sessions || sessions.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedKeys={[]} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedKeys={[]} scheduledToday={0} />
   }
 
   const sessionIds = sessions.map(s => s.id)
@@ -75,7 +81,7 @@ export default async function CoachProgressPage() {
   }
 
   if (!bookings || bookings.length === 0) {
-    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedKeys={[]} />
+    return <CoachProgressClient coach={coach} sessions={[]} today={today} completedKeys={[]} scheduledToday={scheduledToday} />
   }
 
   const studentIds = [...new Set(bookings.map(b => b.student_id).filter(Boolean))]
@@ -125,5 +131,5 @@ export default async function CoachProgressPage() {
       })
   }
 
-  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} completedKeys={completedKeys} />
+  return <CoachProgressClient coach={coach} sessions={enrichedSessions} today={today} completedKeys={completedKeys} scheduledToday={scheduledToday} />
 }

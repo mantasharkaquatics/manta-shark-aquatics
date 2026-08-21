@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useIsMobile } from '@/lib/use-is-mobile'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -33,7 +34,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
   const [awaitingAi, setAwaitingAi] = useState(false)
   const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (!open) return

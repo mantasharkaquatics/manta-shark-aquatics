@@ -387,7 +387,12 @@ export default function POSClient() {
           <span style={{ color: '#9ca3af', fontSize: 13 }}>{readerLabel}</span>
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 300px', gap: 20, alignItems: 'start' }}>
+      {/* Three fixed columns with a 300px summary needs ~800px. Below that the
+          whole till ran off the side of the screen -- at 360px the page measured
+          710px wide, which put the Order Summary and both payment buttons out of
+          reach entirely. The class is here because the columns are an inline
+          style, which only a stylesheet rule marked !important can override. */}
+      <div className="pos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 300px', gap: 20, alignItems: 'start' }}>
         <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: 20 }}>
           <h2 style={{ color: 'white', fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 16px' }}>
             <span style={{ backgroundColor: selectedParent ? '#10b981' : GOLD, color: NAVY, borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
