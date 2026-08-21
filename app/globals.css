@@ -136,4 +136,14 @@
    on the home page and left it four columns wide on every other page in the site. */
 @media (max-width: 768px) {
   .footer-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+
+  /* iOS Safari zooms the entire page in when a field is focused whose text is
+     smaller than 16px, and it does not zoom back out afterwards -- the parent is
+     left on a page scrolled sideways, mid-form. Fields across this app are 13-14px
+     (text-sm, text-xs, or an inline fontSize), so every tap on every form did it:
+     login, register, booking, checkout, admin, coach.
+
+     !important is load-bearing here rather than lazy: most of these fields carry
+     an inline style, and an inline style outranks any stylesheet rule without it. */
+  input, textarea, select { font-size: 16px !important; }
 }
