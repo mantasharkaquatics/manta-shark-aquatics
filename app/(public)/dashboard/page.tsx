@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { isWithin24Hours } from '@/lib/tokens'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -1029,26 +1030,6 @@ export default function DashboardPage() {
     } catch {}
     await fetchAll()
     setRejectingId(null)
-  }
-
-  function isWithin24Hours(sessionDate: string, startTime: string): boolean {
-    const nowUTC = new Date()
-    // Treat lesson time as LA time and convert to UTC
-    const sessionLAString = `${sessionDate}T${startTime}`
-    const sessionUTC = new Date(new Date(sessionLAString).toLocaleString('en-US', { timeZone: 'UTC' }))
-    const sessionLA = new Date(new Date(sessionLAString + ' America/Los_Angeles').toLocaleString('en-US', { timeZone: 'UTC' }))
-    // Parse LA time correctly with Intl
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Los_Angeles',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    })
-    const parts = formatter.formatToParts(nowUTC)
-    const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0'
-    const nowLA = new Date(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`)
-    const sessionStart = new Date(`${sessionDate}T${startTime}`)
-    const diffMs = sessionStart.getTime() - nowLA.getTime()
-    return diffMs <= 24 * 60 * 60 * 1000
   }
 
   async function cancelBooking(bookingId: string) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 
 import { useState, useEffect } from 'react'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
@@ -51,10 +51,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   const [errorMap, setErrorMap] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    const check = () => {
-      const la = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
-      setLocked(la.getHours() === 0)
-    }
+    // Locked for the whole 00:00 hour in Los Angeles. This used to read the hour
+    // off `new Date(new Date().toLocaleString(..., { timeZone: 'LA' }))`, which
+    // formats to LA wall time and then reparses it as the BROWSER's zone -- the
+    // offset lands twice, so the lock fired at the wrong hour for anyone whose
+    // machine was not set to Los Angeles. getNowMinutesLA reads LA directly.
+    const check = () => setLocked(getNowMinutesLA() < 60)
     check()
     const t = setInterval(check, 60000)
     return () => clearInterval(t)
