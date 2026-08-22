@@ -228,36 +228,35 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                 {/* Header row */}
                 <button
                   onClick={() => toggleStudent(s.entryKey, s.studentId, s.sessionId)}
-                  className={`w-full flex items-start justify-between gap-3 flex-wrap p-4 text-left transition-all ${isExpanded ? 'bg-[#1e3a6e]/40' : 'hover:bg-[#1e3a6e]/20'}`}
+                  className={`w-full flex items-center justify-between gap-2 p-4 text-left transition-all ${isExpanded ? 'bg-[#1e3a6e]/40' : 'hover:bg-[#1e3a6e]/20'}`}
                 >
-                  <div className="flex items-center gap-3 min-w-0 grow basis-60">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="w-9 h-9 rounded-full bg-[#1a2744] flex items-center justify-center flex-shrink-0">
                       <span className="text-[#c9a84c] font-bold text-sm">{s.full_name.charAt(0)}</span>
                     </div>
                     <div className="min-w-0">
                       <p className="text-white font-medium text-sm">{s.full_name}</p>
-                      {/* Each part is nowrap so a phone breaks the line between
-                          them, never inside "3:00 PM - 3:30 PM". */}
+                      {/* No date: the page heading above already says which day
+                          these lessons are. Each part is nowrap so a phone breaks
+                          between them, never inside "3:00 PM - 3:30 PM". */}
                       <p className="text-gray-500 text-xs leading-snug">
-                        <span className="whitespace-nowrap">{new Date((s.sessionDate || today) + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                        {' · '}<span className="whitespace-nowrap">{s.sessionTime}</span>
+                        <span className="whitespace-nowrap">{s.sessionTime}</span>
                         {' · '}<span className="whitespace-nowrap">{s.courseName}</span>
                       </p>
                     </div>
                   </div>
-                  {/* Drops to its own line when the name and time need the width. */}
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     {/* Completion status */}
                     {isCompleted ? (
-                      <span className="text-xs px-2 py-1 rounded-full bg-green-900/40 text-green-400 font-medium">✓ Completed</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-green-900/40 text-green-400 font-medium whitespace-nowrap">Completed</span>
                     ) : (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400">○ Not filled</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400 whitespace-nowrap">Not filled</span>
                     )}
                     {/* Level badge */}
                     {lvl ? (
-                      <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ backgroundColor: color + '33', color }}>L{lvl}</span>
+                      <span className="text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap" style={{ backgroundColor: color + '33', color }}>L{lvl}</span>
                     ) : (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400">Unassigned</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400 whitespace-nowrap">Unassigned</span>
                     )}
                     <span className="text-gray-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
                   </div>
