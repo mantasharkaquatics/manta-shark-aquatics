@@ -1733,7 +1733,27 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const [addError, setAddError] = useState('')
   const [confirmAddId, setConfirmAddId] = useState<string | null>(null)
   const [bookingsLoaded, setBookingsLoaded] = useState(false)
+  const [cancelError, setCancelError] = useState('')
   const [band, setBand] = useState<{ min: number; max: number } | null>(null)
+  // Every load of the roster stamps a sequence number. Adding two students
+  // quickly leaves two reads in flight, and the slower one can land last and
+  // paint the older roster -- the admin then sees the student they just added
+  // disappear. Only the newest read is allowed to write.
+  const rosterSeq = useRef(0)
+
+  async function loadBookings() {
+    const seq = ++rosterSeq.current
+    try {
+      const r = await fetch(`/api/admin/session-bookings?session_id=${session.id}`)
+      const d = await r.json()
+      if (seq !== rosterSeq.current) return
+      setBookings(Array.isArray(d) ? d : [])
+    } catch {
+      if (seq !== rosterSeq.current) return
+      setBookings([])
+    }
+    setBookingsLoaded(true)
+  }
 
   async function addStudent(studentId: string) {
     setAdding(studentId); setAddError(''); setConfirmAddId(null)
@@ -1746,7 +1766,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
     setAdding(null)
     if (!res.ok) { setAddError(data.error || 'Add failed'); return }
     setAddQuery('')
-    fetch(`/api/admin/session-bookings?session_id=${session.id}`).then(r => r.json()).then(d => setBookings(Array.isArray(d) ? d : []))
+    await loadBookings()
     onRefresh()
   }
 
@@ -1758,7 +1778,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: session.id, coach_id: newCoachId, date: newDate, time: newTime }),
     })
-    const data = await res.json()
+    const data = await res.json().catch(() => ({} as any))
     setRescheduling(false)
     if (!res.ok) { setRescheduleError(data.error || 'Reschedule failed'); return }
     onRefresh(); onClose()
@@ -1769,9 +1789,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const liveCount = bookingsLoaded ? bookings.length : session.enrolled_count
 
   useEffect(() => {
-    fetch(`/api/admin/session-bookings?session_id=${session.id}`)
-      .then(r => r.json())
-      .then(data => { setBookings(Array.isArray(data) ? data : []); setBookingsLoaded(true) })
+    loadBookings()
   }, [session.id]) // eslint-disable-line
 
   useEffect(() => {
@@ -1783,12 +1801,32 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   }, [session.id]) // eslint-disable-line
 
   async function cancelSession() {
-    setCancelling(true)
-    await fetch('/api/admin/cancel-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: session.id }),
-    })
+    // This used to await the fetch and throw the response away: whatever came
+    // back -- a 409, a 500, an RLS refusal -- the modal closed and the calendar
+    // refreshed, and the admin walked away believing the lesson was cancelled
+    // and the parents emailed. The route also refunds credits and sends those
+    // emails, so a silent failure here is a family turning up to a lesson
+    // nobody is running. A throw was worse still: neither onRefresh nor
+    // onClose ran and the button sat on "Cancelling..." for ever.
+    setCancelling(true); setCancelError('')
+    let res: Response
+    try {
+      res = await fetch('/api/admin/cancel-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: session.id }),
+      })
+    } catch {
+      setCancelling(false)
+      setCancelError('Could not reach the server. The lesson has NOT been cancelled.')
+      return
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({} as any))
+      setCancelling(false)
+      setCancelError(data.error || 'Cancel failed. The lesson has NOT been cancelled.')
+      return
+    }
     onRefresh()
     onClose()
   }
@@ -1920,6 +1958,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
               <p className="text-sm text-red-300 font-medium">Cancel this lesson?</p>
               <p className="text-xs text-red-300/70 mt-1">All bookings in this session will be cancelled together, credits or tokens will be returned, and cancellation notices will be emailed to the parents.</p>
             </div>
+            {cancelError && <p className="text-xs text-red-300 mb-3">{cancelError}</p>}
             <div className="flex gap-3">
               <button onClick={cancelSession} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-lg bg-red-500/80 hover:bg-red-500 transition-colors text-sm text-white font-medium disabled:opacity-50">
@@ -1933,7 +1972,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
           </div>
         ) : (
           <div className="p-6 pt-0 flex gap-3">
-            <button onClick={() => setConfirmingCancel(true)}
+            <button onClick={() => { setConfirmingCancel(true); setCancelError('') }}
               className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm">
               Cancel this lesson
             </button>
