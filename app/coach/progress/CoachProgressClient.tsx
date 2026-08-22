@@ -42,6 +42,10 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   const [locked, setLocked] = useState(false)
   const [captureMap, setCaptureMap] = useState<Record<string, Capture | null>>({})
   const [errorMap, setErrorMap] = useState<Record<string, string>>({})
+  // Which stage is unfolded, per student. Unset means "follow the swimmer" --
+  // the stage they are actually in opens, and the other two stay shut, so a
+  // coach lands on the right list without scrolling past work that is locked.
+  const [openStageMap, setOpenStageMap] = useState<Record<string, number>>({})
 
   useEffect(() => {
     // Locked for the whole 00:00 hour in Los Angeles. This used to read the hour
@@ -361,19 +365,29 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 // 100% unfixable, and there is no admin screen that edits a
                                 // single skill.
                                 const stageOpen = st <= curStage
+                                const expanded = (openStageMap[s.entryKey] ?? curStage) === st
+                                const allDone = done === inStage.length
                                 return (
-                              <div key={'stage' + st} className={`space-y-3 ${stageOpen ? '' : 'opacity-40'}`}>
-                                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                              <div key={'stage' + st} className="space-y-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenStageMap(prev => ({ ...prev, [s.entryKey]: expanded ? 0 : st }))}
+                                  aria-expanded={expanded}
+                                  className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${stageOpen ? '' : 'opacity-40'}`}
+                                >
                                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>
                                     Stage {st}
                                   </span>
                                   {isCurrent
                                     ? <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>
                                     : st < curStage
-                                      ? <span className="text-[10px] text-gray-500">passed · editable</span>
+                                      ? <span className="text-[10px] text-gray-500">{allDone ? '🎊 done' : 'passed · editable'}</span>
                                       : <span className="text-[10px] text-gray-500">🔒 finish Stage {curStage} first</span>}
                                   <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
-                                </div>
+                                  <span className="text-[10px] text-gray-500 w-3 text-right">{expanded ? '▴' : '▾'}</span>
+                                </button>
+                                {expanded && (
+                                <div className={`space-y-3 ${stageOpen ? '' : 'opacity-40'}`}>
                               {inStage.map(skill => {
                                 const pct = localProgress[skill.id] ?? 0
                                 const color = barColor(pct)
@@ -401,6 +415,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   </div>
                                 )
                               })}
+                                </div>
+                                )}
                               </div>
                                 )
                               })}

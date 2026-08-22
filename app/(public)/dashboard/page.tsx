@@ -1292,7 +1292,7 @@ export default function DashboardPage() {
                                   color: sp.complete ? '#fff' : isNow ? levelColor : 'rgba(255,255,255,0.35)',
                                   whiteSpace: 'nowrap',
                                 }}>
-                                  {t('dash.stageN', { n: sp.stage })}{sp.complete ? ' ✓' : ''}
+                                  {t('dash.stageN', { n: sp.stage })}{sp.complete ? ' 🎊' : ''}
                                 </div>
                               )
                             })}

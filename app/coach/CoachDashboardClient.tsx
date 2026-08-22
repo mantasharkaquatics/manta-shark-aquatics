@@ -54,6 +54,9 @@ export default function CoachDashboardClient({
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
   const [loadingSkills, setLoadingSkills] = useState(false)
+  // null means "follow the swimmer": the stage they are in opens, the rest stay
+  // shut. Reset whenever a different student is picked.
+  const [openStage, setOpenStage] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [allComplete, setAllComplete] = useState(false)
@@ -71,6 +74,7 @@ export default function CoachDashboardClient({
   const loadStudentSkills = async (student: Student) => {
     setSelectedStudent(student)
     setSkills([])
+    setOpenStage(null)
     setSaveSuccess(false)
     setAllComplete(false)
     setLevelName('')
@@ -276,17 +280,26 @@ export default function CoachDashboardClient({
                   const done = inStage.filter(k => k.progress >= 100).length
                   const curStage = Number(selectedStudent?.current_stage || 1)
                   const isCurrent = curStage === st
+                  const expanded = (openStage ?? curStage) === st
+                  const allDone = done === inStage.length
                   return [(
-                    <div key={'stage' + st} className="flex items-center gap-2 pt-1 flex-wrap">
+                    <button
+                      key={'stage' + st}
+                      type="button"
+                      onClick={() => setOpenStage(expanded ? 0 : st)}
+                      aria-expanded={expanded}
+                      className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${st <= curStage ? '' : 'opacity-40'}`}
+                    >
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>Stage {st}</span>
                       {isCurrent
                         ? <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>
                         : st < curStage
-                          ? <span className="text-[10px] text-gray-500">✓ passed</span>
+                          ? <span className="text-[10px] text-gray-500">{allDone ? '🎊 done' : 'passed'}</span>
                           : <span className="text-[10px] text-gray-500">🔒 not yet</span>}
                       <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
-                    </div>
-                  ), ...inStage.map(skill => (
+                      <span className="text-[10px] text-gray-500 w-3 text-right">{expanded ? '▴' : '▾'}</span>
+                    </button>
+                  ), ...(expanded ? inStage : []).map(skill => (
                   <div key={skill.id} className={st <= curStage ? '' : 'opacity-40'}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-300 text-sm">{skill.name}</span>
