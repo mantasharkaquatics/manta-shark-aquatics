@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { STAGES } from '@/lib/levels'
 
-const PROGRESS_OPTIONS = [0, 20, 40, 60, 80, 100]
 
 type Student = {
   id: string
@@ -233,8 +232,9 @@ export default function CoachDashboardClient({
 
         {/* Right: Lesson note, then Skill Progress */}
         <div>
-          <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider flex items-center gap-2 flex-wrap">
             Skill Progress
+            <span className="text-[10px] font-medium normal-case tracking-normal text-gray-500 bg-white/5 px-2 py-0.5 rounded">view only</span>
           </h2>
 
           {!selectedStudent ? (
@@ -271,7 +271,7 @@ export default function CoachDashboardClient({
                   the page instead, or gets stuck inside the box. On a phone the list
                   just flows and the page scrolls; the cap stays from md up, where a
                   mouse wheel makes it a convenience rather than a trap. */}
-              <div className="p-5 space-y-4 md:max-h-[500px] md:overflow-y-auto">
+              <div className="p-5 space-y-3 md:max-h-[500px] md:overflow-y-auto">
                 {skills.length === 0 ? (
                   <p className="text-gray-400 text-sm">No skills found for this level.</p>
                 ) : STAGES.flatMap(st => {
@@ -307,21 +307,12 @@ export default function CoachDashboardClient({
                         {skill.progress}%
                       </span>
                     </div>
-                    <div className="w-full bg-[#0d1529] rounded-full h-1.5 mb-2">
+                    {/* A bar, not a row of buttons. This panel is read-only, and six
+                        chips that look pressable but are not is a trap: the first
+                        thing anyone does is tap them and conclude the app is broken.
+                        Recording happens under Progress, where the chips do work. */}
+                    <div className="w-full bg-[#0d1529] rounded-full h-1.5">
                       <div className="bg-[#c9a84c] h-1.5 rounded-full transition-all" style={{ width: `${skill.progress}%` }} />
-                    </div>
-                    <div className="flex gap-1">
-                      {PROGRESS_OPTIONS.map(val => (
-                        <button
-                          key={val}
-                          disabled
-                          className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
-                            skill.progress === val ? 'bg-[#c9a84c] text-[#111d38]' : 'bg-[#0d1529] text-gray-400 hover:bg-[#1e3a6e]'
-                          }`}
-                        >
-                          {val}%
-                        </button>
-                      ))}
                     </div>
                   </div>
                   ))]
