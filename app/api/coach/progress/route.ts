@@ -132,24 +132,62 @@ export async function POST(req: NextRequest) {
 
   const today = session_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
-  const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
-    student_id,
-    skill_id,
-    progress_percent: pct as number,
-    last_updated_by: coach.id,
-    last_updated_at: new Date().toISOString()
-  }))
+  // A stage the swimmer has not reached yet may not be written. The recorder
+  // already greys those out; this stops a tab left open across a promotion, and
+  // stops a stage being marked out of order so the trigger promotes on work the
+  // swimmer never did. Stages already passed stay writable so a mistake can be
+  // corrected.
+  const { data: gateStudent } = await supabase
+    .from('students').select('current_level, current_stage').eq('id', student_id).single()
 
-  const { error } = await supabase
-    .from('student_skill_progress')
-    .upsert(upserts, { onConflict: 'student_id,skill_id' })
+  let allowed: Set<string> | null = null
+  let stored: Record<string, number> = {}
+  if (gateStudent?.current_level) {
+    const { data: lvl } = await supabase
+      .from('levels').select('id').eq('level_number', gateStudent.current_level).maybeSingle()
+    if (lvl) {
+      const { data: levelSkills } = await supabase
+        .from('skills').select('id, stage').eq('level_id', lvl.id).eq('is_active', true)
+      const stage = Number(gateStudent.current_stage) || 1
+      // Stages up to and including the current one; a future stage is refused.
+      allowed = new Set((levelSkills || []).filter(k => (Number(k.stage) || 1) <= stage).map(k => k.id))
+      const { data: existing } = await supabase
+        .from('student_skill_progress').select('skill_id, progress_percent').eq('student_id', student_id)
+      for (const row of existing || []) stored[row.skill_id] = row.progress_percent
+    }
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // What the coach may change, they changed. Everything else keeps the value
+  // already on file, so the snapshot stays a complete picture of the level.
+  const accepted: Record<string, number> = {}
+  for (const [skill_id, pct] of Object.entries(progress)) {
+    accepted[skill_id] = allowed && !allowed.has(skill_id)
+      ? (stored[skill_id] ?? 0)
+      : (pct as number)
+  }
+
+  const upserts = Object.entries(accepted)
+    .filter(([skill_id]) => !allowed || allowed.has(skill_id))
+    .map(([skill_id, pct]) => ({
+      student_id,
+      skill_id,
+      progress_percent: pct as number,
+      last_updated_by: coach.id,
+      last_updated_at: new Date().toISOString()
+    }))
+
+  if (upserts.length > 0) {
+    const { error } = await supabase
+      .from('student_skill_progress')
+      .upsert(upserts, { onConflict: 'student_id,skill_id' })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   await supabase.from('progress_history').insert({
     student_id,
     coach_id: coach.id,
-    snapshot: progress,
+    snapshot: accepted,
     session_date: today,
     class_session_id: class_session_id || null,
     status: 'pending_review'

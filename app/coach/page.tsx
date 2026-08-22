@@ -58,7 +58,7 @@ export default async function CoachDashboardPage() {
       course_types(name, slug),
       bookings!class_session_id(
         id, status, lesson_group_id,
-        students(id, full_name, current_level, profile_photo_url)
+        students(id, full_name, current_level, current_stage, profile_photo_url)
       )
     `)
     .eq('coach_id', coach.id)

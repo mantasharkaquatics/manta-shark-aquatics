@@ -353,14 +353,25 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 const inStage = data.skills.filter(k => Number(k.stage || 1) === st)
                                 if (inStage.length === 0) return null
                                 const done = inStage.filter(k => (localProgress[k.id] ?? 0) >= 100).length
-                                const isCurrent = Number(data.student.current_stage || 1) === st
+                                const curStage = Number(data.student.current_stage || 1)
+                                const isCurrent = curStage === st
+                                // A stage the swimmer has not reached cannot be marked, so the
+                                // order of the curriculum is real rather than advisory. Stages
+                                // already passed stay open: locking them would make a mistyped
+                                // 100% unfixable, and there is no admin screen that edits a
+                                // single skill.
+                                const stageOpen = st <= curStage
                                 return (
-                              <div key={'stage' + st} className="space-y-3">
-                                <div className="flex items-center gap-2 pt-1">
+                              <div key={'stage' + st} className={`space-y-3 ${stageOpen ? '' : 'opacity-40'}`}>
+                                <div className="flex items-center gap-2 pt-1 flex-wrap">
                                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>
                                     Stage {st}
                                   </span>
-                                  {isCurrent && <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>}
+                                  {isCurrent
+                                    ? <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>
+                                    : st < curStage
+                                      ? <span className="text-[10px] text-gray-500">passed · editable</span>
+                                      : <span className="text-[10px] text-gray-500">🔒 finish Stage {curStage} first</span>}
                                   <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
                                 </div>
                               {inStage.map(skill => {
@@ -378,8 +389,9 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                     <div className="flex gap-1.5">
                                       {[0, 20, 40, 60, 80, 100].map(v => (
                                         <button key={v}
-                                          onClick={() => { if (!locked && !isCompleted) setLocalProgressMap(prev => ({ ...prev, [s.entryKey]: { ...prev[s.entryKey], [skill.id]: v } })) }}
-                                          className={`flex-1 py-1 rounded text-xs font-medium transition-all ${pct === v ? 'font-bold' : 'text-gray-400 bg-white/5 hover:bg-white/10'} ${locked || isCompleted ? 'cursor-not-allowed opacity-50' : ''}`}
+                                          disabled={!stageOpen || locked || isCompleted}
+                                          onClick={() => { if (stageOpen && !locked && !isCompleted) setLocalProgressMap(prev => ({ ...prev, [s.entryKey]: { ...prev[s.entryKey], [skill.id]: v } })) }}
+                                          className={`flex-1 py-1 rounded text-xs font-medium transition-all ${pct === v ? 'font-bold' : 'text-gray-400 bg-white/5'} ${stageOpen && !locked && !isCompleted ? 'hover:bg-white/10' : 'cursor-not-allowed'}`}
                                           style={pct === v ? { backgroundColor: color, color: '#1a2744' } : {}}
                                         >
                                           {v}%

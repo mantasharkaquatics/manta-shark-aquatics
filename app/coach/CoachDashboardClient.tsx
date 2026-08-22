@@ -10,6 +10,7 @@ type Student = {
   id: string
   full_name: string
   current_level: string
+  current_stage?: number | null
   profile_photo_url?: string
 }
 
@@ -273,13 +274,20 @@ export default function CoachDashboardClient({
                   const inStage = skills.filter(k => Number(k.stage || 1) === st)
                   if (inStage.length === 0) return []
                   const done = inStage.filter(k => k.progress >= 100).length
+                  const curStage = Number(selectedStudent?.current_stage || 1)
+                  const isCurrent = curStage === st
                   return [(
-                    <div key={'stage' + st} className="flex items-center gap-2 pt-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-gray-500">Stage {st}</span>
+                    <div key={'stage' + st} className="flex items-center gap-2 pt-1 flex-wrap">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>Stage {st}</span>
+                      {isCurrent
+                        ? <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>
+                        : st < curStage
+                          ? <span className="text-[10px] text-gray-500">✓ passed</span>
+                          : <span className="text-[10px] text-gray-500">🔒 not yet</span>}
                       <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
                     </div>
                   ), ...inStage.map(skill => (
-                  <div key={skill.id}>
+                  <div key={skill.id} className={st <= curStage ? '' : 'opacity-40'}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-300 text-sm">{skill.name}</span>
                       <span className={`text-sm font-semibold ${skill.progress === 100 ? 'text-[#c9a84c]' : 'text-gray-400'}`}>
