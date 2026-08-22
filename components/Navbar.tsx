@@ -178,7 +178,7 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            {localeSelect('hidden sm:inline-flex')}
+            {localeSelect('hidden md:inline-flex')}
             {authLoading ? <div className="w-24 h-8" /> : isLoggedIn ? (
               <>
                 <Link href="/dashboard"
@@ -252,7 +252,7 @@ export default function Navbar() {
               a mis-tap here reloads the whole site in another language. Collapsed
               to a single row that reads like the others and states the current
               choice; the options only exist once you have asked for them. */}
-          <div className="sm:hidden">
+          <div>
             <button onClick={() => setLangOpen(v => !v)} aria-expanded={langOpen}
               className="flex items-center justify-between gap-3 w-full text-left min-h-14 border-b border-white/10 text-base text-gray-200">
               <span>{t('nav.language')}</span>
