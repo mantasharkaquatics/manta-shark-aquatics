@@ -241,7 +241,10 @@ export default function PlansContent() {
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
             {t('plans.private.desc')}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          {/* Four stacked cards made this page enormously long on a phone. Below md
+              the row swipes sideways instead (see .pkg-row in globals.css); each card
+              takes 78% of the width so the next one peeks in and shows it scrolls. */}
+          <div className="pkg-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
             {PRIVATE_PACKAGES.map((pkg) => <PackageCard key={pkg.id} pkg={pkg} accentColor={GOLD} />)}
           </div>
         </div>
@@ -262,7 +265,7 @@ export default function PlansContent() {
           <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
             {t('plans.semi.desc')}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          <div className="pkg-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
             {SEMI_PACKAGES.map((pkg) => <PackageCard key={pkg.id} pkg={pkg} accentColor="#4a90c4" />)}
           </div>
         </div>

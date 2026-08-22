@@ -48,7 +48,7 @@ export default function LoginPage() {
   const field = "w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] transition-colors"
 
   return (
-    <div className="auth-shell min-h-screen bg-[#0d1529] flex items-center justify-center px-4 py-10">
+    <div className="auth-shell min-h-dvh bg-[#0d1529] flex items-center justify-center px-4 py-10">
       <div className="bg-[#111d38] rounded-2xl border border-[#1e3a6e] p-7 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">

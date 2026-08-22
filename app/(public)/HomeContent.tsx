@@ -39,10 +39,17 @@ export default function HomeContent() {
         .ttext { flex: 1; font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.7; }
         .tauthor { margin-top: 20px; display: flex; align-items: center; gap: 10px; }
         .tavatar { width: 36px; height: 36px; border-radius: 50%; background: #c9a84c; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #111d38; flex-shrink: 0; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3); cursor: pointer; transition: all 0.2s; border: none; }
+        /* The dot is 8px of paint; ::after gives it a 32px invisible hit area so a
+           thumb can land on it without the dot being drawn any bigger. */
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3); cursor: pointer; transition: all 0.2s; border: none; padding: 0; position: relative; flex-shrink: 0; }
+        .dot::after { content: ''; position: absolute; inset: -12px; }
         .dot.active { background: #c9a84c; width: 24px; border-radius: 4px; }
-        .carousel-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: white; cursor: pointer; font-size: 18px; transition: all 0.2s; }
-        .carousel-btn:hover { background: #c9a84c; border-color: #c9a84c; color: #111d38; }
+        .carousel-btn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: white; cursor: pointer; font-size: 18px; transition: all 0.2s; flex-shrink: 0; }
+        /* Guarded: on a touch screen :hover latches after a tap, so one arrow stayed
+           filled gold until you tapped elsewhere -- it read as a broken toggle. */
+        @media (hover: hover) {
+          .carousel-btn:hover { background: #c9a84c; border-color: #c9a84c; color: #111d38; }
+        }
 
         @media (max-width: 768px) {
                     .hero-title { font-size: 32px !important; }
@@ -52,6 +59,11 @@ export default function HomeContent() {
           .program-grid { grid-template-columns: 1fr 1fr !important; }
           .tcard.active { grid-template-columns: 1fr !important; }
           .tcard.active .titem:not(:first-child) { display: none; }
+          /* One quote per slide on a phone, and they are different lengths, so the
+             card grew and shrank as you paged and the controls jumped under your
+             thumb. Fixed floor, author pinned to the bottom. */
+          .tcard.active .titem { min-height: 232px; display: flex; flex-direction: column; }
+          .tcard.active .titem .tauthor { margin-top: auto; }
           .cta-btns { flex-direction: column; align-items: center; }
           .hero-content { padding: 32px 20px 100px !important; }
           .section-pad { padding: 48px 20px !important; }
@@ -168,11 +180,11 @@ export default function HomeContent() {
           ))}
 
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
-            <button className="carousel-btn" id="t-prev">&#8592;</button>
+            <button className="tap-auto carousel-btn" id="t-prev" aria-label="Previous">&#8592;</button>
             <div style={{ display: 'flex', gap: '8px' }}>
-              {[0,1,2,3].map(i => <button key={i} className={`dot${i===0?' active':''}`} data-dot={i} aria-label={t('home.carousel.goToSlide', { n: i + 1 })} />)}
+              {[0,1,2,3].map(i => <button key={i} className={`tap-auto dot${i===0?' active':''}`} data-dot={i} aria-label={t('home.carousel.goToSlide', { n: i + 1 })} />)}
             </div>
-            <button className="carousel-btn" id="t-next">&#8594;</button>
+            <button className="tap-auto carousel-btn" id="t-next" aria-label="Next">&#8594;</button>
           </div>
         </div>
       </section>

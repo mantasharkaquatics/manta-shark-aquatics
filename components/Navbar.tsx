@@ -16,6 +16,16 @@ const navLinks = [
   { labelKey: 'page.policies', href: '/policies' },
 ]
 
+function Chevron() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="shrink-0 text-gray-500" aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  )
+}
+
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -171,24 +181,40 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* Drawer rows are full-width, 56px tall, 16px text, separated by a hairline
+          and closed by a chevron. Before this they were bare 14px labels: the tap
+          target ran the width of the row but nothing said so, so the obvious thing
+          to do -- tap the label itself -- was the only thing that looked clickable,
+          and the rest of the row read as dead space. The chevron is the same
+          convention a phone user already knows from their settings app. */}
       {menuOpen && (
-        <div className="md:hidden bg-[#111d38] px-4 pb-4 space-y-2">
+        <div className="md:hidden bg-[#111d38] px-4 pb-4">
           {navLinks.map(link => (
             <Link key={link.href} href={localePath(link.href, locale)}
               onClick={() => setMenuOpen(false)}
-              className={`flex items-center min-h-11 text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
-              {t(link.labelKey)}
+              className={`flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-200 hover:text-[#c9a84c]'}`}>
+              <span>{t(link.labelKey)}</span>
+              <Chevron />
             </Link>
           ))}
           {isLoggedIn ? (
             <>
-              <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="flex items-center min-h-11 text-sm text-gray-300 hover:text-white">{t('nav.dashboard')}</Link>
-              <button onClick={handleSignOut} className="flex items-center min-h-11 text-sm text-gray-300 hover:text-white w-full text-left">{t('nav.signOut')}</button>
+              <Link href="/dashboard" onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base text-gray-200 hover:text-white">
+                <span>{t('nav.dashboard')}</span><Chevron />
+              </Link>
+              <button onClick={handleSignOut}
+                className="flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base text-gray-200 hover:text-white w-full text-left">
+                <span>{t('nav.signOut')}</span><Chevron />
+              </button>
             </>
           ) : (
-            <Link href="/login" onClick={() => setMenuOpen(false)} className="flex items-center min-h-11 text-sm text-gray-300 hover:text-white">{t('nav.signIn')}</Link>
+            <Link href="/login" onClick={() => setMenuOpen(false)}
+              className="flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base text-gray-200 hover:text-white">
+              <span>{t('nav.signIn')}</span><Chevron />
+            </Link>
           )}
-          <div className="pt-2 sm:hidden">{localeSelect('w-full min-h-11')}</div>
+          <div className="pt-4 sm:hidden">{localeSelect('w-full min-h-12 text-base')}</div>
         </div>
       )}
     </nav>

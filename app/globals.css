@@ -135,7 +135,16 @@
    is mounted, so this exact rule -- living in HomeContent -- collapsed the footer
    on the home page and left it four columns wide on every other page in the site. */
 @media (max-width: 768px) {
-  .footer-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+  /* One column made the footer a 14-link wall you had to scroll past to reach the
+     bottom of every page. The two link lists sit side by side instead -- they are
+     short labels, they fit -- while the brand block and the contact details, which
+     are prose, keep the full width. Halves the height without hiding anything. */
+  .footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 28px 20px !important;
+  }
+  .footer-grid > :first-child,
+  .footer-grid > :last-child { grid-column: 1 / -1; }
 
   /* iOS Safari zooms the entire page in when a field is focused whose text is
      smaller than 16px, and it does not zoom back out afterwards -- the parent is
@@ -177,6 +186,31 @@
 
      Opted out with .tap-auto where a button is really a link inside a sentence. */
   button:not(.tap-auto), [role="button"]:not(.tap-auto) { min-height: 44px; }
+
+  /* Safari's bottom toolbar floats over the page. The auth pages have no footer,
+     so the last line -- "Already have an account? Sign in" -- sat underneath it,
+     and tapping it hit the toolbar instead. This is room to scroll clear of it. */
+  .auth-shell { padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+
+  /* Package cards: a horizontal snap row instead of a tall stack. The negative
+     margin lets it reach the screen edge while the padding keeps the first card
+     aligned with the heading above it, and 78% leaves the next card peeking --
+     which is the only thing that tells anyone the row scrolls. */
+  .pkg-row {
+    display: flex !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-inline: calc(-1 * clamp(24px, 5vw, 72px));
+    padding-inline: clamp(24px, 5vw, 72px);
+    padding-bottom: 6px;
+  }
+  .pkg-row::-webkit-scrollbar { display: none; }
+  .pkg-row > * {
+    flex: 0 0 78%;
+    scroll-snap-align: start;
+  }
 
   .booking-step-label { display: none !important; }
   .booking-step-line { width: 24px !important; margin-bottom: 0 !important; }

@@ -282,7 +282,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="auth-shell min-h-screen bg-[#0d1529] flex items-center justify-center py-10 px-4">
+    <div className="auth-shell min-h-dvh bg-[#0d1529] flex items-center justify-center py-10 px-4">
       <div className="bg-[#111d38] rounded-2xl border border-[#1e3a6e] w-full max-w-lg p-6 sm:p-8">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
