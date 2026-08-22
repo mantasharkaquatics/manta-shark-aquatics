@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import Image from 'next/image'
 import SignOutButton from '../admin/components/SignOutButton'
+import CoachTabs from './CoachTabs'
 
 export default async function CoachLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
@@ -19,11 +19,11 @@ export default async function CoachLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-[#0d1529]">
-      {/* One flex row at desktop, two stacked rows on a phone. This is a server
-          component, so there is no hamburger to open -- instead the four links
-          wrap onto as many lines as they need. A coach standing on a pool deck
-          gets every destination visible at once, which beats a menu anyway. */}
-      <nav className="bg-[#111d38] border-b border-[#1e3a6e] px-4 sm:px-6 py-3 sm:py-4">
+      {/* Two rows: who you are plus the way out, then where you can go. Every
+          destination stays visible -- no hamburger to open with wet hands -- and
+          the tab row fills the width rather than hugging the left edge, which is
+          what left Sign Out looking stranded in the opposite corner. */}
+      <header className="bg-[#111d38] px-4 sm:px-6 pt-3 sm:pt-4">
         {/* Sign Out used to sit at the end of the same row as the four navigation
             links, where it is one slip away from a coach who meant to tap Progress
             -- and the cost of that slip is being thrown out of the portal mid-lesson.
@@ -44,14 +44,9 @@ export default async function CoachLayout({ children }: { children: React.ReactN
               <SignOutButton />
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:gap-6">
-            <Link href="/coach" className="flex items-center min-h-11 sm:min-h-0 text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Today</Link>
-            <Link href="/coach/schedule" className="flex items-center min-h-11 sm:min-h-0 text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Schedule</Link>
-            <Link href="/coach/time-off" className="flex items-center min-h-11 sm:min-h-0 text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Time Off</Link>
-            <Link href="/coach/progress" className="flex items-center min-h-11 sm:min-h-0 text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Progress</Link>
-          </div>
+          <CoachTabs />
         </div>
-      </nav>
+      </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {children}
       </main>
