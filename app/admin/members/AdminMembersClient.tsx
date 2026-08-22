@@ -388,7 +388,7 @@ function CopyButton({ value }: { value: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="ml-2 text-gray-500 hover:text-[#c9a84c] transition-colors flex-shrink-0"
+      className="tap-auto ml-2 p-1.5 -m-1.5 ml-1 inline-flex items-center justify-center text-gray-500 hover:text-[#c9a84c] transition-colors flex-shrink-0"
       title="Copy"
     >
       {copied
@@ -674,10 +674,10 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Address</p>
                       {addressText ? (
                         <div className="flex items-start">
-                          <p className="text-gray-300 text-sm leading-relaxed">
+                          <p className="text-gray-300 text-sm leading-relaxed min-w-0 break-words">
                             {[parent.address_line1, parent.address_line2, [parent.city, parent.state, parent.zip_code].filter(Boolean).join(', ')].filter(Boolean).join(', ')}
                           </p>
-                          <CopyButton value={addressText} />
+                          <span className="mt-0.5"><CopyButton value={addressText} /></span>
                         </div>
                       ) : (
                         <p className="text-gray-300 text-sm">—</p>
@@ -720,12 +720,12 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => toggleNewsletter(parent.id, parent.newsletter_subscribed)}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                          className={`tap-auto relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
                             parent.newsletter_subscribed ? 'bg-green-500' : 'bg-gray-600'
                           }`}
                         >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                            parent.newsletter_subscribed ? 'translate-x-4' : 'translate-x-0'
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                            parent.newsletter_subscribed ? 'translate-x-5' : 'translate-x-0'
                           }`} />
                         </button>
                         <span className="text-sm text-gray-400">

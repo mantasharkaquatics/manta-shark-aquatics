@@ -309,7 +309,10 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.email')} <span className="text-red-400">*</span></label>
-              <div className="flex gap-2">
+              {/* "Send Verification Code" will not wrap, so beside it the email
+                  field was squeezed to about a third of a phone screen -- you
+                  could not see the address you were typing. Stacked below sm. */}
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailVerified}
                   className="flex-1 bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {emailVerified ? (
@@ -340,7 +343,10 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.phone')} <span className="text-red-400">*</span></label>
-              <div className="flex gap-2">
+              {/* "Send Verification Code" will not wrap, so beside it the email
+                  field was squeezed to about a third of a phone screen -- you
+                  could not see the address you were typing. Stacked below sm. */}
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={phoneVerified}
                   placeholder="(555) 123-4567"
                   className="flex-1 bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />

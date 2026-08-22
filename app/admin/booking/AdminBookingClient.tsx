@@ -188,12 +188,12 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
       {/* Mini header */}
       <div className="flex items-center justify-between mb-2">
         <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() - 1, 1))} aria-label="Previous month"
-          className="w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">‹</button>
+          className="tap-auto w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">‹</button>
         <span className="text-xs font-semibold text-white/70">
           {mini.getFullYear()} {MONTH_NAMES[mini.getMonth()]}
         </span>
         <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() + 1, 1))} aria-label="Next month"
-          className="w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">›</button>
+          className="tap-auto w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">›</button>
       </div>
       {/* Weekday labels */}
       <div className="grid grid-cols-7 mb-1">
@@ -212,7 +212,7 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
             <button
               key={ds}
               onClick={() => onSelect(date)}
-              className={`h-7 w-full rounded text-[10px] transition-colors ${
+              className={`tap-auto h-7 w-full rounded text-[10px] transition-colors ${
                 isSelected
                   ? 'bg-[#c9a84c] text-[#0d1529] font-bold'
                   : isToday

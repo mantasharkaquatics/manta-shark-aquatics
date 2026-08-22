@@ -504,12 +504,21 @@ export default function LevelsContent() {
             <div style={{ width: '36px', height: '2px', background: 'rgba(200,160,32,0.4)', borderRadius: '1px' }} />
           </div>
 
+          {/* p1 and p2 are two halves of ONE sentence -- p1b ends "...aquatic
+              confidence —" and p2a picks up with a lowercase "our coaches focus
+              on". Rendered as separate paragraphs they read as a sentence that
+              breaks off, which is most obvious on a phone where the first half's
+              last line is short. One paragraph.
+
+              The joining space is conditional because only the Western locales
+              need it: English ends the first half on an em-dash and wants a
+              space, while zh-Hant/zh-Hans end on a full-width comma 「，」 which
+              already carries its own trailing space in the glyph. */}
           <p style={{ fontSize: 'clamp(13px, 1.3vw, 15px)', color: 'rgba(255,255,255,0.68)', lineHeight: 1.85, marginBottom: '12px' }}>
             {t('levels.cta.p1a')}
             <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{t('levels.cta.p1strong')}</strong>
             {t('levels.cta.p1b')}
-          </p>
-          <p style={{ fontSize: 'clamp(13px, 1.3vw, 15px)', color: 'rgba(255,255,255,0.68)', lineHeight: 1.85, marginBottom: '12px' }}>
+            {/[\u3000-\u303F\uFF00-\uFFEF]$/.test(t('levels.cta.p1b')) ? '' : ' '}
             {t('levels.cta.p2a')}
             <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{t('levels.cta.p2strong')}</strong>
             {t('levels.cta.p2b')}

@@ -187,6 +187,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
         {/* Close button */}
         <button
           onClick={onClose}
+          className="tap-auto"
           style={{
             position: 'absolute', top: '16px', right: '16px',
             background: 'rgba(255,255,255,0.08)', border: 'none',
@@ -1324,8 +1325,8 @@ export default function DashboardPage() {
                                 <button onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: Math.max(0, page - 1) }))} disabled={page === 0}
                                   style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '11px', cursor: page === 0 ? 'not-allowed' : 'pointer' }}>←</button>
                                 {Array.from({ length: totalPages }, (_, i) => (
-                                  <button key={i} onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: i }))}
-                                    style={{ width: '26px', height: '26px', borderRadius: '6px', border: `1px solid ${i === page ? GOLD : 'rgba(255,255,255,0.12)'}`, background: i === page ? `${GOLD}20` : 'transparent', color: i === page ? GOLD : 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                  <button key={i} onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: i }))} className="tap-auto"
+                                    style={{ width: '32px', height: '32px', borderRadius: '6px', border: `1px solid ${i === page ? GOLD : 'rgba(255,255,255,0.12)'}`, background: i === page ? `${GOLD}20` : 'transparent', color: i === page ? GOLD : 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                                   >{i + 1}</button>
                                 ))}
                                 <button onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: Math.min(totalPages - 1, page + 1) }))} disabled={page === totalPages - 1}
@@ -1970,7 +1971,7 @@ export default function DashboardPage() {
                       >← {t('dash.prev')}</button>
                       {Array.from({ length: totalPages }, (_, i) => (
                         <button key={i}
-                          onClick={() => setHistoryPage(i)}
+                          onClick={() => setHistoryPage(i)} className="tap-auto"
                           style={{ width: '32px', height: '32px', borderRadius: '8px', border: `1px solid ${i === historyPage ? GOLD : 'rgba(255,255,255,0.12)'}`, background: i === historyPage ? `${GOLD}20` : 'transparent', color: i === historyPage ? GOLD : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
                         >{i + 1}</button>
                       ))}

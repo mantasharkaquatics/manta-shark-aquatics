@@ -94,7 +94,12 @@ export default function ServicesContent() {
             </div>
           </div>
           <p className="text-gray-600 mb-8 max-w-2xl">{t('services.group.desc')}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-sm">
+          {/* max-w-sm caps the whole grid, so on a phone this section rendered as a
+              384px column hugging the left edge while every other tier above it ran
+              the full width -- it read as a layout fault rather than a design. Two
+              across on mobile like the other tiers; the cap only applies from sm up,
+              where it stops two small cards stretching across the page. */}
+          <div className="grid grid-cols-2 gap-4 sm:max-w-sm">
             {groupOptions.map(opt => (
               <div key={opt.classes} className="border-2 border-gray-200 rounded-2xl p-5 text-center hover:border-[#c9a84c] hover:shadow-md transition-all">
                 <div className="text-2xl font-bold text-[#1a2744]">${opt.price}</div>

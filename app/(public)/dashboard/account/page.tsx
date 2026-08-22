@@ -130,6 +130,7 @@ export default function AccountPage() {
             <button
               onClick={toggleNewsletter}
               disabled={newsletterSaving}
+              className="tap-auto"
               style={{
                 width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
                 background: parent?.newsletter_subscribed ? '#4caf72' : 'rgba(255,255,255,0.15)',
