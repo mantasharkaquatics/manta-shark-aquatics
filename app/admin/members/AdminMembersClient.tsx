@@ -748,13 +748,18 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                         const displayList = expandedType === 'upcoming' ? sb?.upcoming : expandedType === 'past' ? sb?.past : []
                         return (
                           <div key={student.id} className="bg-[#0d1529] rounded-lg overflow-hidden">
-                            <div className="flex items-center gap-3 p-3">
-                              <div className="flex items-center gap-3">
+                            {/* Identity on the left, a level pill and four buttons on the
+                                right, in one unwrapping row inside an overflow-hidden card:
+                                at phone width the row wanted ~460px in a 270px box, so
+                                History, Notes and SDP were cut away with no scrollbar and
+                                no sign they existed. Both halves wrap now. */}
+                            <div className="flex flex-wrap items-center gap-3 p-3">
+                              <div className="flex items-center gap-3 min-w-0">
                                 <div className="w-7 h-7 rounded-full bg-[#1e3a6e] flex items-center justify-center">
                                   <span className="text-[#c9a84c] text-xs font-bold">{student.full_name.charAt(0)}</span>
                                 </div>
-                                <div>
-                                  <p className="text-white text-sm">{student.full_name}</p>
+                                <div className="min-w-0">
+                                  <p className="text-white text-sm truncate">{student.full_name}</p>
                                   <p className="text-gray-500 text-xs">
                                     {student.date_of_birth
                                       ? `${new Date(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`
@@ -768,7 +773,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 ml-4">
+                              <div className="flex flex-wrap items-center gap-2 sm:ml-4">
                                 <span className={`text-xs px-2 py-1 rounded-full ${student.current_level ? (LEVEL_COLORS[student.current_level] || 'bg-gray-700 text-gray-300') : 'bg-gray-700/50 text-gray-400 italic'}`}>
                                   {student.current_level ? `L${student.current_level} ${LEVEL_NAMES[student.current_level] || ''}` : 'Pending Assessment'}
                                 </span>

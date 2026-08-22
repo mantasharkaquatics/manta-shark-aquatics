@@ -1494,8 +1494,14 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
   return (
     <div className="relative">
       <NowLine ds={ds} />
+      {/* minmax rather than plain 1fr: with three coaches these columns are 93px
+          on a phone, but they divide the width evenly however many coaches exist,
+          so hiring a fourth and fifth would silently squeeze them to 56px. The
+          floor makes the day grid scroll sideways instead -- the parent is
+          already overflow-auto. Header and body must use the SAME track list or
+          the columns stop lining up. */}
       <div className="sticky top-0 z-20 bg-[#0d1529] border-b border-white/10">
-        <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
+        <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, minmax(90px, 1fr))` }}>
           <div className="h-14" />
           {coaches.map(coach => (
             <div key={coach.id} className="h-14 flex flex-col items-center justify-center border-l border-white/5">
@@ -1505,7 +1511,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
           ))}
         </div>
       </div>
-      <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, 1fr)` }}>
+      <div className="grid" style={{ gridTemplateColumns: `80px repeat(${coaches.length}, minmax(90px, 1fr))` }}>
         {TIME_SLOTS.map((time, ri) => (
           <div key={time} className="contents">
             <div className="h-14 flex items-start justify-end pr-3 pt-1.5 text-xs text-white/25 border-t border-white/5">
