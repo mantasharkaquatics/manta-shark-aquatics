@@ -30,7 +30,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
             It lives in the top-right corner now, on the identity row, separated from
             anything you would tap on purpose and given a border so it reads as a
             different kind of control rather than a fifth link. */}
-        <div className="max-w-7xl mx-auto flex flex-col gap-3">
+        <div className="max-w-7xl mx-auto flex flex-col gap-5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <Image src="/logo.png" alt="Manta Shark" width={64} height={64} className="w-10 h-10 sm:w-16 sm:h-16 shrink-0" />

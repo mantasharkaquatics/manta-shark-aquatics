@@ -227,6 +227,23 @@
     scroll-snap-align: start;
   }
 
+  /* Safari sizes <input type="date"> from the text it can display, and that
+     intrinsic minimum wins over width: 100% -- so on a phone the field pushes out
+     through the right edge of whatever card it sits in while every other field in
+     the same form lines up correctly. The 16px floor above makes it worse: wider
+     text, wider minimum. appearance: none drops Safari's own sizing; the field
+     still opens the native picker on tap, and it is already styled by hand here
+     (border, background, padding) so nothing is lost visually.
+
+     There are 11 of these across coach time-off, admin booking, admin time-off,
+     zones, members and the parent account page, so it belongs here. */
+  input[type="date"], input[type="time"], input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .booking-step-label { display: none !important; }
   .booking-step-line { width: 24px !important; margin-bottom: 0 !important; }
 }
