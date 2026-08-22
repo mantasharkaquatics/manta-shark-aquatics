@@ -350,7 +350,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
         {memberships.map((m, mi) => (
           <div key={m.id} style={{ borderTop: mi > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', marginTop: mi > 0 ? '16px' : 0, paddingTop: mi > 0 ? '16px' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <div>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name} · {m.is_prepaid ? t('team.prepaid') : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() }) : ''}</div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{t('team.unlimited')}</div>
@@ -374,7 +374,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
             {m.is_prepaid ? (() => {
               const exp = m.expires_at ? new Date(m.expires_at) : null
               const expired = exp ? exp.getTime() < Date.now() : false
@@ -1420,7 +1420,7 @@ export default function DashboardPage() {
 
       {/* UPCOMING LESSONS */}
         <section style={{ marginBottom: '36px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.upcomingLessons')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ display: 'inline-flex', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -1937,15 +1937,20 @@ export default function DashboardPage() {
                       const badgeColor = isNoShow ? noShowColor : isAttended ? attendedColor : (STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)')
                       const badgeLabel = isNoShow ? t('status.absent') : isAttended ? t('status.attended') : booking.status
                       return (
+                      /* Every one of the five fields below is flexShrink: 0, so this row
+                         could not narrow: on a phone the coach's name ran past the card,
+                         the card is overflow:hidden, and the status badge landed on top
+                         of the student's name. Wrapping is the fix -- at desktop width
+                         nothing wraps, so that layout is unchanged. */
                       <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: '10px', rowGap: '2px', flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
                           <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</div>
                           {booking.student_name && <div style={{ fontSize: '12px', color: '#7dd3fc', flexShrink: 0 }}>{booking.student_name}</div>}
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{t('dash.withCoach', { name: booking.coach_name })}</div>
                         </div>
-                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: badgeColor, background: `${badgeColor}18`, borderRadius: '10px', padding: '2px 8px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: badgeColor, background: `${badgeColor}18`, borderRadius: '10px', padding: '2px 8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
                           {badgeLabel}
                         </span>
                       </div>
