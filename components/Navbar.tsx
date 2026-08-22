@@ -16,6 +16,16 @@ const navLinks = [
   { labelKey: 'page.policies', href: '/policies' },
 ]
 
+function Check() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+      className="shrink-0" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
 function Chevron() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -112,16 +122,36 @@ export default function Navbar() {
     router.push('/')
   }
 
+  /* The popup a native <select> opens is drawn by the operating system and cannot
+     be styled at all -- on iOS that is the grey sheet that looked nothing like the
+     rest of the site. The closed control CAN be styled, so the desktop bar keeps
+     the select (appearance-none plus our own chevron) where the OS popup is small
+     and unobtrusive, and the phone drawer below replaces it outright with three
+     rows in the site's own colours. */
   const localeSelect = (extraClass: string) => (
-    <select
-      aria-label="Language"
-      value={locale}
-      onChange={e => changeLocale(e.target.value as Locale)}
-      className={`bg-[#111d38] text-gray-300 text-sm border border-white/15 rounded px-2 py-1 cursor-pointer ${extraClass}`}>
-      {LOCALES.map(l => (
-        <option key={l} value={l}>{t('locale.' + l + '.native')}</option>
-      ))}
-    </select>
+    /* extraClass carries the visibility ("hidden sm:block"), so it belongs on the
+       WRAPPER -- put it on the select and the span keeps rendering with only the
+       chevron inside it, which is a stray arrow floating in the mobile bar. */
+    /* No display utility of its own: the base string used to say inline-flex and
+       then extraClass appended "hidden", leaving two unconditional display rules
+       fighting -- the loser was "hidden", so the control showed on phones too.
+       The caller owns the display; this only sets position and alignment. */
+    <span className={`relative items-center ${extraClass}`}>
+      <select
+        aria-label={t('nav.language')}
+        value={locale}
+        onChange={e => changeLocale(e.target.value as Locale)}
+        className="appearance-none bg-[#111d38] text-gray-300 text-sm border border-white/15 rounded-lg pl-3 pr-8 py-1.5 cursor-pointer hover:border-[#c9a84c]/60 focus:outline-none focus:border-[#c9a84c] transition-colors">
+        {LOCALES.map(l => (
+          <option key={l} value={l}>{t('locale.' + l + '.native')}</option>
+        ))}
+      </select>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        className="pointer-events-none absolute right-2.5 text-gray-500" aria-hidden="true">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </span>
   )
 
   return (
@@ -145,7 +175,7 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            {localeSelect('hidden sm:block')}
+            {localeSelect('hidden sm:inline-flex')}
             {authLoading ? <div className="w-24 h-8" /> : isLoggedIn ? (
               <>
                 <Link href="/dashboard"
@@ -214,7 +244,16 @@ export default function Navbar() {
               <span>{t('nav.signIn')}</span><Chevron />
             </Link>
           )}
-          <div className="pt-4 sm:hidden">{localeSelect('w-full min-h-12 text-base')}</div>
+          <div className="pt-5 sm:hidden">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-gray-500 mb-1">{t('nav.language')}</p>
+            {LOCALES.map(l => (
+              <button key={l} onClick={() => { changeLocale(l); setMenuOpen(false) }}
+                className={`flex items-center justify-between gap-3 w-full text-left min-h-14 border-b border-white/10 text-base transition-colors ${l === locale ? 'text-[#c9a84c] font-semibold' : 'text-gray-200 hover:text-[#c9a84c]'}`}>
+                <span>{t('locale.' + l + '.native')}</span>
+                {l === locale && <Check />}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </nav>
