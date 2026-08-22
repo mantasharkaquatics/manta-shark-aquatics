@@ -211,9 +211,18 @@
        This is the room they need inside the scroll box. */
     padding-top: 20px;
     padding-bottom: 6px;
+    /* scroll-snap-align: start aligns a card with the SCROLLPORT edge, not with the
+       padding above -- so card one sat inset (the padding put it there at scroll 0)
+       and every card after it snapped flush to x=0. scroll-padding moves the snap
+       line itself, so all four now come to rest in the same place. */
+    scroll-padding-inline: clamp(24px, 5vw, 72px);
   }
   .pkg-row::-webkit-scrollbar { display: none; }
   .pkg-row > * {
+    /* Deliberately lopsided: the wide gap is on the right, the side you are
+       travelling towards, so the next card is legible enough to be worth reaching
+       for. The card behind only needs a sliver -- enough to say "you can go back",
+       not enough to spend width re-showing something already read. */
     flex: 0 0 78%;
     scroll-snap-align: start;
   }
