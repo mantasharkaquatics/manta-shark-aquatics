@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA } from '@/lib/date'
 import { readJson, badRequest } from '@/lib/http'
+import { MAX_LEVEL } from '@/lib/levels'
 
 // Admin CRUD for coach availability zones (spec v1.1).
 // GET ?coach_id → weekly template + legacy hours + tiers
@@ -49,7 +50,7 @@ function validateZones(zones: any[], needWeekday: boolean): string | null {
     if (z.zone_type === 'group') {
       const mn = z.group_level_min, mx = z.group_level_max
       if (mn == null || mx == null) return 'Group zones must have a level band'
-      if (!Number.isInteger(mn) || !Number.isInteger(mx) || mn < 1 || mx > 9 || mn > mx) return 'Invalid group level band'
+      if (!Number.isInteger(mn) || !Number.isInteger(mx) || mn < 1 || mx > MAX_LEVEL || mn > mx) return 'Invalid group level band'
     }
   }
   const groups: Record<string, any[]> = {}

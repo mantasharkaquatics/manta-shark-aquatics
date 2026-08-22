@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const { data: student } = await supabase
     .from('students')
-    .select('id, full_name, current_level')
+    .select('id, full_name, current_level, current_stage')
     .eq('id', studentId)
     .single()
 
@@ -41,8 +41,9 @@ export async function GET(req: NextRequest) {
 
   const { data: skills } = await supabase
     .from('skills')
-    .select('id, name, sort_order')
+    .select('id, name, sort_order, stage')
     .eq('level_id', levelData.id)
+    .order('stage')
     .order('sort_order')
 
   const { data: progressRows } = await supabase

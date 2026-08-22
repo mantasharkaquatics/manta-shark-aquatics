@@ -1,11 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { LEVEL_NAMES } from '@/lib/levels'
 
-const LEVEL_NAMES: Record<number, string> = {
-  1: 'Water Intro', 2: 'Water Comfort', 3: 'Pool Safety', 4: 'Beginner',
-  5: 'Intermediate', 6: 'Advanced', 7: 'Bronze', 8: 'Silver', 9: 'Gold',
-}
 
 interface Student {
   id: string
@@ -350,7 +347,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                   style={{ padding: '14px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', cursor: assigningLevel ? 'not-allowed' : 'pointer', textAlign: 'center' }}
                 >
                   <div style={{ fontSize: '18px', fontWeight: 700, color: '#c9a84c' }}>{level}</div>
-                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', lineHeight: 1.2 }}>{LEVEL_NAMES[level]}</div>
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', lineHeight: 1.2 }}>{LEVEL_NAMES[String(level)]}</div>
                 </button>
               ))}
             </div>

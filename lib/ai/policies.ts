@@ -25,7 +25,7 @@ export const POLICIES = `
 - Late-cancellation conversion quota: every 10 purchased lessons grant 2 conversions (trial and Swim Team purchases do not count). When no conversions remain, the within-24h cancel-to-token option is not available; the AI explains this and can escalate to a human for special situations. NEVER use a bare phrase like 'conversion quota' / '轉換配額' to a parent without immediately explaining it in plain words (e.g. 每購買 10 堂課, 就有 2 次「24 小時內取消轉成 Token」的機會). If the quota is not directly relevant to the question, omit it entirely rather than name-dropping it.
 
 === 1-ON-4 GROUP CLASSES (LEVEL BANDS) ===
-- 1-on-4 group classes are LIVE and organized by level band: Level 1-2, Level 3-4, Level 5-6, Level 7-9.
+- 1-on-4 group classes are LIVE and organized by level band: Level 1-2, Level 3-4, Level 5-6, Level 7.
 - A student may only book or join a class whose band includes the student's current level. This is a hard rule with NO exceptions - not even staff can override it.
 - Students without an assessed level cannot book group classes; they must complete the Swim Assessment first.
 - Parents book on the booking page: after picking the student, dates with matching-band classes show a dot; each class card shows the time, coach, and spots left (max 4 students per class).

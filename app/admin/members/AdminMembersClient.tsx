@@ -6,6 +6,7 @@ import StudentNotesPanel from '@/components/StudentNotesPanel'
 import AlertModal from '@/components/AlertModal'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
+import { LEVEL_NAMES, LEVEL_BADGE_CLASSES as LEVEL_COLORS } from '@/lib/levels'
 
 type Student = {
   id: string
@@ -57,23 +58,7 @@ type Booking = {
   checked_in?: boolean
 }
 
-const LEVEL_COLORS: Record<string, string> = {
-  '1': 'bg-red-900/40 text-red-300',
-  '2': 'bg-orange-900/40 text-orange-300',
-  '3': 'bg-yellow-900/40 text-yellow-300',
-  '4': 'bg-green-900/40 text-green-300',
-  '5': 'bg-blue-900/40 text-blue-300',
-  '6': 'bg-purple-900/40 text-purple-300',
-  '7': 'bg-amber-900/40 text-amber-300',
-  '8': 'bg-gray-700/40 text-gray-300',
-  '9': 'bg-yellow-700/40 text-yellow-200',
-}
 
-const LEVEL_NAMES: Record<string, string> = {
-  '1': 'Water Intro', '2': 'Water Comfort', '3': 'Pool Safety',
-  '4': 'Beginner', '5': 'Intermediate', '6': 'Advanced',
-  '7': 'Bronze', '8': 'Silver', '9': 'Gold',
-}
 
 function calcAge(dob: string | null): string {
   if (!dob) return '—'

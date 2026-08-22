@@ -191,9 +191,9 @@
       "zh-Hans": "蝶泳打腿（进阶）"
     },
     "81568486-d273-49b0-a824-d53569fefc37": {
-      "en": "Clothed Swim Without Goggles",
-      "zh-Hant": "著衣無蛙鏡游泳",
-      "zh-Hans": "着衣无泳镜游泳"
+      "en": "Clothed Swim (7 yd)",
+      "zh-Hant": "著衣不戴蛙鏡游 7 碼",
+      "zh-Hans": "着衣不戴泳镜游 7 码"
     },
     "b4e9ff8e-535c-4e5e-bc9a-8ceb9c252113": {
       "en": "Treading Water (Advanced)",
@@ -276,9 +276,9 @@
       "zh-Hans": "水下海豚式打腿"
     },
     "e9374f19-259b-4c49-85c2-a6faebae05e9": {
-      "en": "Clothed Swim Without Goggles",
-      "zh-Hant": "著衣無蛙鏡游泳",
-      "zh-Hans": "着衣无泳镜游泳"
+      "en": "Clothed Swim (25 yd)",
+      "zh-Hant": "著衣不戴蛙鏡游 25 碼",
+      "zh-Hans": "着衣不戴泳镜游 25 码"
     },
     "0280911e-9a79-4eed-8916-883e64dee3de": {
       "en": "Freestyle (Sprint)",
@@ -356,9 +356,44 @@
       "zh-Hans": "蝶泳（竞赛）"
     },
     "91adaea7-aefa-432c-8b9a-44ca43976bdb": {
-      "en": "Clothed Swim Without Goggles",
-      "zh-Hant": "著衣無蛙鏡游泳",
-      "zh-Hans": "着衣无泳镜游泳"
+      "en": "Clothed Swim (50 yd)",
+      "zh-Hant": "著衣不戴蛙鏡游 50 碼",
+      "zh-Hans": "着衣不戴泳镜游 50 码"
+    },
+    "b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51": {
+      "en": "Sculling (Basic)",
+      "zh-Hant": "划水感（基礎）",
+      "zh-Hans": "划水感（基础）"
+    },
+    "b2a0c2d4-5e6f-4a72-8b92-0c1d2e3f4a52": {
+      "en": "Survival Float",
+      "zh-Hant": "求生漂浮",
+      "zh-Hans": "求生漂浮"
+    },
+    "b3a0c2d4-5e6f-4a73-8b92-0c1d2e3f4a53": {
+      "en": "Seated and Kneeling Dive",
+      "zh-Hant": "坐姿與跪姿入水",
+      "zh-Hans": "坐姿与跪姿入水"
+    },
+    "b4a0c2d4-5e6f-4a74-8b92-0c1d2e3f4a54": {
+      "en": "Surface Dive",
+      "zh-Hant": "水面下潛",
+      "zh-Hans": "水面下潜"
+    },
+    "b5a0c2d4-5e6f-4a75-8b92-0c1d2e3f4a55": {
+      "en": "Reach and Throw Rescue",
+      "zh-Hant": "岸上伸援與拋繩救援",
+      "zh-Hans": "岸上伸援与抛绳救援"
+    },
+    "b6a0c2d4-5e6f-4a76-8b92-0c1d2e3f4a56": {
+      "en": "Standing Dive",
+      "zh-Hant": "站姿跳水",
+      "zh-Hans": "站姿跳水"
+    },
+    "b7a0c2d4-5e6f-4a77-8b92-0c1d2e3f4a57": {
+      "en": "Racing Start and Backstroke Start",
+      "zh-Hant": "出發台起跳與仰式出發",
+      "zh-Hans": "出发台起跳与仰式出发"
     }
   },
   "course_types": {

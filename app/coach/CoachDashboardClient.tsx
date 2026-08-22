@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { STAGES } from '@/lib/levels'
 
 const PROGRESS_OPTIONS = [0, 20, 40, 60, 80, 100]
 
@@ -33,6 +34,7 @@ type Skill = {
   id: string
   name: string
   sort_order: number
+  stage: number | null
   progress: number
 }
 
@@ -95,9 +97,10 @@ export default function CoachDashboardClient({
 
     const { data: skillList } = await supabase
       .from('skills')
-      .select('id, name, sort_order')
+      .select('id, name, sort_order, stage')
       .eq('level_id', levelData.id)
       .eq('is_active', true)
+      .order('stage')
       .order('sort_order')
 
     if (!skillList || skillList.length === 0) {
@@ -266,7 +269,16 @@ export default function CoachDashboardClient({
               <div className="p-5 space-y-4 md:max-h-[500px] md:overflow-y-auto">
                 {skills.length === 0 ? (
                   <p className="text-gray-400 text-sm">No skills found for this level.</p>
-                ) : skills.map(skill => (
+                ) : STAGES.flatMap(st => {
+                  const inStage = skills.filter(k => Number(k.stage || 1) === st)
+                  if (inStage.length === 0) return []
+                  const done = inStage.filter(k => k.progress >= 100).length
+                  return [(
+                    <div key={'stage' + st} className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-gray-500">Stage {st}</span>
+                      <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
+                    </div>
+                  ), ...inStage.map(skill => (
                   <div key={skill.id}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-300 text-sm">{skill.name}</span>
@@ -291,7 +303,8 @@ export default function CoachDashboardClient({
                       ))}
                     </div>
                   </div>
-                ))}
+                  ))]
+                })}
               </div>
 
               {skills.length > 0 && (

@@ -4,17 +4,21 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
 
+import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
+
 const levels = [
-  { num: 1, color: '#e05a4a', goalCount: 5 },
-  { num: 2, color: '#e8883a', goalCount: 8 },
-  { num: 3, color: '#d4a825', goalCount: 6 },
-  { num: 4, color: '#4caf72', goalCount: 6 },
-  { num: 5, color: '#4a90c4', goalCount: 6 },
-  { num: 6, color: '#7b5ea7', goalCount: 6 },
-  { num: 7, color: '#9c7a3c', goalCount: 8 },
-  { num: 8, color: '#a0a0a0', goalCount: 6 },
-  { num: 9, color: '#c8a020', goalCount: 5 },
+  { num: 1, color: LEVEL_COLORS['1'], goalCount: 5 },
+  { num: 2, color: LEVEL_COLORS['2'], goalCount: 8 },
+  { num: 3, color: LEVEL_COLORS['3'], goalCount: 6 },
+  { num: 4, color: LEVEL_COLORS['4'], goalCount: 6 },
+  { num: 5, color: LEVEL_COLORS['5'], goalCount: 6 },
+  { num: 6, color: LEVEL_COLORS['6'], goalCount: 7 },
+  { num: 7, color: LEVEL_COLORS['7'], goalCount: 8 },
 ]
+
+// Every level is taught in three stages. A family sees which one their swimmer
+// is in on their dashboard; here they can see what all three cover.
+const STAGES = [1, 2, 3] as const
 
 export default function LevelsContent() {
   const t = useT()
@@ -122,7 +126,7 @@ export default function LevelsContent() {
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {[
-              { slug: 'nine', dot: '#e05a4a' },
+              { slug: 'structure', dot: '#e05a4a' },
               { slug: 'progression', dot: '#4caf72' },
               { slug: 'allAges', dot: '#c9a84c' },
             ].map((chip) => (
@@ -292,6 +296,22 @@ export default function LevelsContent() {
             >
               {t('levels.' + current.num + '.desc')}
             </p>
+            {/* the three stages this level is taught in */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '22px' }}>
+              {STAGES.map(st => (
+                <div key={st} style={{
+                  background: '#fff', border: '1px solid rgba(0,0,0,0.08)',
+                  borderTop: `3px solid ${current.color}`, borderRadius: '6px', padding: '11px 12px',
+                }}>
+                  <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: current.color, marginBottom: '4px' }}>
+                    {t('dash.stageN', { n: st })}
+                  </div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1a2744', lineHeight: 1.35 }}>
+                    {t(stageNameKey(current.num, st))}
+                  </div>
+                </div>
+              ))}
+            </div>
             <div style={{ fontSize: '13px', fontWeight: 700, color: '#1a2744', marginBottom: '14px' }}>
               {t('levels.goalsHeading')}
             </div>
@@ -409,6 +429,19 @@ export default function LevelsContent() {
                 >
                   {t('levels.' + lv.num + '.desc')}
                 </p>
+                {/* the three stages this level is taught in */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px', marginBottom: '14px' }}>
+                  {STAGES.map(st => (
+                    <div key={st} style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderTop: `3px solid ${lv.color}`, borderRadius: '6px', padding: '8px 9px' }}>
+                      <div style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: lv.color, marginBottom: '3px' }}>
+                        {t('dash.stageN', { n: st })}
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#1a2744', lineHeight: 1.3 }}>
+                        {t(stageNameKey(lv.num, st))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#1a2744', marginBottom: '10px' }}>
                   {t('levels.goalsHeading')}
                 </div>
@@ -526,7 +559,7 @@ export default function LevelsContent() {
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap', margin: '28px 0 36px' }}>
             {[
-              { icon: '🏊', slug: 'levels', value: '9' },
+              { icon: '🏊', slug: 'levels', value: '7' },
               { icon: '⭐', slug: 'rating', value: '5.0' },
               { icon: '👶', slug: 'ages', value: null },
             ].map((hl) => (

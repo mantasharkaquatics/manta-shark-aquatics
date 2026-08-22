@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
   const { error: updateErr } = await supabase
     .from('students')
-    .update({ current_level: level_number })
+    .update({ current_level: level_number, current_stage: 1 })
     .eq('id', student_id)
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       student_id,
       from_level: from_level || null,
       to_level: level_number,
+      to_stage: 1,
       upgraded_by: admin_id,
       notes: notes || null,
     })

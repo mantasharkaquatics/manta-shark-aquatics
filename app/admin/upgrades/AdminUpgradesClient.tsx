@@ -4,10 +4,11 @@ import { useState, useMemo } from 'react'
 import { formatTime12h } from '@/lib/date'
 import AdminLessonNoteReview from './AdminLessonNoteReview'
 import AlertModal from '@/components/AlertModal'
+import { LEVEL_NAMES, LEVEL_COLORS } from '@/lib/levels'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
-type Student = { id: string; full_name: string; current_level: string | null; parents: { first_name: string; last_name: string } | null }
+type Student = { id: string; full_name: string; current_level: string | null; current_stage: number | null; parents: { first_name: string; last_name: string } | null }
 type UpgradeHistory = {
   id: string; from_level: string | null; to_level: string; upgraded_at: string; notes: string | null
   students: { full_name: string }; admins: { first_name: string; last_name: string }
@@ -36,15 +37,6 @@ type MissingProgress = {
   existingProgress: Record<string, number>
 }
 
-const LEVEL_NAMES: Record<string, string> = {
-  '1': 'Water Intro', '2': 'Water Comfort', '3': 'Pool Safety',
-  '4': 'Beginner', '5': 'Intermediate', '6': 'Advanced',
-  '7': 'Bronze', '8': 'Silver', '9': 'Gold',
-}
-const LEVEL_COLORS: Record<string, string> = {
-  '1': '#ef4444', '2': '#f97316', '3': '#eab308', '4': '#22c55e',
-  '5': '#3b82f6', '6': '#a855f7', '7': '#f59e0b', '8': '#6b7280', '9': '#ca8a04',
-}
 
 export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students, recommendations: initialRecs,
   pendingProgressList: initialPending,
@@ -623,7 +615,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     <span className="text-xs px-2 py-1 rounded-full" style={{
                       backgroundColor: (LEVEL_COLORS[s.current_level || ''] || '#374151') + '33',
                       color: LEVEL_COLORS[s.current_level || ''] || '#9ca3af'
-                    }}>{s.current_level ? `L${s.current_level}` : 'No Level'}</span>
+                    }}>{s.current_level ? `L${s.current_level}·S${s.current_stage ?? 1}` : 'No Level'}</span>
                   </button>
                 ))}
               </div>
@@ -642,7 +634,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 <div>
                   <p className="text-white font-medium text-sm">{selectedStudent.full_name}</p>
                   <p className="text-gray-500 text-xs">
-                    Current: {selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]}` : 'No Level'}
+                    Current: {selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]} · Stage ${selectedStudent.current_stage ?? 1}` : 'No Level'}
                   </p>
                 </div>
               </div>

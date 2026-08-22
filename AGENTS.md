@@ -66,3 +66,31 @@ two rounds because the same mistake was made twice.
   own geometry — both toggle switches into blobs, a copy icon out of its text
   line, the carousel dots into 8x44 slivers. `.tap-auto` opts out. When adding a
   rule like this, check what it *distorted*, not only what it enlarged.
+
+# The curriculum is 7 levels x 3 stages
+
+`lib/levels.ts` is the single source for level names, colours and the stage
+helpers. Four clients used to keep their own copy of `LEVEL_NAMES` and they had
+already drifted; import from that file instead of pasting a fifth.
+
+Facts the code depends on:
+
+- A level holds 9-16 skills split across exactly three stages. `skills.stage`
+  is 1, 2 or 3; `students.current_stage` is where the swimmer sits.
+- **Assessment picks the level. Everyone starts that level at stage 1.**
+  `/api/admin/assign-level`, `/api/admin/students/assign-level` and
+  `/api/admin/review-level` all write `current_stage: 1` alongside the level —
+  if you add another route that sets `current_level`, it must do the same.
+- A stage is finished only when **every** skill in it reads 100. The database
+  trigger `check_level_upgrade()` and `stageProgress()` in `lib/levels.ts` use
+  the same rule on purpose, so the bar a parent sees and the promotion that
+  follows it cannot disagree.
+- **The trigger advances stages, never levels.** Finishing stage 3 leaves the
+  swimmer there; moving up a level stays a coach recommendation an admin
+  approves. Do not "fix" this by making the trigger promote.
+- Parents cannot read `student_skill_progress` (RLS gives it to coaches only).
+  The parent dashboard therefore derives current percentages by merging
+  `progress_history` snapshots newest-first. Do not switch it to the live table
+  without adding a policy.
+- Skill ids never changed in the 9-to-7 migration, so every historical snapshot
+  still resolves. Keep it that way: move a skill between levels, don't recreate it.

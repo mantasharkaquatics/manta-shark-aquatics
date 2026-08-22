@@ -4,24 +4,16 @@ import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 
 import { useState, useEffect } from 'react'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
+import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
 
-type Skill = { id: string; name: string; sort_order: number }
+type Skill = { id: string; name: string; sort_order: number; stage: number | null }
 type StudentProgress = {
-  student: { id: string; full_name: string; current_level: string | null; level: { level_number: number; name: string } | null }
+  student: { id: string; full_name: string; current_level: string | null; current_stage: number | null; level: { level_number: number; name: string } | null }
   skills: Skill[]
   progress: Record<string, number>
   todayLocked: boolean
 }
 
-const LEVEL_NAMES: Record<string, string> = {
-  '1': 'Water Intro', '2': 'Water Comfort', '3': 'Pool Safety',
-  '4': 'Beginner', '5': 'Intermediate', '6': 'Advanced',
-  '7': 'Bronze', '8': 'Silver', '9': 'Gold',
-}
-const LEVEL_COLORS: Record<string, string> = {
-  '1': '#ef4444', '2': '#f97316', '3': '#eab308', '4': '#22c55e',
-  '5': '#3b82f6', '6': '#a855f7', '7': '#f59e0b', '8': '#6b7280', '9': '#ca8a04',
-}
 
 function barColor(pct: number): string {
   if (pct >= 70) return '#3ecf8e'
@@ -355,7 +347,23 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                               <p className="text-red-400 text-xs mb-3">{errorMap[s.entryKey]}</p>
                             )}
                             <div className="space-y-3">
-                              {data.skills.map(skill => {
+                              {/* Skills are taught a stage at a time. Grouping them here is what
+                                  stops a coach signing off stage 3 work before stage 1 is done. */}
+                              {STAGES.map(st => {
+                                const inStage = data.skills.filter(k => Number(k.stage || 1) === st)
+                                if (inStage.length === 0) return null
+                                const done = inStage.filter(k => (localProgress[k.id] ?? 0) >= 100).length
+                                const isCurrent = Number(data.student.current_stage || 1) === st
+                                return (
+                              <div key={'stage' + st} className="space-y-3">
+                                <div className="flex items-center gap-2 pt-1">
+                                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>
+                                    Stage {st}
+                                  </span>
+                                  {isCurrent && <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>}
+                                  <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
+                                </div>
+                              {inStage.map(skill => {
                                 const pct = localProgress[skill.id] ?? 0
                                 const color = barColor(pct)
                                 return (
@@ -379,6 +387,9 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                       ))}
                                     </div>
                                   </div>
+                                )
+                              })}
+                              </div>
                                 )
                               })}
                             </div>

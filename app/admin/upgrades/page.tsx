@@ -89,7 +89,7 @@ export default async function AdminUpgradesPage() {
 
   const { data: levels } = await svc.from('levels').select('id, level_number, name').order('sort_order')
   const { data: skills } = await svc.from('skills').select('id, name, sort_order, level_id').order('sort_order')
-  const { data: students } = await svc.from('students').select('id, full_name, current_level, is_active, parent_id').eq('is_active', true).order('full_name')
+  const { data: students } = await svc.from('students').select('id, full_name, current_level, current_stage, is_active, parent_id').eq('is_active', true).order('full_name')
 
   const parentIds = [...new Set((students || []).map((s: any) => s.parent_id).filter(Boolean))]
   const { data: parents } = await svc.from('parents').select('id, first_name, last_name').in('id', parentIds)

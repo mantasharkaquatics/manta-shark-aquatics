@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     // Read the level BEFORE the update, or from_level records the new value.
     const { data: student, error: readErr } = await supabase
       .from('students')
-      .select('current_level')
+      .select('current_level, current_stage')
       .eq('id', rec.student_id)
       .single()
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const { error: updateErr } = await supabase
       .from('students')
-      .update({ current_level: String(levelToAssign) })
+      .update({ current_level: String(levelToAssign), current_stage: 1 })
       .eq('id', rec.student_id)
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
       student_id: rec.student_id,
       from_level: student?.current_level ?? null,
       to_level: String(levelToAssign),
+      from_stage: student?.current_stage ?? null,
+      to_stage: 1,
       upgraded_by: admin_id,
       notes: notes || null,
     })

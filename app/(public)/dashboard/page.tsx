@@ -13,18 +13,15 @@ import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
+import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
-const LEVEL_COLORS: Record<number, string> = {
-  1: '#e05a4a', 2: '#e8883a', 3: '#d4a825', 4: '#4caf72',
-  5: '#4a90c4', 6: '#7b5ea7', 7: '#9c7a3c', 8: '#a0a0a0', 9: '#c9a84c',
-}
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
-interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; gender: string; trial_used_at: string | null }
+interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; current_stage: number | null; gender: string; trial_used_at: string | null }
 interface SkillProgress {
   skill_id: string
   skill_name: string
@@ -44,6 +41,8 @@ interface ProgressRecord {
 interface StudentProgress {
   student_id: string
   records: ProgressRecord[]
+  // Where the swimmer stands right now, per stage of their current level.
+  stages: StageProgress[]
 }
 
 interface Credit {
@@ -906,7 +905,7 @@ export default function DashboardPage() {
       const studentLevelMap: Record<string, string | null> = {}
       for (const s of studs || []) studentLevelMap[s.id] = s.current_level
       const allLevelNums = [...new Set(Object.values(studentLevelMap).filter(Boolean))]
-      let levelSkillsMap: Record<string, { id: string; name: string; sort_order: number }[]> = {}
+      let levelSkillsMap: Record<string, { id: string; name: string; sort_order: number; stage: number }[]> = {}
 
       if (allLevelNums.length > 0) {
         const { data: levRows } = await levPromise
@@ -916,14 +915,14 @@ export default function DashboardPage() {
         if (allLevelIds.length > 0) {
           const { data: skRows } = await supabase
             .from('skills')
-            .select('id, name, sort_order, level_id')
+            .select('id, name, sort_order, level_id, stage')
             .in('level_id', allLevelIds)
             .order('sort_order')
           for (const sk of skRows || []) {
             skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
             // Build levelId → skills map
             if (!levelSkillsMap[(sk as any).level_id]) levelSkillsMap[(sk as any).level_id] = []
-            levelSkillsMap[(sk as any).level_id].push({ id: (sk as any).id, name: (sk as any).name, sort_order: (sk as any).sort_order })
+            levelSkillsMap[(sk as any).level_id].push({ id: (sk as any).id, name: (sk as any).name, sort_order: (sk as any).sort_order, stage: Number((sk as any).stage) || 1 })
           }
           // Add remaining snapshot skills (old data with mismatched level still shows names)
           const missing = allSkillIds.filter(id => !skillNameMap[id])
@@ -969,7 +968,16 @@ export default function DashboardPage() {
                 skills: skillsForRecord,
               }
             })
-            progressMap[sid] = { student_id: sid, records }
+            // The live percentage for a skill is whatever the most recent
+            // lesson that touched it recorded. Snapshots arrive newest first, so
+            // the first value wins and older lessons only fill the gaps.
+            const currentPct: Record<string, number> = {}
+            for (const hist of hists) {
+              for (const [skId, pct] of Object.entries(hist.snapshot || {})) {
+                if (!(skId in currentPct)) currentPct[skId] = pct as number
+              }
+            }
+            progressMap[sid] = { student_id: sid, records, stages: stageProgress(allLevelSkills, currentPct) }
           }
           setStudentProgressMap(progressMap)
         }
@@ -994,7 +1002,7 @@ export default function DashboardPage() {
               progress_percent: pct as number, sort_order: skillNameMap[skill_id]?.sort_order || 999,
             })).sort((a, b) => a.sort_order - b.sort_order),
           }))
-          progressMap[sid] = { student_id: sid, records }
+          progressMap[sid] = { student_id: sid, records, stages: [] }
         }
         setStudentProgressMap(progressMap)
       }
@@ -1193,7 +1201,7 @@ export default function DashboardPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
-              const levelColor = hasLevel ? (LEVEL_COLORS[Number(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
+              const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
               const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
               const age = student.date_of_birth ? getAge(student.date_of_birth) : null
               const ageMonths = student.date_of_birth && age === 0 ? getAgeMonths(student.date_of_birth) : null
@@ -1213,44 +1221,25 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ marginTop: '16px', background: hasLevel ? `${levelColor}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${hasLevel ? levelColor + '35' : 'rgba(255,255,255,0.1)'}`, borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>{t('dash.currentLevel')}</div>
-                      {hasLevel ? (
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}</div>
-                      ) : (
+                  {!hasLevel && (
+                    <div style={{ marginTop: '16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>{t('dash.currentLevel')}</div>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>{t('dash.pendingAssessment')}</div>
-                      )}
-                    </div>
-                    {hasLevel ? (
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                        {student.current_level}
                       </div>
-                    ) : (
                       <div style={{ fontSize: '20px' }}>📋</div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  {/* Learning progress section */}
-                  {/* QR Code Button */}
-                  <button
-                    onClick={() => setQrStudent(student)}
-                    style={{
-                      marginTop: '12px', width: '100%', padding: '10px',
-                      borderRadius: '10px', border: `1px solid ${GOLD}40`,
-                      background: 'transparent', color: GOLD,
-                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                      letterSpacing: '0.5px',
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${GOLD}15` }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <span style={{ fontSize: '14px' }}>⊞</span> {t('dash.viewQr')}
-                  </button>
-
-                  {studentProgressMap[student.id] && (() => {
-                    const prog = studentProgressMap[student.id]
+                  {hasLevel && (() => {
+                    const prog: StudentProgress = studentProgressMap[student.id] || { student_id: student.id, records: [], stages: [] }
+                    const lvl = Number(student.current_level)
+                    const stages: StageProgress[] = prog.stages.length === 3
+                      ? prog.stages
+                      : [1, 2, 3].map(n => ({ stage: n as 1 | 2 | 3, percent: 0, complete: false, skillCount: 0 }))
+                    const curStage = resolveStage(student.current_stage, stages)
+                    const curPct = stages[curStage - 1]?.percent ?? 0
+                    const hasRecords = prog.records.length > 0
                     const isOpen = expandedProgress.has(student.id)
                     const page = progressPage[student.id] || 0
                     const PAGE_SIZE = 10
@@ -1259,23 +1248,72 @@ export default function DashboardPage() {
                     return (
                       <div style={{ marginTop: '12px' }}>
                         <button
-                          onClick={() => setExpandedProgress(prev => {
+                          className="tap-auto"
+                          disabled={!hasRecords}
+                          aria-expanded={isOpen}
+                          onClick={() => { if (!hasRecords) return; setExpandedProgress(prev => {
                             const next = new Set(prev)
                             if (next.has(student.id)) next.delete(student.id)
                             else next.add(student.id)
                             return next
-                          })}
+                          }) }}
                           style={{
-                            width: '100%', padding: '10px 14px',
-                            borderRadius: '10px', border: '1px solid rgba(76,175,114,0.35)',
-                            background: 'transparent', color: '#4caf72',
-                            fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            letterSpacing: '0.5px',
+                            width: '100%', padding: '14px', textAlign: 'left',
+                            borderRadius: '12px', border: `1px solid ${levelColor}40`,
+                            background: `${levelColor}14`, color: '#fff',
+                            cursor: hasRecords ? 'pointer' : 'default',
+                            display: 'block',
                           }}
                         >
-                          <span>📋 {t('dash.lessonRecords', { n: prog.records.length })}</span>
-                          <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>
+                          {/* which level, and which stage of it */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '3px' }}>{t('dash.currentLevel')}</div>
+                              <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}</div>
+                              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginTop: '2px' }}>
+                                {t('dash.stageN', { n: curStage })} · {t(stageNameKey(lvl, curStage))}
+                              </div>
+                            </div>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                              {student.current_level}
+                            </div>
+                          </div>
+
+                          {/* the three stages, so a family can see the whole level at once */}
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '14px' }}>
+                            {stages.map(sp => {
+                              const isNow = sp.stage === curStage
+                              return (
+                                <div key={sp.stage} style={{
+                                  flex: 1, textAlign: 'center', padding: '5px 2px', borderRadius: '7px',
+                                  fontSize: '10px', fontWeight: 700, letterSpacing: '0.3px',
+                                  background: sp.complete ? `${levelColor}40` : isNow ? 'transparent' : 'rgba(255,255,255,0.04)',
+                                  border: `1px solid ${sp.complete ? levelColor + '80' : isNow ? levelColor : 'rgba(255,255,255,0.08)'}`,
+                                  color: sp.complete ? '#fff' : isNow ? levelColor : 'rgba(255,255,255,0.35)',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  {t('dash.stageN', { n: sp.stage })}{sp.complete ? ' ✓' : ''}
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {/* how far through the current stage */}
+                          <div style={{ marginTop: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '5px' }}>
+                              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>{t('dash.stageCompletion')}</span>
+                              <b style={{ fontSize: '13px', color: GOLD }}>{curPct}%</b>
+                            </div>
+                            <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: curPct + '%', background: GOLD, borderRadius: '3px', transition: 'width .3s ease' }} />
+                            </div>
+                          </div>
+
+                          {/* the lesson-by-lesson record still lives underneath */}
+                          <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: hasRecords ? '#4caf72' : 'rgba(255,255,255,0.3)' }}>
+                            <span>📋 {hasRecords ? t('dash.lessonRecords', { n: prog.records.length }) : t('dash.noRecordsYet')}</span>
+                            {hasRecords && <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>}
+                          </div>
                         </button>
                         {isOpen && (
                           <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1338,6 +1376,23 @@ export default function DashboardPage() {
                       </div>
                     )
                   })()}
+
+                  {/* QR Code Button */}
+                  <button
+                    onClick={() => setQrStudent(student)}
+                    style={{
+                      marginTop: '12px', width: '100%', padding: '10px',
+                      borderRadius: '10px', border: `1px solid ${GOLD}40`,
+                      background: 'transparent', color: GOLD,
+                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      letterSpacing: '0.5px',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${GOLD}15` }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    <span style={{ fontSize: '14px' }}>⊞</span> {t('dash.viewQr')}
+                  </button>
                 </div>
               )
             })}
