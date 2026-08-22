@@ -26,11 +26,11 @@ function Check() {
   )
 }
 
-function Chevron() {
+function Chevron({ className = '' }: { className?: string }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      className="shrink-0 text-gray-500" aria-hidden="true">
+      className={`shrink-0 text-gray-500 transition-transform duration-200 ${className}`} aria-hidden="true">
       <path d="m9 18 6-6-6-6" />
     </svg>
   )
@@ -38,6 +38,7 @@ function Chevron() {
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [parentId, setParentId] = useState<string | null>(null)
@@ -114,6 +115,8 @@ export default function Navbar() {
     const { error } = await supabase.from('parents').update({ preferred_language: next }).eq('id', parentId)
     if (error) console.error('[i18n] failed to save preferred_language', error)
   }
+
+  useEffect(() => { if (!menuOpen) setLangOpen(false) }, [menuOpen])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -244,15 +247,31 @@ export default function Navbar() {
               <span>{t('nav.signIn')}</span><Chevron />
             </Link>
           )}
-          <div className="pt-5 sm:hidden">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-gray-500 mb-1">{t('nav.language')}</p>
-            {LOCALES.map(l => (
-              <button key={l} onClick={() => { changeLocale(l); setMenuOpen(false) }}
-                className={`flex items-center justify-between gap-3 w-full text-left min-h-14 border-b border-white/10 text-base transition-colors ${l === locale ? 'text-[#c9a84c] font-semibold' : 'text-gray-200 hover:text-[#c9a84c]'}`}>
-                <span>{t('locale.' + l + '.native')}</span>
-                {l === locale && <Check />}
-              </button>
-            ))}
+          {/* Three permanently open language rows sat directly under the navigation
+              and were easy to catch with a thumb while scrolling the drawer -- and
+              a mis-tap here reloads the whole site in another language. Collapsed
+              to a single row that reads like the others and states the current
+              choice; the options only exist once you have asked for them. */}
+          <div className="sm:hidden">
+            <button onClick={() => setLangOpen(v => !v)} aria-expanded={langOpen}
+              className="flex items-center justify-between gap-3 w-full text-left min-h-14 border-b border-white/10 text-base text-gray-200">
+              <span>{t('nav.language')}</span>
+              <span className="flex items-center gap-2">
+                <span className="text-sm text-[#c9a84c]">{t('locale.' + locale + '.native')}</span>
+                <Chevron className={langOpen ? 'rotate-90' : ''} />
+              </span>
+            </button>
+            {langOpen && (
+              <div className="my-2 overflow-hidden rounded-xl border border-[#1e3a6e] bg-[#0d1529]">
+                {LOCALES.map((l, i) => (
+                  <button key={l} onClick={() => { changeLocale(l); setMenuOpen(false) }}
+                    className={`flex w-full items-center justify-between gap-3 px-4 text-left text-base min-h-[52px] transition-colors ${i > 0 ? 'border-t border-white/[0.06]' : ''} ${l === locale ? 'text-[#c9a84c] font-semibold' : 'text-gray-300'}`}>
+                    <span>{t('locale.' + l + '.native')}</span>
+                    {l === locale && <Check />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
