@@ -258,7 +258,12 @@ export default function CoachDashboardClient({
                 )}
               </div>
 
-              <div className="p-5 space-y-4 max-h-[500px] overflow-y-auto">
+              {/* A 500px scroll box inside a page that also scrolls is a nested-scroll
+                  trap on touch: a coach swiping to reach the next skill often moves
+                  the page instead, or gets stuck inside the box. On a phone the list
+                  just flows and the page scrolls; the cap stays from md up, where a
+                  mouse wheel makes it a convenience rather than a trap. */}
+              <div className="p-5 space-y-4 md:max-h-[500px] md:overflow-y-auto">
                 {skills.length === 0 ? (
                   <p className="text-gray-400 text-sm">No skills found for this level.</p>
                 ) : skills.map(skill => (
