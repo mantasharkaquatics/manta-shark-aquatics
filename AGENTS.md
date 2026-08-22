@@ -36,3 +36,33 @@ home page and nowhere else in the site.
 
 Inline `style={{}}` is used heavily here, and an inline style outranks any
 stylesheet rule without `!important`. That is why those rules carry it.
+
+# CSS traps this project has already fallen into
+
+Each of these cost a round of "why does it look like that", and two of them cost
+two rounds because the same mistake was made twice.
+
+- **`overflow-x: auto` clips the other axis too.** There is no way to scroll one
+  axis and let the other overflow — set `overflow-x`, and `overflow-y` stops
+  being `visible`. The plan cards' "Most popular" ribbon is at `top: -12px`, so
+  turning the row into a swipe row sliced every ribbon in half. Reserve padding
+  inside the scroll box for anything that pokes out of it.
+- **`scroll-snap-align` aligns to the scrollport, not to your padding.** With
+  `padding-inline` alone, card one rests inset (the padding put it there at
+  scroll 0) and every card after it snaps flush to the edge. `scroll-padding-inline`
+  moves the snap line itself.
+- **iOS `100vh` includes the area behind Safari's chrome.** Centring inside
+  `min-h-screen` therefore puts the content below the visual centre on a phone.
+  Use `min-h-dvh`. Safari's bottom toolbar also floats over the page, so a page
+  with no footer needs bottom padding or its last row cannot be tapped.
+- **`:hover` latches on touch.** After a tap the element keeps its hover state
+  until you tap elsewhere, which made one carousel arrow sit filled-gold and read
+  as a stuck toggle. Wrap hover styling in `@media (hover: hover)`.
+- **A `<select>`'s popup is drawn by the OS and cannot be styled.** The closed
+  control can (`appearance-none` plus your own chevron); the menu cannot. If the
+  menu has to match the site, do not use a select.
+- **Global rules that only grow things still break things.** A blanket
+  `button { min-height: 44px }` on phones stretched nine controls that set their
+  own geometry — both toggle switches into blobs, a copy icon out of its text
+  line, the carousel dots into 8x44 slivers. `.tap-auto` opts out. When adding a
+  rule like this, check what it *distorted*, not only what it enlarged.

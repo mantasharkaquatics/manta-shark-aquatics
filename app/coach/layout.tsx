@@ -24,12 +24,24 @@ export default async function CoachLayout({ children }: { children: React.ReactN
           wrap onto as many lines as they need. A coach standing on a pool deck
           gets every destination visible at once, which beats a menu anyway. */}
       <nav className="bg-[#111d38] border-b border-[#1e3a6e] px-4 sm:px-6 py-3 sm:py-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <Image src="/logo.png" alt="Manta Shark" width={64} height={64} className="w-10 h-10 sm:w-16 sm:h-16 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Coach Portal</p>
-              <p className="text-white font-semibold truncate">{coach.first_name} {coach.last_name}</p>
+        {/* Sign Out used to sit at the end of the same row as the four navigation
+            links, where it is one slip away from a coach who meant to tap Progress
+            -- and the cost of that slip is being thrown out of the portal mid-lesson.
+            It lives in the top-right corner now, on the identity row, separated from
+            anything you would tap on purpose and given a border so it reads as a
+            different kind of control rather than a fifth link. */}
+        <div className="max-w-7xl mx-auto flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <Image src="/logo.png" alt="Manta Shark" width={64} height={64} className="w-10 h-10 sm:w-16 sm:h-16 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Coach Portal</p>
+                <p className="text-white font-semibold truncate">{coach.first_name} {coach.last_name}</p>
+              </div>
+            </div>
+            {/* SignOutButton is w-full for the admin sidebar it was written for. */}
+            <div className="shrink-0 [&_button]:w-auto [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:border-[#1e3a6e]">
+              <SignOutButton />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:gap-6">
@@ -37,10 +49,6 @@ export default async function CoachLayout({ children }: { children: React.ReactN
             <Link href="/coach/schedule" className="flex items-center min-h-11 sm:min-h-0 text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Schedule</Link>
             <Link href="/coach/time-off" className="flex items-center min-h-11 sm:min-h-0 text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Time Off</Link>
             <Link href="/coach/progress" className="flex items-center min-h-11 sm:min-h-0 text-gray-300 hover:text-[#c9a84c] text-sm transition-colors">Progress</Link>
-            {/* SignOutButton is w-full for the admin sidebar it was written for. */}
-            <div className="shrink-0 [&_button]:w-auto [&_button]:min-h-11">
-              <SignOutButton />
-            </div>
           </div>
         </div>
       </nav>
