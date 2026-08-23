@@ -1287,23 +1287,32 @@ export default function DashboardPage() {
                             even before an admin has approved the lesson that did
                             it. */}
                         <div style={{ display: 'flex', gap: '6px', marginTop: '14px' }}>
+                          {/* Three states, three different colours -- done is
+                              green, here-now is solid gold, not-yet is grey.
+                              Tinting one hue could not separate "passed" from
+                              "current" at a glance, which is the one distinction
+                              a parent actually looks for. */}
                           {stages.map(sp => {
                             const isNow = sp.stage === curStage
                             const passed = sp.stage < curStage || sp.complete
                             const isOpenStage = openStageMap[student.id] === sp.stage
+                            const skin = isNow
+                              ? { background: GOLD, border: `1px solid ${GOLD}`, color: '#152036', weight: 800 }
+                              : passed
+                                ? { background: 'rgba(76,175,114,0.16)', border: '1px solid #4caf72', color: '#7fd6a2', weight: 700 }
+                                : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.3)', weight: 700 }
                             return (
                               <button key={sp.stage} className="tap-auto"
                                 aria-expanded={isOpenStage}
                                 onClick={() => setOpenStageMap(prev => ({ ...prev, [student.id]: isOpenStage ? 0 : sp.stage }))}
                                 style={{
                                   flex: 1, textAlign: 'center', padding: '5px 2px', borderRadius: '7px',
-                                  fontSize: '10px', fontWeight: 700, letterSpacing: '0.3px', cursor: 'pointer',
-                                  background: passed ? `${levelColor}40` : isNow ? 'transparent' : 'rgba(255,255,255,0.04)',
-                                  border: `1px solid ${isOpenStage ? '#fff' : passed ? levelColor + '80' : isNow ? levelColor : 'rgba(255,255,255,0.08)'}`,
-                                  color: passed ? '#fff' : isNow ? levelColor : 'rgba(255,255,255,0.35)',
+                                  fontSize: '10px', fontWeight: skin.weight, letterSpacing: '0.3px', cursor: 'pointer',
+                                  background: skin.background, border: skin.border, color: skin.color,
+                                  boxShadow: isOpenStage ? '0 0 0 2px rgba(255,255,255,0.45)' : 'none',
                                   whiteSpace: 'nowrap',
                                 }}>
-                                {t('dash.stageN', { n: sp.stage })}{passed ? ' 🎊' : ''}
+                                {t('dash.stageN', { n: sp.stage })}{passed ? ' 🎊' : isNow ? ' ●' : ''}
                               </button>
                             )
                           })}

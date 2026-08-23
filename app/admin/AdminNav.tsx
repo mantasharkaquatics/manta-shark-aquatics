@@ -87,7 +87,7 @@ export function AdminMenuButton() {
 
 export default function AdminSidebar() {
   return (
-    <aside className="hidden lg:flex flex-col w-52 shrink-0 border-r border-[#1e3a6e] bg-[#111d38] min-h-[calc(100vh-89px)] py-6 px-3">
+    <aside className="hidden lg:flex flex-col w-52 shrink-0 border-r border-[#1e3a6e] bg-[#111d38] h-full overflow-y-auto py-6 px-3">
       <NavBody />
     </aside>
   )
