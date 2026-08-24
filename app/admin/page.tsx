@@ -86,7 +86,7 @@ export default async function AdminDashboardPage() {
   const stats = [
     { label: 'Total Members', value: totalMembers ?? 0, href: '/admin/members', color: 'text-blue-400' },
     { label: 'Active Students', value: totalStudents ?? 0, href: '/admin/members', color: 'text-green-400' },
-    { label: 'Pending Upgrades', value: pendingUpgrades?.length ?? 0, href: '/admin/upgrades', color: 'text-[#c9a84c]' },
+    { label: 'Pending Upgrades', value: pendingUpgrades?.length ?? 0, href: '/admin/reviews', color: 'text-[#c9a84c]' },
     { label: 'Time Off Requests', value: pendingTimeOff?.length ?? 0, href: '/admin/time-off', color: 'text-purple-400' },
     { label: 'New Applications', value: newApplications ?? 0, href: '/admin/applications', color: 'text-orange-400' },
   ]

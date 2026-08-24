@@ -17,7 +17,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/members', label: 'Members', desc: 'Parents and students', icon: <svg {...S}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> },
       { href: '/admin/progress-history', label: 'Progress', desc: 'Lesson notes and history', icon: <svg {...S}><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg> },
-      { href: '/admin/upgrades', label: 'Upgrades', desc: 'Level change requests', icon: <svg {...S}><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg> },
+      { href: '/admin/reviews', label: 'Reviews', desc: 'Waiting on you', icon: <svg {...S}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg> },
+      { href: '/admin/upgrades', label: 'Levels', desc: 'Assign levels and skills', icon: <svg {...S}><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg> },
     ],
   },
   {
