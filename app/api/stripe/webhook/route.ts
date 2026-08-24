@@ -351,7 +351,29 @@ export async function POST(req: NextRequest) {
       if (!existing && (inv.amount_paid ?? 0) > 0) {
         const { data: tm } = await supabase.from('team_memberships')
           .select('id, student_id, team_tiers(name)')
-          .eq('stripe_subscription_id', subId).single()
+          .eq('stripe_subscription_id', subId).maybeSingle()
+
+        // The membership row is written by checkout.session.completed. Stripe
+        // does not order events, so on a first payment invoice.paid can land
+        // first and find nothing -- which used to drop that month's invoice
+        // silently, with no error anywhere. Ask Stripe whether this
+        // subscription is one of ours; if it is, fail the delivery so Stripe
+        // retries once the other event has landed. Anything not ours passes
+        // through, so an unrelated subscription can never retry forever.
+        if (!tm) {
+          let ours = false
+          try {
+            const sub = await stripe.subscriptions.retrieve(subId)
+            ours = (sub.metadata as any)?.type === 'team_subscription'
+          } catch (e: any) {
+            console.error(`invoice.paid ${inv.id}: could not read subscription ${subId}:`, e?.message)
+          }
+          if (ours) {
+            console.error(`invoice.paid ${inv.id}: team subscription ${subId} has no membership row yet - asking Stripe to retry`)
+            return NextResponse.json({ error: 'membership not ready' }, { status: 503 })
+          }
+        }
+
         if (tm) {
           const { data: stu } = await supabase.from('students')
             .select('full_name, parent_id').eq('id', tm.student_id).single()
