@@ -10,7 +10,9 @@ type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
 type Student = { id: string; full_name: string; current_level: string | null; current_stage: number | null; parents: { first_name: string; last_name: string } | null }
 type UpgradeHistory = {
-  id: string; from_level: string | null; to_level: string; upgraded_at: string; notes: string | null
+  id: string; from_level: string | null; to_level: string
+  from_stage: number | null; to_stage: number | null
+  upgraded_at: string; notes: string | null
   students: { full_name: string }; admins: { first_name: string; last_name: string }
 }
 type PendingProgress = {
@@ -725,9 +727,24 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               <div key={h.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4 flex items-center justify-between">
                 <div>
                   <p className="text-white text-sm font-medium">{h.students?.full_name}</p>
+                  {/* A stage promotion keeps the same level, so rendering it as
+                      "L7 → L7" read like a bug. Show the stage move instead.
+                      Retired levels (8, 9) have no name left, so fall back to
+                      the bare number rather than printing empty brackets. */}
                   <p className="text-gray-400 text-xs mt-0.5">
-                    {h.from_level ? `L${h.from_level} → ` : 'Unassigned → '}
-                    <span className="text-[#c9a84c]">L{h.to_level} ({LEVEL_NAMES[h.to_level]})</span>
+                    {String(h.from_level) === String(h.to_level) && h.from_stage && h.to_stage ? (
+                      <>
+                        L{h.to_level} · Stage {h.from_stage} → <span className="text-[#c9a84c]">Stage {h.to_stage}</span>
+                      </>
+                    ) : (
+                      <>
+                        {h.from_level ? `L${h.from_level} → ` : 'Unassigned → '}
+                        <span className="text-[#c9a84c]">
+                          L{h.to_level}{LEVEL_NAMES[h.to_level] ? ` (${LEVEL_NAMES[h.to_level]})` : ''}
+                        </span>
+                        {h.to_stage ? ` · Stage ${h.to_stage}` : ''}
+                      </>
+                    )}
                     {h.notes && ` · ${h.notes}`}
                   </p>
                 </div>

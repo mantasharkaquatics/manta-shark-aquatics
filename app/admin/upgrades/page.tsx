@@ -66,7 +66,7 @@ export default async function AdminUpgradesPage() {
   // upgrade history
   const { data: rawHistory } = await svc
     .from('level_upgrades')
-    .select('id, from_level, to_level, upgraded_at, notes, student_id, upgraded_by')
+    .select('id, from_level, to_level, from_stage, to_stage, upgraded_at, notes, student_id, upgraded_by')
     .order('upgraded_at', { ascending: false })
     .limit(30)
 
