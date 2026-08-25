@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSvcClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { tierFor } from '@/lib/team-tiers'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -51,17 +52,21 @@ export async function POST(req: NextRequest) {
       const svc = createSvcClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
       const { data: student } = await svc
-        .from('students').select('id, full_name, parent_id, current_level')
+        .from('students').select('id, full_name, parent_id, current_level, current_stage')
         .eq('id', studentId).single()
       if (!student || student.parent_id !== parent.id)
         return NextResponse.json({ error: 'Student not found on this account.' }, { status: 403 })
       if (!student.current_level)
         return NextResponse.json({ error: 'This student needs a swim assessment before joining the team.' }, { status: 400 })
 
-      const { data: tier } = await svc
-        .from('team_tiers').select('id, name, monthly_price_cents')
-        .lte('level_min', student.current_level).gte('level_max', student.current_level)
-        .eq('active', true).limit(1).single()
+      // A band runs from one curriculum position to another, and a position is
+      // a level and a stage -- Intermediate ends inside Level 7 where Elite
+      // begins. That cannot be a level range filter, so read the bands and
+      // choose in code.
+      const { data: allTiers } = await svc
+        .from('team_tiers').select('id, name, monthly_price_cents, level_min, level_max, min_stage, max_stage')
+        .eq('active', true).order('level_min').order('min_stage')
+      const tier = tierFor(allTiers || [], student.current_level, student.current_stage)
       if (!tier)
         return NextResponse.json({ error: 'There is no team for this student\'s current level. Teams start at Level 4.' }, { status: 400 })
 
