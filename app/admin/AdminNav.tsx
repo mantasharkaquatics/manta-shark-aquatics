@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { NAV_GROUPS } from './nav-groups'
@@ -8,6 +8,19 @@ import SignOutButton from './components/SignOutButton'
 
 function NavBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
+  // Asked for after paint, never during it. Counting the review queues reads
+  // every confirmed booking and differences it against recorded progress —
+  // roughly a second — and the sidebar is on every admin page. Blocking each
+  // render on that would make the whole back office a second slower to load.
+  const [reviewCount, setReviewCount] = useState<number | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetch('/api/admin/review-count')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (alive && d && typeof d.total === 'number') setReviewCount(d.total) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [pathname])
 
   return (
     <>
@@ -39,6 +52,11 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
                   >
                     <span className="shrink-0">{item.icon}</span>
                     <span className="whitespace-nowrap">{item.label}</span>
+                    {item.href === '/admin/reviews' && reviewCount !== null && reviewCount > 0 && (
+                      <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
+                        {reviewCount > 99 ? '99+' : reviewCount}
+                      </span>
+                    )}
                   </Link>
                 )
               })}

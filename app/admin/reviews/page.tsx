@@ -3,13 +3,14 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import AdminReviewsClient from './AdminReviewsClient'
+import { loadReviewQueues } from '@/lib/admin/review-queues'
 
 export const dynamic = 'force-dynamic'
 
-// The three queues an admin works through: lessons taught with no progress
-// recorded, progress a coach submitted that nobody has published yet, and level
-// changes a coach has asked for. Split out of /admin/upgrades, which now only
-// holds the level settings themselves.
+// The queues an admin works through: lessons taught with no progress recorded,
+// progress a coach submitted that nobody has published yet, and level changes a
+// coach has asked for. Split out of /admin/upgrades, which now holds only the
+// level settings themselves.
 export default async function AdminReviewsPage() {
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -27,266 +28,19 @@ export default async function AdminReviewsPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Two-step query: pending recommendations
-  const { data: recs } = await svc
-    .from('level_recommendations')
-    .select('id, recommended_level, notes, created_at, student_id, coach_id, previous_recommended_level')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-
-  let recommendations: any[] = []
-  if (recs && recs.length > 0) {
-    const studentIds = [...new Set(recs.map(r => r.student_id))]
-    const coachIds = [...new Set(recs.map(r => r.coach_id))]
-    const { data: recStudents } = await svc.from('students').select('id, full_name, current_level').in('id', studentIds)
-    const { data: recCoaches } = await svc.from('coaches').select('id, first_name').in('id', coachIds)
-    const sMap: Record<string, any> = {}
-    for (const s of recStudents || []) sMap[s.id] = s
-    const cMap: Record<string, any> = {}
-    for (const c of recCoaches || []) cMap[c.id] = c
-
-    // Fetch all of the student's history today (incl. rejected)
-    const today = new Date().toISOString().slice(0, 10)
-    const { data: allHistory } = await svc
-      .from('level_recommendations')
-      .select('student_id, coach_id, recommended_level, previous_recommended_level, status, created_at')
-      .in('student_id', studentIds)
-      .gte('created_at', today + 'T00:00:00Z')
-      .order('created_at', { ascending: true })
-
-    const historyByStudent: Record<string, any[]> = {}
-    for (const h of allHistory || []) {
-      if (!historyByStudent[h.student_id]) historyByStudent[h.student_id] = []
-      historyByStudent[h.student_id].push(h)
-    }
-
-    recommendations = recs.map(r => ({
-      ...r,
-      student: sMap[r.student_id],
-      coach: cMap[r.coach_id],
-      previous_recommended_level: r.previous_recommended_level ?? null,
-      history: historyByStudent[r.student_id] || [],
-    }))
-  }
-
-  const { data: levels } = await svc.from('levels').select('id, level_number, name').order('sort_order')
-  const { data: skills } = await svc.from('skills').select('id, name, sort_order, level_id').order('sort_order')
-
-  // Pending progress (today + all past unreviewed; nothing may slip through)
-  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-  const { data: allPendingProgress } = await svc
-    .from('progress_history')
-    .select('id, student_id, coach_id, snapshot, session_date, created_at, class_session_id, lesson_key')
-    .eq('status', 'pending_review')
-    .order('created_at', { ascending: false })
-
-  let pendingProgressList: any[] = []
-  let pastPendingProgressList: any[] = []
-  if (allPendingProgress && allPendingProgress.length > 0) {
-    const ppStudentIds = [...new Set(allPendingProgress.map(p => p.student_id))]
-    const ppCoachIds = [...new Set(allPendingProgress.map(p => p.coach_id).filter(Boolean))]
-    const ppSessionIds = [...new Set(allPendingProgress.map((p: any) => p.class_session_id).filter(Boolean))]
-    const { data: ppStudents } = await svc.from('students').select('id, full_name, current_level').in('id', ppStudentIds)
-    const { data: ppCoaches } = await svc.from('coaches').select('id, first_name').in('id', ppCoachIds)
-    const { data: ppSkills } = await svc.from('skills').select('id, name, sort_order, level_id').order('sort_order')
-    const ppSMap: Record<string, any> = {}
-    for (const s of ppStudents || []) ppSMap[s.id] = s
-    const ppCMap: Record<string, any> = {}
-    for (const c of ppCoaches || []) ppCMap[c.id] = c
-    const ppSessionMap: Record<string, any> = {}
-    if (ppSessionIds.length > 0) {
-      const { data: ppSessions } = await svc
-        .from('class_sessions')
-        .select('id, start_time, end_time, course_types(name)')
-        .in('id', ppSessionIds)
-      for (const s of ppSessions || []) {
-        const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
-        ppSessionMap[s.id] = { start_time: s.start_time, end_time: s.end_time, course_name: ct?.name || '' }
-      }
-    }
-    const enriched = allPendingProgress.map((p: any) => ({
-      ...p,
-      student: ppSMap[p.student_id],
-      coach: ppCMap[p.coach_id],
-      skills: ppSkills || [],
-      session_info: ppSessionMap[p.class_session_id] || null,
-    }))
-    // The note half of the same lesson. Paired on (student, lesson_key) rather
-    // than by date, because a student can have two lessons in one day and an
-    // hour lesson is two sessions but one lesson.
-    const ppKeys = [...new Set(enriched.map((p: any) => p.lesson_key).filter(Boolean))]
-    const noteByPair: Record<string, any> = {}
-    if (ppKeys.length > 0) {
-      const { data: ppNotes } = await svc
-        .from('lesson_notes')
-        .select('id, student_id, lesson_key, transcript, note, language, audio_seconds, audio_path')
-        .in('lesson_key', ppKeys)
-        .neq('status', 'rejected')
-      const notePaths = (ppNotes || []).map((n: any) => n.audio_path).filter(Boolean)
-      const signedByPath: Record<string, string> = {}
-      if (notePaths.length > 0) {
-        const { data: signed } = await svc.storage
-          .from('lesson-audio').createSignedUrls(notePaths, 60 * 60)
-        for (const s of signed || []) {
-          if (s.path && s.signedUrl) signedByPath[s.path] = s.signedUrl
-        }
-      }
-      for (const n of ppNotes || []) {
-        noteByPair[`${n.student_id}|${n.lesson_key}`] = {
-          id: n.id,
-          transcript: n.transcript || '',
-          note: n.note || '',
-          language: n.language || 'en',
-          audio_seconds: n.audio_seconds,
-          audio_url: n.audio_path ? (signedByPath[n.audio_path] || null) : null,
-        }
-      }
-    }
-    for (const p of enriched as any[]) {
-      // Older rows predate the merge and have no note; the card copes with null.
-      p.note = noteByPair[`${p.student_id}|${p.lesson_key}`] || null
-    }
-
-    pendingProgressList = enriched.filter((p: any) => p.session_date === todayDate)
-    pastPendingProgressList = enriched.filter((p: any) => p.session_date !== todayDate)
-  }
-
-  // Missing: students with a confirmed booking but no progress_history on any day, today or earlier (not just today, so forgotten days aren't lost)
-  const { data: pastBookingsRaw } = await svc
-    .from('bookings')
-    .select('id, student_id, class_session_id, lesson_group_id')
-    .eq('status', 'confirmed')
-
-  // Absent students need no progress: keep only bookings with an attendance row (checked in)
-  let pastBookings: any[] = []
-  if (pastBookingsRaw && pastBookingsRaw.length > 0) {
-    const { data: attRows } = await svc
-      .from('attendance')
-      .select('booking_id')
-      .in('booking_id', pastBookingsRaw.map((b: any) => b.id))
-    const attendedSet = new Set((attRows || []).map((r: any) => r.booking_id))
-    pastBookings = pastBookingsRaw.filter((b: any) => attendedSet.has(b.id))
-  }
-
-  let missingProgressList: any[] = []
-  if (pastBookings && pastBookings.length > 0) {
-    const bSessionIds = [...new Set(pastBookings.map((b: any) => b.class_session_id).filter(Boolean))]
-    const { data: pastSessions } = await svc
-      .from('class_sessions')
-      .select('id, session_date, coach_id, start_time, end_time, course_types(name), coaches(first_name)')
-      .in('id', bSessionIds)
-      .lte('session_date', todayDate)
-
-    const sessionMap: Record<string, any> = {}
-    for (const s of pastSessions || []) {
-      const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
-      const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
-      sessionMap[s.id] = { ...s, ct, coach }
-    }
-
-    // Each booking maps to one (student_id, session_date) pair: this student had a lesson that day
-    const candidates = pastBookings
-      .filter((b: any) => sessionMap[b.class_session_id])
-      .map((b: any) => ({
-        student_id: b.student_id,
-        lessonKey: b.lesson_group_id || b.class_session_id,
-        session: sessionMap[b.class_session_id],
-      }))
-      .filter((c: any) => c.student_id)
-
-    if (candidates.length > 0) {
-      const candidateStudentIds = [...new Set(candidates.map((c: any) => c.student_id))]
-      const { data: existingHistory } = await svc
-        .from('progress_history')
-        .select('student_id, session_date, class_session_id')
-        .in('student_id', candidateStudentIds)
-        .lte('session_date', todayDate)
-
-      // A lesson = lesson_group_id when set, else the single session. An hour lesson is
-      // two class_sessions but ONE lesson; two separate lessons the same day are two.
-      const lessonOf: Record<string, string> = {}
-      for (const b of pastBookings) {
-        if (b.class_session_id) lessonOf[b.class_session_id] = b.lesson_group_id || b.class_session_id
-      }
-      const doneLessons = new Set<string>()
-      const doneDays = new Set<string>()
-      for (const p of existingHistory || []) {
-        if (p.class_session_id) {
-          doneLessons.add(`${p.student_id}|${lessonOf[p.class_session_id] || p.class_session_id}`)
-        } else {
-          // Legacy rows with no session reference: fall back to the old per-day rule
-          doneDays.add(`${p.student_id}|${p.session_date}`)
-        }
-      }
-      const missingCandidates = candidates.filter((c: any) =>
-        !doneLessons.has(`${c.student_id}|${c.lessonKey}`) &&
-        !doneDays.has(`${c.student_id}|${c.session.session_date}`)
-      )
-      missingCandidates.sort((a: any, b: any) =>
-        String(a.session.session_date).localeCompare(String(b.session.session_date)) ||
-        String(a.session.start_time).localeCompare(String(b.session.start_time)))
-
-      // One row per lesson; an hour lesson's two halves merge into a single span
-      const spanOf: Record<string, { start: string; end: string }> = {}
-      for (const c of missingCandidates as any[]) {
-        const k = `${c.student_id}|${c.lessonKey}`
-        const cur = spanOf[k]
-        if (!cur) { spanOf[k] = { start: c.session.start_time, end: c.session.end_time }; continue }
-        if (String(c.session.start_time) < cur.start) cur.start = c.session.start_time
-        if (String(c.session.end_time) > cur.end) cur.end = c.session.end_time
-      }
-      const dedupKey = new Set<string>()
-      const dedupedCandidates = missingCandidates.filter((c: any) => {
-        const key = `${c.student_id}|${c.lessonKey}`
-        if (dedupKey.has(key)) return false
-        dedupKey.add(key)
-        return true
-      })
-
-      if (dedupedCandidates.length > 0) {
-        const missingIds = [...new Set(dedupedCandidates.map((c: any) => c.student_id))]
-        const { data: missingStudents } = await svc
-          .from('students')
-          .select('id, full_name, current_level')
-          .in('id', missingIds)
-
-        const studentMap: Record<string, any> = {}
-        for (const s of missingStudents || []) studentMap[s.id] = s
-
-        const { data: existingProgress } = await svc
-          .from('student_skill_progress')
-          .select('student_id, skill_id, progress_percent')
-          .in('student_id', missingIds)
-
-        const progressByStudent: Record<string, Record<string, number>> = {}
-        for (const p of existingProgress || []) {
-          if (!progressByStudent[p.student_id]) progressByStudent[p.student_id] = {}
-          progressByStudent[p.student_id][p.skill_id] = p.progress_percent
-        }
-
-        missingProgressList = dedupedCandidates
-          .filter((c: any) => studentMap[c.student_id])
-          .map((c: any) => {
-            const sp = spanOf[`${c.student_id}|${c.lessonKey}`]
-            return {
-              ...studentMap[c.student_id],
-              id: `${c.student_id}_${c.lessonKey}`,
-              student_id: c.student_id,
-              session: sp ? { ...c.session, start_time: sp.start, end_time: sp.end } : c.session,
-              existingProgress: progressByStudent[c.student_id] || {},
-            }
-          })
-      }
-    }
-  }
+  const [{ data: levels }, { data: skills }, queues] = await Promise.all([
+    svc.from('levels').select('id, level_number, name').order('sort_order'),
+    svc.from('skills').select('id, name, sort_order, level_id').order('sort_order'),
+    loadReviewQueues(svc),
+  ])
 
   return <AdminReviewsClient
     adminId={admin.id}
     levels={levels || []}
     skills={skills || []}
-    recommendations={recommendations}
-    pendingProgressList={pendingProgressList}
-    pastPendingProgressList={pastPendingProgressList}
-    missingProgressList={missingProgressList}
+    recommendations={queues.recommendations}
+    pendingProgressList={queues.pendingProgressList}
+    pastPendingProgressList={queues.pastPendingProgressList}
+    missingProgressList={queues.missingProgressList}
   />
 }
