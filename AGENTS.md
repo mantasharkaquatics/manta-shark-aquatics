@@ -94,3 +94,19 @@ Facts the code depends on:
   without adding a policy.
 - Skill ids never changed in the 9-to-7 migration, so every historical snapshot
   still resolves. Keep it that way: move a skill between levels, don't recreate it.
+
+# The admin review queues are expensive on purpose-avoidance
+
+`lib/admin/review-queues.ts` is the single source for what is waiting on an
+admin. `/admin/reviews` renders it; the sidebar badge counts it.
+
+It is slow by nature: the missing-progress pass reads every confirmed booking
+ever made, its attendance, its session, and the progress already recorded, then
+takes the difference. Measured at roughly a second, and it grows with the
+booking table.
+
+That is why the sidebar badge is fetched from `/api/admin/review-count` by the
+client *after* paint, and why that route holds its answer for 60s. Do not
+"simplify" this by computing the count in `app/admin/layout.tsx` — the layout
+renders on every admin page, and that change makes the entire back office a
+second slower to load. The numbers are in commit 3a692da.
