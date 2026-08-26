@@ -25,13 +25,18 @@ export async function GET() {
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 403 })
 
+  // The quota needs only the parent id, so it goes out with the packages rather
+  // than after them. This route was five round trips in a row and the dashboard
+  // waits on it.
   const nowIso = new Date().toISOString()
-  const { data: packs, error: packErr } = await svc
-    .from('token_packages')
-    .select('id, course_type_id, total_tokens, used_tokens, expires_at, source, created_at')
-    .eq('parent_id', parent.id)
-    .gt('expires_at', nowIso)
-    .order('expires_at', { ascending: true })
+  const [{ data: packs, error: packErr }, quota] = await Promise.all([
+    svc.from('token_packages')
+      .select('id, course_type_id, total_tokens, used_tokens, expires_at, source, created_at')
+      .eq('parent_id', parent.id)
+      .gt('expires_at', nowIso)
+      .order('expires_at', { ascending: true }),
+    getCancellationQuota(svc, parent.id),
+  ])
   if (packErr) return NextResponse.json({ error: 'DB error' }, { status: 500 })
 
   const active = (packs || []).filter(p => p.used_tokens < p.total_tokens)
@@ -43,8 +48,6 @@ export async function GET() {
     const { data: cts } = await svc.from('course_types').select('id, name').in('id', ctIds)
     for (const c of cts || []) ctNames[c.id] = c.name
   }
-
-  const quota = await getCancellationQuota(svc, parent.id)
 
   return NextResponse.json({
     tokens: active.map(p => ({

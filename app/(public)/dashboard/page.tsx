@@ -852,6 +852,20 @@ export default function DashboardPage() {
     const levPromise: Promise<{ data: any[] | null }> = levelNumsEarly.length > 0
       ? Promise.resolve(supabase.from('levels').select('id, level_number').in('level_number', levelNumsEarly)) as any
       : Promise.resolve({ data: [] })
+    /* The curriculum for these swimmers' levels depends on nothing the history
+       reads produce, so it is chained straight onto the levels lookup and runs
+       beside them instead of queueing behind. */
+    const levelSkillsPromise: Promise<{ levelIdMap: Record<string, string>; skRows: any[] | null }> =
+      levPromise.then(async ({ data: levRows }) => {
+        const levelIdMap: Record<string, string> = {}
+        for (const l of levRows || []) levelIdMap[String((l as any).level_number)] = (l as any).id
+        const ids = Object.values(levelIdMap)
+        if (ids.length === 0) return { levelIdMap, skRows: null }
+        const { data: skRows } = await supabase
+          .from('skills').select('id, name, sort_order, level_id, stage')
+          .in('level_id', ids).order('sort_order')
+        return { levelIdMap, skRows: skRows as any[] | null }
+      })
     const pSessionMap: Record<string, any> = {}
     for (const s of pSessions || []) {
       const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
@@ -1014,11 +1028,19 @@ export default function DashboardPage() {
       const noteByKey: Record<string, string> = {}
       const histSessionIds = [...new Set((histRows || []).map((r: any) => r.class_session_id).filter(Boolean))]
       const histLessonKeys = [...new Set((histRows || []).map((r: any) => r.lesson_key).filter(Boolean))]
-      if (histSessionIds.length > 0) {
-        const { data: hSessions } = await supabase
-          .from('class_sessions')
-          .select('id, start_time, course_types(id, name)')
-          .in('id', histSessionIds)
+      /* These two reads share no data, and the translations only need the notes.
+         Issued one after another they cost three round trips before the progress
+         panel could render; issued together they cost two. */
+      const [hSessionsRes, hNotesRes] = await Promise.all([
+        histSessionIds.length > 0
+          ? supabase.from('class_sessions').select('id, start_time, course_types(id, name)').in('id', histSessionIds)
+          : Promise.resolve({ data: null }),
+        histLessonKeys.length > 0
+          ? supabase.from('lesson_notes').select('id, lesson_key, language, note').in('lesson_key', histLessonKeys).eq('status', 'approved')
+          : Promise.resolve({ data: null }),
+      ])
+      {
+        const hSessions = hSessionsRes.data as any[] | null
         for (const cs of hSessions || []) {
           const ct = Array.isArray((cs as any).course_types) ? (cs as any).course_types[0] : (cs as any).course_types
           lessonInfo[(cs as any).id] = {
@@ -1029,12 +1051,8 @@ export default function DashboardPage() {
           }
         }
       }
-      if (histLessonKeys.length > 0) {
-        const { data: hNotes } = await supabase
-          .from('lesson_notes')
-          .select('id, lesson_key, language, note')
-          .in('lesson_key', histLessonKeys)
-          .eq('status', 'approved')
+      {
+        const hNotes = hNotesRes.data as any[] | null
         for (const n of hNotes || []) noteByKey[(n as any).lesson_key] = (n as any).note || ''
 
         // A family reads notes in the language they chose. Only notes recorded
@@ -1068,16 +1086,9 @@ export default function DashboardPage() {
       let levelSkillsMap: Record<string, { id: string; name: string; sort_order: number; stage: number }[]> = {}
 
       if (allLevelNums.length > 0) {
-        const { data: levRows } = await levPromise
-        const levelIdMap: Record<string, string> = {}
-        for (const l of levRows || []) levelIdMap[String(l.level_number)] = l.id
+        const { levelIdMap, skRows } = await levelSkillsPromise
         const allLevelIds = Object.values(levelIdMap)
         if (allLevelIds.length > 0) {
-          const { data: skRows } = await supabase
-            .from('skills')
-            .select('id, name, sort_order, level_id, stage')
-            .in('level_id', allLevelIds)
-            .order('sort_order')
           for (const sk of skRows || []) {
             skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
             // Build levelId → skills map
