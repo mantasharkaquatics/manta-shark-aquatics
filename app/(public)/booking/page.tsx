@@ -202,6 +202,11 @@ export default function BookingPage() {
 
   // ── 1on4 class-based flow (cross-coach, band-matched) ──
   const groupFlow = !isTrial && selectedCourse?.slug === '1on4'
+  /* A group booking has no coach step -- the class already has one -- so from
+     the date screen on, the number in the heading is one lower than the block
+     it lives in. The stepper below already applies that shift; the heading was
+     printing a hardcoded number and so read "Step 4" above a lit circle 3. */
+  const stepNumber = groupFlow && step >= 3 ? step : step + 1
   const myLevel = selectedStudent?.current_level != null ? Number(selectedStudent.current_level) : null
   const myGroupBand = myLevel != null ? studentBandOf(myLevel) : null
   const myBandColor = myGroupBand ? (BAND_COLORS[`${myGroupBand.min}-${myGroupBand.max}`] || ZONE_COLORS.group) : ZONE_COLORS.group
@@ -926,7 +931,7 @@ export default function BookingPage() {
 
         {step === 0 && (
           <div>
-            <SectionTitle eyebrow={t('booking.s1.eyebrow')} title={t('booking.s1.title')} />
+            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s1.title')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {students.map(s => (
                 <SelectCard key={s.id} selected={selectedStudent?.id === s.id} onClick={() => setSelectedStudent(s)}>
@@ -965,7 +970,7 @@ export default function BookingPage() {
 
         {step === 1 && (
           <div>
-            <SectionTitle eyebrow={t('booking.s2.eyebrow')} title={t('booking.s2.title')} />
+            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s2.title')} />
             {needsAssessment && (
               <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: GOLD, lineHeight: 1.5 }}>
                 {trialHasCredit
@@ -1142,7 +1147,7 @@ export default function BookingPage() {
 
         {step === 2 && (
           <div>
-            <SectionTitle eyebrow={t('booking.s3.eyebrow')} title={t('booking.s3.title')} />
+            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s3.title')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {coaches.map((coach, i) => {
                 const colors = [GOLD, '#4a90c4', '#e05a4a']
@@ -1190,7 +1195,7 @@ export default function BookingPage() {
 
         {step === 3 && (
           <div>
-            <SectionTitle eyebrow={t('booking.s4.eyebrow')} title={t('booking.s4.title')} />
+            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s4.title')} />
             {!groupFlow && <div style={{ background: NAVY, borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <button onClick={() => {
@@ -1626,7 +1631,7 @@ export default function BookingPage() {
 
         {step === 4 && (
           <div>
-            <SectionTitle eyebrow={t('booking.s5.eyebrow')} title={t('booking.s5.title')} />
+            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s5.title')} />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
               {(recurPlan.length > 0 ? [
                 { label: t('booking.sum.swimmer'), value: selectedStudent?.full_name },
