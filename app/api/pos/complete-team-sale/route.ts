@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
 
 // POS prepaid team membership sale: buy N months upfront (cash or terminal one-off).
 // Rules (owner 2026-07-22): one track per student (block if active subscription);
 // renewal extends from current expiry, never resets; one invoice per purchase with coverage dates.
 export async function POST(req: NextRequest) {
   try {
-    const { parentId, studentId, tierId, months, paymentMethod, paymentIntentId } = await req.json()
+    const { parentId, studentId, tierId, months, paymentMethod, paymentIntentId, override } = await req.json()
     const m = parseInt(String(months), 10)
     if (!parentId || !studentId || !tierId || !m || m < 1 || m > 12) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     )
     const { data: { user } } = await supabaseAuth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const { data: admin } = await supabaseAuth.from('admins').select('id').eq('auth_user_id', user.id).single()
+    const { data: admin } = await supabaseAuth.from('admins').select('id, first_name, last_name').eq('auth_user_id', user.id).single()
     if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const supabase = createClient(
@@ -38,8 +39,45 @@ export async function POST(req: NextRequest) {
     if (!tier) return NextResponse.json({ error: 'Invalid tier' }, { status: 400 })
 
     const { data: student } = await supabase
-      .from('students').select('id, full_name').eq('id', studentId).single()
+      .from('students').select('id, full_name, current_level, current_stage').eq('id', studentId).single()
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 400 })
+
+    // The online route never lets a parent pick a squad: it derives the squad
+    // from the swimmer's level and stage, refuses an unassessed swimmer, and
+    // stops at the cap. The counter picks the squad by hand and used to check
+    // none of that, so the two doors into the same squad disagreed.
+    //
+    // The counter keeps the last word -- a swimmer promoted this morning whose
+    // record is not updated yet is a real thing that happens at a desk -- but it
+    // is no longer silent: an out-of-band sale has to be confirmed, and what was
+    // overridden, and by whom, is written onto the invoice.
+    const { data: allTiers } = await supabase
+      .from('team_tiers').select('id, name, level_min, level_max, min_stage, max_stage')
+      .eq('active', true).order('level_min').order('min_stage')
+    const recommended = tierFor(allTiers || [], student.current_level, student.current_stage)
+
+    // A renewal for a swimmer already in this squad is not a new seat, so it is
+    // counted out of the total rather than counted against it.
+    const { count: others } = await supabase
+      .from('team_memberships').select('id', { count: 'exact', head: true })
+      .eq('team_tier_id', tierId).in('status', ['active', 'past_due']).neq('student_id', studentId)
+
+    const reasons: string[] = []
+    if (student.current_level == null) reasons.push(`${student.full_name} has no swim assessment on file`)
+    else if (!recommended) reasons.push(`Level ${student.current_level} is below the team minimum of Level 4`)
+    else if (recommended.id !== tierId) reasons.push(`this swimmer's level places them in ${recommended.name}`)
+    if ((others || 0) >= TEAM_SQUAD_CAP) reasons.push(`${tier.name} is already at ${others} of ${TEAM_SQUAD_CAP}`)
+
+    if (reasons.length > 0 && !override) {
+      return NextResponse.json({
+        error: `Sold as ${tier.name}, but ${reasons.join('; ')}.`,
+        needs_override: true, reasons,
+        recommended: recommended ? { id: recommended.id, name: recommended.name } : null,
+      }, { status: 409 })
+    }
+    const overrideNote = reasons.length > 0
+      ? `Level override: sold as ${tier.name} — ${reasons.join('; ')}. Approved at the counter by ${[admin.first_name, admin.last_name].filter(Boolean).join(' ') || 'an admin'}.`
+      : null
 
     // One track only: block if the student has a live subscription membership
     const { data: subRows } = await supabase
@@ -109,6 +147,7 @@ export async function POST(req: NextRequest) {
           period_end: end.toISOString(),
         }],
         status: 'paid',
+        notes: overrideNote,
         stripe_payment_intent_id: paymentIntentId || null,
         issued_at: now.toISOString(),
       })

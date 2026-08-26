@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSvcClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { tierFor } from '@/lib/team-tiers'
+import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         const { count: members } = await svc
           .from('team_memberships').select('id', { count: 'exact', head: true })
           .eq('team_tier_id', tier.id).in('status', ['active', 'past_due'])
-        if ((members || 0) >= 24)
+        if ((members || 0) >= TEAM_SQUAD_CAP)
           return NextResponse.json({ error: `${tier.name} is currently full — please contact us to join the waitlist.` }, { status: 409 })
       }
 

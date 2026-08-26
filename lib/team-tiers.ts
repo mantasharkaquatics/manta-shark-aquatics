@@ -7,6 +7,9 @@ import { STAGES } from './levels'
  * band carries stages and why this test exists in one place rather than as a
  * query filter in each caller.
  */
+/** How many swimmers a squad holds. Was written as a bare 24 in three files. */
+export const TEAM_SQUAD_CAP = 24
+
 export type TierBand = {
   level_min: number
   level_max: number

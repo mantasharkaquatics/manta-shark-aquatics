@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { TEAM_SQUAD_CAP } from '@/lib/team-tiers'
 
 // Public tier list with remaining spots (aggregate counts only — not sensitive).
 export async function GET() {
@@ -23,7 +24,7 @@ export async function GET() {
     tiers: (tiers || []).map(t => ({
       id: t.id, name: t.name, level_min: t.level_min, level_max: t.level_max,
       min_stage: t.min_stage ?? 1, max_stage: t.max_stage ?? 3, monthly_price_cents: t.monthly_price_cents,
-      spots_left: Math.max(0, 24 - (countByTier[t.id] || 0)),
+      spots_left: Math.max(0, TEAM_SQUAD_CAP - (countByTier[t.id] || 0)),
     })),
   })
 }

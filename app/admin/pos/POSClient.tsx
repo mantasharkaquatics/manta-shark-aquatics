@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { PLANS, PLAN_GROUPS } from '@/lib/plans'
+import { tierFor, tierBandLabel, TEAM_SQUAD_CAP, type TierBand } from '@/lib/team-tiers'
 
 const NAVY = '#1a2744'
 const GOLD = '#c9a84c'
 const TRIAL_CENTS = 8500
 
 type Parent = { id: string; first_name: string; last_name: string; email: string }
-type Student = { id: string; full_name: string; trial_used_at: string | null }
+type Student = { id: string; full_name: string; trial_used_at: string | null; current_level: number | null; current_stage: number | null }
+type PosTier = TierBand & { id: string; name: string; monthly_price_cents: number; spots_left: number }
 type Coach = { id: string; first_name: string; last_name: string }
 type PayMethod = 'card' | 'cash'
 type Step = 'select' | 'success'
@@ -53,7 +55,7 @@ export default function POSClient() {
   const [error, setError] = useState<string | null>(null)
   const [terminal, setTerminal] = useState<any>(null)
   const [isTeam, setIsTeam] = useState(false)
-  const [teamTiers, setTeamTiers] = useState<{ id: string; name: string; monthly_price_cents: number }[]>([])
+  const [teamTiers, setTeamTiers] = useState<PosTier[]>([])
   const [teamTierId, setTeamTierId] = useState<string | null>(null)
   const [teamMonths, setTeamMonths] = useState('1')
   useEffect(() => {
@@ -112,7 +114,7 @@ export default function POSClient() {
 
   useEffect(() => {
     if (!selectedParent || (!isTrial && !isTeam)) { setStudents([]); setSelectedStudentId(null); return }
-    const q = supabase.from('students').select('id, full_name, trial_used_at').eq('parent_id', selectedParent.id)
+    const q = supabase.from('students').select('id, full_name, trial_used_at, current_level, current_stage').eq('parent_id', selectedParent.id)
     ;(isTrial ? q.is('trial_used_at', null) : q)
       .then(({ data }) => {
         setStudents(data || [])
@@ -160,7 +162,36 @@ export default function POSClient() {
       : !!selectedParent && !!selectedPlanId && (payMethod === 'cash' || readerStatus === 'connected')
   )
 
-  const handleCharge = async () => {
+  /* The online route derives the squad from the swimmer's level and stage and
+     refuses anything else. The counter picks by hand, and keeps the last word --
+     a swimmer promoted this morning whose record is not updated yet is a real
+     thing at a desk -- but an out-of-band sale is confirmed out loud and written
+     onto the invoice. This runs BEFORE the card is charged, not after: a server
+     rejection arriving post-capture would take the money and fail the sale.
+     The server checks the same things again and is what actually decides.
+
+     spots_left counts this swimmer too, so renewing into a full squad raises a
+     confirmation the server will not ask for. An extra confirmation is the safe
+     side of that to be wrong on. */
+  const teamStudent = students.find(s => s.id === selectedStudentId) || null
+  const teamRecommended = teamStudent ? tierFor(teamTiers, teamStudent.current_level, teamStudent.current_stage) : null
+  const teamOverrideReasons: string[] = []
+  if (isTeam && teamStudent && teamTier) {
+    if (teamStudent.current_level == null) teamOverrideReasons.push(`${teamStudent.full_name} has no swim assessment on file`)
+    else if (!teamRecommended) teamOverrideReasons.push(`Level ${teamStudent.current_level} is below the team minimum of Level 4`)
+    else if (teamRecommended.id !== teamTier.id) teamOverrideReasons.push(`this swimmer's level places them in ${teamRecommended.name}`)
+    if (teamTier.spots_left <= 0) teamOverrideReasons.push(`${teamTier.name} is full at ${TEAM_SQUAD_CAP}`)
+  }
+  const teamOverrideRef = useRef(false)
+  const [showTeamOverride, setShowTeamOverride] = useState(false)
+  useEffect(() => { teamOverrideRef.current = false }, [selectedStudentId, teamTierId, isTeam])
+
+  const handleCharge = async (overrideAcked = false) => {
+    if (isTeam && teamOverrideReasons.length > 0 && !overrideAcked) {
+      setShowTeamOverride(true)
+      return
+    }
+    teamOverrideRef.current = overrideAcked
     if (payMethod === 'cash') {
       setCashConfirmOpen(true)
       return
@@ -195,6 +226,7 @@ export default function POSClient() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             parentId: selectedParent.id, studentId: selectedStudentId, tierId: teamTierId, months: teamM,
+            override: teamOverrideRef.current,
             paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
             ...(paymentIntentId ? { paymentIntentId } : {}),
           }),
@@ -350,6 +382,28 @@ export default function POSClient() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: NAVY, padding: 24 }}>
       {/* Cash Confirm Modal */}
+      {showTeamOverride && (
+        <div onClick={() => setShowTeamOverride(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#111d38', border: '1px solid #b45309', borderRadius: 16, padding: 32, maxWidth: 420, width: '100%' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#fbbf24', marginBottom: 8 }}>Level Override</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>Sell {teamTier?.name} anyway?</div>
+            <ul style={{ margin: '0 0 16px', padding: '0 0 0 18px', color: '#fbbf24', fontSize: 13, lineHeight: 1.7 }}>
+              {teamOverrideReasons.map(r => <li key={r}>{r}</li>)}
+            </ul>
+            <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 20px', lineHeight: 1.6 }}>
+              The sale will go through and the reason above will be written onto the invoice with your name.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowTeamOverride(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #1e3a6e', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={async () => { setShowTeamOverride(false); await handleCharge(true) }} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: '#b45309', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Override &amp; charge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showCashConfirm && (
         <div onClick={() => setShowCashConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#111d38', border: '1px solid #1e3a6e', borderRadius: 16, padding: 32, maxWidth: 380, width: '100%' }}>
@@ -533,6 +587,13 @@ export default function POSClient() {
                       <input type="number" min="1" max="12" value={teamMonths} onChange={e => setTeamMonths(e.target.value)} style={sel0} />
                     </div>
                   </div>
+                  {teamStudent && teamTier && (
+                    <p style={{ fontSize: 11, margin: '8px 0 0', color: teamOverrideReasons.length > 0 ? '#fbbf24' : '#10b981' }}>
+                      {teamOverrideReasons.length > 0
+                        ? `\u26a0 ${teamOverrideReasons.join(' · ')}`
+                        : `\u2713 Matches this swimmer's level (${tierBandLabel(teamTier)})`}
+                    </p>
+                  )}
                   <p style={{ color: '#6b7280', fontSize: 11, margin: '10px 0 0' }}>Extends from current expiry if the student already has an active prepaid membership. Blocked if the student has an active subscription.</p>
                 </div>
               )}
@@ -619,7 +680,7 @@ export default function POSClient() {
             ))}
           </div>
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-          <button onClick={handleCharge} disabled={!canCharge}
+          <button onClick={() => handleCharge()} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
             {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTeam ? 'Complete team details' : isSdp ? 'Complete SDP details' : isTrial ? 'Select a student' : 'Select a package'}
           </button>
