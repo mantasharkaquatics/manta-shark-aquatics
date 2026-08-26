@@ -304,6 +304,8 @@
   "dash.coachNote": "COACH'S NOTE",
   "dash.collapse": "Collapse",
   "dash.currentLevel": "Current Level",
+  "dash.day.nLessons": "{n} lessons",
+  "dash.day.oneLesson": "{n} lesson",
   "dash.greeting.afternoon": "Good afternoon, ",
   "dash.greeting.bang": "!",
   "dash.greeting.evening": "Good evening, ",

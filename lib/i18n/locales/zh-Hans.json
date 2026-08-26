@@ -304,6 +304,8 @@
   "dash.coachNote": "教练评语",
   "dash.collapse": "收起",
   "dash.currentLevel": "当前等级",
+  "dash.day.nLessons": "{n} 堂课",
+  "dash.day.oneLesson": "{n} 堂课",
   "dash.greeting.afternoon": "午安，",
   "dash.greeting.bang": "!",
   "dash.greeting.evening": "晚上好，",

@@ -15,6 +15,48 @@ import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 
+/* The phone layout lives here rather than in inline styles, because an inline
+   style beats a media query and these three sections have to be shaped
+   differently on a phone than on a desktop. Anything that stays inline is a
+   colour the component computes; anything that changes with width is a class. */
+const MOBILE_CSS = `
+.msa-ql { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px }
+.msa-ql-item { display: flex; align-items: center; gap: 14px; border-radius: 14px; padding: 18px 20px; text-decoration: none }
+.msa-ql-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0 }
+.msa-ql-label { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px }
+.msa-ql-desc { font-size: 11px; color: rgba(255,255,255,0.4) }
+
+.msa-rail { display: grid; gap: 16px }
+.msa-rail-students { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }
+.msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
+.msa-dots { display: none }
+
+@media (max-width: 640px) {
+  /* Six full-width rows cost about 1140px of scrolling before the first
+     swimmer. Three columns of icon-and-label cost about 200px. */
+  .msa-ql { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+  .msa-ql-item { flex-direction: column; justify-content: center; gap: 8px; padding: 14px 6px; min-height: 88px; text-align: center }
+  .msa-ql-icon { width: 36px; height: 36px; font-size: 18px }
+  .msa-ql-label { font-size: 11px; margin-bottom: 0; line-height: 1.25 }
+  .msa-ql-desc { display: none }
+
+  /* One card at a time, with the next one's edge showing so it is obvious
+     the row moves. The negative margin lets it run to the screen edge. */
+  .msa-rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+              padding: 2px clamp(20px,5vw,48px) 10px; margin: 0 calc(-1 * clamp(20px,5vw,48px));
+              scrollbar-width: none }
+  .msa-rail::-webkit-scrollbar { display: none }
+  .msa-rail > * { scroll-snap-align: center; flex: 0 0 86% }
+  .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
+  .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.18); transition: width .18s, background .18s }
+  .msa-dot-on { width: 18px; border-radius: 3px; background: #c9a84c }
+
+  /* A day sheet belongs at the bottom of a phone, under the thumb. */
+  .msa-sheet-wrap { align-items: flex-end !important; padding: 0 !important }
+  .msa-sheet { max-width: none !important; border-radius: 20px 20px 0 0 !important }
+}
+`
+
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
@@ -127,6 +169,38 @@ function getDaysUntil(d: string): number {
   const date = new Date(d + 'T00:00:00')
   return Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
+
+/* A row of cards that becomes a swipeable rail on a phone. The dots are the
+   only reason this needs state: they say how many cards there are and which
+   one you are on, which a bare overflow-x row cannot. */
+function Rail({ variant, count, children }: { variant: 'students' | 'credits'; count: number; children: React.ReactNode }) {
+  const [active, setActive] = useState(0)
+  return (
+    <>
+      <div className={`msa-rail msa-rail-${variant}`}
+        onScroll={e => {
+          const el = e.currentTarget
+          const step = el.scrollWidth / Math.max(1, count)
+          const next = Math.min(count - 1, Math.max(0, Math.round(el.scrollLeft / step)))
+          setActive(prev => (prev === next ? prev : next))
+        }}>
+        {children}
+      </div>
+      {count > 1 && (
+        <div className="msa-dots">
+          {Array.from({ length: count }).map((_, i) => (
+            <span key={i} className={`msa-dot${i === active ? ' msa-dot-on' : ''}`} />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+// A calendar cell is about 46px wide on a phone -- room for a time, not a name.
+// Each swimmer gets a colour instead, keyed to the order they appear on the
+// page, with a legend above the grid. One swimmer needs neither.
+const SWIMMER_COLORS = ['#c9a84c', '#4a90c4', '#4caf72', '#7b5ea7', '#e8883a']
 
 // QR payload: base64 encode of student_id so it's not raw UUID
 function makeQRPayload(studentId: string): string {
@@ -484,6 +558,7 @@ export default function DashboardPage() {
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [lessonView, setLessonView] = useState<'list' | 'month'>('list')
   const [lessonDetail, setLessonDetail] = useState<Booking | null>(null)
+  const [daySheet, setDaySheet] = useState<string | null>(null)
   const [lvMonth, setLvMonth] = useState(() => new Date().getMonth())
   const [lvYear, setLvYear] = useState(() => new Date().getFullYear())
   const [loading, setLoading] = useState(true)
@@ -1198,15 +1273,15 @@ export default function DashboardPage() {
         {/* QUICK LINKS */}
         <section>
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.quickLinks')}</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+          <div className="msa-ql">
             {QUICK_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px 20px', textDecoration: 'none' }}
+              <Link key={link.href} href={link.href} className="msa-ql-item" style={{ background: NAVY, border: '1px solid rgba(255,255,255,0.08)' }}
                 onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = link.color + '60'; el.style.transform = 'translateY(-2px)' }}
                 onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(255,255,255,0.08)'; el.style.transform = 'translateY(0)' }}>
-                <span style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${link.color}18`, border: `1px solid ${link.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>{link.icon}</span>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{t(link.labelKey)}</div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{t(link.descKey)}</div>
+                <span className="msa-ql-icon" style={{ background: `${link.color}18`, border: `1px solid ${link.color}30` }}>{link.icon}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="msa-ql-label">{t(link.labelKey)}</div>
+                  <div className="msa-ql-desc">{t(link.descKey)}</div>
                 </div>
               </Link>
             ))}
@@ -1216,7 +1291,7 @@ export default function DashboardPage() {
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '28px 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.mySwimmers')}</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          <Rail variant="students" count={students.length}>
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
               const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
@@ -1461,7 +1536,7 @@ export default function DashboardPage() {
                 </div>
               )
             })}
-          </div>
+          </Rail>
         </section>
 
         {/* Pending partner bookings notice */}
@@ -1568,6 +1643,16 @@ export default function DashboardPage() {
             const daysIn = new Date(lvYear, lvMonth + 1, 0).getDate()
             const firstDow = new Date(lvYear, lvMonth, 1).getDay()
             const t12 = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
+            /* "10:55a" rather than "10:55 AM". The pool runs 6am to 9pm, so 6
+               through 9 happen twice a day and the meridiem cannot just be
+               dropped -- but one letter of it is enough, and three did not fit. */
+            const t12c = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')}${h >= 12 ? 'p' : 'a'}` }
+            const firstName = (n?: string) => (n || '').split(',')[0].trim().split(' ')[0]
+            const colorOf = (n?: string) => {
+              const i = students.findIndex(st => firstName(st.full_name) === firstName(n))
+              return i >= 0 ? SWIMMER_COLORS[i % SWIMMER_COLORS.length] : GOLD
+            }
+            const MAX_PER_DAY = 3
             const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
             return (
               <div>
@@ -1578,6 +1663,16 @@ export default function DashboardPage() {
                   <button onClick={() => { if (lvMonth === 11) { setLvMonth(0); setLvYear(lvYear + 1) } else setLvMonth(lvMonth + 1) }}
                     style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>Next ›</button>
                 </div>
+                {students.length > 1 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px' }}>
+                    {students.map((st, i) => (
+                      <span key={st.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
+                        <i style={{ width: '7px', height: '7px', borderRadius: '50%', display: 'block', background: SWIMMER_COLORS[i % SWIMMER_COLORS.length] }} />
+                        {firstName(st.full_name)}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
                   {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
                     <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{d}</div>
@@ -1591,26 +1686,80 @@ export default function DashboardPage() {
                     const isPast = ds < todayDs
                     const isTodayCell = ds === todayDs
                     return (
-                      <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
+                      <div key={ds}
+                        onClick={() => { if (dayBookings.length > 0) setDaySheet(ds) }}
+                        role={dayBookings.length > 0 ? 'button' : undefined}
+                        tabIndex={dayBookings.length > 0 ? 0 : undefined}
+                        onKeyDown={e => { if (dayBookings.length > 0 && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setDaySheet(ds) } }}
+                        style={{ cursor: dayBookings.length > 0 ? 'pointer' : 'default', backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
                         <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? 'rgba(255,255,255,0.25)' : dayBookings.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                        {/* Three at most. A busy Tuesday had six, which made one cell
+                            three times the height of its neighbours and pushed the rest of
+                            the month off the screen. The rest are one tap away. */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {dayBookings.map((b, j) => (
-                            <button key={b.id + j} onClick={() => setLessonDetail(b)} style={{ padding: '4px 3px', borderRadius: '5px', textAlign: 'center', cursor: 'pointer', width: '100%',
+                          {dayBookings.slice(0, MAX_PER_DAY).map((b, j) => (
+                            <button key={b.id + j} onClick={e => { e.stopPropagation(); setLessonDetail(b) }} style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px',
                               border: `1px solid ${isPast ? 'rgba(255,255,255,0.1)' : GOLD + '55'}`,
                               background: isPast ? 'rgba(255,255,255,0.04)' : `${GOLD}14` }}>
-                              {/* Wraps to two lines when a column is phone-narrow; each half
-                                  still holds together. Kept as one no-wrap row, the seven columns
-                                  could not shrink and the page scrolled sideways. */}
-                              <span style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: '0 4px', fontSize: '10px', fontWeight: 700, color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
-                                <span style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>{t12(b.start_time)}{b.checked_in ? ' ✓' : ''}</span>
-                                <span style={{ fontWeight: 600, flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right', color: isPast ? 'rgba(255,255,255,0.3)' : GOLD }}>{(b.student_name || '').split(',')[0].split(' ')[0]}</span></span>
+                              <span style={{ fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
+                                {t12c(b.start_time)}{b.checked_in ? ' ✓' : ''}
+                              </span>
+                              {students.length > 1 && (
+                                <i style={{ width: '5px', height: '5px', borderRadius: '50%', flexShrink: 0, display: 'block', opacity: isPast ? 0.45 : 1, background: colorOf(b.student_name) }} />
+                              )}
                             </button>
                           ))}
+                          {dayBookings.length > MAX_PER_DAY && (
+                            <button onClick={e => { e.stopPropagation(); setDaySheet(ds) }}
+                              style={{ padding: '3px 2px', borderRadius: '5px', width: '100%', cursor: 'pointer', textAlign: 'center',
+                                fontSize: '9.5px', fontWeight: 800, color: 'rgba(255,255,255,0.55)',
+                                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                              +{dayBookings.length - MAX_PER_DAY}
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
                   })}
                 </div>
+                {/* One day, in full. A bottom sheet on a phone and a centred card on
+                    a desktop -- same markup, the width decides. Tapping a line hands
+                    over to the lesson detail that already exists. */}
+                {daySheet && (() => {
+                  const rows = byDate[daySheet] || []
+                  const dateStr = new Date(daySheet + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+                  return (
+                    <div className="msa-sheet-wrap" onClick={() => setDaySheet(null)}
+                      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                      <div className="msa-sheet" onClick={e => e.stopPropagation()}
+                        style={{ background: DARK, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '18px 20px 24px', width: '100%', maxWidth: '420px', maxHeight: '78vh', overflowY: 'auto' }}>
+                        <div style={{ width: '38px', height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.18)', margin: '0 auto 14px' }} />
+                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '19px', fontWeight: 700, color: '#fff' }}>{dateStr}</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '14px' }}>
+                          {t(rows.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: rows.length })}
+                        </div>
+                        {rows.map((b, j) => (
+                          <button key={b.id + j} onClick={() => { setDaySheet(null); setLessonDetail(b) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', textAlign: 'left', cursor: 'pointer',
+                              padding: '11px 12px', borderRadius: '12px', marginBottom: '8px',
+                              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, whiteSpace: 'nowrap', minWidth: '66px', color: '#fff' }}>{t12(b.start_time)}</span>
+                            <span style={{ minWidth: 0, flex: 1 }}>
+                              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: colorOf(b.student_name) }}>{b.student_name || '—'}</span>
+                              <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.42)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : ''}{b.coach_name && b.course_name ? ' · ' : ''}{b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name}
+                              </span>
+                            </span>
+                            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '15px', flexShrink: 0 }}>›</span>
+                          </button>
+                        ))}
+                        <button onClick={() => setDaySheet(null)}
+                          style={{ marginTop: '10px', width: '100%', padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('common.close')}</button>
+                      </div>
+                    </div>
+                  )
+                })()}
                 {lessonDetail && (() => {
                   const b = lessonDetail
                   const past = !!(b.session_date && b.session_date < todayDs)
@@ -1970,7 +2119,7 @@ export default function DashboardPage() {
               <Link href="/plans" style={{ display: 'inline-block', padding: '9px 20px', background: 'transparent', color: GOLD, border: `1px solid ${GOLD}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('dash.browsePlans')}</Link>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px', alignItems: 'start' }}>
+            <Rail variant="credits" count={Object.keys(credits.reduce((m: Record<string, true>, c) => { m[c.is_trial ? '__assessment__' : c.course_type_id] = true; return m }, {})).length}>
               {(() => {
                 // Group credits by course_type_id and sum them up
                 const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null; expiresAt?: string | null }[] }> = {}
@@ -1997,7 +2146,7 @@ export default function DashboardPage() {
               })()}
               <TokenCard tokens={tokenPacks} />
               <TeamCard memberships={teamMemberships} />
-            </div>
+            </Rail>
           )}
         </section>
 
@@ -2082,6 +2231,7 @@ export default function DashboardPage() {
 
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+      <style>{MOBILE_CSS}</style>
       {parent && <ChatWidget parentId={parent.id} />}
     </div>
   )
