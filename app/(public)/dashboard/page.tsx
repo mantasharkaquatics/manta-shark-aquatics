@@ -671,10 +671,10 @@ export default function DashboardPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
-  /* The list opens on the next two days that have lessons and grows a week at a
-     time. Counting lessons instead of days used to cut a busy Thursday in half. */
+  /* The list opens on the next two days that have lessons and grows two days at
+     a time. Counting lessons instead of days used to cut a busy Thursday in half. */
   const UPCOMING_DAYS = 2
-  const UPCOMING_STEP = 7
+  const UPCOMING_STEP = 2
   const [dayWindow, setDayWindow] = useState(UPCOMING_DAYS)
   /* Collapsing three weeks of lessons pulls the ground out from under you --
      whatever you were reading is suddenly above the viewport. Go back to the top
