@@ -1203,12 +1203,12 @@ export default function BookingPage() {
                   else setCalMonth(calMonth + 1)
                 }} aria-label="Next month" style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '8px' }}>
                 {[0, 1, 2, 3, 4, 5, 6].map(d => (
                   <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
                 {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
                 {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, i) => {
                   const date = new Date(calYear, calMonth, i + 1)
@@ -1446,12 +1446,12 @@ export default function BookingPage() {
                   {tokenMode && (
                     <div style={{ fontSize: '12px', color: '#e8883a', marginBottom: '10px' }}>{t('booking.group.tokenMode')}</div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
                     {[0, 1, 2, 3, 4, 5, 6].map(d => (
                       <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                     ))}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '16px' }}>
                     {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
                     {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, i) => {
                       const dt = new Date(calYear, calMonth, i + 1)
@@ -1461,7 +1461,7 @@ export default function BookingPage() {
                       const isToday2 = ds === todayDs
                       const tokenBlocked = tokenMode && !inTokenWindow(dt)
                       return (
-                        <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px' }}>
+                        <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
                           <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {slots.map((sl: any) => {
@@ -1487,9 +1487,13 @@ export default function BookingPage() {
                                     background: sel ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
                                     cursor: clickable ? 'pointer' : 'not-allowed',
                                   }}>
-                                  <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
-                                    {formatTime(sl.time)}
-                                    <span style={{ fontWeight: 600, marginLeft: '4px', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
+                                  {/* Not nowrap. A phone gives each of the seven columns about
+                                      47px; this line's no-wrap width was 106px, and seven of those
+                                      widened the whole page to 784px on a 390px screen. Only the
+                                      clock time has to stay in one piece. */}
+                                  <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                    <span style={{ whiteSpace: 'nowrap' }}>{formatTime(sl.time)}</span>
+                                    <span style={{ fontWeight: 600, marginLeft: '4px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
                                       {sl.already_booked ? '✓' : sl.full ? t('booking.full') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
                                     </span>
                                     {w24 && clickable ? <span style={{ color: '#c9a84c', marginLeft: '3px' }}>24h</span> : null}
