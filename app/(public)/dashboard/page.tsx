@@ -31,6 +31,12 @@ const MOBILE_CSS = `
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
 .msa-dots { display: none }
 
+.msa-lesson { display: flex; align-items: center; gap: 16px; border-radius: 14px; padding: 18px 20px }
+.msa-lesson-date { width: 52px; height: 52px; border-radius: 12px; display: flex; flex-direction: column;
+                   align-items: center; justify-content: center; flex-shrink: 0 }
+.msa-lesson-actions { display: flex; flex-wrap: wrap; gap: 6px }
+.msa-lesson-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+
 @media (max-width: 640px) {
   /* Six full-width rows cost about 1140px of scrolling before the first
      swimmer. Three columns of icon-and-label cost about 200px. */
@@ -50,6 +56,16 @@ const MOBILE_CSS = `
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
   .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.18); transition: width .18s, background .18s }
   .msa-dot-on { width: 18px; border-radius: 3px; background: #c9a84c }
+
+  /* Four things fought for one 240px row: course name, level badge, day badge and
+     status pill, with the coach line and two buttons under them. The date block
+     lies down into a strip, the pills get their own line, and the buttons take
+     half the width each -- which is also the size a thumb wants. */
+  .msa-lesson { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 16px }
+  .msa-lesson-date { flex-direction: row; gap: 6px; width: auto; height: auto; padding: 4px 10px;
+                     align-self: flex-start; border-radius: 8px }
+  .msa-lesson-actions > * { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap }
+  .msa-lesson-row { flex-direction: column; align-items: stretch; gap: 8px }
 
   /* A day sheet belongs at the bottom of a phone, under the thumb. */
   .msa-sheet-wrap { align-items: flex-end !important; padding: 0 !important }
@@ -1666,8 +1682,8 @@ export default function DashboardPage() {
                 {students.length > 1 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px' }}>
                     {students.map((st, i) => (
-                      <span key={st.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
-                        <i style={{ width: '7px', height: '7px', borderRadius: '50%', display: 'block', background: SWIMMER_COLORS[i % SWIMMER_COLORS.length] }} />
+                      <span key={st.id} style={{ display: 'flex', alignItems: 'baseline', gap: '5px', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
+                        <b style={{ fontSize: '11px', fontWeight: 900, color: SWIMMER_COLORS[i % SWIMMER_COLORS.length] }}>{firstName(st.full_name).charAt(0).toUpperCase()}</b>
                         {firstName(st.full_name)}
                       </span>
                     ))}
@@ -1706,7 +1722,12 @@ export default function DashboardPage() {
                                 {t12c(b.start_time)}{b.checked_in ? ' ✓' : ''}
                               </span>
                               {students.length > 1 && (
-                                <i style={{ width: '5px', height: '5px', borderRadius: '50%', flexShrink: 0, display: 'block', opacity: isPast ? 0.45 : 1, background: colorOf(b.student_name) }} />
+                                /* A colour alone answered "how many swimmers", not "which one".
+                                   The initial answers it without the 30-odd pixels a name needs;
+                                   the legend above the grid spells both out. */
+                                <span style={{ fontSize: '9.5px', fontWeight: 900, flexShrink: 0, opacity: isPast ? 0.5 : 1, color: colorOf(b.student_name) }}>
+                                  {firstName(b.student_name).charAt(0).toUpperCase()}
+                                </span>
                               )}
                             </button>
                           ))}
@@ -1813,8 +1834,8 @@ export default function DashboardPage() {
                 const isTomorrow = daysUntil === 1
                 const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
                 return (
-                  <div key={booking.id} style={{ background: NAVY, borderRadius: '14px', border: `1px solid ${isToday ? GOLD + '40' : 'rgba(255,255,255,0.08)'}`, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: isToday ? GOLD : 'rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div key={booking.id} className="msa-lesson" style={{ background: NAVY, border: `1px solid ${isToday ? GOLD + '40' : 'rgba(255,255,255,0.08)'}` }}>
+                    <div className="msa-lesson-date" style={{ background: isToday ? GOLD : 'rgba(255,255,255,0.06)' }}>
                       <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : 'rgba(255,255,255,0.4)' }}>
                         {new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
                       </div>
@@ -1866,7 +1887,7 @@ export default function DashboardPage() {
                             const cEnabled = (!late || lateOk) && cancellingId !== m.id && m.status !== 'pending_partner'
                             const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
                             return (
-                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
+                              <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
                                 <div style={{ fontSize: '13px', fontWeight: 700 }}>
                                   <span style={{ color: '#c9a84c' }}>{t('dash.up.coach', { name: m.coach_name })}</span>
                                   {m.student_name ? <span style={{ color: '#7dd3fc' }}> · ({m.student_name})</span> : ''}
@@ -1874,7 +1895,7 @@ export default function DashboardPage() {
                                 {m.token_package_id ? (
                                   <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '10px', fontWeight: 600 }}>🎫 {t('dash.up.tokenFinal')}</div>
                                 ) : (m.course_slug === '1on2' && mi > 0) ? null : (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                  <div className="msa-lesson-actions">
                                     <button
                                       onClick={() => m.lesson_credit_id && setRescheduleTarget({ id: m.id, creditId: m.lesson_credit_id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
                                       disabled={rDis}
@@ -2064,7 +2085,7 @@ export default function DashboardPage() {
                           🎫 Booked with token · Final
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div className="msa-lesson-actions">
                           <button
                             onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}

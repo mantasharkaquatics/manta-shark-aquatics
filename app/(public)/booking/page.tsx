@@ -63,6 +63,15 @@ function formatTime(t: string): string {
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`
 }
 
+/* "11:30a" for a calendar cell. A phone gives each of the seven columns about
+   47px, which leaves a 31px chip; "11:30 AM" measures 41px and spilled straight
+   out of it. The meridiem cannot just be dropped -- the pool runs 6am to 9pm, so
+   6 through 9 happen twice a day -- but one letter of it fits where three did not. */
+function formatTimeCompact(t: string): string {
+  const [h, m] = t.split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2,'0')}${h >= 12 ? 'p' : 'a'}`
+}
+
 function Steps({ current, labelKeys }: { current: number; labelKeys?: string[] }) {
   const t = useT()
   const steps = labelKeys || ['booking.step.student', 'booking.step.course', 'booking.step.coach', 'booking.step.datetime', 'booking.step.confirm']
@@ -1492,16 +1501,17 @@ export default function BookingPage() {
                                     background: sel ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
                                     cursor: clickable ? 'pointer' : 'not-allowed',
                                   }}>
-                                  {/* Not nowrap. A phone gives each of the seven columns about
-                                      47px; this line's no-wrap width was 106px, and seven of those
-                                      widened the whole page to 784px on a 390px screen. Only the
-                                      clock time has to stay in one piece. */}
-                                  <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
-                                    <span style={{ whiteSpace: 'nowrap' }}>{formatTime(sl.time)}</span>
-                                    <span style={{ fontWeight: 600, marginLeft: '4px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
+                                  {/* Each of the seven columns is about 47px on a phone, so the
+                                      time and the seat count get a line each. They were side by
+                                      side with no whitespace between the two spans -- which gives
+                                      the browser nowhere to break, so "4 left" was painted outside
+                                      the cell rather than wrapped inside it. */}
+                                  <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 700, letterSpacing: '-0.2px', color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                    <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{formatTimeCompact(sl.time)}</span>
+                                    <span style={{ display: 'block', fontWeight: 600, marginTop: '1px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
                                       {sl.already_booked ? '✓' : sl.full ? t('booking.full') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
                                     </span>
-                                    {w24 && clickable ? <span style={{ color: '#c9a84c', marginLeft: '3px' }}>24h</span> : null}
+                                    {w24 && clickable ? <span style={{ display: 'block', color: '#c9a84c' }}>24h</span> : null}
                                   </span>
                                 </button>
                               )
