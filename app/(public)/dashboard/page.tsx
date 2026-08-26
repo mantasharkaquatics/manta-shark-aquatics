@@ -31,14 +31,25 @@ const MOBILE_CSS = `
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
 .msa-dots { display: none }
 
-.msa-lesson { display: flex; align-items: center; gap: 16px; border-radius: 14px; padding: 18px 20px }
+ /* One column at every width. Side by side, the head row could only reach the
+    right edge of the text column, so the status pill sat mid-card with the
+    buttons beside it rather than at the corner. */
+.msa-lesson { display: flex; flex-direction: column; align-items: stretch; gap: 10px; border-radius: 14px; padding: 16px 18px }
 .msa-lesson-date { width: 52px; height: 52px; border-radius: 12px; display: flex; flex-direction: column;
                    align-items: center; justify-content: center; flex-shrink: 0 }
 .msa-lesson-actions { display: flex; flex-wrap: wrap; gap: 6px }
 .msa-lesson-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
-.msa-lesson-side { flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0 }
+.msa-lesson-side { flex-direction: row; justify-content: flex-end; align-items: center; gap: 8px }
 .msa-lesson-status { display: flex; align-items: center; gap: 8px }
 .msa-lesson-status-inline { margin-left: auto; display: flex; align-items: center; gap: 8px }
+/* A lesson card answers "whose lesson is this?" first. The swimmer's name is
+   the largest thing on it, in the same colour that swimmer has in the calendar;
+   what kind of lesson, when and with whom is one quiet line above it. */
+.msa-lesson-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 5px }
+.msa-lesson-meta { font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.45); min-width: 0 }
+.msa-lesson-meta b { font-weight: 700; color: rgba(255,255,255,0.82) }
+.msa-lesson-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; margin-bottom: 10px }
+.msa-lesson-pill { flex-shrink: 0; margin-left: auto }
 .msa-day-head { display: flex; align-items: center; gap: 8px; margin: 14px 2px 0 }
 .msa-day-head:first-child { margin-top: 0 }
 /* Stated once in the heading above, so the card does not repeat it: not as a
@@ -71,17 +82,13 @@ const MOBILE_CSS = `
      status pill, with the coach line and two buttons under them. The date block
      lies down into a strip, the pills get their own line, and the buttons take
      half the width each -- which is also the size a thumb wants. */
-  .msa-lesson { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 16px }
-  .msa-lesson-date { flex-direction: row; gap: 6px; width: auto; height: auto; padding: 4px 10px;
-                     align-self: flex-start; border-radius: 8px }
+  .msa-lesson { padding: 14px 16px }
+  .msa-lesson-actions { flex: 1 }
   .msa-lesson-actions > * { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap }
   .msa-lesson-row { flex-direction: column; align-items: stretch; gap: 8px }
-  /* This column is the right-hand side of a desktop card. Stacked on a phone it
-     kept right-aligning, which left the status pill stranded on one line and the
-     buttons on another. Full width instead: pill on the left, buttons halved. */
-  .msa-lesson-side { align-items: stretch }
+  /* A thumb wants the buttons full width, not tucked into a corner. */
+  .msa-lesson-side { flex-direction: column; align-items: stretch }
   .msa-lesson-status { justify-content: flex-start }
-  .msa-lesson-status-inline { margin-left: 0 }
 
   /* A day sheet belongs at the bottom of a phone, under the thumb. */
   .msa-sheet-wrap { align-items: flex-end !important; padding: 0 !important }
@@ -591,6 +598,13 @@ export default function DashboardPage() {
   const [lessonView, setLessonView] = useState<'list' | 'month'>('list')
   const [lessonDetail, setLessonDetail] = useState<Booking | null>(null)
   const [daySheet, setDaySheet] = useState<string | null>(null)
+  const firstName = (n?: string) => (n || '').split(',')[0].trim().split(' ')[0]
+  /* One colour per swimmer, keyed to the order they appear on the page, used by
+     both the calendar cells and the lesson cards so the two agree. */
+  const swimmerColor = (n?: string) => {
+    const i = students.findIndex(st => firstName(st.full_name) === firstName(n))
+    return i >= 0 ? SWIMMER_COLORS[i % SWIMMER_COLORS.length] : GOLD
+  }
   const [lvMonth, setLvMonth] = useState(() => new Date().getMonth())
   const [lvYear, setLvYear] = useState(() => new Date().getFullYear())
   const [loading, setLoading] = useState(true)
@@ -1679,11 +1693,6 @@ export default function DashboardPage() {
                through 9 happen twice a day and the meridiem cannot just be
                dropped -- but one letter of it is enough, and three did not fit. */
             const t12c = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')}${h >= 12 ? 'p' : 'a'}` }
-            const firstName = (n?: string) => (n || '').split(',')[0].trim().split(' ')[0]
-            const colorOf = (n?: string) => {
-              const i = students.findIndex(st => firstName(st.full_name) === firstName(n))
-              return i >= 0 ? SWIMMER_COLORS[i % SWIMMER_COLORS.length] : GOLD
-            }
             const MAX_PER_DAY = 3
             const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
             return (
@@ -1741,7 +1750,7 @@ export default function DashboardPage() {
                                    Kayden and Kylie are both K. The name goes on its own line and
                                    the browser trims it to whatever the column holds, which is
                                    four or five letters rather than a hard three. */
-                                <span style={{ display: 'block', fontSize: '9px', fontWeight: 700, letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: isPast ? 0.55 : 1, color: colorOf(b.student_name) }}>
+                                <span style={{ display: 'block', fontSize: '9px', fontWeight: 700, letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: isPast ? 0.55 : 1, color: swimmerColor(b.student_name) }}>
                                   {firstName(b.student_name)}
                                 </span>
                               )}
@@ -1783,7 +1792,7 @@ export default function DashboardPage() {
                               background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                             <span style={{ fontSize: '13px', fontWeight: 800, whiteSpace: 'nowrap', minWidth: '66px', color: '#fff' }}>{t12(b.start_time)}</span>
                             <span style={{ minWidth: 0, flex: 1 }}>
-                              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: colorOf(b.student_name) }}>{b.student_name || '—'}</span>
+                              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: swimmerColor(b.student_name) }}>{b.student_name || '—'}</span>
                               <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.42)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : ''}{b.coach_name && b.course_name ? ' · ' : ''}{b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name}
                               </span>
@@ -1889,16 +1898,16 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* On a phone this row is about 240px wide and holds a course
-                          name, a level badge, a day badge and a status pill. Without
-                          wrapping, the name was squeezed to its narrowest and broke
-                          into "1-on- / 4 / Group" while the buttons ran off the card. */}
-                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</span>
-                        {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.levelBadge', { min: booking.level_min ?? '', max: booking.level_max ?? '' })}</span> : null })()}
+                      <div className="msa-lesson-head">
+                        <span className="msa-lesson-meta">
+                          <b>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</b>
+                          {!booking._group && <> · {formatTime(booking.start_time)} — {formatTime(booking.end_time)}</>}
+                          {!booking._group && booking.coach_name ? <> · {t('dash.up.coach', { name: booking.coach_name })}</> : null}
+                          {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.up.levelBadge', { min: booking.level_min ?? '', max: booking.level_max ?? '' })}</span> : null })()}
+                        </span>
                         {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
                         {isTomorrow && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
-                        {booking._group && <span className="msa-lesson-status-inline">
+                        {booking._group && <span className="msa-lesson-status-inline msa-lesson-pill">
                           {(() => {
                             if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
                             if (booking.session_date !== getTodayLA()) return null
@@ -1911,7 +1920,15 @@ export default function DashboardPage() {
                           })()}
                           <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.status.' + booking.status)}</span>
                         </span>}
+                        {!booking._group && (
+                          <span className="msa-lesson-pill" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
+                            {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? t('dash.up.pendingReschedule') : t('dash.status.' + booking.status)}
+                          </span>
+                        )}
                       </div>
+                      {!booking._group && booking.student_name && (
+                        <div className="msa-lesson-name" style={{ color: swimmerColor(booking.student_name) }}>{booking.student_name}</div>
+                      )}
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
                           <div style={{ fontSize: '13px', fontWeight: 700 }}>
@@ -1933,9 +1950,11 @@ export default function DashboardPage() {
                             const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
                             return (
                               <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                                  <span style={{ color: '#c9a84c' }}>{t('dash.up.coach', { name: m.coach_name })}</span>
-                                  {m.student_name ? <span style={{ color: '#7dd3fc' }}> · ({m.student_name})</span> : ''}
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}</div>
+                                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '1px' }}>
+                                    {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}
+                                  </div>
                                 </div>
                                 {m.token_package_id ? (
                                   <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '10px', fontWeight: 600 }}>🎫 {t('dash.up.tokenFinal')}</div>
@@ -1963,10 +1982,7 @@ export default function DashboardPage() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '2px' }}>
-                          <span style={{ color: '#c9a84c' }}>{t('dash.up.coach', { name: booking.coach_name })}</span>
-                          {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
-                        </div>
+                        null
                       )}
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_start_time ? (
                         <div>
@@ -1985,7 +2001,6 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <div>
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}<span className="msa-lesson-datesuffix"> · {formatDate(booking.session_date)}</span></div>
                           {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
@@ -2016,9 +2031,6 @@ export default function DashboardPage() {
                         }
                         return null
                       })()}
-                      {!booking._group && <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
-                        {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? t('dash.up.pendingReschedule') : t('dash.status.' + booking.status)}
-                      </span>}
                       </div>
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? (
                         <div className="msa-lesson-actions">
