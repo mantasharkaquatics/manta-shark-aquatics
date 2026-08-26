@@ -673,6 +673,14 @@ export default function DashboardPage() {
   const UPCOMING_DAYS = 2
   const UPCOMING_STEP = 7
   const [dayWindow, setDayWindow] = useState(UPCOMING_DAYS)
+  /* Collapsing sixteen days of lessons pulls the ground out from under you --
+     whatever you were reading is suddenly above the viewport. Go back to the
+     top of the section, which is where the list you are left with starts. */
+  const upcomingRef = useRef<HTMLElement | null>(null)
+  const collapseUpcoming = () => {
+    setDayWindow(UPCOMING_DAYS)
+    upcomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const [pendingPayBusy, setPendingPayBusy] = useState<string | null>(null)
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
   const [pendingPayMsg, setPendingPayMsg] = useState('')
@@ -1667,7 +1675,7 @@ export default function DashboardPage() {
       )}
 
       {/* UPCOMING LESSONS */}
-        <section style={{ marginBottom: '36px' }}>
+        <section ref={upcomingRef} style={{ marginBottom: '36px', scrollMarginTop: '80px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.upcomingLessons')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2197,7 +2205,7 @@ export default function DashboardPage() {
                   </button>
                 )}
                 {dayWindow > UPCOMING_DAYS && (
-                  <button onClick={() => setDayWindow(UPCOMING_DAYS)}
+                  <button onClick={collapseUpcoming}
                     style={{ flex: more > 0 ? '0 0 auto' : 1, padding: '10px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
                     ▲ {t('dash.collapse')}
                   </button>
