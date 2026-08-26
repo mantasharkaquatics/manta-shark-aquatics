@@ -1681,7 +1681,12 @@ export default function BookingPage() {
             </div>
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                {t(payingWithTokens ? 'booking.policy.token' : 'booking.policy.credit')}
+                {/* A weekly batch is always paid in credits -- the recurring API
+                    does not touch makeup tokens. Without this the token policy
+                    ("cannot be cancelled or rescheduled") showed up whenever the
+                    first date happened to fall inside the token window, telling a
+                    parent 19 lessons were locked when they are not. */}
+                {t(payingWithTokens && recurPlan.length === 0 ? 'booking.policy.token' : 'booking.policy.credit')}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   {t('booking.viewTerms')}
                 </a>
