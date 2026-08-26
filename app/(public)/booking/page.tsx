@@ -259,7 +259,15 @@ export default function BookingPage() {
   const [recurCredits, setRecurCredits] = useState(0)
   const [recurBusy, setRecurBusy] = useState(false)
   const [recurMsg, setRecurMsg] = useState('')
-  const [recurConfirm, setRecurConfirm] = useState(false)
+  // The weekly batch used to book the moment you pressed "Confirm N lessons",
+  // straight from the panel, and then left you sitting on the calendar with a
+  // green line and a greyed-out Continue -- no summary, no way forward. The
+  // selection is now carried into step 4 like every other booking: recurPlan is
+  // what step 4 is confirming, and nothing is written until you press Confirm
+  // there.
+  const [recurPlan, setRecurPlan] = useState<string[]>([])
+  const [recurBooked, setRecurBooked] = useState(0)
+  const [recurSkipped, setRecurSkipped] = useState(0)
 
   useEffect(() => {
     if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
@@ -524,7 +532,39 @@ export default function BookingPage() {
 
   const needsAssessment = !!selectedStudent && selectedStudent.current_level == null
 
+  // The whole term goes to the server in one call: a mid-way failure there
+  // cannot leave a family with half a term booked and half their credits gone.
+  async function confirmRecurring() {
+    if (!selectedStudent || !selectedCoach || !selectedSlot) return
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/bookings/recurring', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, dates: recurPlan }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setNotice(tErr(j.error, 'booking.recur.err.commit')); setSubmitting(false); return }
+      setRecurBooked(j.booked ?? recurPlan.length)
+      setRecurSkipped((j.skipped || []).filter((x: any) => recurPlan.includes(x.date)).length)
+      setCartRefresh(n => n + 1)
+      setSuccess(true)
+    } catch { setNotice(t('cart.err.network')); setSubmitting(false) }
+  }
+
+  /* Step 3 -> step 4. With the weekly panel open and dates ticked, the summary
+     is about those dates; otherwise it is the single slot, and any stale plan
+     has to be dropped or step 4 would confirm a term the visitor backed out of. */
+  const canContinue = !!selectedSlot && !(recurOpen && recurSel.size === 0)
+
+  function goToConfirm() {
+    if (!selectedSlot) return
+    if (recurOpen && recurSel.size > 0) { setRecurPlan([...recurSel].sort()); setRecurOpen(false) }
+    else setRecurPlan([])
+    setStep(4)
+  }
+
   async function handleConfirm() {
+    if (recurPlan.length > 0) return confirmRecurring()
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || (!availableCredit && !isTrial && !willUseToken)) return
     setSubmitting(true)
 
@@ -736,7 +776,40 @@ export default function BookingPage() {
         textAlign: 'center', maxWidth: '480px', width: '100%',
         border: `1px solid ${GOLD}30`,
       }}>
-        {isPartnerBookingSuccess ? (
+        {recurPlan.length > 0 ? (
+          <>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
+              {t('booking.recur.successBooked', { n: recurBooked })}
+            </h2>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
+              <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> {t('booking.recur.isBookedForN', { n: recurBooked })}
+            </p>
+            <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '12px' }}>
+              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '20px' }}>
+              {recurPlan.map(d => (
+                <span key={d} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                  {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </span>
+              ))}
+            </div>
+            {recurSkipped > 0 && (
+              <p style={{ fontSize: '13px', color: '#f0c78a', marginBottom: '16px' }}>{t('booking.recur.someSkipped', { m: recurSkipped })}</p>
+            )}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)',
+              borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+                {t('booking.success.emailSent')}
+              </p>
+            </div>
+          </>
+        ) : isPartnerBookingSuccess ? (
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px', color: '#a78bfa' }}>⏳</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
@@ -1515,62 +1588,10 @@ export default function BookingPage() {
                             }}
                             style={{ padding: '10px 16px', background: 'transparent', border: `1px solid ${GOLD}55`, borderRadius: '8px', color: GOLD, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                             {recurSel.size > 0 ? t('booking.recur.deselectAll') : t('booking.recur.selectAll')}</button>
-                          <button onClick={() => { setRecurOpen(false); setRecurMsg(''); setRecurConfirm(false) }}
+                          <button onClick={() => { setRecurOpen(false); setRecurMsg(''); setRecurPlan([]) }}
                             style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
-                          <button disabled={recurSel.size === 0}
-                            onClick={() => setRecurConfirm(true)}
-                            style={{ padding: '10px 20px', background: recurSel.size === 0 ? 'rgba(255,255,255,0.1)' : GOLD, border: 'none', borderRadius: '8px', color: recurSel.size === 0 ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurSel.size === 0 ? 'not-allowed' : 'pointer' }}>
-                            {t('booking.recur.confirmN', { n: recurSel.size })}</button>
                         </div>
                       </div>
-                      {recurConfirm && (
-                        <div style={{ marginTop: '14px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${GOLD}66`, borderRadius: '10px', padding: '16px' }}>
-                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '6px' }}>{t('booking.recur.confirmTitle')}</div>
-                          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', marginBottom: '10px' }}>
-                            {t('booking.recur.confirmLine', { name: selectedStudent?.full_name || '', weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label, coach: selectedCoach.first_name })}
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '150px', overflowY: 'auto', marginBottom: '12px' }}>
-                            {[...recurSel].sort().map(d => (
-                              <span key={d} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
-                                {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                            ))}
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{t(recurSel.size === 1 ? 'booking.recur.summaryOne' : 'booking.recur.summary', { n: recurSel.size })}</span>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => setRecurConfirm(false)}
-                                style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>{t('booking.recur.goBack')}</button>
-                              <button disabled={recurBusy}
-                                onClick={async () => {
-                                  if (!selectedStudent) return
-                                  setRecurBusy(true)
-                                  try {
-                                    const res = await fetch('/api/bookings/recurring', {
-                                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, dates: [...recurSel].sort() }),
-                                    })
-                                    const j = await res.json().catch(() => ({}))
-                                    if (!res.ok) setRecurMsg(tErr(j.error, 'booking.recur.err.commit'))
-                                    else {
-                                      const skippedN = (j.skipped || []).filter((s: any) => recurSel.has(s.date)).length
-                                      setRecurMsg(skippedN > 0
-                                        ? t(j.booked === 1 ? 'booking.recur.doneSkippedOne' : 'booking.recur.doneSkipped', { n: j.booked, m: skippedN })
-                                        : t(j.booked === 1 ? 'booking.recur.doneOne' : 'booking.recur.done', { n: j.booked }))
-                                      setRecurConfirm(false)
-                                      setRecurOpen(false)
-                                      setSelectedSlot(null); setSelectedDate(null)
-                                      setCartRefresh(n => n + 1)
-                                    }
-                                  } catch { setRecurMsg(t('cart.err.network')) }
-                                  setRecurBusy(false)
-                                }}
-                                style={{ padding: '10px 20px', background: recurBusy ? 'rgba(255,255,255,0.1)' : GOLD, border: 'none', borderRadius: '8px', color: recurBusy ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'not-allowed' : 'pointer' }}>
-                                {recurBusy ? t('booking.recur.booking') : t('booking.recur.yesBook', { n: recurSel.size })}</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1578,21 +1599,21 @@ export default function BookingPage() {
             })()}
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null) }} style={{
+              <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]) }} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>{t('booking.back')}</button>
               <button
-                onClick={() => { if (selectedSlot) setStep(4) }}
-                disabled={!selectedSlot}
+                onClick={goToConfirm}
+                disabled={!canContinue}
                 style={{
                   flex: 2, padding: '14px',
-                  background: selectedSlot ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: selectedSlot ? NAVY : 'rgba(255,255,255,0.3)',
+                  background: canContinue ? GOLD : 'rgba(255,255,255,0.1)',
+                  color: canContinue ? NAVY : 'rgba(255,255,255,0.3)',
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: selectedSlot ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase', cursor: canContinue ? 'pointer' : 'not-allowed',
                 }}
               >{t('booking.continue')}</button>
             </div>
@@ -1603,7 +1624,14 @@ export default function BookingPage() {
           <div>
             <SectionTitle eyebrow={t('booking.s5.eyebrow')} title={t('booking.s5.title')} />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
-              {[
+              {(recurPlan.length > 0 ? [
+                { label: t('booking.sum.swimmer'), value: selectedStudent?.full_name },
+                { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
+                { label: t('booking.sum.coach'), value: selectedCoach?.first_name },
+                { label: t('booking.sum.time'), value: selectedSlot?.label },
+                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedCourse?.duration_minutes ?? 0 }) },
+                { label: t('booking.sum.creditsUsed'), value: t(recurPlan.length === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n: recurPlan.length }) },
+              ] : [
                 { label: t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: hourRoster.length > 1
                     ? hourRoster.map((x: any) => x.full_name).join(' & ')
@@ -1616,7 +1644,7 @@ export default function BookingPage() {
                 { label: t('booking.sum.time'), value: selectedSlot?.label },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0 }) },
                 { label: t(isTrial ? 'booking.sum.price' : payingWithTokens ? 'booking.sum.tokensUsed' : 'booking.sum.creditsUsed'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaidCredit') : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (isReschedule ? t('booking.noExtraCharge') : hourPaysWithTokens ? t('booking.tokensBadge', { n: 2 }) : t('booking.creditsBadge', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2 })) : willUseToken ? t('booking.tokenBadge', { n: 1 }) : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? t('booking.creditsBadge', { n: 2 }) : t('booking.creditBadge', { n: 1 }) },
-              ].map(row => (
+              ]).map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -1625,7 +1653,28 @@ export default function BookingPage() {
                   <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{row.value}</span>
                 </div>
               ))}
-              {!isTrial && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
+              {/* Every date, spelled out. This is the last screen before the
+                  credits are spent, so "3 lessons" is not enough -- a parent has
+                  to be able to see that one of them lands on a week they are away. */}
+              {recurPlan.length > 0 && (
+                <div style={{ padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '10px' }}>
+                    {t('booking.recur.sumDates', { n: recurPlan.length })}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {recurPlan.map(d => (
+                      <span key={d} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                        {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {recurPlan.length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.sum.creditsLeftLabel')}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = Math.max(0, recurCredits - recurPlan.length); return t(n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n }) })()}</span>
+              </div>}
+              {!isTrial && recurPlan.length === 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t(payingWithTokens ? 'booking.sum.tokensLeftLabel' : 'booking.sum.creditsLeftLabel')}</span>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); return t(payingWithTokens ? (n === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge') : (n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge'), { n }) })()}</span>
               </div>}
@@ -1644,12 +1693,12 @@ export default function BookingPage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setStep(3)} style={{
+              <button onClick={() => { setStep(3); if (recurPlan.length > 0) setRecurOpen(true) }} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>{t('booking.back')}</button>
-              {!isTrial && !isReschedule && selectedCourse?.slug !== '1on2' && (
+              {!isTrial && !isReschedule && recurPlan.length === 0 && selectedCourse?.slug !== '1on2' && (
                 <button
                   onClick={handleAddToCart}
                   disabled={submitting || addingToCart}
@@ -1673,7 +1722,7 @@ export default function BookingPage() {
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
-              >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
+              >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : recurPlan.length > 0 ? t('booking.recur.yesBook', { n: recurPlan.length }) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
             </div>
           </div>
         )}
