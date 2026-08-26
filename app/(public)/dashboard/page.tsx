@@ -45,10 +45,13 @@ const MOBILE_CSS = `
 /* A lesson card answers "whose lesson is this?" first. The swimmer's name is
    the largest thing on it, in the same colour that swimmer has in the calendar;
    what kind of lesson, when and with whom is one quiet line above it. */
-.msa-lesson-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 5px }
+.msa-lesson-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 2px }
 .msa-lesson-meta { font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.45); min-width: 0 }
 .msa-lesson-meta b { font-weight: 700; color: rgba(255,255,255,0.82) }
-.msa-lesson-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; margin-bottom: 10px }
+/* Its own margin sat on top of the card's 10px gap, so the name floated with
+   about 20px under it. The leading is tightened instead of the space removed --
+   the line above and the buttons below still get room. */
+.msa-lesson-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; margin: 0 }
 .msa-lesson-pill { flex-shrink: 0; margin-left: auto }
 .msa-day-head { display: flex; align-items: center; gap: 8px; margin: 14px 2px 0 }
 .msa-day-head:first-child { margin-top: 0 }
@@ -665,7 +668,11 @@ export default function DashboardPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
-  const [showAllUpcoming, setShowAllUpcoming] = useState(false)
+  /* The list opens on the next two days that have lessons and grows a week at a
+     time. Counting lessons instead of days used to cut a busy Thursday in half. */
+  const UPCOMING_DAYS = 2
+  const UPCOMING_STEP = 7
+  const [dayWindow, setDayWindow] = useState(UPCOMING_DAYS)
   const [pendingPayBusy, setPendingPayBusy] = useState<string | null>(null)
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
   const [pendingPayMsg, setPendingPayMsg] = useState('')
@@ -1859,13 +1866,13 @@ export default function DashboardPage() {
                   for the desktop card -- which of the two you see is a media
                   query, so the markup stays single. */}
               {(() => {
-                const shown = showAllUpcoming ? upcomingBookings : upcomingBookings.slice(0, 3)
-                const days: { date: string; items: Booking[] }[] = []
-                for (const b of shown) {
-                  const last = days[days.length - 1]
+                const allDays: { date: string; items: Booking[] }[] = []
+                for (const b of upcomingBookings) {
+                  const last = allDays[allDays.length - 1]
                   if (last && last.date === b.session_date) last.items.push(b)
-                  else days.push({ date: b.session_date, items: [b] })
+                  else allDays.push({ date: b.session_date, items: [b] })
                 }
+                const days = allDays.slice(0, dayWindow)
                 return days.map(day => {
                   const du = getDaysUntil(day.date)
                   const dd = new Date(day.date + 'T00:00:00')
@@ -2177,14 +2184,27 @@ export default function DashboardPage() {
               })()}
             </div>
           )}
-          {lessonView === 'list' && upcomingBookings.length > 3 && (
-            <button
-              onClick={() => setShowAllUpcoming(v => !v)}
-              style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
-            >
-              {showAllUpcoming ? '▲ ' + t('dash.collapse') : '▼ ' + t('dash.showAllLessons', { n: upcomingBookings.length })}
-            </button>
-          )}
+          {lessonView === 'list' && (() => {
+            const totalDays = new Set(upcomingBookings.map(b => b.session_date)).size
+            const more = totalDays - dayWindow
+            if (more <= 0 && dayWindow <= UPCOMING_DAYS) return null
+            return (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                {more > 0 && (
+                  <button onClick={() => setDayWindow(w => w + UPCOMING_STEP)}
+                    style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
+                    ▼ {t('dash.showMoreDays', { n: Math.min(UPCOMING_STEP, more) })}
+                  </button>
+                )}
+                {dayWindow > UPCOMING_DAYS && (
+                  <button onClick={() => setDayWindow(UPCOMING_DAYS)}
+                    style={{ flex: more > 0 ? '0 0 auto' : 1, padding: '10px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
+                    ▲ {t('dash.collapse')}
+                  </button>
+                )}
+              </div>
+            )
+          })()}
         </section>
 
         {/* CREDITS */}
