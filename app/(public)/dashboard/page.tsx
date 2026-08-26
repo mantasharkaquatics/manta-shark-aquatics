@@ -39,6 +39,7 @@ const MOBILE_CSS = `
 .msa-lesson-side { flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0 }
 .msa-lesson-status { display: flex; align-items: center; gap: 8px }
 .msa-lesson-status-inline { margin-left: auto; display: flex; align-items: center; gap: 8px }
+.msa-day-head { display: none }
 
 @media (max-width: 640px) {
   /* Six full-width rows cost about 1140px of scrolling before the first
@@ -75,6 +76,14 @@ const MOBILE_CSS = `
   .msa-lesson-side { align-items: stretch }
   .msa-lesson-status { justify-content: flex-start }
   .msa-lesson-status-inline { margin-left: 0 }
+  /* One heading per day instead of a chip on every card. The card's own chip,
+     the day badge it carried and the date trailing its time all become
+     repetition once the heading is there. */
+  .msa-day-head { display: flex; align-items: center; gap: 8px; margin: 10px 2px 0 }
+  .msa-day-head:first-child { margin-top: 0 }
+  .msa-lesson-date { display: none }
+  .msa-lesson-daybadge { display: none }
+  .msa-lesson-datesuffix { display: none }
 
   /* A day sheet belongs at the bottom of a phone, under the thumb. */
   .msa-sheet-wrap { align-items: flex-end !important; padding: 0 !important }
@@ -1837,7 +1846,36 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {(showAllUpcoming ? upcomingBookings : upcomingBookings.slice(0, 3)).map((booking) => {
+              {/* Four lessons on one day meant four date chips saying the same
+                  thing. The date is stated once above the day's lessons; each card
+                  then only says what is different about it. The chip still exists
+                  for the desktop card -- which of the two you see is a media
+                  query, so the markup stays single. */}
+              {(() => {
+                const shown = showAllUpcoming ? upcomingBookings : upcomingBookings.slice(0, 3)
+                const days: { date: string; items: Booking[] }[] = []
+                for (const b of shown) {
+                  const last = days[days.length - 1]
+                  if (last && last.date === b.session_date) last.items.push(b)
+                  else days.push({ date: b.session_date, items: [b] })
+                }
+                return days.map(day => {
+                  const du = getDaysUntil(day.date)
+                  const dd = new Date(day.date + 'T00:00:00')
+                  return (
+                    <div key={day.date} style={{ display: 'contents' }}>
+                      <div className="msa-day-head">
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#fff' }}>
+                          {dd.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                        </span>
+                        {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
+                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+                        <span style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.09)' }} />
+                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
+                          {t(day.items.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: day.items.length })}
+                        </span>
+                      </div>
+                      {day.items.map((booking) => {
                 const daysUntil = getDaysUntil(booking.session_date)
                 const isToday = daysUntil === 0
                 const isTomorrow = daysUntil === 1
@@ -1860,8 +1898,8 @@ export default function DashboardPage() {
                       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</span>
                         {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.levelBadge', { min: booking.level_min ?? '', max: booking.level_max ?? '' })}</span> : null })()}
-                        {isToday && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
-                        {isTomorrow && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+                        {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
+                        {isTomorrow && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
                         {booking._group && <span className="msa-lesson-status-inline">
                           {(() => {
                             if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
@@ -1949,7 +1987,7 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <div>
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</div>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}<span className="msa-lesson-datesuffix"> · {formatDate(booking.session_date)}</span></div>
                           {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
@@ -2122,7 +2160,11 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )
-              })}
+                      })}
+                    </div>
+                  )
+                })
+              })()}
             </div>
           )}
           {lessonView === 'list' && upcomingBookings.length > 3 && (
