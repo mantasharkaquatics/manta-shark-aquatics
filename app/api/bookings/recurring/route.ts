@@ -108,6 +108,8 @@ async function creditPool(svc: any, parentId: string, courseTypeId: string) {
   return (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits })).filter((c: any) => c.remaining > 0)
 }
 
+type SessionRow = { id: string; session_date: string; enrolled_count: number; max_students: number }
+
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -165,53 +167,80 @@ export async function POST(req: NextRequest) {
     const totalRemaining = pool.reduce((s: number, c: any) => s + c.remaining, 0)
     if (totalRemaining < okDates.length)
       return NextResponse.json({ error: `Not enough credits: ${totalRemaining} available, ${okDates.length} selected.` }, { status: 409 })
+
+    const endTime = minToTime(toMin(start_time) + ct.duration_minutes)
+
+    // A term is up to 19 dates. Done one date at a time -- look up the session,
+    // create it, settle the credit, write the booking -- that is four round trips
+    // each, and the parent watches a spinner for the sum of all of them. The same
+    // work in set form is four round trips total: read every session at once,
+    // open the missing ones at once, settle every credit at once, write every
+    // booking at once.
+    const { data: existingRows } = await svc.from('class_sessions')
+      .select('id, session_date, enrolled_count, max_students')
+      .eq('coach_id', coach_id).eq('course_type_id', ct.id).eq('start_time', start_time)
+      .in('session_date', okDates).in('status', ['open', 'full'])
+    const openRows = (existingRows || []) as SessionRow[]
+    const existingByDate = new Map<string, SessionRow>(openRows.map(r => [r.session_date, r]))
+
+    // Capacity is checked here, off that one read, exactly as it was checked
+    // per-date before. A class that fills between this read and the insert below
+    // is still the database's problem to catch, as it always was.
+    const sessionIdByDate = new Map<string, string>()
+    const needSession: string[] = []
+    for (const date of okDates) {
+      const ex = existingByDate.get(date)
+      if (!ex) { needSession.push(date); continue }
+      if (ex.enrolled_count + 1 > ex.max_students) { skipped.push({ date, reason: 'full' }); continue }
+      sessionIdByDate.set(date, ex.id)
+    }
+
+    if (needSession.length > 0) {
+      const { data: newSessions, error: sessErr } = await svc.from('class_sessions')
+        .insert(needSession.map(date => ({
+          coach_id, course_type_id: ct.id, session_date: date, start_time, end_time: endTime,
+          max_students: ct.max_students, enrolled_count: 0, status: 'open',
+        })))
+        .select('id, session_date')
+      if (sessErr || !newSessions) {
+        return NextResponse.json({ error: `Failed to open the classes: ${sessErr?.message || 'unknown'}` }, { status: 500 })
+      }
+      for (const r of newSessions as { id: string; session_date: string }[]) sessionIdByDate.set(r.session_date, r.id)
+    }
+
+    const bookedDates = okDates.filter(d => sessionIdByDate.has(d))
+    if (bookedDates.length === 0)
+      return NextResponse.json({ ok: true, booked: 0, booked_dates: [], skipped })
+
+    // One credit per date, taken from the pool in expiry order. The allocation is
+    // decided here in full, so the spends below share no state and can go out
+    // together; Postgres refuses to overdraw a package whatever order they land in.
     const allocation: string[] = []
-    for (let i = 0; i < okDates.length; i++) {
-      const c = pool.find((p: any) => p.remaining > 0)!
+    for (let i = 0; i < bookedDates.length; i++) {
+      const c = pool.find((x: any) => x.remaining > 0)
+      if (!c) return NextResponse.json({ error: `Not enough credits: ${bookedDates.length} selected.` }, { status: 409 })
       allocation.push(c.id); c.remaining--
     }
 
-    const endTime = minToTime(toMin(start_time) + ct.duration_minutes)
-    const createdIds: string[] = []
-    const incremented: string[] = []
-    async function rollback() {
-      for (const cid of incremented) await refundCredit(svc, cid)
-      if (createdIds.length > 0) await svc.from('bookings').delete().in('id', createdIds)
+    const refundAll = (ids: string[]) => Promise.all(ids.map(cid => refundCredit(svc, cid)))
+
+    // Credits still settle before any booking row exists: a lost race then costs
+    // the family nothing, because there is nothing yet to undo.
+    const spent = await Promise.all(allocation.map(cid => spendCredit(svc, cid)))
+    const paid = allocation.filter((_, i) => spent[i])
+    if (spent.some(ok => !ok)) {
+      await refundAll(paid)
+      return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
     }
 
-    const bookedDates: string[] = []
-    for (let i = 0; i < okDates.length; i++) {
-      const date = okDates[i]
-      const { data: existing } = await svc.from('class_sessions')
-        .select('id, enrolled_count, max_students')
-        .eq('coach_id', coach_id).eq('session_date', date).eq('start_time', start_time)
-        .eq('course_type_id', ct.id).in('status', ['open', 'full']).maybeSingle()
-      let sessId: string
-      if (existing) {
-        if (existing.enrolled_count + 1 > existing.max_students) { skipped.push({ date, reason: 'full' }); continue }
-        sessId = existing.id
-      } else {
-        const { data: newSess, error: sessErr } = await svc.from('class_sessions')
-          .insert({ coach_id, course_type_id: ct.id, session_date: date, start_time, end_time: endTime, max_students: ct.max_students, enrolled_count: 0, status: 'open' })
-          .select('id').single()
-        if (sessErr || !newSess) { await rollback(); return NextResponse.json({ error: `Failed on ${date}: ${sessErr?.message || 'unknown'}` }, { status: 500 }) }
-        sessId = newSess.id
-      }
-      // Settle this date's credit before its row exists. Dates can be skipped in
-      // the loop above, so the series cannot pay for everything up front the way
-      // the hour route does -- but each date can still settle before it writes,
-      // which is what keeps a lost race from producing an unpaid booking.
-      if (!(await spendCredit(svc, allocation[i]))) {
-        await rollback()
-        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
-      }
-      incremented.push(allocation[i])
-      const { data: created, error: bookErr } = await svc.from('bookings')
-        .insert({ class_session_id: sessId, parent_id: parent.id, student_id: student.id, lesson_credit_id: allocation[i], status: 'confirmed' })
-        .select('id').single()
-      if (bookErr || !created) { await rollback(); return NextResponse.json({ error: `Failed to book ${date}: ${bookErr?.message || 'unknown'}` }, { status: 500 }) }
-      createdIds.push(created.id)
-      bookedDates.push(date)
+    const { error: bookErr } = await svc.from('bookings')
+      .insert(bookedDates.map((date, i) => ({
+        class_session_id: sessionIdByDate.get(date)!, parent_id: parent.id,
+        student_id: student.id, lesson_credit_id: allocation[i], status: 'confirmed',
+      })))
+    if (bookErr) {
+      await refundAll(paid)
+      return NextResponse.json({ error: `Failed to book the series: ${bookErr.message}` }, { status: 500 })
     }
 
     try {
