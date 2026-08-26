@@ -31,10 +31,12 @@ const MOBILE_CSS = `
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
 .msa-dots { display: none }
 
- /* One column at every width. Side by side, the head row could only reach the
-    right edge of the text column, so the status pill sat mid-card with the
-    buttons beside it rather than at the corner. */
-.msa-lesson { display: flex; flex-direction: column; align-items: stretch; gap: 10px; border-radius: 14px; padding: 16px 18px }
+/* Two columns, two rows. The head spans both so the status pill reaches the
+   corner; the name and the buttons then share the second row instead of the
+   buttons taking a row of their own with empty space beside the name. */
+.msa-lesson { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+              column-gap: 14px; row-gap: 4px; border-radius: 14px; padding: 14px 18px }
+.msa-lesson-head { grid-column: 1 / -1 }
 .msa-lesson-date { width: 52px; height: 52px; border-radius: 12px; display: flex; flex-direction: column;
                    align-items: center; justify-content: center; flex-shrink: 0 }
 .msa-lesson-actions { display: flex; flex-wrap: wrap; gap: 6px }
@@ -45,7 +47,7 @@ const MOBILE_CSS = `
 /* A lesson card answers "whose lesson is this?" first. The swimmer's name is
    the largest thing on it, in the same colour that swimmer has in the calendar;
    what kind of lesson, when and with whom is one quiet line above it. */
-.msa-lesson-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 2px }
+.msa-lesson-head { display: flex; align-items: flex-start; gap: 10px }
 .msa-lesson-meta { font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.45); min-width: 0 }
 .msa-lesson-meta b { font-weight: 700; color: rgba(255,255,255,0.82) }
 /* Its own margin sat on top of the card's 10px gap, so the name floated with
@@ -85,7 +87,8 @@ const MOBILE_CSS = `
      status pill, with the coach line and two buttons under them. The date block
      lies down into a strip, the pills get their own line, and the buttons take
      half the width each -- which is also the size a thumb wants. */
-  .msa-lesson { padding: 14px 16px }
+  /* Back to one column: the buttons want the full width under a thumb. */
+  .msa-lesson { grid-template-columns: minmax(0, 1fr); row-gap: 10px; padding: 14px 16px }
   .msa-lesson-actions { flex: 1 }
   .msa-lesson-actions > * { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap }
   .msa-lesson-row { flex-direction: column; align-items: stretch; gap: 8px }
@@ -1912,7 +1915,6 @@ export default function DashboardPage() {
                         {new Date(booking.session_date + 'T00:00:00').getDate()}
                       </div>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="msa-lesson-head">
                         <span className="msa-lesson-meta">
                           <b>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</b>
@@ -1941,6 +1943,7 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       {!booking._group && booking.student_name && (
                         <div className="msa-lesson-name" style={{ color: swimmerColor(booking.student_name) }}>{booking.student_name}</div>
                       )}
