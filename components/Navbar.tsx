@@ -110,10 +110,29 @@ export default function Navbar() {
 
   async function changeLocale(next: Locale) {
     setLocale(next)
+    goToLocalisedUrl(next)
     if (!isLoggedIn || !parentId) { rememberExplicitLocale(next); return }
     clearExplicitLocale()
     const { error } = await supabase.from('parents').update({ preferred_language: next }).eq('id', parentId)
     if (error) console.error('[i18n] failed to save preferred_language', error)
+  }
+
+  /* On /zh-Hant/... the locale comes from the URL segment, and the layout hands
+     it to the provider as a fixed prop -- which beats anything the switcher puts
+     in state or in the cookie. So on those pages setting a preference did
+     nothing at all: the page kept rendering the language in the address bar.
+     The switcher has to move the visitor instead.
+
+     It moves them in the other direction too, so the address bar and the words
+     on the page never disagree and a copied link carries the language. Pages
+     with no localised route (the dashboard, /login, the legal pages) stay where
+     they are -- localePath returns them unchanged -- and the cookie drives
+     those correctly on its own. */
+  function goToLocalisedUrl(next: Locale) {
+    const seg = pathname.split('/')[1] || ''
+    const bare = isLocale(seg) && seg !== 'en' ? pathname.slice(seg.length + 1) || '/' : pathname
+    const target = localePath(bare, next)
+    if (target !== pathname) router.push(target)
   }
 
   useEffect(() => { if (!menuOpen) setLangOpen(false) }, [menuOpen])

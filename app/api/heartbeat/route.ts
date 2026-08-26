@@ -20,8 +20,11 @@ export async function POST() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+  // Only parents have a last_activity_at to stamp. An admin or a coach browsing
+  // the public pages is not an error -- this used to answer 404, which filled
+  // the log with what looked like a broken endpoint every two minutes per tab.
   const { data: parent } = await svc.from('parents').select('id').eq('auth_user_id', user.id).single()
-  if (!parent) return NextResponse.json({ ok: false }, { status: 404 })
+  if (!parent) return new NextResponse(null, { status: 204 })
 
   const { error } = await svc
     .from('parents')

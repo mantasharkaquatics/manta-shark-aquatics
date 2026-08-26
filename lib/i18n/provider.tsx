@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
@@ -57,12 +58,19 @@ export function clearExplicitLocale() {
 
 export function LocaleProvider({ locale, children }: { locale?: Locale; children: ReactNode }) {
   const [detected, setDetected] = useState<Locale>(locale ?? DEFAULT_LOCALE);
+  const pathname = usePathname();
 
+  // The provider in the root layout survives every client navigation, so
+  // reading the cookie once on mount is not enough: leaving /zh-Hant/... for a
+  // bare English path unmounts the inner provider and hands rendering back to
+  // this one, still holding whatever it detected on first paint. Re-reading on
+  // each path change is what makes the language switcher's English direction
+  // actually change the words on the page.
   useEffect(() => {
     if (locale) return;
     const browserTags = navigator.languages?.length ? navigator.languages : [navigator.language];
     setDetected(readLocaleCookie() ?? matchLocaleTags(browserTags) ?? DEFAULT_LOCALE);
-  }, [locale]);
+  }, [locale, pathname]);
 
   const active = locale ?? detected;
 
