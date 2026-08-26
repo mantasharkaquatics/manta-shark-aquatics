@@ -39,7 +39,13 @@ const MOBILE_CSS = `
 .msa-lesson-side { flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0 }
 .msa-lesson-status { display: flex; align-items: center; gap: 8px }
 .msa-lesson-status-inline { margin-left: auto; display: flex; align-items: center; gap: 8px }
-.msa-day-head { display: none }
+.msa-day-head { display: flex; align-items: center; gap: 8px; margin: 14px 2px 0 }
+.msa-day-head:first-child { margin-top: 0 }
+/* Stated once in the heading above, so the card does not repeat it: not as a
+   chip on its left, not as a today/tomorrow badge, not trailing its time. */
+.msa-lesson-date { display: none }
+.msa-lesson-daybadge { display: none }
+.msa-lesson-datesuffix { display: none }
 
 @media (max-width: 640px) {
   /* Six full-width rows cost about 1140px of scrolling before the first
@@ -76,14 +82,6 @@ const MOBILE_CSS = `
   .msa-lesson-side { align-items: stretch }
   .msa-lesson-status { justify-content: flex-start }
   .msa-lesson-status-inline { margin-left: 0 }
-  /* One heading per day instead of a chip on every card. The card's own chip,
-     the day badge it carried and the date trailing its time all become
-     repetition once the heading is there. */
-  .msa-day-head { display: flex; align-items: center; gap: 8px; margin: 10px 2px 0 }
-  .msa-day-head:first-child { margin-top: 0 }
-  .msa-lesson-date { display: none }
-  .msa-lesson-daybadge { display: none }
-  .msa-lesson-datesuffix { display: none }
 
   /* A day sheet belongs at the bottom of a phone, under the thumb. */
   .msa-sheet-wrap { align-items: flex-end !important; padding: 0 !important }
