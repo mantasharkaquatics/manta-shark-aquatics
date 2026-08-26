@@ -676,14 +676,27 @@ export default function DashboardPage() {
   const UPCOMING_DAYS = 2
   const UPCOMING_STEP = 7
   const [dayWindow, setDayWindow] = useState(UPCOMING_DAYS)
-  /* Collapsing sixteen days of lessons pulls the ground out from under you --
-     whatever you were reading is suddenly above the viewport. Go back to the
-     top of the section, which is where the list you are left with starts. */
+  /* Collapsing three weeks of lessons pulls the ground out from under you --
+     whatever you were reading is suddenly above the viewport. Go back to the top
+     of the section, which is where the list you are left with starts.
+     
+     The scroll has to happen AFTER the list has shrunk, not in the click. Asked
+     for in the same tick it ran first, then the page lost most of its height and
+     the browser clamped the scroll position to the new bottom -- which on a
+     phone, where the collapsed page is barely taller than the screen, dropped
+     you at the footer. */
   const upcomingRef = useRef<HTMLElement | null>(null)
+  const scrollUpcomingRef = useRef(false)
   const collapseUpcoming = () => {
+    scrollUpcomingRef.current = true
     setDayWindow(UPCOMING_DAYS)
-    upcomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+  useEffect(() => {
+    if (!scrollUpcomingRef.current) return
+    scrollUpcomingRef.current = false
+    const id = requestAnimationFrame(() => upcomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    return () => cancelAnimationFrame(id)
+  }, [dayWindow])
   const [pendingPayBusy, setPendingPayBusy] = useState<string | null>(null)
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
   const [pendingPayMsg, setPendingPayMsg] = useState('')
