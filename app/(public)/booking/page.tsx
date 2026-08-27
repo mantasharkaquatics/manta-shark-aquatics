@@ -488,7 +488,7 @@ export default function BookingPage() {
         return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
       }
       const within24h = isWithin24Hours(dateStr, t)
-      if (!availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate!)) {
+      if (tokenOnlyMode && !inTokenWindow(selectedDate!)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
       }
       if (inCoachBlock(t)) {
@@ -553,6 +553,12 @@ export default function BookingPage() {
     ? credits.filter(c => c.course_type_id === selectedCourse.id).reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
     : 0
   const remainingCredits = totalRemainingCredits
+  // Nothing but make-up credits for this course. The family can still book --
+  // today or tomorrow, which is all a make-up credit is good for -- and every
+  // other date is locked. Seat-aware on purpose: one token does not open a date
+  // for a two-swimmer 1-on-2, or the parent would be walked to a slot the
+  // server has no way to charge them for.
+  const tokenOnlyMode = !availableCredit && !isTrial && tokensCoverBooking
 
   const needsAssessment = !!selectedStudent && selectedStudent.current_level == null
 
@@ -1348,7 +1354,7 @@ export default function BookingPage() {
                     </div>
                   )
                 })()}
-                {!availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate) && (
+                {tokenOnlyMode && !inTokenWindow(selectedDate) && (
                   <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
@@ -1380,7 +1386,7 @@ export default function BookingPage() {
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.groupLoading')}</p>
                   ) : (() => {
                     const ds2 = formatDateLA(selectedDate)
-                    const tokenBlocked = !availableCredit && !isTrial && hasTokenForCourse && !inTokenWindow(selectedDate)
+                    const tokenBlocked = tokenOnlyMode && !inTokenWindow(selectedDate)
                     const visible = groupClasses.filter((gc: any) => meetsLeadTime(ds2, gc.time))
                     if (visible.length === 0) return (
                       <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
@@ -1472,7 +1478,7 @@ export default function BookingPage() {
               const mm = String(calMonth + 1).padStart(2, '0')
               const todayDs = formatDateLA(today)
               const atCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth()
-              const tokenMode = !availableCredit && !isTrial && hasTokenForCourse
+              const tokenMode = tokenOnlyMode
               return (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
