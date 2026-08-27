@@ -532,15 +532,20 @@ export default function BookingPage() {
   // Seats this family pays for: two of your own swimmers cost you both, a
   // cross-family 1-on-2 costs each side one. An hour is two half-hour rows each.
   const paidSeats = selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner ? 2 : 1
-  const tokensNeeded = paidSeats * (selectedHour ? 2 : 1)
+  // Hour-ness comes from the length toggle, not from a slot already being
+  // picked: the hour list itself has to know whether it will be paid with
+  // make-up credits, or a family holding only those is told it cannot afford
+  // any of the slots it is looking at.
+  const isHourLesson = lessonLength === 60
+  const tokensNeeded = paidSeats * (isHourLesson ? 2 : 1)
   // All-or-nothing, mirroring the server: with fewer tokens than seats the
   // whole booking goes on credits, so the summary must never promise a token
   // the parent will not actually spend.
-  const tokensCoverBooking = (selectedHour ? hourTokens : tokenRemaining) >= tokensNeeded
+  const tokensCoverBooking = (isHourLesson ? hourTokens : tokenRemaining) >= tokensNeeded
   const tokenOffered = !!selectedCourse && !!selectedDate && !isTrial && !isReschedule
     && recurPlan.length === 0 && hasTokenForCourse && inTokenWindow(selectedDate) && tokensCoverBooking
   const willUseToken = tokenOffered && payChoice === 'token'
-  const hourPaysWithTokens = !!selectedHour && willUseToken
+  const hourPaysWithTokens = isHourLesson && willUseToken
   const payingWithTokens = willUseToken
 
   const availableCredit = selectedCourse
@@ -559,6 +564,19 @@ export default function BookingPage() {
   // for a two-swimmer 1-on-2, or the parent would be walked to a slot the
   // server has no way to charge them for.
   const tokenOnlyMode = !availableCredit && !isTrial && tokensCoverBooking
+  // What this booking costs and what is left after it. Credits and tokens cost
+  // the same number -- one per seat, doubled for an hour -- so one value serves
+  // both, and every line that quotes a number reads it. They used to be spelled
+  // out at each site, which is how a two-swimmer 1-on-2 came to say it would
+  // spend one token and leave two.
+  const unitsNeeded = tokensNeeded
+  const tokenPoolCount = isHourLesson ? hourTokens : tokenRemaining
+  const unitsLeftAfter = isReschedule
+    ? remainingCredits
+    : payingWithTokens ? tokenPoolCount - unitsNeeded : remainingCredits - unitsNeeded
+  const unitBadge = (kind: 'token' | 'credit', n: number) => t(
+    kind === 'token' ? (n === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge')
+                     : (n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge'), { n })
 
   const needsAssessment = !!selectedStudent && selectedStudent.current_level == null
 
@@ -1292,7 +1310,7 @@ export default function BookingPage() {
                         <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
                           style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                          {t('booking.lenMin', { n: v })}{v === 60 ? ' · ' + (hourPaysWithTokens ? t('booking.tokensBadge', { n: 2 }) : t('booking.creditsBadge', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2 })) : ''}</button>
+                          {t('booking.lenMin', { n: v })}{v === 60 ? ' · ' + unitBadge(hourPaysWithTokens ? 'token' : 'credit', paidSeats * 2) : ''}</button>
                       ))}
                     </div>
                   )}
@@ -1324,7 +1342,7 @@ export default function BookingPage() {
                             const sel = selectedHour?.start_time === h.start_time
                             const enough = hourPaysWithTokens || hourCredits >= (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)
                             const seats = selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2
-                            const priceLabel = isReschedule ? t('booking.noExtraCharge') : hourPaysWithTokens ? t('booking.tokensBadge', { n: 2 }) : t('booking.creditsBadge', { n: seats })
+                            const priceLabel = isReschedule ? t('booking.noExtraCharge') : unitBadge(hourPaysWithTokens ? 'token' : 'credit', seats)
                             return (
                               <button key={h.start_time} disabled={!enough || !!h.is_current}
                                 onClick={() => {
@@ -1377,7 +1395,7 @@ export default function BookingPage() {
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>{t('booking.tokenBooking.title')}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenBooking.body', { tokens: selectedCourse?.slug === '1on1' && lessonLength === 60 ? t('booking.tokensBadge', { n: 2 }) : t('booking.tokenBadge', { n: 1 }), n: selectedCourse?.slug === '1on1' && lessonLength === 60 ? hourTokens : tokenRemaining })}{isToday(selectedDate) ? t('booking.tokenBooking.today') : ''}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenBooking.body', { tokens: unitBadge('token', unitsNeeded), n: tokenPoolCount })}{isToday(selectedDate) ? t('booking.tokenBooking.today') : ''}</div>
                     </div>
                   </div>
                 )}
@@ -1693,7 +1711,7 @@ export default function BookingPage() {
                 { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: t('booking.sum.time'), value: selectedSlot?.label },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0 }) },
-                { label: t(isTrial ? 'booking.sum.price' : payingWithTokens ? 'booking.sum.tokensUsed' : 'booking.sum.creditsUsed'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaidCredit') : `$${TRIAL_PRICE_CENTS / 100}`) : selectedHour ? (isReschedule ? t('booking.noExtraCharge') : hourPaysWithTokens ? t('booking.tokensBadge', { n: 2 }) : t('booking.creditsBadge', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2 })) : willUseToken ? t('booking.tokenBadge', { n: 1 }) : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? t('booking.creditsBadge', { n: 2 }) : t('booking.creditBadge', { n: 1 }) },
+                { label: t(isTrial ? 'booking.sum.price' : payingWithTokens ? 'booking.sum.tokensUsed' : 'booking.sum.creditsUsed'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaidCredit') : `$${TRIAL_PRICE_CENTS / 100}`) : isReschedule ? t('booking.noExtraCharge') : unitBadge(payingWithTokens ? 'token' : 'credit', unitsNeeded) },
               ]).map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1726,7 +1744,7 @@ export default function BookingPage() {
               </div>}
               {!isTrial && recurPlan.length === 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t(payingWithTokens ? 'booking.sum.tokensLeftLabel' : 'booking.sum.creditsLeftLabel')}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); return t(payingWithTokens ? (n === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge') : (n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge'), { n }) })()}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{unitBadge(payingWithTokens ? 'token' : 'credit', Math.max(0, unitsLeftAfter))}</span>
               </div>}
             </div>
             {/* Payment choice. It only appears when make-up credits actually
