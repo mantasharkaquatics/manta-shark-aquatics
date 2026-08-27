@@ -5,12 +5,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getTodayLA, getNowMinutesLA, formatDateLA, minutesUntil } from '@/lib/date'
 
 // --- Course-type eligibility (keyed by slug; tokens keep their ORIGINAL course type) ---
-// 1on1 token -> 1on1 only; 1on2 token -> 1on2 or 1on4 (cross-eligible); 1on4 token -> 1on4 only.
+// No course type crosses into another: a token pays for its own course only.
+// (Until 2026-08-27 a 1on2 token could also pay for a 1on4 lesson. The owner
+// asked for strict isolation, because the two course types are priced apart.)
 // Inverse view: for a target course, which token slugs may pay for it.
 export const TOKEN_SLUGS_FOR_TARGET: Record<string, string[]> = {
   '1on1': ['1on1'],
   '1on2': ['1on2'],
-  '1on4': ['1on4', '1on2'],
+  '1on4': ['1on4'],
   // 'team' intentionally absent: Swim Team never uses tokens
 }
 

@@ -12,7 +12,9 @@
 
 ## 課種規則
 token 存「原課種」,cron/取消不改寫;可訂資格由共用 eligibility 函式判定:
-- 1-on-1 token → 僅 1-on-1;1-on-2 token → 1-on-2 或 1-on-4(跨用);1-on-4 token → 僅 1-on-4
+- 課種完全不互通:1-on-1 token → 僅 1-on-1;1-on-2 token → 僅 1-on-2;1-on-4 token → 僅 1-on-4
+  - 2026-08-27 修訂:原本 1-on-2 token 可跨用 1-on-4,經負責人裁決取消跨用(兩種課單價不同)
+  - 已知後果:1-on-2 訂課在 v1 仍是 credit-only,所以 1-on-2 token 目前在家長端無處可花
 - Swim Team 不轉;trial/assessment 不適用
 - 同課種多 token:純 FIFO 按 expires_at,不做限制優先排序
 

@@ -189,7 +189,9 @@ export async function POST(req: NextRequest) {
   let credit: any = null
   let credit2: any = null
   // Token-first deduction (spec v1.1): single-student bookings only (1on1/1on4).
-  // All 1-on-2 bookings stay credit-only in v1; 1on2 tokens remain spendable on 1on4.
+  // All 1-on-2 bookings stay credit-only in v1. Since 2026-08-27 a 1on2 token is
+  // no longer spendable on a 1on4 lesson either, so nothing in the parent flow
+  // can spend one -- see docs/token-system-spec.md.
   let token1: { id: string; course_type_id: string } | null = null
   if (!isPartnerBooking && !oldBooking && !student2) {
     token1 = await pickTokenPackage(svc, parent.id, course.slug, session_date, start_time)
