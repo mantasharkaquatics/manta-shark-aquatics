@@ -2192,6 +2192,21 @@ export default function DashboardPage() {
                             {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
                           </button>
                           {(() => {
+                            // A Swim Assessment is a one-off at its own price, not a
+                            // lesson out of a package, so it can neither come back as a
+                            // credit nor turn into a token. The parent tells us and the
+                            // front desk cancels it by hand. The API refuses it too.
+                            if (booking.is_trial) return (
+                              <button
+                                onClick={() => {
+                                  const toggle = document.querySelector('[data-chat-toggle]') as HTMLElement | null
+                                  if (toggle) toggle.click()
+                                  else setNotice(t('dash.up.cancelContactHelp'))
+                                }}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: 'rgba(255,255,255,0.55)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                {t('dash.up.cancelContact')}
+                              </button>
+                            )
                             const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
                             const lateOk = late && !!booking.lesson_credit_id && !booking.partner_booking_id && booking.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
                             const enabled = (!late || lateOk) && cancellingId !== booking.id && booking.status !== 'pending_partner'

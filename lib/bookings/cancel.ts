@@ -108,7 +108,7 @@ export async function cancelBookingWithPartner(
 ): Promise<CancelResult> {
   const { data: booking } = await svc
     .from('bookings')
-    .select('id, class_session_id, lesson_credit_id, token_package_id, partner_booking_id, parent_id, student_id, status')
+    .select('id, class_session_id, lesson_credit_id, token_package_id, partner_booking_id, parent_id, student_id, status, is_trial')
     .eq('id', bookingId)
     .single()
 
@@ -129,6 +129,15 @@ export async function cancelBookingWithPartner(
   // Token-booked lessons are final (spec v1.1): no cancellation, no reschedule.
   if (booking.token_package_id) {
     return { ok: false, status: 400, error: 'Lessons booked with tokens cannot be cancelled.', cancelledBookingIds: [] }
+  }
+
+  // A Swim Assessment is a one-off sold at its own price, not a lesson drawn
+  // from a package. Refunding it as a lesson credit or converting it to a
+  // make-up token would hand back something worth more, or less, than what was
+  // paid. The family tells us and the front desk cancels it by hand, which is
+  // why this only blocks the parent -- an admin or system caller still can.
+  if (callerParentId && booking.is_trial) {
+    return { ok: false, status: 400, error: "A Swim Assessment can't be cancelled online. Please contact us and we'll take care of it.", cancelledBookingIds: [] }
   }
 
   // Parent-initiated cancellation within 24h: convert the spent credit to a
