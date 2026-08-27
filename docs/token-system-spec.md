@@ -31,14 +31,21 @@ token 存「原課種」,cron/取消不改寫;可訂資格由共用 eligibility 
 - 校方取消(admin cancel-session 與 coach time-off notify-first 兩路同規則):原本是什麼就退什麼
   - credit 課 → decrement_used_credits 退原 credit
   - token 課 → insert 新 token_packages(source='school_cancellation'、source_booking_id 溯源、效期重算 60 天)。不用 decrement 回原包,因原包剩餘天數可能將盡且無法重設效期
+- 跨家庭 1對2 被對方取消:被連帶取消的那一方適用同一條(credit 退原 credit;token 發新的 school_cancellation token)。不是自己取消的,不該連效期一起賠進去
 
 ## 取消轉換配額(全動態推導,零計數欄位)
 - 總額度 = floor(累計購買堂數 ÷ 10) × 2;購買堂數 = lesson_credits 加總 total_credits,排除 is_trial 與 Swim Team
 - 已用 = count(token_packages where source='cancellation');剩餘 = 總額度 − 已用,取消當下即時算
 - 終身累計制,不重置、不隨過期回收;cron 過期轉換與 admin 代客取消皆不耗
 
-## 扣款順序
-- 家長端與 admin 代訂一致:該時段 token 可用(課種資格 + 時間窗 + 未過期有餘額)→ 自動先扣 token,不給選;token 不可用 → 走 credit
+## 扣款順序(2026-08-27 修訂:改為家長自選)
+- 家長在預約最後一步選 token 或 credit,**預設 token**(不用會過期),但 token 課不可取消不可改期,所以選項旁邊直接寫出這個後果
+- 伺服器不信任前端:`pay_with` 只是請求,伺服器重新驗課種資格、時間窗、張數。不足以支付整筆 → 一律退回 credit(credit 是保留彈性的那一邊)
+- **全有全無**:同一個家庭在同一筆預約要付的所有座位,只能同一種付法
+  - 理由:一筆預約一列紀錄只能記 credit 或 token 其中一種,而 token 課是最終的、credit 課不是。半 token 半 credit 的課沒有乾淨的取消路徑,而且「只剩一個學員的 1對2」本來就不成立
+  - 座位數:自己兩個小孩的 1對2 = 2;跨家庭 1對2 每邊各 1;一小時課再乘 2
+- 跨家庭 1對2 在對方確認時才結算,所以邀請方的選擇存在 `bookings.pay_with_token`,confirm 當下再驗一次
+- 改期沿用原本那筆的付法(token 課本來就不能改期);週期性批次一律 credit
 - token 間 / credit 間各自 FIFO 按 expires_at
 
 ## 資料模型(實名依 backup-2026-07-14.sql)

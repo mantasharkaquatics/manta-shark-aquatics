@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES, pickTokenPackage } from '@/lib/tokens'
+import { LEAD_TIME_MINUTES, allocateTokens, isWithinTokenWindow, tokenPool } from '@/lib/tokens'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
@@ -188,23 +188,36 @@ export async function POST(req: NextRequest) {
   const inheritCredit = !!oldBooking && !isPartnerBooking && !!oldBooking.lesson_credit_id
   let credit: any = null
   let credit2: any = null
-  // Token-first deduction (spec v1.1): single-student bookings only (1on1/1on4).
-  // All 1-on-2 bookings stay credit-only in v1. Since 2026-08-27 a 1on2 token is
-  // no longer spendable on a 1on4 lesson either, so nothing in the parent flow
-  // can spend one -- see docs/token-system-spec.md.
-  let token1: { id: string; course_type_id: string } | null = null
-  if (!isPartnerBooking && !oldBooking && !student2) {
-    token1 = await pickTokenPackage(svc, parent.id, course.slug, session_date, start_time)
+
+  // Payment choice (spec v1.3). The parent picks at the last step of booking;
+  // pay_with is a request, never an authorisation -- the server works the
+  // answer out again from the pool, the window and the seat count, and falls
+  // back to credit whenever tokens do not cover the whole booking. Credit is
+  // the safe fallback because it leaves the lesson cancellable.
+  //
+  // Every seat this family pays for settles the same way. Part token and part
+  // credit has no clean cancellation: a token booking is final, a credit
+  // booking is not, and a 1-on-2 with one swimmer is not a lesson.
+  //
+  // A reschedule keeps whatever the original booking used, so it never reaches
+  // here; token bookings cannot be rescheduled at all.
+  const seatsToPay = student2 && !isPartnerBooking ? 2 : 1
+  let tokenAlloc: string[] = []
+  if (body.pay_with !== 'credit' && !isPartnerBooking && !oldBooking
+      && isWithinTokenWindow(session_date, start_time)) {
+    tokenAlloc = allocateTokens(await tokenPool(svc, parent.id, course.slug), seatsToPay) ?? []
   }
+  const payingWithTokens = tokenAlloc.length === seatsToPay && seatsToPay > 0
+
   if (isPartnerBooking) {
     if (totalRemaining < 1)
       return NextResponse.json({ error: 'No remaining credits for this course type.' }, { status: 400 })
-  } else if (!inheritCredit && !token1) {
+  } else if (!inheritCredit && !payingWithTokens) {
     credit = rows.find((c: any) => c.remaining > 0) || null
     if (!credit)
       return NextResponse.json({ error: 'No remaining credits for this course type.' }, { status: 400 })
   }
-  if (student2 && !isPartnerBooking) {
+  if (student2 && !isPartnerBooking && !payingWithTokens) {
     credit2 = rows.find((c: any) => (c.remaining - (credit && c.id === credit.id ? 1 : 0)) > 0) || null
     if (!credit2)
       return NextResponse.json({ error: 'Not enough credits for two students.' }, { status: 400 })
@@ -217,13 +230,23 @@ export async function POST(req: NextRequest) {
   // clear it -- the ceiling constraints on lesson_credits and token_packages are
   // the only real arbiter. Letting them arbitrate first turns the loser away
   // with nothing to undo, instead of leaving a booking nobody paid for.
-  let spentToken: string | null = null
+  const spentTokens: string[] = []
   let spentCredit: string | null = null
+  const refundSpent = async () => {
+    for (const tid of spentTokens) await refundToken(svc, tid)
+    if (spentCredit) await refundCredit(svc, spentCredit)
+  }
   if (!isPartnerBooking) {
-    if (token1) {
-      if (!(await spendToken(svc, token1.id)))
-        return NextResponse.json({ error: 'Your make-up credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
-      spentToken = token1.id
+    if (payingWithTokens) {
+      // Every seat up front. A 1-on-2 that only got one of its two tokens is
+      // not a lesson we can write, so the loser hands back what it took.
+      for (const tid of tokenAlloc) {
+        if (!(await spendToken(svc, tid))) {
+          await refundSpent()
+          return NextResponse.json({ error: 'Your make-up credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+        }
+        spentTokens.push(tid)
+      }
     } else if (!inheritCredit) {
       if (!(await spendCredit(svc, credit.id)))
         return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
@@ -237,8 +260,12 @@ export async function POST(req: NextRequest) {
     .insert({
       class_session_id: sessionId,
       parent_id: parent.id,
-      lesson_credit_id: isPartnerBooking || token1 ? null : (inheritCredit ? oldBooking.lesson_credit_id : credit.id),
-      token_package_id: token1 ? token1.id : null,
+      lesson_credit_id: isPartnerBooking || payingWithTokens ? null : (inheritCredit ? oldBooking.lesson_credit_id : credit.id),
+      token_package_id: payingWithTokens ? tokenAlloc[0] : null,
+      // A partner booking settles when the other family confirms, so the
+      // initiator's choice has to survive until then. On a booking that
+      // settles here it is just a record of what happened.
+      pay_with_token: isPartnerBooking ? body.pay_with !== 'credit' : payingWithTokens,
       student_id: student.id,
       status: isPartnerBooking ? 'pending_partner' : 'confirmed',
       pending_action: null,
@@ -247,8 +274,7 @@ export async function POST(req: NextRequest) {
     })
     .select('id').single()
   if (bookErr || !newBooking) {
-    if (spentToken) await refundToken(svc, spentToken)
-    if (spentCredit) await refundCredit(svc, spentCredit)
+    await refundSpent()
     const m = bookErr?.message || ''
     const msg = m.includes('STUDENT_DOUBLE_BOOKED')
       ? 'This swimmer already has a lesson at this time. Please pick another time.'
@@ -259,30 +285,33 @@ export async function POST(req: NextRequest) {
   }
 
   // Second student (same account)
-  if (student2 && credit2) {
+  if (student2 && !isPartnerBooking) {
     // Same order as above: the second swimmer's credit settles before its row,
-    // so losing the race here costs a 409 and nothing else.
-    if (!(await spendCredit(svc, credit2.id))) {
-      if (spentCredit) await refundCredit(svc, spentCredit)
-      await svc.from('bookings')
-        .update({ status: 'cancelled', cancellation_reason: 'cancelled_before_payment' })
-        .eq('id', newBooking.id)
-      return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+    // so losing the race here costs a 409 and nothing else. On the token path
+    // both seats were already taken above, so there is nothing left to settle.
+    if (!payingWithTokens) {
+      if (!(await spendCredit(svc, credit2.id))) {
+        await refundSpent()
+        await svc.from('bookings')
+          .update({ status: 'cancelled', cancellation_reason: 'cancelled_before_payment' })
+          .eq('id', newBooking.id)
+        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+      }
     }
     const { error: s2Err } = await svc.from('bookings').insert({
       class_session_id: sessionId,
       parent_id: parent.id,
-      lesson_credit_id: credit2.id,
+      lesson_credit_id: payingWithTokens ? null : credit2.id,
+      token_package_id: payingWithTokens ? tokenAlloc[1] : null,
       student_id: student2.id,
       status: 'confirmed',
       original_booking_id: rootOriginalId,
     })
     if (s2Err) {
-      // A 1-on-2 with only one swimmer is not a lesson - undo the initiator booking.
-      // token1 is always null here (the token path is single-student only), so
-      // there is only ever credit to hand back.
-      await refundCredit(svc, credit2.id)
-      if (spentCredit) await refundCredit(svc, spentCredit)
+      // A 1-on-2 with only one swimmer is not a lesson - undo the initiator booking
+      // and hand back everything this request took, whichever kind it was.
+      if (!payingWithTokens) await refundCredit(svc, credit2.id)
+      await refundSpent()
       await svc.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' })
         .eq('id', newBooking.id)

@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { refundCredit, spendCredit } from '@/lib/ledger'
+import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
+import { allocateTokens, isWithinTokenWindow, tokenPool } from '@/lib/tokens'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const { data: initiatorBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id')
+    .select('id, class_session_id, parent_id, student_id, pay_with_token')
     .eq('id', initiatorBookingId)
     .eq('status', 'pending_partner')
     .single()
@@ -126,6 +127,13 @@ export async function POST(req: NextRequest) {
   }
 
   const courseTypeId = sessions[0].course_type_id
+  const { data: courseType } = await supabase
+    .from('course_types').select('slug').eq('id', courseTypeId).single()
+  // An hour lesson is two halves; the token window is judged on the earlier one.
+  const firstSession = [...sessions].sort((a: any, b: any) =>
+    (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
+  const tokenWindowOpen = !!courseType
+    && isWithinTokenWindow(firstSession.session_date, firstSession.start_time)
 
   const poolFor = async (parentId: string) => {
     const { data: rows } = await supabase
@@ -139,26 +147,53 @@ export async function POST(req: NextRequest) {
     return flat
   }
 
-  const myPool = await poolFor(confirmingParent.id)
-  const theirPool = await poolFor(initiatorBooking.parent_id)
-  if (myPool.length < mine.length)
-    return NextResponse.json({ error: `You need ${mine.length} credits to confirm this lesson - you have ${myPool.length}.` }, { status: 402 })
-  if (theirPool.length < theirs.length)
+  // Each family pays for its own seats, and pays all of them the same way --
+  // part token and part credit has no clean cancellation. pay_with on this
+  // request is the confirming family's choice; the inviting family chose when
+  // they sent the invitation, and it has been sitting on their pending row
+  // since. Either choice falls back to credit when tokens no longer cover the
+  // seats, because credit is the option that leaves the lesson cancellable.
+  const planFor = async (parentId: string, seats: number, wantsToken: boolean) => {
+    if (wantsToken && tokenWindowOpen) {
+      const picked = allocateTokens(await tokenPool(supabase, parentId, courseType!.slug), seats)
+      if (picked) return { tokens: picked, credits: [] as string[], shortBy: 0 }
+    }
+    const pool = await poolFor(parentId)
+    if (pool.length < seats) return { tokens: [] as string[], credits: [] as string[], shortBy: pool.length }
+    return { tokens: [] as string[], credits: pool.slice(0, seats), shortBy: 0 }
+  }
+
+  const myPlan = await planFor(confirmingParent.id, mine.length, body.pay_with !== 'credit')
+  if (myPlan.tokens.length === 0 && myPlan.credits.length === 0)
+    return NextResponse.json({ error: `You need ${mine.length} credits to confirm this lesson - you have ${myPlan.shortBy}.` }, { status: 402 })
+  const theirPlan = await planFor(initiatorBooking.parent_id, theirs.length, !!initiatorBooking.pay_with_token)
+  if (theirPlan.tokens.length === 0 && theirPlan.credits.length === 0)
     return NextResponse.json({ error: 'The inviting family does not have enough credits.' }, { status: 402 })
 
-  // Settle both families' credits BEFORE the claim. The pool checks above run in
+  // Settle both families BEFORE the claim. The pool checks above run in
   // TypeScript while the spend runs in SQL, so two confirmations racing each
   // other both clear them; the ceiling constraint is the only real arbiter.
   // Spending first means a lost race is a 409 with nothing claimed, instead of a
   // confirmed lesson that nobody was charged for.
-  const spent: string[] = []
-  const refundSpent = async () => { for (const cid of spent) await refundCredit(supabase, cid) }
-  for (const cid of [...myPool.slice(0, mine.length), ...theirPool.slice(0, theirs.length)]) {
+  const spentCredits: string[] = []
+  const spentTokens: string[] = []
+  const refundSpent = async () => {
+    for (const cid of spentCredits) await refundCredit(supabase, cid)
+    for (const tid of spentTokens) await refundToken(supabase, tid)
+  }
+  for (const cid of [...myPlan.credits, ...theirPlan.credits]) {
     if (!(await spendCredit(supabase, cid))) {
       await refundSpent()
       return NextResponse.json({ error: 'Credits ran out while this invitation was being confirmed. Please refresh and try again.' }, { status: 409 })
     }
-    spent.push(cid)
+    spentCredits.push(cid)
+  }
+  for (const tid of [...myPlan.tokens, ...theirPlan.tokens]) {
+    if (!(await spendToken(supabase, tid))) {
+      await refundSpent()
+      return NextResponse.json({ error: 'Credits ran out while this invitation was being confirmed. Please refresh and try again.' }, { status: 409 })
+    }
+    spentTokens.push(tid)
   }
 
   // Claim the WHOLE group in one update - the status filter is the lock. If the
@@ -176,17 +211,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })
   }
 
-  const assign = async (rows: any[], pool: string[]) => {
+  const assign = async (rows: any[], plan: { tokens: string[]; credits: string[] }) => {
     for (let i = 0; i < rows.length; i++) {
       await supabase.from('bookings').update({
-        lesson_credit_id: pool[i],
+        lesson_credit_id: plan.credits[i] ?? null,
+        token_package_id: plan.tokens[i] ?? null,
         pending_action: null,
         pending_expires_at: null,
       }).eq('id', rows[i].id)
     }
   }
-  await assign(mine, myPool)
-  await assign(theirs, theirPool)
+  await assign(mine, myPlan)
+  await assign(theirs, theirPlan)
 
   try {
     const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', initiatorBooking.parent_id).single()

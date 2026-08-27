@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { getCancellationQuota, tokenExpiryFromNow } from '@/lib/tokens'
-import { refundCredit } from '@/lib/ledger'
+import { refundCredit, refundToken } from '@/lib/ledger'
 
 export type CancelTarget = {
   parent_id: string
@@ -217,7 +217,7 @@ export async function cancelBookingWithPartner(
   if (primaryCt?.slug === '1on2') {
     const { data: spb } = await svc
       .from('bookings')
-      .select('id, lesson_credit_id, class_session_id')
+      .select('id, lesson_credit_id, token_package_id, class_session_id')
       .eq('parent_id', booking.parent_id)
       .eq('class_session_id', booking.class_session_id)
       .neq('id', bookingId)
@@ -238,6 +238,12 @@ export async function cancelBookingWithPartner(
     cancelledBookingIds.push(pb.id)
     if (pb.lesson_credit_id) {
       await refundCredit(svc, pb.lesson_credit_id)
+    } else if (pb.token_package_id) {
+      // Since 2026-08-27 a 1-on-2 can be paid with make-up credits, and every
+      // seat one family pays for settles the same way -- so a token sibling only
+      // exists alongside a token primary. Hand it straight back to its package:
+      // this family chose to cancel, so its expiry date is nobody's surprise.
+      await refundToken(svc, pb.token_package_id)
     }
   }
 
@@ -270,7 +276,7 @@ export async function cancelBookingWithPartner(
       if (sessionIds.length > 0) {
         const { data: partnerBookings } = await svc
           .from('bookings')
-          .select('id, lesson_credit_id, class_session_id, parent_id, student_id')
+          .select('id, lesson_credit_id, token_package_id, class_session_id, parent_id, student_id')
           .neq('parent_id', booking.parent_id)
           .in('class_session_id', sessionIds)
           .neq('status', 'cancelled')
@@ -289,6 +295,26 @@ export async function cancelBookingWithPartner(
           cancelledPartners.push({ parent_id: pb.parent_id, student_id: pb.student_id })
           if (pb.lesson_credit_id) {
             await refundCredit(svc, pb.lesson_credit_id)
+          } else if (pb.token_package_id) {
+            // The OTHER family cancelled and took this one down with it. Losing
+            // a lesson you did not cancel must not also cost you the days left
+            // on the package, so reissue a fresh 60-day token the way a school
+            // cancellation does. source is 'school_cancellation', never
+            // 'cancellation' -- the latter is counted against this parent's own
+            // late-cancellation quota, and this was not their doing.
+            const { data: pbSess } = await svc
+              .from('class_sessions').select('course_type_id').eq('id', pb.class_session_id).single()
+            if (pbSess?.course_type_id) {
+              await svc.from('token_packages').insert({
+                parent_id: pb.parent_id,
+                course_type_id: pbSess.course_type_id,
+                total_tokens: 1,
+                source: 'school_cancellation',
+                source_booking_id: pb.id,
+                expires_at: tokenExpiryFromNow(),
+                note: 'Reissued: the other family cancelled this 1-on-2',
+              })
+            }
           }
         }
       }

@@ -4,7 +4,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
-import { LEAD_TIME_MINUTES, isWithinTokenWindow, tokenSlugsForTarget, isWithin24Hours } from '@/lib/tokens'
+import { LEAD_TIME_MINUTES, isWithinTokenWindow, isWithin24Hours, allocateTokens, tokenPool } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
 import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
 
@@ -55,23 +55,6 @@ function coachFree(day: any, coachId: string, startMin: number, endMin: number) 
   }
   if (isBlocked(day.blocks, coachId, toT(startMin), toT(endMin))) return false
   return !(day.busy.get(coachId) || []).some((iv: Iv) => startMin < iv.e && endMin > iv.s)
-}
-
-// Tokens spendable on this course type, earliest-expiring first.
-// Mirrors pickTokenPackage but returns the WHOLE pool: an hour lesson spends
-// two, and pickTokenPackage would hand back the same package twice.
-async function tokenPool(svc: any, parentId: string, targetSlug: string): Promise<{ id: string; remaining: number }[]> {
-  const slugs = tokenSlugsForTarget(targetSlug)
-  if (slugs.length === 0) return []
-  const { data: ctRows } = await svc.from('course_types').select('id, slug').in('slug', slugs)
-  const ctIds = (ctRows ?? []).map((r: any) => r.id)
-  if (ctIds.length === 0) return []
-  const { data: packs } = await svc.from('token_packages')
-    .select('id, total_tokens, used_tokens, expires_at')
-    .eq('parent_id', parentId).in('course_type_id', ctIds)
-    .gt('expires_at', new Date().toISOString())
-    .order('expires_at', { ascending: true })
-  return (packs ?? []).map((x: any) => ({ id: x.id, remaining: x.total_tokens - x.used_tokens })).filter((x: any) => x.remaining > 0)
 }
 
 export async function POST(req: NextRequest) {
@@ -245,15 +228,14 @@ export async function POST(req: NextRequest) {
     if (!coachFree(day, coach2_id, mid, e2))
       return NextResponse.json({ error: 'The second half is no longer available. Please pick another time.' }, { status: 409 })
 
-    // Token-first (spec v1.1), all-or-nothing: an hour lesson costs 2 tokens.
-    // One token plus one credit is never accepted — a mixed payment has no clean
-    // refund story, and token bookings are final by design.
-    const tokenAlloc: string[] = []
-    if (ct.slug === '1on1' && isWithinTokenWindow(session_date, start_time)) {
-      const tp = await tokenPool(svc, parent.id, ct.slug)
-      if (tp.reduce((n: number, x: any) => n + x.remaining, 0) >= 2) {
-        for (let i = 0; i < 2; i++) { const x = tp.find((y: any) => y.remaining > 0)!; tokenAlloc.push(x.id); x.remaining-- }
-      }
+    // Payment choice (spec v1.3): the parent asks, the server decides again.
+    // All-or-nothing, as everywhere else -- an hour lesson is two half-hour
+    // rows per swimmer, and a lesson that is part token and part credit has no
+    // clean cancellation. A partner booking settles at confirm time, not here.
+    const tokenSeats = 2 * students.length
+    let tokenAlloc: string[] = []
+    if (body.pay_with !== 'credit' && !isPartnerBooking && isWithinTokenWindow(session_date, start_time)) {
+      tokenAlloc = allocateTokens(await tokenPool(svc, parent.id, ct.slug), tokenSeats) ?? []
     }
     const alloc: string[] = []
     if (tokenAlloc.length === 0 && !isPartnerBooking) {

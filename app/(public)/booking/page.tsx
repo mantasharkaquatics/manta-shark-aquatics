@@ -280,6 +280,9 @@ export default function BookingPage() {
   // what step 4 is confirming, and nothing is written until you press Confirm
   // there.
   const [recurPlan, setRecurPlan] = useState<string[]>([])
+  // Token or credit. Token is the default because an unspent one expires,
+  // but a token booking is final, so the parent gets to say.
+  const [payChoice, setPayChoice] = useState<'token' | 'credit'>('token')
   const [recurBooked, setRecurBooked] = useState(0)
   const [recurSkipped, setRecurSkipped] = useState(0)
 
@@ -515,7 +518,7 @@ export default function BookingPage() {
 
   const slugById: Record<string, string> = {}
   for (const ct of courseTypes) slugById[ct.id] = ct.slug
-  const eligibleTokens = selectedCourse && selectedCourse.slug !== '1on2'
+  const eligibleTokens = selectedCourse
     ? tokens.filter(t => tokenSlugsForTarget(selectedCourse.slug).includes(slugById[t.course_type_id]) && t.remaining > 0)
     : []
   const tokenRemaining = eligibleTokens.reduce((sum, t) => sum + t.remaining, 0)
@@ -526,12 +529,19 @@ export default function BookingPage() {
     const d = new Date(date); d.setHours(0, 0, 0, 0)
     return d.getTime() === tm.getTime()
   }
-  const willUseToken = !!selectedCourse && !!selectedDate && !isTrial && hasTokenForCourse && inTokenWindow(selectedDate)
-  // An hour lesson is token-first too, but all-or-nothing: 2 tokens or none.
-  // With a single token on hand the server falls back to credits, so the
-  // summary must say credits — never a token the parent will not actually spend.
-  const hourPaysWithTokens = willUseToken && hourTokens >= 2
-  const payingWithTokens = selectedHour ? hourPaysWithTokens : willUseToken
+  // Seats this family pays for: two of your own swimmers cost you both, a
+  // cross-family 1-on-2 costs each side one. An hour is two half-hour rows each.
+  const paidSeats = selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner ? 2 : 1
+  const tokensNeeded = paidSeats * (selectedHour ? 2 : 1)
+  // All-or-nothing, mirroring the server: with fewer tokens than seats the
+  // whole booking goes on credits, so the summary must never promise a token
+  // the parent will not actually spend.
+  const tokensCoverBooking = (selectedHour ? hourTokens : tokenRemaining) >= tokensNeeded
+  const tokenOffered = !!selectedCourse && !!selectedDate && !isTrial && !isReschedule
+    && recurPlan.length === 0 && hasTokenForCourse && inTokenWindow(selectedDate) && tokensCoverBooking
+  const willUseToken = tokenOffered && payChoice === 'token'
+  const hourPaysWithTokens = !!selectedHour && willUseToken
+  const payingWithTokens = willUseToken
 
   const availableCredit = selectedCourse
     ? [...credits]
@@ -673,6 +683,7 @@ export default function BookingPage() {
                 student_name: selectedStudent2.full_name,
               } : null,
               session_date: dateStr,
+              pay_with: willUseToken ? 'token' : 'credit',
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
@@ -705,6 +716,7 @@ export default function BookingPage() {
           student_name: ps2.full_name,
         } : null,
         reschedule_booking_id: rbId || null,
+        pay_with: willUseToken ? 'token' : 'credit',
       }),
     })
     const j = await res.json().catch(() => ({}))
@@ -1107,7 +1119,7 @@ export default function BookingPage() {
                     </div>
                   )}
                 </div>
-                {selectedStudent2 && !(selectedStudent2 as any).isPartner && remainingCredits < 2 && (
+                {selectedStudent2 && !(selectedStudent2 as any).isPartner && remainingCredits < 2 && tokenRemaining < 2 && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '12px', color: '#e05a4a' }}>
                     ⚠️ {t('booking.needTwoCredits', { n: remainingCredits })}
                     <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>{t('booking.buyPlan')}</Link>
@@ -1132,19 +1144,22 @@ export default function BookingPage() {
                   if (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse)) return
                   if (selectedCourse.slug === '1on2') {
                     if (!selectedStudent2) return
-                    if (!(selectedStudent2 as any).isPartner && remainingCredits < 2) return
+                    // Two of your own swimmers cost two of something. Tokens
+                    // count here too, or a family holding two would be told to
+                    // buy credits they do not need.
+                    if (!(selectedStudent2 as any).isPartner && remainingCredits < 2 && tokenRemaining < 2) return
                   }
                   setStep(selectedCourse.slug === '1on4' && !isTrial ? 3 : 2)
                 }}
                 disabled={
                   !selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) ||
                   (selectedCourse?.slug === '1on2' && !selectedStudent2) ||
-                  (selectedCourse?.slug === '1on2' && !(selectedStudent2 as any)?.isPartner && remainingCredits < 2)
+                  (selectedCourse?.slug === '1on2' && !(selectedStudent2 as any)?.isPartner && remainingCredits < 2 && tokenRemaining < 2)
                 }
                 style={{
                   flex: 2, padding: '14px',
-                  background: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
-                  color: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
+                  background: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2 && tokenRemaining < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
+                  color: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2 && tokenRemaining < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: 'pointer',
@@ -1698,6 +1713,52 @@ export default function BookingPage() {
                 <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = selectedHour ? (isReschedule ? remainingCredits : hourPaysWithTokens ? hourTokens - 2 : remainingCredits - (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)) : willUseToken ? tokenRemaining - 1 : (isReschedule ? remainingCredits : (selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner) ? remainingCredits - 2 : remainingCredits - 1); return t(payingWithTokens ? (n === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge') : (n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge'), { n }) })()}</span>
               </div>}
             </div>
+            {/* Payment choice. It only appears when make-up credits actually
+                cover this whole booking -- an option that cannot be taken is
+                worse than no option at all. The consequence sits on the line
+                under each one, because a make-up credit books a lesson that
+                cannot be cancelled or rescheduled, and the parent has to know
+                that before choosing rather than after. */}
+            {tokenOffered && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  {t('booking.pay.heading')}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(['token', 'credit'] as const).map(opt => {
+                    const on = payChoice === opt
+                    const left = opt === 'token' ? (selectedHour ? hourTokens : tokenRemaining) : remainingCredits
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setPayChoice(opt)}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: '12px', textAlign: 'left',
+                          padding: '12px 14px', borderRadius: '10px', cursor: 'pointer',
+                          background: on ? `${GOLD}14` : 'transparent',
+                          border: `1px solid ${on ? GOLD + '66' : 'rgba(255,255,255,0.12)'}`,
+                        }}>
+                        <span style={{
+                          width: '16px', height: '16px', borderRadius: '50%', marginTop: '2px', flexShrink: 0,
+                          border: `2px solid ${on ? GOLD : 'rgba(255,255,255,0.3)'}`,
+                          background: on ? GOLD : 'transparent',
+                        }} />
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: on ? GOLD : 'rgba(255,255,255,0.85)' }}>
+                            {t(opt === 'token' ? 'booking.pay.token' : 'booking.pay.credit', { n: tokensNeeded })}
+                            <span style={{ fontWeight: 500, color: 'rgba(255,255,255,0.4)' }}> · {t('booking.pay.left', { n: left })}</span>
+                          </span>
+                          <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, marginTop: '3px' }}>
+                            {t(opt === 'token' ? 'booking.pay.tokenNote' : 'booking.pay.creditNote')}
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
                 {/* A weekly batch is always paid in credits -- the recurring API

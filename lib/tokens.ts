@@ -113,6 +113,52 @@ export async function pickTokenPackage(
   return pick ? { id: pick.id, course_type_id: pick.course_type_id } : null
 }
 
+// --- The whole spendable pool for a course type, earliest-expiring first ---
+// pickTokenPackage answers "one token for this booking". A booking that pays
+// for more than one seat -- a same-account 1-on-2, an hour lesson -- has to see
+// the pool, or it hands back the same package twice and spends it once.
+export async function tokenPool(
+  svc: SupabaseClient,
+  parentId: string,
+  targetCourseSlug: string
+): Promise<{ id: string; remaining: number }[]> {
+  const slugs = tokenSlugsForTarget(targetCourseSlug)
+  if (slugs.length === 0) return []
+  const { data: ctRows } = await svc
+    .from('course_types').select('id, slug').in('slug', slugs)
+  const ctIds = (ctRows ?? []).map(r => r.id)
+  if (ctIds.length === 0) return []
+  const { data: packs } = await svc
+    .from('token_packages')
+    .select('id, total_tokens, used_tokens, expires_at')
+    .eq('parent_id', parentId)
+    .in('course_type_id', ctIds)
+    .gt('expires_at', new Date().toISOString())
+    .order('expires_at', { ascending: true })
+  return (packs ?? [])
+    .map(x => ({ id: x.id, remaining: x.total_tokens - x.used_tokens }))
+    .filter(x => x.remaining > 0)
+}
+
+// Hand out one token id per seat, FIFO. Returns null when the pool is short:
+// every seat a family pays for settles the same way, because a lesson that is
+// part token and part credit has no clean cancellation -- a token booking is
+// final, a credit booking is not, and half a 1-on-2 is not a lesson.
+export function allocateTokens(
+  pool: { id: string; remaining: number }[],
+  seats: number
+): string[] | null {
+  const left = pool.map(p => ({ ...p }))
+  const out: string[] = []
+  for (let i = 0; i < seats; i++) {
+    const pick = left.find(p => p.remaining > 0)
+    if (!pick) return null
+    pick.remaining--
+    out.push(pick.id)
+  }
+  return out
+}
+
 // --- Token expiry helper: 60 days from creation, all sources ---
 export const TOKEN_VALIDITY_DAYS = 60
 
