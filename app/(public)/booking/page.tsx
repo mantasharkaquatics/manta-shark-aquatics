@@ -1390,7 +1390,12 @@ export default function BookingPage() {
                     </div>
                   </div>
                 )}
-                {inTokenWindow(selectedDate) && hasTokenForCourse && (
+                {/* Only when the make-up credits actually cover this booking.
+                    Holding one while an hour lesson needs two, the notice used
+                    to announce "this lesson will use 2 points (2 available: 1)"
+                    beside a slot list that was pricing itself in lesson credits
+                    -- true of neither the booking nor the balance. */}
+                {tokenOffered && (
                   <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
