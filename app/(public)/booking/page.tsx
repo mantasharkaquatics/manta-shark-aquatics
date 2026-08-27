@@ -1021,9 +1021,9 @@ export default function BookingPage() {
                 const remaining = credits
                   .filter(c => c.course_type_id === ct.id)
                   .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
-                const ctTokens = ct.slug !== '1on2'
-                  ? tokens.filter(t => tokenSlugsForTarget(ct.slug).includes(slugById[t.course_type_id]) && t.remaining > 0).reduce((s2, t) => s2 + t.remaining, 0)
-                  : 0
+                const ctTokens = tokens
+                  .filter(t => tokenSlugsForTarget(ct.slug).includes(slugById[t.course_type_id]) && t.remaining > 0)
+                  .reduce((s2, t) => s2 + t.remaining, 0)
                 return (
                   <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1041,25 +1041,32 @@ export default function BookingPage() {
                           )}
                         </div>
                       </div>
-                      {remaining > 0 ? (
-                        <div style={{
-                          background: `${color}20`, border: `1px solid ${color}40`,
-                          borderRadius: '20px', padding: '4px 12px',
-                          fontSize: '12px', fontWeight: 700, color,
-                        }}>{t(remaining === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n: remaining })}</div>
-                      ) : ctTokens > 0 ? (
-                        <div style={{
-                          background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.4)',
-                          borderRadius: '20px', padding: '4px 12px',
-                          fontSize: '12px', fontWeight: 700, color: '#e8883a',
-                        }}>{t(ctTokens === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge', { n: ctTokens })}</div>
-                      ) : (
-                        <div style={{
-                          background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: '20px', padding: '4px 12px',
-                          fontSize: '11px', color: 'rgba(255,255,255,0.3)',
-                        }}>{t('booking.noCredits')}</div>
-                      )}
+                      {/* Both badges when the family holds both. Showing only
+                          credits used to hide make-up credits behind them, and a
+                          course the family could book today read as unbookable. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {remaining > 0 && (
+                          <div style={{
+                            background: `${color}20`, border: `1px solid ${color}40`,
+                            borderRadius: '20px', padding: '4px 12px',
+                            fontSize: '12px', fontWeight: 700, color, whiteSpace: 'nowrap',
+                          }}>{t(remaining === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n: remaining })}</div>
+                        )}
+                        {ctTokens > 0 && (
+                          <div style={{
+                            background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.4)',
+                            borderRadius: '20px', padding: '4px 12px',
+                            fontSize: '12px', fontWeight: 700, color: '#e8883a', whiteSpace: 'nowrap',
+                          }}>{t(ctTokens === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge', { n: ctTokens })}</div>
+                        )}
+                        {remaining === 0 && ctTokens === 0 && (
+                          <div style={{
+                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '20px', padding: '4px 12px',
+                            fontSize: '11px', color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap',
+                          }}>{t('booking.noCredits')}</div>
+                        )}
+                      </div>
                     </div>
                   </SelectCard>
                 )
@@ -1077,8 +1084,11 @@ export default function BookingPage() {
               </div>
             )}
 
-            {/* 1-on-2: select the second student */}
-            {selectedCourse?.slug === '1on2' && availableCredit && (
+            {/* 1-on-2: select the second student. Gated on being able to pay at
+                all, not on credits -- a family holding two make-up credits and no
+                credits could never reach the second swimmer, and Continue stayed
+                dead with nothing on screen to explain why. */}
+            {selectedCourse?.slug === '1on2' && (availableCredit || tokenRemaining > 0) && (
               <div style={{ marginTop: '20px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
                   👥 {t('booking.select2nd')}
