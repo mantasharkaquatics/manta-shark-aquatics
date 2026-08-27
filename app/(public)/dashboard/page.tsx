@@ -2111,7 +2111,7 @@ export default function DashboardPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.08)', color: '#c9a84c', fontSize: '11px', fontWeight: 600 }}>
-                              ⏱ Awaiting payment
+                              ⏱ {t('dash.pend.awaiting')}
                             </div>
                             <button
                               onClick={async () => {
@@ -2120,13 +2120,13 @@ export default function DashboardPage() {
                                   const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'link', booking_id: booking.id }) })
                                   const j = await res.json().catch(() => ({}))
                                   if (res.ok && j.url) { window.location.href = j.url; return }
-                                  setPendingPayMsg(j.error || 'Could not open the payment page.')
-                                } catch { setPendingPayMsg('Network error. Please try again.') }
+                                  setPendingPayMsg(j.error || t('dash.pend.linkFailed'))
+                                } catch { setPendingPayMsg(t('dash.pend.network')) }
                                 setPendingPayBusy(null)
                               }}
                               disabled={pendingPayBusy === booking.id}
                               style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.5)', background: '#c9a84c', color: '#1a2744', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
-                              {pendingPayBusy === booking.id ? '...' : 'Pay Now →'}
+                              {pendingPayBusy === booking.id ? '...' : t('dash.pend.payNow')}
                             </button>
                             <button
                               onClick={() => { setPendingPayMsg(''); setPendingCancelConfirm(booking.id) }}
@@ -2139,16 +2139,16 @@ export default function DashboardPage() {
                           {pendingCancelConfirm === booking.id && (
                             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                               <div style={{ background: '#1a2744', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '100%' }}>
-                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>Cancel this Swim Assessment?</div>
+                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
                                 <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: '20px' }}>
-                                  The payment link will be voided and the time slot released. You can book a new assessment right away. No charge will be made.
+                                  {t('dash.pend.cancelBody')}
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                   <button
                                     onClick={() => setPendingCancelConfirm(null)}
                                     disabled={pendingPayBusy === booking.id}
                                     style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                                    Keep Booking
+                                    {t('dash.pend.keep')}
                                   </button>
                                   <button
                                     onClick={async () => {
@@ -2157,13 +2157,13 @@ export default function DashboardPage() {
                                         const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', booking_id: booking.id }) })
                                         const j = await res.json().catch(() => ({}))
                                         if (res.ok) { window.location.reload(); return }
-                                        setPendingPayMsg(j.error || 'Could not cancel. Please try again.')
-                                      } catch { setPendingPayMsg('Network error. Please try again.') }
+                                        setPendingPayMsg(j.error || t('dash.pend.cancelFailed'))
+                                      } catch { setPendingPayMsg(t('dash.pend.network')) }
                                       setPendingPayBusy(null); setPendingCancelConfirm(null)
                                     }}
                                     disabled={pendingPayBusy === booking.id}
                                     style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                                    {pendingPayBusy === booking.id ? 'Cancelling...' : 'Yes, Cancel ✕'}
+                                    {pendingPayBusy === booking.id ? t('dash.pend.cancelling') : t('dash.cancelModal.yesCancel')}
                                   </button>
                                 </div>
                               </div>
@@ -2173,15 +2173,15 @@ export default function DashboardPage() {
                       ) : booking.status === 'in_cart' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.08)', color: '#c9a84c', fontSize: '11px', fontWeight: 600 }}>
-                            🛒 In cart · releases automatically if not checked out
+                            🛒 {t('dash.cart.held')}
                           </div>
                           <Link href="/booking?cart=1" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
-                            View Cart →
+                            {t('dash.cart.view')}
                           </Link>
                         </div>
                       ) : booking._group ? null : booking.token_package_id ? (
                         <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '11px', fontWeight: 600 }}>
-                          🎫 Booked with token · Final
+                          🎫 {t('dash.up.tokenFinal')}
                         </div>
                       ) : (
                         <div className="msa-lesson-actions">
