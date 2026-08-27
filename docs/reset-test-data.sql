@@ -25,9 +25,11 @@
 --    deletes retry until the foreign keys are satisfied -- so a table I have
 --    the order wrong for still comes out clean.
 --
---  * Tested by restoring your 2026-07-23 backup into a scratch Postgres and
---    running the whole thing against it: every table below went to 0, every
---    kept table was untouched.
+--  * Tested by restoring the 2026-08-27 backup into a scratch Postgres 16 --
+--    49 tables, 88 foreign keys, 16 triggers, the real current schema -- and
+--    running the whole thing against it: every table below went to 0 in a
+--    single pass, every kept table was untouched, and every trigger came back
+--    enabled.
 --
 --  * Deleting is not reversible. Take a Supabase backup first
 --    (Database -> Backups), even though you believe every row here is
@@ -88,6 +90,7 @@ DECLARE
   pass     int := 0;
   moved    boolean;
   todo     text[] := '{}';
+  todo_all text[] := '{}';
   stuck    text[] := '{}';
   last_err text := '';
   list     text[] := ARRAY[
@@ -118,6 +121,16 @@ BEGIN
     ELSE
       RAISE NOTICE 'skipped % (no such table)', t;
     END IF;
+  END LOOP;
+
+  -- Business-rule triggers guard normal use: a booking must belong to an
+  -- assessed swimmer, a coach cannot be double-booked, a parent cannot exceed
+  -- their swimmer limit. They have no place in a wipe and they DO refuse the
+  -- work below. Switch them off for this transaction; foreign keys stay on,
+  -- and a rollback puts them back.
+  todo_all := todo;
+  FOREACH t IN ARRAY todo LOOP
+    EXECUTE format('ALTER TABLE public.%I DISABLE TRIGGER USER', t);
   END LOOP;
 
   -- Some of these tables point at each other in a loop -- a booking points at
@@ -167,6 +180,11 @@ BEGIN
       RAISE EXCEPTION 'still going after 20 passes; stopping. Left: %',
                       array_to_string(todo, ', ');
     END IF;
+  END LOOP;
+
+  -- Triggers back on.
+  FOREACH t IN ARRAY todo_all LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE TRIGGER USER', t);
   END LOOP;
 END $$;
 
