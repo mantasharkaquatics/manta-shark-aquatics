@@ -233,7 +233,11 @@ export async function POST(req: NextRequest) {
       candidates,
       tokens: {
         remaining: tokensRemaining,
-        eligible: !student2 && count === 1 && isWithinTokenWindow(start_date, String(start_time).slice(0, 5)),
+        // A two-swimmer 1-on-2 can go on tokens too, but only when both
+        // swimmers are one family's -- two families each pay their own way
+        // and this route only ever draws on student1's parent.
+        eligible: count === 1 && (!student2 || (!!sameParent && !hour))
+          && isWithinTokenWindow(start_date, String(start_time).slice(0, 5)),
       },
       credits: {
         parent1_name: nameOf(student1.parent_id), parent1_remaining: alloc1.totalRemaining, parent1_needed: needed1,
@@ -282,8 +286,10 @@ export async function POST(req: NextRequest) {
     // Payment method is the operator's explicit choice; credits stay the default
     // so every existing caller behaves exactly as before. Tokens are same-day /
     // next-day only and weekly dates sit seven days apart, so at most one date in
-    // a series could ever qualify — a token booking is therefore single-date and
-    // single-swimmer by construction, matching the parent-side rule.
+    // a series could ever qualify — a token booking is therefore single-date.
+    // Since 2026-08-27 it can cover two swimmers as well, matching the parent
+    // side, but only when they are one family's: two families each pay their own
+    // way and this branch only ever draws on student1's parent.
     const payWithToken = payment_method === 'token'
     let tokenAlloc: string[] = []
     let credit1PerDate: string[] = []
@@ -291,11 +297,13 @@ export async function POST(req: NextRequest) {
     if (payWithToken) {
       if (dates.length !== 1)
         return NextResponse.json({ error: 'Tokens are valid today or tomorrow only, so they cannot pay for a recurring series — book a single date.' }, { status: 400 })
-      if (student2)
-        return NextResponse.json({ error: 'A token covers one swimmer only. Use credits for a two-swimmer booking.' }, { status: 400 })
+      if (student2 && !sameParent)
+        return NextResponse.json({ error: 'These swimmers are from two different families, so each side pays its own way. Use credits for this booking.' }, { status: 400 })
+      if (student2 && hour)
+        return NextResponse.json({ error: 'A 60-minute two-swimmer booking is credit-only. Use credits, or book two 30-minute lessons.' }, { status: 400 })
       if (!isWithinTokenWindow(dates[0], String(start_time).slice(0, 5)))
         return NextResponse.json({ error: 'Tokens can only be used for a lesson today or tomorrow.' }, { status: 400 })
-      const needTokens = hour ? 2 : 1
+      const needTokens = hour ? 2 : (student2 ? 2 : 1)
       const tp = await tokenPool(svc, student1.parent_id, ct.slug || '')
       if (tp.reduce((n: number, x: any) => n + x.remaining, 0) < needTokens)
         return NextResponse.json({ error: `This family needs ${needTokens} token(s) for that booking and does not have enough.` }, { status: 409 })
@@ -342,8 +350,9 @@ export async function POST(req: NextRequest) {
     // Tokens settle before anything is written, same as credits below. This had
     // to run last until decrement_used_tokens existed, because rollback() could
     // never hand one back; now a lost race costs a 409 and nothing else. A token
-    // booking is single-date and single-swimmer by construction, so every entry
-    // in tokenAlloc is used exactly once and can safely be spent up front.
+    // booking is single-date, and the allocation above hands out one entry per
+    // seat, so every entry in tokenAlloc is used exactly once and can safely be
+    // spent up front.
     for (const tid of tokenAlloc) {
       if (!(await spendToken(svc, tid))) {
         await rollback()
@@ -434,9 +443,10 @@ export async function POST(req: NextRequest) {
         createdSessionIds.push(newSess.id)
       }
 
+      // Each swimmer carries its own token, the way each carries its own credit.
       const toCreate = [
-        { parent_id: student1.parent_id, student_id: student1.id, credit_id: credit1PerDate[i] },
-        ...(student2 ? [{ parent_id: student2.parent_id, student_id: student2.id, credit_id: credit2PerDate[i] }] : []),
+        { parent_id: student1.parent_id, student_id: student1.id, credit_id: credit1PerDate[i], token_id: tokenAlloc[0] },
+        ...(student2 ? [{ parent_id: student2.parent_id, student_id: student2.id, credit_id: credit2PerDate[i], token_id: tokenAlloc[1] }] : []),
       ]
       for (const b of toCreate) {
         if (!payWithToken) {
@@ -448,7 +458,7 @@ export async function POST(req: NextRequest) {
         }
         const { data: created, error: bookErr } = await svc
           .from('bookings')
-          .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id, lesson_credit_id: payWithToken ? null : b.credit_id, token_package_id: payWithToken ? tokenAlloc[0] : null, status: 'confirmed' })
+          .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id, lesson_credit_id: payWithToken ? null : b.credit_id, token_package_id: payWithToken ? b.token_id : null, status: 'confirmed' })
           .select('id').single()
         if (bookErr || !created) {
           await rollback()

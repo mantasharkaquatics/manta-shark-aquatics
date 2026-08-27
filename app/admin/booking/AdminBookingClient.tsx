@@ -747,7 +747,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           dates: [selectedSlot.date],
           hour: hourMode && !is1on2,
           payment_method: (() => {
-            if (payMethod !== 'token' || is1on2) return 'credit'
+            // A two-swimmer 1-on-2 can go on tokens, but only when both swimmers
+            // are one family's and it is not the 60-minute shape -- otherwise the
+            // server would be drawing one parent's tokens for the other's child.
+            if (payMethod !== 'token') return 'credit'
+            if (is1on2 && (!sameParent || hourMode)) return 'credit'
             const t0 = getTodayLA()
             const d = new Date(t0 + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)
             return (selectedSlot.date === t0 || selectedSlot.date === d.toISOString().slice(0, 10)) ? 'token' : 'credit'
@@ -1162,10 +1166,19 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   {(() => { const st = students.find(s => s.id === formStudent); return st && st.current_level == null && !isTrial ? (
                     <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">⚠️ This student has not completed the Swim Assessment (no level assigned). Admins may still book directly, but please confirm you want to schedule this lesson without an assessment.</p>
                   ) : null })()}
-                  {!isTrial && bookMode !== 'recurring' && courseTypes.find(c => c.id === formCourse)?.slug !== '1on2' && formStudent && selectedSlot && (() => {
+                  {!isTrial && bookMode !== 'recurring' && formStudent && selectedSlot && (() => {
                     const t0 = getTodayLA()
                     const d = new Date(t0 + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)
                     if (selectedSlot.date !== t0 && selectedSlot.date !== d.toISOString().slice(0, 10)) return null
+                    // A 1-on-2 can be paid with two tokens, but only one family's
+                    // swimmers on a 30-minute lesson. Anything else is credit-only,
+                    // and an option the server would refuse is worse than none.
+                    const twoUp = courseTypes.find(c => c.id === formCourse)?.slug === '1on2'
+                    if (twoUp) {
+                      const a = students.find(s => s.id === formStudent)
+                      const b = students.find(s => s.id === formStudent2)
+                      if (!a || !b || a.parent_id !== b.parent_id || hourMode) return null
+                    }
                     return (
                       <div className="flex items-center flex-wrap gap-2 text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2">
                         <span className="text-white/50">Pay with</span>
@@ -1175,7 +1188,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                             {m === 'credit' ? 'Credit' : 'Token'}
                           </button>
                         ))}
-                        <span className="text-white/30">Tokens are valid today or tomorrow only, one swimmer per token</span>
+                        <span className="text-white/30">Tokens are valid today or tomorrow only, one per swimmer. A token booking cannot be cancelled or rescheduled.</span>
                       </div>
                     )
                   })()}
