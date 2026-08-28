@@ -110,3 +110,28 @@ client *after* paint, and why that route holds its answer for 60s. Do not
 "simplify" this by computing the count in `app/admin/layout.tsx` — the layout
 renders on every admin page, and that change makes the entire back office a
 second slower to load. The numbers are in commit 3a692da.
+
+# Who reads which language
+
+Owner's rule, 2026-08-27: **anything a customer can see must be translatable.**
+Legal documents are the exception, and the admin and coach screens are English
+on purpose.
+
+- Parent-facing (`app/(public)/**`, the components they render): every string
+  goes through `t()`. Not only text -- `placeholder`, `title`, `alt` and
+  `aria-label` too. An icon button's `aria-label` is its only readable name, so
+  an untranslated one is English read aloud on a Chinese page.
+- Legal pages stay English: `terms`, `privacy-policy`, `waiver`,
+  `media-release`, `sms-terms`, `policies`. Translating them creates two texts
+  that can disagree, and then a question about which one governs.
+- Admin and coach screens stay English throughout. `StudentNotesPanel` lives in
+  `components/` but renders only in `/admin`, so it is English -- location in
+  the tree does not decide this, the audience does.
+- Not everything English is a miss: `MSA-XXXXXX` is a code format, and `alt`
+  text that is the company name is the company name.
+- The AI assistant answers in whatever language the parent wrote in
+  (`lib/ai/system-prompt.ts`); only the chrome around it needed keys.
+
+`node scripts/i18n-check.mjs` fails on a key missing from any locale, and on
+orphans. It does not know about a string you never wrapped -- that part is on
+you.
