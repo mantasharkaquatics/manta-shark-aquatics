@@ -387,12 +387,17 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   )
 }
 
-function CreditCard({ g, remaining, pct, note, bookHref }: {
+function CreditCard({ g, remaining, pct, note, bookHref, hideExpiry }: {
   g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null; expiresAt?: string | null }[] }
   remaining: number
   pct: number
   note?: string
   bookHref?: string
+  // A Swim Assessment is one lesson a family books once. It carries an expiry
+  // date in the database so the row behaves like every other credit, but saying
+  // it out loud invites the question of what happens when it lapses -- and the
+  // answer is that nobody has ever let one lapse.
+  hideExpiry?: boolean
 }) {
   const t = useT()
   const [expanded, setExpanded] = useState(false)
@@ -429,8 +434,8 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
           {g.items.map((item, i) => {
             const itemRemaining = item.credits - item.used
             const dateStr = item.date ? formatDateNum(item.date) : '—'
-            const expStr = item.expiresAt ? formatDateNum(item.expiresAt) : null
-            const isExpired = item.expiresAt ? new Date(item.expiresAt).getTime() < Date.now() : false
+            const expStr = !hideExpiry && item.expiresAt ? formatDateNum(item.expiresAt) : null
+            const isExpired = !hideExpiry && item.expiresAt ? new Date(item.expiresAt).getTime() < Date.now() : false
             return (
               // Dates, count and receipt on one row. On a phone the card is 86%
               // of the viewport, so the right-hand pair wraps as a unit rather
@@ -2312,7 +2317,7 @@ export default function DashboardPage() {
                   const remaining = g.total - g.used
                   const pct = Math.round((remaining / g.total) * 100)
                   return (
-                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? t('credit.assessmentNote') : undefined} bookHref={key === '__assessment__' && remaining > 0 ? `/booking?student=${credits.find(c => c.is_trial && c.used_credits < c.total_credits)?.student_id || ''}` : undefined} />
+                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? t('credit.assessmentNote') : undefined} hideExpiry={key === '__assessment__'} bookHref={key === '__assessment__' && remaining > 0 ? `/booking?student=${credits.find(c => c.is_trial && c.used_credits < c.total_credits)?.student_id || ''}` : undefined} />
                   )
                 })
               })()}
