@@ -1259,12 +1259,12 @@ export default function BookingPage() {
                 <button onClick={() => {
                   if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) }
                   else setCalMonth(calMonth - 1)
-                }} aria-label="Previous month" style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+                }} aria-label={t('booking.cal.prevMonth')} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
                 <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
                 <button onClick={() => {
                   if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) }
                   else setCalMonth(calMonth + 1)
-                }} aria-label="Next month" style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+                }} aria-label={t('booking.cal.nextMonth')} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '8px' }}>
                 {[0, 1, 2, 3, 4, 5, 6].map(d => (

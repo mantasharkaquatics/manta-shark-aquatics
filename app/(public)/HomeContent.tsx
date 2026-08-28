@@ -180,11 +180,11 @@ export default function HomeContent() {
           ))}
 
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
-            <button className="tap-auto carousel-btn" id="t-prev" aria-label="Previous">&#8592;</button>
+            <button className="tap-auto carousel-btn" id="t-prev" aria-label={t('home.carousel.prev')}>&#8592;</button>
             <div style={{ display: 'flex', gap: '8px' }}>
               {[0,1,2,3].map(i => <button key={i} className={`tap-auto dot${i===0?' active':''}`} data-dot={i} aria-label={t('home.carousel.goToSlide', { n: i + 1 })} />)}
             </div>
-            <button className="tap-auto carousel-btn" id="t-next" aria-label="Next">&#8594;</button>
+            <button className="tap-auto carousel-btn" id="t-next" aria-label={t('home.carousel.next')}>&#8594;</button>
           </div>
         </div>
       </section>

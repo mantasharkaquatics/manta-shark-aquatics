@@ -357,7 +357,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           boxShadow: `0 0 0 4px ${GOLD}30`,
         }}>
           {qrDataUrl ? (
-            <img src={qrDataUrl} alt="QR Code" style={{ display: 'block', width: '200px', height: '200px' }} />
+            <img src={qrDataUrl} alt={t('dash.qrAlt')} style={{ display: 'block', width: '200px', height: '200px' }} />
           ) : (
             <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
               {t('common.loading')}

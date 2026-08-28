@@ -203,10 +203,10 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                   whiteSpace: 'pre-wrap', fontSize: '13px', lineHeight: 1.5, fontWeight: msg.sender_type === 'parent' ? 600 : 400,
                 }}>
                   {msg.sender_type === 'ai' && (
-                    <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>AI ASSISTANT</div>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromAi')}</div>
                   )}
                   {msg.sender_type === 'admin' && (
-                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#4ade80', marginBottom: '4px', letterSpacing: '0.5px' }}>FRONT DESK</div>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#4ade80', marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromDesk')}</div>
                   )}
                   {renderBody(msg.body, t('chat.openLink'))}
                   {msg.sender_type === 'ai' && msg.id === messages[messages.length - 1]?.id && Array.isArray(msg.metadata?.options) && (
