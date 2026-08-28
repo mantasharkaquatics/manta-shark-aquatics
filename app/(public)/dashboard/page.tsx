@@ -85,7 +85,7 @@ const MOBILE_CSS = `
               padding: 2px clamp(20px,5vw,48px) 10px; margin: 0 calc(-1 * clamp(20px,5vw,48px));
               scrollbar-width: none }
   .msa-rail::-webkit-scrollbar { display: none }
-  .msa-rail > * { scroll-snap-align: center; flex: 0 0 86% }
+  .msa-rail > * { scroll-snap-align: center; flex: 0 0 92% }
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
   .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.18); transition: width .18s, background .18s }
   .msa-dot-on { width: 18px; border-radius: 3px; background: #c9a84c }
@@ -436,14 +436,14 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
               // of the viewport, so the right-hand pair wraps as a unit rather
               // than the button landing alone under a half-empty line.
               <div key={i} className="msa-pkg" style={{ paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <div style={{ fontSize: '10px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
+                <div style={{ fontSize: '11px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.3)' }}> · {t('credit.expPrefix')} {expStr}</span>}</div>
                 <div className="msa-pkg-end">
-                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                     {t('credit.nLeft', { n: itemRemaining, total: item.credits })}
                   </span>
                   {item.invoiceId && (
                     <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer" title={t('credit.downloadInvoiceFull')}
-                      style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                      style={{ fontSize: '11px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '3px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                       {t('credit.downloadInvoice')}
                     </a>
                   )}
@@ -552,10 +552,10 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
                     const expStr = iv.period_end ? formatDateNum(iv.period_end) : null
                     return (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px 8px', flexWrap: 'wrap', paddingBottom: i < (m.invoices || []).length - 1 ? '8px' : 0, borderBottom: i < (m.invoices || []).length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: 'rgba(255,255,255,0.3)' }}> · {t('credit.expPrefix')} {expStr}</span>}</div>
                         {iv.url && (
                           <a href={iv.url} target="_blank" rel="noopener noreferrer" title={t('credit.downloadInvoiceFull')}
-                            style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                            style={{ fontSize: '11px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '3px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                             {t('credit.downloadInvoice')}
                           </a>
                         )}

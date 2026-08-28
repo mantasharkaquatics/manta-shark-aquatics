@@ -285,6 +285,7 @@
   "credit.assessmentNote": "一次性评估 · 不是课程方案",
   "credit.downloadInvoice": "收据",
   "credit.downloadInvoiceFull": "下载收据（PDF）",
+  "credit.expPrefix": "到期",
   "credit.hidePackage": "收起 {n} 个方案",
   "credit.hidePackages": "收起 {n} 个方案",
   "credit.nLeft": "剩 {n}/{total}",

@@ -285,6 +285,7 @@
   "credit.assessmentNote": "One-time assessment · not a lesson package",
   "credit.downloadInvoice": "Invoice",
   "credit.downloadInvoiceFull": "Download invoice (PDF)",
+  "credit.expPrefix": "Exp",
   "credit.hidePackage": "Hide {n} package",
   "credit.hidePackages": "Hide {n} packages",
   "credit.nLeft": "{n}/{total}",
