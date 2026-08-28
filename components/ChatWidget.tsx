@@ -2,21 +2,25 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
+import { useT } from '@/lib/i18n/provider'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
-function renderBody(text: string) {
+// A long URL is unreadable inline, so it becomes a label -- which has to be
+// translated, and this helper sits outside the component, so it is handed in.
+function renderBody(text: string, linkLabel: string) {
   const parts = String(text).split(/(https?:\/\/[^\s]+)/g)
   return parts.map((p, i) =>
     /^https?:\/\//.test(p)
-      ? <a key={i} href={p} target={p.includes('stripe.com') ? '_blank' : '_self'} rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 700, wordBreak: 'break-all' }}>{p.length > 60 ? 'Open link →' : p}</a>
+      ? <a key={i} href={p} target={p.includes('stripe.com') ? '_blank' : '_self'} rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 700, wordBreak: 'break-all' }}>{p.length > 60 ? linkLabel : p}</a>
       : p
   )
 }
 
 export default function ChatWidget({ parentId }: { parentId: string }) {
+  const t = useT()
   const supabase = createClient()
   const [open, setOpen] = useState(false)
   // Auto-restore the open chat after navigating away (e.g. to payment) and back
@@ -172,8 +176,8 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
             <img src="/logo.png" alt="Manta Shark Aquatics" width={36} height={36}
               style={{ display: 'block', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: '#fff', fontSize: '15px' }}>Manta Shark Support</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>AI assistant · a team member follows up when needed</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: '#fff', fontSize: '15px' }}>{t('chat.title')}</div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{t('chat.subtitle')}</div>
             </div>
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '20px', cursor: 'pointer', padding: '4px' }}>✕</button>
           </div>
@@ -183,7 +187,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '13px', marginTop: '40px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>👋</div>
-                Hi! How can we help you today?
+                {t('chat.empty')}
               </div>
             )}
             {messages.map(msg => msg.sender_type === 'system' ? (
@@ -204,7 +208,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
                   {msg.sender_type === 'admin' && (
                     <div style={{ fontSize: '10px', fontWeight: 700, color: '#4ade80', marginBottom: '4px', letterSpacing: '0.5px' }}>FRONT DESK</div>
                   )}
-                  {renderBody(msg.body)}
+                  {renderBody(msg.body, t('chat.openLink'))}
                   {msg.sender_type === 'ai' && msg.id === messages[messages.length - 1]?.id && Array.isArray(msg.metadata?.options) && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
                       {msg.metadata.options.map((opt: any, i: number) =>
@@ -240,7 +244,7 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder="Type a message..."
+              placeholder={t('chat.placeholder')}
               style={{
                 flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none',
