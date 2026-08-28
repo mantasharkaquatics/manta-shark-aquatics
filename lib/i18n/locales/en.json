@@ -282,7 +282,7 @@
   "common.loading": "Loading…",
   "common.noticeTitle": "Something went wrong",
   "common.save": "Save",
-  "credit.assessmentNote": "One-time assessment · not a lesson package",
+  "credit.assessmentNote": "one-time assessment, not a package",
   "credit.downloadInvoice": "Invoice",
   "credit.downloadInvoiceFull": "Download invoice (PDF)",
   "credit.expPrefix": "Exp",

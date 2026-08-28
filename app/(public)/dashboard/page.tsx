@@ -407,8 +407,16 @@ function CreditCard({ g, remaining, pct, note, bookHref, hideExpiry }: {
         {g.name}
       </div>
       <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: '#c9a84c', lineHeight: 1 }}>{remaining}</div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: note ? '2px' : '12px' }}>{t('credit.remaining', { total: g.total })}</div>
-      {note && <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>{note}</div>}
+      {/* The total and its qualifier are one sentence about the same number, so
+          they read as one line. Wrapping is allowed: a longer translation drops
+          the qualifier underneath rather than pushing it out of the card. */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '12px' }}>
+        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>{t('credit.remaining', { total: g.total })}</span>
+        {note && <>
+          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.2)' }}>·</span>
+          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>{note}</span>
+        </>}
+      </div>
       <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginBottom: '12px' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: '#c9a84c', borderRadius: '2px' }} />
       </div>
