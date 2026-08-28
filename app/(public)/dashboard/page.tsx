@@ -63,6 +63,13 @@ const MOBILE_CSS = `
 .msa-lesson-daybadge { display: none }
 .msa-lesson-datesuffix { display: none }
 
+/* A purchase line carries two dates, how many are left and the receipt. They sit
+   on one row and wrap as two groups, so a narrow card never strands the button
+   on a line of its own under a half-empty one. */
+.msa-pkg { display: flex; align-items: baseline; justify-content: space-between;
+           gap: 6px 8px; flex-wrap: wrap }
+.msa-pkg-end { display: flex; align-items: center; gap: 6px; margin-left: auto }
+
 @media (max-width: 640px) {
   /* Six full-width rows cost about 1140px of scrolling before the first
      swimmer. Three columns of icon-and-label cost about 200px. */
@@ -201,6 +208,16 @@ function formatTime(t: string): string {
   const ampm = h >= 12 ? 'PM' : 'AM'
   const h12 = h % 12 || 12
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
+}
+
+// 08/27/2026. Purchase lines put two dates, a count and a button on one row, so
+// they use the numeric form -- "Aug 27, 2026" is half as wide again and is
+// English on a Chinese page.
+function formatDateNum(d: string | Date): string {
+  const date = typeof d === 'string' ? new Date(d) : d
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${mm}/${dd}/${date.getFullYear()}`
 }
 
 function formatDate(d: string): string {
@@ -411,23 +428,26 @@ function CreditCard({ g, remaining, pct, note, bookHref }: {
         <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {g.items.map((item, i) => {
             const itemRemaining = item.credits - item.used
-            const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
-            const expStr = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
+            const dateStr = item.date ? formatDateNum(item.date) : '—'
+            const expStr = item.expiresAt ? formatDateNum(item.expiresAt) : null
             const isExpired = item.expiresAt ? new Date(item.expiresAt).getTime() < Date.now() : false
             return (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ fontSize: '11px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                    {itemRemaining} / {item.credits} left
-                  </div>
+              // Dates, count and receipt on one row. On a phone the card is 86%
+              // of the viewport, so the right-hand pair wraps as a unit rather
+              // than the button landing alone under a half-empty line.
+              <div key={i} className="msa-pkg" style={{ paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div style={{ fontSize: '10px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
+                <div className="msa-pkg-end">
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    {t('credit.nLeft', { n: itemRemaining, total: item.credits })}
+                  </span>
+                  {item.invoiceId && (
+                    <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer" title={t('credit.downloadInvoiceFull')}
+                      style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                      {t('credit.downloadInvoice')}
+                    </a>
+                  )}
                 </div>
-                {item.invoiceId && (
-                  <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap', alignSelf: 'flex-end' }}>
-                    Download Invoice
-                  </a>
-                )}
               </div>
             )
           })}
@@ -528,15 +548,15 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               {expanded[m.id] && (
                 <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {(m.invoices || []).map((iv, i) => {
-                    const dateStr = new Date(iv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                    const expStr = iv.period_end ? new Date(iv.period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
+                    const dateStr = formatDateNum(iv.date)
+                    const expStr = iv.period_end ? formatDateNum(iv.period_end) : null
                     return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingBottom: i < (m.invoices || []).length - 1 ? '8px' : 0, borderBottom: i < (m.invoices || []).length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>{dateStr}{expStr && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px 8px', flexWrap: 'wrap', paddingBottom: i < (m.invoices || []).length - 1 ? '8px' : 0, borderBottom: i < (m.invoices || []).length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · Exp {expStr}</span>}</div>
                         {iv.url && (
-                          <a href={iv.url} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 8px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                            Download Invoice
+                          <a href={iv.url} target="_blank" rel="noopener noreferrer" title={t('credit.downloadInvoiceFull')}
+                            style={{ fontSize: '10px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '2px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                            {t('credit.downloadInvoice')}
                           </a>
                         )}
                       </div>
@@ -2292,7 +2312,7 @@ export default function DashboardPage() {
                   const remaining = g.total - g.used
                   const pct = Math.round((remaining / g.total) * 100)
                   return (
-                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? 'One-time assessment · not a lesson package' : undefined} bookHref={key === '__assessment__' && remaining > 0 ? `/booking?student=${credits.find(c => c.is_trial && c.used_credits < c.total_credits)?.student_id || ''}` : undefined} />
+                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? t('credit.assessmentNote') : undefined} bookHref={key === '__assessment__' && remaining > 0 ? `/booking?student=${credits.find(c => c.is_trial && c.used_credits < c.total_credits)?.student_id || ''}` : undefined} />
                   )
                 })
               })()}
