@@ -1336,34 +1336,44 @@ export default function BookingPage() {
                           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>{t('booking.noHourOptions')}</p>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
                             const enough = hourPaysWithTokens || hourCredits >= (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)
-                            const seats = selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2
-                            const priceLabel = isReschedule ? t('booking.noExtraCharge') : unitBadge(hourPaysWithTokens ? 'token' : 'credit', seats)
+                            const usable = enough && !h.is_current
+                            const w24 = isWithin24Hours(formatDateLA(selectedDate), h.start_time)
                             return (
-                              <button key={h.start_time} disabled={!enough || !!h.is_current}
+                              <button key={h.start_time} disabled={!usable}
                                 onClick={() => {
                                   setSelectedHour({ ...h, ...o })
-                                  setSelectedSlot({ time: h.start_time, label: `${formatTime(h.start_time)} – ${formatTime(h.end_time)}`, available: true, enrolled: 0, max: 1 })
+                                  setSelectedSlot({ time: h.start_time, label: `${formatTime(h.start_time)} – ${formatTime(h.end_time)}`, available: true, enrolled: 0, max: 1, within24h: w24 })
                                 }}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '14px 16px', borderRadius: '10px', textAlign: 'left',
-                                  border: `2px solid ${sel ? GOLD : enough ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}`,
-                                  background: sel ? `${GOLD}20` : 'rgba(255,255,255,0.03)', opacity: h.is_current ? 0.55 : 1, cursor: (enough && !h.is_current) ? 'pointer' : 'not-allowed' }}>
-                                <span>
-                                  {h.is_current && (
-                                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>{t('booking.currentTime')}</span>
+                                style={{
+                                  padding: '12px 8px', borderRadius: '10px', textAlign: 'center',
+                                  border: `2px solid ${sel ? GOLD : usable ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
+                                  background: sel ? `${GOLD}20` : usable ? NAVY : 'rgba(255,255,255,0.03)',
+                                  color: sel ? GOLD : usable ? '#fff' : 'rgba(255,255,255,0.2)',
+                                  fontSize: '13px', fontWeight: 600, cursor: usable ? 'pointer' : 'not-allowed',
+                                }}>
+                                {h.is_current && (
+                                  <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>{t('booking.currentTime')}</div>
                                 )}
-                                <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: sel ? GOLD : enough ? '#fff' : 'rgba(255,255,255,0.3)' }}>
-                                    {formatTime(h.start_time)} – {formatTime(h.end_time)}
-                                  </span>
-                                  <span style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
-                                    {o.relay ? t('booking.relayCoaches', { a: o.coach1_name, b: o.coach2_name }) : t('booking.oneCoach', { name: o.coach1_name })}
-                                  </span>
-                                </span>
-                                <span style={{ fontSize: '11px', fontWeight: 700, color: sel ? GOLD : 'rgba(255,255,255,0.4)' }}>{priceLabel}</span>
+                                {formatTime(h.start_time)}
+                                <div style={{ fontSize: '10px', fontWeight: 600, color: sel ? GOLD : usable ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)', marginTop: '1px' }}>
+                                  – {formatTime(h.end_time)}
+                                </div>
+                                {!willUseToken && !isTrial && usable && w24 && (
+                                  <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
+                                )}
+                                {isReschedule && (
+                                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px', fontWeight: 700 }}>{t('booking.noExtraCharge')}</div>
+                                )}
+                                {o.relay && (
+                                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', marginTop: '2px', lineHeight: 1.3, fontWeight: 500 }}>
+                                    {t('booking.relayCoaches', { a: o.coach1_name, b: o.coach2_name })}
+                                  </div>
+                                )}
                               </button>
                             )
                           })}
