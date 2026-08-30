@@ -578,6 +578,17 @@ export default function BookingPage() {
     kind === 'token' ? (n === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge')
                      : (n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge'), { n })
 
+  // Every "you cannot pay for this" notice offers the same way out, and it
+  // has to land on the course the parent was actually trying to book -- a
+  // link to the top of /plans drops a 1-on-2 family in the 1-on-1 packages.
+  const plansHref = (slug?: string | null) => slug ? `/plans#${slug}` : '/plans'
+  const BuyPlanLink = ({ slug, label }: { slug?: string | null; label: string }) => (
+    <a href={plansHref(slug)}
+      style={{ display: 'inline-block', marginTop: '10px', padding: '9px 18px', borderRadius: '8px', background: GOLD, color: NAVY, fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+      {label}
+    </a>
+  )
+
   const needsAssessment = !!selectedStudent && selectedStudent.current_level == null
 
   // The whole term goes to the server in one call: a mid-way failure there
@@ -1104,7 +1115,7 @@ export default function BookingPage() {
                 borderRadius: '10px', fontSize: '13px', color: '#e05a4a',
               }}>
                 ⚠️ {t('booking.noCreditsWarn')}
-                <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>{t('booking.browsePlans')}</Link>
+                <div><BuyPlanLink slug={selectedCourse?.slug} label={t('booking.browsePlans')} /></div>
               </div>
             )}
 
@@ -1156,7 +1167,7 @@ export default function BookingPage() {
                 {selectedStudent2 && !(selectedStudent2 as any).isPartner && remainingCredits < 2 && tokenRemaining < 2 && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '12px', color: '#e05a4a' }}>
                     ⚠️ {t('booking.needTwoCredits', { n: remainingCredits })}
-                    <Link href="/plans" style={{ color: GOLD, fontWeight: 700 }}>{t('booking.buyPlan')}</Link>
+                    <div><BuyPlanLink slug={selectedCourse?.slug} label={t('booking.buyPlan')} /></div>
                   </div>
                 )}
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
@@ -1338,13 +1349,10 @@ export default function BookingPage() {
                       {!hourLoading && rows.length > 0 && !canAffordHour && (
                         <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
                           <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.hour.short.title')}</div>
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, marginBottom: '12px' }}>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
                             {t('booking.hour.short.body', { course: courseLabel, n: hourCost, left: hourCredits })}
                           </div>
-                          <Link href={`/plans#${selectedCourse?.slug || ''}`}
-                            style={{ display: 'inline-block', padding: '9px 18px', borderRadius: '8px', background: GOLD, color: NAVY, fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
-                            {t('booking.hour.short.cta', { course: courseLabel })}
-                          </Link>
+                          <BuyPlanLink slug={selectedCourse?.slug} label={t('booking.hour.short.cta', { course: courseLabel })} />
                         </div>
                       )}
                       {hourLoading ? (
@@ -1404,7 +1412,7 @@ export default function BookingPage() {
                     <span style={{ fontSize: '16px' }}>🎟️</span>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>{t('booking.tokenWindow.title')}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenWindow.body')}<a href="/plans" style={{ color: '#c9a84c', textDecoration: 'underline', fontWeight: 600 }}>{t('booking.browsePlans')}</a></div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenWindow.body')}<div><BuyPlanLink slug={selectedCourse?.slug} label={t('booking.browsePlans')} /></div></div>
                     </div>
                   </div>
                 )}

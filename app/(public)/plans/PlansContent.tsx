@@ -196,6 +196,27 @@ function PackageCard({ pkg, accentColor }: { pkg: typeof PRIVATE_PACKAGES[0]; ac
 export default function PlansContent() {
   const t = useT()
 
+  // The browser jumps to #1on2 the moment the HTML lands, then the web fonts
+  // and the team-tier fetch change how tall everything above it is, and the
+  // section the parent asked for has moved out from under them -- measured at
+  // ~1700px off. So re-aim a few times while the page settles, and stop the
+  // moment they scroll themselves, so we never fight them for the scrollbar.
+  useEffect(() => {
+    const id = window.location.hash.slice(1)
+    if (!id) return
+    let done = false
+    const stop = () => { done = true }
+    const aim = () => { if (!done) document.getElementById(id)?.scrollIntoView({ block: 'start' }) }
+    const frame = requestAnimationFrame(aim)
+    const timers = [120, 400, 900].map(ms => setTimeout(aim, ms))
+    for (const ev of ['wheel', 'touchmove', 'keydown']) window.addEventListener(ev, stop, { passive: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      timers.forEach(clearTimeout)
+      for (const ev of ['wheel', 'touchmove', 'keydown']) window.removeEventListener(ev, stop)
+    }
+  }, [])
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh' }}>
       <div style={{ background: DARK }}>
