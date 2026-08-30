@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
+import PasswordField from '@/components/ui/PasswordField'
 
 const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
 const DOB_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -435,7 +436,7 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.password')} <span className="text-red-400">*</span></label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              <PasswordField value={password} onChange={setPassword} autoComplete="new-password"
                 className="w-full bg-[#0d1529] border border-[#1e3a6e] text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] rounded-lg px-3 py-2.5 text-sm" />
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}

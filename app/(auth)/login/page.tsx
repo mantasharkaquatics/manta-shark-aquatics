@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
+import PasswordField from '@/components/ui/PasswordField'
 
 // There is no Navbar over the (auth) pages, so this card is the whole of the
 // brand a parent sees while signing in -- hence the logo. It used to be the
@@ -67,11 +68,8 @@ export default function LoginPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('login.password')}</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              autoComplete="current-password"
-              className={field}
-              placeholder="••••••••" />
+            <PasswordField value={password} onChange={setPassword} onEnter={handleLogin}
+              autoComplete="current-password" className={field} placeholder="••••••••" />
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <button onClick={handleLogin} disabled={loading}
