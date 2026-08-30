@@ -60,7 +60,14 @@ export default function Footer() {
               {t('footer.location')}<br />
               {t('footer.hours')}
             </p>
-            <div style={{ marginTop: '14px' }}>
+            {/* The last column is the staff corner: the people who work here and
+                the people who want to. /careers had no link from anywhere on the
+                site -- it could only be reached by being handed the URL, which is
+                a poor return on a page written to be found in search. It sits
+                above the coach login and is a shade brighter, because one of
+                these is a thing we want strangers to click. */}
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <Link href="/careers" style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(201,168,76,0.85)', textDecoration: 'none' }}>{t('footer.careers')} →</Link>
               <Link href="/coach-login" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>{t('footer.coachLogin')} →</Link>
             </div>
           </div>

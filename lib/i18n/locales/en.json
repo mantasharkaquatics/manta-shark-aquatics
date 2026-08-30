@@ -479,6 +479,7 @@
   "err.trialUsed": "This student has already used their Swim Assessment.",
   "err.unauthorized": "Unauthorized",
   "err.userExists": "An account with this email already exists. Please log in instead.",
+  "footer.careers": "Work with us",
   "footer.coachLogin": "Coach Login",
   "footer.contact": "Contact",
   "footer.copyright": "© {year} Manta Shark Aquatics. All rights reserved.",

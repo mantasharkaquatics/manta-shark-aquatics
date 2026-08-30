@@ -479,6 +479,7 @@
   "err.trialUsed": "这位学员已经使用过游泳评估。",
   "err.unauthorized": "没有权限",
   "err.userExists": "这个电子邮件已经有账号了，请直接登录。",
+  "footer.careers": "加入我们 · 招募教练",
   "footer.coachLogin": "教练登录",
   "footer.contact": "联系我们",
   "footer.copyright": "© {year} Manta Shark Aquatics. 版权所有。",
