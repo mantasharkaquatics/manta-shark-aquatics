@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
     <main style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px', color: '#333', lineHeight: 1.7, fontSize: 15 }}>
       <p style={{ color: GOLD, fontWeight: 700, letterSpacing: 2, fontSize: 12, textTransform: 'uppercase' }}>Manta Shark Aquatics</p>
       <h1 style={{ fontSize: 32, fontWeight: 800, color: NAVY, margin: '4px 0 4px' }}>Privacy Policy</h1>
-      <p style={{ color: '#888', fontSize: 13 }}>Last Updated: July 4, 2026</p>
+      <p style={{ color: '#888', fontSize: 13 }}>Last Updated: August 30, 2026</p>
 
       <p style={{ marginTop: 24 }}>
         Manta Shark Aquatics (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) values your privacy. This Privacy Policy explains how we
@@ -95,7 +95,43 @@ export default function PrivacyPolicyPage() {
         <li>Withdraw consent to communications at any time (unsubscribe link in emails; reply STOP to SMS).</li>
       </ul>
 
-      <H2>California Privacy Rights &amp; Do Not Track</H2>
+      <H2>7. Cookies and Similar Technologies</H2>
+      <p>
+        We use only the cookies and browser storage needed to make the site work. We do not use
+        advertising cookies, analytics cookies, or any third-party tracking pixels, and nothing on
+        this site follows you to other websites. Because we set no non-essential cookies, we do not
+        show a cookie consent banner.
+      </p>
+      <ul>
+        <li>
+          <strong>Sign-in session (required).</strong> When you log in, our authentication provider
+          (Supabase) sets a session cookie so you stay signed in as you move between pages. Signing
+          out clears it.
+        </li>
+        <li>
+          <strong>Language preference.</strong> A small cookie remembers whether you chose English,
+          Traditional Chinese, or Simplified Chinese, so the site opens in that language next time.
+        </li>
+        <li>
+          <strong>Chat window state.</strong> Your browser remembers whether the chat window was
+          open, for the current browser tab only. It is discarded when you close the tab.
+        </li>
+        <li>
+          <strong>Payments.</strong> Card payments are completed on Stripe&apos;s own secure pages.
+          Stripe sets its own cookies there for fraud prevention, under Stripe&apos;s privacy policy.
+        </li>
+      </ul>
+      <p>
+        Our pages load typefaces from Google Fonts. Google Fonts does not set cookies, but serving
+        the fonts means your browser contacts Google&apos;s servers, which receives your IP address
+        and browser type as part of that request.
+      </p>
+      <p>
+        You can block or delete cookies in your browser settings. Blocking the sign-in cookie will
+        prevent you from logging in to your account; the others only affect convenience.
+      </p>
+
+      <H2>8. California Privacy Rights &amp; Do Not Track</H2>
       <p>
         California residents may request access to, or deletion of, the personal information we
         hold about them by contacting us at info@mantasharkaquatics.net. We do not sell personal
@@ -103,13 +139,13 @@ export default function PrivacyPolicyPage() {
         industry standard currently exists; we do not track visitors across third-party websites.
       </p>
 
-      <H2>7. Changes to This Policy</H2>
+      <H2>9. Changes to This Policy</H2>
       <p>
         We may update this policy to reflect legal or service changes. Significant updates will be
         communicated by email or a website notice.
       </p>
 
-      <H2>8. Contact Us</H2>
+      <H2>10. Contact Us</H2>
       <p>
         Manta Shark Aquatics<br />
         Email: info@mantasharkaquatics.net<br />
