@@ -234,7 +234,7 @@ export default function PlansContent() {
       </div>
 
       {/* 1-ON-1 */}
-      <section style={{ padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
+      <section id="1on1" style={{ scrollMarginTop: '90px', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <SectionEyebrow>{t('plans.private.eyebrow')}</SectionEyebrow>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>{t('plans.private.title')}</h2>
@@ -258,7 +258,7 @@ export default function PlansContent() {
       </div>
 
       {/* 1-ON-2 */}
-      <section style={{ background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
+      <section id="1on2" style={{ scrollMarginTop: '90px', background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <SectionEyebrow dark>{t('plans.semi.eyebrow')}</SectionEyebrow>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>{t('plans.semi.title')}</h2>
@@ -279,7 +279,7 @@ export default function PlansContent() {
       </div>
 
       {/* GROUP + SWIM TEAM */}
-      <section style={{ background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
+      <section id="1on4" style={{ scrollMarginTop: '90px', background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '28px' }}>
             <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px' }}>

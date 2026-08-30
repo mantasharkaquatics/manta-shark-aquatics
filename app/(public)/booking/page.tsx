@@ -1320,15 +1320,33 @@ export default function BookingPage() {
                     .map((h: any) => ({ ...h, opts: (h.options || []).filter((o: any) => o.coach1_id === selectedCoach?.id) }))
                     .filter((h: any) => h.opts.length > 0)
                     .map((h: any) => ({ ...h, pick: h.opts.find((o: any) => !o.relay) || h.opts[0] }))
+                  // What an hour costs this family, and whether they can pay it
+                  // at all. When they cannot, every card below is dead; saying
+                  // so and offering the way out beats a wall of grey buttons.
+                  const hourCost = selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2
+                  const canAffordHour = hourPaysWithTokens || hourCredits >= hourCost
+                  const courseLabel = selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : ''
                   return (
                     <div style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px' }}>
                         {hourPaysWithTokens
                           ? t('booking.hour.tokens', { n: hourTokens })
                           : willUseToken && hourTokens === 1
-                            ? t('booking.hour.creditsSingleToken', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2, left: hourCredits })
-                            : t('booking.hour.credits', { n: selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2, left: hourCredits })}
+                            ? t('booking.hour.creditsSingleToken', { n: hourCost, left: hourCredits })
+                            : t('booking.hour.credits', { n: hourCost, left: hourCredits })}
                       </div>
+                      {!hourLoading && rows.length > 0 && !canAffordHour && (
+                        <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.hour.short.title')}</div>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, marginBottom: '12px' }}>
+                            {t('booking.hour.short.body', { course: courseLabel, n: hourCost, left: hourCredits })}
+                          </div>
+                          <Link href={`/plans#${selectedCourse?.slug || ''}`}
+                            style={{ display: 'inline-block', padding: '9px 18px', borderRadius: '8px', background: GOLD, color: NAVY, fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+                            {t('booking.hour.short.cta', { course: courseLabel })}
+                          </Link>
+                        </div>
+                      )}
                       {hourLoading ? (
                         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.hourLoading')}</p>
                       ) : rows.length === 0 ? (
@@ -1340,8 +1358,7 @@ export default function BookingPage() {
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
-                            const enough = hourPaysWithTokens || hourCredits >= (selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2)
-                            const usable = enough && !h.is_current
+                            const usable = canAffordHour && !h.is_current
                             const w24 = isWithin24Hours(formatDateLA(selectedDate), h.start_time)
                             return (
                               <button key={h.start_time} disabled={!usable}
