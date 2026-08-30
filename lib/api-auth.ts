@@ -46,12 +46,17 @@ export async function requireParent() {
   return { user, parent, svc }
 }
 
+// is_active is the off-boarding switch. The PIN login has always honoured it,
+// but that only stops a NEW sign-in: a coach who left with a live session, or
+// who knows the password on their auth user, kept every coach route. Checking
+// it here revokes on the next request instead of whenever the session expires.
 export async function requireCoach() {
   const user = await getAuthUser()
   if (!user) return null
   const svc = serviceClient()
   const { data: coach } = await svc
-    .from('coaches').select('id, first_name').eq('auth_user_id', user.id).single()
+    .from('coaches').select('id, first_name').eq('auth_user_id', user.id)
+    .eq('is_active', true).single()
   if (!coach) return null
   return { user, coach, svc }
 }
@@ -62,7 +67,8 @@ export async function requireStaff() {
   const svc = serviceClient()
   const { data: admin } = await svc.from('admins').select('id').eq('auth_user_id', user.id).single()
   if (admin) return { user, role: 'admin' as const, svc }
-  const { data: coach } = await svc.from('coaches').select('id').eq('auth_user_id', user.id).single()
+  const { data: coach } = await svc.from('coaches').select('id').eq('auth_user_id', user.id)
+    .eq('is_active', true).single()
   if (coach) return { user, role: 'coach' as const, svc }
   return null
 }

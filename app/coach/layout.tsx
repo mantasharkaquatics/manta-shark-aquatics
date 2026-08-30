@@ -14,7 +14,10 @@ export default async function CoachLayout({ children }: { children: React.ReactN
   )
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: coach } = await supabase.from('coaches').select('id, first_name, last_name').eq('auth_user_id', user.id).single()
+  // Same off-boarding gate as the API routes: an inactive coach is sent away
+  // from the portal, not just refused by the endpoints behind it.
+  const { data: coach } = await supabase.from('coaches').select('id, first_name, last_name')
+    .eq('auth_user_id', user.id).eq('is_active', true).single()
   if (!coach) redirect('/dashboard')
 
   return (

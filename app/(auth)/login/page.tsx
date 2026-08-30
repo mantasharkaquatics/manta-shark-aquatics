@@ -38,7 +38,7 @@ export default function LoginPage() {
       if (user) {
         const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
         if (admin) { router.push('/admin'); return }
-        const { data: coach } = await supabase.from('coaches').select('id').eq('auth_user_id', user.id).single()
+        const { data: coach } = await supabase.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).single()
         if (coach) { router.push('/coach'); return }
         await supabase.from('parents').update({ last_login_at: new Date().toISOString() }).eq('auth_user_id', user.id)
         router.push('/dashboard')
