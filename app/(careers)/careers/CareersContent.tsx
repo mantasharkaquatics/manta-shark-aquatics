@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 const GOLD = '#c9a84c'
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -56,22 +58,42 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const P: React.CSSProperties = { fontSize: '16px', lineHeight: 1.85, color: 'rgba(255,255,255,0.72)', margin: '0 0 14px' }
 const UL: React.CSSProperties = { margin: 0, padding: '0 0 0 22px', color: 'rgba(255,255,255,0.72)', fontSize: '15px', lineHeight: 2 }
 
-export default function CareersContent() {
+// Two states, one page. Closed keeps every word that is still true -- the pay
+// band, the backgrounds we hire from, what the work is -- and replaces only the
+// sentences that would be a lie: that we are hiring, and that applying now
+// leads to a job. The application form itself still works either way, so a
+// strong swimmer who lands here in a quiet month is not turned away empty.
+export default function CareersContent({ open = true }: { open?: boolean }) {
+  const copy = open ? {
+    eyebrow: 'NOW HIRING',
+    intro: 'Manta Shark Aquatics is hiring swim coaches. If you are a strong swimmer who enjoys working with children, you do not need a teaching certification to start. We train you, and the training is paid.',
+    heroCta: 'Apply now',
+    applyTitle: 'Ready to apply?',
+    applyBody: 'Tell us about your swimming background and your availability. We read every application.',
+    applyCta: 'Apply now',
+    applyNote: 'We also accept applications for lifeguard and front desk roles.',
+  } : {
+    eyebrow: 'FUTURE OPENINGS',
+    intro: 'We do not have an opening right now. We hire in waves as new lesson times open up, and when we do we start with the people who have already told us about themselves. If you are a strong swimmer who enjoys working with children, leave us your details.',
+    heroCta: 'Tell us about yourself',
+    applyTitle: 'No openings right now',
+    applyBody: 'Tell us about your swimming background and your availability. We keep every application and come back to it when a position opens.',
+    applyCta: 'Tell us about yourself',
+    applyNote: 'This covers coaching, lifeguard and front desk roles.',
+  }
   return (
     <main style={{ background: DARK, color: '#fff' }}>
 
       <section style={{ maxWidth: '860px', margin: '0 auto', padding: '72px 24px 36px' }}>
-        <div style={{ fontSize: '12px', letterSpacing: '2px', color: GOLD, marginBottom: '16px' }}>NOW HIRING</div>
+        <div style={{ fontSize: '12px', letterSpacing: '2px', color: GOLD, marginBottom: '16px' }}>{copy.eyebrow}</div>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '42px', lineHeight: 1.15, margin: '0 0 20px' }}>
           Swim instructor jobs in California
         </h1>
         <p style={{ fontSize: '18px', lineHeight: 1.7, color: 'rgba(255,255,255,0.75)', maxWidth: '640px', margin: '0 0 28px' }}>
-          Manta Shark Aquatics is hiring swim coaches. If you are a strong swimmer who enjoys
-          working with children, you do not need a teaching certification to start. We train you,
-          and the training is paid.
+          {copy.intro}
         </p>
         <a href="#apply" style={{ display: 'inline-block', background: GOLD, color: DARK, fontSize: '15px', fontWeight: 700, padding: '13px 30px', borderRadius: '10px', textDecoration: 'none' }}>
-          Apply now
+          {copy.heroCta}
         </a>
       </section>
 
@@ -174,16 +196,16 @@ export default function CareersContent() {
       </Section>
 
       <section id="apply" style={{ background: NAVY, padding: '56px 24px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '26px', fontWeight: 700, margin: '0 0 10px' }}>Ready to apply?</h2>
+        <h2 style={{ fontSize: '26px', fontWeight: 700, margin: '0 0 10px' }}>{copy.applyTitle}</h2>
         <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', margin: '0 0 24px', maxWidth: '520px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.7 }}>
-          Tell us about your swimming background and your availability. We read every application.
+          {copy.applyBody}
         </p>
-        <a href="/careers/register"
+        <Link href="/careers/register"
           style={{ display: 'inline-block', background: GOLD, color: DARK, fontSize: '15px', fontWeight: 700, padding: '13px 30px', borderRadius: '10px', textDecoration: 'none' }}>
-          Apply now
-        </a>
+          {copy.applyCta}
+        </Link>
         <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: '22px 0 0' }}>
-          We also accept applications for lifeguard and front desk roles.
+          {copy.applyNote}
         </p>
       </section>
 
