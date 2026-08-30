@@ -53,7 +53,7 @@ export default function LoginPage() {
       <div className="bg-[#111d38] rounded-2xl border border-[#1e3a6e] p-7 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="mx-auto mb-3 rounded-full object-cover" />
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={88} height={88} className="mx-auto mb-4 rounded-full object-cover" priority />
           </Link>
           <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Manta Shark Aquatics</h1>
           <p className="text-gray-400 mt-2 text-sm">{t('login.subtitle')}</p>

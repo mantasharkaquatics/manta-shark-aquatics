@@ -287,7 +287,7 @@ export default function RegisterPage() {
       <div className="bg-[#111d38] rounded-2xl border border-[#1e3a6e] w-full max-w-lg p-6 sm:p-8">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={56} height={56} className="mx-auto mb-3 rounded-full object-cover" />
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72} className="mx-auto mb-4 rounded-full object-cover" priority />
           </Link>
           <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('register.title')}</h1>
           <p className="text-sm text-gray-400 mt-1">{t('register.step', { n: step })}</p>
