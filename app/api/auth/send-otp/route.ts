@@ -3,6 +3,7 @@ import { randomInt } from 'crypto'
 import { serviceClient } from '@/lib/api-auth'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { readJson, badRequest } from '@/lib/http'
+import { phoneHasAccount } from '@/lib/account-exists'
 
 export const runtime = 'nodejs'
 
@@ -27,16 +28,12 @@ export async function POST(req: NextRequest) {
   const supabase = serviceClient()
 
   if (context === 'register') {
-    const last10 = normalizedPhone.replace(/\D/g, '').slice(-10)
-    const { data: existing, error: lookupError } = await supabase
-      .from('parents')
-      .select('id')
-      .like('phone', `%${last10}`)
-      .limit(1)
-    if (lookupError) {
+    // Same reasoning as the email check: a coach's number is already on file.
+    const taken = await phoneHasAccount(supabase, normalizedPhone)
+    if (taken === null) {
       return NextResponse.json({ error: 'Failed to verify phone number. Please try again.' }, { status: 500 })
     }
-    if (existing && existing.length > 0) {
+    if (taken) {
       return NextResponse.json({ error: 'This phone number is already registered. Please log in instead.' }, { status: 409 })
     }
   }

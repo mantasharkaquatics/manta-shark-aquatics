@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { readJson, badRequest } from '@/lib/http'
+import { emailHasAccount } from '@/lib/account-exists'
 
 export const runtime = 'nodejs'
 
@@ -20,15 +21,13 @@ export async function POST(req: NextRequest) {
   )
 
   if (context === 'register') {
-    const { data: existing, error: lookupError } = await supabase
-      .from('parents')
-      .select('id')
-      .ilike('email', normalizedEmail)
-      .limit(1)
-    if (lookupError) {
+    // Coaches and admins have logins too. Catching them here means the refusal
+    // lands on the email field, not on the final submit.
+    const taken = await emailHasAccount(supabase, normalizedEmail)
+    if (taken === null) {
       return NextResponse.json({ error: 'Failed to verify email. Please try again.' }, { status: 500 })
     }
-    if (existing && existing.length > 0) {
+    if (taken) {
       return NextResponse.json({ error: 'This email is already registered. Please log in instead.' }, { status: 409 })
     }
   }
