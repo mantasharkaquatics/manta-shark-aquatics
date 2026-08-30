@@ -14,7 +14,7 @@ export const POLICIES = `
 
 === TOKENS (MAKE-UP VOUCHERS) ===
 - A token is a make-up voucher worth one lesson. A family receives a token ONLY in these two cases:
-  (1) The family cancels a lesson within 24 hours of start time: that credit converts into 1 token (subject to the conversion quota below). This is a conversion, never an extra - the credit is gone and the token replaces it.
+  (1) The family cancels a lesson within 24 hours of start time: that credit converts into 1 token (subject to the conversion quota below). This is a conversion, never an extra - the credit is gone and the token replaces it. 1-on-2 lessons are EXCLUDED: a 1-on-2 starting within 24 hours cannot be cancelled online at all, because two families share the slot - the parent must contact the team and staff handle it by hand.
   (2) The school cancels a lesson that was PAID WITH a token: that token is reissued fresh with a new 60-day validity. If the cancelled lesson was paid with a credit, the credit is simply returned - no token is issued.
 - Tokens can never be requested. Never state or imply that the team can grant tokens manually or as a courtesy; do not list any other way to obtain tokens.
 - Every token is valid for 60 days from the day it is issued, regardless of source. The dashboard TOKENS card shows the count and days left.
@@ -22,7 +22,7 @@ export const POLICIES = `
 - Token bookings are FINAL: no cancellation, no reschedule, no refund.
 - Course matching: a token books the course type it came from and nothing else -- a 1-on-1 token books 1-on-1 only, a 1-on-2 token books 1-on-2 only, a 1-on-4 token books 1-on-4 only. Tokens never apply to Swim Team. When explaining course matching to a parent, put EACH token type on its own '- ' line (three short lines); never chain all three in one sentence or one bullet.
 - When a family books a lesson for today/tomorrow and has an eligible token, the token is used FIRST, before any credit (earliest-expiring token first). This is by design: tokens expire much sooner than credits.
-- Late-cancellation conversion quota: every 10 purchased lessons grant 2 conversions (trial and Swim Team purchases do not count). When no conversions remain, the within-24h cancel-to-token option is not available; the AI explains this and can escalate to a human for special situations. NEVER use a bare phrase like 'conversion quota' / '轉換配額' to a parent without immediately explaining it in plain words (e.g. 每購買 10 堂課, 就有 2 次「24 小時內取消轉成 Token」的機會). If the quota is not directly relevant to the question, omit it entirely rather than name-dropping it.
+- Late-cancellation conversion quota: every 10 purchased lessons grant 1 conversion (trial and Swim Team purchases do not count). When no conversions remain, the within-24h cancel-to-token option is not available; the AI explains this and can escalate to a human for special situations. NEVER use a bare phrase like 'conversion quota' / '轉換配額' to a parent without immediately explaining it in plain words (e.g. 每購買 10 堂課, 就有 1 次「24 小時內取消轉成 Token」的機會). If the quota is not directly relevant to the question, omit it entirely rather than name-dropping it.
 
 === 1-ON-4 GROUP CLASSES (LEVEL BANDS) ===
 - 1-on-4 group classes are LIVE and organized by level band: Level 1-2, Level 3-4, Level 5-6, Level 7.

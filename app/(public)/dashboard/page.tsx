@@ -1302,6 +1302,17 @@ export default function DashboardPage() {
     </div>
   )
 
+  // Why a lesson inside 24 hours can't be cancelled online. Silence here reads
+  // as a bug -- the button greys out with nothing to explain it -- so the
+  // greyed control becomes a "contact us" button carrying the real reason.
+  const lateLockHelp = (b: { course_slug?: string | null; partner_booking_id?: string | null }) =>
+    (b.course_slug === '1on2' || b.partner_booking_id) ? t('dash.up.cancelPairHelp') : t('dash.up.cancelLockedHelp')
+  const openChatOr = (msg: string) => {
+    const toggle = document.querySelector('[data-chat-toggle]') as HTMLElement | null
+    if (toggle) toggle.click()
+    else setNotice(msg)
+  }
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
       {/* QR Modal */}
@@ -2047,6 +2058,13 @@ export default function DashboardPage() {
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {cancellingId === m.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
                                       </button>
+                                    ) : late ? (
+                                      <button
+                                        onClick={() => openChatOr(lateLockHelp(m))}
+                                        title={lateLockHelp(m)}
+                                        style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: 'rgba(255,255,255,0.55)', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                                        {t('dash.up.cancelLocked')}
+                                      </button>
                                     ) : (
                                       <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.2)', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>{t('dash.up.cancel')}</div>
                                     )}
@@ -2249,9 +2267,16 @@ export default function DashboardPage() {
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {cancellingId === booking.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
                               </button>
+                            ) : late ? (
+                              <button
+                                onClick={() => openChatOr(lateLockHelp(booking))}
+                                title={lateLockHelp(booking)}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: 'rgba(255,255,255,0.55)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                {t('dash.up.cancelLocked')}
+                              </button>
                             ) : (
                               <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
-                                Cancel
+                                {t('dash.up.cancel')}
                               </div>
                             )
                           })()}

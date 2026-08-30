@@ -49,7 +49,12 @@ export function isWithinTokenWindow(session_date: string, start_time: string): b
 }
 
 // --- Cancellation-to-token quota (fully derived, no counter columns) ---
-// Total = floor(purchased lessons / 10) * 2, excluding trials and Swim Team.
+// Total = floor(purchased lessons / 10), excluding trials and Swim Team:
+// every 10 lessons bought earns ONE within-24h cancel-to-token conversion.
+// (Was 2 per 10 until 2026-08-30; the owner halved it. If you change the
+// number, change docs/token-system-spec.md, lib/ai/policies.ts and the
+// User Agreement section 4 in the same commit -- parents are told this
+// number in all four places.)
 // Used = count of token_packages with source='cancellation'.
 export const TEAM_SLUG = 'team'
 
@@ -70,7 +75,7 @@ export async function getCancellationQuota(
     .filter(c => !c.is_trial && c.course_type_id !== teamId)
     .reduce((sum, c) => sum + (c.total_credits ?? 0), 0)
 
-  const total = Math.floor(purchased / 10) * 2
+  const total = Math.floor(purchased / 10)
 
   const { count } = await svc
     .from('token_packages')

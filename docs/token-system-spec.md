@@ -34,7 +34,8 @@ token 存「原課種」,cron/取消不改寫;可訂資格由共用 eligibility 
 - 跨家庭 1對2 被對方取消:被連帶取消的那一方適用同一條(credit 退原 credit;token 發新的 school_cancellation token)。不是自己取消的,不該連效期一起賠進去
 
 ## 取消轉換配額(全動態推導,零計數欄位)
-- 總額度 = floor(累計購買堂數 ÷ 10) × 2;購買堂數 = lesson_credits 加總 total_credits,排除 is_trial 與 Swim Team
+- 總額度 = floor(累計購買堂數 ÷ 10);購買堂數 = lesson_credits 加總 total_credits,排除 is_trial 與 Swim Team
+  (2026-08-30 由 ×2 改為 ×1。改這個數字時,lib/tokens.ts、lib/ai/policies.ts 與 User Agreement 第 4 條要同一次一起改)
 - 已用 = count(token_packages where source='cancellation');剩餘 = 總額度 − 已用,取消當下即時算
 - 終身累計制,不重置、不隨過期回收;cron 過期轉換與 admin 代客取消皆不耗
 
