@@ -2,11 +2,16 @@
 import TestimonialCarousel from './TestimonialCarousel'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { localePath } from '@/lib/i18n/paths'
 import { SITE_STATS } from '@/lib/site-config'
 
 export default function HomeContent() {
   const t = useT()
+  // Both plan buttons pointed at the bare /plans, so a visitor reading the
+  // page in Chinese was dropped onto the English one. The navbar has always
+  // prefixed its links; these two never did.
+  const locale = useLocale()
 
   return (
     <>
@@ -127,7 +132,7 @@ export default function HomeContent() {
             ))}
           </div>
           <div style={{ textAlign: 'center', marginTop: '40px' }}>
-            <Link href="/services" style={{ display: 'inline-block', padding: '12px 32px', border: '1px solid #111d38', borderRadius: '10px', color: '#111d38', fontWeight: 600, fontSize: '14px', textDecoration: 'none' }}>{t('home.programs.viewAll')}</Link>
+            <Link href={localePath('/plans', locale)} style={{ display: 'inline-block', padding: '12px 32px', border: '1px solid #111d38', borderRadius: '10px', color: '#111d38', fontWeight: 600, fontSize: '14px', textDecoration: 'none' }}>{t('home.programs.viewAll')}</Link>
           </div>
         </div>
       </section>
@@ -195,7 +200,7 @@ export default function HomeContent() {
         <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '32px' }}>{t('home.cta.subtitle')}</p>
         <div className="cta-btns" style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
           <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, textDecoration: 'none', fontSize: '15px' }}>{t('home.cta.createAccount')}</Link>
-          <Link href="/plans" style={{ background: 'transparent', color: 'white', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)', textDecoration: 'none', fontSize: '15px' }}>{t('home.cta.viewPlans')}</Link>
+          <Link href={localePath('/plans', locale)} style={{ background: 'transparent', color: 'white', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)', textDecoration: 'none', fontSize: '15px' }}>{t('home.cta.viewPlans')}</Link>
         </div>
       </section>
 

@@ -5,7 +5,7 @@ import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
 
 // Only the two Chinese locales get a URL segment. English keeps the bare paths
-// (/services, /plans, ...) so every existing link stays valid.
+// (/plans, /levels, ...) so every existing link stays valid.
 //
 // This tree deliberately does NOT sit inside (public): its layout has to wrap
 // Navbar and Footer in the locale-aware provider, and (public)/layout.tsx has

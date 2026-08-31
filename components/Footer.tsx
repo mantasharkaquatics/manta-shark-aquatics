@@ -5,7 +5,6 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 
 const LINKS = [
-  { labelKey: 'page.services', href: '/services' },
   { labelKey: 'page.levels', href: '/levels' },
   { labelKey: 'page.plans', href: '/plans' },
   { labelKey: 'page.about', href: '/about' },
