@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
+import { PLANS as PLANS_SRC, planCard } from '@/lib/plans'
 import Link from 'next/link'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
@@ -12,17 +13,21 @@ const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 
-const PLANS: Record<string, { name: string; slug: string; sessions: number; total: number; perSession: number; courseSlug: string; badge?: string; validityMonths: number }> = {
-  '1on1-10':  { name: '1-on-1 Private',      sessions: 10, total: 650,  perSession: 65,    courseSlug: '1on1', slug: 'private', validityMonths: 4 },
-  '1on1-20':  { name: '1-on-1 Private',      sessions: 20, total: 1260, perSession: 63,    courseSlug: '1on1', slug: 'private', validityMonths: 8 },
-  '1on1-30':  { name: '1-on-1 Private',      sessions: 30, total: 1850, perSession: 61.67, courseSlug: '1on1', slug: 'private', badge: 'popular', validityMonths: 12 },
-  '1on1-50':  { name: '1-on-1 Private',      sessions: 50, total: 3000, perSession: 60,    courseSlug: '1on1', slug: 'private', badge: 'best', validityMonths: 18 },
-  '1on2-10':  { name: '1-on-2 Semi-Private', sessions: 10, total: 1050, perSession: 105,   courseSlug: '1on2', slug: 'semi', validityMonths: 4 },
-  '1on2-20':  { name: '1-on-2 Semi-Private', sessions: 20, total: 2000, perSession: 100,   courseSlug: '1on2', slug: 'semi', validityMonths: 8 },
-  '1on2-30':  { name: '1-on-2 Semi-Private', sessions: 30, total: 2850, perSession: 95,    courseSlug: '1on2', slug: 'semi', badge: 'popular', validityMonths: 12 },
-  '1on2-50':  { name: '1-on-2 Semi-Private', sessions: 50, total: 4500, perSession: 90,    courseSlug: '1on2', slug: 'semi', badge: 'best', validityMonths: 18 },
-  '1on4-10':  { name: '1-on-4 Group',        sessions: 10, total: 400,  perSession: 40,    courseSlug: '1on4', slug: 'group', validityMonths: 4 },
-  '1on4-20':  { name: '1-on-4 Group',        sessions: 20, total: 760,  perSession: 38,    courseSlug: '1on4', slug: 'group', validityMonths: 8 },
+// The figures the parent agrees to here come from the same table Stripe
+// charges from, so the confirmation screen and the card can never disagree.
+// The display name and colour grouping are the only things that are this
+// page's own business.
+const COURSE_LABEL: Record<string, { name: string; slug: string }> = {
+  '1on1': { name: '1-on-1 Private', slug: 'private' },
+  '1on2': { name: '1-on-2 Semi-Private', slug: 'semi' },
+  '1on4': { name: '1-on-4 Group', slug: 'group' },
+}
+
+function planFor(id: string) {
+  const p = PLANS_SRC[id]
+  if (!p || id === 'team') return null
+  const label = COURSE_LABEL[p.courseSlug]
+  return { ...planCard(id), name: label?.name ?? p.name, slug: label?.slug ?? p.courseSlug, courseSlug: p.courseSlug }
 }
 
 function CheckoutContent() {
@@ -32,7 +37,7 @@ function CheckoutContent() {
   const supabase = createClient()
 
   const planId = searchParams.get('plan') || ''
-  const plan = PLANS[planId]
+  const plan = planFor(planId)
   const isTeam = planId === 'team'
 
   const [loading, setLoading] = useState(true)
@@ -143,7 +148,7 @@ function CheckoutContent() {
         )}
 
         {/* Plan Summary */}
-        {!isTeam && (
+        {!isTeam && plan && (
         <div style={{ background: NAVY, borderRadius: '16px', border: `1px solid ${GOLD}40`, padding: '24px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
@@ -242,7 +247,7 @@ function CheckoutContent() {
             transition: 'all 0.15s', marginBottom: '12px',
           }}
         >
-          {paying ? t('checkout.redirecting') : isTeam ? t('checkout.subscribe', { price: (teamPrice ? '$' + (teamPrice.cents / 100).toLocaleString() : '') }) : t('checkout.proceed', { price: '$' + plan.total.toLocaleString() })}
+          {paying ? t('checkout.redirecting') : isTeam ? t('checkout.subscribe', { price: (teamPrice ? '$' + (teamPrice.cents / 100).toLocaleString() : '') }) : t('checkout.proceed', { price: '$' + (plan?.total ?? 0).toLocaleString() })}
         </button>
         )}
 

@@ -6,25 +6,15 @@ import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { tierBandLabel } from '@/lib/team-tiers'
+import { planCards, type PlanCard } from '@/lib/plans'
 
-const PRIVATE_PACKAGES = [
-  { id: '1on1-10', sessions: 10, total: 650,  perSession: 65,    savings: null, badge: null,      validityMonths: 4 },
-  { id: '1on1-20', sessions: 20, total: 1260, perSession: 63,    savings: 40,   badge: null,      validityMonths: 8 },
-  { id: '1on1-30', sessions: 30, total: 1850, perSession: 61.67, savings: 100,  badge: 'popular', validityMonths: 12 },
-  { id: '1on1-50', sessions: 50, total: 3000, perSession: 60,    savings: 250,  badge: 'best',    validityMonths: 18 },
-]
-
-const SEMI_PACKAGES = [
-  { id: '1on2-10', sessions: 10, total: 1050, perSession: 105, savings: null, badge: null,      validityMonths: 4 },
-  { id: '1on2-20', sessions: 20, total: 2000, perSession: 100, savings: 100,  badge: null,      validityMonths: 8 },
-  { id: '1on2-30', sessions: 30, total: 2850, perSession: 95,  savings: 300,  badge: 'popular', validityMonths: 12 },
-  { id: '1on2-50', sessions: 50, total: 4500, perSession: 90,  savings: 750,  badge: 'best',    validityMonths: 18 },
-]
-
-const GROUP_OPTIONS = [
-  { id: '1on4-10', sessions: 10, price: 400, perSession: 40, savings: null, validityMonths: 4 },
-  { id: '1on4-20', sessions: 20, price: 760, perSession: 38, savings: 40, validityMonths: 8 },
-]
+// Every figure on these cards is derived from lib/plans.ts -- the same table
+// the checkout screen quotes and Stripe charges from. They used to be typed
+// out here as well, which is how the old services page came to advertise a
+// different "most popular" package than this one.
+const PRIVATE_PACKAGES = planCards('1on1')
+const SEMI_PACKAGES = planCards('1on2')
+const GROUP_OPTIONS = planCards('1on4')
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -127,7 +117,7 @@ function GetStartedButton({ accentColor, isFeatured, labelKey = 'plans.btn.getSt
   )
 }
 
-function PackageCard({ pkg, accentColor }: { pkg: typeof PRIVATE_PACKAGES[0]; accentColor: string }) {
+function PackageCard({ pkg, accentColor }: { pkg: PlanCard; accentColor: string }) {
   const t = useT()
   const isFeatured = !!pkg.badge
   const [hovered, setHovered] = useState(false)
@@ -319,7 +309,7 @@ export default function PlansContent() {
                         <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{t('plans.group.perSessionValidity', { price: opt.perSession, n: opt.validityMonths })}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: '#4caf72', lineHeight: 1 }}>${opt.price}</div>
+                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: '#4caf72', lineHeight: 1 }}>${opt.total.toLocaleString()}</div>
                         <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{t('plans.pkg.total')}</div>
                         {opt.savings ? <div style={{ fontSize: '11px', fontWeight: 600, color: '#3a9a5c', marginTop: '2px' }}>{t('plans.pkg.save', { amount: opt.savings })}</div> : null}
                       </div>
