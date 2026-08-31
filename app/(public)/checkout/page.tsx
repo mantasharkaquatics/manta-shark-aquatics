@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
+import Link from 'next/link'
+import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
@@ -41,6 +43,10 @@ function CheckoutContent() {
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [teamPrice, setTeamPrice] = useState<{ cents: number; varies: boolean } | null>(null)
 
+  // Swim Team already refuses an unassessed swimmer at the point of selection,
+  // so this gate is for lesson packages only.
+  const needsAssessment = !isTeam && students.length > 0 && students.every(st => st.current_level == null)
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -49,11 +55,13 @@ function CheckoutContent() {
         .from('parents').select('id, first_name, last_name').eq('auth_user_id', user.id).single()
       if (!parent) { router.push('/login'); return }
       setParentName(`${parent.first_name} ${parent.last_name}`)
+      // Loaded for every plan now, not just Swim Team: a package purchase has
+      // to know whether anyone in this family has been assessed yet.
+      const { data: studs } = await supabase
+        .from('students').select('id, full_name, current_level')
+        .eq('parent_id', (parent as any).id).eq('is_active', true).order('sort_order')
+      setStudents(studs || [])
       if (isTeam) {
-        const { data: studs } = await supabase
-          .from('students').select('id, full_name, current_level')
-          .eq('parent_id', (parent as any).id).eq('is_active', true).order('sort_order')
-        setStudents(studs || [])
         try {
           const r = await fetch('/api/team/tiers')
           const j = r.ok ? await r.json() : null
@@ -207,6 +215,21 @@ function CheckoutContent() {
           </div>
         )}
 
+        {needsAssessment ? (
+          <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: '12px', padding: '20px 22px', marginBottom: '12px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: GOLD, marginBottom: '8px' }}>{t('checkout.assess.title')}</div>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.7, margin: '0 0 10px' }}>
+              {t('checkout.assess.body', { price: '$' + (TRIAL_PRICE_CENTS / 100).toLocaleString() })}
+            </p>
+            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, margin: '0 0 16px' }}>
+              {t('checkout.assess.why')}
+            </p>
+            <Link href="/booking"
+              style={{ display: 'inline-block', padding: '12px 22px', borderRadius: '10px', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+              {t('checkout.assess.cta')}
+            </Link>
+          </div>
+        ) : (
         <button
           onClick={handleCheckout}
           disabled={paying || (isTeam && !selectedStudentId)}
@@ -221,10 +244,13 @@ function CheckoutContent() {
         >
           {paying ? t('checkout.redirecting') : isTeam ? t('checkout.subscribe', { price: (teamPrice ? '$' + (teamPrice.cents / 100).toLocaleString() : '') }) : t('checkout.proceed', { price: '$' + plan.total.toLocaleString() })}
         </button>
+        )}
 
-        <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '0 0 12px' }}>
-          🔒 {t('checkout.stripeNote')}
-        </p>
+        {!needsAssessment && (
+          <p style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)', margin: '0 0 12px' }}>
+            🔒 {t('checkout.stripeNote')}
+          </p>
+        )}
 
         <button
           onClick={() => router.push('/plans')}

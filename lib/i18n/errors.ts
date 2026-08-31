@@ -42,6 +42,7 @@ const MAP: readonly (readonly [string, string])[] = [
   ['Credits ran out while this invitation was being confirmed', 'err.confirmCreditsRanOut'],
   ['Your make-up credits ran out', 'err.tokensRanOut'],
   ['Trial already used', 'err.trialUsed'],
+  ['NEEDS_ASSESSMENT', 'err.needsAssessment'],
   ["A Swim Assessment can't be cancelled online", 'err.assessmentNoCancel'],
   ['Student not found', 'err.studentNotFound'],
   ['Parent not found', 'err.parentNotFound'],

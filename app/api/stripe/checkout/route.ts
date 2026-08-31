@@ -113,6 +113,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: session.url })
     }
 
+    // A brand-new family cannot buy a lesson package yet. Two reasons, and the
+    // second is the one that bites: credits are tied to a course type, so a
+    // family who buys 50 one-on-one lessons before we have met the child is
+    // stuck with the wrong product if the assessment says group. And the
+    // booking page already refuses to book a swimmer with no level -- without
+    // this check a family could pay and then find nothing bookable, with
+    // nothing on screen explaining why.
+    //
+    // Deliberately per family, not per student: once anyone here has a level we
+    // have met this family, so adding lessons or a sibling is never blocked.
+    // Staff assigning a level by hand counts, which is how a family assessed in
+    // person gets through.
+    const svcForGate = createSvcClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data: levelled } = await svcForGate
+      .from('students')
+      .select('id')
+      .eq('parent_id', parent.id)
+      .not('current_level', 'is', null)
+      .limit(1)
+    if (!levelled || levelled.length === 0) {
+      return NextResponse.json({ error: 'NEEDS_ASSESSMENT' }, { status: 400 })
+    }
+
     const { data: courseType } = await supabase
       .from('course_types')
       .select('id')
