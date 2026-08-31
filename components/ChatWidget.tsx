@@ -19,7 +19,11 @@ function renderBody(text: string, linkLabel: string) {
   )
 }
 
-export default function ChatWidget({ parentId }: { parentId: string }) {
+// seedInput/seedKey let a page hand the widget a question the visitor already
+// typed elsewhere -- the FAQ search box. It opens and fills the box but does
+// NOT send: putting words in a parent's mouth and firing them off is not ours
+// to do. seedKey changes on every request so the same text can be seeded twice.
+export default function ChatWidget({ parentId, seedInput, seedKey }: { parentId: string; seedInput?: string; seedKey?: number }) {
   const t = useT()
   const supabase = createClient()
   const [open, setOpen] = useState(false)
@@ -36,6 +40,12 @@ export default function ChatWidget({ parentId }: { parentId: string }) {
   const [sending, setSending] = useState(false)
   const [unread, setUnread] = useState(0)
   const [awaitingAi, setAwaitingAi] = useState(false)
+
+  useEffect(() => {
+    if (seedKey === undefined) return
+    setOpen(true)
+    if (seedInput) setInput(seedInput)
+  }, [seedKey])
   const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()

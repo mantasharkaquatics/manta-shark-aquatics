@@ -1,4 +1,6 @@
 import { PLANS, PLAN_GROUPS } from '@/lib/plans'
+import { FAQ_IDS } from '@/lib/faq'
+import { translate } from '@/lib/i18n'
 
 // Retrieves live data for the AI assistant.
 // Two-step queries only (no nested joins) per project convention.
@@ -50,5 +52,13 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
     '',
     '=== PRICING ===',
     ...planLines,
+    '',
+    // The same answers the /faq page shows, from the same dictionary keys. If a
+    // parent reads an answer on the site and then asks the assistant the same
+    // thing, they get one answer, not two. English only: the rest of this block
+    // and the system prompt are English, and the assistant replies in the
+    // family's language from there.
+    '=== COMMON QUESTIONS (answer in the family\'s language; these are the wordings we publish) ===',
+    ...FAQ_IDS.map(id => `Q: ${translate('en', 'faq.q.' + id)}\nA: ${translate('en', 'faq.a.' + id)}`),
   ].join('\n')
 }

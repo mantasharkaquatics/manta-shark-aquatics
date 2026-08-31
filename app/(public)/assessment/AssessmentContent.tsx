@@ -139,6 +139,19 @@ export default function AssessmentContent() {
         </div>
       </section>
 
+      {/* ── FIRST VISIT ── */}
+      <section style={{ ...section, paddingTop: 0 }}>
+        <div style={inner}>
+          <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '16px', padding: '26px 28px' }}>
+            <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>{t('assess.faq.title')}</h3>
+            <p style={{ fontSize: '14px', lineHeight: 1.75, color: 'rgba(255,255,255,0.6)', margin: '0 0 14px', maxWidth: '58ch' }}>{t('assess.faq.body')}</p>
+            <Link href={localePath('/faq', locale)} style={{ fontSize: '14px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
+              {t('assess.faq.cta')}
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ── CLOSING CTA ── */}
       <section style={{ ...section, background: NAVY, textAlign: 'center' }}>
         <div style={{ maxWidth: '620px', margin: '0 auto' }}>

@@ -9,6 +9,7 @@ const LINKS = [
   { labelKey: 'page.levels', href: '/levels' },
   { labelKey: 'page.plans', href: '/plans' },
   { labelKey: 'page.about', href: '/about' },
+  { labelKey: 'page.faq', href: '/faq' },
 ]
 
 const LEGAL = [
