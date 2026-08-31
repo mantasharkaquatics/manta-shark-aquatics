@@ -4,21 +4,13 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSvcClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
+// The amount charged has to come from the same table the /plans cards and the
+// webhook's validity window read. This route used to keep its own copy, so a
+// price edit in lib/plans.ts would have changed what the page advertised and
+// how long the credits lasted while still charging the old figure.
+import { PLANS } from '@/lib/plans'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
-
-const PLANS: Record<string, { name: string; amount: number; sessions: number; courseSlug: string }> = {
-  '1on1-10':  { name: '1-on-1 Private · 10 Sessions',      amount: 65000,  sessions: 10, courseSlug: '1on1' },
-  '1on1-20':  { name: '1-on-1 Private · 20 Sessions',      amount: 126000, sessions: 20, courseSlug: '1on1' },
-  '1on1-30':  { name: '1-on-1 Private · 30 Sessions',      amount: 185000, sessions: 30, courseSlug: '1on1' },
-  '1on1-50':  { name: '1-on-1 Private · 50 Sessions',      amount: 300000, sessions: 50, courseSlug: '1on1' },
-  '1on2-10':  { name: '1-on-2 Semi-Private · 10 Sessions', amount: 105000, sessions: 10, courseSlug: '1on2' },
-  '1on2-20':  { name: '1-on-2 Semi-Private · 20 Sessions', amount: 200000, sessions: 20, courseSlug: '1on2' },
-  '1on2-30':  { name: '1-on-2 Semi-Private · 30 Sessions', amount: 285000, sessions: 30, courseSlug: '1on2' },
-  '1on2-50':  { name: '1-on-2 Semi-Private · 50 Sessions', amount: 450000, sessions: 50, courseSlug: '1on2' },
-  '1on4-10':  { name: '1-on-4 Group · 10 Sessions', amount: 40000,  sessions: 10, courseSlug: '1on4' },
-  '1on4-20':  { name: '1-on-4 Group · 20 Sessions', amount: 76000,  sessions: 20, courseSlug: '1on4' },
-}
 
 export async function POST(req: NextRequest) {
   try {
