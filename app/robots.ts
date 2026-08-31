@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { SITE_URL } from '@/lib/site-config'
 
 // PRE-LAUNCH SWITCH. While false, every crawler is asked to stay away and the
 // root layout also sends <meta name="robots" content="noindex, nofollow">.
@@ -12,5 +13,6 @@ export default function robots(): MetadataRoute.Robots {
   }
   return {
     rules: [{ userAgent: '*', allow: '/', disallow: ['/admin', '/coach', '/api', '/dashboard'] }],
+    sitemap: SITE_URL + '/sitemap.xml',
   }
 }
