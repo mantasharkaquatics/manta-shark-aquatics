@@ -94,6 +94,13 @@ export default function HomeContent() {
             ))}
           </div>
           <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '16px 40px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none', display: 'inline-block' }}>{t('home.hero.cta')}</Link>
+          {/* Second line, not a second button: a visitor who is not ready to
+              create an account still needs to be told what the first step is. */}
+          <div style={{ marginTop: '18px' }}>
+            <Link href={localePath('/assessment', locale)} style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.65)', textDecoration: 'underline', textUnderlineOffset: '4px' }}>
+              {t('home.hero.assess')}
+            </Link>
+          </div>
         </div>
 
         {/* Waves */}

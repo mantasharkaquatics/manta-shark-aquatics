@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { localePath } from '@/lib/i18n/paths'
 
 import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
 
@@ -22,6 +23,7 @@ const STAGES = [1, 2, 3] as const
 
 export default function LevelsContent() {
   const t = useT()
+  const locale = useLocale()
   const [activeLevel, setActiveLevel] = useState(0)
   const [openAccordion, setOpenAccordion] = useState<number | null>(null)
 
@@ -117,6 +119,15 @@ export default function LevelsContent() {
             }}
           >
             {t('levels.hero.subtitle')}
+          </p>
+
+          {/* Where a level comes from. Without this the nine levels read as a
+              chart to self-diagnose against; they are handed out, not chosen. */}
+          <p style={{ fontSize: 'clamp(12px, 1.3vw, 13.5px)', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: '520px', marginBottom: '16px' }}>
+            {t('levels.assessFirst.body')}{' '}
+            <Link href={localePath('/assessment', locale)} style={{ color: '#c9a84c', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              {t('levels.assessFirst.cta')}
+            </Link>
           </p>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>

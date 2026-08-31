@@ -9,6 +9,7 @@ import { LOCALES, isLocale, type Locale } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/paths'
 
 const navLinks = [
+  { labelKey: 'page.assessment', href: '/assessment' },
   { labelKey: 'page.levels', href: '/levels' },
   { labelKey: 'page.plans', href: '/plans' },
   { labelKey: 'page.about', href: '/about' },

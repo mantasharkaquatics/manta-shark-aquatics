@@ -6,7 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { tierBandLabel } from '@/lib/team-tiers'
-import { planCards, type PlanCard } from '@/lib/plans'
+import { planCards, type PlanCard, TRIAL_PRICE_CENTS } from '@/lib/plans'
+import Link from 'next/link'
+import { localePath } from '@/lib/i18n/paths'
 
 // Every figure on these cards is derived from lib/plans.ts -- the same table
 // the checkout screen quotes and Stripe charges from. They used to be typed
@@ -185,6 +187,7 @@ function PackageCard({ pkg, accentColor }: { pkg: PlanCard; accentColor: string 
 
 export default function PlansContent() {
   const t = useT()
+  const locale = useLocale()
 
   // The browser jumps to #1on2 the moment the HTML lands, then the web fonts
   // and the team-tier fetch change how tall everything above it is, and the
@@ -243,6 +246,25 @@ export default function PlansContent() {
           </div>
         </div>
       </div>
+
+      {/* The assessment is not one of the packages, it is the gate in front of
+          all of them, so it sits above the first one rather than beside them. */}
+      <section style={{ background: DARK, padding: '0 clamp(24px,5vw,72px)' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', transform: 'translateY(-28px)' }}>
+          <div style={{ background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '16px', padding: '24px 28px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <div style={{ minWidth: '260px', flex: '1 1 380px' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '6px' }}>{t('plans.assessFirst.title')}</div>
+              <p style={{ fontSize: '13.5px', lineHeight: 1.7, color: 'rgba(255,255,255,0.6)', margin: 0, maxWidth: '60ch' }}>
+                {t('plans.assessFirst.body', { price: '$' + (TRIAL_PRICE_CENTS / 100).toLocaleString() })}
+              </p>
+            </div>
+            <Link href={localePath('/assessment', locale)}
+              style={{ flexShrink: 0, padding: '12px 22px', borderRadius: '10px', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              {t('plans.assessFirst.cta')}
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {/* 1-ON-1 */}
       <section id="1on1" style={{ scrollMarginTop: '90px', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
