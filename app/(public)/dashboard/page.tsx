@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
-import { vipTier } from '@/lib/points'
+import { priceLesson, vipTier } from '@/lib/points'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -804,7 +804,7 @@ export default function DashboardPage() {
         ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', newSessionIds)
         : Promise.resolve({ data: [] }),
       pendingSessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(id, name), coaches(first_name)').in('id', pendingSessionIds)
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(id, name, slug), coaches(first_name)').in('id', pendingSessionIds)
         : Promise.resolve({ data: [] }),
       pendingStudentIds.length > 0
         ? supabase.from('students').select('id, full_name').in('id', pendingStudentIds)
@@ -1665,6 +1665,21 @@ export default function DashboardPage() {
                 const minsLeft = Math.floor(msLeft / 60000)
                 const secsLeft = Math.floor((msLeft % 60000) / 1000)
                 const countdownStr = msLeft <= 0 ? t('dash.invite.expired') : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
+                // What accepting costs THIS family, at their own VIP level and
+                // this slot's off-peak status. The inviting family's price is
+                // not the same number and must never stand in for it.
+                let inviteCost: number | null = null
+                if (wallet && ct?.slug && cs?.session_date && cs?.start_time) {
+                  try {
+                    inviteCost = priceLesson({
+                      courseSlug: ct.slug, minutes: 30,
+                      lessonsCompleted: wallet.lessonsCompleted,
+                      sessionDate: cs.session_date,
+                      startTime: String(cs.start_time).slice(0, 5),
+                      seats: 1,
+                    }).perSeat * (b._seats || 1)
+                  } catch { inviteCost = null }
+                }
                 return (
                   <div key={b.id} style={{ background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)', borderRadius: '14px', padding: '16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -1691,7 +1706,11 @@ export default function DashboardPage() {
                           onClick={() => confirmPartnerBooking(b.id)}
                           disabled={confirmingId === b.id || rejectingId === b.id}
                           style={{ padding: '8px 16px', background: '#7b61c4', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                          {confirmingId === b.id ? t('dash.invite.confirming') : t(b._seats === 1 ? 'dash.invite.confirmOne' : 'dash.invite.confirm', { n: b._seats })}
+                          {confirmingId === b.id
+                            ? t('dash.invite.confirming')
+                            : inviteCost != null
+                            ? t('dash.invite.confirmPoints', { n: inviteCost })
+                            : t('dash.invite.confirmPlain')}
                         </button>
                       </div>
                     </div>

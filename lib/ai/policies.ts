@@ -7,22 +7,29 @@ export const POLICIES = `
 - Closed on public holidays and special dates; closures are announced in advance by email.
 
 === CANCEL / RESCHEDULE ===
-- Lessons can be cancelled or rescheduled more than 24 hours before the lesson start time, either by the parent in the online system or by contacting the team.
-- Within 24 hours of the lesson start time, lessons cannot be RESCHEDULED online. Cancelling within 24 hours is possible online, but the credit is not refunded - it converts into a make-up TOKEN (see TOKENS section, subject to the conversion quota). Deliver this politely and with empathy: acknowledge the inconvenience, explain the coach's time is already reserved, and explain what the token can do.
-- Rescheduling (more than 24h ahead) is unlimited; there is no cap on the number of reschedules. Credits must still be used within the package validity period.
-- No-show without cancelling: the lesson counts as taken and the credit is deducted. A plain no-show has NO exceptions and NO compensation of any kind — no doctor's note changes this, and no Swim Team credit is issued for a no-show. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
+- More than 24 hours before the lesson starts: cancel for a FULL return of the points, or reschedule as often as they like. Either can be done by the parent online or by contacting the team.
+- A rescheduled lesson keeps the points already charged for it. It is NOT re-priced - not up if the new time is peak, not down if it is off-peak. Say so plainly if a parent asks whether moving a lesson to a cheaper time saves them points: it does not.
+- Within 24 hours of the start time, lessons cannot be RESCHEDULED online, and the points are NOT returned, because the coach's time is already reserved. Deliver this politely and with empathy: acknowledge the inconvenience, explain the reserved time, and then explain the late-cancellation allowance below, which is the thing that CAN be done.
+- LATE-CANCELLATION ALLOWANCE: a family earns one for every 10 lessons they COMPLETE (not purchase). Spending one returns the full points for a lesson cancelled inside 24 hours. The parent chooses whether to use one at the moment they cancel; the system never spends one on their behalf. Allowances accumulate and are never reset. The dashboard shows how many they have. When none remain, a lesson inside 24 hours cannot be cancelled online; explain that and offer to escalate.
+- 1-on-2 lessons are EXCLUDED from online late cancellation: a 1-on-2 starting within 24 hours cannot be cancelled online at all, because two families share the slot - the parent must contact the team and staff handle it by hand.
+- No-show without cancelling: the lesson counts as taken and the points are used. A plain no-show has NO exceptions and NO compensation of any kind - no doctor's note changes this. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
 
-=== TOKENS (MAKE-UP VOUCHERS) ===
-- A token is a make-up voucher worth one lesson. A family receives a token ONLY in these two cases:
-  (1) The family cancels a lesson within 24 hours of start time: that credit converts into 1 token (subject to the conversion quota below). This is a conversion, never an extra - the credit is gone and the token replaces it. 1-on-2 lessons are EXCLUDED: a 1-on-2 starting within 24 hours cannot be cancelled online at all, because two families share the slot - the parent must contact the team and staff handle it by hand.
-  (2) The school cancels a lesson that was PAID WITH a token: that token is reissued fresh with a new 60-day validity. If the cancelled lesson was paid with a credit, the credit is simply returned - no token is issued.
-- Tokens can never be requested. Never state or imply that the team can grant tokens manually or as a courtesy; do not list any other way to obtain tokens.
-- Every token is valid for 60 days from the day it is issued, regardless of source. The dashboard TOKENS card shows the count and days left.
-- Tokens can only book lessons starting TODAY or TOMORROW, and at least 30 minutes before start time.
-- Token bookings are FINAL: no cancellation, no reschedule, no refund.
-- Course matching: a token books the course type it came from and nothing else -- a 1-on-1 token books 1-on-1 only, a 1-on-2 token books 1-on-2 only, a 1-on-4 token books 1-on-4 only. Tokens never apply to Swim Team. When explaining course matching to a parent, put EACH token type on its own '- ' line (three short lines); never chain all three in one sentence or one bullet.
-- When a family books a lesson for today/tomorrow and has an eligible token, the token is used FIRST, before any credit (earliest-expiring token first). This is by design: tokens expire much sooner than credits.
-- Late-cancellation conversion quota: every 10 purchased lessons grant 1 conversion (trial and Swim Team purchases do not count). When no conversions remain, the within-24h cancel-to-token option is not available; the AI explains this and can escalate to a human for special situations. NEVER use a bare phrase like 'conversion quota' / '轉換配額' to a parent without immediately explaining it in plain words (e.g. 每購買 10 堂課, 就有 1 次「24 小時內取消轉成 Token」的機會). If the quota is not directly relevant to the question, omit it entirely rather than name-dropping it.
+=== POINTS (HOW LESSONS ARE PAID FOR) ===
+- Lessons are paid for out of a points balance on the family account. 1 point = US$1.00, fixed. Points NEVER expire, there are no fees of any kind for holding them, and they are shared by every swimmer on the account.
+- A family adds points by choosing a dollar amount (any whole dollar from $50 to $10,000). There is NO bulk discount on the purchase - do not imply that adding more is cheaper per point, because it is not.
+- Unused points that were PAID FOR can be refunded in cash at $1 per point at any time, with no deadline and no fee. See REFUNDS.
+- Points the school ADDS without payment - a promotion, a goodwill adjustment, a negotiated programme rate - book lessons exactly like any other point but cannot be cashed out. Never promise a cash refund on bonus points.
+- There are no lesson packages any more, and no make-up tokens. If a parent asks about buying 10/20/30/50 lessons, a package, credits, or tokens, explain the points balance instead. Never quote a package price and never say a token can be issued.
+- Two things are NOT paid for with points: the Swim Assessment ($85, charged to the card) and Swim Team (a monthly membership).
+- The parent's dashboard shows the balance, the VIP level, progress to the next level, the late-cancellation allowances, and a full points history with a reason on every line.
+
+=== WHAT A LESSON COSTS ===
+- Every lesson has a base price in points, per swimmer, per 30 minutes. A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 booked for two swimmers on the SAME account is charged for both seats; when two different families share a 1-on-2, each family pays for its own swimmer.
+- Two discounts, and both are applied WHEN THE PARENT BOOKS, not when they buy. That is the point worth making to a parent who asks why there is no bulk deal: the discount is earned by attending, and it applies to points already in the account.
+- VIP discount by lessons COMPLETED on the account: 3% from 10, 5% from 20, 7% from 30, 9% from 50, 12% from 80. Counted across every swimmer on the family account.
+- Off-peak discount: 5% off lessons that START inside the quieter hours - Mon-Fri 6:00 AM-12:00 noon and 7:30-9:00 PM; Sat-Sun 6:00-10:00 AM and 7:30-9:00 PM. The booking calendar marks them.
+- Both discounts multiply and the result is rounded DOWN to whole points, so the remainder always favours the family. Never quote a discount as a fixed number of points off; quote the percentage, or the actual price shown on the booking page.
+- Exact prices come from the PRICING section of the knowledge block. Never state a price that is not there.
 
 === 1-ON-4 GROUP CLASSES (LEVEL BANDS) ===
 - 1-on-4 group classes are LIVE and organized by level band: Level 1-2, Level 3-4, Level 5-6, Level 7.
@@ -32,24 +39,20 @@ export const POLICIES = `
 
 === ILLNESS / EMERGENCY EXCEPTION ===
 - This exception applies ONLY when the parent contacts us and tells us the absence is due to illness or emergency. It is never an automatic exemption, and it does not apply to plain no-shows. When it applies, the team handles it manually (escalate to a human). Compensation policy the AI may explain:
-  - With a doctor's note: excused without limit; the school issues one Swim Team lesson credit as compensation for the missed lesson.
-  - Without a doctor's note: excused ONE time per student total; the school issues one Swim Team lesson credit.
-- Compensation Swim Team credits are valid for 1 year from the date they are issued.
-- The AI must never issue these credits itself; it explains the policy and escalates to a human.
+  - With a doctor's note: excused without limit; the points for the missed lesson are returned by staff after review, without spending a late-cancellation allowance.
+  - Without a doctor's note: excused ONE time per student total, on the same terms.
+- The AI must never return points itself; it explains the policy and escalates to a human.
 
 === REFUNDS ===
-- All lessons that have NOT yet taken place can be refunded. Lessons already taken, and lessons within 24 hours of their start time, cannot be refunded.
-- Refund amount = remaining sessions x the actual per-session price of the package the parent purchased (not the single-lesson list price).
-- Process: the parent contacts the team through this chat (a human will take over) or at the front desk. The AI never processes refunds and never promises a specific refund amount or timeline; it explains the rule and escalates.
-
-=== CHANGING PACKAGE TYPE ===
-- Parents may convert a package to a different lesson type (e.g. 1-on-1 to 1-on-2). Handled manually by the team.
-- Conversion value = remaining sessions x the actual per-session price paid, applied toward the new package. The AI explains this and escalates for execution.
+- Unused points that the family PAID FOR are refundable in cash at $1 per point, at any time, with no deadline, no minimum and no fee. This is simple and generous; say it plainly.
+- Points already spent on lessons are not refundable - that includes completed lessons, no-shows, and cancellations made inside 24 hours where no allowance was used.
+- Points the school added without payment cannot be cashed out.
+- The Swim Assessment fee is not refundable once the assessment has taken place.
+- Process: the parent contacts the team through this chat (a human will take over) or at the front desk. The AI never processes refunds and never promises a specific amount or timeline; it explains the rule and escalates.
 
 === WEATHER / SCHOOL-INITIATED CANCELLATIONS ===
 - In extreme weather or when California disaster alerts are issued, lessons are paused. Management notifies all families by email and SMS.
-- If the school cancels a lesson, the refund follows the original payment path automatically: a credit-booked lesson gets the credit back; a token-booked lesson receives a fresh 60-day token. The family can rebook online or contact us for help.
-- If the school cancels within 24 hours of the lesson start time, the family also receives one free Swim Team lesson credit (valid 1 year) in addition to the returned credit.
+- If the school cancels a lesson, the points go back to the family's balance in FULL and automatically, whatever the notice period, and no late-cancellation allowance is spent. The family can rebook online or contact us for help.
 
 === LATE ARRIVAL ===
 - A student who arrives late can still join for the remainder of the lesson time, but the missed minutes are not made up and the lesson counts as one full session. Deliver this politely: acknowledge the inconvenience, note that the coach's time was reserved for them.
@@ -57,19 +60,12 @@ export const POLICIES = `
 === PARENT ATTENDANCE ===
 - Parents do not need to stay on site during lessons, except infant/baby swim programs where a parent joins the student in the water.
 
-=== PACKAGE VALIDITY ===
-- 10-session package: use within 4 months of purchase.
-- 20-session package: use within 8 months.
-- 30-session package: use within 12 months.
-- 50-session package: use within 18 months.
-- Compensation Swim Team credits: 1 year from issue date.
-
 === SWIM ASSESSMENT (NEW STUDENTS) ===
 - When a parent asks about arranging or starting lessons, FIRST ask clarifying questions (which lesson type, 1-on-1 or 1-on-2, and the student's age and swimming level/experience). Only bring up the Swim Assessment after learning the student is new / has no assigned level. Do not lead with assessment details.
 - Every new student must complete a Swim Assessment ($85) before other courses can be booked.
-- Two ways to pay: online (book an assessment slot and pay via the secure payment link), or at the front desk (pay first; an Assessment credit then appears on the parent dashboard immediately).
-- A prepaid Assessment credit can be scheduled by the parent themselves: on the dashboard, the Assessment credit card has a "Book Now" button that opens the booking page with the student pre-selected. The front desk team can also schedule it for them.
-- The AI cannot create bookings itself. To help a parent book a lesson or use a credit, direct them to the booking page (/booking) or the Book Now button on their dashboard.
+- Two ways to pay: online (book an assessment slot and pay via the secure payment link), or at the front desk (pay first; the prepaid assessment then appears on the parent dashboard immediately). The assessment is charged to the card, never taken from the points balance.
+- A prepaid assessment can be scheduled by the parent themselves from the dashboard, which opens the booking page with the student pre-selected. The front desk team can also schedule it for them.
+- The AI cannot create lesson bookings itself. To help a parent book, direct them to the booking page (/booking) or their dashboard.
 - The AI CAN book the Swim Assessment directly in this chat: look up real available times for the parent's preferred date/coach, and once the parent confirms one specific slot, reserve it and send a secure card payment link. The slot is held for 30 minutes and the booking is confirmed only after payment succeeds. The booking page (/booking) remains available for parents who prefer to book themselves.
 
 === SWIM TEAM MEMBERSHIP ===
@@ -85,7 +81,7 @@ export const POLICIES = `
 
 === PAYMENTS ===
 - Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.
-- Pricing is uniform: no cash discount and no negotiated discounts. Larger packages have better per-session pricing (see PRICING).
+- Pricing is uniform: no cash discount, no negotiated discounts, and no better rate for adding more points at once. The only discounts are the VIP level and the off-peak hours, both earned rather than bought.
 - Occasional promotions are announced by email newsletter; parents can subscribe to receive them. The AI never invents or promises promotions or discounts.
 
 === BOOKING & COACHES ===
@@ -111,7 +107,7 @@ export const POLICIES = `
 - Check-in opens 30 minutes before the lesson start time.
 
 === ACCOUNT ===
-- Lesson credits are shared across all swimmers on the same family account and are consumed oldest-first.
+- Points are held on the family account and are shared by every swimmer on it. Points are not transferable between families.
 - Payments are processed securely by Stripe. The AI assistant can never charge a card or issue refunds.
 
 === AI CONDUCT ===

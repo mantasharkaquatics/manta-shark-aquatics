@@ -19,11 +19,19 @@ type CartItem = {
   start_time: string
   end_time: string
 }
-type CreditRow = { course_type_id: string; course_name: string; needed: number; remaining: number; sufficient: boolean }
+type CartQuote = {
+  lines: { booking_id: string; points: number | null }[]
+  total: number
+  priceable: boolean
+  balance: number
+  vip_level: number
+  vip_discount: number
+  sufficient: boolean
+}
 type CartState = {
   items: CartItem[]
   expiresAt: string | null
-  credits: { byCourse: CreditRow[]; sufficient: boolean }
+  quote: CartQuote
 }
 
 function fmt12h(t: string): string {
@@ -80,7 +88,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
       setRemainMs(ms)
       if (ms <= 0) {
         if (timerRef.current) clearInterval(timerRef.current)
-        setCart({ items: [], expiresAt: null, credits: { byCourse: [], sufficient: true } })
+        setCart({ items: [], expiresAt: null, quote: { lines: [], total: 0, priceable: true, balance: 0, vip_level: 0, vip_discount: 0, sufficient: true } })
         onCommitted?.()
       }
     }
@@ -124,7 +132,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
     const j = await act({ action: 'commit' })
     if (j?.ok) {
       setDone(true)
-      setCart({ items: [], expiresAt: null, credits: { byCourse: [], sufficient: true } })
+      setCart({ items: [], expiresAt: null, quote: { lines: [], total: 0, priceable: true, balance: 0, vip_level: 0, vip_discount: 0, sufficient: true } })
       onCommitted?.()
     } else {
       await load()
@@ -235,27 +243,34 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
 
             {count > 0 && cart && (
               <>
+                {/* One total, and the balance it leaves. The cart used to show a
+                    line per course type because credits were held per course;
+                    with one balance there is one sum to check. */}
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '12px 0', paddingTop: '12px' }}>
-                  {cart.credits.byCourse.map(c => (
-                    <div key={c.course_type_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{tDb(locale, 'course_types', c.course_type_id, c.course_name)}</span>
-                      <span style={{ color: c.sufficient ? '#7fdca4' : '#f0a0a0', fontWeight: 600 }}>
-                        {t('cart.creditLine', { needed: c.needed, remaining: c.remaining })}
-                      </span>
-                    </div>
-                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.6)' }}>{t('cart.total')}</span>
+                    <span style={{ color: '#fff', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {t('points.unit', { n: cart.quote.total })}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.4)' }}>{t('cart.after')}</span>
+                    <span style={{ color: cart.quote.sufficient ? 'rgba(255,255,255,0.6)' : '#f0a0a0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      {t('points.unit', { n: Math.max(0, cart.quote.balance - cart.quote.total) })}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={handleCommit}
-                  disabled={busy || !cart.credits.sufficient}
+                  disabled={busy || !cart.quote.sufficient}
                   style={{
                     padding: '14px', borderRadius: '10px', border: 'none',
-                    background: busy || !cart.credits.sufficient ? 'rgba(255,255,255,0.1)' : GOLD,
-                    color: busy || !cart.credits.sufficient ? 'rgba(255,255,255,0.3)' : NAVY,
+                    background: busy || !cart.quote.sufficient ? 'rgba(255,255,255,0.1)' : GOLD,
+                    color: busy || !cart.quote.sufficient ? 'rgba(255,255,255,0.3)' : NAVY,
                     fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase',
-                    cursor: busy || !cart.credits.sufficient ? 'not-allowed' : 'pointer', marginTop: '4px',
+                    cursor: busy || !cart.quote.sufficient ? 'not-allowed' : 'pointer', marginTop: '4px',
                   }}
-                >{busy ? t('cart.booking') : cart.credits.sufficient ? t('cart.confirmAll', { n: count }) + ' ✓' : t('cart.notEnough')}</button>
+                >{busy ? t('cart.booking') : cart.quote.sufficient ? t('cart.confirmAll', { n: count }) + ' ✓' : t('cart.notEnough')}</button>
               </>
             )}
           </div>

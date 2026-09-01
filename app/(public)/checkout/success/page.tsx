@@ -37,9 +37,9 @@ function SuccessContent() {
       <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }}>
         <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(76,175,114,0.15)', border: '2px solid rgba(76,175,114,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: '36px' }}>✓</div>
         <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: '#4caf72', marginBottom: '8px' }}>{t('success.eyebrow')}</div>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>{isTeam ? t('success.titleTeam') : t('success.titlePackage')}</h1>
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>{isTeam ? t('success.titleTeam') : t('success.titlePoints')}</h1>
         <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 32px' }}>
-          {isTeam ? t('success.descTeam') : t('success.descPackage')}
+          {isTeam ? t('success.descTeam') : t('success.descPoints')}
         </p>
         <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', marginBottom: '24px', textAlign: 'left' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -49,10 +49,10 @@ function SuccessContent() {
               { icon: '📧', text: t('success.emailSent') },
               { icon: '🔁', text: t('success.team.4') },
             ] : [
-              { icon: '✅', text: t('success.pkg.1') },
-              { icon: '📅', text: t('success.pkg.2') },
+              { icon: '✅', text: t('success.points.1') },
+              { icon: '📅', text: t('success.points.2') },
               { icon: '📧', text: t('success.emailSent') },
-              { icon: '⏰', text: t('success.pkg.4') },
+              { icon: '♾️', text: t('success.points.3') },
             ]).map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '18px' }}>{item.icon}</span>
