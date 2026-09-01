@@ -721,7 +721,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   </div>
 
                   {/* Tokens */}
-                  <ParentTokensSection parentId={parent.id} />
+                  <ParentPointsSection parentId={parent.id} />
 
                   {/* Students */}
                   <div>
@@ -858,30 +858,55 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   )
 }
 
-type TokenPack = { id: string; course_type_id: string; total_tokens: number; used_tokens: number; expires_at: string; source: string; note: string | null; created_at: string }
+type LedgerRow = {
+  id: string
+  at: string
+  points: number
+  purchased: number
+  granted: number
+  balanceAfter: number
+  reason: string
+  note: string | null
+  amountCents: number | null
+  actor: string | null
+}
+type WalletView = {
+  balance: number
+  balancePurchased: number
+  balanceGranted: number
+  lessonsCompleted: number
+  vipLevel: number
+  vipDiscount: number
+  nextTier: { level: number; discount: number; lessonsToGo: number } | null
+  forgiveness: number
+  ledger: LedgerRow[]
+}
 
-function ParentTokensSection({ parentId }: { parentId: string }) {
+/**
+ * A family's wallet, and the one place an exception can be handled.
+ *
+ * Every adjustment carries a reason and it is not optional — the parent reads
+ * the same line on their own statement, and a movement nobody can account for
+ * is worse than whatever it was meant to fix. Points added here are granted:
+ * they book lessons like any other point but cannot be refunded for cash,
+ * because no cash came in for them.
+ */
+function ParentPointsSection({ parentId }: { parentId: string }) {
   const [open, setOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
-  const [packs, setPacks] = useState<TokenPack[]>([])
-  const [courseTypes, setCourseTypes] = useState<{ id: string; name: string }[]>([])
-  const [newCourse, setNewCourse] = useState('')
-  const [newQty, setNewQty] = useState('1')
-  const [newNote, setNewNote] = useState('')
-  const [editTotals, setEditTotals] = useState<Record<string, string>>({})
+  const [w, setW] = useState<WalletView | null>(null)
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [confirmCreate, setConfirmCreate] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   async function load() {
     setErr(null)
-    const res = await fetch('/api/admin/tokens?parent_id=' + parentId)
-    if (!res.ok) { setErr('Failed to load tokens'); return }
-    const d = await res.json()
-    setPacks(d.packages)
-    setCourseTypes(d.courseTypes)
+    const res = await fetch('/api/admin/points?parent_id=' + parentId)
+    if (!res.ok) { setErr('Failed to load points'); return }
+    setW(await res.json())
     setLoaded(true)
-    if (d.courseTypes.length > 0) setNewCourse((prev: string) => prev || d.courseTypes[0].id)
   }
 
   function toggle() {
@@ -890,126 +915,112 @@ function ParentTokensSection({ parentId }: { parentId: string }) {
     if (next && !loaded) load()
   }
 
-  function requestCreate() {
-    const qty = parseInt(newQty, 10)
-    if (!newCourse || !Number.isInteger(qty) || qty < 1) { setErr('Pick a course and a quantity of at least 1'); return }
-    setErr(null)
-    setConfirmCreate(true)
-  }
+  const n = Math.trunc(Number(amount))
+  const valid = Number.isFinite(n) && n !== 0 && note.trim().length >= 3
 
-  async function createPack() {
-    const qty = parseInt(newQty, 10)
-    setConfirmCreate(false)
+  async function submit() {
+    setConfirming(false)
     setBusy(true); setErr(null)
-    const res = await fetch('/api/admin/tokens', {
+    const res = await fetch('/api/admin/points', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent_id: parentId, course_type_id: newCourse, total_tokens: qty, note: newNote.trim() || undefined }),
+      body: JSON.stringify({ parent_id: parentId, points: n, note: note.trim() }),
     })
     setBusy(false)
-    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || 'Create failed'); return }
-    setNewQty('1'); setNewNote('')
+    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || 'Adjustment failed'); return }
+    setAmount(''); setNote('')
     load()
   }
 
-  async function adjust(pack: TokenPack) {
-    const raw = editTotals[pack.id]
-    const total = parseInt(raw ?? '', 10)
-    if (!Number.isInteger(total) || total < 0) { setErr('Enter a valid total'); return }
-    if (total === pack.total_tokens) return
-    setBusy(true); setErr(null)
-    const res = await fetch('/api/admin/tokens', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package_id: pack.id, total_tokens: total }),
-    })
-    setBusy(false)
-    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || 'Adjust failed'); return }
-    setEditTotals(prev => { const n = { ...prev }; delete n[pack.id]; return n })
-    load()
-  }
-
-  const courseName = (id: string) => courseTypes.find(c => c.id === id)?.name || '—'
-  const srcStyle = (src: string) =>
-    src === 'manual' ? 'border-purple-400/50 text-purple-300'
-    : src === 'cancellation' ? 'border-orange-400/50 text-orange-300'
-    : src === 'school_cancellation' ? 'border-red-400/50 text-red-300'
+  const reasonStyle = (r: string) =>
+    r === 'purchase' ? 'border-emerald-400/50 text-emerald-300'
+    : r === 'admin_grant' ? 'border-purple-400/50 text-purple-300'
+    : r === 'admin_deduct' ? 'border-red-400/50 text-red-300'
+    : r === 'cash_refund' ? 'border-red-400/50 text-red-300'
+    : r === 'school_cancel' ? 'border-orange-400/50 text-orange-300'
     : 'border-[#c9a84c]/50 text-[#c9a84c]'
-
-  // Badge text: raw source values are DB-facing; school_cancellation is too long for the pill.
-  const srcLabel = (src: string) => src === 'school_cancellation' ? 'school' : src
 
   return (
     <div className="border-t border-[#1e3a6e]/40 pt-4">
       <button onClick={toggle} className="text-gray-500 text-xs uppercase tracking-wider mb-1 hover:text-[#c9a84c] transition-colors">
-        Tokens {open ? '▾' : '▸'}
+        Points {open ? '▾' : '▸'}
       </button>
       {open && (
         <div className="mt-2 space-y-3">
           {err && <p className="text-red-400 text-xs">{err}</p>}
           {!loaded && !err && <p className="text-gray-500 text-xs">Loading…</p>}
-          {loaded && packs.length === 0 && <p className="text-gray-500 text-xs">No token packages</p>}
-          {loaded && packs.map(pk => {
-            const expired = new Date(pk.expires_at) < new Date()
-            const remaining = pk.total_tokens - pk.used_tokens
-            return (
-              <div key={pk.id} className="flex flex-wrap items-center gap-3 text-sm border border-[#1e3a6e] rounded-lg px-3 py-2">
-                <span className="text-gray-300">{courseName(pk.course_type_id)}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full border ${srcStyle(pk.source)}`}>{srcLabel(pk.source)}</span>
-                <span className={remaining > 0 && !expired ? 'text-gray-300' : 'text-gray-500'}>
-                  {remaining} left ({pk.used_tokens}/{pk.total_tokens} used)
+
+          {loaded && w && (
+            <>
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                <span className="text-[#c9a84c] text-xl font-semibold tabular-nums">{w.balance.toLocaleString()}</span>
+                <span className="text-gray-500 text-xs">
+                  {w.balancePurchased.toLocaleString()} purchased · {w.balanceGranted.toLocaleString()} granted
                 </span>
-                <span className={expired ? 'text-red-400 text-xs' : 'text-gray-500 text-xs'}>
-                  {expired ? 'Expired' : 'Expires'} {new Date(pk.expires_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                <span className="text-gray-400 text-xs">
+                  VIP {w.vipLevel} ({Math.round(w.vipDiscount * 100)}% off) · {w.lessonsCompleted} lessons
+                  {w.nextTier ? ` · ${w.nextTier.lessonsToGo} to VIP ${w.nextTier.level}` : ''}
                 </span>
-                {pk.note && <span className="text-gray-500 text-xs truncate max-w-[200px]" title={pk.note}>{pk.note.split('\n')[0]}</span>}
-                <span className="flex items-center gap-1 ml-auto">
-                  <input
-                    type="number" min={pk.used_tokens}
-                    value={editTotals[pk.id] ?? String(pk.total_tokens)}
-                    onChange={e => setEditTotals(prev => ({ ...prev, [pk.id]: e.target.value }))}
-                    className="w-16 bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs"
-                  />
-                  <button onClick={() => adjust(pk)} disabled={busy}
-                    className="text-xs px-2 py-1 rounded border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 disabled:opacity-40">
-                    Save
-                  </button>
-                </span>
+                <span className="text-gray-400 text-xs">{w.forgiveness} late-cancel allowance{w.forgiveness === 1 ? '' : 's'}</span>
               </div>
-            )
-          })}
-          {loaded && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <select value={newCourse} onChange={e => setNewCourse(e.target.value)}
-                className="bg-[#111d38] border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs">
-                {courseTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <input type="number" min={1} value={newQty} onChange={e => setNewQty(e.target.value)}
-                className="w-16 bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
-              <input type="text" placeholder="Note (optional)" value={newNote} onChange={e => setNewNote(e.target.value)}
-                className="flex-1 min-w-[140px] bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
-              <button onClick={requestCreate} disabled={busy}
-                className="text-xs px-3 py-1 rounded border border-purple-400/50 text-purple-300 hover:bg-purple-400/10 disabled:opacity-40">
-                + Manual Token
-              </button>
-            </div>
+              {/* Refundable is the purchased side only — spelled out here so the
+                  figure is never worked out in someone's head at the counter. */}
+              <p className="text-gray-500 text-xs">
+                Cash refundable today: ${w.balancePurchased.toLocaleString()}. Granted points are not refundable.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <input type="number" placeholder="± points" value={amount} onChange={e => setAmount(e.target.value)}
+                  className="w-24 bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
+                <input type="text" placeholder="Reason (the parent sees this)" value={note} onChange={e => setNote(e.target.value)}
+                  className="flex-1 min-w-[180px] bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
+                <button onClick={() => valid && setConfirming(true)} disabled={busy || !valid}
+                  className="text-xs px-3 py-1 rounded border border-purple-400/50 text-purple-300 hover:bg-purple-400/10 disabled:opacity-40">
+                  Adjust
+                </button>
+              </div>
+
+              {w.ledger.length === 0 && <p className="text-gray-500 text-xs">No movements yet</p>}
+              {w.ledger.map(row => (
+                <div key={row.id} className="flex flex-wrap items-center gap-3 text-sm border border-[#1e3a6e] rounded-lg px-3 py-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${reasonStyle(row.reason)}`}>{row.reason.replace(/_/g, ' ')}</span>
+                  <span className={`tabular-nums font-semibold ${row.points >= 0 ? 'text-emerald-300' : 'text-gray-300'}`}>
+                    {row.points >= 0 ? '+' : '−'}{Math.abs(row.points).toLocaleString()}
+                  </span>
+                  <span className="text-gray-500 text-xs tabular-nums">→ {row.balanceAfter.toLocaleString()}</span>
+                  {row.amountCents ? <span className="text-gray-500 text-xs">${(row.amountCents / 100).toLocaleString()}</span> : null}
+                  {row.note && <span className="text-gray-400 text-xs truncate max-w-[260px]" title={row.note}>{row.note}</span>}
+                  <span className="text-gray-600 text-xs ml-auto">
+                    {new Date(row.at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    {row.actor && row.actor !== 'system' && row.actor !== 'parent' ? ` · ${row.actor}` : ''}
+                  </span>
+                </div>
+              ))}
+            </>
           )}
         </div>
       )}
-      {confirmCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setConfirmCreate(false)}>
+
+      {confirming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setConfirming(false)}>
           <div className="bg-[#1a2744] border border-[#1e3a6e] rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <p className="text-xs text-purple-300 font-semibold tracking-wide mb-2">MANUAL TOKEN</p>
-            <h3 className="text-white font-semibold text-lg mb-3">Create manual token?</h3>
+            <p className="text-xs text-purple-300 font-semibold tracking-wide mb-2">POINTS ADJUSTMENT</p>
+            <h3 className="text-white font-semibold text-lg mb-3">{n > 0 ? `Add ${n.toLocaleString()} points?` : `Take back ${Math.abs(n).toLocaleString()} points?`}</h3>
             <div className="text-sm text-gray-300 space-y-1 mb-4">
-              <p>{courseTypes.find(c => c.id === newCourse)?.name || ''} · {parseInt(newQty, 10)} token{parseInt(newQty, 10) === 1 ? '' : 's'}</p>
-              <p className="text-gray-400 text-xs">Expires {new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })} (60 days)</p>
-              {newNote.trim() && <p className="text-gray-400 text-xs">Note: {newNote.trim()}</p>}
+              <p className="text-gray-400 text-xs">Reason: {note.trim()}</p>
+              <p className="text-gray-400 text-xs">
+                New balance: {((w?.balance ?? 0) + n).toLocaleString()} points
+              </p>
             </div>
-            <p className="text-gray-500 text-xs mb-4">This grants free lesson tokens to this account.</p>
+            <p className="text-gray-500 text-xs mb-4">
+              {n > 0
+                ? 'These are granted points: they book lessons like any other point, and are not refundable for cash.'
+                : 'Granted points are taken back first, then purchased ones.'}
+              {' '}The reason above appears on the parent’s own points history.
+            </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setConfirmCreate(false)} className="text-xs px-4 py-2 rounded border border-[#1e3a6e] text-gray-300 hover:bg-white/5">Cancel</button>
-              <button onClick={createPack} className="text-xs px-4 py-2 rounded bg-purple-500/80 text-white font-semibold hover:bg-purple-500">Confirm</button>
+              <button onClick={() => setConfirming(false)} className="text-xs px-4 py-2 rounded border border-[#1e3a6e] text-gray-300 hover:bg-white/5">Cancel</button>
+              <button onClick={submit} className="text-xs px-4 py-2 rounded bg-purple-500/80 text-white font-semibold hover:bg-purple-500">Confirm</button>
             </div>
           </div>
         </div>

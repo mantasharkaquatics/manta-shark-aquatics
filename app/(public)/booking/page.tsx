@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { meetsLeadTime, isWithin24Hours } from '@/lib/tokens'
+import { meetsLeadTime, isWithin24Hours } from '@/lib/booking-time'
 import { BASE_POINTS, OFF_PEAK_DISCOUNT, priceLesson, type PriceBreakdown } from '@/lib/points'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { ZONE_COLORS, BAND_COLORS, bandKey } from '@/lib/zone-colors'

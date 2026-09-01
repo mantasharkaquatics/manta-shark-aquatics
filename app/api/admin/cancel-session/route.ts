@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
-import { tokenExpiryFromNow } from '@/lib/tokens'
-import { refundCredit } from '@/lib/ledger'
+import { applyPoints } from '@/lib/points-wallet'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -18,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, lesson_credit_id, token_package_id, parent_id, student_id, status, class_session_id, lesson_group_id')
+    .select('id, points_charged, points_refunded, parent_id, student_id, status, class_session_id, lesson_group_id')
     .eq('class_session_id', session_id)
     .neq('status', 'cancelled')
 
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (groupIds.length > 0) {
     const { data: sibs } = await svc
       .from('bookings')
-      .select('id, lesson_credit_id, token_package_id, parent_id, student_id, status, class_session_id, lesson_group_id')
+      .select('id, points_charged, points_refunded, parent_id, student_id, status, class_session_id, lesson_group_id')
       .in('lesson_group_id', groupIds)
       .neq('status', 'cancelled')
     for (const sb of sibs || []) {
@@ -63,7 +62,7 @@ export async function POST(req: NextRequest) {
   if ((attended || []).length > 0)
     return NextResponse.json({ error: 'This swimmer has already checked in, so the lesson counts as delivered and cannot be cancelled. To compensate the family, issue a token from the Members page.' }, { status: 409 })
 
-  const notified: { parent_id: string; student_id: string; kind: 'credit' | 'token' | 'none' }[] = []
+  const notified: { parent_id: string; student_id: string; kind: 'points' | 'none' }[] = []
 
   for (const b of allBookings) {
     if (b.status === 'confirmed') {
@@ -81,24 +80,19 @@ export async function POST(req: NextRequest) {
         .eq('status', 'confirmed')
         .select('id')
       if (!c || c.length === 0) continue
-      if (b.lesson_credit_id) {
-        await refundCredit(svc, b.lesson_credit_id)
-      } else if (b.token_package_id && sessRow?.course_type_id) {
-        // School cancelled a token lesson: reissue a fresh 60-day token rather
-        // than crediting back the original package (its remaining days may be
-        // nearly gone). source is 'school_cancellation', NOT 'cancellation' —
-        // the latter is counted against the parent's late-cancellation quota.
-        await svc.from('token_packages').insert({
-          parent_id: b.parent_id,
-          course_type_id: sessRow.course_type_id,
-          total_tokens: 1,
-          source: 'school_cancellation',
-          source_booking_id: b.id,
-          expires_at: tokenExpiryFromNow(),
-          note: 'Reissued: lesson cancelled by school',
-        })
+      // When the school cancels, the points go back in full whatever the
+      // notice period, and no late-cancellation allowance is spent. The 24-hour
+      // rule exists to protect a coach's reserved time; we are the ones giving
+      // it up here.
+      const owed = (b.points_charged ?? 0) - (b.points_refunded ?? 0)
+      if (owed > 0) {
+        await applyPoints(svc, {
+          parentId: b.parent_id, reason: 'school_cancel', points: owed,
+          bookingId: b.id, actor: 'admin', note: 'Lesson cancelled by the school',
+        }).catch(e => console.error('school-cancel refund failed:', e))
+        await svc.from('bookings').update({ points_refunded: b.points_charged }).eq('id', b.id)
       }
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.lesson_credit_id ? 'credit' : (b.token_package_id && sessRow?.course_type_id ? 'token' : 'none') })
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: owed > 0 ? 'points' : 'none' })
     } else {
       // pending_partner etc.: no credits were deducted, cancel without refund
       const { data: c } = await svc

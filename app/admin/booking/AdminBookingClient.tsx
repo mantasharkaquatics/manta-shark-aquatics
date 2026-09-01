@@ -246,11 +246,11 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
 // ══════════════════════════════════════════════════════════════════════
 // Student Search
 // ══════════════════════════════════════════════════════════════════════
-function StudentSearch({ students, value, onChange, parentCreditsCache }: {
+function StudentSearch({ students, value, onChange, parentBalances }: {
   students: Student[]
   value: string
   onChange: (id: string) => void
-  parentCreditsCache: Record<string, number>
+  parentBalances: Record<string, number>
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -322,7 +322,7 @@ function StudentSearch({ students, value, onChange, parentCreditsCache }: {
                   <p className="text-xs text-white/40">{parent?.first_name} {parent?.last_name} · {parent?.email}</p>
                 </div>
                 <span className="text-xs ml-2 flex-shrink-0" style={{ color: s.current_level == null ? '#fbbf24' : 'rgba(255,255,255,0.3)' }}>{s.current_level == null ? '⚠ Not assessed' : `Lv.${s.current_level}`}</span>
-                {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentCreditsCache[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem}</span> : null })()}
+                {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentBalances[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem.toLocaleString()} pts</span> : null })()}
               </button>
             )
           })}
@@ -358,23 +358,23 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [parentCreditsCache, setParentCreditsCache] = useState<Record<string, number>>({})
+  const [parentBalances, setParentBalances] = useState<Record<string, number>>({})
   const [bookMode, setBookMode] = useState<'single' | 'recurring'>('single')
   const [recurCount, setRecurCount] = useState(10)
   // Admin picks how a single-day booking is paid. Tokens are same-day/next-day
   // only and cover one swimmer, so the choice is offered only when it applies;
-  // the server re-checks all of it and credits stay the default everywhere else.
-  const [payMethod, setPayMethod] = useState<'credit' | 'token'>('credit')
+  // There is no payment choice left to make: one currency, and each family
+  // pays out of its own wallet at its own VIP level.
   // Clicking a zone constrains what can be booked there: a 1-on-4 zone only
   // takes 1-on-4, a team block only Swim Team. Private stays free by owner's
   // choice — that zone serves both 1-on-1 and 1-on-2 anyway.
   const [lockedSlug, setLockedSlug] = useState<string | null>(null)
-  // 60-minute lessons: 1-on-1 only, one swimmer, two credits or two tokens.
+  // 60-minute lessons: 1-on-1 only, one swimmer, two half-hour lessons' points.
   // Recurring hour lessons are allowed: preview and commit both send the flag,
   // so the credit estimate and the actual deduction can never disagree.
   const [hourMode, setHourMode] = useState(false)
   const [recurSkips, setRecurSkips] = useState<string[]>([])
-  const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; credits: any } | null>(null)
+  const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; points: any } | null>(null)
   const [recurLoading, setRecurLoading] = useState(false)
   const [blocks, setBlocks] = useState<Block[]>([])
   const [blockAllDay, setBlockAllDay] = useState(false)
@@ -563,26 +563,28 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   const monthDates = getMonthDates(anchor)
 
+  // Each family's points balance, beside their name in the swimmer picker. One
+  // balance covers every course now, so this no longer depends on which course
+  // is selected -- it is loaded once with the roster.
   useEffect(() => {
-    if (!formCourse) return
     const uniqueParentIds = [...new Set(students.map((s: any) => {
       const p = Array.isArray(s.parents) ? s.parents[0] : s.parents
       return p?.id
     }).filter(Boolean))]
+    if (uniqueParentIds.length === 0) return
     const fetchAll = async () => {
       const cache: Record<string, number> = {}
       await Promise.all(uniqueParentIds.map(async (pid) => {
-        const res = await fetch(`/api/admin/parent-credits?parent_id=${pid}&course_type_id=${formCourse}`)
+        const res = await fetch(`/api/admin/points?parent_id=${pid}`)
         if (res.ok) {
-          const credits = await res.json()
-          const remaining = credits.reduce((sum: number, c: any) => sum + (c.total_credits - c.used_credits), 0)
-          cache[pid] = remaining
+          const w = await res.json()
+          cache[pid as string] = w.balance ?? 0
         }
       }))
-      setParentCreditsCache(cache)
+      setParentBalances(cache)
     }
     fetchAll()
-  }, [formCourse, students])
+  }, [students])
 
   const [dragMove, setDragMove] = useState<any>(null)
   const [dragMoving, setDragMoving] = useState(false)
@@ -746,16 +748,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           start_time: selectedSlot.time,
           dates: [selectedSlot.date],
           hour: hourMode && !is1on2,
-          payment_method: (() => {
-            // A two-swimmer 1-on-2 can go on tokens, but only when both swimmers
-            // are one family's and it is not the 60-minute shape -- otherwise the
-            // server would be drawing one parent's tokens for the other's child.
-            if (payMethod !== 'token') return 'credit'
-            if (is1on2 && (!sameParent || hourMode)) return 'credit'
-            const t0 = getTodayLA()
-            const d = new Date(t0 + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)
-            return (selectedSlot.date === t0 || selectedSlot.date === d.toISOString().slice(0, 10)) ? 'token' : 'credit'
-          })(),
         }),
       })
       const data = await res.json()
@@ -1088,16 +1080,16 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                           {v} min
                         </button>
                       ))}
-                      <span className="text-white/30">One continuous hour · costs 2 credits or 2 tokens</span>
+                      <span className="text-white/30">One continuous hour · costs twice a half hour</span>
                     </div>
                   )}
                   <div>
                     <label className="block text-sm text-white/60 mb-2">Select student</label>
-                    <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentCreditsCache={parentCreditsCache} />
+                    <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentBalances={parentBalances} />
                 {courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && (
                   <div className="mt-2">
                     <label className="block text-sm text-white/60 mb-2">Select student 2</label>
-                    <StudentSearch students={students.filter(s => s.id !== formStudent)} value={formStudent2} onChange={setFormStudent2} parentCreditsCache={parentCreditsCache} />
+                    <StudentSearch students={students.filter(s => s.id !== formStudent)} value={formStudent2} onChange={setFormStudent2} parentBalances={parentBalances} />
                   </div>
                 )}
                     {isTrial && trialCreditStatus === 'available' && (
@@ -1151,12 +1143,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                           </div>
                           <div className="px-3 py-2 bg-white/5 text-xs text-white/50 border-t border-white/10">
                             {(() => {
-                              const cr = recurPreview.credits
+                              const cr = recurPreview.points
+                              if (!cr) return null
                               const n1 = cr.parent1_name || 'Parent 1'
                               const n2 = cr.parent2_name || 'Parent 2'
-                              const p1 = `${n1} has ${cr.parent1_remaining} left (needs ${cr.parent1_needed})`
-                              const p2 = cr.parent2_needed != null ? ` · ${n2} has ${cr.parent2_remaining} left (needs ${cr.parent2_needed})` : ''
-                              return (cr.sufficient ? '✓ ' : '⚠ Not enough credits · ') + p1 + p2
+                              const p1 = `${n1} has ${(cr.parent1_balance ?? 0).toLocaleString()} pts (needs ${(cr.parent1_needed ?? 0).toLocaleString()})`
+                              const p2 = cr.parent2_needed != null ? ` · ${n2} has ${(cr.parent2_balance ?? 0).toLocaleString()} pts (needs ${(cr.parent2_needed ?? 0).toLocaleString()})` : ''
+                              return (cr.sufficient ? '✓ ' : '⚠ Not enough points · ') + p1 + p2
                             })()}
                           </div>
                         </div>
@@ -1166,32 +1159,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   {(() => { const st = students.find(s => s.id === formStudent); return st && st.current_level == null && !isTrial ? (
                     <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">⚠️ This student has not completed the Swim Assessment (no level assigned). Admins may still book directly, but please confirm you want to schedule this lesson without an assessment.</p>
                   ) : null })()}
-                  {!isTrial && bookMode !== 'recurring' && formStudent && selectedSlot && (() => {
-                    const t0 = getTodayLA()
-                    const d = new Date(t0 + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)
-                    if (selectedSlot.date !== t0 && selectedSlot.date !== d.toISOString().slice(0, 10)) return null
-                    // A 1-on-2 can be paid with two tokens, but only one family's
-                    // swimmers on a 30-minute lesson. Anything else is credit-only,
-                    // and an option the server would refuse is worse than none.
-                    const twoUp = courseTypes.find(c => c.id === formCourse)?.slug === '1on2'
-                    if (twoUp) {
-                      const a = students.find(s => s.id === formStudent)
-                      const b = students.find(s => s.id === formStudent2)
-                      if (!a || !b || a.parent_id !== b.parent_id || hourMode) return null
-                    }
-                    return (
-                      <div className="flex items-center flex-wrap gap-2 text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2">
-                        <span className="text-white/50">Pay with</span>
-                        {(['credit', 'token'] as const).map(m => (
-                          <button key={m} type="button" onClick={() => setPayMethod(m)}
-                            className={`px-3 py-1 rounded-full border text-[11px] font-semibold transition-colors ${payMethod === m ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-white/20 text-white/50 hover:text-white/80'}`}>
-                            {m === 'credit' ? 'Credit' : 'Token'}
-                          </button>
-                        ))}
-                        <span className="text-white/30">Tokens are valid today or tomorrow only, one per swimmer. A token booking cannot be cancelled or rescheduled.</span>
-                      </div>
-                    )
-                  })()}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
                 </>
@@ -1204,7 +1171,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               {!trialUrl && (
                 <button
                   onClick={bookMode === 'recurring' ? handleRecurCommit : (isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook)}
-                  disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.credits.sufficient || recurLoading))}
+                  disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.points?.sufficient || recurLoading))}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                   {bookMode === 'recurring'
                     ? (saving ? 'Creating...' : recurPreview ? `Confirm ${recurPreview.candidates.filter(c => c.status === 'ok').length} lessons` : 'Generate the date preview first')
@@ -1823,7 +1790,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
     // This used to await the fetch and throw the response away: whatever came
     // back -- a 409, a 500, an RLS refusal -- the modal closed and the calendar
     // refreshed, and the admin walked away believing the lesson was cancelled
-    // and the parents emailed. The route also refunds credits and sends those
+    // and the parents emailed. The route also returns the points and sends those
     // emails, so a silent failure here is a family turning up to a lesson
     // nobody is running. A throw was worse still: neither onRefresh nor
     // onClose ran and the button sat on "Cancelling..." for ever.
@@ -1957,7 +1924,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                 {TIME_SLOTS.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
               </select>
               {rescheduleError && <p className="text-xs text-red-300">{rescheduleError}</p>}
-              <p className="text-xs text-white/40">The whole session moves together — all booked students stay paired. Reschedule notices will be emailed to all affected parents; credits carry over unchanged.</p>
+              <p className="text-xs text-white/40">The whole session moves together — all booked students stay paired. Reschedule notices will be emailed to all affected parents; nobody is re-priced.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={submitReschedule} disabled={rescheduling}
@@ -1975,7 +1942,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 mb-3">
               <p className="text-sm text-red-300 font-medium">Cancel this lesson?</p>
-              <p className="text-xs text-red-300/70 mt-1">All bookings in this session will be cancelled together, credits or tokens will be returned, and cancellation notices will be emailed to the parents.</p>
+              <p className="text-xs text-red-300/70 mt-1">All bookings in this session will be cancelled together, every family's points will be returned in full, and cancellation notices will be emailed to the parents.</p>
             </div>
             {cancelError && <p className="text-xs text-red-300 mb-3">{cancelError}</p>}
             <div className="flex gap-3">

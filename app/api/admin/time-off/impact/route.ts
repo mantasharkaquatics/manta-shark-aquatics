@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
-import { tokenExpiryFromNow } from '@/lib/tokens'
-import { refundCredit } from '@/lib/ledger'
+import { applyPoints } from '@/lib/points-wallet'
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -22,7 +21,7 @@ async function getAffected(svc: any, block: any) {
   const ids = overlapped.map((s: any) => s.id)
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, status, lesson_credit_id, token_package_id, block_notice_sent_at, cancellation_reason')
+    .select('id, class_session_id, parent_id, student_id, status, points_charged, points_refunded, block_notice_sent_at, cancellation_reason')
     .in('class_session_id', ids)
     .or('status.eq.confirmed,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
   return { sessions: overlapped, bookings: bookings || [] }
@@ -129,24 +128,15 @@ export async function POST(req: NextRequest) {
         .eq('status', 'confirmed')
         .select('id')
       if (!c || c.length === 0) continue
-      if (b.lesson_credit_id) {
-        await refundCredit(svc, b.lesson_credit_id)
-      } else if (b.token_package_id) {
-        // Coach time-off is a school-side cancellation: refund in kind with a
-        // fresh 60-day expiry. source is 'school_cancellation', NOT
-        // 'cancellation' — the latter counts against the parent's quota.
-        const ct = sessions.find((s: any) => s.id === b.class_session_id)?.course_type_id
-        if (ct) {
-          await svc.from('token_packages').insert({
-            parent_id: b.parent_id,
-            course_type_id: ct,
-            total_tokens: 1,
-            source: 'school_cancellation',
-            source_booking_id: b.id,
-            expires_at: tokenExpiryFromNow(),
-            note: 'Reissued: lesson cancelled by school',
-          })
-        }
+      // Coach time-off is a school-side cancellation: full points back, no
+      // allowance spent, however close to the lesson it happens.
+      const owed = (b.points_charged ?? 0) - (b.points_refunded ?? 0)
+      if (owed > 0) {
+        await applyPoints(svc, {
+          parentId: b.parent_id, reason: 'school_cancel', points: owed,
+          bookingId: b.id, actor: 'admin', note: 'Coach unavailable',
+        }).catch(e => console.error('time-off refund failed:', e))
+        await svc.from('bookings').update({ points_refunded: b.points_charged }).eq('id', b.id)
       }
       touchedSessions.add(b.class_session_id)
       cancelled++
