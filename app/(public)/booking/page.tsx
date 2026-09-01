@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { tokenSlugsForTarget, meetsLeadTime, isWithin24Hours } from '@/lib/tokens'
+import { meetsLeadTime, isWithin24Hours } from '@/lib/tokens'
+import { BASE_POINTS, OFF_PEAK_DISCOUNT, priceLesson, type PriceBreakdown } from '@/lib/points'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { ZONE_COLORS, BAND_COLORS, bandKey } from '@/lib/zone-colors'
 
@@ -31,7 +32,14 @@ interface PartnerStudent { id: string; full_name: string; current_level: number;
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
 interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string; within24h?: boolean; fill?: string }
-interface Credit { id: string; total_credits: number; used_credits: number; course_type_id: string; student_id: string | null }
+type Wallet = {
+  balance: number
+  lessonsCompleted: number
+  vipLevel: number
+  vipDiscount: number
+  nextTier: { level: number; discount: number; lessonsToGo: number } | null
+  forgiveness: number
+}
 
 const COURSE_COLORS: Record<string, string> = {
   '1on1': GOLD, '1on2': '#4a90c4', '1on4': '#4caf72', 'team': '#e05a4a',
@@ -183,11 +191,16 @@ export default function BookingPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([])
   const [coaches, setCoaches] = useState<Coach[]>([])
-  const [credits, setCredits] = useState<Credit[]>([])
-  const [tokens, setTokens] = useState<{ id: string; course_type_id: string; remaining: number; expires_at: string }[]>([])
-  useEffect(() => {
-    fetch('/api/parent/tokens').then(r => r.ok ? r.json() : null).then(d => { if (d?.tokens) setTokens(d.tokens) }).catch(() => {})
-  }, [])
+  // One balance for everything. The wallet is read once and the price of each
+  // slot is worked out on this page with the SAME function the booking route
+  // charges with, so what the parent is quoted and what they are charged are
+  // the same arithmetic rather than two copies of it.
+  const [wallet, setWallet] = useState<Wallet | null>(null)
+  const reloadWallet = () => {
+    fetch('/api/parent/wallet').then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setWallet(d) }).catch(() => {})
+  }
+  useEffect(reloadWallet, [])
   const [partnerStudents, setPartnerStudents] = useState<PartnerStudent[]>([])
   const [selectedStudent2, setSelectedStudent2] = useState<Student | PartnerStudent | null>(null)
 
@@ -261,16 +274,15 @@ export default function BookingPage() {
   const [lessonLength, setLessonLength] = useState<30 | 60>(30)
   const [hourSlots, setHourSlots] = useState<any[]>([])
   const [hourLoading, setHourLoading] = useState(false)
-  const [hourCredits, setHourCredits] = useState(0)
+  const [hourBalance, setHourBalance] = useState(0)
   // Who is in the lesson being moved. The reschedule URL only carries one
   // student id, so for a 1-on-2 the second name has to come from the server.
   const [hourRoster, setHourRoster] = useState<any[]>([])
-  const [hourTokens, setHourTokens] = useState(0)
   const [selectedHour, setSelectedHour] = useState<any | null>(null)
   const [recurOpen, setRecurOpen] = useState(false)
   const [recurList, setRecurList] = useState<any[]>([])
   const [recurSel, setRecurSel] = useState<Set<string>>(new Set())
-  const [recurCredits, setRecurCredits] = useState(0)
+  const [recurQuote, setRecurQuote] = useState<Map<string, number>>(new Map())
   const [recurBusy, setRecurBusy] = useState(false)
   const [recurMsg, setRecurMsg] = useState('')
   // The weekly batch used to book the moment you pressed "Confirm N lessons",
@@ -280,9 +292,6 @@ export default function BookingPage() {
   // what step 4 is confirming, and nothing is written until you press Confirm
   // there.
   const [recurPlan, setRecurPlan] = useState<string[]>([])
-  // Token or credit. Token is the default because an unspent one expires,
-  // but a token booking is final, so the parent gets to say.
-  const [payChoice, setPayChoice] = useState<'token' | 'credit'>('token')
   const [recurBooked, setRecurBooked] = useState(0)
   const [recurSkipped, setRecurSkipped] = useState(0)
 
@@ -308,7 +317,7 @@ export default function BookingPage() {
         student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
         session_date: formatDateLA(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null }),
     }).then(r => r.json())
-      .then(d => { setHourSlots(d?.slots || []); setHourCredits(d?.credits_remaining || 0); setHourTokens(d?.tokens_remaining || 0); setHourRoster(d?.roster || []) })
+      .then(d => { setHourSlots(d?.slots || []); setHourBalance(d?.balance ?? 0); setHourRoster(d?.roster || []) })
       .catch(() => setHourSlots([]))
       .finally(() => setHourLoading(false))
   }, [groupFlow, selectedStudent, selectedStudent2, selectedDate, lessonLength, selectedCourse])
@@ -322,21 +331,15 @@ export default function BookingPage() {
       if (!parent) { router.push('/dashboard'); return }
       setParentId(parent.id)
 
-      const [{ data: studs }, { data: cts }, { data: coachs }, { data: crds }] = await Promise.all([
+      const [{ data: studs }, { data: cts }, { data: coachs }] = await Promise.all([
         supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true),
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true),
-        supabase.from('lesson_credits')
-          .select('id, total_credits, used_credits, course_type_id, student_id, created_at')
-          .eq('parent_id', parent.id)
-          .filter('total_credits', 'gt', 0)
-          .is('converted_to_token_at', null),
       ])
 
       setStudents(studs || [])
       setCourseTypes(cts || [])
       setCoaches(coachs || [])
-      setCredits((crds || []).filter((c: any) => (c.total_credits - c.used_credits) > 0))
 
       try {
         const res = await fetch('/api/partnerships/list')
@@ -488,9 +491,6 @@ export default function BookingPage() {
         return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
       }
       const within24h = isWithin24Hours(dateStr, t)
-      if (tokenOnlyMode && !inTokenWindow(selectedDate!)) {
-        return { time: t, label: formatTime(t), available: false, enrolled: 0, max: maxStudents }
-      }
       if (inCoachBlock(t)) {
         return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
       }
@@ -516,78 +516,92 @@ export default function BookingPage() {
     setTimeSlots(slots)
   }
 
-  const slugById: Record<string, string> = {}
-  for (const ct of courseTypes) slugById[ct.id] = ct.slug
-  const eligibleTokens = selectedCourse
-    ? tokens.filter(t => tokenSlugsForTarget(selectedCourse.slug).includes(slugById[t.course_type_id]) && t.remaining > 0)
-    : []
-  const tokenRemaining = eligibleTokens.reduce((sum, t) => sum + t.remaining, 0)
-  const hasTokenForCourse = tokenRemaining > 0
-  function inTokenWindow(date: Date): boolean {
-    if (isToday(date)) return true
-    const tm = new Date(today); tm.setDate(tm.getDate() + 1); tm.setHours(0, 0, 0, 0)
-    const d = new Date(date); d.setHours(0, 0, 0, 0)
-    return d.getTime() === tm.getTime()
-  }
   // Seats this family pays for: two of your own swimmers cost you both, a
   // cross-family 1-on-2 costs each side one. An hour is two half-hour rows each.
   const paidSeats = selectedCourse?.slug === '1on2' && selectedStudent2 && !(selectedStudent2 as any).isPartner ? 2 : 1
   // Hour-ness comes from the length toggle, not from a slot already being
-  // picked: the hour list itself has to know whether it will be paid with
-  // make-up credits, or a family holding only those is told it cannot afford
-  // any of the slots it is looking at.
+  // picked: the hour list has to price itself before anything is selected.
   const isHourLesson = lessonLength === 60
-  const tokensNeeded = paidSeats * (isHourLesson ? 2 : 1)
-  // All-or-nothing, mirroring the server: with fewer tokens than seats the
-  // whole booking goes on credits, so the summary must never promise a token
-  // the parent will not actually spend.
-  const tokensCoverBooking = (isHourLesson ? hourTokens : tokenRemaining) >= tokensNeeded
-  const tokenOffered = !!selectedCourse && !!selectedDate && !isTrial && !isReschedule
-    && recurPlan.length === 0 && hasTokenForCourse && inTokenWindow(selectedDate) && tokensCoverBooking
-  const willUseToken = tokenOffered && payChoice === 'token'
-  const hourPaysWithTokens = isHourLesson && willUseToken
-  const payingWithTokens = willUseToken
 
-  const availableCredit = selectedCourse
-    ? [...credits]
-        .filter(c => c.course_type_id === selectedCourse.id && (c.total_credits - c.used_credits) > 0)
-        .sort((a, b) => ((a as any).created_at || '').localeCompare((b as any).created_at || ''))
-        [0] || null
+  const lessonsDone = wallet?.lessonsCompleted ?? 0
+  const balance = wallet?.balance ?? 0
+  const vipPct = wallet?.vipDiscount ?? 0
+
+  /** The price of one lesson at a given date and time, or null if this course
+   *  is not paid for with points (Swim Team) or nothing is selected yet. */
+  function priceAt(dateStr: string, time: string, minutes: number = isHourLesson ? 60 : 30): PriceBreakdown | null {
+    if (!selectedCourse || isTrial) return null
+    try {
+      return priceLesson({
+        courseSlug: selectedCourse.slug, minutes, lessonsCompleted: lessonsDone,
+        sessionDate: dateStr, startTime: time, seats: paidSeats,
+      })
+    } catch { return null }
+  }
+
+  /** The cheapest this course can ever be for this family: every discount on.
+   *  Used to decide whether to let them go forward at all -- refusing someone
+   *  who could afford SOME slot would be worse than letting the server say no. */
+  function cheapestFor(slug: string | undefined, seats: number, minutes = 30): number {
+    const base = BASE_POINTS[slug ?? '']
+    if (base === undefined) return 0
+    return Math.floor(base * (1 - vipPct) * (1 - OFF_PEAK_DISCOUNT)) * (minutes === 60 ? 2 : 1) * seats
+  }
+
+  /** The list price of one 30-minute lesson at this family's VIP level, with no
+   *  date chosen yet. What the course cards show. */
+  function listPrice(slug: string): number {
+    const base = BASE_POINTS[slug]
+    if (base === undefined) return 0
+    return Math.floor(base * (1 - vipPct))
+  }
+
+  const canAffordCourse = !selectedCourse || isTrial || isReschedule
+    || balance >= cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)
+
+  /* Ready to leave the course step. A 1-on-2 needs its second swimmer, and if
+     that swimmer is on this account it needs enough points for both seats --
+     checked against the cheapest slot that exists, so nobody is stopped here
+     who could have afforded something. */
+  const courseStepReady = !!selectedCourse && canAffordCourse && (
+    selectedCourse.slug !== '1on2'
+      ? true
+      : !!selectedStudent2 && ((selectedStudent2 as any).isPartner
+        || isReschedule
+        || balance >= cheapestFor('1on2', 2, isHourLesson ? 60 : 30))
+  )
+
+  // What this booking will actually cost, once a slot is picked. A reschedule
+  // keeps its original charge, so it costs nothing here.
+  const bookingPrice = (!isReschedule && !isTrial && selectedDate && selectedSlot)
+    ? priceAt(formatDateLA(selectedDate), selectedSlot.time)
     : null
-  const totalRemainingCredits = selectedCourse
-    ? credits.filter(c => c.course_type_id === selectedCourse.id).reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
-    : 0
-  const remainingCredits = totalRemainingCredits
-  // Nothing but make-up credits for this course. The family can still book --
-  // today or tomorrow, which is all a make-up credit is good for -- and every
-  // other date is locked. Seat-aware on purpose: one token does not open a date
-  // for a two-swimmer 1-on-2, or the parent would be walked to a slot the
-  // server has no way to charge them for.
-  const tokenOnlyMode = !availableCredit && !isTrial && tokensCoverBooking
-  // What this booking costs and what is left after it. Credits and tokens cost
-  // the same number -- one per seat, doubled for an hour -- so one value serves
-  // both, and every line that quotes a number reads it. They used to be spelled
-  // out at each site, which is how a two-swimmer 1-on-2 came to say it would
-  // spend one token and leave two.
-  const unitsNeeded = tokensNeeded
-  const tokenPoolCount = isHourLesson ? hourTokens : tokenRemaining
-  const unitsLeftAfter = isReschedule
-    ? remainingCredits
-    : payingWithTokens ? tokenPoolCount - unitsNeeded : remainingCredits - unitsNeeded
-  const unitBadge = (kind: 'token' | 'credit', n: number) => t(
-    kind === 'token' ? (n === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge')
-                     : (n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge'), { n })
+  const bookingCost = bookingPrice?.charged ?? 0
+  const recurTotal = recurPlan.reduce((a, d) => a + (recurQuote.get(d) ?? 0), 0)
+  const balanceAfter = Math.max(0, balance - bookingCost)
 
-  // Every "you cannot pay for this" notice offers the same way out, and it
-  // has to land on the course the parent was actually trying to book -- a
-  // link to the top of /plans drops a 1-on-2 family in the 1-on-1 packages.
-  const plansHref = (slug?: string | null) => slug ? `/plans#${slug}` : '/plans'
-  const BuyPlanLink = ({ slug, label }: { slug?: string | null; label: string }) => (
-    <a href={plansHref(slug)}
+  // Every "you cannot pay for this" notice offers the same way out.
+  const BuyPointsLink = ({ label }: { label: string }) => (
+    <a href="/plans#buy"
       style={{ display: 'inline-block', marginTop: '10px', padding: '9px 18px', borderRadius: '8px', background: GOLD, color: NAVY, fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
       {label}
     </a>
   )
+
+  /** The gold "58 pts" with the struck-out list price beside it. Without the
+   *  original the discount may as well not have happened, so it is shown
+   *  wherever a discounted price is. */
+  const PriceTag = ({ price, dim = false }: { price: PriceBreakdown; dim?: boolean }) => {
+    const full = price.base * price.seats
+    return (
+      <span style={{ display: 'block', fontSize: '11px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: dim ? 'rgba(255,255,255,0.25)' : GOLD }}>
+        {price.charged < full && (
+          <span style={{ textDecoration: 'line-through', color: 'rgba(255,255,255,0.32)', marginRight: '4px' }}>{full}</span>
+        )}
+        {t('points.unit', { n: price.charged })}
+      </span>
+    )
+  }
 
   const needsAssessment = !!selectedStudent && selectedStudent.current_level == null
 
@@ -606,6 +620,7 @@ export default function BookingPage() {
       setRecurBooked(j.booked ?? recurPlan.length)
       setRecurSkipped((j.skipped || []).filter((x: any) => recurPlan.includes(x.date)).length)
       setCartRefresh(n => n + 1)
+      reloadWallet()
       setSuccess(true)
     } catch { setNotice(t('cart.err.network')); setSubmitting(false) }
   }
@@ -624,7 +639,7 @@ export default function BookingPage() {
 
   async function handleConfirm() {
     if (recurPlan.length > 0) return confirmRecurring()
-    if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId || (!availableCredit && !isTrial && !willUseToken)) return
+    if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId) return
     setSubmitting(true)
 
     const dateStr = formatDateLA(selectedDate)
@@ -718,7 +733,6 @@ export default function BookingPage() {
                 student_name: selectedStudent2.full_name,
               } : null,
               session_date: dateStr,
-              pay_with: willUseToken ? 'token' : 'credit',
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }),
       })
       const hj = await hr.json().catch(() => ({}))
@@ -751,7 +765,6 @@ export default function BookingPage() {
           student_name: ps2.full_name,
         } : null,
         reschedule_booking_id: rbId || null,
-        pay_with: willUseToken ? 'token' : 'credit',
       }),
     })
     const j = await res.json().catch(() => ({}))
@@ -762,6 +775,7 @@ export default function BookingPage() {
     }
 
     setSubmitting(false)
+    reloadWallet()
     setIsPartnerBookingSuccess(!!ps2)
     setSuccess(true)
   }
@@ -1053,12 +1067,8 @@ export default function BookingPage() {
               )}
               {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
-                const remaining = credits
-                  .filter(c => c.course_type_id === ct.id)
-                  .reduce((sum, c) => sum + (c.total_credits - c.used_credits), 0)
-                const ctTokens = tokens
-                  .filter(t => tokenSlugsForTarget(ct.slug).includes(slugById[t.course_type_id]) && t.remaining > 0)
-                  .reduce((s2, t) => s2 + t.remaining, 0)
+                const listed = listPrice(ct.slug)
+                const full = BASE_POINTS[ct.slug] ?? 0
                 return (
                   <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1076,31 +1086,24 @@ export default function BookingPage() {
                           )}
                         </div>
                       </div>
-                      {/* Both badges when the family holds both. Showing only
-                          credits used to hide make-up credits behind them, and a
-                          course the family could book today read as unbookable. */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        {remaining > 0 && (
-                          <div style={{
-                            background: `${color}20`, border: `1px solid ${color}40`,
-                            borderRadius: '20px', padding: '4px 12px',
-                            fontSize: '12px', fontWeight: 700, color, whiteSpace: 'nowrap',
-                          }}>{t(remaining === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n: remaining })}</div>
-                        )}
-                        {ctTokens > 0 && (
-                          <div style={{
-                            background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.4)',
-                            borderRadius: '20px', padding: '4px 12px',
-                            fontSize: '12px', fontWeight: 700, color: '#e8883a', whiteSpace: 'nowrap',
-                          }}>{t(ctTokens === 1 ? 'booking.tokenBadge' : 'booking.tokensBadge', { n: ctTokens })}</div>
-                        )}
-                        {remaining === 0 && ctTokens === 0 && (
-                          <div style={{
-                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                            borderRadius: '20px', padding: '4px 12px',
-                            fontSize: '11px', color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap',
-                          }}>{t('booking.noCredits')}</div>
-                        )}
+                      {/* The list price at this family's VIP level. Off-peak is
+                          not in it yet -- no date has been chosen -- so the slot
+                          grid can only ever come in lower than this, never
+                          higher. A price that goes up after you pick a time is
+                          the one thing this screen must never do. */}
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{
+                          background: `${color}20`, border: `1px solid ${color}40`,
+                          borderRadius: '20px', padding: '4px 12px',
+                          fontSize: '12px', fontWeight: 700, color, whiteSpace: 'nowrap',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {listed < full && (
+                            <span style={{ textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)', marginRight: '5px', fontWeight: 500 }}>{full}</span>
+                          )}
+                          {t('points.unit', { n: listed })}
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{t('booking.perSwimmer')}</div>
                       </div>
                     </div>
                   </SelectCard>
@@ -1108,14 +1111,14 @@ export default function BookingPage() {
               })}
             </div>
 
-            {selectedCourse && (!availableCredit && !isTrial && !hasTokenForCourse) && (
+            {selectedCourse && !canAffordCourse && (
               <div style={{
                 marginTop: '16px', padding: '14px 18px',
                 background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)',
                 borderRadius: '10px', fontSize: '13px', color: '#e05a4a',
               }}>
-                ⚠️ {t('booking.noCreditsWarn')}
-                <div><BuyPlanLink slug={selectedCourse?.slug} label={t('booking.browsePlans')} /></div>
+                ⚠️ {t('booking.short.body', { have: balance, need: cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30) })}
+                <div><BuyPointsLink label={t('booking.short.cta')} /></div>
               </div>
             )}
 
@@ -1123,7 +1126,7 @@ export default function BookingPage() {
                 all, not on credits -- a family holding two make-up credits and no
                 credits could never reach the second swimmer, and Continue stayed
                 dead with nothing on screen to explain why. */}
-            {selectedCourse?.slug === '1on2' && (availableCredit || tokenRemaining > 0) && (
+            {selectedCourse?.slug === '1on2' && (
               <div style={{ marginTop: '20px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
                   👥 {t('booking.select2nd')}
@@ -1164,10 +1167,10 @@ export default function BookingPage() {
                     </div>
                   )}
                 </div>
-                {selectedStudent2 && !(selectedStudent2 as any).isPartner && remainingCredits < 2 && tokenRemaining < 2 && (
+                {selectedStudent2 && !(selectedStudent2 as any).isPartner && balance < cheapestFor('1on2', 2, isHourLesson ? 60 : 30) && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '12px', color: '#e05a4a' }}>
-                    ⚠️ {t('booking.needTwoCredits', { n: remainingCredits })}
-                    <div><BuyPlanLink slug={selectedCourse?.slug} label={t('booking.buyPlan')} /></div>
+                    ⚠️ {t('booking.short.twoSeats', { have: balance, need: cheapestFor('1on2', 2, isHourLesson ? 60 : 30) })}
+                    <div><BuyPointsLink label={t('booking.short.cta')} /></div>
                   </div>
                 )}
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
@@ -1185,29 +1188,15 @@ export default function BookingPage() {
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}>{t('booking.back')}</button>
               <button
-                onClick={() => {
-                  if (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse)) return
-                  if (selectedCourse.slug === '1on2') {
-                    if (!selectedStudent2) return
-                    // Two of your own swimmers cost two of something. Tokens
-                    // count here too, or a family holding two would be told to
-                    // buy credits they do not need.
-                    if (!(selectedStudent2 as any).isPartner && remainingCredits < 2 && tokenRemaining < 2) return
-                  }
-                  setStep(selectedCourse.slug === '1on4' && !isTrial ? 3 : 2)
-                }}
-                disabled={
-                  !selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) ||
-                  (selectedCourse?.slug === '1on2' && !selectedStudent2) ||
-                  (selectedCourse?.slug === '1on2' && !(selectedStudent2 as any)?.isPartner && remainingCredits < 2 && tokenRemaining < 2)
-                }
+                onClick={() => { if (courseStepReady) setStep(selectedCourse!.slug === '1on4' && !isTrial ? 3 : 2) }}
+                disabled={!courseStepReady}
                 style={{
                   flex: 2, padding: '14px',
-                  background: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2 && tokenRemaining < 2)))) ? 'rgba(255,255,255,0.1)' : GOLD,
-                  color: (!selectedCourse || (!availableCredit && !isTrial && !hasTokenForCourse) || (selectedCourse?.slug === '1on2' && (!selectedStudent2 || (!(selectedStudent2 as any)?.isPartner && remainingCredits < 2 && tokenRemaining < 2)))) ? 'rgba(255,255,255,0.3)' : NAVY,
+                  background: courseStepReady ? GOLD : 'rgba(255,255,255,0.1)',
+                  color: courseStepReady ? NAVY : 'rgba(255,255,255,0.3)',
                   border: 'none', borderRadius: '10px',
                   fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: 'pointer',
+                  textTransform: 'uppercase', cursor: courseStepReady ? 'pointer' : 'not-allowed',
                 }}
               >{t('booking.continue')}</button>
             </div>
@@ -1321,7 +1310,7 @@ export default function BookingPage() {
                         <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
                           style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
-                          {t('booking.lenMin', { n: v })}{v === 60 ? ' · ' + unitBadge(hourPaysWithTokens ? 'token' : 'credit', paidSeats * 2) : ''}</button>
+                          {t('booking.lenMin', { n: v })}</button>
                       ))}
                     </div>
                   )}
@@ -1331,28 +1320,24 @@ export default function BookingPage() {
                     .map((h: any) => ({ ...h, opts: (h.options || []).filter((o: any) => o.coach1_id === selectedCoach?.id) }))
                     .filter((h: any) => h.opts.length > 0)
                     .map((h: any) => ({ ...h, pick: h.opts.find((o: any) => !o.relay) || h.opts[0] }))
-                  // What an hour costs this family, and whether they can pay it
-                  // at all. When they cannot, every card below is dead; saying
-                  // so and offering the way out beats a wall of grey buttons.
-                  const hourCost = selectedCourse?.slug === '1on2' ? ((selectedStudent2 as any)?.isPartner ? 2 : 4) : 2
-                  const canAffordHour = hourPaysWithTokens || hourCredits >= hourCost
-                  const courseLabel = selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : ''
+                  // The server prices every hour slot and sends the figure with
+                  // it, so nothing here has to guess. The cheapest one on offer
+                  // decides whether the family can book an hour at all; when
+                  // they cannot, saying so beats a wall of grey buttons.
+                  const cheapest = rows.length ? Math.min(...rows.map((h: any) => Number(h.points) || 0)) : 0
+                  const canAffordHour = isReschedule || (rows.length > 0 && hourBalance >= cheapest)
                   return (
                     <div style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px' }}>
-                        {hourPaysWithTokens
-                          ? t('booking.hour.tokens', { n: hourTokens })
-                          : willUseToken && hourTokens === 1
-                            ? t('booking.hour.creditsSingleToken', { n: hourCost, left: hourCredits })
-                            : t('booking.hour.credits', { n: hourCost, left: hourCredits })}
+                        {t('booking.hour.cost')} · {t('booking.balance', { n: hourBalance })}
                       </div>
                       {!hourLoading && rows.length > 0 && !canAffordHour && (
                         <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.hour.short.title')}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.short.title')}</div>
                           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
-                            {t('booking.hour.short.body', { course: courseLabel, n: hourCost, left: hourCredits })}
+                            {t('booking.short.body', { have: hourBalance, need: cheapest })}
                           </div>
-                          <BuyPlanLink slug={selectedCourse?.slug} label={t('booking.hour.short.cta', { course: courseLabel })} />
+                          <BuyPointsLink label={t('booking.short.cta')} />
                         </div>
                       )}
                       {hourLoading ? (
@@ -1366,7 +1351,8 @@ export default function BookingPage() {
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
-                            const usable = canAffordHour && !h.is_current
+                            const affordable = isReschedule || hourBalance >= (Number(h.points) || 0)
+                            const usable = affordable && !h.is_current
                             const w24 = isWithin24Hours(formatDateLA(selectedDate), h.start_time)
                             return (
                               <button key={h.start_time} disabled={!usable}
@@ -1388,7 +1374,15 @@ export default function BookingPage() {
                                 <div style={{ fontSize: '10px', fontWeight: 600, color: sel ? GOLD : usable ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)', marginTop: '1px' }}>
                                   – {formatTime(h.end_time)}
                                 </div>
-                                {!willUseToken && !isTrial && usable && w24 && (
+                                {!isReschedule && h.points != null && (
+                                  <span style={{ display: 'block', fontSize: '11px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : 'rgba(255,255,255,0.25)' }}>
+                                    {t('points.unit', { n: h.points })}
+                                  </span>
+                                )}
+                                {h.off_peak && (
+                                  <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
+                                )}
+                                {!isTrial && usable && w24 && (
                                   <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
                                 )}
                                 {isReschedule && (
@@ -1407,16 +1401,7 @@ export default function BookingPage() {
                     </div>
                   )
                 })()}
-                {tokenOnlyMode && !inTokenWindow(selectedDate) && (
-                  <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <span style={{ fontSize: '16px' }}>🎟️</span>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>{t('booking.tokenWindow.title')}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenWindow.body')}<div><BuyPlanLink slug={selectedCourse?.slug} label={t('booking.browsePlans')} /></div></div>
-                    </div>
-                  </div>
-                )}
-                {!willUseToken && !isTrial && timeSlots.some(sl => sl.available && sl.within24h) && (
+                {!isTrial && timeSlots.some(sl => sl.available && sl.within24h) && (
                   <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>⚠️</span>
                     <div>
@@ -1425,26 +1410,11 @@ export default function BookingPage() {
                     </div>
                   </div>
                 )}
-                {/* Only when the make-up credits actually cover this booking.
-                    Holding one while an hour lesson needs two, the notice used
-                    to announce "this lesson will use 2 points (2 available: 1)"
-                    beside a slot list that was pricing itself in lesson credits
-                    -- true of neither the booking nor the balance. */}
-                {tokenOffered && (
-                  <div style={{ background: 'rgba(232,136,58,0.08)', border: '1px solid rgba(232,136,58,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <span style={{ fontSize: '16px' }}>🎟️</span>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8883a', marginBottom: '4px' }}>{t('booking.tokenBooking.title')}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.tokenBooking.body', { tokens: unitBadge('token', unitsNeeded), n: tokenPoolCount })}{isToday(selectedDate) ? t('booking.tokenBooking.today') : ''}</div>
-                    </div>
-                  </div>
-                )}
                 {groupFlow ? (
                   groupLoading ? (
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.groupLoading')}</p>
                   ) : (() => {
                     const ds2 = formatDateLA(selectedDate)
-                    const tokenBlocked = tokenOnlyMode && !inTokenWindow(selectedDate)
                     const visible = groupClasses.filter((gc: any) => meetsLeadTime(ds2, gc.time))
                     if (visible.length === 0) return (
                       <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
@@ -1458,7 +1428,7 @@ export default function BookingPage() {
                         {visible.map((gc: any) => {
                           const w24 = isWithin24Hours(ds2, gc.time)
                           const sel = selectedSlot?.time === gc.time && selectedCoach?.id === gc.coach_id
-                          const clickable = !gc.full && !gc.already_booked && !tokenBlocked
+                          const clickable = !gc.full && !gc.already_booked
                           return (
                             <button key={gc.coach_id + gc.time}
                               onClick={() => {
@@ -1484,6 +1454,12 @@ export default function BookingPage() {
                                 </span>
                               </span>
                               <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                {!isReschedule && (() => { const pr = priceAt(ds2, gc.time, 30); return pr ? (
+                                  <span style={{ textAlign: 'right' }}>
+                                    <PriceTag price={pr} dim={!clickable} />
+                                    {pr.offPeak && <span style={{ display: 'block', fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)' }}>{t('booking.offPeak')}</span>}
+                                  </span>
+                                ) : null })()}
                                 {w24 && clickable && <span style={{ fontSize: '10px', fontWeight: 700, color: '#c9a84c' }}>24h</span>}
                                 <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px',
                                   color: gc.already_booked ? 'rgba(255,255,255,0.4)' : gc.full ? 'rgba(255,255,255,0.3)' : myBandColor,
@@ -1517,7 +1493,20 @@ export default function BookingPage() {
                         }}
                       >
                         {slot.label}
-                        {!willUseToken && !isTrial && slot.available && slot.within24h && (
+                        {(() => {
+                          if (isReschedule || isTrial || !selectedDate) return null
+                          const pr = priceAt(formatDateLA(selectedDate), slot.time, 30)
+                          if (!pr) return null
+                          return (
+                            <>
+                              <PriceTag price={pr} dim={!slot.available} />
+                              {pr.offPeak && (
+                                <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: slot.available ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
+                              )}
+                            </>
+                          )
+                        })()}
+                        {!isTrial && slot.available && slot.within24h && (
                           <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
                         )}
                         {selectedCourse && (selectedCourse.slug === '1on4' || selectedCourse.slug === 'team') && (
@@ -1536,7 +1525,6 @@ export default function BookingPage() {
               const mm = String(calMonth + 1).padStart(2, '0')
               const todayDs = formatDateLA(today)
               const atCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth()
-              const tokenMode = tokenOnlyMode
               return (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -1546,9 +1534,6 @@ export default function BookingPage() {
                     <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) } else setCalMonth(calMonth + 1) }}
                       style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>{t('booking.group.next')}</button>
                   </div>
-                  {tokenMode && (
-                    <div style={{ fontSize: '12px', color: '#e8883a', marginBottom: '10px' }}>{t('booking.group.tokenMode')}</div>
-                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
                     {[0, 1, 2, 3, 4, 5, 6].map(d => (
                       <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
@@ -1562,14 +1547,13 @@ export default function BookingPage() {
                       const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
                       const isPast = ds < todayDs
                       const isToday2 = ds === todayDs
-                      const tokenBlocked = tokenMode && !inTokenWindow(dt)
                       return (
                         <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
                           <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {slots.map((sl: any) => {
                               const w24 = isWithin24Hours(ds, sl.time)
-                              const clickable = !sl.full && !sl.already_booked && !tokenBlocked
+                              const clickable = !sl.full && !sl.already_booked
                               const sel = selectedSlot?.time === sl.time && selectedCoach?.id === sl.coach_id && selectedDate && formatDateLA(selectedDate) === ds
                               return (
                                 <button key={sl.coach_id + sl.time}
@@ -1639,10 +1623,23 @@ export default function BookingPage() {
                           if (!res.ok) { setRecurMsg(tErr(j.error, 'booking.recur.err.preview')) }
                           else {
                             const cands = j.candidates || []
-                            const okDates = cands.filter((c: any) => c.status === 'ok').map((c: any) => c.date)
+                            const quote = new Map<string, number>(
+                              cands.filter((c: any) => c.points != null).map((c: any) => [c.date, Number(c.points)]))
                             setRecurList(cands)
-                            setRecurCredits(j.credits_remaining || 0)
-                            setRecurSel(new Set(okDates.slice(0, j.credits_remaining || 0)))
+                            setRecurQuote(quote)
+                            // Pre-tick as many dates as the wallet actually
+                            // covers, cheapest arithmetic first: running total,
+                            // in date order, stopping at the balance.
+                            const bal = j.balance ?? balance
+                            const pre = new Set<string>()
+                            let spent = 0
+                            for (const c of cands) {
+                              if (c.status !== 'ok') continue
+                              const cost = quote.get(c.date) ?? 0
+                              if (spent + cost > bal) break
+                              pre.add(c.date); spent += cost
+                            }
+                            setRecurSel(pre)
                             setRecurOpen(true)
                           }
                         } catch { setRecurMsg(t('cart.err.network')) }
@@ -1664,13 +1661,18 @@ export default function BookingPage() {
                           const selectable = c.status === 'ok'
                           const label = new Date(c.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                           const statusText = c.status === 'ok' ? t('booking.spotsLeft', { n: c.spots }) : c.status === 'full' ? t('booking.full') : c.status === 'booked' ? t('booking.booked') : c.status === 'time_off' ? t('booking.recur.status.timeOff') : c.status === 'too_soon' ? t('booking.recur.status.tooSoon') : t('booking.recur.status.noClass')
+                          const cost = recurQuote.get(c.date) ?? 0
                           return (
                             <button key={c.date} disabled={!selectable}
                               onClick={() => {
                                 setRecurSel(prev => {
                                   const n = new Set(prev)
-                                  if (n.has(c.date)) n.delete(c.date)
-                                  else if (n.size < recurCredits) n.add(c.date)
+                                  if (n.has(c.date)) { n.delete(c.date); return n }
+                                  // Ticking a date the wallet cannot cover is
+                                  // refused here rather than at Confirm, where
+                                  // the parent has already chosen 19 of them.
+                                  const spent = [...n].reduce((a, d) => a + (recurQuote.get(d) ?? 0), 0)
+                                  if (spent + cost <= balance) n.add(c.date)
                                   return n
                                 })
                               }}
@@ -1679,19 +1681,31 @@ export default function BookingPage() {
                                 background: on ? `${GOLD}18` : 'rgba(255,255,255,0.02)',
                                 cursor: selectable ? 'pointer' : 'not-allowed' }}>
                               <span style={{ fontSize: '13px', fontWeight: 600, color: on ? GOLD : selectable ? '#fff' : 'rgba(255,255,255,0.3)' }}>{on ? '✓ ' : ''}{label}</span>
-                              <span style={{ fontSize: '12px', color: on ? GOLD : selectable ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.3)' }}>{statusText}</span>
+                              <span style={{ fontSize: '12px', color: on ? GOLD : selectable ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.3)' }}>
+                                {statusText}
+                                {selectable && cost > 0 && <span style={{ marginLeft: '8px', fontVariantNumeric: 'tabular-nums', color: on ? GOLD : 'rgba(255,255,255,0.35)' }}>{t('points.unit', { n: cost })}</span>}
+                              </span>
                             </button>
                           )
                         })}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.using', { n: recurSel.size, total: recurCredits })}</span>
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                          {t('booking.recur.usingPoints', { n: recurSel.size, points: [...recurSel].reduce((a, d) => a + (recurQuote.get(d) ?? 0), 0) })}
+                        </span>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button onClick={() => {
                               setRecurSel(prev => {
                                 if (prev.size > 0) return new Set<string>()
-                                const okDates = recurList.filter((c: any) => c.status === 'ok').map((c: any) => c.date)
-                                return new Set(okDates.slice(0, recurCredits))
+                                const n = new Set<string>()
+                                let spent = 0
+                                for (const c of recurList) {
+                                  if (c.status !== 'ok') continue
+                                  const cost = recurQuote.get(c.date) ?? 0
+                                  if (spent + cost > balance) break
+                                  n.add(c.date); spent += cost
+                                }
+                                return n
                               })
                             }}
                             style={{ padding: '10px 16px', background: 'transparent', border: `1px solid ${GOLD}55`, borderRadius: '8px', color: GOLD, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
@@ -1738,7 +1752,7 @@ export default function BookingPage() {
                 { label: t('booking.sum.coach'), value: selectedCoach?.first_name },
                 { label: t('booking.sum.time'), value: selectedSlot?.label },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedCourse?.duration_minutes ?? 0 }) },
-                { label: t('booking.sum.creditsUsed'), value: t(recurPlan.length === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n: recurPlan.length }) },
+                { label: t('booking.sum.pointsUsed'), value: t('points.unit', { n: recurTotal }) },
               ] : [
                 { label: t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: hourRoster.length > 1
@@ -1751,7 +1765,9 @@ export default function BookingPage() {
                 { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: t('booking.sum.time'), value: selectedSlot?.label },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0 }) },
-                { label: t(isTrial ? 'booking.sum.price' : payingWithTokens ? 'booking.sum.tokensUsed' : 'booking.sum.creditsUsed'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaidCredit') : `$${TRIAL_PRICE_CENTS / 100}`) : isReschedule ? t('booking.noExtraCharge') : unitBadge(payingWithTokens ? 'token' : 'credit', unitsNeeded) },
+                ...(isTrial || isReschedule
+                  ? [{ label: t('booking.sum.price'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaid') : `$${TRIAL_PRICE_CENTS / 100}`) : t('booking.noExtraCharge') }]
+                  : []),
               ]).map(row => (
                 <div key={row.label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1778,69 +1794,46 @@ export default function BookingPage() {
                   </div>
                 </div>
               )}
+              {/* The breakdown. Discounts are written as percentages, not as
+                  "-4 pts, -3 pts": they are multiplied together and rounded down
+                  once, so per-line whole numbers would not add up to the total
+                  and a parent subtracting them would find us out. */}
+              {!isTrial && !isReschedule && bookingPrice && (
+                <div style={{ paddingTop: '12px' }}>
+                  {[
+                    { k: 'base', label: bookingPrice.seats > 1 ? t('booking.price.baseSeats', { n: bookingPrice.seats }) : t('booking.price.base'), value: String(bookingPrice.base * bookingPrice.seats), dim: true },
+                    ...(bookingPrice.vipPct > 0 ? [{ k: 'vip', label: t('booking.price.vip', { n: bookingPrice.vipLevel }), value: `−${Math.round(bookingPrice.vipPct * 100)}%`, dim: true }] : []),
+                    ...(bookingPrice.offPeak ? [{ k: 'off', label: t('booking.price.offPeak'), value: `−${Math.round(bookingPrice.offPeakPct * 100)}%`, dim: true }] : []),
+                  ].map(row => (
+                    <div key={row.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{row.label}</span>
+                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{t('booking.price.total')}</span>
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: bookingCost })}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: balanceAfter })}</span>
+                  </div>
+                </div>
+              )}
               {recurPlan.length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.sum.creditsLeftLabel')}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{(() => { const n = Math.max(0, recurCredits - recurPlan.length); return t(n === 1 ? 'booking.creditBadge' : 'booking.creditsBadge', { n }) })()}</span>
-              </div>}
-              {!isTrial && recurPlan.length === 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t(payingWithTokens ? 'booking.sum.tokensLeftLabel' : 'booking.sum.creditsLeftLabel')}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{unitBadge(payingWithTokens ? 'token' : 'credit', Math.max(0, unitsLeftAfter))}</span>
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{t('points.unit', { n: Math.max(0, balance - recurTotal) })}</span>
               </div>}
             </div>
-            {/* Payment choice. It only appears when make-up credits actually
-                cover this whole booking -- an option that cannot be taken is
-                worse than no option at all. The consequence sits on the line
-                under each one, because a make-up credit books a lesson that
-                cannot be cancelled or rescheduled, and the parent has to know
-                that before choosing rather than after. */}
-            {tokenOffered && (
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
-                  {t('booking.pay.heading')}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {(['token', 'credit'] as const).map(opt => {
-                    const on = payChoice === opt
-                    const left = opt === 'token' ? (selectedHour ? hourTokens : tokenRemaining) : remainingCredits
-                    return (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setPayChoice(opt)}
-                        style={{
-                          display: 'flex', alignItems: 'flex-start', gap: '12px', textAlign: 'left',
-                          padding: '12px 14px', borderRadius: '10px', cursor: 'pointer',
-                          background: on ? `${GOLD}14` : 'transparent',
-                          border: `1px solid ${on ? GOLD + '66' : 'rgba(255,255,255,0.12)'}`,
-                        }}>
-                        <span style={{
-                          width: '16px', height: '16px', borderRadius: '50%', marginTop: '2px', flexShrink: 0,
-                          border: `2px solid ${on ? GOLD : 'rgba(255,255,255,0.3)'}`,
-                          background: on ? GOLD : 'transparent',
-                        }} />
-                        <span style={{ minWidth: 0 }}>
-                          <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: on ? GOLD : 'rgba(255,255,255,0.85)' }}>
-                            {t(opt === 'token' ? 'booking.pay.token' : 'booking.pay.credit', { n: tokensNeeded })}
-                            <span style={{ fontWeight: 500, color: 'rgba(255,255,255,0.4)' }}> · {t('booking.pay.left', { n: left })}</span>
-                          </span>
-                          <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, marginTop: '3px' }}>
-                            {t(opt === 'token' ? 'booking.pay.tokenNote' : 'booking.pay.creditNote')}
-                          </span>
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+            {!isTrial && !isReschedule && (bookingCost > balance || recurTotal > balance) && (
+              <div style={{ background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px', fontSize: '13px', color: '#e05a4a' }}>
+                ⚠️ {t('booking.short.body', { have: balance, need: recurPlan.length > 0 ? recurTotal : bookingCost })}
+                <div><BuyPointsLink label={t('booking.short.cta')} /></div>
               </div>
             )}
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                {/* A weekly batch is always paid in credits -- the recurring API
-                    does not touch makeup tokens. Without this the token policy
-                    ("cannot be cancelled or rescheduled") showed up whenever the
-                    first date happened to fall inside the token window, telling a
-                    parent 19 lessons were locked when they are not. */}
-                {t(payingWithTokens && recurPlan.length === 0 ? 'booking.policy.token' : 'booking.policy.credit')}
+                {t('booking.policy.points', { n: wallet?.forgiveness ?? 0 })}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   {t('booking.viewTerms')}
                 </a>
@@ -1872,7 +1865,7 @@ export default function BookingPage() {
               )}
               <button
                 onClick={handleConfirm}
-                disabled={submitting}
+                disabled={submitting || (!isTrial && !isReschedule && (recurPlan.length > 0 ? recurTotal : bookingCost) > balance)}
                 style={{
                   flex: 2, padding: '14px',
                   background: submitting ? 'rgba(255,255,255,0.1)' : GOLD,

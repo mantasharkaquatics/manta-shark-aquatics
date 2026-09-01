@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-// Parent-facing team memberships. Same service-role pattern as /api/parent/tokens.
+// Parent-facing team memberships. Same service-role pattern as /api/parent/wallet.
 export async function GET(req: Request) {
   const cookieStore = await cookies()
   const supabaseAuth = createServerClient(

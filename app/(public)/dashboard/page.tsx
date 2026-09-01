@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/tokens'
+import { vipTier } from '@/lib/points'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -147,27 +148,12 @@ interface StudentProgress {
   stageSkills: StageSkill[]
 }
 
-interface Credit {
-  is_trial?: boolean
-  id: string
-  total_credits: number
-  used_credits: number
-  course_type_id: string
-  student_id: string | null
-  created_at?: string
-  expires_at?: string | null
-  course_types?: { id: string; name: string } | { id: string; name: string }[]
-  purchases?: { paid_at: string | null; created_at: string } | { paid_at: string | null; created_at: string }[]
-  invoice_id?: string | null
-  invoices?: { id: string } | { id: string }[] | null
-}
 interface Booking {
   id: string; status: string
   session_date: string; start_time: string; end_time: string
   course_name: string; course_type_id?: string; coach_name: string; student_name?: string; _group?: Booking[]; lesson_group_id?: string | null; _hour?: boolean
   level_min?: number | null; level_max?: number | null
-  lesson_credit_id?: string
-  token_package_id?: string
+  points_charged?: number | null
   course_slug?: string
   student_id?: string
   is_trial?: boolean
@@ -387,90 +373,128 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   )
 }
 
-function CreditCard({ g, remaining, pct, note, bookHref, hideExpiry }: {
-  g: { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null; expiresAt?: string | null }[] }
-  remaining: number
-  pct: number
-  note?: string
-  bookHref?: string
-  // A Swim Assessment is one lesson a family books once. It carries an expiry
-  // date in the database so the row behaves like every other credit, but saying
-  // it out loud invites the question of what happens when it lapses -- and the
-  // answer is that nobody has ever let one lapse.
-  hideExpiry?: boolean
-}) {
+type WalletSummary = {
+  balance: number
+  balancePurchased: number
+  balanceGranted: number
+  lessonsCompleted: number
+  vipLevel: number
+  vipDiscount: number
+  nextTier: { level: number; discount: number; lessonsToGo: number } | null
+  forgiveness: number
+  lessonsPerForgiveness: number
+  history?: LedgerRow[]
+}
+type LedgerRow = {
+  id: string
+  at: string
+  points: number
+  balanceAfter: number
+  reason: string
+  note: string | null
+  amountCents: number | null
+}
+
+/**
+ * The wallet, as one card.
+ *
+ * The progress bar toward the next VIP level is the most valuable thing on this
+ * screen and the cheapest to build: "6 more lessons and every lesson gets 2%
+ * cheaper" is a true reason to come back, which no promotional message is.
+ */
+function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }) {
   const t = useT()
-  const [expanded, setExpanded] = useState(false)
+  const locale = useLocale()
+  const [showHistory, setShowHistory] = useState(false)
+  if (!w) return null
+
+  const toNext = w.nextTier
+  // Progress across the CURRENT band, not from zero. At 24 lessons with VIP 3
+  // at 30, the bar should read four-fifths full, not four-fifths empty.
+  const bandStart = vipTier(w.lessonsCompleted).lessons
+  const bandEnd = toNext ? w.lessonsCompleted + toNext.lessonsToGo : bandStart
+  const pct = toNext && bandEnd > bandStart
+    ? Math.max(3, Math.round(100 * (w.lessonsCompleted - bandStart) / (bandEnd - bandStart)))
+    : 100
+
+  const reasonLabel = (r: string) => {
+    const key = 'points.reason.' + r
+    const v = t(key)
+    return v === key ? r : v
+  }
+
   return (
-    <div style={{ background: '#1a2744', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
+    <div style={{ background: '#1a2744', borderRadius: '14px', border: '1px solid rgba(201,168,76,0.35)', padding: '20px' }}>
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
-        {g.name}
+        {t('points.card.title')}
       </div>
-      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: '#c9a84c', lineHeight: 1 }}>{remaining}</div>
-      {/* The total and its qualifier are one sentence about the same number, so
-          they read as one line. Wrapping is allowed: a longer translation drops
-          the qualifier underneath rather than pushing it out of the card. */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '12px' }}>
-        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>{t('credit.remaining', { total: g.total })}</span>
-        {note && <>
-          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.2)' }}>·</span>
-          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>{note}</span>
-        </>}
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: '#c9a84c', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+        {w.balance.toLocaleString()}
       </div>
-      <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginBottom: '12px' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: '#c9a84c', borderRadius: '2px' }} />
+      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '14px' }}>
+        {t('points.card.worth', { price: '$' + w.balance.toLocaleString() })}
       </div>
-      {bookHref && (
-        <Link href={bookHref} style={{ display: 'block', textAlign: 'center', padding: '9px 0', marginBottom: '12px', background: '#c9a84c', color: '#1a2744', borderRadius: '8px', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' }}>
-          {t('dash.bookNow')}
-        </Link>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '20px', border: '1px solid rgba(201,168,76,0.5)', color: '#c9a84c', background: 'rgba(201,168,76,0.1)' }}>
+          {w.vipLevel > 0 ? t('points.card.vip', { n: w.vipLevel, pct: Math.round(w.vipDiscount * 100) }) : t('points.card.noVip')}
+        </span>
+        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{t('points.card.done', { n: w.lessonsCompleted })}</span>
+      </div>
+
+      {toNext && (
+        <>
+          <div style={{ height: '6px', background: 'rgba(255,255,255,0.12)', borderRadius: '3px', marginBottom: '7px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: '#c9a84c' }} />
+          </div>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px', lineHeight: 1.5 }}>
+            {t('points.card.next', { n: toNext.lessonsToGo, level: toNext.level, pct: Math.round(toNext.discount * 100) })}
+          </div>
+        </>
       )}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          background: 'none', border: 'none', padding: 0,
-          fontSize: '11px', color: 'rgba(255,255,255,0.35)',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
-          letterSpacing: '0.5px',
-        }}
-      >
-        <span style={{ fontSize: '9px' }}>{expanded ? '▲' : '▼'}</span>
-        {t(`credit.${expanded ? 'hide' : 'show'}Package${g.items.length === 1 ? '' : 's'}`, { n: g.items.length })}
+
+      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '14px', lineHeight: 1.5 }}>
+        {t('points.card.forgiveness', { n: w.forgiveness, per: w.lessonsPerForgiveness })}
+      </div>
+
+      <button onClick={onBuy}
+        style={{ display: 'block', width: '100%', textAlign: 'center', padding: '9px 0', marginBottom: '12px', background: '#c9a84c', color: '#1a2744', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
+        {t('points.card.buy')}
       </button>
-      {expanded && (
-        <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {g.items.map((item, i) => {
-            const itemRemaining = item.credits - item.used
-            const dateStr = item.date ? formatDateNum(item.date) : '—'
-            const expStr = !hideExpiry && item.expiresAt ? formatDateNum(item.expiresAt) : null
-            const isExpired = !hideExpiry && item.expiresAt ? new Date(item.expiresAt).getTime() < Date.now() : false
-            return (
-              // Dates, count and receipt on one row. On a phone the card is 86%
-              // of the viewport, so the right-hand pair wraps as a unit rather
-              // than the button landing alone under a half-empty line.
-              <div key={i} className="msa-pkg" style={{ paddingBottom: i < g.items.length - 1 ? '8px' : 0, marginBottom: i < g.items.length - 1 ? '8px' : 0, borderBottom: i < g.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <div style={{ fontSize: '11px', color: isExpired ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: isExpired ? 'rgba(224,90,74,0.6)' : 'rgba(255,255,255,0.3)' }}> · {t('credit.expPrefix')} {expStr}</span>}</div>
-                <div className="msa-pkg-end">
-                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: isExpired ? 'rgba(255,255,255,0.25)' : itemRemaining > 0 ? '#c9a84c' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                    {t('credit.nLeft', { n: itemRemaining, total: item.credits })}
-                  </span>
-                  {item.invoiceId && (
-                    <a href={`/api/invoices/${item.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer" title={t('credit.downloadInvoiceFull')}
-                      style={{ fontSize: '11px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '3px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                      {t('credit.downloadInvoice')}
-                    </a>
-                  )}
+
+      {(w.history?.length ?? 0) > 0 && (
+        <>
+          <button onClick={() => setShowHistory(!showHistory)}
+            style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
+            <span style={{ fontSize: '9px' }}>{showHistory ? '▲' : '▼'}</span>
+            {t(showHistory ? 'points.card.hideHistory' : 'points.card.showHistory')}
+          </button>
+          {showHistory && (
+            <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {w.history!.map(row => (
+                <div key={row.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{reasonLabel(row.reason)}</div>
+                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>
+                      {new Date(row.at).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
+                      {row.note ? ' · ' + row.note : ''}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: row.points >= 0 ? '#7fd8a0' : 'rgba(255,255,255,0.75)' }}>
+                      {row.points >= 0 ? '+' : '−'}{Math.abs(row.points).toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{row.balanceAfter.toLocaleString()}</div>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
 }
-
-interface TokenPack { id: string; course_type_id?: string; course_name: string; remaining: number; expires_at: string; source: string }
 
 function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; monthly_price_cents?: number; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const locale = useLocale()
@@ -586,52 +610,14 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
   )
 }
 
-function TokenCard({ tokens }: { tokens: TokenPack[] }) {
-  const t = useT()
-  const locale = useLocale()
-  if (tokens.length === 0) return null
-  const totalTokens = tokens.reduce((s, tp) => s + tp.remaining, 0)
-  const ORANGE = '#e8883a'
-  return (
-    <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${ORANGE}55`, padding: '20px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: ORANGE, marginBottom: '8px' }}>
-        {t('token.title')}
-      </div>
-      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: ORANGE, lineHeight: 1 }}>{totalTokens}</div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '10px' }}>{t('token.available')}</div>
-      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>{t('token.final')}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
-        {tokens.map(tp => {
-          const daysLeft = Math.max(0, Math.ceil((new Date(tp.expires_at).getTime() - Date.now()) / 86400000))
-          const urgent = daysLeft <= 7
-          return (
-            <div key={tp.id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tp.course_type_id ? tDb(locale, 'course_types', tp.course_type_id, tp.course_name) : tp.course_name}</div>
-                <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, borderRadius: '8px', padding: '1px 7px', color: tp.source === 'manual' ? '#c9a84c' : ORANGE, background: tp.source === 'manual' ? 'rgba(201,168,76,0.12)' : 'rgba(232,136,58,0.1)', border: tp.source === 'manual' ? '1px solid rgba(201,168,76,0.35)' : '1px solid rgba(232,136,58,0.3)' }}>{tp.source === 'manual' ? t('token.courtesy') : t('token.makeup')}</span>
-              </div>
-              <div style={{ fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                <span style={{ fontWeight: 600, color: ORANGE }}>{t(tp.remaining === 1 ? 'token.count' : 'token.countPlural', { n: tp.remaining })}</span>
-                <span style={{ color: urgent ? '#e05a4a' : 'rgba(255,255,255,0.35)', fontWeight: urgent ? 700 : 400 }}> · {t(daysLeft === 1 ? 'token.dayLeft' : 'token.daysLeft', { n: daysLeft })}</span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 export default function DashboardPage() {
   const supabase = createClient()
   const locale = useLocale()
   const t = useT()
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
-  const [credits, setCredits] = useState<Credit[]>([])
-  const [tokenPacks, setTokenPacks] = useState<TokenPack[]>([])
+  const [wallet, setWallet] = useState<WalletSummary | null>(null)
   const [teamMemberships, setTeamMemberships] = useState<any[]>([])
-  const [cancelQuota, setCancelQuota] = useState<{ total: number; used: number; remaining: number } | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [lessonView, setLessonView] = useState<'list' | 'month'>('list')
@@ -650,17 +636,13 @@ export default function DashboardPage() {
   const [greeting, setGreeting] = useState('morning')
   const router = useRouter()
 
-  async function loadTokens() {
+  async function loadWallet() {
     try {
       const [res, tmRes] = await Promise.all([
-        fetch('/api/parent/tokens'),
+        fetch('/api/parent/wallet?history=12'),
         fetch('/api/parent/team-memberships'),
       ])
-      if (res.ok) {
-        const data = await res.json()
-        setTokenPacks(data.tokens || [])
-        setCancelQuota(data.quota || null)
-      }
+      if (res.ok) setWallet(await res.json())
       if (tmRes.ok) { const tmData = await tmRes.json(); setTeamMemberships(tmData.memberships || []) }
     } catch {}
   }
@@ -671,10 +653,10 @@ export default function DashboardPage() {
      for them. */
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
-  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; creditId: string; slug: string; studentId: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; slug: string; studentId: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
@@ -750,7 +732,7 @@ export default function DashboardPage() {
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
-    loadTokens()
+    loadWallet()
     const { data: { user } } = await supabase.auth.getUser()
     // Both of these used to be a bare `return`, which left loading at true and
     // the page on its spinner for ever. A coach or an admin who follows a link
@@ -785,16 +767,10 @@ export default function DashboardPage() {
       .lt('pending_expires_at', nowIso)
       .then(() => {})
 
-    const [{ data: studs }, { data: credData }, { data: rawBookings }, { data: pendingRaw }] = await Promise.all([
+    const [{ data: studs }, { data: rawBookings }, { data: pendingRaw }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
-      supabase
-        .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, student_id, created_at, expires_at, is_trial, course_types(id, name), purchases(paid_at, created_at), invoices(id)')
-        .eq('parent_id', parentData.id)
-        .gt('total_credits', 0)
-        .is('converted_to_token_at', null),
       supabase.from('bookings')
-        .select('id, status, student_id, lesson_credit_id, token_package_id, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id')
+        .select('id, status, student_id, points_charged, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -852,7 +828,6 @@ export default function DashboardPage() {
     }
 
     setStudents(studs || [])
-    setCredits(credData || [])
 
     // pendingRaw / pSessions / pStudents fetched in the Promise.all batches above
 
@@ -950,8 +925,7 @@ export default function DashboardPage() {
           level_min: cs?.level_min ?? null, level_max: cs?.level_max ?? null,
           coach_name: cs?.coach?.first_name,
           student_name: studentMap[b.student_id]?.full_name ? ((cs?.ct?.slug === '1on2' && b._partner_student_name) ? studentMap[b.student_id].full_name + ', ' + b._partner_student_name : studentMap[b.student_id].full_name) : undefined,
-          lesson_credit_id: b.lesson_credit_id,
-          token_package_id: b.token_package_id,
+          points_charged: b.points_charged,
           lesson_group_id: b.lesson_group_id,
           course_slug: cs?.ct?.slug,
           student_id: b.student_id,
@@ -1236,7 +1210,7 @@ export default function DashboardPage() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 402) {
-            setInfoModal({ title: 'Not Enough Credits', message: data.error || 'Not enough credits. Please purchase a plan.', actionLabel: 'View Plans', onAction: () => { window.location.href = '/plans' } })
+            setInfoModal({ title: t('points.short.title'), message: data.error || t('points.short.message'), actionLabel: t('points.card.buy'), onAction: () => { window.location.href = '/plans#buy' } })
           } else if (res.status === 409) {
             setInfoModal({ title: 'Unable to Confirm', message: data.error || 'This time slot has been taken and the invitation was cancelled.' })
           } else {
@@ -1288,7 +1262,7 @@ export default function DashboardPage() {
     // A 60-minute lesson travels as a group: the booking page needs the group id
     // so the server can move both halves and ignore this lesson's own sessions.
     const groupParam = rescheduleTarget.groupId ? `&reschedule_group_id=${rescheduleTarget.groupId}` : ''
-    window.location.href = `/booking?reschedule_booking_id=${rescheduleTarget.id}&reschedule_credit_id=${rescheduleTarget.creditId}&reschedule_slug=${rescheduleTarget.slug}&reschedule_student_id=${rescheduleTarget.studentId}${partnerParam}${groupParam}`
+    window.location.href = `/booking?reschedule_booking_id=${rescheduleTarget.id}&reschedule_slug=${rescheduleTarget.slug}&reschedule_student_id=${rescheduleTarget.studentId}${partnerParam}${groupParam}`
   }
 
   if (loading) return (
@@ -1350,7 +1324,11 @@ export default function DashboardPage() {
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
-              {cancelTarget.type === 'reject' ? t('dash.cancelModal.bodyReject') : cancelTarget.isLate ? t((cancelQuota?.remaining ?? 0) === 1 ? 'dash.cancelModal.bodyLateOne' : 'dash.cancelModal.bodyLate', { n: cancelQuota?.remaining ?? 0 }) : t('dash.cancelModal.bodyNormal')}
+              {cancelTarget.type === 'reject'
+                ? t('dash.cancelModal.bodyReject')
+                : cancelTarget.isLate
+                ? t('dash.cancelModal.bodyLatePoints', { n: cancelTarget.points ?? 0, left: wallet?.forgiveness ?? 0 })
+                : t('dash.cancelModal.bodyNormalPoints', { n: cancelTarget.points ?? 0 })}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -1898,7 +1876,7 @@ export default function DashboardPage() {
                   const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
                   const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn') : t('status.confirmed')
                   const statusColor = past ? (b.checked_in ? '#7fd8a0' : '#e05a4a') : b.checked_in ? '#7fd8a0' : GOLD
-                  const funding = b.is_trial ? t('common.assessment') : b.token_package_id ? (b.lesson_group_id ? '2 tokens' : '1 token') : b.lesson_credit_id ? (b.lesson_group_id ? '2 credits' : '1 credit') : '—'
+                  const funding = b.is_trial ? t('common.assessment') : b.points_charged != null ? t('points.unit', { n: b.points_charged }) : '—'
                   return (
                     <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div onClick={e => e.stopPropagation()} style={{ background: DARK, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
@@ -2031,7 +2009,7 @@ export default function DashboardPage() {
                         <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {booking._group.map((m, mi) => {
                             const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
-                            const lateOk = late && !!m.lesson_credit_id && !m.partner_booking_id && m.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
+                            const lateOk = late && m.points_charged != null && !m.partner_booking_id && m.course_slug !== '1on2' && (wallet?.forgiveness ?? 0) > 0
                             const cEnabled = (!late || lateOk) && cancellingId !== m.id && m.status !== 'pending_partner'
                             const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
                             return (
@@ -2042,21 +2020,19 @@ export default function DashboardPage() {
                                     {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}
                                   </div>
                                 </div>
-                                {m.token_package_id ? (
-                                  <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '10px', fontWeight: 600 }}>🎫 {t('dash.up.tokenFinal')}</div>
-                                ) : (m.course_slug === '1on2' && mi > 0) ? null : (
+                                {(m.course_slug === '1on2' && mi > 0) ? null : (
                                   <div className="msa-lesson-actions">
                                     <button
-                                      onClick={() => m.lesson_credit_id && setRescheduleTarget({ id: m.id, creditId: m.lesson_credit_id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
+                                      onClick={() => setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
                                       disabled={rDis}
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: rDis ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>
                                     {cEnabled ? (
                                       <button
-                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late })}
+                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late, points: m.points_charged })}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
-                                        {cancellingId === m.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
+                                        {cancellingId === m.id ? '...' : late ? t('dash.up.cancelLate') : t('dash.up.cancel')}
                                       </button>
                                     ) : late ? (
                                       <button
@@ -2230,23 +2206,19 @@ export default function DashboardPage() {
                             {t('dash.cart.view')}
                           </Link>
                         </div>
-                      ) : booking._group ? null : booking.token_package_id ? (
-                        <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(232,136,58,0.4)', background: 'rgba(232,136,58,0.08)', color: '#e8883a', fontSize: '11px', fontWeight: 600 }}>
-                          🎫 {t('dash.up.tokenFinal')}
-                        </div>
-                      ) : (
+                      ) : booking._group ? null : (
                         <div className="msa-lesson-actions">
                           <button
-                            onClick={() => booking.lesson_credit_id && setRescheduleTarget({ id: booking.id, creditId: booking.lesson_credit_id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
+                            onClick={() => setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
                           </button>
                           {(() => {
-                            // A Swim Assessment is a one-off at its own price, not a
-                            // lesson out of a package, so it can neither come back as a
-                            // credit nor turn into a token. The parent tells us and the
-                            // front desk cancels it by hand. The API refuses it too.
+                            // A Swim Assessment is paid by card, not out of the
+                            // wallet, so there are no points to hand back. The parent
+                            // tells us and the front desk cancels it. The API refuses
+                            // it too.
                             if (booking.is_trial) return (
                               <button
                                 onClick={() => {
@@ -2259,13 +2231,13 @@ export default function DashboardPage() {
                               </button>
                             )
                             const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
-                            const lateOk = late && !!booking.lesson_credit_id && !booking.partner_booking_id && booking.course_slug !== '1on2' && (cancelQuota?.remaining ?? 0) > 0
+                            const lateOk = late && booking.points_charged != null && !booking.partner_booking_id && booking.course_slug !== '1on2' && (wallet?.forgiveness ?? 0) > 0
                             const enabled = (!late || lateOk) && cancellingId !== booking.id && booking.status !== 'pending_partner'
                             return enabled ? (
                               <button
-                                onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), isLate: late })}
+                                onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), isLate: late, points: booking.points_charged })}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {cancellingId === booking.id ? '...' : late ? t('dash.up.cancelToken') : t('dash.up.cancel')}
+                                {cancellingId === booking.id ? '...' : late ? t('dash.up.cancelLate') : t('dash.up.cancel')}
                               </button>
                             ) : late ? (
                               <button
@@ -2315,46 +2287,22 @@ export default function DashboardPage() {
           })()}
         </section>
 
-        {/* CREDITS */}
+        {/* POINTS */}
         <section style={{ marginBottom: '36px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.lessonCredits')}</h2>
-            <button onClick={() => window.location.href = '/plans'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
-              + {t('dash.buyCredits')}
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('points.card.title')}</h2>
+            <button onClick={() => window.location.href = '/plans#buy'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
+              + {t('points.card.buy')}
             </button>
           </div>
-          {credits.length === 0 && tokenPacks.length === 0 && students.filter(s => s.trial_used_at).length === 0 ? (
+          {wallet && wallet.balance === 0 && wallet.lessonsCompleted === 0 && teamMemberships.length === 0 ? (
             <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '28px', textAlign: 'center' }}>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 14px' }}>{t('dash.noCredits')}</p>
-              <Link href="/plans" style={{ display: 'inline-block', padding: '9px 20px', background: 'transparent', color: GOLD, border: `1px solid ${GOLD}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('dash.browsePlans')}</Link>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 14px' }}>{t('points.card.empty')}</p>
+              <Link href="/plans#buy" style={{ display: 'inline-block', padding: '9px 20px', background: 'transparent', color: GOLD, border: `1px solid ${GOLD}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('points.card.buy')}</Link>
             </div>
           ) : (
-            <Rail variant="credits" count={Object.keys(credits.reduce((m: Record<string, true>, c) => { m[c.is_trial ? '__assessment__' : c.course_type_id] = true; return m }, {})).length}>
-              {(() => {
-                // Group credits by course_type_id and sum them up
-                const grouped: Record<string, { name: string; total: number; used: number; items: { credits: number; used: number; date: string | null; invoiceId?: string | null; expiresAt?: string | null }[] }> = {}
-                credits.forEach(credit => {
-                  const ct = Array.isArray(credit.course_types) ? credit.course_types[0] : credit.course_types
-                  const pur = Array.isArray(credit.purchases) ? credit.purchases[0] : credit.purchases
-                  const key = credit.is_trial ? '__assessment__' : credit.course_type_id
-                  const itemDate = pur?.paid_at || pur?.created_at || credit.created_at || null
-                  if (!grouped[key]) {
-                    grouped[key] = { name: credit.is_trial ? t('common.assessment') : (ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : (ct?.name || 'Lesson Credits')), total: 0, used: 0, items: [] }
-                  }
-                  grouped[key].total += credit.total_credits
-                  grouped[key].used += credit.used_credits
-                  const inv = Array.isArray(credit.invoices) ? credit.invoices[0] : credit.invoices
-                  grouped[key].items.push({ credits: credit.total_credits, used: credit.used_credits, date: itemDate, invoiceId: inv?.id || null, expiresAt: credit.expires_at || null })
-                })
-                return Object.entries(grouped).map(([key, g]) => {
-                  const remaining = g.total - g.used
-                  const pct = Math.round((remaining / g.total) * 100)
-                  return (
-                    <CreditCard key={key} g={g} remaining={remaining} pct={pct} note={key === '__assessment__' ? t('credit.assessmentNote') : undefined} hideExpiry={key === '__assessment__'} bookHref={key === '__assessment__' && remaining > 0 ? `/booking?student=${credits.find(c => c.is_trial && c.used_credits < c.total_credits)?.student_id || ''}` : undefined} />
-                  )
-                })
-              })()}
-              <TokenCard tokens={tokenPacks} />
+            <Rail variant="credits" count={teamMemberships.length > 0 ? 2 : 1}>
+              <PointsCard w={wallet} onBuy={() => { window.location.href = '/plans#buy' }} />
               <TeamCard memberships={teamMemberships} />
             </Rail>
           )}
