@@ -64,9 +64,26 @@ eq('最大折扣：VIP5 離峰 1對1',
 eq('最大折扣：VIP5 離峰 1對4',
    priceLesson({ courseSlug: '1on4', sessionDate: WED, startTime: '10:20', lessonsCompleted: 80 }).charged, 33)
 
+console.log('\n60 分鐘 = 兩堂 30 分鐘，一分不差')
+// 一小時的課程在資料庫裡是兩筆 30 分鐘的紀錄，各自帶著自己的點數。
+// 若整小時單獨捨去一次，兩筆紀錄就永遠加不回總價，差一點在誰身上都說不清。
+for (const slug of ['1on1', '1on2', '1on4']) {
+  for (const done of [0, 10, 20, 30, 50, 80]) {
+    for (const t of ['10:20', '16:15']) {
+      const half = priceLesson({ courseSlug: slug, sessionDate: WED, startTime: t, lessonsCompleted: done })
+      const hour = priceLesson({ courseSlug: slug, sessionDate: WED, startTime: t, lessonsCompleted: done, minutes: 60 })
+      if (hour.charged !== half.charged * 2 || hour.perHalfHour !== half.perSeat) {
+        eq(`${slug} ${done} 堂 ${t} 一小時 = 兩個半小時`, hour.charged, half.charged * 2)
+      }
+    }
+  }
+}
+eq('36 種組合全部成立', true, true)
+
 console.log('\n捨去方向永遠對家長有利')
 const b = priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 20 })
 eq('65 × 0.95 × 0.95 = 58.66 → 收 58', b.perSeat, 58)
+eq('同一堂課的每半小時價', b.perHalfHour, 58)
 
 console.log('\n晚取消豁免')
 eq('完成 9 堂 → 0 次',        forgivenessAvailable(9, 0),   0)

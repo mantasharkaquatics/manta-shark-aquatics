@@ -125,11 +125,15 @@ export type PriceBreakdown = {
   /** Per seat, per lesson, before any discount. */
   base: number
   seats: number
+  /** 1 for a 30-minute lesson, 2 for an hour. */
+  halfHours: number
   vipLevel: number
   vipPct: number
   offPeak: boolean
   offPeakPct: number
-  /** Per seat, after discounts. */
+  /** Per seat, per half-hour, after discounts. What a booking row records. */
+  perHalfHour: number
+  /** Per seat, after discounts, for the whole lesson. */
   perSeat: number
   /** What the wallet is actually debited. */
   charged: number
@@ -163,15 +167,23 @@ export function priceLesson(input: PriceInput): PriceBreakdown {
   const offPeak = isOffPeak(input.sessionDate, input.startTime)
   const offPeakPct = offPeak ? OFF_PEAK_DISCOUNT : 0
 
-  const perSeat = Math.floor(base * (1 - tier.discount) * (1 - offPeakPct))
+  // Floored per half-hour, then multiplied up. An hour lesson is stored as two
+  // half-hour bookings, so pricing the hour as one flooring would leave the two
+  // rows unable to add up to the total -- off by the rounding remainder, in
+  // whichever direction the arithmetic happened to fall. This way an hour costs
+  // exactly twice a half hour, and every row carries a whole number.
+  const perHalfHour = Math.floor(unit * (1 - tier.discount) * (1 - offPeakPct))
+  const perSeat = perHalfHour * halfHours
 
   return {
     base,
     seats,
+    halfHours,
     vipLevel: tier.level,
     vipPct: tier.discount,
     offPeak,
     offPeakPct,
+    perHalfHour,
     perSeat,
     charged: perSeat * seats,
   }

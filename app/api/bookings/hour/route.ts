@@ -4,14 +4,18 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
-import { LEAD_TIME_MINUTES, isWithinTokenWindow, isWithin24Hours, allocateTokens, tokenPool } from '@/lib/tokens'
+import { LEAD_TIME_MINUTES, isWithin24Hours } from '@/lib/tokens'
+import { priceLesson } from '@/lib/points'
+import { applyPoints, InsufficientPoints, lessonsCompleted, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
-import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
 
 export const runtime = 'nodejs'
 
 // One continuous 60-minute private lesson = two contiguous 30-minute halves
-// (09:10–09:40 + 09:40–10:10) linked by lesson_group_id, one 30-min credit each.
+// (09:10–09:40 + 09:40–10:10) linked by lesson_group_id, priced as two
+// half-hour lessons: each half carries its own points_charged, and the whole
+// hour is judged off-peak or not on the time it STARTS, so a parent reading the
+// clock gets the same answer we do.
 // The second half starts off-grid on purpose: it swallows the 5-minute turnover,
 // so the coach's next grid slot is 70 minutes later — a single 10-minute break.
 // Halves may be taught by different coaches (relay) when no one covers the hour.
@@ -195,17 +199,30 @@ export async function POST(req: NextRequest) {
         options: combos.map((c: any) => ({ ...c, coach1_name: nameOf(c.coach1_id), coach2_name: nameOf(c.coach2_id) })),
       })
     }
-    const { data: credits } = await svc.from('lesson_credits')
-      .select('total_credits, used_credits').eq('parent_id', parent.id).eq('course_type_id', ct.id)
-      .is('converted_to_token_at', null)
-    const remaining = (credits || []).reduce((n: number, c: any) => n + (c.total_credits - c.used_credits), 0)
-    const tokensRemaining = (await tokenPool(svc, parent.id, ct.slug)).reduce((n: number, x: any) => n + x.remaining, 0)
+    // The price of an hour depends on WHICH hour, so each slot carries its own
+    // figure rather than one headline number the parent then finds is wrong.
+    const wallet = await walletSummary(svc, parent.id)
+    const seatsToPay = isPartnerBooking ? 1 : Math.max(1, students.length)
+    for (const slot of out) {
+      const pr = priceLesson({
+        courseSlug: ct.slug, minutes: HOUR_MINUTES,
+        lessonsCompleted: wallet.lessonsCompleted,
+        sessionDate: session_date, startTime: slot.start_time, seats: seatsToPay,
+      })
+      slot.points = pr.charged
+      slot.off_peak = pr.offPeak
+    }
     const { data: rosterRows } = groupStudentIds.size
       ? await svc.from('students').select('id, full_name').in('id', Array.from(groupStudentIds))
       : { data: [] as any[] }
-    return NextResponse.json({ slots: out, credits_remaining: remaining, tokens_remaining: tokensRemaining,
-      seats_needed: 2 * (ct.slug === '1on2' ? 2 : 1),
-      roster: (rosterRows || []).map((x: any) => ({ id: x.id, full_name: x.full_name })) })
+    return NextResponse.json({
+      slots: out,
+      balance: wallet.balance,
+      vip_level: wallet.vipLevel,
+      vip_discount: wallet.vipDiscount,
+      seats_paid: seatsToPay,
+      roster: (rosterRows || []).map((x: any) => ({ id: x.id, full_name: x.full_name })),
+    })
   }
 
   if (action === 'book') {
@@ -228,26 +245,19 @@ export async function POST(req: NextRequest) {
     if (!coachFree(day, coach2_id, mid, e2))
       return NextResponse.json({ error: 'The second half is no longer available. Please pick another time.' }, { status: 409 })
 
-    // Payment choice (spec v1.3): the parent asks, the server decides again.
-    // All-or-nothing, as everywhere else -- an hour lesson is two half-hour
-    // rows per swimmer, and a lesson that is part token and part credit has no
-    // clean cancellation. A partner booking settles at confirm time, not here.
-    const tokenSeats = 2 * students.length
-    let tokenAlloc: string[] = []
-    if (body.pay_with !== 'credit' && !isPartnerBooking && isWithinTokenWindow(session_date, start_time)) {
-      tokenAlloc = allocateTokens(await tokenPool(svc, parent.id, ct.slug), tokenSeats) ?? []
-    }
-    const alloc: string[] = []
-    if (tokenAlloc.length === 0 && !isPartnerBooking) {
-      const { data: credits } = await svc.from('lesson_credits')
-        .select('id, total_credits, used_credits').eq('parent_id', parent.id).eq('course_type_id', ct.id)
-        .is('converted_to_token_at', null).order('expires_at', { ascending: true })
-      const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits })).filter((c: any) => c.remaining > 0)
-      const total = pool.reduce((n: number, c: any) => n + c.remaining, 0)
-      const needed = 2 * seats
-      if (total < needed)
-        return NextResponse.json({ error: `This 60-minute lesson uses ${needed} credits — you have ${total}.` }, { status: 409 })
-      for (let i = 0; i < needed; i++) { const c = pool.find((y: any) => y.remaining > 0)!; alloc.push(c.id); c.remaining-- }
+    // The price. Worked out here, from the hour's start time, and never sent by
+    // the client. A cross-account 1-on-2 charges nobody yet -- each family pays
+    // for its own seat when the second one accepts.
+    const seatsToPay = isPartnerBooking ? 1 : students.length
+    let price
+    try {
+      price = priceLesson({
+        courseSlug: ct.slug, minutes: HOUR_MINUTES,
+        lessonsCompleted: await lessonsCompleted(svc, parent.id),
+        sessionDate: session_date, startTime: start_time, seats: seatsToPay,
+      })
+    } catch {
+      return NextResponse.json({ error: 'This lesson cannot be paid for with points.' }, { status: 400 })
     }
 
     const groupId = randomUUID()
@@ -256,41 +266,38 @@ export async function POST(req: NextRequest) {
       { coach_id: coach1_id, start: toT(s1), end: toT(mid) },
       { coach_id: coach2_id, start: toT(mid), end: toT(e2) },
     ]
-    // alloc holds 2 credits per swimmer; hand them out in order as the
-    // (half, swimmer) pairs are written so every row carries its own.
-    let payCursor = 0
     const createdBookings: string[] = []
     const createdSessions: string[] = []
-    const incremented: string[] = []
-    const tokensSpent: string[] = []
-    async function rollback() {
-      for (const cid of incremented) await refundCredit(svc, cid)
-      for (const tid of tokensSpent) await refundToken(svc, tid)
+    let pointsTaken = 0
+    async function rollback(why: string) {
+      if (pointsTaken > 0) {
+        await applyPoints(svc, {
+          parentId: parent.id, reason: 'booking_failed', points: pointsTaken,
+          actor: 'system', note: why,
+        }).catch(e => console.error('points rollback failed:', e))
+        pointsTaken = 0
+      }
       if (createdBookings.length > 0) await svc.from('bookings').delete().in('id', createdBookings)
       if (createdSessions.length > 0) await svc.from('class_sessions').delete().in('id', createdSessions)
     }
 
-    // Spend BEFORE a single row exists. The balance check above runs in
-    // TypeScript and the spend runs in SQL, so two concurrent hour bookings by
-    // one parent both clear it; the ceiling constraints on lesson_credits and
-    // token_packages are the only real arbiter. Letting them arbitrate FIRST
-    // turns the loser away while there is still nothing to undo -- the old
-    // order wrote the bookings, then discarded the spend result, which handed
-    // out a lesson nobody paid for. Both spends are reversible, so any later
-    // failure in this handler unwinds them through rollback().
-    for (const cid of alloc) {
-      if (!(await spendCredit(svc, cid))) {
-        await rollback()
-        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
+    // Take the points BEFORE a single row exists, so a family who cannot pay is
+    // turned away with nothing to undo. applyPoints is the only arbiter of the
+    // balance -- it writes under a guard naming the balance it read, so two
+    // concurrent hour bookings cannot both spend the same points.
+    if (!isPartnerBooking) {
+      try {
+        await applyPoints(svc, {
+          parentId: parent.id, reason: 'booking', points: -price.charged,
+          pricing: price, actor: 'parent',
+        })
+        pointsTaken = price.charged
+      } catch (e: any) {
+        if (e instanceof InsufficientPoints)
+          return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 400 })
+        console.error('points charge failed:', e)
+        return NextResponse.json({ error: 'Could not take the points for this booking. Please try again.' }, { status: 500 })
       }
-      incremented.push(cid)
-    }
-    for (const tid of tokenAlloc) {
-      if (!(await spendToken(svc, tid))) {
-        await rollback()
-        return NextResponse.json({ error: 'Your make-up credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
-      }
-      tokensSpent.push(tid)
     }
 
     for (const h of halves) {
@@ -302,13 +309,13 @@ export async function POST(req: NextRequest) {
       if (existing && existing.enrolled_count + seats <= existing.max_students) {
         sessId = existing.id
       } else if (existing) {
-        await rollback()
+        await rollback('the time filled up')
         return NextResponse.json({ error: 'That time just filled up. Please pick another.' }, { status: 409 })
       } else {
         const { data: created, error: sErr } = await svc.from('class_sessions')
           .insert({ course_type_id: ct.id, coach_id: h.coach_id, session_date, start_time: h.start, end_time: h.end, max_students: ct.max_students, enrolled_count: 0, status: 'open' })
           .select('id').single()
-        if (sErr || !created) { await rollback(); return NextResponse.json({ error: sErr?.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not create the time slot.' }, { status: 409 }) }
+        if (sErr || !created) { await rollback('the time slot could not be created'); return NextResponse.json({ error: sErr?.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not create the time slot.' }, { status: 409 }) }
         sessId = created.id
         createdSessions.push(created.id)
       }
@@ -321,7 +328,7 @@ export async function POST(req: NextRequest) {
           lesson_credit_id: null, status: 'pending_partner', pending_action: null,
           pending_expires_at: partnerExpiry, lesson_group_id: groupId,
         }).select('id').single()
-        if (mErr || !mine) { await rollback(); return NextResponse.json({ error: 'Could not complete the booking.' }, { status: 409 }) }
+        if (mErr || !mine) { await rollback('the booking could not be written'); return NextResponse.json({ error: 'Could not complete the booking.' }, { status: 409 }) }
         createdBookings.push(mine.id)
 
         const { data: guest, error: gErr } = await svc.from('bookings').insert({
@@ -331,7 +338,7 @@ export async function POST(req: NextRequest) {
           partner_booking_id: mine.id, partnership_id: partner.partnership_id || null,
           is_guest: true, lesson_group_id: groupId,
         }).select('id').single()
-        if (gErr || !guest) { await rollback(); return NextResponse.json({ error: 'Could not create partner invitation. Please try again.' }, { status: 409 }) }
+        if (gErr || !guest) { await rollback('the partner invitation could not be written'); return NextResponse.json({ error: 'Could not create partner invitation. Please try again.' }, { status: 409 }) }
         createdBookings.push(guest.id)
 
         await svc.from('bookings').update({ partner_booking_id: guest.id }).eq('id', mine.id)
@@ -339,14 +346,15 @@ export async function POST(req: NextRequest) {
       }
 
       for (const st of students) {
-        const creditId = alloc[payCursor] ?? null
-        const tokenId = tokenAlloc[payCursor] ?? null
-        payCursor++
+        // Each half-hour row carries its own half of the price, so cancelling
+        // adds back up exactly and a half taught is a half counted.
         const { data: bk, error: bErr } = await svc.from('bookings')
-          .insert({ class_session_id: sessId, parent_id: parent.id, student_id: st.id, lesson_credit_id: creditId, token_package_id: tokenId, status: 'confirmed', lesson_group_id: groupId })
+          .insert({ class_session_id: sessId, parent_id: parent.id, student_id: st.id,
+                    lesson_credit_id: null, token_package_id: null,
+                    points_charged: price.perHalfHour, status: 'confirmed', lesson_group_id: groupId })
           .select('id').single()
         if (bErr || !bk) {
-          await rollback()
+          await rollback('a booking row could not be written')
           const m = bErr?.message || ''
           const msg = m.includes('STUDENT_DOUBLE_BOOKED')
             ? `${st.full_name} already has a lesson at this time.`
@@ -372,9 +380,6 @@ export async function POST(req: NextRequest) {
           inviterName: ((me?.first_name || '') + ' ' + (me?.last_name || '')).trim(),
           courseName: `${ct.name} (60 min)`, coachName: nameOf(coach1_id),
           date: session_date, time: `${formatTime12h(toT(s1))} - ${formatTime12h(toT(e2))}`,
-          // Two halves, so the partner owes two credits - not the single one
-          // the 30-minute template used to state for every invitation.
-          creditCount: 2,
         })
       }
     } catch {}
@@ -411,11 +416,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts.' }, { status: 400 })
 
     const { data: grp } = await svc.from('bookings')
-      .select('id, token_package_id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
+      .select('id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
     if ((grp || []).length < 2)
       return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
-    if ((grp || []).some((r: any) => r.token_package_id))
-      return NextResponse.json({ error: 'Token bookings are final and cannot be rescheduled.' }, { status: 400 })
 
     const { data: curSess } = await svc.from('class_sessions')
       .select('id, session_date, start_time').in('id', Array.from(excludeSessIds))
@@ -432,8 +435,10 @@ export async function POST(req: NextRequest) {
     if (!coachFree(day, coach2_id, mid, e2))
       return NextResponse.json({ error: 'The second half is no longer available. Please pick another time.' }, { status: 409 })
 
-    // Move in place: the bookings keep their ids, credits and group link, so
-    // nothing has to be refunded and re-charged.
+    // Move in place: the bookings keep their ids, their points and their group
+    // link. A reschedule is the same lesson at a new time, so it is not
+    // re-priced -- otherwise a parent could book a peak hour and shift it
+    // off-peak for the discount.
     const halves = [
       { id: ordered[0].id, coach_id: coach1_id, start: toT(s1), end: toT(mid) },
       { id: ordered[1].id, coach_id: coach2_id, start: toT(mid), end: toT(e2) },

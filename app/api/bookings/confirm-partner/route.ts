@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
-import { allocateTokens, isWithinTokenWindow, tokenPool } from '@/lib/tokens'
+import { priceLesson } from '@/lib/points'
+import { applyPoints, InsufficientPoints, lessonsCompleted } from '@/lib/points-wallet'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const { data: initiatorBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, pay_with_token')
+    .select('id, class_session_id, parent_id, student_id')
     .eq('id', initiatorBookingId)
     .eq('status', 'pending_partner')
     .single()
@@ -129,71 +129,76 @@ export async function POST(req: NextRequest) {
   const courseTypeId = sessions[0].course_type_id
   const { data: courseType } = await supabase
     .from('course_types').select('slug').eq('id', courseTypeId).single()
-  // An hour lesson is two halves; the token window is judged on the earlier one.
+  if (!courseType) return NextResponse.json({ error: 'Course type not found' }, { status: 404 })
+
+  // An hour lesson is two halves; the whole lesson is priced from the earlier
+  // one, so a 60-minute lesson that starts off-peak is off-peak throughout.
   const firstSession = [...sessions].sort((a: any, b: any) =>
     (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
-  const tokenWindowOpen = !!courseType
-    && isWithinTokenWindow(firstSession.session_date, firstSession.start_time)
 
-  const poolFor = async (parentId: string) => {
-    const { data: rows } = await supabase
-      .from('lesson_credits').select('id, total_credits, used_credits, course_type_id')
-      .eq('parent_id', parentId)
-      .is('converted_to_token_at', null)
-    const flat: string[] = []
-    for (const c of (rows || []).filter(c => c.course_type_id === courseTypeId).sort((a, b) => a.id.localeCompare(b.id))) {
-      for (let i = 0; i < (c.total_credits - c.used_credits); i++) flat.push(c.id)
-    }
-    return flat
+  // Each family pays for its own seat, at its OWN VIP level. That is the whole
+  // point of settling here rather than when the invitation was sent: a family
+  // that reached a new tier in the meantime gets the better price, and neither
+  // family's discount is quietly spent on the other's lesson.
+  const quoteFor = async (parentId: string, halves: number) => {
+    const price = priceLesson({
+      courseSlug: courseType.slug,
+      minutes: 30,
+      lessonsCompleted: await lessonsCompleted(supabase, parentId),
+      sessionDate: firstSession.session_date,
+      startTime: String(firstSession.start_time).slice(0, 5),
+      seats: 1,
+    })
+    return { price, perRow: price.perHalfHour, total: price.perHalfHour * halves }
   }
 
-  // Each family pays for its own seats, and pays all of them the same way --
-  // part token and part credit has no clean cancellation. pay_with on this
-  // request is the confirming family's choice; the inviting family chose when
-  // they sent the invitation, and it has been sitting on their pending row
-  // since. Either choice falls back to credit when tokens no longer cover the
-  // seats, because credit is the option that leaves the lesson cancellable.
-  const planFor = async (parentId: string, seats: number, wantsToken: boolean) => {
-    if (wantsToken && tokenWindowOpen) {
-      const picked = allocateTokens(await tokenPool(supabase, parentId, courseType!.slug), seats)
-      if (picked) return { tokens: picked, credits: [] as string[], shortBy: 0 }
-    }
-    const pool = await poolFor(parentId)
-    if (pool.length < seats) return { tokens: [] as string[], credits: [] as string[], shortBy: pool.length }
-    return { tokens: [] as string[], credits: pool.slice(0, seats), shortBy: 0 }
+  let myQuote, theirQuote
+  try {
+    myQuote = await quoteFor(confirmingParent.id, mine.length)
+    theirQuote = await quoteFor(initiatorBooking.parent_id, theirs.length)
+  } catch {
+    return NextResponse.json({ error: 'This lesson cannot be paid for with points.' }, { status: 400 })
   }
 
-  const myPlan = await planFor(confirmingParent.id, mine.length, body.pay_with !== 'credit')
-  if (myPlan.tokens.length === 0 && myPlan.credits.length === 0)
-    return NextResponse.json({ error: `You need ${mine.length} credits to confirm this lesson - you have ${myPlan.shortBy}.` }, { status: 402 })
-  const theirPlan = await planFor(initiatorBooking.parent_id, theirs.length, !!initiatorBooking.pay_with_token)
-  if (theirPlan.tokens.length === 0 && theirPlan.credits.length === 0)
-    return NextResponse.json({ error: 'The inviting family does not have enough credits.' }, { status: 402 })
+  // Settle both families BEFORE the claim. Taking the points first means a lost
+  // race is a 409 with nothing claimed, instead of a confirmed lesson nobody
+  // paid for. Both debits are reversible, and refundSpent() puts them back.
+  const taken: { parentId: string; points: number }[] = []
+  const refundSpent = async (why: string) => {
+    for (const t of taken) {
+      await applyPoints(supabase, {
+        parentId: t.parentId, reason: 'booking_failed', points: t.points,
+        actor: 'system', note: why,
+      }).catch(e => console.error('points rollback failed:', e))
+    }
+    taken.length = 0
+  }
 
-  // Settle both families BEFORE the claim. The pool checks above run in
-  // TypeScript while the spend runs in SQL, so two confirmations racing each
-  // other both clear them; the ceiling constraint is the only real arbiter.
-  // Spending first means a lost race is a 409 with nothing claimed, instead of a
-  // confirmed lesson that nobody was charged for.
-  const spentCredits: string[] = []
-  const spentTokens: string[] = []
-  const refundSpent = async () => {
-    for (const cid of spentCredits) await refundCredit(supabase, cid)
-    for (const tid of spentTokens) await refundToken(supabase, tid)
+  try {
+    await applyPoints(supabase, {
+      parentId: confirmingParent.id, reason: 'booking', points: -myQuote.total,
+      pricing: myQuote.price, actor: 'parent',
+    })
+    taken.push({ parentId: confirmingParent.id, points: myQuote.total })
+  } catch (e: any) {
+    if (e instanceof InsufficientPoints)
+      return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 402 })
+    console.error('points charge failed:', e)
+    return NextResponse.json({ error: 'Could not take the points for this lesson. Please try again.' }, { status: 500 })
   }
-  for (const cid of [...myPlan.credits, ...theirPlan.credits]) {
-    if (!(await spendCredit(supabase, cid))) {
-      await refundSpent()
-      return NextResponse.json({ error: 'Credits ran out while this invitation was being confirmed. Please refresh and try again.' }, { status: 409 })
-    }
-    spentCredits.push(cid)
-  }
-  for (const tid of [...myPlan.tokens, ...theirPlan.tokens]) {
-    if (!(await spendToken(supabase, tid))) {
-      await refundSpent()
-      return NextResponse.json({ error: 'Credits ran out while this invitation was being confirmed. Please refresh and try again.' }, { status: 409 })
-    }
-    spentTokens.push(tid)
+
+  try {
+    await applyPoints(supabase, {
+      parentId: initiatorBooking.parent_id, reason: 'booking', points: -theirQuote.total,
+      pricing: theirQuote.price, actor: 'parent',
+    })
+    taken.push({ parentId: initiatorBooking.parent_id, points: theirQuote.total })
+  } catch (e: any) {
+    await refundSpent('the inviting family could not pay')
+    if (e instanceof InsufficientPoints)
+      return NextResponse.json({ error: 'The family who invited you no longer has enough points for their half of this lesson.' }, { status: 402 })
+    console.error('points charge failed:', e)
+    return NextResponse.json({ error: 'Could not take the points for this lesson. Please try again.' }, { status: 500 })
   }
 
   // Claim the WHOLE group in one update - the status filter is the lock. If the
@@ -207,22 +212,25 @@ export async function POST(req: NextRequest) {
     if (claimed && claimed.length > 0) {
       await supabase.from('bookings').update({ status: 'pending_partner' }).in('id', claimed.map((r: any) => r.id))
     }
-    await refundSpent()
+    await refundSpent('the invitation was already processed')
     return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })
   }
 
-  const assign = async (rows: any[], plan: { tokens: string[]; credits: string[] }) => {
-    for (let i = 0; i < rows.length; i++) {
+  // Stamp each row with its own half of what that family paid, so a later
+  // cancellation refunds the right family the right number of points.
+  const assign = async (rows: any[], perRow: number) => {
+    for (const row of rows) {
       await supabase.from('bookings').update({
-        lesson_credit_id: plan.credits[i] ?? null,
-        token_package_id: plan.tokens[i] ?? null,
+        lesson_credit_id: null,
+        token_package_id: null,
+        points_charged: perRow,
         pending_action: null,
         pending_expires_at: null,
-      }).eq('id', rows[i].id)
+      }).eq('id', row.id)
     }
   }
-  await assign(mine, myPlan)
-  await assign(theirs, theirPlan)
+  await assign(mine, myQuote.perRow)
+  await assign(theirs, theirQuote.perRow)
 
   try {
     const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', initiatorBooking.parent_id).single()
