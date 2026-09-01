@@ -1,6 +1,5 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { PLAN_GROUPS } from '@/lib/plans'
 
 const PAGE_SIZE = 20
 
@@ -41,19 +40,15 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
         if (!fullName.includes(q) && !email.includes(q)) return false
       }
 
-      // Package type
+      // Sale type. There are only two things sold now -- points and team
+      // memberships -- so the third bucket is honestly named: it holds the old
+      // package invoices and anything else recorded by hand.
       if (planGroup !== 'All') {
-        const group = PLAN_GROUPS.find(g => g.label === planGroup)
-        if (!group) return false
-        const isTeamInvoice = !!inv.team_membership_id
-        if (planGroup === 'Swim Team') {
-          if (!isTeamInvoice && !planName.toLowerCase().startsWith('swim team')) return false
-        } else {
-          if (isTeamInvoice) return false
-          const matches = planName.toLowerCase().includes(planGroup.toLowerCase().split(' ')[0])
-            || planName.startsWith(planGroup)
-          if (!matches) return false
-        }
+        const isTeamInvoice = !!inv.team_membership_id || planName.toLowerCase().startsWith('swim team')
+        const isPoints = /points/i.test(planName)
+        if (planGroup === 'Swim Team' && !isTeamInvoice) return false
+        if (planGroup === 'Points' && (!isPoints || isTeamInvoice)) return false
+        if (planGroup === 'Other' && (isPoints || isTeamInvoice)) return false
       }
 
       // Payment method
@@ -145,11 +140,10 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
         </div>
         {/* Package type */}
         <div>
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Package Type</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Sale Type</label>
           <select value={planGroup} onChange={e => { setPlanGroup(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-            <option value="All">All</option>
-            {PLAN_GROUPS.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
+            {['All', 'Points', 'Swim Team', 'Other'].map(g => <option key={g} value={g}>{g}</option>)}
           </select>
         </div>
         {/* Payment method */}
