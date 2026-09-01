@@ -43,7 +43,7 @@ interface Session {
   status: string
   course_type_id: string
   course_types: { name: string; slug: string; duration_minutes: number } | { name: string; slug: string; duration_minutes: number }[]
-  bookings?: { id: string; parent_id: string; lesson_credit_id: string | null; status: string; is_trial?: boolean; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
+  bookings?: { id: string; parent_id: string; status: string; is_trial?: boolean; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
 }
 
 interface BookingSlot {
@@ -1641,7 +1641,6 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { 
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
   const isFull = session.enrolled_count >= session.max_students
   const hasTrial = !!session.bookings?.some(b => b.is_trial)
-  const isSingleLesson = !hasTrial && session.bookings?.some(b => b.lesson_credit_id === null)
   const is1on2 = ct.slug === '1on2'
   const activeBookings = session.bookings?.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner') || []
   const dragOk = activeBookings.length >= 1 && activeBookings.every(b => b.status === 'confirmed' || b.status === 'pending_payment')
@@ -1682,12 +1681,6 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { 
         <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none z-10"
           style={{ backgroundColor: '#6366f1', color: '#fff' }}>
           Linked
-        </span>
-      )}
-      {isSingleLesson && (
-        <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none"
-          style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
-          Single
         </span>
       )}
     </>
@@ -1854,9 +1847,6 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                       {student?.full_name}
                       {b.is_trial && (
                         <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>Assessment</span>
-                      )}
-                      {b.lesson_credit_id === null && !b.is_trial && (
-                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>Single</span>
                       )}
                     </span>
                     <span className="flex items-center gap-2">

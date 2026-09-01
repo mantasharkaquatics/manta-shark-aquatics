@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
   async function fetchLessonRows(pastNotFuture: boolean) {
     const { data: bookings } = await svc
       .from('bookings')
-      .select('id, student_id, class_session_id, status, partner_booking_id, lesson_credit_id')
+      .select('id, student_id, class_session_id, status, partner_booking_id, points_charged')
       .eq('parent_id', parent!.id)
       .neq('status', 'cancelled')
       .neq('status', 'pending_partner')

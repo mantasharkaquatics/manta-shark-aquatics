@@ -115,13 +115,14 @@ ALTER TABLE public.bookings
   ADD COLUMN IF NOT EXISTS points_refunded integer NOT NULL DEFAULT 0;
 
 COMMENT ON COLUMN public.bookings.points_charged IS
-  '這筆預約扣掉的點數。NULL 表示不是用點數付的（舊制的堂數／token）。';
+  '這筆預約扣掉的點數。NULL 表示不是用點數付的：游泳評估（刷卡）、
+   還沒成立的邀約，或舊制的堂數／token。';
 
--- 「完成堂數」的定義就寫在這個索引服務的查詢裡：扣過點、還沒退點、
--- 而且課已經上過了。
+-- 服務「完成堂數」那個查詢。游泳評估是刷卡付的，points_charged 是空的，
+-- 但它算一堂完成的課，所以索引條件要一起收進來。
 CREATE INDEX IF NOT EXISTS bookings_points_charged_idx
   ON public.bookings (parent_id)
-  WHERE points_charged IS NOT NULL;
+  WHERE points_charged IS NOT NULL OR is_trial;
 
 -- ---------------------------------------------------------------------------
 --  4. 完成堂數 —— 用算的，不用存的
@@ -129,6 +130,7 @@ CREATE INDEX IF NOT EXISTS bookings_points_charged_idx
 --  存一個計數器就會有跟事實不一致的一天。這個查詢很便宜，而且永遠對。
 --  規則：扣過點、退點金額小於扣點金額（沒有被全額退掉）、課程日期已過。
 --  未到場（no-show）算完成，24 小時前取消退點的不算。
+--  游泳評估也算一堂 —— 家長心裡的「上過幾堂」本來就包含它。
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.points_lessons_completed(p_parent_id uuid)
 RETURNS integer
@@ -137,14 +139,19 @@ LANGUAGE sql STABLE AS $$
   FROM public.bookings b
   JOIN public.class_sessions cs ON cs.id = b.class_session_id
   WHERE b.parent_id = p_parent_id
-    AND b.points_charged IS NOT NULL
-    AND b.points_refunded < b.points_charged
     AND b.status <> 'cancelled'
     AND cs.session_date < (now() AT TIME ZONE 'America/Los_Angeles')::date
+    AND (
+      -- 用點數上的課：退過點的不算（等於沒上）
+      (b.points_charged IS NOT NULL AND b.points_refunded < b.points_charged)
+      -- 游泳評估是刷卡付的，點數欄位是空的，但它確實是上完的一堂課。
+      -- 家長看到「已完成 10 堂」時，心裡算的堂數包含評估那一堂。
+      OR b.is_trial
+    )
 $$;
 
 COMMENT ON FUNCTION public.points_lessons_completed(uuid) IS
-  'VIP 等級與晚取消豁免次數的唯一依據。刻意用算的而不是存計數器。';
+  'VIP 等級與晚取消豁免次數的唯一依據。刻意用算的而不是存計數器。包含游泳評估。';
 
 -- ---------------------------------------------------------------------------
 --  5. RLS —— 家長只讀得到自己的，寫入一律走 service role

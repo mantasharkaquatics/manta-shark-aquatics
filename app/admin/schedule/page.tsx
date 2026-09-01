@@ -42,7 +42,7 @@ export default async function AdminSchedulePage() {
       .select('id, pending_action, pending_new_session_id, class_session_id, parent_id, student_id, pending_expires_at')
       .in('pending_action', ['reschedule', 'reschedule_initiator']),
     supabase.from('bookings')
-      .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason, lesson_credit_id, token_package_id')
+      .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason, points_charged, is_trial')
       .eq('status', 'cancelled').is('pending_action', null)
       .or('cancellation_reason.is.null,cancellation_reason.neq.rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
@@ -301,12 +301,12 @@ export default async function AdminSchedulePage() {
 
             // Cancellations
             // A cancellation is only activity worth showing if the lesson had been
-            // paid for. This used to be a `lesson_credit_id is not null` filter in
-            // the query itself -- but that column is null on every token booking, so
-            // a cancelled make-up lesson never appeared here at all, even though the
-            // same booking showed up under New Booking when it was made.
+            // paid for. points_charged carries that now: it is set on every booking
+            // that took points, and null on a pending invitation nobody paid for.
+            // The Swim Assessment is paid by card rather than from the wallet, so
+            // it has to be named separately or a cancelled assessment disappears.
             const mergedCancelled: Record<string, any[]> = {}
-            for (const b of (rawCancelled || []).filter((b: any) => b.lesson_credit_id || b.token_package_id)) {
+            for (const b of (rawCancelled || []).filter((b: any) => b.points_charged != null || b.is_trial)) {
               const key = b.class_session_id || b.id
               if (!mergedCancelled[key]) mergedCancelled[key] = []
               mergedCancelled[key].push(b)

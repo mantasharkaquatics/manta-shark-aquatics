@@ -17,7 +17,7 @@ const src = readFileSync(new URL('../lib/points.ts', import.meta.url), 'utf8')
   .replace(/export const todayLA = getTodayLA/, '')
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
 const mod = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
-const { priceLesson, vipTier, nextVipTier, isOffPeak, forgivenessAvailable, refundableCents } = mod
+const { priceLesson, vipTier, nextVipTier, isOffPeak, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents } = mod
 
 let fails = 0
 const eq = (label, got, want) => {
@@ -38,6 +38,15 @@ eq('平日 16:15 尖峰',            isOffPeak(WED, '16:15'), false)
 eq('平日 19:30 離峰',            isOffPeak(WED, '19:30'), true)
 eq('週六 09:00 離峰',            isOffPeak(SAT, '09:00'), true)
 eq('週六 10:00 尖峰（週末較早結束）', isOffPeak(SAT, '10:00'), false)
+eq('平日 21:00 尖峰（打烊，右邊界不含）', isOffPeak(WED, '21:00'), false)
+eq('平日 20:59 離峰',            isOffPeak(WED, '20:59'), true)
+eq('平日 05:59 尖峰（開門前）',   isOffPeak(WED, '05:59'), false)
+// 週日在 JS 是 0，最容易被寫錯的一格
+eq('週日 09:00 離峰',            isOffPeak('2026-09-06', '09:00'), true)
+eq('週日 10:00 尖峰',            isOffPeak('2026-09-06', '10:00'), false)
+// 日期字串是「當地日期」，不是 UTC。用 Date 直接 parse 會在 UTC 伺服器上
+// 差一天，離峰判斷就會整批錯開一格。
+eq('週一 09:00 離峰（不被 UTC 位移）', isOffPeak('2026-09-07', '09:00'), true)
 
 console.log('\nVIP 級距')
 eq('9 堂 → 一般',   vipTier(9).level,   0)
@@ -79,6 +88,37 @@ for (const slug of ['1on1', '1on2', '1on4']) {
   }
 }
 eq('36 種組合全部成立', true, true)
+
+console.log('\n沒有任何折扣組合會超過原價，或低於最大折扣')
+{
+  // 每一種課、每一個級距、開門到打烊的每一個半點，都不能比原價貴，
+  // 也不能比「VIP5 + 離峰」還便宜。這兩條線之間就是所有可能的價格。
+  let over = 0, under = 0, n = 0
+  for (const slug of Object.keys(BASE_POINTS)) {
+    const base = BASE_POINTS[slug]
+    const floorPrice = Math.floor(base * (1 - 0.12) * (1 - OFF_PEAK_DISCOUNT))
+    for (const tier of VIP_TIERS) {
+      for (const date of [WED, SAT, '2026-09-06']) {
+        for (let mins = 6 * 60; mins < 21 * 60; mins += 30) {
+          const t = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0')
+          const p = priceLesson({ courseSlug: slug, sessionDate: date, startTime: t, lessonsCompleted: tier.lessons })
+          n++
+          if (p.charged > base) over++
+          if (p.charged < floorPrice) under++
+        }
+      }
+    }
+  }
+  eq(`${n} 種組合都沒有超過原價`, over, 0)
+  eq(`${n} 種組合都沒有低於最大折扣`, under, 0)
+}
+
+console.log('\n儲值金額的邊界')
+eq('最低 $50', MIN_TOPUP_DOLLARS, 50)
+eq('最高 $10,000', MAX_TOPUP_DOLLARS, 10000)
+eq('$1 = 1 點', centsToPoints(100), 1)
+eq('1 點 = $1', pointsToCents(1), 100)
+eq('金額換點數不會出現小數', centsToPoints(12345), 123)
 
 console.log('\n捨去方向永遠對家長有利')
 const b = priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 20 })

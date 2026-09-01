@@ -66,6 +66,11 @@ export const totalBalance = (w: Wallet) => w.balance_purchased + w.balance_grant
  * Completed lessons, from the database function rather than a stored counter.
  * It drives the VIP tier and the forgiveness count, so it must not be cached
  * anywhere it could go stale.
+ *
+ * A lesson counts once its date has passed, it was not cancelled, and its
+ * points were not handed back. A no-show counts -- the coach was there. The
+ * Swim Assessment counts too, even though it is paid by card rather than from
+ * the wallet, because a parent counting the lessons they have taken counts it.
  */
 export async function lessonsCompleted(svc: Svc, parentId: string): Promise<number> {
   const { data, error } = await svc.rpc('points_lessons_completed', { p_parent_id: parentId })
