@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES, allocateTokens, isWithinTokenWindow, tokenPool } from '@/lib/tokens'
+import { LEAD_TIME_MINUTES } from '@/lib/tokens'
+import { priceLesson } from '@/lib/points'
+import { applyPoints, InsufficientPoints, lessonsCompleted } from '@/lib/points-wallet'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
-import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -157,14 +158,12 @@ export async function POST(req: NextRequest) {
   if (reschedule_booking_id) {
     const { data: ob } = await svc
       .from('bookings')
-      .select('id, parent_id, status, lesson_credit_id, token_package_id, class_session_id, original_booking_id')
+      .select('id, parent_id, status, points_charged, class_session_id, original_booking_id')
       .eq('id', reschedule_booking_id).single()
     if (!ob || ob.parent_id !== parent.id)
       return NextResponse.json({ error: 'Booking to reschedule not found' }, { status: 403 })
     if (ob.status !== 'confirmed')
       return NextResponse.json({ error: 'Only confirmed bookings can be rescheduled' }, { status: 400 })
-    if (ob.token_package_id)
-      return NextResponse.json({ error: 'Lessons booked with tokens cannot be rescheduled.' }, { status: 400 })
     const { data: oldSess } = await svc
       .from('class_sessions').select('session_date, start_time').eq('id', ob.class_session_id).single()
     if (oldSess && minutesUntil(oldSess.session_date, oldSess.start_time, today, nowMin) < 24 * 60)
@@ -172,85 +171,73 @@ export async function POST(req: NextRequest) {
     oldBooking = ob
   }
 
-  // Credits (server-side resolution, oldest first)
-  const { data: creditRows } = await svc
-    .from('lesson_credits')
-    .select('id, total_credits, used_credits, expires_at')
-    .eq('parent_id', parent.id)
-    .eq('course_type_id', course_type_id)
-    .order('expires_at', { ascending: true })
-  const nowIso = new Date().toISOString()
-  const rows = (creditRows || [])
-    .filter((c: any) => !c.expires_at || c.expires_at > nowIso)
-    .map((c: any) => ({ ...c, remaining: c.total_credits - c.used_credits }))
-  const totalRemaining = rows.reduce((s: number, c: any) => s + c.remaining, 0)
-
-  const inheritCredit = !!oldBooking && !isPartnerBooking && !!oldBooking.lesson_credit_id
-  let credit: any = null
-  let credit2: any = null
-
-  // Payment choice (spec v1.3). The parent picks at the last step of booking;
-  // pay_with is a request, never an authorisation -- the server works the
-  // answer out again from the pool, the window and the seat count, and falls
-  // back to credit whenever tokens do not cover the whole booking. Credit is
-  // the safe fallback because it leaves the lesson cancellable.
+  // ---- PRICE AND SETTLE (points) --------------------------------------
+  // One currency, so this whole section is a fraction of what the package and
+  // token system needed here: no course-type matching, no token window, no
+  // all-or-nothing seat allocation across two kinds of money.
   //
-  // Every seat this family pays for settles the same way. Part token and part
-  // credit has no clean cancellation: a token booking is final, a credit
-  // booking is not, and a 1-on-2 with one swimmer is not a lesson.
-  //
-  // A reschedule keeps whatever the original booking used, so it never reaches
-  // here; token bookings cannot be rescheduled at all.
+  // The price is worked out server-side from lib/points.ts. The client never
+  // sends a price; it only sends what it wants to book.
   const seatsToPay = student2 && !isPartnerBooking ? 2 : 1
-  let tokenAlloc: string[] = []
-  if (body.pay_with !== 'credit' && !isPartnerBooking && !oldBooking
-      && isWithinTokenWindow(session_date, start_time)) {
-    tokenAlloc = allocateTokens(await tokenPool(svc, parent.id, course.slug), seatsToPay) ?? []
+  const completed = await lessonsCompleted(svc, parent.id)
+  let price
+  try {
+    price = priceLesson({
+      courseSlug: course.slug,
+      minutes: 30,
+      lessonsCompleted: completed,
+      sessionDate: session_date,
+      startTime: start_time,
+      seats: seatsToPay,
+    })
+  } catch {
+    return NextResponse.json({ error: 'This lesson cannot be paid for with points.' }, { status: 400 })
   }
-  const payingWithTokens = tokenAlloc.length === seatsToPay && seatsToPay > 0
 
-  if (isPartnerBooking) {
-    if (totalRemaining < 1)
-      return NextResponse.json({ error: 'No remaining credits for this course type.' }, { status: 400 })
-  } else if (!inheritCredit && !payingWithTokens) {
-    credit = rows.find((c: any) => c.remaining > 0) || null
-    if (!credit)
-      return NextResponse.json({ error: 'No remaining credits for this course type.' }, { status: 400 })
-  }
-  if (student2 && !isPartnerBooking && !payingWithTokens) {
-    credit2 = rows.find((c: any) => (c.remaining - (credit && c.id === credit.id ? 1 : 0)) > 0) || null
-    if (!credit2)
-      return NextResponse.json({ error: 'Not enough credits for two students.' }, { status: 400 })
-  }
+  // A reschedule is the same lesson moved, so it keeps its original charge --
+  // no re-pricing, no top-up, no refund of the difference. Re-pricing downward
+  // would let a parent book a peak slot and move it off-peak for the discount,
+  // and the parent can already cancel and rebook when they are more than 24
+  // hours out, so there is nothing to protect by charging again.
+  const inheritedPoints: number | null =
+    oldBooking && !isPartnerBooking ? (oldBooking.points_charged ?? null) : null
 
   const rootOriginalId = oldBooking ? (oldBooking.original_booking_id || oldBooking.id) : null
 
-  // Settle up BEFORE the row exists. The balance check above runs in TypeScript
-  // and the spend runs in SQL, so two concurrent bookings by one parent both
-  // clear it -- the ceiling constraints on lesson_credits and token_packages are
-  // the only real arbiter. Letting them arbitrate first turns the loser away
-  // with nothing to undo, instead of leaving a booking nobody paid for.
-  const spentTokens: string[] = []
-  let spentCredit: string | null = null
-  const refundSpent = async () => {
-    for (const tid of spentTokens) await refundToken(svc, tid)
-    if (spentCredit) await refundCredit(svc, spentCredit)
+  // Settle BEFORE the row exists, so a request that cannot pay is turned away
+  // with nothing to undo rather than leaving a booking nobody paid for. A
+  // cross-account 1-on-2 settles when the other family confirms, not here.
+  let chargedTotal = 0
+  let perSeatCharged = inheritedPoints ?? price.perSeat
+  const refundSpent = async (why: string) => {
+    if (chargedTotal > 0) {
+      await applyPoints(svc, {
+        parentId: parent.id, reason: 'booking_failed', points: chargedTotal,
+        actor: 'system', note: why,
+      }).catch(e => console.error('points rollback failed:', e))
+      chargedTotal = 0
+    }
   }
-  if (!isPartnerBooking) {
-    if (payingWithTokens) {
-      // Every seat up front. A 1-on-2 that only got one of its two tokens is
-      // not a lesson we can write, so the loser hands back what it took.
-      for (const tid of tokenAlloc) {
-        if (!(await spendToken(svc, tid))) {
-          await refundSpent()
-          return NextResponse.json({ error: 'Your make-up credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
-        }
-        spentTokens.push(tid)
+
+  if (!isPartnerBooking && inheritedPoints === null) {
+    try {
+      await applyPoints(svc, {
+        parentId: parent.id,
+        reason: 'booking',
+        points: -price.charged,
+        pricing: price,
+        actor: 'parent',
+      })
+      chargedTotal = price.charged
+    } catch (e: any) {
+      if (e instanceof InsufficientPoints) {
+        return NextResponse.json(
+          { error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available },
+          { status: 400 },
+        )
       }
-    } else if (!inheritCredit) {
-      if (!(await spendCredit(svc, credit.id)))
-        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
-      spentCredit = credit.id
+      console.error('points charge failed:', e)
+      return NextResponse.json({ error: 'Could not take the points for this booking. Please try again.' }, { status: 500 })
     }
   }
 
@@ -260,12 +247,9 @@ export async function POST(req: NextRequest) {
     .insert({
       class_session_id: sessionId,
       parent_id: parent.id,
-      lesson_credit_id: isPartnerBooking || payingWithTokens ? null : (inheritCredit ? oldBooking.lesson_credit_id : credit.id),
-      token_package_id: payingWithTokens ? tokenAlloc[0] : null,
-      // A partner booking settles when the other family confirms, so the
-      // initiator's choice has to survive until then. On a booking that
-      // settles here it is just a record of what happened.
-      pay_with_token: isPartnerBooking ? body.pay_with !== 'credit' : payingWithTokens,
+      lesson_credit_id: null,
+      token_package_id: null,
+      points_charged: isPartnerBooking ? null : perSeatCharged,
       student_id: student.id,
       status: isPartnerBooking ? 'pending_partner' : 'confirmed',
       pending_action: null,
@@ -274,7 +258,7 @@ export async function POST(req: NextRequest) {
     })
     .select('id').single()
   if (bookErr || !newBooking) {
-    await refundSpent()
+    await refundSpent('booking insert failed')
     const m = bookErr?.message || ''
     const msg = m.includes('STUDENT_DOUBLE_BOOKED')
       ? 'This swimmer already has a lesson at this time. Please pick another time.'
@@ -284,34 +268,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 409 })
   }
 
-  // Second student (same account)
+  // Second student on the same account. Both seats were paid in one debit
+  // above, so there is nothing left to settle here -- only to undo if the row
+  // will not go in.
   if (student2 && !isPartnerBooking) {
-    // Same order as above: the second swimmer's credit settles before its row,
-    // so losing the race here costs a 409 and nothing else. On the token path
-    // both seats were already taken above, so there is nothing left to settle.
-    if (!payingWithTokens) {
-      if (!(await spendCredit(svc, credit2.id))) {
-        await refundSpent()
-        await svc.from('bookings')
-          .update({ status: 'cancelled', cancellation_reason: 'cancelled_before_payment' })
-          .eq('id', newBooking.id)
-        return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
-      }
-    }
     const { error: s2Err } = await svc.from('bookings').insert({
       class_session_id: sessionId,
       parent_id: parent.id,
-      lesson_credit_id: payingWithTokens ? null : credit2.id,
-      token_package_id: payingWithTokens ? tokenAlloc[1] : null,
+      lesson_credit_id: null,
+      token_package_id: null,
+      points_charged: perSeatCharged,
       student_id: student2.id,
       status: 'confirmed',
       original_booking_id: rootOriginalId,
     })
     if (s2Err) {
-      // A 1-on-2 with only one swimmer is not a lesson - undo the initiator booking
-      // and hand back everything this request took, whichever kind it was.
-      if (!payingWithTokens) await refundCredit(svc, credit2.id)
-      await refundSpent()
+      // A 1-on-2 with one swimmer is not a lesson: undo both.
+      await refundSpent('second swimmer could not be booked')
       await svc.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' })
         .eq('id', newBooking.id)
@@ -383,8 +356,21 @@ export async function POST(req: NextRequest) {
     await svc.from('bookings')
       .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
       .eq('id', oldBooking.id)
-    if (isPartnerBooking && oldBooking.lesson_credit_id) {
-      await refundCredit(svc, oldBooking.lesson_credit_id)
+    // Rescheduling into a cross-account 1-on-2 makes a fresh invitation that
+    // settles when the other family confirms, so the old booking's points come
+    // back now rather than riding along.
+    if (isPartnerBooking && oldBooking.points_charged) {
+      await applyPoints(svc, {
+        parentId: parent.id,
+        reason: 'cancel_refund',
+        points: oldBooking.points_charged,
+        bookingId: oldBooking.id,
+        actor: 'system',
+        note: 'rescheduled into a new 1-on-2 invitation',
+      }).catch(e => console.error('reschedule refund failed:', e))
+      await svc.from('bookings')
+        .update({ points_refunded: oldBooking.points_charged })
+        .eq('id', oldBooking.id)
     }
   }
 

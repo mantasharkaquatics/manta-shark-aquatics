@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS public.point_ledger (
   reason                   text NOT NULL CHECK (reason IN (
                              'purchase',        -- 家長買點數
                              'booking',         -- 訂課扣點
+                             'booking_failed',  -- 訂課途中失敗，把扣掉的點還回去
                              'cancel_refund',   -- 24 小時前取消，退點
                              'forgiveness',     -- 24 小時內取消，用掉一次豁免退點
                              'school_cancel',   -- 校方取消，退點

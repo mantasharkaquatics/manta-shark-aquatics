@@ -28,6 +28,18 @@ export const ASSESSMENT_POINTS = 85
 /** Swim Team is a monthly subscription and never touches points. */
 export const TEAM_SLUG = 'team'
 
+// --- Buying points ------------------------------------------------------------
+// No volume discount, on purpose. A discount given at purchase can be refunded
+// back out -- buy the biggest bundle, take ten lessons, refund the rest, and you
+// have bought lessons at the bulk rate with no commitment. Every discount in
+// this system is earned at the moment of booking instead, where it cannot be
+// handed back.
+export const MIN_TOPUP_DOLLARS = 50
+export const MAX_TOPUP_DOLLARS = 10_000
+
+/** The amounts offered as one-tap choices. Any other figure is still allowed. */
+export const TOPUP_PRESETS = [500, 1000, 2000] as const
+
 // --- VIP, by lessons completed ----------------------------------------------
 // Earned by attending, not by spending. Retroactive: the moment a family moves
 // up, every point already in their wallet buys more. That is why this is a

@@ -153,7 +153,9 @@ export async function POST(req: NextRequest) {
         if (!t.parent_id || seen.has(t.parent_id)) continue
         seen.add(t.parent_id)
         const ks = kindsByParent.get(t.parent_id)
-        const refundKind = !ks || ks.size === 0 ? 'none' : ks.size > 1 ? 'mixed' : (Array.from(ks)[0] as 'credit' | 'token')
+        // One currency now, so there is nothing to mix: either points came
+        // back or nothing did.
+        const refundKind = !ks || ks.size === 0 ? 'none' as const : 'points' as const
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
         const { data: s } = await svc.from('students').select('full_name').eq('id', t.student_id).single()
         if (p?.email) {

@@ -1,13 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
-import { getCancellationQuota, tokenExpiryFromNow } from '@/lib/tokens'
-import { refundCredit, refundToken } from '@/lib/ledger'
+import { applyPoints, walletSummary } from '@/lib/points-wallet'
 
 export type CancelTarget = {
   parent_id: string
   student_id: string
-  kind: 'credit' | 'token_conversion' | 'none'
+  kind: 'points' | 'none'
 }
 
 export type CancelResult = {
@@ -15,7 +14,8 @@ export type CancelResult = {
   status: number
   error?: string
   cancelledBookingIds: string[]
-  convertedToToken?: boolean
+  pointsRefunded?: number
+  usedForgiveness?: boolean
   // Who should be told, and what they got back. The caller keeps these when it
   // is cancelling a 60-minute lesson half by half, so one email can cover the
   // whole hour instead of one per half.
@@ -108,7 +108,7 @@ export async function cancelBookingWithPartner(
 ): Promise<CancelResult> {
   const { data: booking } = await svc
     .from('bookings')
-    .select('id, class_session_id, lesson_credit_id, token_package_id, partner_booking_id, parent_id, student_id, status, is_trial')
+    .select('id, class_session_id, points_charged, points_refunded, partner_booking_id, parent_id, student_id, status, is_trial')
     .eq('id', bookingId)
     .single()
 
@@ -126,11 +126,6 @@ export async function cancelBookingWithPartner(
     return { ok: false, status: 403, error: 'Forbidden', cancelledBookingIds: [] }
   }
 
-  // Token-booked lessons are final (spec v1.1): no cancellation, no reschedule.
-  if (booking.token_package_id) {
-    return { ok: false, status: 400, error: 'Lessons booked with tokens cannot be cancelled.', cancelledBookingIds: [] }
-  }
-
   // A Swim Assessment is a one-off sold at its own price, not a lesson drawn
   // from a package. Refunding it as a lesson credit or converting it to a
   // make-up token would hand back something worth more, or less, than what was
@@ -140,12 +135,15 @@ export async function cancelBookingWithPartner(
     return { ok: false, status: 400, error: "A Swim Assessment can't be cancelled online. Please contact us and we'll take care of it.", cancelledBookingIds: [] }
   }
 
-  // Parent-initiated cancellation within 24h: convert the spent credit to a
-  // token (quota-gated) instead of refunding. Admin/system callers keep the
-  // plain credit refund. 1-on-2 within 24h stays human-handled (v1 exclusion):
-  // the family contacts the school and staff sort it out by hand.
-  let convertToToken = false
-  let convertCourseTypeId: string | null = null
+  // Parent-initiated cancellation inside 24 hours: the points are not returned,
+  // because the coach's time is already reserved -- unless the family still has
+  // a late-cancel forgiveness, which is one for every ten lessons they have
+  // completed. Admin and system callers always refund.
+  //
+  // A 1-on-2 inside 24 hours stays human-handled: a second family shares that
+  // slot, and the two of them are not ours to settle automatically.
+  let useForgiveness = false
+  let refundPoints = true
   if (callerParentId) {
     const { data: timing } = await svc
       .from('class_sessions')
@@ -158,15 +156,16 @@ export async function cancelBookingWithPartner(
       if (ct?.slug === '1on2' || booking.partner_booking_id) {
         return { ok: false, status: 400, error: '1-on-2 lessons starting within 24 hours cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
       }
-      if (!booking.lesson_credit_id) {
-        return { ok: false, status: 400, error: 'This lesson starts within 24 hours and cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
+      const summary = await walletSummary(svc, booking.parent_id)
+      if (summary.forgiveness <= 0) {
+        // Nothing to spend, so the lesson simply cannot be cancelled online.
+        // The dashboard says so before the parent gets here; this is the
+        // server refusing to be talked past.
+        return { ok: false, status: 400, error: 'NO_FORGIVENESS_LEFT', cancelledBookingIds: [] }
       }
-      const quota = await getCancellationQuota(svc, booking.parent_id)
-      if (quota.remaining <= 0) {
-        return { ok: false, status: 400, error: 'This lesson starts within 24 hours and cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
-      }
-      convertToToken = true
-      convertCourseTypeId = timing.course_type_id
+      // The parent asked to cancel knowing the terms, so the allowance is
+      // spent and the points come back in full.
+      useForgiveness = true
     }
   }
 
@@ -184,24 +183,22 @@ export async function cancelBookingWithPartner(
   const cancelledBookingIds: string[] = [booking.id]
   const cancelledPartners: { parent_id: string; student_id: string }[] = []
 
-  if (booking.lesson_credit_id) {
-    if (convertToToken && convertCourseTypeId) {
-      const { error: tokenErr } = await svc.from('token_packages').insert({
-        parent_id: booking.parent_id,
-        course_type_id: convertCourseTypeId,
-        total_tokens: 1,
-        source: 'cancellation',
-        source_booking_id: booking.id,
-        expires_at: tokenExpiryFromNow(),
-        note: 'Late cancellation conversion',
+  const owed = (booking.points_charged ?? 0) - (booking.points_refunded ?? 0)
+  if (refundPoints && owed > 0) {
+    try {
+      await applyPoints(svc, {
+        parentId: booking.parent_id,
+        reason: useForgiveness ? 'forgiveness' : 'cancel_refund',
+        points: owed,
+        bookingId: booking.id,
+        actor: callerParentId ? 'parent' : 'system',
+        consumeForgiveness: useForgiveness,
       })
-      if (tokenErr) {
-        // Never leave the parent short: fall back to a plain credit refund.
-        await refundCredit(svc, booking.lesson_credit_id)
-        convertToToken = false
-      }
-    } else {
-      await refundCredit(svc, booking.lesson_credit_id)
+      await svc.from('bookings')
+        .update({ points_refunded: (booking.points_refunded ?? 0) + owed })
+        .eq('id', booking.id)
+    } catch (e) {
+      console.error('points refund failed for booking', booking.id, e)
     }
   }
 
@@ -217,7 +214,7 @@ export async function cancelBookingWithPartner(
   if (primaryCt?.slug === '1on2') {
     const { data: spb } = await svc
       .from('bookings')
-      .select('id, lesson_credit_id, token_package_id, class_session_id')
+      .select('id, points_charged, points_refunded, class_session_id')
       .eq('parent_id', booking.parent_id)
       .eq('class_session_id', booking.class_session_id)
       .neq('id', bookingId)
@@ -236,14 +233,20 @@ export async function cancelBookingWithPartner(
       .select('id')
     if (!c || c.length === 0) continue
     cancelledBookingIds.push(pb.id)
-    if (pb.lesson_credit_id) {
-      await refundCredit(svc, pb.lesson_credit_id)
-    } else if (pb.token_package_id) {
-      // Since 2026-08-27 a 1-on-2 can be paid with make-up credits, and every
-      // seat one family pays for settles the same way -- so a token sibling only
-      // exists alongside a token primary. Hand it straight back to its package:
-      // this family chose to cancel, so its expiry date is nobody's surprise.
-      await refundToken(svc, pb.token_package_id)
+    // The sibling seat of the same 1-on-2, paid in the same debit. It follows
+    // the primary: refunded when the primary was, kept when it was not.
+    const sibOwed = (pb.points_charged ?? 0) - (pb.points_refunded ?? 0)
+    if (refundPoints && sibOwed > 0) {
+      await applyPoints(svc, {
+        parentId: booking.parent_id,
+        reason: useForgiveness ? 'forgiveness' : 'cancel_refund',
+        points: sibOwed,
+        bookingId: pb.id,
+        actor: callerParentId ? 'parent' : 'system',
+      }).catch(e => console.error('sibling refund failed:', e))
+      await svc.from('bookings')
+        .update({ points_refunded: (pb.points_refunded ?? 0) + sibOwed })
+        .eq('id', pb.id)
     }
   }
 
@@ -276,7 +279,7 @@ export async function cancelBookingWithPartner(
       if (sessionIds.length > 0) {
         const { data: partnerBookings } = await svc
           .from('bookings')
-          .select('id, lesson_credit_id, token_package_id, class_session_id, parent_id, student_id')
+          .select('id, points_charged, points_refunded, class_session_id, parent_id, student_id')
           .neq('parent_id', booking.parent_id)
           .in('class_session_id', sessionIds)
           .neq('status', 'cancelled')
@@ -293,28 +296,23 @@ export async function cancelBookingWithPartner(
           if (!c || c.length === 0) continue
           cancelledBookingIds.push(pb.id)
           cancelledPartners.push({ parent_id: pb.parent_id, student_id: pb.student_id })
-          if (pb.lesson_credit_id) {
-            await refundCredit(svc, pb.lesson_credit_id)
-          } else if (pb.token_package_id) {
-            // The OTHER family cancelled and took this one down with it. Losing
-            // a lesson you did not cancel must not also cost you the days left
-            // on the package, so reissue a fresh 60-day token the way a school
-            // cancellation does. source is 'school_cancellation', never
-            // 'cancellation' -- the latter is counted against this parent's own
-            // late-cancellation quota, and this was not their doing.
-            const { data: pbSess } = await svc
-              .from('class_sessions').select('course_type_id').eq('id', pb.class_session_id).single()
-            if (pbSess?.course_type_id) {
-              await svc.from('token_packages').insert({
-                parent_id: pb.parent_id,
-                course_type_id: pbSess.course_type_id,
-                total_tokens: 1,
-                source: 'school_cancellation',
-                source_booking_id: pb.id,
-                expires_at: tokenExpiryFromNow(),
-                note: 'Reissued: the other family cancelled this 1-on-2',
-              })
-            }
+          // The OTHER family cancelled and took this one down with it. They
+          // did not choose this, so their points come back in full whatever
+          // the clock says, and it costs them no forgiveness -- this was never
+          // their cancellation.
+          const partnerOwed = (pb.points_charged ?? 0) - (pb.points_refunded ?? 0)
+          if (partnerOwed > 0) {
+            await applyPoints(svc, {
+              parentId: pb.parent_id,
+              reason: 'school_cancel',
+              points: partnerOwed,
+              bookingId: pb.id,
+              actor: 'system',
+              note: 'the other family cancelled this 1-on-2',
+            }).catch(e => console.error('partner refund failed:', e))
+            await svc.from('bookings')
+              .update({ points_refunded: (pb.points_refunded ?? 0) + partnerOwed })
+              .eq('id', pb.id)
           }
         }
       }
@@ -324,13 +322,13 @@ export async function cancelBookingWithPartner(
   // Who to tell. Handed back to the caller so a 60-minute cancellation can send
   // one message covering both halves instead of one per half.
   const emailTargets: CancelTarget[] = [
-    { parent_id: booking.parent_id, student_id: booking.student_id, kind: booking.lesson_credit_id ? (convertToToken ? 'token_conversion' : 'credit') : 'none' },
-    ...cancelledPartners.map((p) => ({ ...p, kind: 'credit' as const })),
+    { parent_id: booking.parent_id, student_id: booking.student_id, kind: owed > 0 ? 'points' as const : 'none' as const },
+    ...cancelledPartners.map((p) => ({ ...p, kind: 'points' as const })),
   ]
 
   if (!options.skipEmail) {
     await notifyCancellation(svc, { bookingIds: cancelledBookingIds, targets: emailTargets })
   }
 
-  return { ok: true, status: 200, cancelledBookingIds, convertedToToken: convertToToken, emailTargets }
+  return { ok: true, status: 200, cancelledBookingIds, pointsRefunded: refundPoints ? owed : 0, usedForgiveness: useForgiveness, emailTargets }
 }

@@ -32,7 +32,7 @@ export type Wallet = {
 }
 
 export type LedgerReason =
-  | 'purchase' | 'booking' | 'cancel_refund' | 'forgiveness'
+  | 'purchase' | 'booking' | 'booking_failed' | 'cancel_refund' | 'forgiveness'
   | 'school_cancel' | 'admin_grant' | 'admin_deduct' | 'cash_refund'
 
 const MAX_ATTEMPTS = 4

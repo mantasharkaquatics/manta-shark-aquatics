@@ -1,5 +1,7 @@
 import { sendEmail } from '@/lib/email'
 import { PLANS } from '@/lib/plans'
+import { centsToPoints } from '@/lib/points'
+import { creditPurchase, purchaseAlreadyCredited } from '@/lib/points-wallet'
 import { formatTime12h } from '@/lib/date'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
@@ -194,6 +196,35 @@ export async function POST(req: NextRequest) {
         if (tmErr) console.error('Team membership insert (possibly duplicate retry):', tmErr.message)
         else console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
       }
+      return NextResponse.json({ received: true })
+    }
+
+    // ---- POINTS TOP-UP -------------------------------------------------
+    // Stripe retries webhooks, so the ledger is asked first whether this
+    // session has already been credited. Handing out the points twice is the
+    // kind of bug that surfaces in a reconciliation three months later.
+    if (meta.kind === 'points') {
+      const already = await purchaseAlreadyCredited(supabase, session.id)
+      if (already) {
+        console.log(`↩︎ points for session ${session.id} were already credited`)
+        return NextResponse.json({ received: true })
+      }
+      const res = await creditPurchase(supabase, {
+        parentId: meta.parent_id,
+        amountCents: session.amount_total!,
+        stripeSessionId: session.id,
+      })
+      console.log(`✅ ${centsToPoints(session.amount_total!)} points credited; balance ${res.balance}`)
+
+      await supabase.from('purchases').insert({
+        parent_id: meta.parent_id,
+        lesson_package_id: null,
+        amount_cents: session.amount_total!,
+        status: 'paid',
+        stripe_session_id: session.id,
+        paid_at: new Date().toISOString(),
+      })
+
       return NextResponse.json({ received: true })
     }
 

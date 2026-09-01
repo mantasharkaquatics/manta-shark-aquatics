@@ -4,20 +4,19 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSvcClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
-// The amount charged has to come from the same table the /plans cards and the
-// webhook's validity window read. This route used to keep its own copy, so a
-// price edit in lib/plans.ts would have changed what the page advertised and
-// how long the credits lasted while still charging the old figure.
-import { PLANS } from '@/lib/plans'
+import { MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS } from '@/lib/points'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
 export async function POST(req: NextRequest) {
   try {
-    const { planId, studentId } = await req.json()
+    const { planId, studentId, points: pointsDollars } = await req.json()
 
-    const plan = PLANS[planId]
-    if (!plan && planId !== 'team') return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+    // Swim Team is still a monthly membership and still comes through here.
+    // Everything else is now a points top-up.
+    if (planId && planId !== 'team') {
+      return NextResponse.json({ error: 'Lesson packages have been replaced by points' }, { status: 400 })
+    }
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -113,18 +112,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: session.url })
     }
 
-    // A brand-new family cannot buy a lesson package yet. Two reasons, and the
-    // second is the one that bites: credits are tied to a course type, so a
-    // family who buys 50 one-on-one lessons before we have met the child is
-    // stuck with the wrong product if the assessment says group. And the
-    // booking page already refuses to book a swimmer with no level -- without
-    // this check a family could pay and then find nothing bookable, with
-    // nothing on screen explaining why.
-    //
-    // Deliberately per family, not per student: once anyone here has a level we
-    // have met this family, so adding lessons or a sibling is never blocked.
-    // Staff assigning a level by hand counts, which is how a family assessed in
-    // person gets through.
+    // ---- POINTS PURCHASE ----------------------------------------------
+    // Not a package any more: the parent names a dollar amount and the wallet
+    // is credited one point per dollar. lib/points.ts holds what a lesson
+    // costs; nothing about the price of lessons belongs in this route.
+    const dollars = Math.floor(Number(pointsDollars))
+    if (!Number.isFinite(dollars) || dollars < MIN_TOPUP_DOLLARS || dollars > MAX_TOPUP_DOLLARS) {
+      return NextResponse.json({ error: 'INVALID_AMOUNT' }, { status: 400 })
+    }
+
+    // A brand-new family buys the Swim Assessment, not a wallet full of points.
+    // Two reasons, and the second is the one that bites: the booking page
+    // refuses to book a swimmer with no level, so without this check a family
+    // could pay and then find nothing bookable, with nothing on screen saying
+    // why. Deliberately per family, not per student -- once anyone here has a
+    // level we have met this family. A level assigned by hand in the admin
+    // panel counts, which is how a family assessed in person gets through.
     const svcForGate = createSvcClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -139,12 +142,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'NEEDS_ASSESSMENT' }, { status: 400 })
     }
 
-    const { data: courseType } = await supabase
-      .from('course_types')
-      .select('id')
-      .eq('slug', plan.courseSlug)
-      .single()
-
     const session = await stripe.checkout.sessions.create({
       locale: 'en',
       payment_method_types: ['card', 'us_bank_account'],
@@ -153,17 +150,18 @@ export async function POST(req: NextRequest) {
       line_items: [{
         price_data: {
           currency: 'usd',
-          product_data: { name: plan.name },
-          unit_amount: plan.amount,
+          product_data: {
+            name: `${dollars.toLocaleString('en-US')} lesson points`,
+            description: 'One point books one dollar of lessons. Points never expire.',
+          },
+          unit_amount: dollars * 100,
         },
         quantity: 1,
       }],
       metadata: {
+        kind: 'points',
         parent_id: parent.id,
-        plan_id: planId,
-        sessions: String(plan.sessions),
-        course_type_id: courseType?.id || '',
-        course_slug: plan.courseSlug,
+        points: String(dollars),
       },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
