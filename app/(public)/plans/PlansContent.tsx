@@ -6,22 +6,27 @@ import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { tierBandLabel } from '@/lib/team-tiers'
-import { planCards, type PlanCard, TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+import {
+  ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
+  OFF_PEAK_DISCOUNT, TOPUP_PRESETS, VIP_TIERS,
+} from '@/lib/points'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/paths'
 
-// Every figure on these cards is derived from lib/plans.ts -- the same table
-// the checkout screen quotes and Stripe charges from. They used to be typed
-// out here as well, which is how the old services page came to advertise a
-// different "most popular" package than this one.
-const PRIVATE_PACKAGES = planCards('1on1')
-const SEMI_PACKAGES = planCards('1on2')
-const GROUP_OPTIONS = planCards('1on4')
+// The pricing page under the points system. Every number here is read from
+// lib/points.ts -- the same module the booking route charges from -- so the
+// page cannot advertise a price the software will not honour. That was the
+// whole failure mode of the old packages page, which spelled its figures out
+// by hand and drifted away from checkout.
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
 const GOLD_BORDER = 'rgba(201,168,76,0.3)'
+
+const money = (n: number) => '$' + n.toLocaleString('en-US')
+const num = (n: number) => n.toLocaleString('en-US')
 
 function SectionEyebrow({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
@@ -76,111 +81,166 @@ function TeamTierList() {
   )
 }
 
-function GetStartedButton({ accentColor, isFeatured, labelKey = 'plans.btn.getStarted', planId = '' }: {
-  accentColor: string
-  isFeatured: boolean
-  labelKey?: string
-  planId?: string
-}) {
+/** The Swim Team button still buys a plan, because Swim Team is still a plan. */
+function TeamButton() {
   const t = useT()
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-
-  async function handleClick() {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      router.push(`/checkout?plan=${planId}`)
-    } else {
-      router.push(`/login?redirect=/checkout?plan=${planId}`)
-    }
-    setLoading(false)
-  }
-
   return (
     <button
-      onClick={handleClick}
+      onClick={async () => {
+        setLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        router.push(user ? '/checkout?plan=team' : '/login?redirect=/checkout?plan=team')
+        setLoading(false)
+      }}
       disabled={loading}
       style={{
-        display: 'block', width: '100%', textAlign: 'center',
-        padding: '11px 0', borderRadius: '8px',
-        fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px',
-        textTransform: 'uppercase' as const, cursor: 'pointer',
-        background: isFeatured ? accentColor : 'transparent',
-        color: isFeatured ? (accentColor === GOLD ? NAVY : '#fff') : accentColor,
-        border: `2px solid ${accentColor}`,
-        transition: 'opacity 0.15s',
+        display: 'block', width: '100%', textAlign: 'center', padding: '11px 0', borderRadius: '8px',
+        fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const,
+        cursor: 'pointer', background: '#e05a4a', color: '#fff', border: '2px solid #e05a4a',
         opacity: loading ? 0.6 : 1,
       }}
     >
-      {loading ? '...' : t(labelKey)}
+      {loading ? '…' : t('plans.btn.joinTeam')}
     </button>
   )
 }
 
-function PackageCard({ pkg, accentColor }: { pkg: PlanCard; accentColor: string }) {
+/**
+ * Buying points. The amount is the only thing the parent chooses, and the
+ * dollars and the points are shown side by side at every step -- a parent
+ * should never have to work out what a number on this page is worth.
+ */
+function TopUp() {
   const t = useT()
-  const isFeatured = !!pkg.badge
-  const [hovered, setHovered] = useState(false)
+  const locale = useLocale()
+  const router = useRouter()
+  const supabase = createClient()
+  const [amount, setAmount] = useState<number>(TOPUP_PRESETS[1])
+  const [custom, setCustom] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [needsAssessment, setNeedsAssessment] = useState(false)
+
+  const chosen = custom.trim() === '' ? amount : Math.floor(Number(custom))
+  const valid = Number.isFinite(chosen) && chosen >= MIN_TOPUP_DOLLARS && chosen <= MAX_TOPUP_DOLLARS
+
+  async function buy() {
+    if (!valid) return
+    setBusy(true)
+    setError(null)
+    setNeedsAssessment(false)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login?redirect=/plans')
+      return
+    }
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: chosen }),
+      })
+      const data = await res.json()
+      if (data.url) { window.location.href = data.url; return }
+      if (data.error === 'NEEDS_ASSESSMENT') setNeedsAssessment(true)
+      else if (data.error === 'INVALID_AMOUNT') setError(t('points.buy.err.amount', { min: money(MIN_TOPUP_DOLLARS), max: money(MAX_TOPUP_DOLLARS) }))
+      else setError(t('points.buy.err.generic'))
+    } catch {
+      setError(t('points.buy.err.generic'))
+    }
+    setBusy(false)
+  }
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative',
-        background: isFeatured ? NAVY : '#fff',
-        border: `2px solid ${isFeatured ? accentColor : hovered ? accentColor : '#e5e9f0'}`,
-        borderRadius: '16px', padding: '28px 24px',
-        display: 'flex', flexDirection: 'column', gap: '6px',
-        transition: 'border-color 0.2s, transform 0.15s, box-shadow 0.2s',
-        transform: hovered ? 'translateY(-3px)' : 'none',
-        boxShadow: hovered
-          ? `0 8px 32px rgba(0,0,0,${isFeatured ? '0.3' : '0.12'})`
-          : isFeatured ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 8px rgba(26,52,128,0.06)',
-      }}
-    >
-      {pkg.badge && (
-        <div style={{
-          position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)',
-          background: accentColor, color: '#fff',
-          fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px',
-          textTransform: 'uppercase', padding: '4px 14px', borderRadius: '20px', whiteSpace: 'nowrap',
-        }}>
-          {t('plans.badge.' + pkg.badge)}
+    <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(24px,3vw,36px)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+        {TOPUP_PRESETS.map(p => {
+          const on = custom.trim() === '' && amount === p
+          return (
+            <button
+              key={p}
+              onClick={() => { setAmount(p); setCustom('') }}
+              style={{
+                background: on ? 'rgba(201,168,76,0.14)' : 'rgba(255,255,255,0.05)',
+                border: `2px solid ${on ? GOLD : 'rgba(255,255,255,0.12)'}`,
+                borderRadius: '14px', padding: '20px 12px', cursor: 'pointer', textAlign: 'center',
+              }}
+            >
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '30px', fontWeight: 900, lineHeight: 1, color: on ? GOLD : '#fff' }}>
+                {money(p)}
+              </div>
+              <div style={{ fontSize: '12px', marginTop: '6px', color: on ? GOLD : 'rgba(255,255,255,0.5)' }}>
+                {t('points.buy.presetPoints', { n: num(p) })}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>
+        {t('points.buy.custom')}
+      </label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', border: `1px solid ${custom.trim() ? GOLD : 'rgba(255,255,255,0.15)'}`, borderRadius: '10px', padding: '0 14px' }}>
+          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '16px' }}>$</span>
+          <input
+            type="number" inputMode="numeric" min={MIN_TOPUP_DOLLARS} max={MAX_TOPUP_DOLLARS}
+            value={custom}
+            onChange={e => setCustom(e.target.value)}
+            placeholder={String(MIN_TOPUP_DOLLARS)}
+            style={{
+              background: 'transparent', border: 'none', outline: 'none', color: '#fff',
+              fontSize: '18px', fontWeight: 700, padding: '12px 8px', width: '120px',
+            }}
+          />
+        </div>
+        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+          {t('points.buy.min', { min: money(MIN_TOPUP_DOLLARS), max: money(MAX_TOPUP_DOLLARS) })}
+        </span>
+      </div>
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '20px 0 16px' }} />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>{t('points.buy.youGet')}</span>
+        <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: GOLD }}>
+          {valid ? t('points.buy.pointsFor', { n: num(chosen), price: money(chosen) }) : '—'}
+        </span>
+      </div>
+
+      <button
+        onClick={buy}
+        disabled={!valid || busy}
+        style={{
+          display: 'block', width: '100%', padding: '14px 0', borderRadius: '10px',
+          fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const,
+          background: GOLD, color: NAVY, border: 'none',
+          cursor: valid && !busy ? 'pointer' : 'not-allowed', opacity: valid && !busy ? 1 : 0.45,
+        }}
+      >
+        {busy ? t('points.buy.busy') : t('points.buy.cta')}
+      </button>
+
+      {needsAssessment && (
+        <div style={{ marginTop: '14px', background: 'rgba(201,168,76,0.1)', border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
+          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', lineHeight: 1.7, marginBottom: '10px' }}>
+            {t('points.buy.err.assessment')}
+          </div>
+          <Link href={localePath('/assessment', locale)} style={{ fontSize: '13px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
+            {t('plans.assessFirst.cta')}
+          </Link>
         </div>
       )}
-      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: isFeatured ? 'rgba(255,255,255,0.5)' : '#8a9ab8' }}>
-        {t('plans.pkg.sessions', { n: pkg.sessions })}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', margin: '8px 0 4px' }}>
-        <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: isFeatured ? accentColor : NAVY, lineHeight: 1 }}>
-          ${pkg.total.toLocaleString()}
-        </span>
-        <span style={{ fontSize: '12px', color: isFeatured ? 'rgba(255,255,255,0.4)' : '#8a9ab8' }}>{t('plans.pkg.total')}</span>
-      </div>
-      <div style={{ fontSize: '13px', fontWeight: 600, color: isFeatured ? 'rgba(255,255,255,0.7)' : '#5a6a8a' }}>
-        {t('plans.pkg.perSession', { price: pkg.perSession % 1 === 0 ? pkg.perSession : pkg.perSession.toFixed(2) })}
-      </div>
-      <div style={{ fontSize: '12px', color: isFeatured ? 'rgba(255,255,255,0.45)' : '#8a9ab8', marginTop: '2px' }}>
-        {t('plans.pkg.validity', { n: pkg.validityMonths })}
-      </div>
-      {pkg.savings ? (
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: '5px',
-          background: isFeatured ? 'rgba(201,168,76,0.15)' : 'rgba(76,175,114,0.1)',
-          border: `1px solid ${isFeatured ? 'rgba(201,168,76,0.3)' : 'rgba(76,175,114,0.25)'}`,
-          borderRadius: '20px', padding: '3px 10px',
-          fontSize: '11px', fontWeight: 600,
-          color: isFeatured ? GOLD : '#3a9a5c',
-          marginTop: '6px', width: 'fit-content',
-        }}>
-          {t('plans.pkg.save', { amount: pkg.savings })}
-        </div>
-      ) : <div style={{ height: '26px', marginTop: '6px' }} />}
-      <div style={{ borderTop: `1px solid ${isFeatured ? 'rgba(255,255,255,0.1)' : '#eef1f7'}`, margin: '12px 0' }} />
-      <GetStartedButton accentColor={accentColor} isFeatured={isFeatured} planId={pkg.id} />
+      {error && (
+        <div style={{ marginTop: '14px', fontSize: '13px', color: '#ff9d8f' }}>{error}</div>
+      )}
+
+      <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>
+        {t('points.buy.fine')}
+      </p>
     </div>
   )
 }
@@ -189,7 +249,7 @@ export default function PlansContent() {
   const t = useT()
   const locale = useLocale()
 
-  // The browser jumps to #1on2 the moment the HTML lands, then the web fonts
+  // The browser jumps to the hash the moment the HTML lands, then the web fonts
   // and the team-tier fetch change how tall everything above it is, and the
   // section the parent asked for has moved out from under them -- measured at
   // ~1700px off. So re-aim a few times while the page settles, and stop the
@@ -210,6 +270,21 @@ export default function PlansContent() {
     }
   }, [])
 
+  const lessonRows = [
+    { key: 'assessment', points: ASSESSMENT_POINTS },
+    { key: '1on1', points: BASE_POINTS['1on1'] },
+    { key: '1on2', points: BASE_POINTS['1on2'] },
+    { key: '1on4', points: BASE_POINTS['1on4'] },
+  ]
+  const tiers = [...VIP_TIERS].filter(x => x.level > 0).sort((a, b) => a.level - b.level)
+
+  // The worked example is computed, not typed. A sentence with a hand-written
+  // "58" in it is a sentence that goes wrong the first time a discount changes.
+  const exBase = BASE_POINTS['1on1']
+  const exVipPct = VIP_TIERS.find(x => x.level === 2)!.discount
+  const exVip = Math.floor(exBase * (1 - exVipPct))
+  const exBoth = Math.floor(exBase * (1 - exVipPct) * (1 - OFF_PEAK_DISCOUNT))
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh' }}>
       <div style={{ background: DARK }}>
@@ -223,39 +298,34 @@ export default function PlansContent() {
           ))}
         </div>
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <SectionEyebrow>{t('plans.hero.eyebrow')}</SectionEyebrow>
+          <SectionEyebrow>{t('points.hero.eyebrow')}</SectionEyebrow>
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,3.2vw,40px)', fontWeight: 900, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.5px', marginBottom: '12px' }}>
-            {t('plans.hero.title1')}<br /><em style={{ color: GOLD, fontStyle: 'italic' }}>{t('plans.hero.title2')}</em>
+            {t('points.hero.title1')}<br /><em style={{ color: GOLD, fontStyle: 'italic' }}>{t('points.hero.title2')}</em>
           </h1>
           <Divider />
-          <p style={{ fontSize: 'clamp(13px,1.3vw,15px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '520px', marginBottom: '20px' }}>
-            {t('plans.hero.subtitle')}
+          <p style={{ fontSize: 'clamp(13px,1.3vw,15px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '540px', marginBottom: '20px' }}>
+            {t('points.hero.subtitle')}
           </p>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {[
-              { slug: 'private', dot: GOLD },
-              { slug: 'semi', dot: '#4a90c4' },
-              { slug: 'group', dot: '#4caf72' },
-              { slug: 'team', dot: '#e05a4a' },
-            ].map((chip) => (
-              <span key={chip.slug} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '30px', padding: '6px 14px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: chip.dot, display: 'inline-block' }} />
-                {t('plans.chip.' + chip.slug)}
+            {['noExpiry', 'refundable', 'earned'].map(slug => (
+              <span key={slug} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '30px', padding: '6px 14px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
+                {t('points.chip.' + slug)}
               </span>
             ))}
           </div>
         </div>
       </div>
 
-      {/* The assessment is not one of the packages, it is the gate in front of
-          all of them, so it sits above the first one rather than beside them. */}
+      {/* The assessment is not bought with points -- it is the thing a family
+          buys before they have any. So it sits above the wallet, not beside it. */}
       <section style={{ background: DARK, padding: '0 clamp(24px,5vw,72px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto', transform: 'translateY(-28px)' }}>
           <div style={{ background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '16px', padding: '24px 28px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div style={{ minWidth: '260px', flex: '1 1 380px' }}>
               <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '6px' }}>{t('plans.assessFirst.title')}</div>
               <p style={{ fontSize: '13.5px', lineHeight: 1.7, color: 'rgba(255,255,255,0.6)', margin: 0, maxWidth: '60ch' }}>
-                {t('plans.assessFirst.body', { price: '$' + (TRIAL_PRICE_CENTS / 100).toLocaleString() })}
+                {t('points.assess.body', { price: money(TRIAL_PRICE_CENTS / 100) })}
               </p>
             </div>
             <Link href={localePath('/assessment', locale)}
@@ -266,20 +336,46 @@ export default function PlansContent() {
         </div>
       </section>
 
-      {/* 1-ON-1 */}
-      <section id="1on1" style={{ scrollMarginTop: '90px', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
+      {/* BUY + PRICE LIST, side by side. The list is next to the button on
+          purpose: a parent deciding how much to put in needs to see what a
+          lesson costs without scrolling away from the amount they are typing. */}
+      <section id="buy" style={{ scrollMarginTop: '90px', padding: 'clamp(24px,4vw,48px) clamp(24px,5vw,72px) clamp(48px,6vw,80px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <SectionEyebrow>{t('plans.private.eyebrow')}</SectionEyebrow>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>{t('plans.private.title')}</h2>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginBottom: '8px' }}>{t('plans.private.meta')}</p>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
-            {t('plans.private.desc')}
+          <SectionEyebrow>{t('points.buy.eyebrow')}</SectionEyebrow>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>{t('points.buy.title')}</h2>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '560px', marginBottom: '32px' }}>
+            {t('points.buy.desc')}
           </p>
-          {/* Four stacked cards made this page enormously long on a phone. Below md
-              the row swipes sideways instead (see .pkg-row in globals.css); each card
-              takes 78% of the width so the next one peeks in and shows it scrolls. */}
-          <div className="pkg-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            {PRIVATE_PACKAGES.map((pkg) => <PackageCard key={pkg.id} pkg={pkg} accentColor={GOLD} />)}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', alignItems: 'start' }}>
+            <TopUp />
+
+            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(24px,3vw,36px)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>
+                {t('points.price.eyebrow')}
+              </div>
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '18px' }}>
+                {t('points.price.perStudent')}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {lessonRows.map(row => (
+                  <div key={row.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)' }}>{t('points.price.row.' + row.key)}</span>
+                    <span style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      <strong style={{ fontSize: '17px', color: GOLD }}>{t('points.unit', { n: row.points })}</strong>
+                      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginLeft: '7px' }}>{money(row.points)}</span>
+                    </span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)' }}>{t('points.price.row.team')}</span>
+                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>{t('points.price.teamNote')}</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>
+                {t('points.price.hour')}
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -290,17 +386,67 @@ export default function PlansContent() {
         </svg>
       </div>
 
-      {/* 1-ON-2 */}
-      <section id="1on2" style={{ scrollMarginTop: '90px', background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
+      {/* DISCOUNTS */}
+      <section id="discounts" style={{ scrollMarginTop: '90px', background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <SectionEyebrow dark>{t('plans.semi.eyebrow')}</SectionEyebrow>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>{t('plans.semi.title')}</h2>
-          <p style={{ fontSize: '14px', color: '#8a9ab8', marginBottom: '8px' }}>{t('plans.semi.meta')}</p>
-          <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '560px', marginBottom: '36px' }}>
-            {t('plans.semi.desc')}
+          <SectionEyebrow dark>{t('points.disc.eyebrow')}</SectionEyebrow>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>{t('points.disc.title')}</h2>
+          <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '620px', marginBottom: '32px' }}>
+            {t('points.disc.desc')}
           </p>
-          <div className="pkg-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            {SEMI_PACKAGES.map((pkg) => <PackageCard key={pkg.id} pkg={pkg} accentColor="#4a90c4" />)}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+            <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e9f0', padding: '28px 26px' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY, marginBottom: '6px' }}>{t('points.disc.vipTitle')}</div>
+              <p style={{ fontSize: '13.5px', color: '#5a6a8a', lineHeight: 1.7, marginTop: 0, marginBottom: '18px' }}>{t('points.disc.vipDesc')}</p>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', minWidth: '260px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8a9ab8', padding: '0 0 8px', borderBottom: '1px solid #dfe5ef' }}>{t('points.disc.col.level')}</th>
+                      <th style={{ textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8a9ab8', padding: '0 0 8px', borderBottom: '1px solid #dfe5ef' }}>{t('points.disc.col.lessons')}</th>
+                      <th style={{ textAlign: 'right', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8a9ab8', padding: '0 0 8px', borderBottom: '1px solid #dfe5ef' }}>{t('points.disc.col.off')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tiers.map(tier => (
+                      <tr key={tier.level}>
+                        <td style={{ padding: '9px 0', borderBottom: '1px solid #eef1f7', fontWeight: 700, color: NAVY }}>{t('points.disc.vipLevel', { n: tier.level })}</td>
+                        <td style={{ padding: '9px 0', borderBottom: '1px solid #eef1f7', color: '#5a6a8a', fontVariantNumeric: 'tabular-nums' }}>{t('points.disc.lessonsDone', { n: tier.lessons })}</td>
+                        <td style={{ padding: '9px 0', borderBottom: '1px solid #eef1f7', textAlign: 'right', fontWeight: 700, color: '#3a9a5c', fontVariantNumeric: 'tabular-nums' }}>−{Math.round(tier.discount * 100)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.retro')}</p>
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e9f0', padding: '28px 26px' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY, marginBottom: '6px' }}>
+                {t('points.disc.offTitle', { pct: Math.round(OFF_PEAK_DISCOUNT * 100) })}
+              </div>
+              <p style={{ fontSize: '13.5px', color: '#5a6a8a', lineHeight: 1.7, marginTop: 0, marginBottom: '18px' }}>{t('points.disc.offDesc')}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {['weekday', 'weekend'].map(k => (
+                  <div key={k} style={{ background: '#f5f8fc', border: '1px solid #e5e9f0', borderRadius: '10px', padding: '12px 14px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#8a9ab8', marginBottom: '3px' }}>{t('points.disc.off.' + k + '.label')}</div>
+                    <div style={{ fontSize: '14px', color: NAVY, fontWeight: 600 }}>{t('points.disc.off.' + k + '.hours')}</div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.offNote')}</p>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '24px', background: NAVY, borderRadius: '16px', padding: '24px 28px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('points.example.eyebrow')}</div>
+            <p style={{ fontSize: '14.5px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.8, margin: 0, maxWidth: '70ch' }}>
+              {t('points.example.body', {
+                base: exBase, vip: exVip, both: exBoth, saved: exBase - exBoth,
+                pct: Math.round(exVipPct * 100),
+              })}
+            </p>
           </div>
         </div>
       </section>
@@ -311,48 +457,18 @@ export default function PlansContent() {
         </svg>
       </div>
 
-      {/* GROUP + SWIM TEAM */}
-      <section id="1on4" style={{ scrollMarginTop: '90px', background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
+      {/* SWIM TEAM — the one thing points do not buy */}
+      <section id="team" style={{ scrollMarginTop: '90px', background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '28px' }}>
-            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px' }}>
-              <SectionEyebrow>{t('plans.group.eyebrow')}</SectionEyebrow>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.2vw,28px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>{t('plans.group.title')}</h2>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>{t('plans.group.meta')}</p>
-              <p style={{ fontSize: '13.5px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, marginBottom: '28px' }}>
-                {t('plans.group.desc')}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-                {GROUP_OPTIONS.map((opt) => (
-                  <div key={opt.id} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px 20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>{t('plans.pkg.sessions', { n: opt.sessions })}</div>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{t('plans.group.perSessionValidity', { price: opt.perSession, n: opt.validityMonths })}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: '#4caf72', lineHeight: 1 }}>${opt.total.toLocaleString()}</div>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{t('plans.pkg.total')}</div>
-                        {opt.savings ? <div style={{ fontSize: '11px', fontWeight: 600, color: '#3a9a5c', marginTop: '2px' }}>{t('plans.pkg.save', { amount: opt.savings })}</div> : null}
-                      </div>
-                    </div>
-                    <GetStartedButton accentColor="#4caf72" isFeatured={true} labelKey="plans.btn.enroll" planId={opt.id} />
-                  </div>
-                ))}
-              </div>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '16px' }}>
-                {t('plans.group.note')}
-              </p>
-            </div>
-
-            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: '36px 32px' }}>
+          <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(28px,4vw,40px)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px' }}>
+            <div>
               <SectionEyebrow>{t('plans.team.eyebrow')}</SectionEyebrow>
               <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.2vw,28px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>{t('plans.team.title')}</h2>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>{t('plans.team.meta')}</p>
-              <p style={{ fontSize: '13.5px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, marginBottom: '28px' }}>
+              <p style={{ fontSize: '13.5px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, marginBottom: '20px' }}>
                 {t('plans.team.desc')}
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '28px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {['feat1', 'feat2', 'feat3', 'feat4'].map((feat) => (
                   <div key={feat} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e05a4a', flexShrink: 0, display: 'inline-block' }} />
@@ -360,36 +476,15 @@ export default function PlansContent() {
                   </div>
                 ))}
               </div>
+            </div>
+            <div>
               <TeamTierList />
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '16px' }}>
-                {t('plans.team.note')}
+              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: '16px' }}>
+                {t('points.team.notPoints')}
               </p>
-              <GetStartedButton accentColor="#e05a4a" isFeatured={true} labelKey="plans.btn.joinTeam" planId="team" />
+              <TeamButton />
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* COMPARISON NOTE */}
-      <section style={{ background: DARK, padding: '0 clamp(24px,5vw,72px) clamp(48px,6vw,72px)' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', background: NAVY, borderRadius: '16px', border: `1px solid ${GOLD_BORDER}`, padding: 'clamp(24px,3vw,36px) clamp(24px,4vw,48px)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '24px', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>{t('plans.compare.eyebrow')}</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(18px,2vw,24px)', fontWeight: 900, color: '#fff', lineHeight: 1.2 }}>
-              {t('plans.compare.title1')}<br /><em style={{ color: GOLD }}>{t('plans.compare.title2')}</em>
-            </div>
-          </div>
-          {[
-            { slug: 'fastest', chip: 'private' },
-            { slug: 'value', chip: 'semi' },
-            { slug: 'social', chip: 'group' },
-            { slug: 'competitive', chip: 'team' },
-          ].map((item) => (
-            <div key={item.slug} style={{ borderLeft: `2px solid ${GOLD_BORDER}`, paddingLeft: '16px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '4px' }}>{t('plans.compare.label.' + item.slug)}</div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>{t('plans.chip.' + item.chip)}</div>
-            </div>
-          ))}
         </div>
       </section>
 
@@ -401,9 +496,14 @@ export default function PlansContent() {
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,3vw,36px)', fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: '16px' }}>{t('plans.cta.title')}</h2>
           <Divider center />
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '32px' }}>
-            {t('plans.cta.desc')}
+            {t('points.cta.desc')}
           </p>
-          <GetStartedButton accentColor={GOLD} isFeatured={true} labelKey="plans.btn.createAccount" planId="" />
+          <Link href={localePath('/assessment', locale)} style={{
+            display: 'inline-block', padding: '13px 32px', borderRadius: '8px', background: GOLD, color: NAVY,
+            fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', textDecoration: 'none',
+          }}>
+            {t('points.cta.btn')}
+          </Link>
         </div>
       </section>
 

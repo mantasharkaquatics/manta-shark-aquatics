@@ -1,5 +1,4 @@
 import { sendEmail } from '@/lib/email'
-import { PLANS } from '@/lib/plans'
 import { centsToPoints } from '@/lib/points'
 import { creditPurchase, purchaseAlreadyCredited } from '@/lib/points-wallet'
 import { formatTime12h } from '@/lib/date'
@@ -200,121 +199,72 @@ export async function POST(req: NextRequest) {
     }
 
     // ---- POINTS TOP-UP -------------------------------------------------
-    // Stripe retries webhooks, so the ledger is asked first whether this
-    // session has already been credited. Handing out the points twice is the
-    // kind of bug that surfaces in a reconciliation three months later.
-    if (meta.kind === 'points') {
-      const already = await purchaseAlreadyCredited(supabase, session.id)
-      if (already) {
-        console.log(`↩︎ points for session ${session.id} were already credited`)
-        return NextResponse.json({ received: true })
-      }
-      const res = await creditPurchase(supabase, {
-        parentId: meta.parent_id,
-        amountCents: session.amount_total!,
-        stripeSessionId: session.id,
-      })
-      console.log(`✅ ${centsToPoints(session.amount_total!)} points credited; balance ${res.balance}`)
-
-      await supabase.from('purchases').insert({
-        parent_id: meta.parent_id,
-        lesson_package_id: null,
-        amount_cents: session.amount_total!,
-        status: 'paid',
-        stripe_session_id: session.id,
-        paid_at: new Date().toISOString(),
-      })
-
+    // The only thing bought here besides a team membership. Stripe retries
+    // webhooks, so the ledger is asked first whether this session has already
+    // been credited -- handing out the points twice is the kind of bug that
+    // surfaces in a reconciliation three months later.
+    if (meta.kind !== 'points') {
+      console.warn(`Ignoring checkout session ${session.id}: unknown kind "${meta.kind || ''}"`)
       return NextResponse.json({ received: true })
     }
 
-    const parent_id      = meta.parent_id
-    const plan_id        = meta.plan_id
-    const sessions       = parseInt(meta.sessions)
-    const course_type_id = meta.course_type_id
-    const amount_cents   = session.amount_total!
+    const parent_id = meta.parent_id
+    const amount_cents = session.amount_total!
+    const points = centsToPoints(amount_cents)
 
-    // 1. Create purchase record
-    const { data: purchase, error: purchaseErr } = await supabase
-      .from('purchases')
-      .insert({
-        parent_id,
-        lesson_package_id: null,
-        amount_cents,
-        status: 'paid',
-        stripe_session_id: session.id,
-        paid_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
-
-    if (purchaseErr || !purchase) {
-      console.error('Purchase insert error:', purchaseErr)
-      return NextResponse.json({ error: 'Purchase failed' }, { status: 500 })
+    if (await purchaseAlreadyCredited(supabase, session.id)) {
+      console.log(`↩︎ points for session ${session.id} were already credited`)
+      return NextResponse.json({ received: true })
     }
 
-    // 2. Create lesson_credits
-    const purchasedPlan = plan_id ? PLANS[plan_id] : null
-    const expiresAt = new Date()
-    expiresAt.setMonth(expiresAt.getMonth() + (purchasedPlan?.validityMonths ?? 12))
+    // The wallet first. Everything after this -- the purchase row, the invoice,
+    // the chat message -- is a record of something that already happened, and a
+    // failure in any of them must not cost the family their points.
+    const res = await creditPurchase(supabase, {
+      parentId: parent_id,
+      amountCents: amount_cents,
+      stripeSessionId: session.id,
+    })
+    console.log(`✅ ${points} points credited; balance ${res.balance}`)
 
-    const { data: credit, error: creditErr } = await supabase
-      .from('lesson_credits')
-      .insert({
-        student_id: null,
-        parent_id,
-        purchase_id: purchase.id,
-        course_type_id,
-        total_credits: sessions,
-        used_credits: 0,
-        expires_at: expiresAt.toISOString(),
-      })
-      .select()
-      .single()
+    await supabase.from('purchases').insert({
+      parent_id,
+      lesson_package_id: null,
+      amount_cents,
+      status: 'paid',
+      stripe_session_id: session.id,
+      paid_at: new Date().toISOString(),
+    })
 
-    if (creditErr) {
-      console.error('Credit insert error:', creditErr)
-      return NextResponse.json({ error: 'Credit failed' }, { status: 500 })
-    }
+    const pointsLabel = `${points.toLocaleString('en-US')} lesson points`
 
-    const planName = plan_id && PLANS[plan_id] ? PLANS[plan_id].name : 'Swim Lesson Package'
-
-    // 3. Create invoice
     try {
-      const unitPrice = amount_cents / 100 / sessions
       const invoiceRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.CRON_SECRET || '' },
         body: JSON.stringify({
           parent_id,
-          lesson_credit_id: credit?.id || null,
           amount: amount_cents / 100,
           payment_method: 'stripe',
-          items: [{
-            name: planName,
-            quantity: sessions,
-            unit_price: unitPrice,
-          }],
+          // One point per dollar, so quantity and unit price say the same thing
+          // twice on purpose: the invoice has to stand on its own.
+          items: [{ name: pointsLabel, quantity: points, unit_price: 1 }],
           stripe_payment_intent_id: session.payment_intent || null,
         }),
       })
       if (invoiceRes.ok) {
         const { invoice } = await invoiceRes.json()
-        // Send invoice email
         const { data: parent } = await supabase
-          .from('parents')
-          .select('email, first_name')
-          .eq('id', parent_id)
-          .single()
+          .from('parents').select('email, first_name').eq('id', parent_id).single()
         if (parent?.email && invoice?.id) {
           await sendEmail({
-              type: 'invoice',
-              to: parent.email,
-              parentName: parent.first_name,
-              invoiceNumber: invoice.invoice_number,
-              invoiceId: invoice.id,
-              amount: amount_cents / 100,
-            })
+            type: 'invoice',
+            to: parent.email,
+            parentName: parent.first_name,
+            invoiceNumber: invoice.invoice_number,
+            invoiceId: invoice.id,
+            amount: amount_cents / 100,
+          })
         }
       }
     } catch (invoiceErr) {
@@ -325,7 +275,7 @@ export async function POST(req: NextRequest) {
     try {
       const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', parent_id).order('created_at', { ascending: true }).limit(1).maybeSingle()
       if (th) {
-        const body = `Payment received! "${planName}" has been added to your account (${sessions} lesson credits).\n\nYour receipt and invoice are available under Lesson Credits on your Dashboard. Thank you!`
+        const body = `Payment received — ${pointsLabel} are in your wallet. Your balance is now ${res.balance.toLocaleString('en-US')} points.\n\nPoints never expire, and anything you don't use can be refunded at any time. Your receipt is under Points on your Dashboard.`
         const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
         if (chatErr) console.error('Purchase chat confirm error:', chatErr)
         else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)
@@ -333,8 +283,6 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error('Purchase chat confirm error:', e)
     }
-
-    console.log(`✅ Purchase complete: ${plan_id} for parent ${parent_id}`)
   }
 
   if (event.type === 'customer.subscription.updated') {

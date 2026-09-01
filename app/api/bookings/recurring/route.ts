@@ -4,10 +4,11 @@ import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
-import { refundCredit, spendCredit } from '@/lib/ledger'
+import { priceLesson } from '@/lib/points'
+import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
 
 // Parent-facing weekly recurring 1on4 booking (owner decision 2026-07-24, option a):
-// bypasses cart; commit writes confirmed bookings directly (credit-funded, no hold).
+// bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
 // preview: ?action=preview  student_id, coach_id, start_time, start_date
 //   → every weekly date from start_date through Dec 31 of the current year with status
 // commit:  ?action=commit   student_id, coach_id, start_time, dates[]
@@ -99,13 +100,28 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
   })
 }
 
-async function creditPool(svc: any, parentId: string, courseTypeId: string) {
-  const { data: credits } = await svc.from('lesson_credits')
-    .select('id, used_credits, total_credits')
-    .eq('parent_id', parentId).eq('course_type_id', courseTypeId)
-    .is('converted_to_token_at', null)
-    .order('expires_at', { ascending: true })
-  return (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits })).filter((c: any) => c.remaining > 0)
+/**
+ * Every date in the term, priced on its own. A term runs on one weekday at one
+ * time, so in practice every date lands on the same side of the off-peak line --
+ * but pricing each one anyway means a term that straddles a schedule change is
+ * still billed for what each lesson actually is.
+ *
+ * The VIP level is the family's level TODAY, applied to the whole term. Pricing
+ * later dates at the tier the family will have reached by then would quote a
+ * discount they have not earned yet and cannot be held to.
+ */
+function priceDates(slug: string, dates: string[], startTime: string, lessonsDone: number) {
+  const perDate = new Map<string, number>()
+  let total = 0
+  for (const date of dates) {
+    const pr = priceLesson({
+      courseSlug: slug, minutes: 30, lessonsCompleted: lessonsDone,
+      sessionDate: date, startTime, seats: 1,
+    })
+    perDate.set(date, pr.perSeat)
+    total += pr.perSeat
+  }
+  return { perDate, total }
 }
 
 type SessionRow = { id: string; session_date: string; enrolled_count: number; max_students: number }
@@ -140,9 +156,16 @@ export async function POST(req: NextRequest) {
     if (!start_date || !DATE_RE.test(start_date) || start_date < today)
       return NextResponse.json({ error: 'Invalid start date' }, { status: 400 })
     const candidates = await buildCandidates(svc, coach_id, ct, student.id, level, start_time, start_date)
-    const pool = await creditPool(svc, parent.id, ct.id)
-    const credits_remaining = pool.reduce((s: number, c: any) => s + c.remaining, 0)
-    return NextResponse.json({ candidates, credits_remaining })
+    const wallet = await walletSummary(svc, parent.id)
+    // Price every offered date, so the term picker can total up the selection as
+    // the parent ticks dates rather than quoting one figure and charging another.
+    const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, wallet.lessonsCompleted)
+    return NextResponse.json({
+      candidates: candidates.map(c => ({ ...c, points: perDate.get(c.date) ?? null })),
+      balance: wallet.balance,
+      vip_level: wallet.vipLevel,
+      vip_discount: wallet.vipDiscount,
+    })
   }
 
   if (action === 'commit') {
@@ -163,10 +186,10 @@ export async function POST(req: NextRequest) {
     if (okDates.length === 0)
       return NextResponse.json({ ok: true, booked: 0, booked_dates: [], skipped })
 
-    const pool = await creditPool(svc, parent.id, ct.id)
-    const totalRemaining = pool.reduce((s: number, c: any) => s + c.remaining, 0)
-    if (totalRemaining < okDates.length)
-      return NextResponse.json({ error: `Not enough credits: ${totalRemaining} available, ${okDates.length} selected.` }, { status: 409 })
+    const wallet = await walletSummary(svc, parent.id)
+    const quote = priceDates(ct.slug, okDates, start_time, wallet.lessonsCompleted)
+    if (wallet.balance < quote.total)
+      return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
 
     const endTime = minToTime(toMin(start_time) + ct.duration_minutes)
 
@@ -212,34 +235,45 @@ export async function POST(req: NextRequest) {
     if (bookedDates.length === 0)
       return NextResponse.json({ ok: true, booked: 0, booked_dates: [], skipped })
 
-    // One credit per date, taken from the pool in expiry order. The allocation is
-    // decided here in full, so the spends below share no state and can go out
-    // together; Postgres refuses to overdraw a package whatever order they land in.
-    const allocation: string[] = []
-    for (let i = 0; i < bookedDates.length; i++) {
-      const c = pool.find((x: any) => x.remaining > 0)
-      if (!c) return NextResponse.json({ error: `Not enough credits: ${bookedDates.length} selected.` }, { status: 409 })
-      allocation.push(c.id); c.remaining--
+    // Dates can drop out between the quote and here -- a class filling up is the
+    // ordinary case -- so the charge is rebuilt from what is actually being
+    // booked, never from the earlier total.
+    const charge = priceDates(ct.slug, bookedDates, start_time, wallet.lessonsCompleted)
+
+    // One debit for the term, not one per date. A parent's statement should read
+    // "19 lessons booked" on the day they booked them, and each booking row still
+    // carries its own points so cancelling a single date refunds exactly that
+    // date. The per-date figures ride along in the ledger entry.
+    try {
+      await applyPoints(svc, {
+        parentId: parent.id, reason: 'booking', points: -charge.total, actor: 'parent',
+        pricing: {
+          kind: 'weekly_term', courseSlug: ct.slug, startTime: start_time,
+          vipLevel: wallet.vipLevel, vipPct: wallet.vipDiscount,
+          dates: bookedDates.map(d => ({ date: d, points: charge.perDate.get(d)! })),
+        },
+        note: `Weekly term: ${bookedDates.length} lessons`,
+      })
+    } catch (e: any) {
+      if (e instanceof InsufficientPoints)
+        return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 400 })
+      console.error('points charge failed:', e)
+      return NextResponse.json({ error: 'Could not take the points for this term. Please try again.' }, { status: 500 })
     }
 
-    const refundAll = (ids: string[]) => Promise.all(ids.map(cid => refundCredit(svc, cid)))
-
-    // Credits still settle before any booking row exists: a lost race then costs
-    // the family nothing, because there is nothing yet to undo.
-    const spent = await Promise.all(allocation.map(cid => spendCredit(svc, cid)))
-    const paid = allocation.filter((_, i) => spent[i])
-    if (spent.some(ok => !ok)) {
-      await refundAll(paid)
-      return NextResponse.json({ error: 'Your lesson credits ran out while this booking was going through. Please refresh and try again.' }, { status: 409 })
-    }
+    const refundTerm = (why: string) => applyPoints(svc, {
+      parentId: parent.id, reason: 'booking_failed', points: charge.total,
+      actor: 'system', note: why,
+    }).catch(e => console.error('points rollback failed:', e))
 
     const { error: bookErr } = await svc.from('bookings')
-      .insert(bookedDates.map((date, i) => ({
+      .insert(bookedDates.map(date => ({
         class_session_id: sessionIdByDate.get(date)!, parent_id: parent.id,
-        student_id: student.id, lesson_credit_id: allocation[i], status: 'confirmed',
+        student_id: student.id, lesson_credit_id: null,
+        points_charged: charge.perDate.get(date)!, status: 'confirmed',
       })))
     if (bookErr) {
-      await refundAll(paid)
+      await refundTerm('the term could not be booked')
       return NextResponse.json({ error: `Failed to book the series: ${bookErr.message}` }, { status: 500 })
     }
 
@@ -256,7 +290,7 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    return NextResponse.json({ ok: true, booked: bookedDates.length, booked_dates: bookedDates, skipped })
+    return NextResponse.json({ ok: true, booked: bookedDates.length, booked_dates: bookedDates, skipped, points_charged: charge.total })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

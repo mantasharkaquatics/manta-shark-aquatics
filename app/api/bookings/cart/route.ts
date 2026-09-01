@@ -4,15 +4,16 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/tokens'
 import { sendEmail } from '@/lib/email'
-import { refundCredit, spendCredit } from '@/lib/ledger'
+import { priceLesson } from '@/lib/points'
+import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
 
 // Parent shopping cart. Items are real `in_cart` bookings so the DB trigger
 // counts them into enrolled_count (slot is reserved the moment it enters the
 // cart). Cart-wide expiry: 15 minutes from the FIRST item; expired items are
 // lazily deleted on every action. Commit uses conditional updates
-// (in_cart -> confirmed) as the idempotency lock, FIFO credit allocation via
-// atomic RPCs, and reverts to in_cart on any failure so the cart survives.
-// v1 scope: credit courses only (no trial, no 1-on-2 partner flow).
+// (in_cart -> confirmed) as the idempotency lock, one points debit for the whole
+// cart, and reverts to in_cart on any failure so the cart survives.
+// v1 scope: points-paid lessons only (no assessment, no 1-on-2 partner flow).
 
 const CART_LIMIT = 10
 const CART_TTL_MS = 15 * 60 * 1000
@@ -59,6 +60,7 @@ async function loadCart(svc: any, parentId: string) {
       student_id: r.student_id,
       student_name: stuOf.get(r.student_id)?.full_name || '',
       course_type_id: sess?.course_type_id || null,
+      course_slug: ct?.slug || '',
       course_name: ct?.name || '',
       coach_name: coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : '',
       session_date: sess?.session_date || '',
@@ -71,24 +73,38 @@ async function loadCart(svc: any, parentId: string) {
   return { items: merged, expiresAt }
 }
 
-async function creditSummary(svc: any, parentId: string, items: any[]) {
-  const neededBy = new Map<string, number>()
-  for (const it of items) {
-    if (!it.course_type_id) continue
-    neededBy.set(it.course_type_id, (neededBy.get(it.course_type_id) || 0) + 1)
+/**
+ * What this cart costs, item by item. Every line is priced on its own course,
+ * date and time -- two lessons in the same cart can legitimately cost different
+ * numbers of points, and the cart has to show that rather than a single rate.
+ *
+ * An item whose course has no points price (the assessment, Swim Team) is
+ * returned with points: null and blocks the commit rather than being silently
+ * given away.
+ */
+async function quoteCart(svc: any, parentId: string, items: any[]) {
+  const wallet = await walletSummary(svc, parentId)
+  let total = 0
+  let priceable = true
+  const lines = items.map((it: any) => {
+    let points: number | null = null
+    try {
+      points = priceLesson({
+        courseSlug: it.course_slug, minutes: 30,
+        lessonsCompleted: wallet.lessonsCompleted,
+        sessionDate: it.session_date, startTime: it.start_time, seats: 1,
+      }).perSeat
+      total += points
+    } catch { priceable = false }
+    return { booking_id: it.booking_id, points }
+  })
+  return {
+    lines, total, priceable,
+    balance: wallet.balance,
+    vip_level: wallet.vipLevel,
+    vip_discount: wallet.vipDiscount,
+    sufficient: priceable && wallet.balance >= total,
   }
-  const result: any[] = []
-  for (const [ctId, needed] of neededBy) {
-    const { data: credits } = await svc
-      .from('lesson_credits')
-      .select('total_credits, used_credits')
-      .eq('parent_id', parentId).eq('course_type_id', ctId)
-      .is('converted_to_token_at', null)
-    const remaining = (credits || []).reduce((s: number, c: any) => s + (c.total_credits - c.used_credits), 0)
-    const name = items.find((i: any) => i.course_type_id === ctId)?.course_name || ''
-    result.push({ course_type_id: ctId, course_name: name, needed, remaining, sufficient: remaining >= needed })
-  }
-  return { byCourse: result, sufficient: result.every(r => r.sufficient) }
 }
 
 export async function POST(req: NextRequest) {
@@ -104,8 +120,7 @@ export async function POST(req: NextRequest) {
   // ---------- list ----------
   if (body.action === 'list') {
     const cart = await loadCart(svc, parent.id)
-    const credits = await creditSummary(svc, parent.id, cart.items)
-    return NextResponse.json({ ...cart, credits })
+    return NextResponse.json({ ...cart, quote: await quoteCart(svc, parent.id, cart.items) })
   }
 
   // ---------- clear ----------
@@ -121,8 +136,7 @@ export async function POST(req: NextRequest) {
     await svc.from('bookings').delete()
       .eq('id', booking_id).eq('parent_id', parent.id).eq('status', 'in_cart')
     const cart = await loadCart(svc, parent.id)
-    const credits = await creditSummary(svc, parent.id, cart.items)
-    return NextResponse.json({ ok: true, ...cart, credits })
+    return NextResponse.json({ ok: true, ...cart, quote: await quoteCart(svc, parent.id, cart.items) })
   }
 
   // ---------- add ----------
@@ -233,8 +247,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cart = await loadCart(svc, parent.id)
-    const credits = await creditSummary(svc, parent.id, cart.items)
-    return NextResponse.json({ ok: true, ...cart, credits })
+    return NextResponse.json({ ok: true, ...cart, quote: await quoteCart(svc, parent.id, cart.items) })
   }
 
   // ---------- commit ----------
@@ -243,55 +256,66 @@ export async function POST(req: NextRequest) {
     if (cart.items.length === 0)
       return NextResponse.json({ error: 'Your cart is empty or has expired.' }, { status: 400 })
 
-    // FIFO allocation per course type (expires_at ascending)
-    const neededBy = new Map<string, number>()
-    for (const it of cart.items) neededBy.set(it.course_type_id, (neededBy.get(it.course_type_id) || 0) + 1)
-    const poolBy = new Map<string, { id: string; remaining: number }[]>()
-    for (const [ctId, needed] of neededBy) {
-      const { data: credits } = await svc
-        .from('lesson_credits')
-        .select('id, total_credits, used_credits')
-        .eq('parent_id', parent.id).eq('course_type_id', ctId)
-        .is('converted_to_token_at', null)
-        .order('expires_at', { ascending: true })
-      const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits }))
-      const remaining = pool.reduce((s, c) => s + c.remaining, 0)
-      if (remaining < needed) {
-        const name = cart.items.find((i: any) => i.course_type_id === ctId)?.course_name || 'this course'
-        return NextResponse.json({ error: `Not enough credits for ${name}: have ${remaining}, need ${needed}.` }, { status: 409 })
-      }
-      poolBy.set(ctId, pool)
+    const quote = await quoteCart(svc, parent.id, cart.items)
+    if (!quote.priceable)
+      return NextResponse.json({ error: 'One of the lessons in your cart cannot be paid for with points. Please remove it.' }, { status: 400 })
+    const pointsOf = new Map(quote.lines.map(l => [l.booking_id, l.points as number]))
+
+    // One debit for the cart, taken before any row flips, so a family who
+    // cannot pay is turned away with the cart intact and nothing confirmed.
+    let pointsTaken = 0
+    try {
+      await applyPoints(svc, {
+        parentId: parent.id, reason: 'booking', points: -quote.total, actor: 'parent',
+        pricing: {
+          kind: 'cart',
+          vipLevel: quote.vip_level, vipPct: quote.vip_discount,
+          items: cart.items.map((it: any) => ({
+            course: it.course_slug, date: it.session_date,
+            time: it.start_time, points: pointsOf.get(it.booking_id) ?? 0,
+          })),
+        },
+        note: `Cart: ${cart.items.length} lesson${cart.items.length === 1 ? '' : 's'}`,
+      })
+      pointsTaken = quote.total
+    } catch (e: any) {
+      if (e instanceof InsufficientPoints)
+        return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 400 })
+      console.error('points charge failed:', e)
+      return NextResponse.json({ error: 'Could not take the points for this cart. Please try again.' }, { status: 500 })
     }
 
     const confirmed: { id: string; expiry: string | null }[] = []
-    const incremented: string[] = []
-    async function rollback() {
-      for (const cid of incremented) await refundCredit(svc, cid)
+    async function rollback(why: string) {
+      if (pointsTaken > 0) {
+        await applyPoints(svc, {
+          parentId: parent.id, reason: 'booking_failed', points: pointsTaken,
+          actor: 'system', note: why,
+        }).catch(e => console.error('points rollback failed:', e))
+        pointsTaken = 0
+      }
       for (const b of confirmed)
-        await svc.from('bookings').update({ status: 'in_cart', pending_expires_at: b.expiry, lesson_credit_id: null }).eq('id', b.id)
+        await svc.from('bookings')
+          .update({ status: 'in_cart', pending_expires_at: b.expiry, points_charged: null })
+          .eq('id', b.id)
     }
 
     for (const it of cart.items) {
-      const pool = poolBy.get(it.course_type_id)!
-      const credit = pool.find(c => c.remaining > 0)!
       // Conditional update = idempotency lock (only an un-expired in_cart row flips)
       const { data: locked } = await svc
         .from('bookings')
-        .update({ status: 'confirmed', lesson_credit_id: credit.id, pending_expires_at: null })
+        .update({
+          status: 'confirmed', lesson_credit_id: null,
+          points_charged: pointsOf.get(it.booking_id) ?? 0,
+          pending_expires_at: null,
+        })
         .eq('id', it.booking_id).eq('status', 'in_cart')
         .select('id')
       if (!locked || locked.length === 0) {
-        await rollback()
+        await rollback('a lesson in the cart was no longer available')
         return NextResponse.json({ error: `"${it.course_name} ${it.session_date}" is no longer available. Please review your cart.` }, { status: 409 })
       }
       confirmed.push({ id: it.booking_id, expiry: cart.expiresAt })
-      const ok = await spendCredit(svc, credit.id)
-      if (!ok) {
-        await rollback()
-        return NextResponse.json({ error: 'Credit deduction failed. Please try again.' }, { status: 500 })
-      }
-      incremented.push(credit.id)
-      credit.remaining--
     }
 
     // Summary emails: one per (student, course, coach) group (best effort)
@@ -324,7 +348,7 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    return NextResponse.json({ ok: true, confirmed_count: confirmed.length })
+    return NextResponse.json({ ok: true, confirmed_count: confirmed.length, points_charged: quote.total })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

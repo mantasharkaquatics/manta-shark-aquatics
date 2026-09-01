@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { PLANS } from '@/lib/plans'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -19,21 +18,19 @@ export async function POST(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
-    const { planId, amountCents, description } = await req.json()
+    const { amountCents, description, kind } = await req.json()
 
-    let amount: number
-    let meta: Record<string, string>
-    if (planId) {
-      const plan = PLANS[planId]
-      if (!plan) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
-      amount = plan.amount
-      meta = { pos_sale: 'true', payment_method: 'stripe_terminal', type: 'plan', plan_id: planId }
-    } else {
-      amount = Math.round(Number(amountCents))
-      if (!Number.isFinite(amount) || amount < 50 || amount > 2000000) {
-        return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
-      }
-      meta = { pos_sale: 'true', payment_method: 'stripe_terminal', type: 'sdp_custom', description: String(description || '').slice(0, 200) }
+    // Every desk sale is an amount now -- a points top-up or a negotiated
+    // programme sale. There is no fixed package list left to look a price up in.
+    const amount = Math.round(Number(amountCents))
+    if (!Number.isFinite(amount) || amount < 50 || amount > 2000000) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
+    }
+    const meta: Record<string, string> = {
+      pos_sale: 'true',
+      payment_method: 'stripe_terminal',
+      type: kind === 'sdp' ? 'sdp_custom' : 'points',
+      description: String(description || '').slice(0, 200),
     }
 
     const paymentIntent = await stripe.paymentIntents.create({

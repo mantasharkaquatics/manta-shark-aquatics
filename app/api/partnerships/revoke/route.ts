@@ -44,9 +44,10 @@ export async function POST(req: NextRequest) {
     ? partnership.partner_parent_id
     : partnership.initiator_parent_id
 
+  // Only pending invitations, which were never charged -- nothing to refund.
   const { data: pendingBookings } = await supabase
     .from('bookings')
-    .select('id, lesson_credit_id')
+    .select('id')
     .eq('partner_parent_id', otherParentId)
     .eq('pending_action', 'confirm')
     .eq('status', 'pending_partner')

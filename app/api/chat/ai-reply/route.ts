@@ -6,7 +6,8 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
-import { PLANS } from '@/lib/plans'
+import { MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/points'
+import { walletSummary } from '@/lib/points-wallet'
 import { getTodayLA, getNowMinutesLA, formatTime12h, SLOT_STEP_MINUTES } from '@/lib/date'
 import { cancelBookingWithPartner } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
@@ -108,8 +109,8 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
 
 const TOOLS = [
   {
-    name: 'get_my_credits',
-    description: "Get the parent's lesson credit packages and remaining sessions.",
+    name: 'get_my_points',
+    description: "Get the parent's points balance, VIP level, lessons completed, and how many late-cancellation allowances they have.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -141,12 +142,12 @@ const TOOLS = [
     },
   },
   {
-    name: 'create_checkout_link',
-    description: 'Create a secure Stripe Checkout payment link for a lesson plan. The parent completes payment themselves on Stripe. Never claim a payment has been made.',
+    name: 'create_topup_link',
+    description: 'Create a secure Stripe Checkout link for the parent to add points to their account. The parent completes payment themselves on Stripe. Never claim a payment has been made.',
     input_schema: {
       type: 'object',
-      properties: { plan_id: { type: 'string', description: 'One of the plan ids listed in the system prompt' } },
-      required: ['plan_id'],
+      properties: { dollars: { type: 'integer', description: `Whole US dollars to add, ${MIN_TOPUP_DOLLARS}-${MAX_TOPUP_DOLLARS}. 1 dollar = 1 point.` } },
+      required: ['dollars'],
     },
   },
   {
@@ -351,27 +352,19 @@ export async function POST(req: NextRequest) {
 
   // ---------- tool executor ----------
   async function runTool(name: string, input: any): Promise<any> {
-    if (name === 'get_my_credits') {
-      const { data: creds } = await svc
-        .from('lesson_credits')
-        .select('id, total_credits, used_credits, course_type_id, created_at')
-        .eq('parent_id', parent!.id)
-        .gt('total_credits', 0)
-        .is('converted_to_token_at', null)
-        .order('created_at', { ascending: true })
-      const rows = creds || []
-      const ctIds = [...new Set(rows.map(c => c.course_type_id).filter(Boolean))]
-      const { data: cts } = ctIds.length
-        ? await svc.from('course_types').select('id, name').in('id', ctIds)
-        : { data: [] }
-      const ctMap = new Map((cts || []).map((c: any) => [c.id, c.name]))
-      return rows.map(c => ({
-        package: ctMap.get(c.course_type_id) || 'Lessons',
-        purchased_on: (c.created_at || '').slice(0, 10),
-        total: c.total_credits,
-        used: c.used_credits,
-        remaining: c.total_credits - c.used_credits,
-      }))
+    if (name === 'get_my_points') {
+      const w = await walletSummary(svc, parent!.id)
+      return {
+        balance_points: w.balance,
+        balance_dollars: w.balance,
+        lessons_completed: w.lessonsCompleted,
+        vip_level: w.vipLevel,
+        vip_discount: `${Math.round(w.vipDiscount * 100)}% off every lesson`,
+        next_vip: w.nextTier
+          ? `VIP ${w.nextTier.level} (${Math.round(w.nextTier.discount * 100)}% off) after ${w.nextTier.lessonsToGo} more lesson(s)`
+          : 'already at the top level',
+        late_cancellation_allowances: w.forgiveness,
+      }
     }
 
     if (name === 'get_upcoming_lessons') {
@@ -423,25 +416,29 @@ export async function POST(req: NextRequest) {
       }
       const b = row._booking
       const partnerParam = b.partner_booking_id ? `&reschedule_partner_booking_id=${b.partner_booking_id}` : ''
-      const url = `${origin}/booking?reschedule_booking_id=${b.id}&reschedule_credit_id=${b.lesson_credit_id}&reschedule_slug=${row.course_slug}&reschedule_student_id=${b.student_id}${partnerParam}`
+      const url = `${origin}/booking?reschedule_booking_id=${b.id}&reschedule_slug=${row.course_slug}&reschedule_student_id=${b.student_id}${partnerParam}`
       return { url, note: 'The current lesson is only cancelled after the parent confirms the new time on the booking page.' }
     }
 
-    if (name === 'create_checkout_link') {
-      const planId = String(input.plan_id || '')
-      if (!PLANS[planId]) return { error: 'Unknown plan id.' }
+    if (name === 'create_topup_link') {
+      const dollars = Math.floor(Number(input.dollars))
+      if (!Number.isFinite(dollars) || dollars < MIN_TOPUP_DOLLARS || dollars > MAX_TOPUP_DOLLARS)
+        return { error: `The amount must be a whole number of dollars between ${MIN_TOPUP_DOLLARS} and ${MAX_TOPUP_DOLLARS}.` }
       const res = await fetch(`${origin}/api/stripe/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookieHeader },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ points: dollars }),
       })
-      if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      // A family with nobody assessed yet is not an error to escalate -- it is
+      // the answer to their question, and the assistant should give it.
+      if (data?.error === 'NEEDS_ASSESSMENT')
+        return { error: 'This family has no assessed swimmer yet, so points would sit unused. Tell them to book a Swim Assessment first and offer to help with that.' }
+      if (!res.ok || !data?.url) {
         escalate = true
         return { error: 'Could not create a payment link. The conversation has been flagged for a team member.' }
       }
-      const data = await res.json()
-      const p = PLANS[planId]
-      return { url: data.url, plan: p.name, price: `$${(p.amount / 100).toLocaleString('en-US')}` }
+      return { url: data.url, points: dollars, price: `$${dollars.toLocaleString('en-US')}` }
     }
 
     if (name === 'get_my_students') {
@@ -598,9 +595,10 @@ export async function POST(req: NextRequest) {
     const nowMins = getNowMinutesLA()
     const hh = String(Math.floor(nowMins / 60)).padStart(2, '0')
     const mm = String(nowMins % 60).padStart(2, '0')
-    const planList = Object.entries(PLANS)
-      .map(([id, p]) => `${id}: ${p.name} — $${(p.amount / 100).toLocaleString('en-US')}`)
-      .join('\n')
+    const planList = [
+      `Any whole-dollar amount from $${MIN_TOPUP_DOLLARS} to $${MAX_TOPUP_DOLLARS.toLocaleString('en-US')}; 1 dollar buys 1 point.`,
+      `The amounts offered on the website are ${TOPUP_PRESETS.map(p => '$' + p.toLocaleString('en-US')).join(', ')}, but any amount in range is fine.`,
+    ].join('\n')
 
     const { staticPart, dynamicPart } = buildSystemPromptParts({
       mode: 'live',

@@ -4,8 +4,8 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
-import { isWithinTokenWindow, tokenSlugsForTarget } from '@/lib/tokens'
-import { refundCredit, refundToken, spendCredit, spendToken } from '@/lib/ledger'
+import { priceLesson } from '@/lib/points'
+import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -111,41 +111,30 @@ async function evaluateDates(
   return candidates
 }
 
-async function allocateCredits(svc: any, parentId: string, courseTypeId: string, needed: number) {
-  const { data: credits } = await svc
-    .from('lesson_credits')
-    .select('id, used_credits, total_credits')
-    .eq('parent_id', parentId)
-    .eq('course_type_id', courseTypeId)
-    .is('converted_to_token_at', null)
-    .order('expires_at', { ascending: true })
-  const pool = (credits || []).map((c: any) => ({ id: c.id, remaining: c.total_credits - c.used_credits }))
-  const totalRemaining = pool.reduce((s: number, c: any) => s + c.remaining, 0)
-  if (totalRemaining < needed) return { ok: false as const, totalRemaining, allocation: [] as string[] }
-  const allocation: string[] = []
-  for (let i = 0; i < needed; i++) {
-    const c = pool.find((p: any) => p.remaining > 0)!
-    allocation.push(c.id)
-    c.remaining--
+/**
+ * What one family owes for its share of a series.
+ *
+ * `unitsPerDate` is how many half-hour lessons that family is paying for on
+ * each date: two for an hour lesson (two halves) or for a 1-on-2 with both
+ * swimmers on the same account, one otherwise. Each date is priced on its own,
+ * because the off-peak discount is judged per lesson.
+ */
+async function quoteSeries(
+  svc: any, parentId: string, courseSlug: string,
+  dates: string[], startTime: string, unitsPerDate: number,
+) {
+  const wallet = await walletSummary(svc, parentId)
+  const perDate = new Map<string, number>()
+  let total = 0
+  for (const date of dates) {
+    const unit = priceLesson({
+      courseSlug, minutes: 30, lessonsCompleted: wallet.lessonsCompleted,
+      sessionDate: date, startTime, seats: 1,
+    }).perSeat
+    perDate.set(date, unit)
+    total += unit * unitsPerDate
   }
-  return { ok: true as const, totalRemaining, allocation }
-}
-
-// Tokens spendable on this course type, earliest-expiring first. Mirrors the
-// parent-side pool: pickTokenPackage cannot be reused because it re-picks the
-// same package, and we need the whole pool to count what is available.
-async function tokenPool(svc: any, parentId: string, targetSlug: string): Promise<{ id: string; remaining: number }[]> {
-  const slugs = tokenSlugsForTarget(targetSlug)
-  if (slugs.length === 0) return []
-  const { data: ctRows } = await svc.from('course_types').select('id, slug').in('slug', slugs)
-  const ctIds = (ctRows ?? []).map((r: any) => r.id)
-  if (ctIds.length === 0) return []
-  const { data: packs } = await svc.from('token_packages')
-    .select('id, total_tokens, used_tokens, expires_at')
-    .eq('parent_id', parentId).in('course_type_id', ctIds)
-    .gt('expires_at', new Date().toISOString())
-    .order('expires_at', { ascending: true })
-  return (packs ?? []).map((x: any) => ({ id: x.id, remaining: x.total_tokens - x.used_tokens })).filter((x: any) => x.remaining > 0)
+  return { perDate, total, balance: wallet.balance, vipLevel: wallet.vipLevel }
 }
 
 export async function POST(req: NextRequest) {
@@ -193,7 +182,7 @@ export async function POST(req: NextRequest) {
 
   // A 60-minute lesson is 1-on-1 only and single-swimmer, matching the parent
   // side. It costs two of everything: two half-sessions, two bookings sharing a
-  // lesson_group_id, two credits (or two tokens).
+  // lesson_group_id, and two half-hour lessons' worth of points.
   if (hour && (ct.slug !== '1on1' || student2))
     return NextResponse.json({ error: '60-minute lessons are 1-on-1 with a single swimmer.' }, { status: 400 })
   const spotsNeeded = student2 ? 2 : 1
@@ -212,37 +201,35 @@ export async function POST(req: NextRequest) {
       coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
       startDate: start_date, count, spotsNeeded, skipDates: skip_dates || [], hour: !!hour, durationMinutes: ct.duration_minutes,
     })
-    const needed1 = twoFromParent1 ? count * 2 : count
-    const alloc1 = await allocateCredits(svc, student1.parent_id, course_type_id, needed1)
-    let credits2Remaining: number | null = null
-    let creditsOk = alloc1.ok
-    if (student2 && !sameParent) {
-      const alloc2 = await allocateCredits(svc, student2.parent_id, course_type_id, count)
-      credits2Remaining = alloc2.totalRemaining
-      creditsOk = creditsOk && alloc2.ok
-    }
+    // Only the dates that can actually be booked are quoted -- showing a total
+    // that includes dates the operator is about to be told are full would make
+    // the number they read out to the family wrong.
+    const okDates = candidates.filter(c => c.status === 'ok').map(c => c.date)
     const nameIds = student2 && !sameParent ? [student1.parent_id, student2.parent_id] : [student1.parent_id]
     const { data: pRows } = await svc.from('parents').select('id, first_name, last_name').in('id', nameIds)
     const nameOf = (pid: string) => {
       const r = (pRows || []).find(x => x.id === pid)
       return r ? `${r.first_name} ${r.last_name || ''}`.trim() : ''
     }
-    const tp = await tokenPool(svc, student1.parent_id, ct.slug || '')
-    const tokensRemaining = tp.reduce((n: number, x: any) => n + x.remaining, 0)
+
+    let quote1, quote2 = null
+    try {
+      quote1 = await quoteSeries(svc, student1.parent_id, ct.slug || '', okDates, start_time, twoFromParent1 ? 2 : 1)
+      if (student2 && !sameParent)
+        quote2 = await quoteSeries(svc, student2.parent_id, ct.slug || '', okDates, start_time, 1)
+    } catch {
+      return NextResponse.json({ error: `${ct.name} cannot be paid for with points.` }, { status: 400 })
+    }
+
     return NextResponse.json({
       candidates,
-      tokens: {
-        remaining: tokensRemaining,
-        // A two-swimmer 1-on-2 can go on tokens too, but only when both
-        // swimmers are one family's -- two families each pay their own way
-        // and this route only ever draws on student1's parent.
-        eligible: count === 1 && (!student2 || (!!sameParent && !hour))
-          && isWithinTokenWindow(start_date, String(start_time).slice(0, 5)),
-      },
-      credits: {
-        parent1_name: nameOf(student1.parent_id), parent1_remaining: alloc1.totalRemaining, parent1_needed: needed1,
+      points: {
+        parent1_name: nameOf(student1.parent_id),
+        parent1_balance: quote1.balance, parent1_needed: quote1.total, parent1_vip: quote1.vipLevel,
         parent2_name: student2 && !sameParent ? nameOf(student2.parent_id) : null,
-        parent2_remaining: credits2Remaining, parent2_needed: student2 && !sameParent ? count : null, sufficient: creditsOk,
+        parent2_balance: quote2?.balance ?? null, parent2_needed: quote2?.total ?? null,
+        parent2_vip: quote2?.vipLevel ?? null,
+        sufficient: quote1.balance >= quote1.total && (!quote2 || quote2.balance >= quote2.total),
       },
     })
   }
@@ -283,60 +270,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Payment method is the operator's explicit choice; credits stay the default
-    // so every existing caller behaves exactly as before. Tokens are same-day /
-    // next-day only and weekly dates sit seven days apart, so at most one date in
-    // a series could ever qualify — a token booking is therefore single-date.
-    // Since 2026-08-27 it can cover two swimmers as well, matching the parent
-    // side, but only when they are one family's: two families each pay their own
-    // way and this branch only ever draws on student1's parent.
-    const payWithToken = payment_method === 'token'
-    let tokenAlloc: string[] = []
-    let credit1PerDate: string[] = []
-    let credit2PerDate: string[] = []
-    if (payWithToken) {
-      if (dates.length !== 1)
-        return NextResponse.json({ error: 'Tokens are valid today or tomorrow only, so they cannot pay for a recurring series — book a single date.' }, { status: 400 })
+    // Each family pays its own way, out of its own wallet, at its own VIP
+    // level -- exactly as it would if the parent had booked this themselves.
+    // There is no payment choice left to make: one currency, one price.
+    //
+    // To comp a lesson, grant the family the points first and then book. That
+    // keeps the gift visible on their statement instead of hidden in a booking
+    // nobody was charged for.
+    const units1 = twoFromParent1 ? 2 : 1
+    let quote1, quote2 = null
+    try {
+      quote1 = await quoteSeries(svc, student1.parent_id, ct.slug || '', dates, start_time, units1)
       if (student2 && !sameParent)
-        return NextResponse.json({ error: 'These swimmers are from two different families, so each side pays its own way. Use credits for this booking.' }, { status: 400 })
-      if (student2 && hour)
-        return NextResponse.json({ error: 'A 60-minute two-swimmer booking is credit-only. Use credits, or book two 30-minute lessons.' }, { status: 400 })
-      if (!isWithinTokenWindow(dates[0], String(start_time).slice(0, 5)))
-        return NextResponse.json({ error: 'Tokens can only be used for a lesson today or tomorrow.' }, { status: 400 })
-      const needTokens = hour ? 2 : (student2 ? 2 : 1)
-      const tp = await tokenPool(svc, student1.parent_id, ct.slug || '')
-      if (tp.reduce((n: number, x: any) => n + x.remaining, 0) < needTokens)
-        return NextResponse.json({ error: `This family needs ${needTokens} token(s) for that booking and does not have enough.` }, { status: 409 })
-      for (let k = 0; k < needTokens; k++) { const x = tp.find((y: any) => y.remaining > 0)!; tokenAlloc.push(x.id); x.remaining-- }
-    } else {
-      const needed1 = twoFromParent1 ? dates.length * 2 : dates.length
-      const alloc1 = await allocateCredits(svc, student1.parent_id, course_type_id, needed1)
-      if (!alloc1.ok) return NextResponse.json({ error: `Parent 1 has ${alloc1.totalRemaining} credits, needs ${needed1}` }, { status: 409 })
-      let alloc2: string[] = []
-      if (student2 && !sameParent) {
-        const a2 = await allocateCredits(svc, student2.parent_id, course_type_id, dates.length)
-        if (!a2.ok) return NextResponse.json({ error: `Parent 2 has ${a2.totalRemaining} credits, needs ${dates.length}` }, { status: 409 })
-        alloc2 = a2.allocation
-      }
-      // For same-parent 1on2, allocation covers both bookings interleaved
-      credit1PerDate = twoFromParent1 ? alloc1.allocation.filter((_, i) => i % 2 === 0) : alloc1.allocation
-      credit2PerDate = twoFromParent1 ? alloc1.allocation.filter((_, i) => i % 2 === 1) : alloc2
+        quote2 = await quoteSeries(svc, student2.parent_id, ct.slug || '', dates, start_time, 1)
+    } catch {
+      return NextResponse.json({ error: `${ct.name} cannot be paid for with points.` }, { status: 400 })
     }
 
     const endTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes)
     const hourEndTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes * 2)
     const createdBookingIds: string[] = []
     const createdSessionIds: string[] = []
-    const incrementedCredits: string[] = []
-    const incrementedTokens: string[] = []
+    const taken: { parentId: string; points: number }[] = []
 
-    async function rollback() {
-      for (const cid of incrementedCredits) {
-        await refundCredit(svc, cid)
+    async function rollback(why: string) {
+      for (const t of taken) {
+        await applyPoints(svc, {
+          parentId: t.parentId, reason: 'booking_failed', points: t.points,
+          actor: 'system', note: why,
+        }).catch(e => console.error('points rollback failed:', e))
       }
-      for (const tid of incrementedTokens) {
-        await refundToken(svc, tid)
-      }
+      taken.length = 0
       if (createdBookingIds.length > 0) {
         await svc.from('bookings').delete().in('id', createdBookingIds)
       }
@@ -347,18 +311,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Tokens settle before anything is written, same as credits below. This had
-    // to run last until decrement_used_tokens existed, because rollback() could
-    // never hand one back; now a lost race costs a 409 and nothing else. A token
-    // booking is single-date, and the allocation above hands out one entry per
-    // seat, so every entry in tokenAlloc is used exactly once and can safely be
-    // spent up front.
-    for (const tid of tokenAlloc) {
-      if (!(await spendToken(svc, tid))) {
-        await rollback()
-        return NextResponse.json({ error: "This family's make-up credits ran out while the booking was going through. Please refresh and try again." }, { status: 409 })
+    // Both families settle before anything is written, so a family who cannot
+    // pay is reported while there is still nothing to undo.
+    const charges: { parentId: string; label: string; quote: typeof quote1; units: number }[] = [
+      { parentId: student1.parent_id, label: 'This family', quote: quote1, units: units1 },
+      ...(quote2 ? [{ parentId: student2.parent_id, label: "The second swimmer's family", quote: quote2, units: 1 }] : []),
+    ]
+    for (const c of charges) {
+      try {
+        await applyPoints(svc, {
+          parentId: c.parentId, reason: 'booking', points: -c.quote.total, actor: `admin:${auth.admin?.id ?? 'unknown'}`,
+          pricing: {
+            kind: 'admin_series', courseSlug: ct.slug, startTime: start_time, hour: !!hour,
+            vipLevel: c.quote.vipLevel, unitsPerDate: c.units,
+            dates: dates.map((d: string) => ({ date: d, points: c.quote.perDate.get(d)! * c.units })),
+          },
+          note: dates.length === 1 ? null : `Series booked at the desk: ${dates.length} lessons`,
+        })
+        taken.push({ parentId: c.parentId, points: c.quote.total })
+      } catch (e: any) {
+        await rollback('the other side of the booking could not pay')
+        if (e instanceof InsufficientPoints)
+          return NextResponse.json({ error: `${c.label} needs ${e.needed} points and has ${e.available}.` }, { status: 409 })
+        console.error('points charge failed:', e)
+        return NextResponse.json({ error: 'Could not take the points for this booking.' }, { status: 500 })
       }
-      incrementedTokens.push(tid)
     }
 
     for (let i = 0; i < dates.length; i++) {
@@ -366,8 +343,8 @@ export async function POST(req: NextRequest) {
       if (hour) {
         const groupId = randomUUID()
         const legs = [
-          { start: start_time, end: endTime, credit: credit1PerDate[i], token: tokenAlloc[0] },
-          { start: endTime, end: hourEndTime, credit: credit2PerDate[i], token: tokenAlloc[1] },
+          { start: start_time, end: endTime },
+          { start: endTime, end: hourEndTime },
         ]
         for (const leg of legs) {
           const { data: exist } = await svc
@@ -379,7 +356,7 @@ export async function POST(req: NextRequest) {
           let sid: string
           if (exist) {
             if (exist.enrolled_count + 1 > exist.max_students) {
-              await rollback()
+              await rollback('one half of the hour was already taken')
               return NextResponse.json({ error: `The ${leg.start} half on ${date} is already taken` }, { status: 409 })
             }
             sid = exist.id
@@ -389,26 +366,22 @@ export async function POST(req: NextRequest) {
               .insert({ coach_id, course_type_id, session_date: date, start_time: leg.start, end_time: leg.end, max_students: ct.max_students, enrolled_count: 0, status: 'open' })
               .select('id').single()
             if (se || !ns) {
-              await rollback()
+              await rollback('a session could not be created')
               const conflict = se?.message?.includes('coach_timeslot_conflict')
               return NextResponse.json({ error: conflict ? `The coach already has another class during the hour on ${date}` : `Failed to create session on ${date}: ${se?.message || 'unknown'}` }, { status: 409 })
             }
             sid = ns.id
             createdSessionIds.push(ns.id)
           }
-          if (!payWithToken) {
-            if (!(await spendCredit(svc, leg.credit))) {
-              await rollback()
-              return NextResponse.json({ error: `This family's credits ran out while ${date} was being booked. Please refresh and try again.` }, { status: 409 })
-            }
-            incrementedCredits.push(leg.credit)
-          }
           const { data: bk, error: be } = await svc
             .from('bookings')
-            .insert({ class_session_id: sid, parent_id: student1.parent_id, student_id: student1.id, lesson_credit_id: payWithToken ? null : leg.credit, token_package_id: payWithToken ? leg.token : null, status: 'confirmed', lesson_group_id: groupId })
+            .insert({ class_session_id: sid, parent_id: student1.parent_id, student_id: student1.id,
+                      lesson_credit_id: null, token_package_id: null,
+                      points_charged: quote1.perDate.get(date)!,
+                      status: 'confirmed', lesson_group_id: groupId })
             .select('id').single()
           if (be || !bk) {
-            await rollback()
+            await rollback('a booking row could not be written')
             const conflict = be?.message?.includes('coach_timeslot_conflict')
             return NextResponse.json({ error: conflict ? `The coach already has another class during the hour on ${date}` : `Failed to book ${date}: ${be?.message || 'unknown'}` }, { status: conflict ? 409 : 500 })
           }
@@ -426,7 +399,7 @@ export async function POST(req: NextRequest) {
       let sessId: string
       if (existing) {
         if (existing.enrolled_count + spotsNeeded > existing.max_students) {
-          await rollback()
+          await rollback('a class filled up')
           return NextResponse.json({ error: `Session on ${date} became full` }, { status: 409 })
         }
         sessId = existing.id
@@ -436,32 +409,33 @@ export async function POST(req: NextRequest) {
           .insert({ coach_id, course_type_id, session_date: date, start_time, end_time: endTime, max_students: ct.max_students, enrolled_count: 0, status: 'open' })
           .select('id').single()
         if (sessErr || !newSess) {
-          await rollback()
+          await rollback('a session could not be created')
           return NextResponse.json({ error: `Failed to create session on ${date}: ${sessErr?.message || 'unknown'}` }, { status: 500 })
         }
         sessId = newSess.id
         createdSessionIds.push(newSess.id)
       }
 
-      // Each swimmer carries its own token, the way each carries its own credit.
+      // Every swimmer's row carries the points that swimmer's family paid for
+      // it, so cancelling one seat of a 1-on-2 refunds the right wallet.
       const toCreate = [
-        { parent_id: student1.parent_id, student_id: student1.id, credit_id: credit1PerDate[i], token_id: tokenAlloc[0] },
-        ...(student2 ? [{ parent_id: student2.parent_id, student_id: student2.id, credit_id: credit2PerDate[i], token_id: tokenAlloc[1] }] : []),
+        { parent_id: student1.parent_id, student_id: student1.id, points: quote1.perDate.get(date)! },
+        ...(student2
+          ? [{
+              parent_id: student2.parent_id, student_id: student2.id,
+              points: (sameParent ? quote1 : quote2!).perDate.get(date)!,
+            }]
+          : []),
       ]
       for (const b of toCreate) {
-        if (!payWithToken) {
-          if (!(await spendCredit(svc, b.credit_id))) {
-            await rollback()
-            return NextResponse.json({ error: `This family's credits ran out while ${date} was being booked. Please refresh and try again.` }, { status: 409 })
-          }
-          incrementedCredits.push(b.credit_id)
-        }
         const { data: created, error: bookErr } = await svc
           .from('bookings')
-          .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id, lesson_credit_id: payWithToken ? null : b.credit_id, token_package_id: payWithToken ? b.token_id : null, status: 'confirmed' })
+          .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id,
+                    lesson_credit_id: null, token_package_id: null,
+                    points_charged: b.points, status: 'confirmed' })
           .select('id').single()
         if (bookErr || !created) {
-          await rollback()
+          await rollback('a booking row could not be written')
           const isConflict = bookErr?.message?.includes('coach_timeslot_conflict')
           return NextResponse.json(
             { error: isConflict ? `Date ${date} conflicts with another session for this coach` : `Failed to book ${date}: ${bookErr?.message || 'unknown'}` },

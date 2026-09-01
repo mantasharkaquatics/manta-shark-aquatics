@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   // Fetch own booking (must be pending reschedule)
   const { data: myBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, partner_booking_id, lesson_credit_id, pending_new_session_id, pending_action, original_booking_id')
+    .select('id, class_session_id, parent_id, student_id, partner_booking_id, points_charged, pending_new_session_id, pending_action, original_booking_id')
     .eq('id', booking_id)
     .in('pending_action', ['reschedule', 'reschedule_initiator'])
     .single()
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   const { data: partnerBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, lesson_credit_id, pending_new_session_id, original_booking_id')
+    .select('id, class_session_id, parent_id, student_id, points_charged, pending_new_session_id, original_booking_id')
     .eq('id', partnerBookingId)
     .single()
 
@@ -95,7 +95,11 @@ export async function POST(req: NextRequest) {
   await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_action: null, pending_expires_at: null }).eq('id', partnerBookingId)
 
 
-  // Create new bookings for both sides
+  // Create new bookings for both sides. Each carries its own family's original
+  // charge forward untouched: a reschedule is the same lesson at a new time, so
+  // nobody is re-priced -- not up when the new slot is peak, not down when it is
+  // off-peak. Re-pricing downward would make "move the lesson" a way to buy the
+  // off-peak discount after the fact.
   const now = new Date().toISOString()
   // original_booking_id: if the old booking was itself rescheduled, trace back to the origin
   const myOriginalId = myBooking.original_booking_id || myBooking.id
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
     class_session_id: newSessionId,
     parent_id: myBooking.parent_id,
     student_id: myBooking.student_id,
-    lesson_credit_id: myBooking.lesson_credit_id,
+    points_charged: myBooking.points_charged,
     status: 'confirmed',
     pending_action: null,
     original_booking_id: myOriginalId,
@@ -116,7 +120,7 @@ export async function POST(req: NextRequest) {
     class_session_id: newSessionId,
     parent_id: partnerBooking.parent_id,
     student_id: partnerBooking.student_id,
-    lesson_credit_id: partnerBooking.lesson_credit_id,
+    points_charged: partnerBooking.points_charged,
     status: 'confirmed',
     pending_action: null,
     original_booking_id: partnerOriginalId,
