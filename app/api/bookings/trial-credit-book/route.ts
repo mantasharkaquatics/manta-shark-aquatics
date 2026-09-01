@@ -4,7 +4,14 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 
-// Parent books a Swim Assessment using a prepaid credit (e.g. purchased at the front desk POS).
+// Booking a Swim Assessment that was already paid for at the front desk.
+//
+// The assessment is the one thing that never became points, so it is also the
+// one thing still stored in lesson_credits (a row with is_trial). That is
+// deliberate, not an oversight: a family buys the assessment before they have
+// a wallet, it is charged to a card at a fixed price, and giving it a currency
+// of its own would mean explaining a second currency to explain one purchase.
+// See _archive/README.md.
 export async function POST(req: NextRequest) {
   const ctx = await requireParent()
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })

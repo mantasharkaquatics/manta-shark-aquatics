@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
         .single()
       if (purchaseErr) console.error('Trial purchase insert error:', purchaseErr)
 
-      // Trial credit card: 1 of 1 used, appears under Lesson Credits
+      // The prepaid Swim Assessment. Still a lesson_credits row with is_trial:
+      // the assessment is bought before a family has a wallet, so it never
+      // became points. See _archive/README.md.
       const expiresAt = new Date()
       expiresAt.setMonth(expiresAt.getMonth() + 12)
       const { data: credit, error: creditErr } = await supabase
@@ -142,7 +144,7 @@ export async function POST(req: NextRequest) {
             const ap = hh >= 12 ? 'PM' : 'AM'
             const h12 = hh % 12 === 0 ? 12 : hh % 12
             const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            const body = `Payment received! Your Swim Assessment is confirmed:\n\n- Student: ${studentRow?.full_name || ''}\n- Coach: ${coachName || ''}\n- Date: ${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}\n- Time: ${h12}:${String(mm).padStart(2, '0')} ${ap}\n\nYour receipt and invoice are available under Lesson Credits on your Dashboard. See you at the pool!`
+            const body = `Payment received! Your Swim Assessment is confirmed:\n\n- Student: ${studentRow?.full_name || ''}\n- Coach: ${coachName || ''}\n- Date: ${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}\n- Time: ${h12}:${String(mm).padStart(2, '0')} ${ap}\n\nYour receipt and invoice are on your Dashboard. See you at the pool!`
             const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
             if (chatErr) console.error('Trial chat confirm error:', chatErr)
             else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)

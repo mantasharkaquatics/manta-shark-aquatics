@@ -112,7 +112,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-white font-serif">Sales</h1>
-          <p className="text-gray-400 mt-1">All lesson package purchases</p>
+          <p className="text-gray-400 mt-1">Every purchase: points, memberships and programme sales</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl px-6 py-4 text-right">
