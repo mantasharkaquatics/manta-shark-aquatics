@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
-import { priceLesson, vipTier } from '@/lib/points'
+import { priceLesson, vipTier, LESSONS_PER_FORGIVENESS } from '@/lib/points'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -1280,7 +1280,9 @@ export default function DashboardPage() {
   // as a bug -- the button greys out with nothing to explain it -- so the
   // greyed control becomes a "contact us" button carrying the real reason.
   const lateLockHelp = (b: { course_slug?: string | null; partner_booking_id?: string | null }) =>
-    (b.course_slug === '1on2' || b.partner_booking_id) ? t('dash.up.cancelPairHelp') : t('dash.up.cancelLockedHelp')
+    (b.course_slug === '1on2' || b.partner_booking_id)
+      ? t('dash.up.cancelPairHelp')
+      : t('dash.up.cancelLockedHelp', { per: wallet?.lessonsPerForgiveness ?? LESSONS_PER_FORGIVENESS })
   const openChatOr = (msg: string) => {
     const toggle = document.querySelector('[data-chat-toggle]') as HTMLElement | null
     if (toggle) toggle.click()
