@@ -787,6 +787,8 @@
   "points.card.hideHistory": "收起记录",
   "points.card.next": "再上 {n} 堂就升 VIP {level}，之后每一堂都折 {pct}%。",
   "points.card.noVip": "上满 10 堂升 VIP 1",
+  "points.card.receipt": "收据",
+  "points.card.receiptTitle": "下载发票 {number}（PDF）",
   "points.card.showHistory": "点数记录",
   "points.card.title": "点数",
   "points.card.vip": "VIP {n} · 折扣 {pct}%",

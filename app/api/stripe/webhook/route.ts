@@ -229,6 +229,10 @@ export async function POST(req: NextRequest) {
     })
     console.log(`✅ ${points} points credited; balance ${res.balance}`)
 
+    const paymentIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : (session.payment_intent as any)?.id ?? null
+
     // The unique index on stripe_session_id is what actually stops a repeated
     // delivery from recording the same money twice; this only has to notice
     // that it fired. A conflict here means the purchase and its invoice were
@@ -240,6 +244,7 @@ export async function POST(req: NextRequest) {
       amount_cents,
       status: 'paid',
       stripe_session_id: session.id,
+      stripe_payment_intent_id: paymentIntentId,
       paid_at: new Date().toISOString(),
     })
     if (purchaseErr) {
@@ -265,7 +270,8 @@ export async function POST(req: NextRequest) {
           // One point per dollar, so quantity and unit price say the same thing
           // twice on purpose: the invoice has to stand on its own.
           items: [{ name: pointsLabel, quantity: points, unit_price: 1 }],
-          stripe_payment_intent_id: session.payment_intent || null,
+          stripe_payment_intent_id: paymentIntentId,
+          stripe_session_id: session.id,
         }),
       })
       if (invoiceRes.ok) {

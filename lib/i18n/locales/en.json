@@ -787,6 +787,8 @@
   "points.card.hideHistory": "Hide history",
   "points.card.next": "{n} more lessons and every lesson drops to {pct}% off at VIP {level}.",
   "points.card.noVip": "VIP 1 at 10 lessons",
+  "points.card.receipt": "Receipt",
+  "points.card.receiptTitle": "Download invoice {number} (PDF)",
   "points.card.showHistory": "Points history",
   "points.card.title": "Points",
   "points.card.vip": "VIP {n} · {pct}% off",

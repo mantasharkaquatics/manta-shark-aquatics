@@ -393,6 +393,7 @@ type LedgerRow = {
   reason: string
   note: string | null
   amountCents: number | null
+  invoice?: { id: string; number: string } | null
 }
 
 /**
@@ -479,6 +480,14 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                       {new Date(row.at).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                       {row.note ? ' · ' + row.note : ''}
                     </div>
+                    {/* The receipt for the money, on the line that spent it. */}
+                    {row.invoice && (
+                      <a href={`/api/invoices/${row.invoice.id}/pdf`} target="_blank" rel="noopener noreferrer"
+                        title={t('points.card.receiptTitle', { number: row.invoice.number })}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '3px', fontSize: '10px', color: GOLD, textDecoration: 'none' }}>
+                        <span aria-hidden>🧾</span>{t('points.card.receipt')}
+                      </a>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
                     <div style={{ fontSize: '12.5px', fontWeight: 700, color: row.points >= 0 ? '#7fd8a0' : 'rgba(255,255,255,0.75)' }}>

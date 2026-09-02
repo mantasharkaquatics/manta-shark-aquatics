@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { parent_id, lesson_credit_id, amount, payment_method, items, stripe_payment_intent_id, notes } = body
+  const { parent_id, lesson_credit_id, amount, payment_method, items, stripe_payment_intent_id, stripe_session_id, notes } = body
 
   const year = new Date().getFullYear()
   const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
       items: items || [],
       status: 'sent',
       stripe_payment_intent_id: stripe_payment_intent_id || null,
+      // The key the points statement joins on. A payment reaches us as a
+      // checkout session; the ledger records that id, so the invoice has to
+      // carry it too or the receipt cannot be found from the statement.
+      stripe_session_id: stripe_session_id || null,
       notes: notes || null,
     })
     .select()
