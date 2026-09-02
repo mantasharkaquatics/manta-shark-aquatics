@@ -275,6 +275,10 @@ export default function BookingPage() {
   const [calMonth, setCalMonth] = useState(today.getMonth())
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [groupWeeks, setGroupWeeks] = useState<any[]>([])
+  // The group calendar does not page. Months run on down the screen, because
+  // choosing several lessons means comparing them, and a pager hides September
+  // the moment you look at October -- exactly when the comparison matters.
+  const [monthsShown, setMonthsShown] = useState(2)
   const [lessonLength, setLessonLength] = useState<30 | 60>(30)
   const [hourSlots, setHourSlots] = useState<any[]>([])
   const [hourLoading, setHourLoading] = useState(false)
@@ -305,10 +309,26 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
-    const mm = String(calMonth + 1).padStart(2, '0')
-    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=6&start=${calYear}-${mm}-01`)
-      .then(r => r.json()).then(d => setGroupWeeks(d?.days || [])).catch(() => {})
-  }, [groupFlow, selectedStudent, calMonth, calYear, cartRefresh])
+    // The endpoint answers six weeks at a time, so a longer view is several
+    // calls merged by date rather than one big one.
+    const base = new Date(today.getFullYear(), today.getMonth(), 1)
+    const starts = Array.from({ length: monthsShown }, (_, i) => {
+      const d = new Date(base.getFullYear(), base.getMonth() + i, 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    })
+    let live = true
+    Promise.all(starts.map(st =>
+      fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=6&start=${st}`)
+        .then(r => r.json()).catch(() => null)))
+      .then(rs => {
+        if (!live) return
+        const byDay = new Map<string, any>()
+        for (const r of rs) for (const d of (r?.days || [])) byDay.set(d.date, d)
+        setGroupWeeks([...byDay.values()])
+      })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupFlow, selectedStudent, monthsShown, cartRefresh])
 
   useEffect(() => {
     setSelectedHour(null)
@@ -586,6 +606,11 @@ export default function BookingPage() {
     : null
   const bookingCost = bookingPrice?.charged ?? 0
   const recurTotal = recurPlan.reduce((a, x) => a + x.points, 0)
+  // The undiscounted figure, so the batch can show what the discounts took off.
+  const recurBase = recurPlan.reduce((a, x) => {
+    const pr = priceAt(x.date, x.time, 30)
+    return a + (pr ? pr.base * pr.seats : x.points)
+  }, 0)
   const basket = [...recurSel.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
   const basketTotal = basket.reduce((a, x) => a + x.points, 0)
   // One time across the whole batch, or several? It decides whether the summary
@@ -1546,78 +1571,111 @@ export default function BookingPage() {
             {groupFlow && (() => {
               const byDate: Record<string, any[]> = {}
               for (const d of groupWeeks) byDate[d.date] = d.classes || []
-              const mm = String(calMonth + 1).padStart(2, '0')
               const todayDs = formatDateLA(today)
-              const atCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth()
               return (
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <button disabled={atCurrentMonth} onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) } else setCalMonth(calMonth - 1) }}
-                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: atCurrentMonth ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)', cursor: atCurrentMonth ? 'not-allowed' : 'pointer' }}>{t('booking.group.prev')}</button>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
-                    <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) } else setCalMonth(calMonth + 1) }}
-                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>{t('booking.group.next')}</button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
-                    {[0, 1, 2, 3, 4, 5, 6].map(d => (
-                      <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '16px' }}>
-                    {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
-                    {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, i) => {
-                      const dt = new Date(calYear, calMonth, i + 1)
-                      const ds = `${calYear}-${mm}-${String(i + 1).padStart(2, '0')}`
-                      const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
-                      const isPast = ds < todayDs
-                      const isToday2 = ds === todayDs
-                      return (
-                        <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
-                          <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            {slots.map((sl: any) => {
-                              const w24 = isWithin24Hours(ds, sl.time)
-                              const clickable = !sl.full && !sl.already_booked
-                              const sel = selectedSlot?.time === sl.time && selectedCoach?.id === sl.coach_id && selectedDate && formatDateLA(selectedDate) === ds
-                              return (
-                                <button key={sl.coach_id + sl.time}
-                                  onClick={() => {
-                                    if (!clickable) return
-                                    if (sel) { setSelectedSlot(null); setSelectedDate(null); setRecurOpen(false); setRecurMsg(''); return }
-                                    const c = coaches.find(x => x.id === sl.coach_id)
-                                    if (!c) return
-                                    setSelectedDate(dt)
-                                    setSelectedCoach(c)
-                                    setSelectedSlot({ time: sl.time, label: formatTime(sl.time), available: true, enrolled: sl.enrolled, max: sl.max, session_id: sl.session_id, within24h: w24 })
-                                    setRecurOpen(false); setRecurMsg('')
-                                  }}
-                                  disabled={!clickable}
-                                  style={{
-                                    padding: '4px 2px', borderRadius: '5px', textAlign: 'center',
-                                    border: `2px solid ${sel ? GOLD : clickable ? myBandColor + '55' : 'rgba(255,255,255,0.06)'}`,
-                                    background: sel ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
-                                    cursor: clickable ? 'pointer' : 'not-allowed',
-                                  }}>
-                                  {/* Each of the seven columns is about 47px on a phone, so the
-                                      time and the seat count get a line each. They were side by
-                                      side with no whitespace between the two spans -- which gives
-                                      the browser nowhere to break, so "4 left" was painted outside
-                                      the cell rather than wrapped inside it. */}
-                                  <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 700, letterSpacing: '-0.2px', color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
-                                    <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{formatTimeCompact(sl.time)}</span>
-                                    <span style={{ display: 'block', fontWeight: 600, marginTop: '1px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : sel ? GOLD : myBandColor }}>
-                                      {sl.already_booked ? '✓' : sl.full ? t('booking.full') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
-                                    </span>
-                                    {w24 && clickable ? <span style={{ display: 'block', color: '#c9a84c' }}>24h</span> : null}
-                                  </span>
-                                </button>
-                              )
-                            })}
-                          </div>
+                  {/* Months run on down the page. A ticked lesson in September has
+                      to stay visible while its owner looks at October, or nobody
+                      dares carry on ticking. */}
+                  {Array.from({ length: monthsShown }).map((_, mi) => {
+                    const first = new Date(today.getFullYear(), today.getMonth() + mi, 1)
+                    const y = first.getFullYear()
+                    const m = first.getMonth()
+                    const mm2 = String(m + 1).padStart(2, '0')
+                    return (
+                      <div key={`${y}-${mm2}`} style={{ marginBottom: '18px' }}>
+                        <div style={{ position: 'sticky', top: 0, zIndex: 2, background: DARK, display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0 10px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (m + 1)), year: y })}</span>
+                          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
                         </div>
-                      )
-                    })}
-                  </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
+                          {[0, 1, 2, 3, 4, 5, 6].map(d => (
+                            <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
+                          {Array.from({ length: getFirstDayOfMonth(y, m) }).map((_, i) => <div key={`e-${i}`} />)}
+                          {Array.from({ length: getDaysInMonth(y, m) }).map((_, i) => {
+                            const dt = new Date(y, m, i + 1)
+                            const ds = `${y}-${mm2}-${String(i + 1).padStart(2, '0')}`
+                            const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
+                            const isPast = ds < todayDs
+                            const isToday2 = ds === todayDs
+                            return (
+                              <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
+                                <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                  {slots.map((sl: any) => {
+                                    const w24 = isWithin24Hours(ds, sl.time)
+                                    const key = `${ds}|${sl.time}`
+                                    const inBasket = recurSel.has(key)
+                                    const price = priceAt(ds, sl.time, 30)
+                                    const cost = price?.charged ?? 0
+                                    // A lesson the remaining balance cannot cover is
+                                    // refused at the tick, not at Confirm, where the
+                                    // parent has already chosen a dozen of them.
+                                    const affordable = inBasket || basketTotal + cost <= balance
+                                    const clickable = !sl.full && !sl.already_booked && affordable
+                                    const cellBorder = inBasket ? GOLD : sl.full || sl.already_booked ? 'rgba(255,255,255,0.06)' : !affordable ? 'rgba(255,255,255,0.10)' : myBandColor + '55'
+                                    return (
+                                      <button key={sl.coach_id + sl.time}
+                                        onClick={() => {
+                                          if (sl.full || sl.already_booked) return
+                                          const c = coaches.find(x => x.id === sl.coach_id)
+                                          if (!c) return
+                                          // Ticking is the booking now. The slot is also
+                                          // remembered as "the one on screen", so the
+                                          // repeat-weekly shortcut below knows which
+                                          // weekday and hour it is being asked to repeat.
+                                          setSelectedDate(dt)
+                                          setSelectedCoach(c)
+                                          setSelectedSlot({ time: sl.time, label: formatTime(sl.time), available: true, enrolled: sl.enrolled, max: sl.max, session_id: sl.session_id, within24h: w24 })
+                                          setRecurOpen(false); setRecurMsg('')
+                                          setRecurSel(prev => {
+                                            const n = new Map(prev)
+                                            if (n.has(key)) { n.delete(key); return n }
+                                            if (!affordable) return n
+                                            n.set(key, { date: ds, time: sl.time, label: formatTime(sl.time), points: cost })
+                                            return n
+                                          })
+                                        }}
+                                        disabled={!clickable}
+                                        style={{
+                                          padding: '4px 2px', borderRadius: '5px', textAlign: 'center',
+                                          border: `2px ${!affordable && !inBasket && !sl.full && !sl.already_booked ? 'dashed' : 'solid'} ${cellBorder}`,
+                                          background: inBasket ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
+                                          cursor: clickable ? 'pointer' : 'not-allowed',
+                                        }}>
+                                        {/* Each of the seven columns is about 47px on a phone, so the
+                                            time and the seat count get a line each. They were side by
+                                            side with no whitespace between the two spans -- which gives
+                                            the browser nowhere to break, so "4 left" was painted outside
+                                            the cell rather than wrapped inside it. */}
+                                        <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 700, letterSpacing: '-0.2px', color: inBasket ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                          <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{inBasket ? '✓ ' : ''}{formatTimeCompact(sl.time)}</span>
+                                          <span style={{ display: 'block', fontWeight: 600, marginTop: '1px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : inBasket ? GOLD : !affordable ? 'rgba(255,255,255,0.25)' : myBandColor }}>
+                                            {sl.already_booked ? '✓' : sl.full ? t('booking.full') : !affordable ? t('booking.group.tooDear') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
+                                          </span>
+                                          {w24 && clickable ? <span style={{ display: 'block', color: '#c9a84c' }}>24h</span> : null}
+                                        </span>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {monthsShown < 6 && (
+                    <button onClick={() => setMonthsShown(n => n + 1)}
+                      style={{ width: '100%', marginBottom: '16px', padding: '11px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: '10px', color: 'rgba(255,255,255,0.55)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
+                      {t('booking.group.loadMore')}
+                    </button>
+                  )}
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '8px' }}>
                     {myGroupBand ? t('booking.group.showingBand', { name: selectedStudent?.full_name || '', min: myGroupBand.min, max: myGroupBand.max }) : t('booking.group.showing', { name: selectedStudent?.full_name || '' })}
                   </div>
@@ -1877,7 +1935,7 @@ export default function BookingPage() {
                   "-4 pts, -3 pts": they are multiplied together and rounded down
                   once, so per-line whole numbers would not add up to the total
                   and a parent subtracting them would find us out. */}
-              {!isTrial && !isReschedule && bookingPrice && (
+              {!isTrial && !isReschedule && recurPlan.length === 0 && bookingPrice && (
                 <div style={{ paddingTop: '12px' }}>
                   {[
                     { k: 'base', label: bookingPrice.seats > 1 ? t('booking.price.baseSeats', { n: bookingPrice.seats }) : t('booking.price.base'), value: String(bookingPrice.base * bookingPrice.seats), dim: true },
@@ -1899,10 +1957,32 @@ export default function BookingPage() {
                   </div>
                 </div>
               )}
-              {recurPlan.length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px' }}>
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{t('points.unit', { n: Math.max(0, balance - recurTotal) })}</span>
-              </div>}
+              {/* The batch's own breakdown. Every lesson is priced on its own
+                  line above; this says what the whole thing costs and what the
+                  discounts took off, because one lesson's percentages cannot
+                  describe a batch where half the lessons are off-peak. */}
+              {recurPlan.length > 0 && (
+                <div style={{ paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.batchBase', { n: recurPlan.length })}</span>
+                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{recurBase}</span>
+                  </div>
+                  {recurBase > recurTotal && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.batchDiscount')}</span>
+                      <span style={{ fontSize: '13px', color: myBandColor, fontVariantNumeric: 'tabular-nums' }}>−{recurBase - recurTotal}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{t('booking.price.total')}</span>
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: recurTotal })}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - recurTotal) })}</span>
+                  </div>
+                </div>
+              )}
             </div>
             {!isTrial && !isReschedule && (bookingCost > balance || recurTotal > balance) && (
               <div style={{ background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px', fontSize: '13px', color: '#e05a4a' }}>
