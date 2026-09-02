@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { meetsLeadTime, isWithin24Hours } from '@/lib/booking-time'
 import { BASE_POINTS, OFF_PEAK_DISCOUNT, priceLesson, type PriceBreakdown } from '@/lib/points'
 import { zoneTypeForSlug } from '@/lib/zones'
@@ -279,6 +279,11 @@ export default function BookingPage() {
   // choosing several lessons means comparing them, and a pager hides September
   // the moment you look at October -- exactly when the comparison matters.
   const [monthsShown, setMonthsShown] = useState(2)
+  // Seven columns across a 390px phone is about 47px a cell -- too narrow for a
+  // time and a seat count, let alone two of them. On a phone the cell carries
+  // only the day and how its slots stand; the slots themselves open underneath.
+  const [isPhone, setIsPhone] = useState(false)
+  const [openDay, setOpenDay] = useState<string | null>(null)
   const [lessonLength, setLessonLength] = useState<30 | 60>(30)
   const [hourSlots, setHourSlots] = useState<any[]>([])
   const [hourLoading, setHourLoading] = useState(false)
@@ -329,6 +334,15 @@ export default function BookingPage() {
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupFlow, selectedStudent, monthsShown, cartRefresh])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(max-width: 640px)')
+    const sync = () => setIsPhone(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   useEffect(() => {
     setSelectedHour(null)
@@ -611,6 +625,30 @@ export default function BookingPage() {
     const pr = priceAt(x.date, x.time, 30)
     return a + (pr ? pr.base * pr.seats : x.points)
   }, 0)
+
+  /** Add or remove one group lesson. The desktop cell and the phone row are two
+   *  ways of pressing the same thing, so they must not drift apart. */
+  function toggleSlot(ds: string, dt: Date, sl: any) {
+    if (sl.full || sl.already_booked) return
+    const c = coaches.find(x => x.id === sl.coach_id)
+    if (!c) return
+    const key = `${ds}|${sl.time}`
+    const cost = priceAt(ds, sl.time, 30)?.charged ?? 0
+    // The slot is also remembered as "the one on screen", so the repeat-weekly
+    // shortcut knows which weekday and hour it is being asked to repeat.
+    setSelectedDate(dt)
+    setSelectedCoach(c)
+    setSelectedSlot({ time: sl.time, label: formatTime(sl.time), available: true, enrolled: sl.enrolled, max: sl.max, session_id: sl.session_id, within24h: isWithin24Hours(ds, sl.time) })
+    setRecurOpen(false); setRecurMsg('')
+    setRecurSel(prev => {
+      const n = new Map(prev)
+      if (n.has(key)) { n.delete(key); return n }
+      const spent = [...n.values()].reduce((a, x) => a + x.points, 0)
+      if (spent + cost > balance) return n
+      n.set(key, { date: ds, time: sl.time, label: formatTime(sl.time), points: cost })
+      return n
+    })
+  }
   const basket = [...recurSel.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
   const basketTotal = basket.reduce((a, x) => a + x.points, 0)
   // One time across the whole batch, or several? It decides whether the summary
@@ -1601,68 +1639,116 @@ export default function BookingPage() {
                             const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
                             const isPast = ds < todayDs
                             const isToday2 = ds === todayDs
+                            const open = openDay === ds
+                            const anyPicked = slots.some((sl: any) => recurSel.has(`${ds}|${sl.time}`))
+                            // The panel belongs under the week the day is in, so the
+                            // months stay one continuous column.
+                            const endsWeek = (getFirstDayOfMonth(y, m) + i + 1) % 7 === 0 || i + 1 === getDaysInMonth(y, m)
+                            const weekStart = i - ((getFirstDayOfMonth(y, m) + i) % 7)
+                            const openInThisWeek = isPhone && openDay != null && openDay.startsWith(`${y}-${mm2}-`)
+                              && (() => { const od = Number(openDay.slice(-2)) - 1; return od >= weekStart && od <= i })()
+                            const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)) : []
                             return (
-                              <div key={ds} style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
-                                <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                  {slots.map((sl: any) => {
-                                    const w24 = isWithin24Hours(ds, sl.time)
-                                    const key = `${ds}|${sl.time}`
-                                    const inBasket = recurSel.has(key)
-                                    const price = priceAt(ds, sl.time, 30)
-                                    const cost = price?.charged ?? 0
-                                    // A lesson the remaining balance cannot cover is
-                                    // refused at the tick, not at Confirm, where the
-                                    // parent has already chosen a dozen of them.
-                                    const affordable = inBasket || basketTotal + cost <= balance
-                                    const clickable = !sl.full && !sl.already_booked && affordable
-                                    const cellBorder = inBasket ? GOLD : sl.full || sl.already_booked ? 'rgba(255,255,255,0.06)' : !affordable ? 'rgba(255,255,255,0.10)' : myBandColor + '55'
-                                    return (
-                                      <button key={sl.coach_id + sl.time}
-                                        onClick={() => {
-                                          if (sl.full || sl.already_booked) return
-                                          const c = coaches.find(x => x.id === sl.coach_id)
-                                          if (!c) return
-                                          // Ticking is the booking now. The slot is also
-                                          // remembered as "the one on screen", so the
-                                          // repeat-weekly shortcut below knows which
-                                          // weekday and hour it is being asked to repeat.
-                                          setSelectedDate(dt)
-                                          setSelectedCoach(c)
-                                          setSelectedSlot({ time: sl.time, label: formatTime(sl.time), available: true, enrolled: sl.enrolled, max: sl.max, session_id: sl.session_id, within24h: w24 })
-                                          setRecurOpen(false); setRecurMsg('')
-                                          setRecurSel(prev => {
-                                            const n = new Map(prev)
-                                            if (n.has(key)) { n.delete(key); return n }
-                                            if (!affordable) return n
-                                            n.set(key, { date: ds, time: sl.time, label: formatTime(sl.time), points: cost })
-                                            return n
-                                          })
-                                        }}
-                                        disabled={!clickable}
-                                        style={{
-                                          padding: '4px 2px', borderRadius: '5px', textAlign: 'center',
-                                          border: `2px ${!affordable && !inBasket && !sl.full && !sl.already_booked ? 'dashed' : 'solid'} ${cellBorder}`,
-                                          background: inBasket ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
-                                          cursor: clickable ? 'pointer' : 'not-allowed',
-                                        }}>
-                                        {/* Each of the seven columns is about 47px on a phone, so the
-                                            time and the seat count get a line each. They were side by
-                                            side with no whitespace between the two spans -- which gives
-                                            the browser nowhere to break, so "4 left" was painted outside
-                                            the cell rather than wrapped inside it. */}
-                                        <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 700, letterSpacing: '-0.2px', color: inBasket ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
-                                          <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{inBasket ? '✓ ' : ''}{formatTimeCompact(sl.time)}</span>
-                                          <span style={{ display: 'block', fontWeight: 600, marginTop: '1px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : inBasket ? GOLD : !affordable ? 'rgba(255,255,255,0.25)' : myBandColor }}>
-                                            {sl.already_booked ? '✓' : sl.full ? t('booking.full') : !affordable ? t('booking.group.tooDear') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
-                                          </span>
-                                          {w24 && clickable ? <span style={{ display: 'block', color: '#c9a84c' }}>24h</span> : null}
-                                        </span>
-                                      </button>
-                                    )
-                                  })}
-                                </div>
+                              <React.Fragment key={ds}>
+                              <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: isPhone ? '0' : '5px 3px', minHeight: isPhone ? '52px' : '76px', minWidth: 0 }}>
+                                {isPhone ? (
+                                  <button onClick={() => { if (slots.length === 0) return; setOpenDay(open ? null : ds) }}
+                                    disabled={slots.length === 0}
+                                    style={{ width: '100%', minHeight: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'transparent', border: 'none', borderRadius: '8px', padding: '4px 0', cursor: slots.length === 0 ? 'default' : 'pointer' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{i + 1}</span>
+                                    <span style={{ display: 'flex', gap: '3px', height: '6px', alignItems: 'center' }}>
+                                      {slots.map((sl: any) => {
+                                        const picked = recurSel.has(`${ds}|${sl.time}`)
+                                        const gone = sl.full || sl.already_booked
+                                        return <span key={sl.coach_id + sl.time} style={{ width: '6px', height: '6px', borderRadius: '50%', background: picked ? GOLD : gone ? 'transparent' : myBandColor, border: gone ? '1px solid rgba(255,255,255,0.28)' : 'none' }} />
+                                      })}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <>
+                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                      {slots.map((sl: any) => {
+                                        const w24 = isWithin24Hours(ds, sl.time)
+                                        const key = `${ds}|${sl.time}`
+                                        const inBasket = recurSel.has(key)
+                                        const cost = priceAt(ds, sl.time, 30)?.charged ?? 0
+                                        const affordable = inBasket || basketTotal + cost <= balance
+                                        const clickable = !sl.full && !sl.already_booked && affordable
+                                        const cellBorder = inBasket ? GOLD : sl.full || sl.already_booked ? 'rgba(255,255,255,0.06)' : !affordable ? 'rgba(255,255,255,0.10)' : myBandColor + '55'
+                                        return (
+                                          <button key={sl.coach_id + sl.time}
+                                            onClick={() => toggleSlot(ds, dt, sl)}
+                                            disabled={!clickable}
+                                            style={{
+                                              padding: '4px 2px', borderRadius: '5px', textAlign: 'center',
+                                              border: `2px ${!affordable && !inBasket && !sl.full && !sl.already_booked ? 'dashed' : 'solid'} ${cellBorder}`,
+                                              background: inBasket ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
+                                              cursor: clickable ? 'pointer' : 'not-allowed',
+                                            }}>
+                                            {/* Each of the seven columns is about 47px on a phone, so the
+                                                time and the seat count get a line each. They were side by
+                                                side with no whitespace between the two spans -- which gives
+                                                the browser nowhere to break, so "4 left" was painted outside
+                                                the cell rather than wrapped inside it. */}
+                                            <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 700, letterSpacing: '-0.2px', color: inBasket ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                              <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{inBasket ? '✓ ' : ''}{formatTimeCompact(sl.time)}</span>
+                                              <span style={{ display: 'block', fontWeight: 600, marginTop: '1px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : inBasket ? GOLD : !affordable ? 'rgba(255,255,255,0.25)' : myBandColor }}>
+                                                {sl.already_booked ? '✓' : sl.full ? t('booking.full') : !affordable ? t('booking.group.tooDear') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
+                                              </span>
+                                              {w24 && clickable ? <span style={{ display: 'block', color: '#c9a84c' }}>24h</span> : null}
+                                            </span>
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  </>
+                                )}
                               </div>
+                              {isPhone && endsWeek && openInThisWeek && (
+                                <div style={{ gridColumn: '1 / -1', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '12px 13px', margin: '2px 0 4px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '10px', gap: '8px' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
+                                      {new Date(openDay! + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                                    </span>
+                                    <button onClick={() => setOpenDay(null)} style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer' }}>{t('common.close')}</button>
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {openSlots.map((sl: any) => {
+                                      const key = `${openDay}|${sl.time}`
+                                      const inBasket = recurSel.has(key)
+                                      const pr = priceAt(openDay!, sl.time, 30)
+                                      const cost = pr?.charged ?? 0
+                                      const affordable = inBasket || basketTotal + cost <= balance
+                                      const clickable = !sl.full && !sl.already_booked && affordable
+                                      const w24 = isWithin24Hours(openDay!, sl.time)
+                                      return (
+                                        <button key={sl.coach_id + sl.time}
+                                          onClick={() => toggleSlot(openDay!, new Date(openDay! + 'T00:00:00'), sl)}
+                                          disabled={!clickable}
+                                          style={{ minHeight: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '10px 12px', borderRadius: '10px', textAlign: 'left',
+                                            border: `2px solid ${inBasket ? GOLD : clickable ? myBandColor + '55' : 'rgba(255,255,255,0.07)'}`,
+                                            background: inBasket ? `${GOLD}20` : clickable ? myBandColor + '14' : 'rgba(255,255,255,0.03)',
+                                            cursor: clickable ? 'pointer' : 'not-allowed' }}>
+                                          <span>
+                                            <span style={{ display: 'block', fontSize: '14.5px', fontWeight: 700, color: inBasket ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>{formatTime(sl.time)}</span>
+                                            <span style={{ display: 'block', fontSize: '11px', marginTop: '2px', color: clickable ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)' }}>
+                                              {sl.already_booked ? t('booking.booked') : sl.full ? t('booking.full') : !affordable ? t('booking.group.tooDear') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
+                                              {w24 && clickable ? ' · 24h' : ''}
+                                            </span>
+                                          </span>
+                                          <span style={{ display: 'flex', alignItems: 'center', gap: '9px', flexShrink: 0 }}>
+                                            {pr && <PriceTag price={pr} dim={!clickable} />}
+                                            <span style={{ width: '26px', height: '26px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700,
+                                              border: inBasket ? 'none' : '1.5px solid rgba(255,255,255,0.25)', background: inBasket ? GOLD : 'transparent', color: NAVY }}>{inBasket ? '✓' : ''}</span>
+                                          </span>
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              </React.Fragment>
                             )
                           })}
                         </div>
