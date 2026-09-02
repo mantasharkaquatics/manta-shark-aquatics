@@ -229,7 +229,12 @@ export async function POST(req: NextRequest) {
     })
     console.log(`✅ ${points} points credited; balance ${res.balance}`)
 
-    await supabase.from('purchases').insert({
+    // The unique index on stripe_session_id is what actually stops a repeated
+    // delivery from recording the same money twice; this only has to notice
+    // that it fired. A conflict here means the purchase and its invoice were
+    // already written, so there is nothing left to do -- carrying on would send
+    // the family a second invoice for one payment.
+    const { error: purchaseErr } = await supabase.from('purchases').insert({
       parent_id,
       lesson_package_id: null,
       amount_cents,
@@ -237,6 +242,15 @@ export async function POST(req: NextRequest) {
       stripe_session_id: session.id,
       paid_at: new Date().toISOString(),
     })
+    if (purchaseErr) {
+      if (purchaseErr.code === '23505') {
+        console.log(`\u21a9\ufe0e purchase for session ${session.id} was already recorded`)
+        return NextResponse.json({ received: true })
+      }
+      // Not a duplicate. The points are already in the wallet and that is the
+      // part the family can see, so this is loud but not fatal.
+      console.error('Purchase row insert failed:', purchaseErr.message)
+    }
 
     const pointsLabel = `${points.toLocaleString('en-US')} lesson points`
 

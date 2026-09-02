@@ -70,6 +70,35 @@ for (const p of purchases) {
   console.log()
 }
 
+// Same session, more than one purchase row. `purchases` has a UNIQUE on
+// stripe_payment_intent_id, which the points webhook does not set -- it writes
+// stripe_session_id, which has no constraint at all. So a second delivery of
+// the same event writes a second row, and the invoice that follows it is
+// written a second time too.
+const dupes = [...rowsPerSessionOf(purchases)].filter(([, n]) => n > 1)
+if (dupes.length) {
+  console.log('⚠️  同一個 session 有多筆 purchases：')
+  for (const [s, n] of dupes) console.log(`    ${n} 筆  ${s}`)
+  console.log()
+}
+
+// The invoice is the part the family actually sees.
+try {
+  const parents = [...new Set(purchases.map((p) => p.parent_id))]
+  const invoices = await rest(`invoices?select=id,invoice_number,parent_id,amount,created_at&parent_id=in.(${parents.join(',')})&order=created_at.asc`)
+  console.log(`invoices: ${invoices.length} 筆`)
+  for (const i of invoices) console.log(`    ${i.created_at}  ${i.invoice_number}  $${i.amount}`)
+  console.log()
+} catch (e) {
+  console.log('（讀不到 invoices：' + e.message.split('\n')[0] + '）\n')
+}
+
+function rowsPerSessionOf(rows) {
+  const m = new Map()
+  for (const r of rows) m.set(r.stripe_session_id, (m.get(r.stripe_session_id) || 0) + 1)
+  return m
+}
+
 if (delIdx === -1) {
   console.log('唯讀模式。要刪除請加： --delete <id> <id> …\n')
   process.exit(0)
@@ -82,8 +111,24 @@ const known = new Set(purchases.map((p) => p.id))
 const unknown = ids.filter((i) => !known.has(i))
 if (unknown.length) { console.error('這些 id 不在 purchases 裡：\n  ' + unknown.join('\n  ')); process.exit(1) }
 
-const guarded = ids.filter((i) => bySession.get(purchases.find((p) => p.id === i).stripe_session_id))
-if (guarded.length) { console.error('拒絕刪除：這些筆有對應的點數帳本，刪了帳就對不起來\n  ' + guarded.join('\n  ')); process.exit(1) }
+// The guard is about the SESSION keeping a record, not about the row. Where a
+// session was credited and has two purchase rows, one of them is a duplicate
+// and deleting it loses nothing. What must never happen is deleting the last
+// remaining row for a session whose points were credited: the ledger would then
+// show points arriving with no purchase behind them.
+const willRemain = rowsPerSessionOf(purchases)
+for (const i of ids) {
+  const s = purchases.find((p) => p.id === i).stripe_session_id
+  willRemain.set(s, willRemain.get(s) - 1)
+}
+const guarded = ids.filter((i) => {
+  const s = purchases.find((p) => p.id === i).stripe_session_id
+  return bySession.get(s) && willRemain.get(s) < 1
+})
+if (guarded.length) {
+  console.error('拒絕刪除：這些 session 的點數已經入帳，刪掉最後一筆會讓帳本上的點數沒有對應的付款紀錄\n  ' + guarded.join('\n  '))
+  process.exit(1)
+}
 
 for (const id of ids) {
   await rest(`purchases?id=eq.${id}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
