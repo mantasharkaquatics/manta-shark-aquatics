@@ -23,6 +23,10 @@ import NoticeModal from '@/components/NoticeModal'
 import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
+/** One lesson in the batch: a date AND the time it starts, because a batch
+ *  may span more than one time of day. */
+type PlanSlot = { date: string; time: string; label: string; points: number }
+
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
@@ -281,7 +285,11 @@ export default function BookingPage() {
   const [selectedHour, setSelectedHour] = useState<any | null>(null)
   const [recurOpen, setRecurOpen] = useState(false)
   const [recurList, setRecurList] = useState<any[]>([])
-  const [recurSel, setRecurSel] = useState<Set<string>>(new Set())
+  // The basket, keyed date|time. It is keyed by SLOT rather than by date, and it
+  // outlives the panel: a family who wants Monday afternoons and Wednesday
+  // mornings is describing one set of lessons, and used to have to book it
+  // twice because picking the second weekday threw away the first.
+  const [recurSel, setRecurSel] = useState<Map<string, PlanSlot>>(new Map())
   const [recurQuote, setRecurQuote] = useState<Map<string, number>>(new Map())
   const [recurBusy, setRecurBusy] = useState(false)
   const [recurMsg, setRecurMsg] = useState('')
@@ -291,7 +299,7 @@ export default function BookingPage() {
   // selection is now carried into step 4 like every other booking: recurPlan is
   // what step 4 is confirming, and nothing is written until you press Confirm
   // there.
-  const [recurPlan, setRecurPlan] = useState<string[]>([])
+  const [recurPlan, setRecurPlan] = useState<PlanSlot[]>([])
   const [recurBooked, setRecurBooked] = useState(0)
   const [recurSkipped, setRecurSkipped] = useState(0)
 
@@ -577,7 +585,13 @@ export default function BookingPage() {
     ? priceAt(formatDateLA(selectedDate), selectedSlot.time)
     : null
   const bookingCost = bookingPrice?.charged ?? 0
-  const recurTotal = recurPlan.reduce((a, d) => a + (recurQuote.get(d) ?? 0), 0)
+  const recurTotal = recurPlan.reduce((a, x) => a + x.points, 0)
+  const basket = [...recurSel.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+  const basketTotal = basket.reduce((a, x) => a + x.points, 0)
+  // One time across the whole batch, or several? It decides whether the summary
+  // can print a single Time row, and whether a chip needs to say the hour.
+  const basketTimes = new Set(basket.map(x => x.time))
+  const planTimes = new Set(recurPlan.map(x => x.time))
   const balanceAfter = Math.max(0, balance - bookingCost)
 
   // Every "you cannot pay for this" notice offers the same way out.
@@ -613,12 +627,19 @@ export default function BookingPage() {
     try {
       const res = await fetch('/api/bookings/recurring', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, dates: recurPlan }),
+        body: JSON.stringify({
+          action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id,
+          slots: recurPlan.map(x => ({ date: x.date, start_time: x.time })),
+        }),
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) { setNotice(tErr(j.error, 'booking.recur.err.commit')); setSubmitting(false); return }
       setRecurBooked(j.booked ?? recurPlan.length)
-      setRecurSkipped((j.skipped || []).filter((x: any) => recurPlan.includes(x.date)).length)
+      const asked = new Set(recurPlan.map(x => `${x.date}|${x.time}`))
+      setRecurSkipped((j.skipped || []).filter((x: any) => asked.has(`${x.date}|${String(x.start_time || '').slice(0, 5)}`)).length)
+      // The basket has been spent. Leaving it filled would offer to book the
+      // same lessons again from the success screen.
+      setRecurSel(new Map())
       setCartRefresh(n => n + 1)
       reloadWallet()
       setSuccess(true)
@@ -628,12 +649,14 @@ export default function BookingPage() {
   /* Step 3 -> step 4. With the weekly panel open and dates ticked, the summary
      is about those dates; otherwise it is the single slot, and any stale plan
      has to be dropped or step 4 would confirm a term the visitor backed out of. */
-  const canContinue = !!selectedSlot && !(recurOpen && recurSel.size === 0)
+  // With anything in the basket the visitor can go on whether or not a single
+  // slot is highlighted -- the basket is the booking now.
+  const canContinue = recurSel.size > 0 || (!!selectedSlot && !recurOpen)
 
   function goToConfirm() {
+    if (recurSel.size > 0) { setRecurPlan(basket); setRecurOpen(false); setStep(4); return }
     if (!selectedSlot) return
-    if (recurOpen && recurSel.size > 0) { setRecurPlan([...recurSel].sort()); setRecurOpen(false) }
-    else setRecurPlan([])
+    setRecurPlan([])
     setStep(4)
   }
 
@@ -864,9 +887,10 @@ export default function BookingPage() {
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '20px' }}>
-              {recurPlan.map(d => (
-                <span key={d} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
-                  {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              {recurPlan.map(x => (
+                <span key={x.date + x.time} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                  {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {planTimes.size > 1 ? ` · ${x.label}` : ''}
                 </span>
               ))}
             </div>
@@ -1606,6 +1630,35 @@ export default function BookingPage() {
                       <span style={{ fontSize: '12px', fontWeight: 700, color: GOLD }}>{t('booking.group.ready')}</span>
                     </div>
                   )}
+                  {/* The basket. Without it, picking a second weekday looks like
+                      it replaced the first, and the family books twice. */}
+                  {recurSel.size > 0 && !recurOpen && (
+                    <div style={{ marginTop: '10px', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>
+                          {t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
+                        </span>
+                        <button onClick={() => setRecurSel(new Map())}
+                          style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', textDecoration: 'underline' }}>
+                          {t('booking.recur.clearAll')}
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                        {basket.map(x => (
+                          <button key={x.date + x.time}
+                            onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(`${x.date}|${x.time}`); return n })}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
+                            {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {basketTimes.size > 1 ? ` · ${x.label}` : ''}
+                            <span aria-hidden style={{ color: 'rgba(255,255,255,0.4)' }}>×</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginTop: '10px', lineHeight: 1.6 }}>
+                        {t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
+                      </div>
+                    </div>
+                  )}
                   {recurMsg && (
                     <div style={{ marginTop: '10px', background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.35)', borderRadius: '10px', padding: '12px 16px', color: '#7fd8a0', fontSize: '13px', fontWeight: 600 }}>{recurMsg}</div>
                   )}
@@ -1631,15 +1684,20 @@ export default function BookingPage() {
                             // covers, cheapest arithmetic first: running total,
                             // in date order, stopping at the balance.
                             const bal = j.balance ?? balance
-                            const pre = new Set<string>()
-                            let spent = 0
-                            for (const c of cands) {
-                              if (c.status !== 'ok') continue
-                              const cost = quote.get(c.date) ?? 0
-                              if (spent + cost > bal) break
-                              pre.add(c.date); spent += cost
-                            }
-                            setRecurSel(pre)
+                            setRecurSel(prev => {
+                              const n = new Map(prev)
+                              let spent = [...n.values()].reduce((a, x) => a + x.points, 0)
+                              for (const c of cands) {
+                                if (c.status !== 'ok') continue
+                                const key = `${c.date}|${selectedSlot.time}`
+                                if (n.has(key)) continue
+                                const cost = quote.get(c.date) ?? 0
+                                if (spent + cost > bal) break
+                                n.set(key, { date: c.date, time: selectedSlot.time, label: selectedSlot.label, points: cost })
+                                spent += cost
+                              }
+                              return n
+                            })
                             setRecurOpen(true)
                           }
                         } catch { setRecurMsg(t('cart.err.network')) }
@@ -1657,7 +1715,7 @@ export default function BookingPage() {
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '12px' }}>{t('booking.recur.hint')}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '320px', overflowY: 'auto' }}>
                         {recurList.map((c: any) => {
-                          const on = recurSel.has(c.date)
+                          const on = recurSel.has(`${c.date}|${selectedSlot.time}`)
                           const selectable = c.status === 'ok'
                           const label = new Date(c.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                           const statusText = c.status === 'ok' ? t('booking.spotsLeft', { n: c.spots }) : c.status === 'full' ? t('booking.full') : c.status === 'booked' ? t('booking.booked') : c.status === 'time_off' ? t('booking.recur.status.timeOff') : c.status === 'too_soon' ? t('booking.recur.status.tooSoon') : t('booking.recur.status.noClass')
@@ -1665,14 +1723,19 @@ export default function BookingPage() {
                           return (
                             <button key={c.date} disabled={!selectable}
                               onClick={() => {
+                                const key = `${c.date}|${selectedSlot.time}`
                                 setRecurSel(prev => {
-                                  const n = new Set(prev)
-                                  if (n.has(c.date)) { n.delete(c.date); return n }
-                                  // Ticking a date the wallet cannot cover is
+                                  const n = new Map(prev)
+                                  if (n.has(key)) { n.delete(key); return n }
+                                  // Ticking a lesson the wallet cannot cover is
                                   // refused here rather than at Confirm, where
-                                  // the parent has already chosen 19 of them.
-                                  const spent = [...n].reduce((a, d) => a + (recurQuote.get(d) ?? 0), 0)
-                                  if (spent + cost <= balance) n.add(c.date)
+                                  // the parent has already chosen nineteen of
+                                  // them. The sum is over the WHOLE basket, not
+                                  // just this weekday's ticks.
+                                  const spent = [...n.values()].reduce((a, x) => a + x.points, 0)
+                                  if (spent + cost <= balance) {
+                                    n.set(key, { date: c.date, time: selectedSlot.time, label: selectedSlot.label, points: cost })
+                                  }
                                   return n
                                 })
                               }}
@@ -1691,27 +1754,37 @@ export default function BookingPage() {
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                         <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                          {t('booking.recur.usingPoints', { n: recurSel.size, points: [...recurSel].reduce((a, d) => a + (recurQuote.get(d) ?? 0), 0) })}
+                          {t('booking.recur.usingPoints', { n: recurSel.size, points: basketTotal })}
                         </span>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button onClick={() => {
+                              // Scoped to the weekday and time on screen. Clearing
+                              // here must not throw away the Monday picks a family
+                              // made before switching to Wednesday.
                               setRecurSel(prev => {
-                                if (prev.size > 0) return new Set<string>()
-                                const n = new Set<string>()
-                                let spent = 0
+                                const n = new Map(prev)
+                                const mine = recurList.filter((c: any) => c.status === 'ok' && n.has(`${c.date}|${selectedSlot.time}`))
+                                if (mine.length > 0) {
+                                  for (const c of mine) n.delete(`${c.date}|${selectedSlot.time}`)
+                                  return n
+                                }
+                                let spent = [...n.values()].reduce((a, x) => a + x.points, 0)
                                 for (const c of recurList) {
                                   if (c.status !== 'ok') continue
+                                  const key = `${c.date}|${selectedSlot.time}`
+                                  if (n.has(key)) continue
                                   const cost = recurQuote.get(c.date) ?? 0
                                   if (spent + cost > balance) break
-                                  n.add(c.date); spent += cost
+                                  n.set(key, { date: c.date, time: selectedSlot.time, label: selectedSlot.label, points: cost })
+                                  spent += cost
                                 }
                                 return n
                               })
                             }}
                             style={{ padding: '10px 16px', background: 'transparent', border: `1px solid ${GOLD}55`, borderRadius: '8px', color: GOLD, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                            {recurSel.size > 0 ? t('booking.recur.deselectAll') : t('booking.recur.selectAll')}</button>
-                          <button onClick={() => { setRecurOpen(false); setRecurMsg(''); setRecurPlan([]) }}
-                            style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
+                            {recurList.some((c: any) => recurSel.has(`${c.date}|${selectedSlot.time}`)) ? t('booking.recur.deselectAll') : t('booking.recur.selectAll')}</button>
+                          <button onClick={() => { setRecurOpen(false); setRecurMsg('') }}
+                            style={{ padding: '10px 16px', background: 'transparent', border: `1px solid ${GOLD}55`, borderRadius: '8px', color: GOLD, fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>{t('booking.recur.pickMore')}</button>
                         </div>
                       </div>
                     </div>
@@ -1721,7 +1794,7 @@ export default function BookingPage() {
             })()}
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]) }} style={{
+              <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()) }} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
@@ -1750,7 +1823,9 @@ export default function BookingPage() {
                 { label: t('booking.sum.swimmer'), value: selectedStudent?.full_name },
                 { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
                 { label: t('booking.sum.coach'), value: selectedCoach?.first_name },
-                { label: t('booking.sum.time'), value: selectedSlot?.label },
+                // Naming one hour above a batch that spans two of them tells the
+                // family the wrong time for half their lessons.
+                { label: t('booking.sum.time'), value: planTimes.size > 1 ? t('booking.sum.timeMultiple', { n: planTimes.size }) : recurPlan[0]?.label },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedCourse?.duration_minutes ?? 0 }) },
                 { label: t('booking.sum.pointsUsed'), value: t('points.unit', { n: recurTotal }) },
               ] : [
@@ -1789,9 +1864,10 @@ export default function BookingPage() {
                     {t('booking.recur.sumDates', { n: recurPlan.length })}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {recurPlan.map(d => (
-                      <span key={d} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
-                        {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {recurPlan.map(x => (
+                      <span key={x.date + x.time} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                        {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {planTimes.size > 1 ? ` · ${x.label}` : ''}
                       </span>
                     ))}
                   </div>
@@ -1848,7 +1924,7 @@ export default function BookingPage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => { setStep(3); if (recurPlan.length > 0) setRecurOpen(true) }} style={{
+              <button onClick={() => { setStep(3); setRecurPlan([]) }} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
