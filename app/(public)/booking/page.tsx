@@ -1760,7 +1760,10 @@ export default function BookingPage() {
                     : selectedCourse?.slug === '1on2' && selectedStudent2
                     ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
                     : selectedStudent?.full_name },
-                { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
+                // A Swim Assessment is booked as a 1-on-1 slot, so the course type
+                // behind it says "1-on-1 Private". Naming it that on the last screen
+                // before payment describes something the parent did not choose.
+                { label: t('booking.sum.course'), value: isTrial ? t('common.assessment') : (selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '') },
                 { label: t('booking.sum.coach'), value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
                 { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: t('booking.sum.time'), value: selectedSlot?.label },

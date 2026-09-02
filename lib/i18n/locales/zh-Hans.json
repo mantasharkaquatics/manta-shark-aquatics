@@ -117,6 +117,8 @@
   "assess.what.eyebrow": "水里会发生什么",
   "assess.what.title": "从等级 1 开始，循序渐进，找到目前合适的课程",
   "assess.what.why": "为什么要从最基础开始？因为这样不会漏掉任何一项，也不会用猜的。我们要的不是「这孩子游得还不错」这种感觉，而是明确知道下一堂课该从哪一项技能教起。",
+  "auth.hidePassword": "隐藏密码",
+  "auth.showPassword": "显示密码",
   "booking.addToCart": "加入购物车 +",
   "booking.addingToCart": "加入中…",
   "booking.assessmentMeta": "30 分钟 · 1 对 1 · 每位学员限一次",

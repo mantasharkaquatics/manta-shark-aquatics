@@ -139,7 +139,21 @@ export async function POST(req: NextRequest) {
       .not('current_level', 'is', null)
       .limit(1)
     if (!levelled || levelled.length === 0) {
-      return NextResponse.json({ error: 'NEEDS_ASSESSMENT' }, { status: 400 })
+      // An assessment already on the calendar counts. The gate exists so nobody
+      // pays for points they cannot spend -- but a family who has booked the
+      // assessment will have a level within days, and telling them to "book a
+      // Swim Assessment first" when they have just booked one is the software
+      // arguing with something the parent watched itself do.
+      const { data: booked } = await svcForGate
+        .from('bookings')
+        .select('id')
+        .eq('parent_id', parent.id)
+        .eq('is_trial', true)
+        .neq('status', 'cancelled')
+        .limit(1)
+      if (!booked || booked.length === 0) {
+        return NextResponse.json({ error: 'NEEDS_ASSESSMENT' }, { status: 400 })
+      }
     }
 
     const session = await stripe.checkout.sessions.create({
