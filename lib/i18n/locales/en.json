@@ -190,6 +190,7 @@
   "booking.price.offPeak": "Off-peak time",
   "booking.price.total": "Points for this lesson",
   "booking.price.vip": "VIP {n}",
+  "booking.recur.areBookedForN": "are booked for {n} lessons each",
   "booking.recur.basket": "Selected: {n} lessons · {points} pts",
   "booking.recur.basketCount": "({n} selected)",
   "booking.recur.basketHint": "Pick another day or time and it joins this list. Everything here is booked together, in one charge. Balance after: {points} pts.",

@@ -570,14 +570,19 @@ export default function BookingPage() {
   // Hour-ness comes from the length toggle, not from a slot already being
   // picked: the hour list has to price itself before anything is selected.
   const isHourLesson = lessonLength === 60
+  // Two of your own swimmers in a 1-on-2 is one decision, one price and one
+  // charge, so it repeats a weekly slot exactly as the others do. A CROSS-family
+  // 1-on-2 does not: it settles only when the other family accepts, within
+  // fifteen minutes, which is a per-lesson negotiation and cannot be batched.
+  const siblingPair = selectedCourse?.slug === '1on2'
+    && !!selectedStudent2 && !(selectedStudent2 as any).isPartner
   // Which flows book a BATCH. A 1-on-1 family repeats a weekly slot exactly as
   // a group family does, and at a higher price per lesson. Left out on purpose:
-  // an assessment (one per swimmer), a reschedule (moving one lesson), the
+  // an assessment (one per swimmer), a reschedule (moving one lesson), and the
   // 60-minute option (a batch carries one length, and silently emptying the
-  // basket when the toggle moves is worse than not offering it), and any 1-on-2
-  // (the cross-family one settles per lesson on the other family's acceptance).
+  // basket when the toggle moves is worse than not offering it).
   const batchFlow = !isTrial && !isReschedule
-    && (groupFlow || (selectedCourse?.slug === '1on1' && !isHourLesson))
+    && (groupFlow || ((selectedCourse?.slug === '1on1' || siblingPair) && !isHourLesson))
 
   const lessonsDone = wallet?.lessonsCompleted ?? 0
   const balance = wallet?.balance ?? 0
@@ -738,6 +743,7 @@ export default function BookingPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id,
+          student2_id: siblingPair ? selectedStudent2!.id : null,
           course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
           slots: recurPlan.map(x => ({ date: x.date, start_time: x.time })),
         }),
@@ -991,7 +997,9 @@ export default function BookingPage() {
               {t('booking.recur.successBooked', { n: recurBooked })}
             </h2>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
-              <strong style={{ color: '#fff' }}>{selectedStudent?.full_name}</strong> {t('booking.recur.isBookedForN', { n: recurBooked })}
+              <strong style={{ color: '#fff' }}>
+                {siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name}
+              </strong> {t(siblingPair ? 'booking.recur.areBookedForN' : 'booking.recur.isBookedForN', { n: recurBooked })}
             </p>
             <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '12px' }}>
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
@@ -1921,6 +1929,7 @@ export default function BookingPage() {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             action: 'preview', student_id: selectedStudent.id, coach_id: selectedCoach.id,
+                            student2_id: siblingPair ? selectedStudent2!.id : null,
                             start_time: selectedSlot.time, start_date: formatDateLA(selectedDate),
                             course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
                           }),
@@ -2117,7 +2126,8 @@ export default function BookingPage() {
             <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s5.title')} />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
               {(recurPlan.length > 0 ? [
-                { label: t('booking.sum.swimmer'), value: selectedStudent?.full_name },
+                { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
+                  value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
                 { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
                 { label: t('booking.sum.coach'), value: selectedCoach?.first_name },
                 // Naming one hour above a batch that spans two of them tells the

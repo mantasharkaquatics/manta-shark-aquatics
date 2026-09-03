@@ -40,7 +40,7 @@ const addDays = (ds: string, n: number) => {
 
 type Cand = { date: string; status: 'ok' | 'full' | 'booked' | 'time_off' | 'no_class' | 'conflict' | 'too_soon'; spots: number }
 
-async function buildCandidates(svc: any, coachId: string, ct: any, studentId: string, level: number, startTime: string, startDate: string, minutes: number): Promise<Cand[]> {
+async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number): Promise<Cand[]> {
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
   // Horizon follows the START DATE's year, not today's: the calendar allows
@@ -90,7 +90,7 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
   let bookedSessIds = new Set<string>()
   if (matchingSessIds.length > 0) {
     const { data: myB } = await svc.from('bookings').select('class_session_id')
-      .in('class_session_id', matchingSessIds).eq('student_id', studentId)
+      .in('class_session_id', matchingSessIds).in('student_id', studentIds)
       .in('status', ['confirmed', 'completed', 'pending_payment', 'in_cart'])
     bookedSessIds = new Set((myB || []).map((b: any) => b.class_session_id))
   }
@@ -122,7 +122,10 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
     const own = sameSlot.find((s: any) => s.course_type_id === ct.id)
     if (own && bookedSessIds.has(own.id)) return { date: ds, status: 'booked' as const, spots: Math.max(0, own.max_students - own.enrolled_count) }
     const enrolled = own ? own.enrolled_count : 0
-    if (enrolled >= ct.max_students) return { date: ds, status: 'full' as const, spots: 0 }
+    // Two siblings in a 1-on-2 need both seats on the SAME date, so a class
+    // with one seat left is full for them even though it is open for someone
+    // booking alone.
+    if (enrolled + seats > ct.max_students) return { date: ds, status: 'full' as const, spots: Math.max(0, ct.max_students - enrolled) }
     return { date: ds, status: 'ok' as const, spots: ct.max_students - enrolled }
   })
 }
@@ -137,16 +140,18 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
  * later dates at the tier the family will have reached by then would quote a
  * discount they have not earned yet and cannot be held to.
  */
-function priceDates(slug: string, dates: string[], startTime: string, lessonsDone: number, minutes: number) {
+function priceDates(slug: string, dates: string[], startTime: string, lessonsDone: number, minutes: number, seats: number) {
   const perDate = new Map<string, number>()
   let total = 0
   for (const date of dates) {
     const pr = priceLesson({
       courseSlug: slug, minutes, lessonsCompleted: lessonsDone,
-      sessionDate: date, startTime, seats: 1,
+      sessionDate: date, startTime, seats,
     })
-    perDate.set(date, pr.perSeat)
-    total += pr.perSeat
+    // What the family pays for that date. Two siblings in one lesson are one
+    // number on the grid, because they are one decision and one charge.
+    perDate.set(date, pr.charged)
+    total += pr.charged
   }
   return { perDate, total }
 }
@@ -161,18 +166,23 @@ const slotKey = (s: Slot) => `${s.date}|${s.time}`
  * priced slot by slot -- averaging or taking the first would quote a figure no
  * single lesson costs.
  */
-function priceSlots(slug: string, slots: Slot[], lessonsDone: number, minutes: number) {
+function priceSlots(slug: string, slots: Slot[], lessonsDone: number, minutes: number, seats: number) {
+  // perSlot is what the LESSON costs the family (both seats of a sibling
+  // 1-on-2); perSeat is what one booking row carries, so cancelling one
+  // swimmer refunds exactly that swimmer.
   const perSlot = new Map<string, number>()
+  const perSeat = new Map<string, number>()
   let total = 0
   for (const s of slots) {
     const pr = priceLesson({
       courseSlug: slug, minutes, lessonsCompleted: lessonsDone,
-      sessionDate: s.date, startTime: s.time, seats: 1,
+      sessionDate: s.date, startTime: s.time, seats,
     })
-    perSlot.set(slotKey(s), pr.perSeat)
-    total += pr.perSeat
+    perSlot.set(slotKey(s), pr.charged)
+    perSeat.set(slotKey(s), pr.perSeat)
+    total += pr.charged
   }
-  return { perSlot, total }
+  return { perSlot, perSeat, total }
 }
 
 type SessionRow = { id: string; session_date: string; start_time: string; enrolled_count: number; max_students: number }
@@ -199,8 +209,10 @@ export async function POST(req: NextRequest) {
   if (!['1on1', '1on2', '1on4'].includes(course_slug))
     return NextResponse.json({ error: 'Unsupported course type' }, { status: 400 })
   // A cross-family 1-on-2 settles when the OTHER family accepts, inside fifteen
-  // minutes. That cannot be batched, so this endpoint only ever books a 1-on-2
-  // for one swimmer on the requesting account.
+  // minutes, and cannot be batched -- so the only 1-on-2 this endpoint books is
+  // two swimmers on the REQUESTING account, both seats paid here. A 1-on-2 with
+  // one swimmer would be half a cross-family booking with no other family in
+  // it, so it is refused rather than quietly sold.
   const { data: ct } = await svc.from('course_types')
     .select('id, name, slug, duration_minutes, max_students').eq('slug', course_slug).single()
   if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
@@ -218,17 +230,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
   const level = Number(student.current_level)
 
+  let student2: { id: string; full_name: string } | null = null
+  if (course_slug === '1on2') {
+    const id2 = body.student2_id
+    if (typeof id2 !== 'string' || !id2 || id2 === student_id)
+      return NextResponse.json({ error: 'A 1-on-2 booked here needs two swimmers on your account.' }, { status: 400 })
+    const { data: s2 } = await svc.from('students')
+      .select('id, parent_id, full_name, current_level').eq('id', id2).single()
+    if (!s2 || s2.parent_id !== parent.id)
+      return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+    if (s2.current_level == null)
+      return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
+    student2 = { id: s2.id, full_name: s2.full_name }
+  }
+  const studentIds = student2 ? [student.id, student2.id] : [student.id]
+  const seats = studentIds.length
+
   const today = getTodayLA()
 
   if (action === 'preview') {
     const { start_date } = body
     if (!start_date || !DATE_RE.test(start_date) || start_date < today)
       return NextResponse.json({ error: 'Invalid start date' }, { status: 400 })
-    const candidates = await buildCandidates(svc, coach_id, ct, student.id, level, start_time, start_date, minutes)
+    const candidates = await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats)
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
     // the parent ticks dates rather than quoting one figure and charging another.
-    const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, wallet.lessonsCompleted, minutes)
+    const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, wallet.lessonsCompleted, minutes, seats)
     return NextResponse.json({
       candidates: candidates.map(c => ({ ...c, points: perDate.get(c.date) ?? null })),
       balance: wallet.balance,
@@ -267,7 +295,7 @@ export async function POST(req: NextRequest) {
     const statusByKey = new Map<string, string>()
     for (const t of times) {
       const first = wanted.filter(w => w.time === t).map(w => w.date).sort()[0]
-      const cands = await buildCandidates(svc, coach_id, ct, student.id, level, t, first, minutes)
+      const cands = await buildCandidates(svc, coach_id, ct, studentIds, level, t, first, minutes, seats)
       for (const c of cands) statusByKey.set(`${c.date}|${t}`, c.status)
     }
 
@@ -282,7 +310,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, booked: 0, booked_slots: [], booked_dates: [], skipped })
 
     const wallet = await walletSummary(svc, parent.id)
-    const quote = priceSlots(ct.slug, okSlots, wallet.lessonsCompleted, minutes)
+    const quote = priceSlots(ct.slug, okSlots, wallet.lessonsCompleted, minutes, seats)
     if (wallet.balance < quote.total)
       return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
 
@@ -311,7 +339,7 @@ export async function POST(req: NextRequest) {
     for (const s2 of okSlots) {
       const ex = existingByKey.get(slotKey(s2))
       if (!ex) { needSession.push(s2); continue }
-      if (ex.enrolled_count + 1 > ex.max_students) { skipped.push({ date: s2.date, start_time: s2.time, reason: 'full' }); continue }
+      if (ex.enrolled_count + seats > ex.max_students) { skipped.push({ date: s2.date, start_time: s2.time, reason: 'full' }); continue }
       sessionIdByKey.set(slotKey(s2), ex.id)
     }
 
@@ -338,7 +366,7 @@ export async function POST(req: NextRequest) {
     // Slots can drop out between the quote and here -- a class filling up is the
     // ordinary case -- so the charge is rebuilt from what is actually being
     // booked, never from the earlier total.
-    const charge = priceSlots(ct.slug, booked, wallet.lessonsCompleted, minutes)
+    const charge = priceSlots(ct.slug, booked, wallet.lessonsCompleted, minutes, seats)
     const uniformTime = times.length === 1 ? times[0] : null
 
     // One debit for the batch, not one per lesson. A parent's statement should
@@ -373,12 +401,15 @@ export async function POST(req: NextRequest) {
       actor: 'system', note: why,
     }).catch(e => console.error('points rollback failed:', e))
 
+    // One row per swimmer per lesson. Both seats were paid in the single debit
+    // above, but each row carries its own seat's points so cancelling one
+    // sibling's lesson refunds that seat and leaves the other standing.
     const { error: bookErr } = await svc.from('bookings')
-      .insert(booked.map(s2 => ({
+      .insert(booked.flatMap(s2 => studentIds.map(sid => ({
         class_session_id: sessionIdByKey.get(slotKey(s2))!, parent_id: parent.id,
-        student_id: student.id, lesson_credit_id: null,
-        points_charged: charge.perSlot.get(slotKey(s2))!, status: 'confirmed',
-      })))
+        student_id: sid, lesson_credit_id: null,
+        points_charged: charge.perSeat.get(slotKey(s2))!, status: 'confirmed',
+      }))))
     if (bookErr) {
       await refundBatch('the lessons could not be booked')
       return NextResponse.json({ error: `Failed to book the lessons: ${bookErr.message}` }, { status: 500 })
@@ -390,7 +421,7 @@ export async function POST(req: NextRequest) {
       if (p2?.email) {
         await sendEmail({
           type: 'booking_series_confirmed', to: p2.email, parentName: p2.first_name,
-          studentName: student.full_name, courseName: ct.name,
+          studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name, courseName: ct.name,
           coachName: coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : '',
           dates: booked.map(s2 => s2.date),
           // With one time the email keeps its single Time row; with several it

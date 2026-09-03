@@ -2042,6 +2042,15 @@ export default function DashboardPage() {
                             const lateOk = late && m.points_charged != null && !m.partner_booking_id && m.course_slug !== '1on2' && (wallet?.forgiveness ?? 0) > 0
                             const cEnabled = (!late || lateOk) && cancellingId !== m.id && m.status !== 'pending_partner'
                             const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
+                            // Two siblings in a 1-on-2 are one lesson: cancelling
+                            // takes both seats and refunds both. This card groups
+                            // by session, so the pair's points are the group's --
+                            // quoting one seat's 47 for a 94-point refund would
+                            // have undersold every cancellation.
+                            const refundPts = (m.course_slug === '1on2' && !booking._hour)
+                              ? (booking._group || []).filter(x => x.course_slug === '1on2' && x.status !== 'cancelled')
+                                  .reduce((a, x) => a + (x.points_charged ?? 0), 0)
+                              : (m.points_charged ?? 0)
                             return (
                               <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
                                 <div style={{ minWidth: 0 }}>
@@ -2060,7 +2069,7 @@ export default function DashboardPage() {
                                     </button>
                                     {cEnabled ? (
                                       <button
-                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late, points: m.points_charged })}
+                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late, points: refundPts })}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {cancellingId === m.id ? '...' : late ? t('dash.up.cancelLate') : t('dash.up.cancel')}
                                       </button>

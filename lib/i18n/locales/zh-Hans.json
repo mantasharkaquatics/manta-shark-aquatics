@@ -190,6 +190,7 @@
   "booking.price.offPeak": "非高峰时段",
   "booking.price.total": "本次扣点",
   "booking.price.vip": "VIP {n}",
+  "booking.recur.areBookedForN": "的 {n} 堂课都已预约完成",
   "booking.recur.basket": "已选 {n} 堂 · {points} 点",
   "booking.recur.basketCount": "（已选定 {n} 堂课程）",
   "booking.recur.basketHint": "再挑别的日子或时段都会加进这份清单。这里的课会一起成立、一次扣点。预约后余额 {points} 点。",
