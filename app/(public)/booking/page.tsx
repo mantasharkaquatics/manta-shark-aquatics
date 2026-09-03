@@ -568,6 +568,14 @@ export default function BookingPage() {
   // Hour-ness comes from the length toggle, not from a slot already being
   // picked: the hour list has to price itself before anything is selected.
   const isHourLesson = lessonLength === 60
+  // Which flows book a BATCH. A 1-on-1 family repeats a weekly slot exactly as
+  // a group family does, and at a higher price per lesson. Left out on purpose:
+  // an assessment (one per swimmer), a reschedule (moving one lesson), the
+  // 60-minute option (a batch carries one length, and silently emptying the
+  // basket when the toggle moves is worse than not offering it), and any 1-on-2
+  // (the cross-family one settles per lesson on the other family's acceptance).
+  const batchFlow = !isTrial && !isReschedule
+    && (groupFlow || (selectedCourse?.slug === '1on1' && !isHourLesson))
 
   const lessonsDone = wallet?.lessonsCompleted ?? 0
   const balance = wallet?.balance ?? 0
@@ -721,6 +729,7 @@ export default function BookingPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id,
+          course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
           slots: recurPlan.map(x => ({ date: x.date, start_time: x.time })),
         }),
       })
@@ -1394,16 +1403,26 @@ export default function BookingPage() {
                   const available = isDateAvailable(date)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isTodayDate = date.toDateString() === today.toDateString()
+                  // This calendar has no per-slot cells to mark, so the day itself
+                  // carries the state: solid gold once a lesson on it is chosen,
+                  // dashed while the repeat shortcut is only proposing one. Without
+                  // this the shortcut's own hint pointed at cells that do not exist
+                  // here, and a paged calendar gave no sign which days were already
+                  // in the basket.
+                  const dsX = formatDateLA(date)
+                  const hasPick = batchFlow && [...recurSel.keys()].some(k => k.startsWith(dsX + '|'))
+                  const hasGhost = batchFlow && !hasPick && [...ghost.keys()].some(k => k.startsWith(dsX + '|'))
                   return (
                     <button key={i}
                       onClick={() => { if (available) { setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]) } }}
                       style={{
-                        padding: '8px 4px', borderRadius: '8px', border: 'none',
-                        background: isSelected ? GOLD : isTodayDate ? 'rgba(255,255,255,0.08)' : 'transparent',
-                        color: isSelected ? NAVY : available ? '#fff' : 'rgba(255,255,255,0.2)',
-                        fontSize: '13px', fontWeight: isSelected ? 700 : 400,
+                        padding: '8px 4px', borderRadius: '8px',
+                        border: hasPick ? `2px solid ${GOLD}` : hasGhost ? `2px dashed ${GOLD}99` : '2px solid transparent',
+                        background: isSelected ? GOLD : hasPick ? `${GOLD}20` : isTodayDate ? 'rgba(255,255,255,0.08)' : 'transparent',
+                        color: isSelected ? NAVY : hasPick ? GOLD : available ? '#fff' : 'rgba(255,255,255,0.2)',
+                        fontSize: '13px', fontWeight: isSelected || hasPick ? 700 : 400,
                         cursor: available ? 'pointer' : 'not-allowed',
-                        outline: isTodayDate && !isSelected ? `1px solid ${GOLD}40` : 'none',
+                        outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1px solid ${GOLD}40` : 'none',
                       }}
                     ><span>{i + 1}</span>{groupFlow && groupDates.includes(formatDateLA(date)) && !isSelected && (
                       <span style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', margin: '2px auto 0', backgroundColor: myBandColor }} />
@@ -1595,20 +1614,40 @@ export default function BookingPage() {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
-                    {(lessonLength === 60 ? [] : timeSlots).map(slot => (
-                      <button key={slot.time}
-                        onClick={() => { if (slot.available) setSelectedSlot(slot) }}
-                        disabled={!slot.available}
+                    {(lessonLength === 60 ? [] : timeSlots).map(slot => {
+                      const ds0 = selectedDate ? formatDateLA(selectedDate) : ''
+                      const key0 = `${ds0}|${slot.time}`
+                      const inBasket = batchFlow && recurSel.has(key0)
+                      const on = inBasket || (!batchFlow && selectedSlot?.time === slot.time)
+                      const cost0 = (batchFlow && selectedDate) ? (priceAt(ds0, slot.time, 30)?.charged ?? 0) : 0
+                      const affordable0 = !batchFlow || inBasket || basketTotal + cost0 <= balance
+                      const usable0 = slot.available && affordable0
+                      return (
+                        <button key={slot.time}
+                        onClick={() => {
+                          if (!slot.available) return
+                          setSelectedSlot(slot)
+                          if (!batchFlow || !selectedDate) return
+                          setRecurOpen(false); setRecurMsg('')
+                          setRecurSel(prev => {
+                            const n = new Map(prev)
+                            if (n.has(key0)) { n.delete(key0); return n }
+                            if (!affordable0) return n
+                            n.set(key0, { date: ds0, time: slot.time, label: slot.label, points: cost0 })
+                            return n
+                          })
+                        }}
+                        disabled={!usable0}
                         style={{
                           padding: '12px 8px', borderRadius: '10px',
-                          border: `2px solid ${selectedSlot?.time === slot.time ? GOLD : slot.available ? (slot.fill ? slot.fill + '55' : 'rgba(255,255,255,0.12)') : 'rgba(255,255,255,0.05)'}`,
-                          background: selectedSlot?.time === slot.time ? `${GOLD}20` : slot.available ? (slot.fill ? slot.fill + '22' : NAVY) : 'rgba(255,255,255,0.03)',
-                          color: selectedSlot?.time === slot.time ? GOLD : slot.available ? '#fff' : 'rgba(255,255,255,0.2)',
-                          fontSize: '13px', fontWeight: 600, cursor: slot.available ? 'pointer' : 'not-allowed',
+                          border: `2px ${batchFlow && !affordable0 && !inBasket && slot.available ? 'dashed' : 'solid'} ${on ? GOLD : usable0 ? (slot.fill ? slot.fill + '55' : 'rgba(255,255,255,0.12)') : 'rgba(255,255,255,0.05)'}`,
+                          background: on ? `${GOLD}20` : usable0 ? (slot.fill ? slot.fill + '22' : NAVY) : 'rgba(255,255,255,0.03)',
+                          color: on ? GOLD : usable0 ? '#fff' : 'rgba(255,255,255,0.2)',
+                          fontSize: '13px', fontWeight: 600, cursor: usable0 ? 'pointer' : 'not-allowed',
                           textAlign: 'center',
                         }}
                       >
-                        {slot.label}
+                        {inBasket ? '✓ ' : ''}{slot.label}
                         {(() => {
                           if (isReschedule || isTrial || !selectedDate) return null
                           const pr = priceAt(formatDateLA(selectedDate), slot.time, 30)
@@ -1629,7 +1668,8 @@ export default function BookingPage() {
                           <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{t('booking.spotsLeft', { n: slot.max - slot.enrolled })}</div>
                         )}
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -1805,137 +1845,142 @@ export default function BookingPage() {
                       <span style={{ fontSize: '12px', fontWeight: 700, color: GOLD }}>{t('booking.group.ready')}</span>
                     </div>
                   )}
-                  {/* The basket. Without it, picking a second weekday looks like
-                      it replaced the first, and the family books twice. */}
-                  {recurSel.size > 0 && !recurOpen && (
-                    <div style={{ marginTop: '10px', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                        {/* The count and the total live on the sticky bar now;
-                            printing them again right above it reads as a bug. */}
-                        <span style={{ fontSize: '12px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)' }}>
-                          {t('booking.recur.basketTitle')}
-                        </span>
-                        <button onClick={() => setRecurSel(new Map())}
-                          style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', textDecoration: 'underline' }}>
-                          {t('booking.recur.clearAll')}
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
-                        {basket.map(x => (
-                          <button key={x.date + x.time}
-                            onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(`${x.date}|${x.time}`); return n })}
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
-                            {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {basketTimes.size > 1 ? ` · ${x.label}` : ''}
-                            <span aria-hidden style={{ color: 'rgba(255,255,255,0.4)' }}>×</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginTop: '10px', lineHeight: 1.6 }}>
-                        {t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
-                      </div>
-                    </div>
-                  )}
-                  {recurMsg && (
-                    <div style={{ marginTop: '10px', background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.35)', borderRadius: '10px', padding: '12px 16px', color: '#7fd8a0', fontSize: '13px', fontWeight: 600 }}>{recurMsg}</div>
-                  )}
-                  {selectedSlot && selectedDate && selectedCoach && !recurOpen && (
-                    <button disabled={recurBusy}
-                      onClick={async () => {
-                        if (!selectedStudent) return
-                        setRecurBusy(true); setRecurMsg('')
-                        try {
-                          const res = await fetch('/api/bookings/recurring', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'preview', student_id: selectedStudent.id, coach_id: selectedCoach.id, start_time: selectedSlot.time, start_date: formatDateLA(selectedDate) }),
-                          })
-                          const j = await res.json().catch(() => ({}))
-                          if (!res.ok) { setRecurMsg(tErr(j.error, 'booking.recur.err.preview')) }
-                          else {
-                            const cands = j.candidates || []
-                            const quote = new Map<string, number>(
-                              cands.filter((c: any) => c.points != null).map((c: any) => [c.date, Number(c.points)]))
-                            setRecurList(cands)
-                            setRecurQuote(quote)
-                            // Pre-tick as many dates as the wallet actually
-                            // covers, cheapest arithmetic first: running total,
-                            // in date order, stopping at the balance.
-                            setRecurRange(8)
-                            setRecurOpen(true)
-                          }
-                        } catch { setRecurMsg(t('cart.err.network')) }
-                        setRecurBusy(false)
-                      }}
-                      style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
-                      {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label })}
-                    </button>
-                  )}
-                  {recurOpen && selectedSlot && selectedDate && selectedCoach && (
-                    <div style={{ marginTop: '10px', background: '#16243f', border: `1px solid ${GOLD}73`, borderRadius: '12px', padding: '16px', boxShadow: '0 18px 40px rgba(0,0,0,0.45)' }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: GOLD }}>
-                        {t('booking.recur.everyWeekday', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>
-                        {t('booking.recur.remaining', { n: okCount })}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '13px' }}>
-                        {([4, 8, 0] as const).map(r => (
-                          <button key={r} onClick={() => setRecurRange(r)}
-                            style={{ flex: 1, minHeight: '38px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer',
-                              border: `1px solid ${recurRange === r ? GOLD : 'rgba(255,255,255,0.14)'}`,
-                              background: recurRange === r ? `${GOLD}29` : 'transparent',
-                              color: recurRange === r ? GOLD : 'rgba(255,255,255,0.55)' }}>
-                            {r === 0 ? t('booking.recur.toYearEnd') : t('booking.recur.nWeeks', { n: r })}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div style={{ marginTop: '13px', padding: '11px 12px', borderRadius: '9px', background: 'rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                          <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.wouldAdd')}</span>
-                          <span style={{ fontWeight: 700, color: '#fff' }}>{ghost.size}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                          <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.wouldTotal')}</span>
-                          <span style={{ fontWeight: 700, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: basketTotal + ghostTotal })}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                          <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.price.after')}</span>
-                          <span style={{ fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - basketTotal - ghostTotal) })}</span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '13px' }}>
-                        <button disabled={ghost.size === 0}
-                          onClick={() => {
-                            setRecurSel(prev => {
-                              const n = new Map(prev)
-                              for (const [key, points] of ghost) {
-                                const [date, time] = key.split('|')
-                                n.set(key, { date, time, label: selectedSlot.label, points })
-                              }
-                              return n
-                            })
-                            setRecurOpen(false)
-                          }}
-                          style={{ minHeight: '44px', borderRadius: '9px', background: ghost.size === 0 ? 'rgba(255,255,255,0.06)' : GOLD, color: ghost.size === 0 ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '13px', fontWeight: 700, border: 'none', cursor: ghost.size === 0 ? 'not-allowed' : 'pointer' }}>
-                          {t('booking.recur.takeAll', { n: ghost.size })}
-                        </button>
-                        <button onClick={() => setRecurOpen(false)}
-                          style={{ minHeight: '40px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.16)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '12.5px', cursor: 'pointer' }}>
-                          {t('common.cancel')}
-                        </button>
-                      </div>
-
-                      <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.32)', marginTop: '11px', lineHeight: 1.6 }}>
-                        {t('booking.recur.ghostHint')}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             })()}
+
+                {/* The basket. Without it, picking a second weekday looks like
+                    it replaced the first, and the family books twice. */}
+                {batchFlow && recurSel.size > 0 && !recurOpen && (
+                  <div style={{ marginTop: '10px', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                      {/* The count and the total live on the sticky bar now;
+                          printing them again right above it reads as a bug. */}
+                      <span style={{ fontSize: '12px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)' }}>
+                        {t('booking.recur.basketTitle')}
+                      </span>
+                      <button onClick={() => setRecurSel(new Map())}
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', textDecoration: 'underline' }}>
+                        {t('booking.recur.clearAll')}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                      {basket.map(x => (
+                        <button key={x.date + x.time}
+                          onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(`${x.date}|${x.time}`); return n })}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
+                          {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {basketTimes.size > 1 ? ` · ${x.label}` : ''}
+                          <span aria-hidden style={{ color: 'rgba(255,255,255,0.4)' }}>×</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginTop: '10px', lineHeight: 1.6 }}>
+                      {t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
+                    </div>
+                  </div>
+                )}
+                {recurMsg && (
+                  <div style={{ marginTop: '10px', background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.35)', borderRadius: '10px', padding: '12px 16px', color: '#7fd8a0', fontSize: '13px', fontWeight: 600 }}>{recurMsg}</div>
+                )}
+                {batchFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && (
+                  <button disabled={recurBusy}
+                    onClick={async () => {
+                      if (!selectedStudent) return
+                      setRecurBusy(true); setRecurMsg('')
+                      try {
+                        const res = await fetch('/api/bookings/recurring', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'preview', student_id: selectedStudent.id, coach_id: selectedCoach.id,
+                            start_time: selectedSlot.time, start_date: formatDateLA(selectedDate),
+                            course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
+                          }),
+                        })
+                        const j = await res.json().catch(() => ({}))
+                        if (!res.ok) { setRecurMsg(tErr(j.error, 'booking.recur.err.preview')) }
+                        else {
+                          const cands = j.candidates || []
+                          const quote = new Map<string, number>(
+                            cands.filter((c: any) => c.points != null).map((c: any) => [c.date, Number(c.points)]))
+                          setRecurList(cands)
+                          setRecurQuote(quote)
+                          // Pre-tick as many dates as the wallet actually
+                          // covers, cheapest arithmetic first: running total,
+                          // in date order, stopping at the balance.
+                          setRecurRange(8)
+                          setRecurOpen(true)
+                        }
+                      } catch { setRecurMsg(t('cart.err.network')) }
+                      setRecurBusy(false)
+                    }}
+                    style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
+                    {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label })}
+                  </button>
+                )}
+                {batchFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
+                  <div style={{ marginTop: '10px', background: '#16243f', border: `1px solid ${GOLD}73`, borderRadius: '12px', padding: '16px', boxShadow: '0 18px 40px rgba(0,0,0,0.45)' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: GOLD }}>
+                      {t('booking.recur.everyWeekday', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>
+                      {t('booking.recur.remaining', { n: okCount })}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '13px' }}>
+                      {([4, 8, 0] as const).map(r => (
+                        <button key={r} onClick={() => setRecurRange(r)}
+                          style={{ flex: 1, minHeight: '38px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer',
+                            border: `1px solid ${recurRange === r ? GOLD : 'rgba(255,255,255,0.14)'}`,
+                            background: recurRange === r ? `${GOLD}29` : 'transparent',
+                            color: recurRange === r ? GOLD : 'rgba(255,255,255,0.55)' }}>
+                          {r === 0 ? t('booking.recur.toYearEnd') : t('booking.recur.nWeeks', { n: r })}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ marginTop: '13px', padding: '11px 12px', borderRadius: '9px', background: 'rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.wouldAdd')}</span>
+                        <span style={{ fontWeight: 700, color: '#fff' }}>{ghost.size}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.wouldTotal')}</span>
+                        <span style={{ fontWeight: 700, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: basketTotal + ghostTotal })}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.price.after')}</span>
+                        <span style={{ fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - basketTotal - ghostTotal) })}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '13px' }}>
+                      <button disabled={ghost.size === 0}
+                        onClick={() => {
+                          setRecurSel(prev => {
+                            const n = new Map(prev)
+                            for (const [key, points] of ghost) {
+                              const [date, time] = key.split('|')
+                              n.set(key, { date, time, label: selectedSlot.label, points })
+                            }
+                            return n
+                          })
+                          setRecurOpen(false)
+                        }}
+                        style={{ minHeight: '44px', borderRadius: '9px', background: ghost.size === 0 ? 'rgba(255,255,255,0.06)' : GOLD, color: ghost.size === 0 ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '13px', fontWeight: 700, border: 'none', cursor: ghost.size === 0 ? 'not-allowed' : 'pointer' }}>
+                        {t('booking.recur.takeAll', { n: ghost.size })}
+                      </button>
+                      <button onClick={() => setRecurOpen(false)}
+                        style={{ minHeight: '40px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.16)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '12.5px', cursor: 'pointer' }}>
+                        {t('common.cancel')}
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.32)', marginTop: '11px', lineHeight: 1.6 }}>
+                      {t('booking.recur.ghostHint')}
+                    </div>
+                  </div>
+                )}
 
             {/* Loading more months makes this page thousands of pixels long, and
                 the summary and the way forward used to sit at the bottom of all
@@ -1950,7 +1995,7 @@ export default function BookingPage() {
               paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
               background: DARK, borderTop: '1px solid rgba(255,255,255,0.08)',
             }}>
-              {groupFlow && recurSel.size > 0 && (
+              {batchFlow && recurSel.size > 0 && (
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
                   <span style={{ fontSize: '14px', fontWeight: 700, color: GOLD }}>
                     {t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
