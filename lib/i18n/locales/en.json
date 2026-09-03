@@ -191,6 +191,7 @@
   "booking.price.vip": "VIP {n}",
   "booking.recur.basket": "Selected: {n} lessons · {points} pts",
   "booking.recur.basketHint": "Pick another day or time and it joins this list. Everything here is booked together, in one charge. Balance after: {points} pts.",
+  "booking.recur.basketTitle": "SELECTED LESSONS",
   "booking.recur.clearAll": "Clear all",
   "booking.recur.cta": "Book {weekday}s {time} weekly →",
   "booking.recur.err.commit": "Could not complete the weekly booking.",

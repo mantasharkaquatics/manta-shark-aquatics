@@ -191,6 +191,7 @@
   "booking.price.vip": "VIP {n}",
   "booking.recur.basket": "已選 {n} 堂 · {points} 點",
   "booking.recur.basketHint": "再挑別的日子或時段都會加進這份清單。這裡的課會一起成立、一次扣點。預約後餘額 {points} 點。",
+  "booking.recur.basketTitle": "已選的課程",
   "booking.recur.clearAll": "清除全部",
   "booking.recur.cta": "每週{weekday} {time} 固定預約 →",
   "booking.recur.err.commit": "無法完成每週預約。",

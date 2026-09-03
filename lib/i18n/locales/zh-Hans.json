@@ -191,6 +191,7 @@
   "booking.price.vip": "VIP {n}",
   "booking.recur.basket": "已选 {n} 堂 · {points} 点",
   "booking.recur.basketHint": "再挑别的日子或时段都会加进这份清单。这里的课会一起成立、一次扣点。预约后余额 {points} 点。",
+  "booking.recur.basketTitle": "已选的课程",
   "booking.recur.clearAll": "清除全部",
   "booking.recur.cta": "每周{weekday} {time} 固定预约 →",
   "booking.recur.err.commit": "无法完成每周预约。",

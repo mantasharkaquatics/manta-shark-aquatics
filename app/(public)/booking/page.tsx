@@ -1810,8 +1810,10 @@ export default function BookingPage() {
                   {recurSel.size > 0 && !recurOpen && (
                     <div style={{ marginTop: '10px', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>
-                          {t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
+                        {/* The count and the total live on the sticky bar now;
+                            printing them again right above it reads as a bug. */}
+                        <span style={{ fontSize: '12px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)' }}>
+                          {t('booking.recur.basketTitle')}
                         </span>
                         <button onClick={() => setRecurSel(new Map())}
                           style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', textDecoration: 'underline' }}>
@@ -1935,24 +1937,48 @@ export default function BookingPage() {
               )
             })()}
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()) }} style={{
-                flex: 1, padding: '14px', background: 'transparent',
-                color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>{t('booking.back')}</button>
-              <button
-                onClick={goToConfirm}
-                disabled={!canContinue}
-                style={{
-                  flex: 2, padding: '14px',
-                  background: canContinue ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: canContinue ? NAVY : 'rgba(255,255,255,0.3)',
-                  border: 'none', borderRadius: '10px',
-                  fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: canContinue ? 'pointer' : 'not-allowed',
-                }}
-              >{t('booking.continue')}</button>
+            {/* Loading more months makes this page thousands of pixels long, and
+                the summary and the way forward used to sit at the bottom of all
+                of it: pick a December lesson and you had to scroll past
+                everything to act on it, or scroll back to see what you had
+                chosen. Sticking the bar to the viewport means the page's length
+                only affects browsing, never operating. Collapsing months would
+                not have fixed this, and would have hidden chosen lessons -- the
+                same fault as the pager we removed. */}
+            <div style={{
+              position: 'sticky', bottom: 0, zIndex: 5, marginTop: '24px',
+              paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+              background: DARK, borderTop: '1px solid rgba(255,255,255,0.08)',
+            }}>
+              {groupFlow && recurSel.size > 0 && (
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: GOLD }}>
+                    {t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>
+                    {t('booking.price.after')} {t('points.unit', { n: Math.max(0, balance - basketTotal) })}
+                  </span>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()) }} style={{
+                  flex: 1, padding: '14px', background: 'transparent',
+                  color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                }}>{t('booking.back')}</button>
+                <button
+                  onClick={goToConfirm}
+                  disabled={!canContinue}
+                  style={{
+                    flex: 2, padding: '14px',
+                    background: canContinue ? GOLD : 'rgba(255,255,255,0.1)',
+                    color: canContinue ? NAVY : 'rgba(255,255,255,0.3)',
+                    border: 'none', borderRadius: '10px',
+                    fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
+                    textTransform: 'uppercase', cursor: canContinue ? 'pointer' : 'not-allowed',
+                  }}
+                >{t('booking.continue')}</button>
+              </div>
             </div>
           </div>
         )}
