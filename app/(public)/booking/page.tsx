@@ -300,10 +300,12 @@ export default function BookingPage() {
   // twice because picking the second weekday threw away the first.
   const [recurSel, setRecurSel] = useState<Map<string, PlanSlot>>(new Map())
   const [recurQuote, setRecurQuote] = useState<Map<string, number>>(new Map())
-  // How far the repeat shortcut proposes to go. It only ever PROPOSES: the
-  // dashed cells on the calendar are a preview, and nothing is in the basket
-  // until the proposal is accepted.
-  const [recurRange, setRecurRange] = useState<4 | 8 | 0>(8)
+  // Which of the slot's future occurrences the shortcut is proposing, by key.
+  // It only ever PROPOSES: nothing is in the basket until it is accepted. The
+  // dates themselves are shown and each can be dropped, because "8 weeks" is an
+  // abstraction whose answer lives on a calendar the family may not be looking
+  // at -- the week they are away is a date, not a range.
+  const [ghostSel, setGhostSel] = useState<Set<string>>(new Set())
   const [recurBusy, setRecurBusy] = useState(false)
   const [recurMsg, setRecurMsg] = useState('')
   // The weekly batch used to book the moment you pressed "Confirm N lessons",
@@ -655,13 +657,9 @@ export default function BookingPage() {
   const ghost = (() => {
     const out = new Map<string, number>()
     if (!selectedSlot) return out
-    const wanted = recurRange === 0 ? recurCandidates : recurCandidates.slice(0, recurRange)
-    let spent = basketTotal
-    for (const c of wanted) {
-      const cost = recurQuote.get(c.date) ?? 0
-      if (spent + cost > balance) break
-      out.set(`${c.date}|${selectedSlot.time}`, cost)
-      spent += cost
+    for (const c of recurCandidates) {
+      const key = `${c.date}|${selectedSlot.time}`
+      if (ghostSel.has(key)) out.set(key, recurQuote.get(c.date) ?? 0)
     }
     return out
   })()
@@ -1868,10 +1866,15 @@ export default function BookingPage() {
                 {batchFlow && recurSel.size > 0 && !recurOpen && (
                   <div style={{ marginTop: '10px', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                      {/* The count and the total live on the sticky bar now;
-                          printing them again right above it reads as a bug. */}
+                      {/* The sticky bar carries the total; this line carries
+                          the count, because the chips below it are the thing
+                          being counted and "8 lessons" is what the parent is
+                          deciding about. */}
                       <span style={{ fontSize: '12px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)' }}>
                         {t('booking.recur.basketTitle')}
+                        <span style={{ marginLeft: '8px', letterSpacing: 0, color: GOLD, fontWeight: 700 }}>
+                          {t('booking.recur.basketCount', { n: recurSel.size })}
+                        </span>
                       </span>
                       <button onClick={() => setRecurSel(new Map())}
                         style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', textDecoration: 'underline' }}>
@@ -1883,7 +1886,7 @@ export default function BookingPage() {
                         <button key={x.date + x.time}
                           onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(`${x.date}|${x.time}`); return n })}
                           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
-                          {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {new Date(x.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                           {basketTimes.size > 1 ? ` · ${x.label}` : ''}
                           <span aria-hidden style={{ color: 'rgba(255,255,255,0.4)' }}>×</span>
                         </button>
@@ -1919,17 +1922,31 @@ export default function BookingPage() {
                             cands.filter((c: any) => c.points != null).map((c: any) => [c.date, Number(c.points)]))
                           setRecurList(cands)
                           setRecurQuote(quote)
-                          // Pre-tick as many dates as the wallet actually
-                          // covers, cheapest arithmetic first: running total,
-                          // in date order, stopping at the balance.
-                          setRecurRange(8)
+                          // Pre-tick the first ten dates the wallet actually
+                          // covers: running total, in date order, stopping at
+                          // the balance. Everything further out is one tap
+                          // away in the grid, so the default is a starting
+                          // point, not a decision made for the family.
+                          const time = selectedSlot.time
+                          const pre = new Set<string>()
+                          let run = [...recurSel.values()].reduce((a, x) => a + x.points, 0)
+                          for (const c of cands) {
+                            if (pre.size >= 10) break
+                            if (c.status !== 'ok') continue
+                            if (recurSel.has(`${c.date}|${time}`)) continue
+                            const cost = quote.get(c.date) ?? 0
+                            if (run + cost > balance) break
+                            run += cost
+                            pre.add(`${c.date}|${time}`)
+                          }
+                          setGhostSel(pre)
                           setRecurOpen(true)
                         }
                       } catch { setRecurMsg(t('cart.err.network')) }
                       setRecurBusy(false)
                     }}
                     style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
-                    {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }), time: selectedSlot.label })}
+                    {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                   </button>
                 )}
                 {batchFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
@@ -1941,16 +1958,45 @@ export default function BookingPage() {
                       {t('booking.recur.remaining', { n: okCount })}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '13px' }}>
-                      {([4, 8, 0] as const).map(r => (
-                        <button key={r} onClick={() => setRecurRange(r)}
-                          style={{ flex: 1, minHeight: '38px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer',
-                            border: `1px solid ${recurRange === r ? GOLD : 'rgba(255,255,255,0.14)'}`,
-                            background: recurRange === r ? `${GOLD}29` : 'transparent',
-                            color: recurRange === r ? GOLD : 'rgba(255,255,255,0.55)' }}>
-                          {r === 0 ? t('booking.recur.toYearEnd') : t('booking.recur.nWeeks', { n: r })}
-                        </button>
-                      ))}
+                    {/* "8 weeks" is an abstraction: which eight days it means
+                        is an answer the calendar holds, on a month the parent
+                        may not have scrolled to. Laying the slot's actual dates
+                        out as chips means they are looking at the thing they
+                        are buying. Ten come pre-ticked; the rest they tick. */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))', gap: '6px', marginTop: '13px', maxHeight: '236px', overflowY: 'auto' }}>
+                      {recurCandidates.map((c: any) => {
+                        const key = `${c.date}|${selectedSlot.time}`
+                        const on = ghostSel.has(key)
+                        const cost = recurQuote.get(c.date) ?? 0
+                        // An already-ticked chip can always be unticked; only
+                        // new ones have to fit inside what is left.
+                        const room = on || basketTotal + ghostTotal + cost <= balance
+                        return (
+                          <button key={key} disabled={!room}
+                            onClick={() => setGhostSel(prev => {
+                              const n = new Set(prev)
+                              if (n.has(key)) n.delete(key); else n.add(key)
+                              return n
+                            })}
+                            style={{
+                              minHeight: '48px', padding: '6px 4px', borderRadius: '8px',
+                              cursor: room ? 'pointer' : 'not-allowed',
+                              border: on ? `2px solid ${GOLD}` : `1px dashed ${room ? `${GOLD}73` : 'rgba(255,255,255,0.1)'}`,
+                              background: on ? `${GOLD}29` : 'transparent',
+                              color: on ? GOLD : room ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)',
+                            }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700 }}>
+                              {new Date(c.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
+                            </div>
+                            <div style={{ fontSize: '10px', marginTop: '2px', opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
+                              {t('points.unit', { n: cost })}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.32)', marginTop: '8px', lineHeight: 1.6 }}>
+                      {t('booking.recur.gridHint')}
                     </div>
 
                     <div style={{ marginTop: '13px', padding: '11px 12px', borderRadius: '9px', background: 'rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1988,10 +2034,6 @@ export default function BookingPage() {
                         style={{ minHeight: '40px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.16)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '12.5px', cursor: 'pointer' }}>
                         {t('common.cancel')}
                       </button>
-                    </div>
-
-                    <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.32)', marginTop: '11px', lineHeight: 1.6 }}>
-                      {t('booking.recur.ghostHint')}
                     </div>
                   </div>
                 )}
