@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { isBlocked, type CoachBlock } from '@/lib/availability'
+import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
 
-// Parent-facing batch 1on4 booking (owner decision 2026-07-24, option a):
+// Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
 //
 // preview: ?action=preview  student_id, coach_id, start_time, start_date
@@ -21,7 +22,12 @@ import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wal
 // one email. The legacy { dates[], start_time } shape still works and is
 // converted to slots at the door.
 //
-// A batch is one coach. Times may differ freely within it.
+// A batch is one coach and one course type. Times may differ freely within it,
+// and so may length -- a 1-on-1 family may want Tuesdays at 30 minutes and
+// Saturdays at 60. What a batch may NOT hold is a cross-family 1-on-2:
+// each of those needs the other family to accept inside fifteen minutes, so
+// twelve of them is not a batch, it is twelve negotiations. That path stays
+// one lesson at a time on purpose.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^\d{2}:\d{2}$/
@@ -34,7 +40,7 @@ const addDays = (ds: string, n: number) => {
 
 type Cand = { date: string; status: 'ok' | 'full' | 'booked' | 'time_off' | 'no_class' | 'conflict' | 'too_soon'; spots: number }
 
-async function buildCandidates(svc: any, coachId: string, ct: any, studentId: string, level: number, startTime: string, startDate: string): Promise<Cand[]> {
+async function buildCandidates(svc: any, coachId: string, ct: any, studentId: string, level: number, startTime: string, startDate: string, minutes: number): Promise<Cand[]> {
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
   // Horizon follows the START DATE's year, not today's: the calendar allows
@@ -46,8 +52,12 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
   if (dates.length === 0) return []
 
   const startMin = toMin(startTime)
-  const endMin = startMin + ct.duration_minutes
+  const endMin = startMin + minutes
   const endTime = minToTime(endMin)
+  // Which kind of zone has to cover this slot. A private lesson asked against
+  // the group zone would be refused on every date the coach teaches privately,
+  // which is every date it should have been offered on.
+  const zoneType = zoneTypeForSlug(ct.slug)
 
   const [{ data: zrows }, { data: offRows }, { data: sessRows }] = await Promise.all([
     svc.from('coach_availability_zones')
@@ -61,7 +71,10 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
       .select('id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
       .eq('coach_id', coachId).in('session_date', dates).in('status', ['open', 'full']),
   ])
-  if (!zrows || zrows.length === 0) return dates.map(ds => ({ date: ds, status: 'no_class' as const, spots: 0 }))
+  // A coach with no zone rows at all is on the old availability model, and
+  // create/route.ts lets those through without a zone check. Refusing them here
+  // would have hidden every date for a coach whose calendar is perfectly fine.
+  const legacyCoach = !zrows || zrows.length === 0
 
   const offByDate: Record<string, CoachBlock[]> = {}
   for (const b of offRows || []) (offByDate[b.date] ||= []).push(b as CoachBlock)
@@ -87,10 +100,15 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
     const dow = new Date(ds + 'T00:00:00').getDay()
     const dateRows = (zrows || []).filter((r: any) => r.kind === 'date' && r.override_date === ds)
     const picked = dateRows.length > 0 ? dateRows : (zrows || []).filter((r: any) => r.kind === 'weekly' && r.weekday === dow)
-    if (picked.some((r: any) => r.zone_type === 'closed')) return { date: ds, status: 'no_class' as const, spots: 0 }
-    const z = picked.find((r: any) => r.zone_type === 'group' && toMin(r.start_time) <= startMin && endMin <= toMin(r.end_time))
-    if (!z) return { date: ds, status: 'no_class' as const, spots: 0 }
-    if (z.group_level_min != null && z.group_level_max != null && (level < z.group_level_min || level > z.group_level_max)) return { date: ds, status: 'no_class' as const, spots: 0 }
+    if (!legacyCoach) {
+      if (picked.some((r: any) => r.zone_type === 'closed')) return { date: ds, status: 'no_class' as const, spots: 0 }
+      const z = picked.find((r: any) => r.zone_type === zoneType && toMin(r.start_time) <= startMin && endMin <= toMin(r.end_time))
+      if (!z) return { date: ds, status: 'no_class' as const, spots: 0 }
+      // The level band belongs to group zones; a private zone has no band and
+      // must not be judged against one.
+      if (zoneType === 'group' && z.group_level_min != null && z.group_level_max != null
+          && (level < z.group_level_min || level > z.group_level_max)) return { date: ds, status: 'no_class' as const, spots: 0 }
+    }
     if (isBlocked(offByDate[ds] || [], coachId, startTime, endTime)) return { date: ds, status: 'time_off' as const, spots: 0 }
     const daySess = sessByDate[ds] || []
     const sameSlot = daySess.filter((s: any) => toMin(s.start_time) === startMin)
@@ -119,12 +137,12 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentId: st
  * later dates at the tier the family will have reached by then would quote a
  * discount they have not earned yet and cannot be held to.
  */
-function priceDates(slug: string, dates: string[], startTime: string, lessonsDone: number) {
+function priceDates(slug: string, dates: string[], startTime: string, lessonsDone: number, minutes: number) {
   const perDate = new Map<string, number>()
   let total = 0
   for (const date of dates) {
     const pr = priceLesson({
-      courseSlug: slug, minutes: 30, lessonsCompleted: lessonsDone,
+      courseSlug: slug, minutes, lessonsCompleted: lessonsDone,
       sessionDate: date, startTime, seats: 1,
     })
     perDate.set(date, pr.perSeat)
@@ -143,12 +161,12 @@ const slotKey = (s: Slot) => `${s.date}|${s.time}`
  * priced slot by slot -- averaging or taking the first would quote a figure no
  * single lesson costs.
  */
-function priceSlots(slug: string, slots: Slot[], lessonsDone: number) {
+function priceSlots(slug: string, slots: Slot[], lessonsDone: number, minutes: number) {
   const perSlot = new Map<string, number>()
   let total = 0
   for (const s of slots) {
     const pr = priceLesson({
-      courseSlug: slug, minutes: 30, lessonsCompleted: lessonsDone,
+      courseSlug: slug, minutes, lessonsCompleted: lessonsDone,
       sessionDate: s.date, startTime: s.time, seats: 1,
     })
     perSlot.set(slotKey(s), pr.perSeat)
@@ -175,9 +193,22 @@ export async function POST(req: NextRequest) {
   if (action === 'preview' && !start_time)
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
 
+  // Which course this batch is for. Defaults to the group class, so callers
+  // written before this endpoint learned about the others keep working.
+  const course_slug = typeof body.course_slug === 'string' ? body.course_slug : '1on4'
+  if (!['1on1', '1on2', '1on4'].includes(course_slug))
+    return NextResponse.json({ error: 'Unsupported course type' }, { status: 400 })
+  // A cross-family 1-on-2 settles when the OTHER family accepts, inside fifteen
+  // minutes. That cannot be batched, so this endpoint only ever books a 1-on-2
+  // for one swimmer on the requesting account.
   const { data: ct } = await svc.from('course_types')
-    .select('id, name, slug, duration_minutes, max_students').eq('slug', '1on4').single()
+    .select('id, name, slug, duration_minutes, max_students').eq('slug', course_slug).single()
   if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
+
+  // 1-on-1 runs 30 or 60; a group class is whatever the course type says.
+  const minutes = course_slug === '1on1' && Number(body.minutes) === 60 ? 60 : ct.duration_minutes
+  if (![30, 60].includes(minutes))
+    return NextResponse.json({ error: 'Unsupported lesson length' }, { status: 400 })
 
   const { data: student } = await svc.from('students')
     .select('id, parent_id, full_name, current_level').eq('id', student_id).single()
@@ -193,11 +224,11 @@ export async function POST(req: NextRequest) {
     const { start_date } = body
     if (!start_date || !DATE_RE.test(start_date) || start_date < today)
       return NextResponse.json({ error: 'Invalid start date' }, { status: 400 })
-    const candidates = await buildCandidates(svc, coach_id, ct, student.id, level, start_time, start_date)
+    const candidates = await buildCandidates(svc, coach_id, ct, student.id, level, start_time, start_date, minutes)
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
     // the parent ticks dates rather than quoting one figure and charging another.
-    const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, wallet.lessonsCompleted)
+    const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, wallet.lessonsCompleted, minutes)
     return NextResponse.json({
       candidates: candidates.map(c => ({ ...c, points: perDate.get(c.date) ?? null })),
       balance: wallet.balance,
@@ -236,7 +267,7 @@ export async function POST(req: NextRequest) {
     const statusByKey = new Map<string, string>()
     for (const t of times) {
       const first = wanted.filter(w => w.time === t).map(w => w.date).sort()[0]
-      const cands = await buildCandidates(svc, coach_id, ct, student.id, level, t, first)
+      const cands = await buildCandidates(svc, coach_id, ct, student.id, level, t, first, minutes)
       for (const c of cands) statusByKey.set(`${c.date}|${t}`, c.status)
     }
 
@@ -251,11 +282,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, booked: 0, booked_slots: [], booked_dates: [], skipped })
 
     const wallet = await walletSummary(svc, parent.id)
-    const quote = priceSlots(ct.slug, okSlots, wallet.lessonsCompleted)
+    const quote = priceSlots(ct.slug, okSlots, wallet.lessonsCompleted, minutes)
     if (wallet.balance < quote.total)
       return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
 
-    const endOf = (t: string) => minToTime(toMin(t) + ct.duration_minutes)
+    const endOf = (t: string) => minToTime(toMin(t) + minutes)
 
     // Up to 60 slots. Done one at a time -- look up the session, create it,
     // settle the points, write the booking -- that is four round trips each, and
@@ -307,7 +338,7 @@ export async function POST(req: NextRequest) {
     // Slots can drop out between the quote and here -- a class filling up is the
     // ordinary case -- so the charge is rebuilt from what is actually being
     // booked, never from the earlier total.
-    const charge = priceSlots(ct.slug, booked, wallet.lessonsCompleted)
+    const charge = priceSlots(ct.slug, booked, wallet.lessonsCompleted, minutes)
     const uniformTime = times.length === 1 ? times[0] : null
 
     // One debit for the batch, not one per lesson. A parent's statement should
