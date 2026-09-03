@@ -176,6 +176,7 @@
   "booking.notice.pending": "游泳评估已完成 — 等级待定。请联络柜台安排等级，才能预约其他课程。",
   "booking.notice.prepaid": "您的游泳评估已付款 — 请在下方选择时间安排。",
   "booking.offPeak": "非高峰",
+  "booking.oneADay": "同一天只能选一个时段，再点别的会取代原本那个。",
   "booking.oneCoach": "{name} 教练",
   "booking.partnerConfirm": "等级 {n} · 对方需在 15 分钟内确认",
   "booking.perSwimmer": "每位学员 · 30 分钟",

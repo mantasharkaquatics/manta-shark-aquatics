@@ -176,6 +176,7 @@
   "booking.notice.pending": "Swim Assessment completed — level pending. Please contact the front desk to have a level assigned before booking other lessons.",
   "booking.notice.prepaid": "Your Swim Assessment is prepaid — pick a time below to schedule it.",
   "booking.offPeak": "OFF-PEAK",
+  "booking.oneADay": "One lesson per day — picking another time replaces it.",
   "booking.oneCoach": "Coach {name}",
   "booking.partnerConfirm": "Level {n} · Partner must confirm within 15 min",
   "booking.perSwimmer": "per swimmer · 30 min",

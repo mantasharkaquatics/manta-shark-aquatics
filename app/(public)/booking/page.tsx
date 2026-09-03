@@ -1613,6 +1613,10 @@ export default function BookingPage() {
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.noSlots')}</p>
                   </div>
                 ) : (
+                  <>
+                  {batchFlow && (
+                    <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                     {(lessonLength === 60 ? [] : timeSlots).map(slot => {
                       const ds0 = selectedDate ? formatDateLA(selectedDate) : ''
@@ -1620,7 +1624,15 @@ export default function BookingPage() {
                       const inBasket = batchFlow && recurSel.has(key0)
                       const on = inBasket || (!batchFlow && selectedSlot?.time === slot.time)
                       const cost0 = (batchFlow && selectedDate) ? (priceAt(ds0, slot.time, 30)?.charged ?? 0) : 0
-                      const affordable0 = !batchFlow || inBasket || basketTotal + cost0 <= balance
+                      // One private lesson per day. Two on the same date leaves
+                      // "every Thursday at 10:20" with no single meaning -- the
+                      // shortcut can only repeat one of them, and the family has
+                      // no way to know which before pressing it. Picking a second
+                      // time on a day REPLACES the first, so the affordability
+                      // test has to give back what it would drop.
+                      const sameDay = batchFlow ? [...recurSel.values()].filter(x => x.date === ds0) : []
+                      const freed = sameDay.reduce((a, x) => a + x.points, 0)
+                      const affordable0 = !batchFlow || inBasket || basketTotal - freed + cost0 <= balance
                       const usable0 = slot.available && affordable0
                       return (
                         <button key={slot.time}
@@ -1632,7 +1644,8 @@ export default function BookingPage() {
                           setRecurSel(prev => {
                             const n = new Map(prev)
                             if (n.has(key0)) { n.delete(key0); return n }
-                            if (!affordable0) return n
+                            if (!affordable0) return prev
+                            for (const k of [...n.keys()]) if (k.startsWith(ds0 + '|')) n.delete(k)
                             n.set(key0, { date: ds0, time: slot.time, label: slot.label, points: cost0 })
                             return n
                           })
@@ -1671,6 +1684,7 @@ export default function BookingPage() {
                       )
                     })}
                   </div>
+                  </>
                 )}
               </div>
             )}
