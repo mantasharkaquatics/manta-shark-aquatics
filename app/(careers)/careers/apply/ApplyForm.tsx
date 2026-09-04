@@ -79,6 +79,9 @@ export default function ApplyForm() {
 
   async function submit() {
     setError('')
+    // Checked here as well as on the server so the applicant is told before a
+    // round trip, and told next to the field rather than at the top.
+    if (!resume) { setError('Please attach your résumé.'); return }
     setBusy(true)
     try {
       const fd = new FormData()
@@ -93,7 +96,7 @@ export default function ApplyForm() {
       fd.set('earliestStart', earliestStart())
       fd.set('referralSource', referralSource)
       fd.set('message', message)
-      if (resume) fd.set('resume', resume)
+      fd.set('resume', resume)
 
       const res = await fetch('/api/careers/apply', { method: 'POST', body: fd })
       const data = await res.json().catch(() => ({}))
@@ -244,7 +247,7 @@ export default function ApplyForm() {
         </div>
 
         <div style={FIELD}>
-          <label style={LABEL}>Résumé</label>
+          <label style={LABEL}>Résumé <span style={{ color: '#e05a4a' }}>*</span></label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <label htmlFor="resume" style={FILE_BTN}>Choose file</label>
             <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
@@ -254,7 +257,7 @@ export default function ApplyForm() {
           <input id="resume" type="file" style={{ display: 'none' }}
             accept=".pdf,.doc,.docx"
             onChange={(e) => setResume(e.target.files?.[0] || null)} />
-          <p style={HINT}>Optional. PDF or Word, up to 5 MB.</p>
+          <p style={HINT}>Required. PDF or Word, up to 5 MB.</p>
         </div>
 
         <div style={FIELD}>

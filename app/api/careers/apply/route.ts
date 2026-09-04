@@ -85,34 +85,38 @@ export async function POST(req: Request) {
   let resumePath: string | null = null
 
   const resume = form.get('resume')
-  if (resume instanceof File && resume.size > 0) {
-    if (resume.size > MAX_RESUME_BYTES) {
-      return NextResponse.json(
-        { error: 'That file is larger than 5 MB. Please upload a smaller one.' },
-        { status: 400 }
-      )
-    }
-    const ext = ALLOWED_EXT[resume.type]
-    if (!ext) {
-      return NextResponse.json(
-        { error: 'Please upload a PDF or Word document.' },
-        { status: 400 }
-      )
-    }
-
-    const path = `${applicationId}/resume.${ext}`
-    const { error: uploadError } = await supabase.storage
-      .from('applications')
-      .upload(path, resume, { contentType: resume.type, upsert: false })
-
-    if (uploadError) {
-      return NextResponse.json(
-        { error: 'We could not save your file. Please try again.' },
-        { status: 500 }
-      )
-    }
-    resumePath = path
+  if (!(resume instanceof File) || resume.size === 0) {
+    return NextResponse.json(
+      { error: 'Please attach your résumé.' },
+      { status: 400 }
+    )
   }
+  if (resume.size > MAX_RESUME_BYTES) {
+    return NextResponse.json(
+      { error: 'That file is larger than 5 MB. Please upload a smaller one.' },
+      { status: 400 }
+    )
+  }
+  const ext = ALLOWED_EXT[resume.type]
+  if (!ext) {
+    return NextResponse.json(
+      { error: 'Please upload a PDF or Word document.' },
+      { status: 400 }
+    )
+  }
+
+  const path = `${applicationId}/resume.${ext}`
+  const { error: uploadError } = await supabase.storage
+    .from('applications')
+    .upload(path, resume, { contentType: resume.type, upsert: false })
+
+  if (uploadError) {
+    return NextResponse.json(
+      { error: 'We could not save your file. Please try again.' },
+      { status: 500 }
+    )
+  }
+  resumePath = path
 
   const fwd = req.headers.get('x-forwarded-for')
   const ip = fwd ? fwd.split(',')[0].trim() : null

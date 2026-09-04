@@ -9,12 +9,16 @@ export default function CoachLoginPage() {
   const [pin, setPin] = useState(['', '', '', '', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Locked out. Kept separate from `error` because the boxes have to stop
+  // accepting digits -- clearing and refocusing them, as a wrong PIN does,
+  // invites the coach to keep typing into something that cannot succeed.
+  const [locked, setLocked] = useState(false)
   const inputs = useRef<(HTMLInputElement | null)[]>([])
   const router = useRouter()
 
   async function submitPin(digits: string[]) {
     const code = digits.join('')
-    if (code.length !== 8) return
+    if (code.length !== 8 || locked) return
     setLoading(true)
     setError('')
     try {
@@ -25,8 +29,12 @@ export default function CoachLoginPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError('Incorrect PIN. Please try again.')
+        // The server knows how many tries are left and how long a lock lasts;
+        // a hard-coded "please try again" here would have thrown that away and
+        // left a locked-out coach retyping the right PIN to no effect.
+        setError(data?.error || 'Incorrect PIN. Please try again.')
         setPin(['', '', '', '', '', '', '', ''])
+        if (data?.locked) { setLocked(true); return }
         inputs.current[0]?.focus()
         return
       }
@@ -100,7 +108,8 @@ export default function CoachLoginPage() {
               onChange={e => handleChange(i, e.target.value)}
               onKeyDown={e => handleKey(i, e)}
               autoFocus={i === 0}
-              className="flex-1 min-w-0 max-w-10 h-12 text-center text-xl font-bold bg-[#111d38] border border-[#1e3a6e] rounded-lg text-white focus:outline-none focus:border-[#c9a84c] transition-colors"
+              disabled={locked}
+              className="flex-1 min-w-0 max-w-10 h-12 text-center text-xl font-bold bg-[#111d38] border border-[#1e3a6e] rounded-lg text-white focus:outline-none focus:border-[#c9a84c] transition-colors disabled:opacity-40"
             />
           ))}
         </div>
