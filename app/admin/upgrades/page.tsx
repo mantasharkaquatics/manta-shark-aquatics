@@ -32,17 +32,29 @@ export default async function AdminUpgradesPage() {
   let upgradeHistory: any[] = []
   if (rawHistory && rawHistory.length > 0) {
     const sIds = [...new Set(rawHistory.map(h => h.student_id).filter(Boolean))]
-    const aIds = [...new Set(rawHistory.map(h => h.upgraded_by).filter(Boolean))]
-    const { data: hStudents } = await svc.from('students').select('id, full_name').in('id', sIds)
-    const { data: hAdmins } = await svc.from('admins').select('id, first_name, last_name').in('id', aIds)
+    // `upgraded_by` is POLYMORPHIC and has no foreign key, deliberately: an
+    // admin id when someone assigns a level through this page, a COACH id when
+    // the trg_level_upgrade trigger promotes a swimmer who has finished every
+    // skill. Looking only in `admins` -- which is what this did -- left every
+    // trigger-created row reading "by" with no name after it, and those are
+    // the ordinary case, not the exception.
+    const byIds = [...new Set(rawHistory.map(h => h.upgraded_by).filter(Boolean))]
+    const [{ data: hStudents }, { data: hAdmins }, { data: hCoaches }] = await Promise.all([
+      svc.from('students').select('id, full_name').in('id', sIds),
+      svc.from('admins').select('id, first_name, last_name').in('id', byIds),
+      svc.from('coaches').select('id, first_name, last_name').in('id', byIds),
+    ])
     const hsMap: Record<string, any> = {}
     for (const s of hStudents || []) hsMap[s.id] = s
-    const haMap: Record<string, any> = {}
-    for (const a of hAdmins || []) haMap[a.id] = a
+    const byMap: Record<string, any> = {}
+    for (const a of hAdmins || []) byMap[a.id] = { ...a, role: 'admin' }
+    // Coaches second so that in the impossible event of an id in both tables
+    // the answer is stable rather than order-of-arrival.
+    for (const c of hCoaches || []) byMap[c.id] = { ...c, role: 'coach' }
     upgradeHistory = rawHistory.map(h => ({
       ...h,
       students: hsMap[h.student_id],
-      admins: haMap[h.upgraded_by],
+      by: byMap[h.upgraded_by] ?? null,
     }))
   }
 

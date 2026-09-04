@@ -11,7 +11,9 @@ type UpgradeHistory = {
   id: string; from_level: string | null; to_level: string
   from_stage: number | null; to_stage: number | null
   upgraded_at: string; notes: string | null
-  students: { full_name: string }; admins: { first_name: string; last_name: string }
+  students: { full_name: string }
+  // Not `admins`: the id behind this is an admin OR a coach -- see page.tsx.
+  by: { first_name: string; last_name: string | null; role: 'admin' | 'coach' } | null
 }
 
 /**
@@ -266,7 +268,14 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 </div>
                 <div className="text-right">
                   <p className="text-gray-500 text-xs">{new Date(h.upgraded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                  <p className="text-gray-600 text-xs">by {h.admins?.first_name} {h.admins?.last_name}</p>
+                  {/* No name resolved means the row predates this or the
+                       person has been deleted -- print nothing rather than a
+                       dangling "by". */}
+                  {h.by && (
+                    <p className="text-gray-600 text-xs">
+                      by {h.by.role === 'coach' ? 'Coach ' : ''}{h.by.first_name} {h.by.last_name || ''}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
