@@ -407,7 +407,23 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
   const t = useT()
   const locale = useLocale()
   const [showHistory, setShowHistory] = useState(false)
+  const [histPage, setHistPage] = useState(0)
+  // Where a swipe began. A ref, not state: it changes on every touchmove and
+  // nothing on screen depends on it.
+  const swipeFrom = useRef<{ x: number; y: number } | null>(null)
   if (!w) return null
+
+  /* The ledger is every movement of money, for ever. Left whole it was longer
+     than the rest of the dashboard put together and pushed the lesson history
+     off the bottom of the page. Ten at a time, oldest stays reachable. */
+  const HIST_PER_PAGE = 10
+  const history = w.history ?? []
+  const pageCount = Math.max(1, Math.ceil(history.length / HIST_PER_PAGE))
+  // Clamped rather than stored: the list can shrink under a reload, and page 4
+  // of a two-page list renders as an empty card with no explanation.
+  const page = Math.min(histPage, pageCount - 1)
+  const pageRows = history.slice(page * HIST_PER_PAGE, (page + 1) * HIST_PER_PAGE)
+  const goPage = (n: number) => setHistPage(Math.min(pageCount - 1, Math.max(0, n)))
 
   const toNext = w.nextTier
   // Progress across the CURRENT band, not from zero. At 24 lessons with VIP 3
@@ -465,14 +481,31 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
 
       {(w.history?.length ?? 0) > 0 && (
         <>
-          <button onClick={() => setShowHistory(!showHistory)}
+          <button onClick={() => { setShowHistory(!showHistory); setHistPage(0) }}
             style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
             <span style={{ fontSize: '9px' }}>{showHistory ? '▲' : '▼'}</span>
             {t(showHistory ? 'points.card.hideHistory' : 'points.card.showHistory')}
           </button>
           {showHistory && (
-            <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {w.history!.map(row => (
+            <div
+              /* Swipe to turn the page on a phone. Only a decisively SIDEWAYS
+                 drag counts -- anything with a vertical component is the page
+                 being scrolled, and stealing that would make the dashboard feel
+                 broken. The buttons below stay visible on every screen size,
+                 because a gesture nobody is told about is not a feature. */
+              onTouchStart={(e) => { const p0 = e.touches[0]; swipeFrom.current = { x: p0.clientX, y: p0.clientY } }}
+              onTouchEnd={(e) => {
+                const from = swipeFrom.current
+                swipeFrom.current = null
+                if (!from) return
+                const p1 = e.changedTouches[0]
+                const dx = p1.clientX - from.x
+                const dy = p1.clientY - from.y
+                if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+                goPage(page + (dx < 0 ? 1 : -1))
+              }}
+              style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {pageRows.map(row => (
                 <div key={row.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{reasonLabel(row.reason)}</div>
@@ -497,6 +530,22 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                   </div>
                 </div>
               ))}
+              {pageCount > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', marginTop: '6px' }}>
+                  {/* Arrows and a counter rather than one chip per page: a year
+                      of activity is dozens of pages, and that row would wrap
+                      into a block taller than the ten rows above it. */}
+                  <button onClick={() => goPage(page - 1)} disabled={page === 0}
+                    aria-label={t('points.card.prevPage')} className="tap-auto"
+                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: page === 0 ? 'not-allowed' : 'pointer' }}>←</button>
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontVariantNumeric: 'tabular-nums' }}>
+                    {page + 1} / {pageCount}
+                  </span>
+                  <button onClick={() => goPage(page + 1)} disabled={page === pageCount - 1}
+                    aria-label={t('points.card.nextPage')} className="tap-auto"
+                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === pageCount - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: page === pageCount - 1 ? 'not-allowed' : 'pointer' }}>→</button>
+                </div>
+              )}
             </div>
           )}
         </>
