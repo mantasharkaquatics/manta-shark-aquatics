@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import AdminSidebar, { AdminMenuButton } from './AdminNav'
+import SignOutButton from './components/SignOutButton'
 import Image from 'next/image'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -18,18 +19,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
 
   return (
-    // On a desktop the shell is exactly one viewport tall and the two panes
-    // scroll independently, so Sign Out at the foot of the nav is always in
-    // reach. It used to sit at the bottom of a sidebar that grew as tall as the
-    // page, which on a long list meant scrolling past everything to log out.
+    // The shell is exactly one viewport tall on a desktop and the two panes
+    // scroll independently, so nothing in the chrome ever scrolls out of reach.
     <div className="min-h-screen bg-[#0d1529] lg:h-dvh lg:flex lg:flex-col lg:overflow-hidden">
+      {/* Sign Out sits top-right on the identity row, which is where the coach
+          portal already puts it and where a hand goes looking for it. At the
+          foot of the sidebar it was the furthest control from everything else
+          on screen, and on a phone it was inside a drawer you had to open
+          first. Bordered rather than plain so it reads as a different kind of
+          control than the navigation above it. */}
       <nav className="bg-[#111d38] border-b border-[#1e3a6e] px-6 py-4 lg:shrink-0">
-        <div className="flex items-center gap-3">
-          <AdminMenuButton />
-          <Image src="/logo.png" alt="Manta Shark" width={40} height={40} />
-          <div>
-            <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
-            <p className="text-white text-sm font-semibold whitespace-nowrap">{admin.first_name} {admin.last_name}</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <AdminMenuButton />
+            <Image src="/logo.png" alt="Manta Shark" width={40} height={40} className="shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
+              <p className="text-white text-sm font-semibold truncate">{admin.first_name} {admin.last_name}</p>
+            </div>
+          </div>
+          {/* SignOutButton is w-full for the sidebar it was written for. */}
+          <div className="shrink-0 [&_button]:w-auto [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:border-[#1e3a6e]">
+            <SignOutButton />
           </div>
         </div>
       </nav>

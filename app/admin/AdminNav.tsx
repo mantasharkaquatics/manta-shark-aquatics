@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { NAV_GROUPS } from './nav-groups'
-import SignOutButton from './components/SignOutButton'
 
 function NavBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
@@ -63,10 +62,6 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="pt-6 mt-6 border-t border-[#1e3a6e] px-3">
-        <SignOutButton />
       </div>
     </>
   )
