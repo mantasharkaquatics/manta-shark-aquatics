@@ -41,7 +41,7 @@ export const MAX_TOPUP_DOLLARS = 10_000
  *  buy online -- the free-text box is gone -- but MIN/MAX above stay wide,
  *  because the front desk still takes small counter payments through the POS
  *  and those go through the same validators. */
-export const TOPUP_PRESETS = [650, 800, 1000, 1300, 2000] as const
+export const TOPUP_PRESETS = [650, 800, 1000, 1950, 2000] as const
 
 /* Every preset divides exactly into some course's full price, which is what
    lets the storefront say "10 lessons" instead of "$650". Stored as the COURSE,
@@ -56,7 +56,10 @@ export const PRESET_COURSE: Record<number, '1on1' | '1on4'> = {
   650: '1on1',
   800: '1on4',
   1000: '1on4',
-  1300: '1on1',
+  // 1950 rather than 1300, which also came out at "20 lessons" and collided
+  // with the 800 card at a glance -- two tiers reading 20 堂 at different
+  // prices is a moment of doubt on the one screen that must not have any.
+  1950: '1on1',
   2000: '1on4',
 }
 

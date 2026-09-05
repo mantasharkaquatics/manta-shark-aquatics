@@ -119,7 +119,7 @@ console.log('\n儲值金額的邊界')
 eq('方案 650 = 一對一 10 堂', presetLessons(650)?.lessons, 10)
 eq('方案 800 = 一對四 20 堂', presetLessons(800)?.lessons, 20)
 eq('方案 1000 = 一對四 25 堂', presetLessons(1000)?.lessons, 25)
-eq('方案 1300 = 一對一 20 堂', presetLessons(1300)?.lessons, 20)
+eq('方案 1950 = 一對一 30 堂', presetLessons(1950)?.lessons, 30)
 eq('方案 2000 = 一對四 50 堂', presetLessons(2000)?.lessons, 50)
 eq('每個方案都對得上一種課', TOPUP_PRESETS.filter(p => !presetLessons(p)).length, 0)
 
