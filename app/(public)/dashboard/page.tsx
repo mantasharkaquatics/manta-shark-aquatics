@@ -449,7 +449,12 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
         {w.balance.toLocaleString()}
       </div>
       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '14px' }}>
-        {t('points.card.worth', { price: '$' + w.balance.toLocaleString() })}
+        {/* This line used to read "worth $1,985", which was the single
+            strongest cue on the screen that the balance is MONEY PARKED HERE
+            rather than lessons already bought. The rate is unchanged and still
+            stated on the pricing page and in the FAQ -- it is just no longer
+            the second thing a parent reads about their own account. */}
+        {t('points.card.worth')}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>

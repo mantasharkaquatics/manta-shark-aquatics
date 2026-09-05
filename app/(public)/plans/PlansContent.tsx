@@ -119,12 +119,14 @@ function TopUp() {
   const router = useRouter()
   const supabase = createClient()
   const [amount, setAmount] = useState<number>(TOPUP_PRESETS[1])
-  const [custom, setCustom] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsAssessment, setNeedsAssessment] = useState(false)
 
-  const chosen = custom.trim() === '' ? amount : Math.floor(Number(custom))
+  const chosen = amount
+  // Always true for the presets as they stand. Kept anyway: it is the guard
+  // that fails loudly if someone ever edits TOPUP_PRESETS outside the range
+  // the server will accept, instead of shipping a button that 400s.
   const valid = Number.isFinite(chosen) && chosen >= MIN_TOPUP_DOLLARS && chosen <= MAX_TOPUP_DOLLARS
 
   async function buy() {
@@ -156,13 +158,17 @@ function TopUp() {
 
   return (
     <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(24px,3vw,36px)' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+      {/* 150px left the three cards one pixel short of fitting and they broke
+          into a 2 + 1 that reads as "two options, and an afterthought". At
+          130px they sit in one row on a desktop and fall to two on a phone,
+          where three across would be too narrow for "$1,000". */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '16px' }}>
         {TOPUP_PRESETS.map(p => {
-          const on = custom.trim() === '' && amount === p
+          const on = amount === p
           return (
             <button
               key={p}
-              onClick={() => { setAmount(p); setCustom('') }}
+              onClick={() => setAmount(p)}
               style={{
                 background: on ? 'rgba(201,168,76,0.14)' : 'rgba(255,255,255,0.05)',
                 border: `2px solid ${on ? GOLD : 'rgba(255,255,255,0.12)'}`,
@@ -180,28 +186,9 @@ function TopUp() {
         })}
       </div>
 
-      <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>
-        {t('points.buy.custom')}
-      </label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', border: `1px solid ${custom.trim() ? GOLD : 'rgba(255,255,255,0.15)'}`, borderRadius: '10px', padding: '0 14px' }}>
-          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '16px' }}>$</span>
-          <input
-            type="number" inputMode="numeric" min={MIN_TOPUP_DOLLARS} max={MAX_TOPUP_DOLLARS}
-            value={custom}
-            onChange={e => setCustom(e.target.value)}
-            placeholder={String(MIN_TOPUP_DOLLARS)}
-            style={{
-              background: 'transparent', border: 'none', outline: 'none', color: '#fff',
-              fontSize: '18px', fontWeight: 700, padding: '12px 8px', width: '120px',
-            }}
-          />
-        </div>
-        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-          {t('points.buy.min', { min: money(MIN_TOPUP_DOLLARS), max: money(MAX_TOPUP_DOLLARS) })}
-        </span>
-      </div>
-
+      {/* The free-text amount box is gone. Typing a number into a field is
+          what a deposit looks like; choosing one of three named things is what
+          buying looks like. */}
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '20px 0 16px' }} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
