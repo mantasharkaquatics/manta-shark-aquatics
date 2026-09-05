@@ -6,7 +6,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
-import { MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/points'
+import { TOPUP_PRESETS, presetLessons } from '@/lib/points'
 import { walletSummary } from '@/lib/points-wallet'
 import { getTodayLA, getNowMinutesLA, formatTime12h, SLOT_STEP_MINUTES } from '@/lib/date'
 import { cancelBookingWithPartner } from '@/lib/bookings/cancel'
@@ -146,7 +146,7 @@ const TOOLS = [
     description: 'Create a secure Stripe Checkout link for the parent to add points to their account. The parent completes payment themselves on Stripe. Never claim a payment has been made.',
     input_schema: {
       type: 'object',
-      properties: { dollars: { type: 'integer', description: `Whole US dollars to add, ${MIN_TOPUP_DOLLARS}-${MAX_TOPUP_DOLLARS}. 1 dollar = 1 point.` } },
+      properties: { dollars: { type: 'integer', description: `Must be one of the amounts the website sells: ${TOPUP_PRESETS.join(', ')}. 1 dollar = 1 point. Any other figure is refused -- for a smaller amount the parent has to come to the front desk.` } },
       required: ['dollars'],
     },
   },
@@ -422,8 +422,12 @@ export async function POST(req: NextRequest) {
 
     if (name === 'create_topup_link') {
       const dollars = Math.floor(Number(input.dollars))
-      if (!Number.isFinite(dollars) || dollars < MIN_TOPUP_DOLLARS || dollars > MAX_TOPUP_DOLLARS)
-        return { error: `The amount must be a whole number of dollars between ${MIN_TOPUP_DOLLARS} and ${MAX_TOPUP_DOLLARS}.` }
+      // The chat sells exactly what the website sells. It used to accept any
+      // figure from $50 up, which quietly undercut the storefront: a parent who
+      // asked here could buy $200 while the page offered nothing below $650.
+      // Small amounts are a front-desk conversation now, not a chat one.
+      if (!(TOPUP_PRESETS as readonly number[]).includes(dollars))
+        return { error: `The amount must be one of ${TOPUP_PRESETS.join(', ')} dollars. For any other amount, ask the parent to come to the front desk.` }
       const res = await fetch(`${origin}/api/stripe/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookieHeader },
@@ -596,8 +600,13 @@ export async function POST(req: NextRequest) {
     const hh = String(Math.floor(nowMins / 60)).padStart(2, '0')
     const mm = String(nowMins % 60).padStart(2, '0')
     const planList = [
-      `Any whole-dollar amount from $${MIN_TOPUP_DOLLARS} to $${MAX_TOPUP_DOLLARS.toLocaleString('en-US')}; 1 dollar buys 1 point.`,
-      `The amounts offered on the website are ${TOPUP_PRESETS.map(p => '$' + p.toLocaleString('en-US')).join(', ')}, but any amount in range is fine.`,
+      '1 dollar buys 1 point. Points never expire and are not tied to a course type.',
+      `The website sells exactly these amounts, and nothing else: ${TOPUP_PRESETS.map(p => {
+        const shape = presetLessons(p)
+        return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} x ${shape.slug} at full price)` : '$' + p.toLocaleString('en-US')
+      }).join(', ')}.`,
+      'Lesson counts are at full price -- a VIP or off-peak discount makes the same points go further, so they are a minimum, never a maximum.',
+      'A parent who wants a smaller or different amount has to be sent to the front desk; you cannot create a link for one.',
     ].join('\n')
 
     const { staticPart, dynamicPart } = buildSystemPromptParts({

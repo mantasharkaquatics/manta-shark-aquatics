@@ -17,7 +17,7 @@ const src = readFileSync(new URL('../lib/points.ts', import.meta.url), 'utf8')
   .replace(/export const todayLA = getTodayLA/, '')
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
 const mod = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
-const { priceLesson, vipTier, nextVipTier, isOffPeak, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents } = mod
+const { priceLesson, vipTier, nextVipTier, isOffPeak, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents, TOPUP_PRESETS, presetLessons } = mod
 
 let fails = 0
 const eq = (label, got, want) => {
@@ -114,6 +114,15 @@ console.log('\n沒有任何折扣組合會超過原價，或低於最大折扣')
 }
 
 console.log('\n儲值金額的邊界')
+// Every storefront amount must divide exactly into a course price, or the card
+// promises a number of lessons the price list does not back.
+eq('方案 650 = 一對一 10 堂', presetLessons(650)?.lessons, 10)
+eq('方案 800 = 一對四 20 堂', presetLessons(800)?.lessons, 20)
+eq('方案 1000 = 一對四 25 堂', presetLessons(1000)?.lessons, 25)
+eq('方案 1300 = 一對一 20 堂', presetLessons(1300)?.lessons, 20)
+eq('方案 2000 = 一對四 50 堂', presetLessons(2000)?.lessons, 50)
+eq('每個方案都對得上一種課', TOPUP_PRESETS.filter(p => !presetLessons(p)).length, 0)
+
 eq('最低 $50', MIN_TOPUP_DOLLARS, 50)
 eq('最高 $10,000', MAX_TOPUP_DOLLARS, 10000)
 eq('$1 = 1 點', centsToPoints(100), 1)

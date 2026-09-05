@@ -37,8 +37,36 @@ export const TEAM_SLUG = 'team'
 export const MIN_TOPUP_DOLLARS = 50
 export const MAX_TOPUP_DOLLARS = 10_000
 
-/** The amounts offered as one-tap choices. Any other figure is still allowed. */
-export const TOPUP_PRESETS = [500, 1000, 2000] as const
+/** The amounts the website offers. These are now the ONLY amounts a parent can
+ *  buy online -- the free-text box is gone -- but MIN/MAX above stay wide,
+ *  because the front desk still takes small counter payments through the POS
+ *  and those go through the same validators. */
+export const TOPUP_PRESETS = [650, 800, 1000, 1300, 2000] as const
+
+/* Every preset divides exactly into some course's full price, which is what
+   lets the storefront say "10 lessons" instead of "$650". Stored as the COURSE,
+   not the count: the count is derived from BASE_POINTS, so if a base price ever
+   moves, the label stops resolving and points-check fails -- rather than the
+   page quietly promising a number of lessons that is no longer true.
+
+   The counts are a FLOOR, not an estimate. VIP and off-peak only ever make a
+   lesson cheaper and the rounding always favours the family, so 650 points buys
+   AT LEAST ten private lessons and possibly more. */
+export const PRESET_COURSE: Record<number, '1on1' | '1on4'> = {
+  650: '1on1',
+  800: '1on4',
+  1000: '1on4',
+  1300: '1on1',
+  2000: '1on4',
+}
+
+export function presetLessons(dollars: number): { slug: '1on1' | '1on4'; lessons: number } | null {
+  const slug = PRESET_COURSE[dollars]
+  if (!slug) return null
+  const unit = BASE_POINTS[slug]
+  if (!unit || dollars % unit !== 0) return null
+  return { slug, lessons: dollars / unit }
+}
 
 // --- VIP, by lessons completed ----------------------------------------------
 // Earned by attending, not by spending. Retroactive: the moment a family moves

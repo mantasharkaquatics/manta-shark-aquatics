@@ -1,7 +1,7 @@
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
-  ASSESSMENT_POINTS, BASE_POINTS, LESSONS_PER_FORGIVENESS, MIN_TOPUP_DOLLARS,
-  MAX_TOPUP_DOLLARS, OFF_PEAK_DISCOUNT, VIP_TIERS,
+  ASSESSMENT_POINTS, BASE_POINTS, LESSONS_PER_FORGIVENESS,
+  OFF_PEAK_DISCOUNT, VIP_TIERS, TOPUP_PRESETS, presetLessons,
 } from '@/lib/points'
 import { FAQ_IDS } from '@/lib/faq'
 import { translate } from '@/lib/i18n'
@@ -44,7 +44,10 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
   // so the assistant cannot quote a price the booking page will not honour.
   const priceLines = [
     'Lessons are paid for out of a points wallet. 1 point = US$1, fixed. Points never expire and unused points can be refunded at any time for what was paid.',
-    `Top up any amount from $${MIN_TOPUP_DOLLARS} to $${MAX_TOPUP_DOLLARS.toLocaleString('en-US')}. There is no volume discount on the purchase — see the two discounts below, which are applied when a lesson is booked.`,
+    `The website sells exactly these amounts and nothing else: ${TOPUP_PRESETS.map(p => {
+      const shape = presetLessons(p)
+      return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} × ${shape.slug} at full price)` : '$' + p.toLocaleString('en-US')
+    }).join(', ')}. Those lesson counts are a MINIMUM — the discounts below are applied at booking, so the same points stretch further. A parent wanting a different amount must be sent to the front desk. There is no volume discount on the purchase itself.`,
     `Swim Assessment (one per swimmer, 30 min, 1-on-1): $${(TRIAL_PRICE_CENTS / 100).toFixed(0)} paid by card, not from the wallet. It is required before any lesson can be booked, because the booking calendar needs the swimmer's level. (Internally it is worth ${ASSESSMENT_POINTS} points.)`,
     'Base price per swimmer per 30 minutes, before discounts:',
     ...Object.entries(BASE_POINTS).map(([slug, pts]) => `  ${slug}: ${pts} points ($${pts})`),

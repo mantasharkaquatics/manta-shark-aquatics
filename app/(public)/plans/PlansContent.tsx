@@ -8,7 +8,7 @@ import { tDb } from '@/lib/i18n'
 import { tierBandLabel } from '@/lib/team-tiers'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
-  ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
+  ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, presetLessons,
   OFF_PEAK_DISCOUNT, TOPUP_PRESETS, VIP_TIERS,
 } from '@/lib/points'
 import Link from 'next/link'
@@ -165,6 +165,7 @@ function TopUp() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '16px' }}>
         {TOPUP_PRESETS.map(p => {
           const on = amount === p
+          const shape = presetLessons(p)
           return (
             <button
               key={p}
@@ -175,20 +176,39 @@ function TopUp() {
                 borderRadius: '14px', padding: '20px 12px', cursor: 'pointer', textAlign: 'center',
               }}
             >
+              {/* The biggest thing on the card is now the number of LESSONS.
+                  A parent choosing between $650 and $1,300 is choosing an
+                  amount of money; choosing between 10 and 20 private lessons is
+                  choosing a course of study. Same money, and the exchange rate
+                  is still printed underneath. */}
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '30px', fontWeight: 900, lineHeight: 1, color: on ? GOLD : '#fff' }}>
-                {money(p)}
+                {shape ? t('points.buy.presetCount', { n: shape.lessons }) : money(p)}
               </div>
-              <div style={{ fontSize: '12px', marginTop: '6px', color: on ? GOLD : 'rgba(255,255,255,0.5)' }}>
-                {t('points.buy.presetPoints', { n: num(p) })}
+              <div style={{ fontSize: '12.5px', fontWeight: 600, marginTop: '5px', color: on ? GOLD : 'rgba(255,255,255,0.65)' }}>
+                {shape ? t('points.price.row.' + shape.slug) : t('points.buy.presetPoints', { n: num(p) })}
               </div>
+              {shape && (
+                <div style={{ fontSize: '11px', marginTop: '5px', color: 'rgba(255,255,255,0.38)', fontVariantNumeric: 'tabular-nums' }}>
+                  {money(p)} · {t('points.unit', { n: num(p) })}
+                </div>
+              )}
             </button>
           )
         })}
       </div>
 
       {/* The free-text amount box is gone. Typing a number into a field is
-          what a deposit looks like; choosing one of three named things is what
-          buying looks like. */}
+          what a deposit looks like; choosing one of five named things is what
+          buying looks like.
+
+          This note is a floor, not a hedge: both discounts only ever make a
+          lesson cheaper, so the counts above are the WORST case. It also has to
+          say the points are not tied to a course, or five cards each naming one
+          course type would imply a restriction that does not exist. */}
+      <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, margin: '4px 0 0' }}>
+        {t('points.buy.countsNote')}
+      </p>
+
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '20px 0 16px' }} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
