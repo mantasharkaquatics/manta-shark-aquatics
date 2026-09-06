@@ -118,14 +118,14 @@ console.log('\n儲值金額的邊界')
 // promises a number of lessons the price list does not back.
 eq('一對一 10 堂 = $650', topUpAmount('1on1', 10), 650)
 eq('一對一 30 堂 = $1,950', topUpAmount('1on1', 30), 1950)
-eq('一對一 50 堂 = $3,250', topUpAmount('1on1', 50), 3250)
 eq('一對二 10 堂 = $500', topUpAmount('1on2', 10), 500)
+eq('一對二 30 堂 = $1,500', topUpAmount('1on2', 30), 1500)
 eq('一對四 10 堂 = $400', topUpAmount('1on4', 10), 400)
-eq('一對四 50 堂 = $2,000', topUpAmount('1on4', 50), 2000)
-eq('九個方案', TOPUP_PRESETS.length, 9)
+eq('一對四 30 堂 = $1,200', topUpAmount('1on4', 30), 1200)
+eq('六個方案', TOPUP_PRESETS.length, 6)
 // Two cards at the same price would be indistinguishable the moment they are
 // bought -- the ledger records points, not which card was clicked.
-eq('九個金額互不相同', new Set(TOPUP_PRESETS).size, 9)
+eq('六個金額互不相同', new Set(TOPUP_PRESETS).size, 6)
 eq('每個金額都對得上一種課', TOPUP_PRESETS.filter(p => !presetLessons(p)).length, 0)
 eq('最貴的方案也在上限內', TOPUP_PRESETS.every(p => p >= MIN_TOPUP_DOLLARS && p <= MAX_TOPUP_DOLLARS), true)
 

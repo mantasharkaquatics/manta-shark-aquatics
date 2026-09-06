@@ -48,7 +48,10 @@ export const MAX_TOPUP_DOLLARS = 10_000
    asserts the nine come out distinct, because two cards at the same price
    would be indistinguishable once bought. */
 export const TOPUP_COURSES = ['1on1', '1on2', '1on4'] as const
-export const TOPUP_LESSON_COUNTS = [10, 30, 50] as const
+// 50 came out at exactly five times the 10 -- same price per lesson, same VIP
+// accrual, so it offered nothing but a bigger cheque. Two sizes is the honest
+// number when there is no volume discount to justify a third.
+export const TOPUP_LESSON_COUNTS = [10, 30] as const
 export type TopUpCourse = (typeof TOPUP_COURSES)[number]
 
 export function topUpAmount(slug: TopUpCourse, lessons: number): number {
