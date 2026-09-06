@@ -17,7 +17,7 @@ const src = readFileSync(new URL('../lib/points.ts', import.meta.url), 'utf8')
   .replace(/export const todayLA = getTodayLA/, '')
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
 const mod = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
-const { priceLesson, vipTier, nextVipTier, isOffPeak, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents, TOPUP_PRESETS, presetLessons } = mod
+const { priceLesson, vipTier, nextVipTier, isOffPeak, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents, TOPUP_PRESETS, presetLessons, topUpAmount } = mod
 
 let fails = 0
 const eq = (label, got, want) => {
@@ -116,12 +116,18 @@ console.log('\n沒有任何折扣組合會超過原價，或低於最大折扣')
 console.log('\n儲值金額的邊界')
 // Every storefront amount must divide exactly into a course price, or the card
 // promises a number of lessons the price list does not back.
-eq('方案 650 = 一對一 10 堂', presetLessons(650)?.lessons, 10)
-eq('方案 800 = 一對四 20 堂', presetLessons(800)?.lessons, 20)
-eq('方案 1000 = 一對四 25 堂', presetLessons(1000)?.lessons, 25)
-eq('方案 1950 = 一對一 30 堂', presetLessons(1950)?.lessons, 30)
-eq('方案 2000 = 一對四 50 堂', presetLessons(2000)?.lessons, 50)
-eq('每個方案都對得上一種課', TOPUP_PRESETS.filter(p => !presetLessons(p)).length, 0)
+eq('一對一 10 堂 = $650', topUpAmount('1on1', 10), 650)
+eq('一對一 30 堂 = $1,950', topUpAmount('1on1', 30), 1950)
+eq('一對一 50 堂 = $3,250', topUpAmount('1on1', 50), 3250)
+eq('一對二 10 堂 = $500', topUpAmount('1on2', 10), 500)
+eq('一對四 10 堂 = $400', topUpAmount('1on4', 10), 400)
+eq('一對四 50 堂 = $2,000', topUpAmount('1on4', 50), 2000)
+eq('九個方案', TOPUP_PRESETS.length, 9)
+// Two cards at the same price would be indistinguishable the moment they are
+// bought -- the ledger records points, not which card was clicked.
+eq('九個金額互不相同', new Set(TOPUP_PRESETS).size, 9)
+eq('每個金額都對得上一種課', TOPUP_PRESETS.filter(p => !presetLessons(p)).length, 0)
+eq('最貴的方案也在上限內', TOPUP_PRESETS.every(p => p >= MIN_TOPUP_DOLLARS && p <= MAX_TOPUP_DOLLARS), true)
 
 eq('最低 $50', MIN_TOPUP_DOLLARS, 50)
 eq('最高 $10,000', MAX_TOPUP_DOLLARS, 10000)

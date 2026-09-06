@@ -8,7 +8,8 @@ import { tDb } from '@/lib/i18n'
 import { tierBandLabel } from '@/lib/team-tiers'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
-  ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, presetLessons,
+  ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
+  TOPUP_COURSES, TOPUP_LESSON_COUNTS, topUpAmount, type TopUpCourse,
   OFF_PEAK_DISCOUNT, TOPUP_PRESETS, VIP_TIERS,
 } from '@/lib/points'
 import Link from 'next/link'
@@ -118,15 +119,20 @@ function TopUp() {
   const locale = useLocale()
   const router = useRouter()
   const supabase = createClient()
-  const [amount, setAmount] = useState<number>(TOPUP_PRESETS[1])
+  /* Two questions, not one nine-way comparison: which class, then how many.
+     Opens on the group class because it is the cheapest way in -- $400 is a
+     friendlier first number than $650, and a family who wants private lessons
+     will happily press one more button to say so. */
+  const [course, setCourse] = useState<TopUpCourse>('1on4')
+  const [lessons, setLessons] = useState<number>(TOPUP_LESSON_COUNTS[0])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsAssessment, setNeedsAssessment] = useState(false)
 
-  const chosen = amount
-  // Always true for the presets as they stand. Kept anyway: it is the guard
-  // that fails loudly if someone ever edits TOPUP_PRESETS outside the range
-  // the server will accept, instead of shipping a button that 400s.
+  const chosen = topUpAmount(course, lessons)
+  // Always true for the grid as it stands. Kept anyway: it is the guard that
+  // fails loudly if a base price ever moves the grid outside what the server
+  // accepts, instead of shipping a button that 400s.
   const valid = Number.isFinite(chosen) && chosen >= MIN_TOPUP_DOLLARS && chosen <= MAX_TOPUP_DOLLARS
 
   async function buy() {
@@ -158,40 +164,47 @@ function TopUp() {
 
   return (
     <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(24px,3vw,36px)' }}>
-      {/* 150px left the three cards one pixel short of fitting and they broke
-          into a 2 + 1 that reads as "two options, and an afterthought". At
-          130px they sit in one row on a desktop and fall to two on a phone,
-          where three across would be too narrow for "$1,000". */}
+      {/* Which class, first. The points are not tied to one -- the note below
+          says so -- but a parent thinking about buying is thinking about a
+          class, not about a balance. Asking it separately also keeps nine
+          cards off a screen where hesitating costs a sale. */}
+      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>
+        {t('points.buy.pickCourse')}
+      </div>
+      <div style={{ display: 'inline-flex', flexWrap: 'wrap', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', overflow: 'hidden', marginBottom: '18px' }}>
+        {TOPUP_COURSES.map(c => (
+          <button key={c} onClick={() => setCourse(c)}
+            style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer',
+              background: course === c ? GOLD : 'transparent', color: course === c ? NAVY : 'rgba(255,255,255,0.55)' }}>
+            {t('points.price.row.' + c)}
+          </button>
+        ))}
+      </div>
+
+      {/* Then how many. The biggest thing on the card is the number of LESSONS:
+          choosing between $400 and $1,200 is choosing an amount of money;
+          choosing between ten and thirty lessons is choosing a course of study.
+          The money is right underneath and the rate is unchanged. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-        {TOPUP_PRESETS.map(p => {
-          const on = amount === p
-          const shape = presetLessons(p)
+        {TOPUP_LESSON_COUNTS.map(n => {
+          const on = lessons === n
+          const price = topUpAmount(course, n)
           return (
             <button
-              key={p}
-              onClick={() => setAmount(p)}
+              key={n}
+              onClick={() => setLessons(n)}
               style={{
                 background: on ? 'rgba(201,168,76,0.14)' : 'rgba(255,255,255,0.05)',
                 border: `2px solid ${on ? GOLD : 'rgba(255,255,255,0.12)'}`,
                 borderRadius: '14px', padding: '20px 12px', cursor: 'pointer', textAlign: 'center',
               }}
             >
-              {/* The biggest thing on the card is now the number of LESSONS.
-                  A parent choosing between $650 and $1,300 is choosing an
-                  amount of money; choosing between 10 and 20 private lessons is
-                  choosing a course of study. Same money, and the exchange rate
-                  is still printed underneath. */}
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '30px', fontWeight: 900, lineHeight: 1, color: on ? GOLD : '#fff' }}>
-                {shape ? t('points.buy.presetCount', { n: shape.lessons }) : money(p)}
+                {t('points.buy.presetCount', { n })}
               </div>
-              <div style={{ fontSize: '12.5px', fontWeight: 600, marginTop: '5px', color: on ? GOLD : 'rgba(255,255,255,0.65)' }}>
-                {shape ? t('points.price.row.' + shape.slug) : t('points.buy.presetPoints', { n: num(p) })}
+              <div style={{ fontSize: '12px', marginTop: '6px', color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>
+                {money(price)} · {t('points.unit', { n: num(price) })}
               </div>
-              {shape && (
-                <div style={{ fontSize: '11px', marginTop: '5px', color: 'rgba(255,255,255,0.38)', fontVariantNumeric: 'tabular-nums' }}>
-                  {money(p)} · {t('points.unit', { n: num(p) })}
-                </div>
-              )}
             </button>
           )
         })}

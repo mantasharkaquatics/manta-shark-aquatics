@@ -37,38 +37,42 @@ export const TEAM_SLUG = 'team'
 export const MIN_TOPUP_DOLLARS = 50
 export const MAX_TOPUP_DOLLARS = 10_000
 
-/** The amounts the website offers. These are now the ONLY amounts a parent can
- *  buy online -- the free-text box is gone -- but MIN/MAX above stay wide,
- *  because the front desk still takes small counter payments through the POS
- *  and those go through the same validators. */
-export const TOPUP_PRESETS = [650, 800, 1000, 1950, 2000] as const
+/* WHAT THE STOREFRONT SELLS.
 
-/* Every preset divides exactly into some course's full price, which is what
-   lets the storefront say "10 lessons" instead of "$650". Stored as the COURSE,
-   not the count: the count is derived from BASE_POINTS, so if a base price ever
-   moves, the label stops resolving and points-check fails -- rather than the
-   page quietly promising a number of lessons that is no longer true.
+   Three class formats x three sizes. The parent picks the format first and the
+   size second, which is two easy questions instead of one nine-way comparison
+   -- and it keeps nine cards off a screen where hesitating costs a sale.
 
-   The counts are a FLOOR, not an estimate. VIP and off-peak only ever make a
-   lesson cheaper and the rounding always favours the family, so 650 points buys
-   AT LEAST ten private lessons and possibly more. */
-export const PRESET_COURSE: Record<number, '1on1' | '1on4'> = {
-  650: '1on1',
-  800: '1on4',
-  1000: '1on4',
-  // 1950 rather than 1300, which also came out at "20 lessons" and collided
-  // with the 800 card at a glance -- two tiers reading 20 堂 at different
-  // prices is a moment of doubt on the one screen that must not have any.
-  1950: '1on1',
-  2000: '1on4',
+   The amounts are DERIVED from BASE_POINTS, never typed. Change a base price
+   and every card follows; there is no second list to forget. points-check
+   asserts the nine come out distinct, because two cards at the same price
+   would be indistinguishable once bought. */
+export const TOPUP_COURSES = ['1on1', '1on2', '1on4'] as const
+export const TOPUP_LESSON_COUNTS = [10, 30, 50] as const
+export type TopUpCourse = (typeof TOPUP_COURSES)[number]
+
+export function topUpAmount(slug: TopUpCourse, lessons: number): number {
+  return BASE_POINTS[slug] * lessons
 }
 
-export function presetLessons(dollars: number): { slug: '1on1' | '1on4'; lessons: number } | null {
-  const slug = PRESET_COURSE[dollars]
-  if (!slug) return null
-  const unit = BASE_POINTS[slug]
-  if (!unit || dollars % unit !== 0) return null
-  return { slug, lessons: dollars / unit }
+/** Every amount the website will sell, ascending. The chat assistant and the
+ *  server validate against this; the POS deliberately does not, because the
+ *  front desk still takes odd amounts in person. */
+export const TOPUP_PRESETS: readonly number[] = [
+  ...new Set(TOPUP_COURSES.flatMap(s => TOPUP_LESSON_COUNTS.map(n => topUpAmount(s, n)))),
+].sort((a, b) => a - b)
+
+/* What a given amount buys, for labelling it in prose (the chat assistant, the
+   knowledge sheet). The counts are a FLOOR, not an estimate: VIP and off-peak
+   only ever make a lesson cheaper and the rounding always favours the family,
+   so 650 points buys AT LEAST ten private lessons. */
+export function presetLessons(dollars: number): { slug: TopUpCourse; lessons: number } | null {
+  for (const slug of TOPUP_COURSES) {
+    for (const lessons of TOPUP_LESSON_COUNTS) {
+      if (topUpAmount(slug, lessons) === dollars) return { slug, lessons }
+    }
+  }
+  return null
 }
 
 // --- VIP, by lessons completed ----------------------------------------------

@@ -40,7 +40,9 @@ export default function POSClient() {
   // choosing to give. Bonus points are granted, not purchased -- they spend the
   // same but cannot be cashed out, so a promotion can never be refunded for
   // more money than came in.
-  const [topupDollars, setTopupDollars] = useState<string>(String(TOPUP_PRESETS[1]))
+  // The smallest thing the website sells, as a starting point. Not an index
+  // into TOPUP_PRESETS -- that array's order is derived and can change.
+  const [topupDollars, setTopupDollars] = useState<string>(String(Math.min(...TOPUP_PRESETS)))
   const [bonusPoints, setBonusPoints] = useState<string>('')
   const [isTrial, setIsTrial] = useState(false)
   const [students, setStudents] = useState<Student[]>([])
