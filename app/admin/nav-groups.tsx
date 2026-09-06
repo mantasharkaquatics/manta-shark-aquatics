@@ -35,6 +35,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/checkin', label: 'Check-in', desc: 'Today\u2019s arrivals', icon: <svg {...S}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg> },
       { href: '/admin/sales', label: 'Sales', desc: 'Payments and invoices', icon: <svg {...S}><path d="M12 1v22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg> },
+      { href: '/admin/finance', label: 'Deferred revenue', desc: 'What you owe in lessons', icon: <svg {...S}><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" /><rect x="12" y="8" width="3" height="10" /><rect x="17" y="5" width="3" height="13" /></svg> },
       { href: '/admin/pos', label: 'POS', desc: 'Sell at the desk', icon: <svg {...S}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg> },
       { href: '/admin/messages', label: 'Messages', desc: 'Parent conversations', icon: <svg {...S}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
     ],
