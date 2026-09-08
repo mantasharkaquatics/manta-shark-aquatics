@@ -155,7 +155,22 @@ export async function POST(req: NextRequest) {
   const isPartnerBooking = course.slug === '1on2' && !!partner
 
   // Reschedule validation (ownership + 24-hour rule, server-enforced)
+  //
+  // A reschedule MOVES a lesson: it carries the original charge to the new
+  // time and takes no further points. That only holds while the lesson coming
+  // out is the same lesson going in, and this route used to check nothing of
+  // the sort -- it read one booking row and let the request describe the rest.
+  //
+  // A same-account 1-on-2 is two rows sharing one debit, so the per-seat figure
+  // inherited from a single-seat lesson, written onto two new rows, doubled the
+  // points that lesson was worth. Nobody paid for the second one; both rows
+  // refund in full on cancellation, and the difference is minted. It was not
+  // reachable from the booking page, which enters a reschedule already locked
+  // to one swimmer, but the API took whatever it was handed and there was no
+  // ceiling on how often. The old lesson is therefore now loaded in full, and
+  // the checks below refuse anything that is not the same lesson moved.
   let oldBooking: any = null
+  let oldLessonRows: any[] = []
   if (reschedule_booking_id) {
     const { data: ob } = await svc
       .from('bookings')
@@ -168,9 +183,44 @@ export async function POST(req: NextRequest) {
     if (ob.status !== 'confirmed')
       return NextResponse.json({ error: 'Only confirmed bookings can be rescheduled' }, { status: 400 })
     const { data: oldSess } = await svc
-      .from('class_sessions').select('session_date, start_time').eq('id', ob.class_session_id).single()
+      .from('class_sessions').select('session_date, start_time, course_type_id').eq('id', ob.class_session_id).single()
     if (oldSess && minutesUntil(oldSess.session_date, oldSess.start_time, today, nowMin) < 24 * 60)
       return NextResponse.json({ error: 'Bookings within 24 hours cannot be rescheduled online. Please contact us.' }, { status: 400 })
+    // Same kind of lesson. Without this, a 1-on-2 seat (50 points) could be
+    // moved onto a 1-on-1 (65) and the difference never charged.
+    if (oldSess && oldSess.course_type_id !== course.id)
+      return NextResponse.json({ error: 'A lesson can only be moved to the same kind of lesson. Please cancel and book again instead.' }, { status: 400 })
+
+    // Every seat of the old lesson this family paid for. A same-account 1-on-2
+    // is ONE lesson spread over two rows sharing a single debit, so both move
+    // or neither does. Nothing else is: two siblings in the same 1-on-4 are two
+    // independent bookings that happen to share a session, and moving one must
+    // not drag the other along.
+    if (course.slug === '1on2' && !isPartnerBooking) {
+      const { data: rows } = await svc
+        .from('bookings')
+        .select('id, student_id, points_charged, points_refunded')
+        .eq('parent_id', parent.id)
+        .eq('class_session_id', ob.class_session_id)
+        .eq('status', 'confirmed')
+      oldLessonRows = rows || []
+
+      // The dashboard shows a reschedule button on each row and sends only
+      // that row's swimmer. Bring the other one along rather than refusing --
+      // the parent asked to move the lesson, and the lesson is both seats.
+      if (!student2 && oldLessonRows.length === 2) {
+        const siblingId = oldLessonRows.map((r: any) => r.student_id).find((id: string) => id !== student.id)
+        if (siblingId) {
+          const { data: s2 } = await svc
+            .from('students').select('id, parent_id, current_level, full_name').eq('id', siblingId).single()
+          if (!s2 || s2.parent_id !== parent.id)
+            return NextResponse.json({ error: 'This lesson cannot be moved online. Please contact us and we will move it for you.' }, { status: 409 })
+          student2 = s2
+        }
+      }
+    } else {
+      oldLessonRows = [ob]
+    }
     oldBooking = ob
   }
 
@@ -182,6 +232,25 @@ export async function POST(req: NextRequest) {
   // The price is worked out server-side from lib/points.ts. The client never
   // sends a price; it only sends what it wants to book.
   const seatsToPay = student2 && !isPartnerBooking ? 2 : 1
+
+  // The same seats have to come out as go in. Fewer would strand a swimmer on
+  // the old session; more is the hole described above.
+  if (oldBooking && !isPartnerBooking) {
+    if (oldLessonRows.length !== seatsToPay)
+      return NextResponse.json({
+        error: oldLessonRows.length > seatsToPay
+          ? 'This lesson has two swimmers, so both have to move together. Please reschedule from your dashboard.'
+          : 'A swimmer cannot be added while moving a lesson. Please book the second swimmer separately.',
+      }, { status: 400 })
+    // Every seat of one lesson carries the same per-seat charge, and the
+    // inherited figure below is written onto all of them. If that is not true
+    // of this lesson, the arithmetic is not ours to guess at.
+    const perSeat = oldLessonRows.map((r: any) => r.points_charged ?? 0)
+    const settled = oldLessonRows.every((r: any) => (r.points_refunded ?? 0) === 0)
+    if (!settled || new Set(perSeat).size !== 1)
+      return NextResponse.json({ error: 'This lesson cannot be moved online. Please contact us and we will move it for you.' }, { status: 409 })
+  }
+
   const completed = await lessonsCompleted(svc, parent.id)
   let price
   try {
@@ -202,8 +271,10 @@ export async function POST(req: NextRequest) {
   // would let a parent book a peak slot and move it off-peak for the discount,
   // and the parent can already cancel and rebook when they are more than 24
   // hours out, so there is nothing to protect by charging again.
+  // Per-seat, from the old lesson itself. Equal across its rows by the check
+  // above, so writing it onto every new row preserves the total exactly.
   const inheritedPoints: number | null =
-    oldBooking && !isPartnerBooking ? (oldBooking.points_charged ?? null) : null
+    oldBooking && !isPartnerBooking ? (oldLessonRows[0]?.points_charged ?? null) : null
 
   const rootOriginalId = oldBooking ? (oldBooking.original_booking_id || oldBooking.id) : null
 
@@ -358,20 +429,28 @@ export async function POST(req: NextRequest) {
 
   // Finalize reschedule: cancel old booking
   if (oldBooking) {
+    // All of them. Cancelling only the row that was named left the second
+    // swimmer of a 1-on-2 confirmed on a session their partner had left.
+    const oldIds = oldLessonRows.length > 0 ? oldLessonRows.map((r: any) => r.id) : [oldBooking.id]
     await svc.from('bookings')
       .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
-      .eq('id', oldBooking.id)
+      .in('id', oldIds)
     // Rescheduling into a cross-account 1-on-2 makes a fresh invitation that
-    // settles when the other family confirms, so the old booking's points come
-    // back now rather than riding along.
+    // settles when the other family confirms, so the old lesson's points come
+    // back now rather than riding along. Every row that was just cancelled,
+    // not only the one named: a same-account 1-on-2 moved into an invitation
+    // gives up two seats, and refunding one of them would keep the other's
+    // points for a lesson that is no longer on anyone's calendar.
     if (isPartnerBooking) {
-      await refundBookingPoints(svc, {
-        booking: oldBooking,
-        parentId: parent.id,
-        reason: 'cancel_refund',
-        actor: 'system',
-        note: 'rescheduled into a new 1-on-2 invitation',
-      })
+      for (const row of (oldLessonRows.length > 0 ? oldLessonRows : [oldBooking])) {
+        await refundBookingPoints(svc, {
+          booking: row,
+          parentId: parent.id,
+          reason: 'cancel_refund',
+          actor: 'system',
+          note: 'rescheduled into a new 1-on-2 invitation',
+        })
+      }
     }
   }
 
