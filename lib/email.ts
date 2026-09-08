@@ -26,6 +26,7 @@ export type EmailType =
   | 'applicant_application_received'
   | 'applicant_password_reset'
   | 'payment_reversed'
+  | 'refund_issued'
 
 export interface EmailPayload {
   type: EmailType
@@ -70,6 +71,8 @@ export interface EmailPayload {
   pointsOwed?: number
   lessonsReleased?: number
   reversalKind?: 'payment_failed' | 'chargeback'
+  // refund_issued: the part still to be handed over in person, if any.
+  handBackAmount?: number
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -160,6 +163,22 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'invoice') {
     subject = `🧾 Invoice ${invoiceNumber} - Manta Shark Aquatics`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${invoiceNumber}</h2><p>Hi ${parentName},</p><p>Thank you for your payment! Your invoice is ready. Log in to your dashboard to view and download it anytime.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${invoiceNumber}</td></tr><tr><td style="padding: 8px 0; color: #666;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;"><a href="https://www.mantasharkaquatics.net/dashboard" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Go to My Dashboard</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+  } else if (type === 'refund_issued') {
+    // No apology and no upsell. They asked for their money back and they are
+    // getting it; the only thing this has to do is say how much, when it lands,
+    // and what still needs a person.
+    const total = Number(amount ?? 0)
+    const hand = Number(payload.handBackAmount ?? 0)
+    const card = total - hand
+    const cardLine = card > 0
+      ? `<p><strong>$${card.toFixed(2)}</strong> is on its way back to the card or account you paid with. Banks usually show it within 5\u201310 business days.</p>`
+      : ''
+    const handLine = hand > 0
+      ? `<p><strong>$${hand.toFixed(2)}</strong> was paid at the front desk, so we\u2019ll hand that back in person next time you\u2019re in \u2014 or tell us if you\u2019d rather we posted a cheque.</p>`
+      : ''
+    subject = `Your $${total.toFixed(2)} refund from Manta Shark Aquatics`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Refund issued</h2><p>Hi ${parentName},</p><p>We\u2019ve refunded <strong>$${total.toFixed(2)}</strong> and taken the matching points out of your account.</p>${cardLine}${handLine}<p style="color:#666; font-size: 13px; margin-top: 16px;">Your points statement on the Dashboard shows this alongside everything else on your account. If anything doesn\u2019t look right, reply to this email and we\u2019ll sort it out.</p></div></div>`
+
   } else if (type === 'payment_reversed') {
     // Written to be read by someone who did nothing wrong. The overwhelmingly
     // likely story is a closed account or a typo'd routing number, not a

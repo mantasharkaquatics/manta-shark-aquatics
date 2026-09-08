@@ -34,7 +34,7 @@ export type Wallet = {
 export type LedgerReason =
   | 'purchase' | 'booking' | 'booking_failed' | 'cancel_refund' | 'forgiveness'
   | 'school_cancel' | 'admin_grant' | 'admin_deduct' | 'cash_refund'
-  | 'payment_failed' | 'chargeback'
+  | 'refund_failed' | 'payment_failed' | 'chargeback'
 
 /** The two ways a payment we already credited turns out not to have been paid. */
 export const REVERSAL_REASONS = ['payment_failed', 'chargeback'] as const
@@ -222,6 +222,12 @@ export async function applyPoints(svc: Svc, input: ApplyInput): Promise<ApplyRes
     }
     if (input.reason === 'cash_refund' && input.amountCents) {
       patch.total_refunded_cents = wallet.total_refunded_cents + input.amountCents
+    }
+    if (input.reason === 'refund_failed' && input.amountCents) {
+      // A refund we could not deliver was never a refund. It leaves the running
+      // total the same way it went in, so the figure keeps meaning "cash this
+      // family actually got back".
+      patch.total_refunded_cents = Math.max(0, wallet.total_refunded_cents - input.amountCents)
     }
     if (isReversal(input.reason) && input.amountCents) {
       // Money that came back out was never really paid, so it leaves

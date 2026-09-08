@@ -50,6 +50,18 @@ export const MAX_TOPUP_DOLLARS = 10_000
  */
 export const FIRST_TOPUP_BANK_CAP_DOLLARS = 500
 
+/**
+ * Whether the cash-refund route will act.
+ *
+ * The route and its arithmetic are finished and tested. What is not finished is
+ * the refund policy the family agrees to -- it needs a lawyer, and California's
+ * stored-value rules need an answer for points specifically. Refunding against
+ * terms nobody has approved is a worse problem than not having the button yet,
+ * so this stays false until the wording is settled. Flip it, then add the
+ * button to the Members page.
+ */
+export const CASH_REFUND_ENABLED = false
+
 /* WHAT THE STOREFRONT SELLS.
 
    Three class formats x three sizes. The parent picks the format first and the

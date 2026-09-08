@@ -43,6 +43,22 @@ const wallet = await load('../lib/points-wallet.ts', [
 ])
 const { applyPoints, arrears, DuplicateLedgerEntry, InsufficientPoints, reversePurchase, totalBalance, WalletInArrears } = wallet
 
+const walletUrl = 'data:text/javascript;base64,' + Buffer.from(
+  ts.transpileModule(
+    readFileSync(new URL('../lib/points-wallet.ts', import.meta.url), 'utf8')
+      .replace(/from '@\/lib\/points'/, `from '${pointsUrl}'`),
+    { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } },
+  ).outputText,
+).toString('base64')
+
+const refunds = await load('../lib/refunds.ts', [
+  [/import Stripe from 'stripe'\n/, ''],
+  [/: Stripe,/, ': any,'],
+  [/from '@\/lib\/points-wallet'/, `from '${walletUrl}'`],
+  [/from '@\/lib\/points'/, `from '${pointsUrl}'`],
+])
+const { planRefund, executeRefund, RefundNotPossible } = refunds
+
 let fails = 0
 const eq = (label, got, want) => {
   const ok = JSON.stringify(got) === JSON.stringify(want)
@@ -67,6 +83,7 @@ function makeSvc(opts = {}) {
     // Called before each guarded update. Lets a test move the wallet
     // underneath the code, the way a concurrent request would.
     beforeUpdate: opts.beforeUpdate || null,
+    purchases: opts.purchases || [],
     failLedgerInsert: opts.failLedgerInsert || false,
     // '23505' makes the fake reject the insert the way the unique index on
     // point_ledger does when the same movement arrives twice.
@@ -117,6 +134,42 @@ function makeSvc(opts = {}) {
         eq() { return this },
         limit: async () => ({ data: [] }),
       }
+    }
+    if (table === 'purchases') {
+      const q = { _eq: [], _is: [] }
+      const api = {
+        select() { return api },
+        eq(col, val) { q._eq.push([col, val]); return api },
+        is(col, val) { q._is.push([col, val]); return api },
+        order(col, o) {
+          q._order = [col, o?.ascending !== false]
+          return Promise.resolve({ data: rowsFor(q) })
+        },
+        update(patch) {
+          const conds = []
+          const u = {
+            eq(col, val) { conds.push([col, val]); return u },
+            select() { return u },
+            then(res) {
+              const row = state.purchases.find(r => conds.every(([c, v]) => r[c] === v))
+              if (!row) return Promise.resolve({ data: [] }).then(res)
+              Object.assign(row, patch)
+              return Promise.resolve({ data: [{ id: row.id }] }).then(res)
+            },
+          }
+          return u
+        },
+      }
+      const rowsFor = (qq) => {
+        let rows = state.purchases.filter(r =>
+          qq._eq.every(([c, v]) => r[c] === v) && qq._is.every(([c, v]) => (r[c] ?? null) === v))
+        if (qq._order) {
+          const [col, asc] = qq._order
+          rows = [...rows].sort((a, b) => String(a[col]).localeCompare(String(b[col])) * (asc ? 1 : -1))
+        }
+        return rows.map(r => ({ ...r }))
+      }
+      return api
     }
     throw new Error('unexpected table ' + table)
   }
@@ -316,6 +369,134 @@ console.log('\n重複入帳：撤回自己寫的每一個欄位')
   eq('餘額退回', state.wallet.balance_purchased, 650)
   eq('累計實付金額也退回', state.wallet.total_paid_cents, 65000)
   eq('帳本沒有新增', state.ledger.length, 0)
+}
+
+// --- 14. what a refund is actually made of --------------------------------
+// Stripe only ever refunds to the original payment method, so a refund is not
+// an amount -- it is a set of charges being unwound, newest first.
+console.log('\n退款：從最新的收款往回拆')
+{
+  const { svc } = makeSvc({
+    purchased: 1150,
+    purchases: [
+      { id: 'p1', parent_id: 'p1p', amount_cents: 65000, refunded_cents: 0, paid_at: '2026-03-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_march' },
+      { id: 'p2', parent_id: 'p1p', amount_cents: 50000, refunded_cents: 0, paid_at: '2026-06-01', status: 'paid', reversed_at: null, payment_method: 'cash', stripe_payment_intent_id: null },
+    ],
+  })
+  const plan = await planRefund(svc, 'p1p', 60000)
+  eq('先動最新的那筆（六月的現金）', plan.legs[0].purchaseId, 'p2')
+  eq('不夠的部分往前找三月那筆', plan.legs[1].purchaseId, 'p1')
+  eq('六月退滿 $500', plan.legs[0].cents, 50000)
+  eq('三月補 $100', plan.legs[1].cents, 10000)
+  eq('$100 走 Stripe', plan.stripeCents, 10000)
+  eq('$500 要當面給', plan.manualCents, 50000)
+}
+
+// --- 15. the wallet caps the refund, not the charges ----------------------
+// A family who bought 1150 points and swam most of them can only get back what
+// is still in the wallet, however much they once paid.
+console.log('\n上過的課退不回來')
+{
+  const { svc } = makeSvc({
+    purchased: 150,
+    purchases: [{ id: 'p1', parent_id: 'p1p', amount_cents: 115000, refunded_cents: 0, paid_at: '2026-03-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_a' }],
+  })
+  const plan = await planRefund(svc, 'p1p', null)
+  eq('收款那邊還有 $1,150', plan.chargesRefundableCents, 115000)
+  eq('但錢包只剩 $150', plan.walletRefundableCents, 15000)
+  eq('可退金額取小的', plan.maxRefundCents, 15000)
+
+  let caught = null
+  try { await planRefund(svc, 'p1p', 20000) } catch (e) { caught = e }
+  eq('要多了就拒絕', caught?.code, 'ABOVE_REFUNDABLE')
+}
+
+// --- 16. arrears block a refund ------------------------------------------
+console.log('\n欠款時不能退款')
+{
+  const { svc } = makeSvc({ purchased: -130, granted: 500, purchases: [] })
+  let caught = null
+  try { await planRefund(svc, 'p1p', null) } catch (e) { caught = e }
+  eq('丟出 RefundNotPossible', caught instanceof RefundNotPossible, true)
+  eq('理由是欠款', caught?.code, 'WALLET_IN_ARREARS')
+}
+
+// --- 17. granted points are ours, and never become cash -------------------
+console.log('\n贈點換不到現金')
+{
+  const { svc } = makeSvc({
+    purchased: 0, granted: 200,
+    purchases: [{ id: 'p1', parent_id: 'p1p', amount_cents: 20000, refunded_cents: 0, paid_at: '2026-03-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_a' }],
+  })
+  let caught = null
+  try { await planRefund(svc, 'p1p', 20000) } catch (e) { caught = e }
+  eq('付過 $200 也退不到贈點', caught?.code, 'ABOVE_REFUNDABLE')
+  let caught2 = null
+  try { await planRefund(svc, 'p1p', null) } catch (e) { caught2 = e }
+  eq('全額退款也退不出東西', caught2 instanceof RefundNotPossible, true)
+}
+
+// --- 18. money out, points out, both by the same amount -------------------
+console.log('\n退款成功：點數與金額一起走')
+{
+  const { state, svc } = makeSvc({
+    purchased: 650,
+    purchases: [{ id: 'p1', parent_id: 'p1p', amount_cents: 65000, refunded_cents: 0, paid_at: '2026-03-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_a' }],
+  })
+  state.wallet.total_paid_cents = 65000
+  const stripe = { refunds: { create: async () => ({ id: 're_1' }) } }
+  const res = await executeRefund(svc, stripe, { parentId: 'p1p', amountCents: 30000, actor: 'admin:a1', note: '家長要求' })
+  eq('送出 $300', res.deliveredCents, 30000)
+  eq('沒有失敗的部分', res.failedCents, 0)
+  eq('錢包扣掉 300 點', state.wallet.balance_purchased, 350)
+  eq('累計退款記到 $300', state.wallet.total_refunded_cents, 30000)
+  eq('這筆收款記下退了 $300', state.purchases[0].refunded_cents, 30000)
+  eq('帳本理由是 cash_refund', state.ledger.at(-1).reason, 'cash_refund')
+}
+
+// --- 19. a refund Stripe refuses puts its own points back -----------------
+// An expired card two years on is the ordinary case, not the exotic one. The
+// leg that failed must not leave the family short of both the money and the
+// points -- and the charge behind it has to stay refundable.
+console.log('\n退款被拒：只把失敗那份還回去')
+{
+  const { state, svc } = makeSvc({
+    purchased: 900,
+    purchases: [
+      { id: 'old', parent_id: 'p1p', amount_cents: 40000, refunded_cents: 0, paid_at: '2024-01-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_dead' },
+      { id: 'new', parent_id: 'p1p', amount_cents: 50000, refunded_cents: 0, paid_at: '2026-06-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_live' },
+    ],
+  })
+  state.wallet.total_paid_cents = 90000
+  const stripe = {
+    refunds: {
+      create: async (args) => {
+        if (args.payment_intent === 'pi_dead') throw new Error('expired_or_canceled_card')
+        return { id: 're_ok' }
+      },
+    },
+  }
+  const res = await executeRefund(svc, stripe, { parentId: 'p1p', amountCents: 90000, actor: 'admin:a1', note: '結清退款' })
+  eq('只有 $500 送出去', res.deliveredCents, 50000)
+  eq('$400 送不出去', res.failedCents, 40000)
+  eq('送不出去的 400 點回到錢包', state.wallet.balance_purchased, 400)
+  eq('累計退款只算真的退掉的 $500', state.wallet.total_refunded_cents, 50000)
+  eq('活著的那筆記下已退', state.purchases.find(p => p.id === 'new').refunded_cents, 50000)
+  eq('失敗那筆維持可退', state.purchases.find(p => p.id === 'old').refunded_cents, 0)
+  eq('最後一筆帳本是 refund_failed', state.ledger.at(-1).reason, 'refund_failed')
+}
+
+// --- 20. cents that are not whole dollars are refused ---------------------
+// A point is a dollar. Half a point is not a thing the wallet can express.
+console.log('\n退款金額必須是整數美元')
+{
+  const { svc } = makeSvc({
+    purchased: 650,
+    purchases: [{ id: 'p1', parent_id: 'p1p', amount_cents: 65000, refunded_cents: 0, paid_at: '2026-03-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_a' }],
+  })
+  let caught = null
+  try { await planRefund(svc, 'p1p', 12345) } catch (e) { caught = e }
+  eq('$123.45 被拒絕', caught?.code, 'INVALID_AMOUNT')
 }
 
 console.log(fails === 0 ? '\n全部通過\n' : `\n${fails} 項失敗\n`)
