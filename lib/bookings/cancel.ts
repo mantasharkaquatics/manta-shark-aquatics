@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
-import { applyPoints, walletSummary } from '@/lib/points-wallet'
+import { walletSummary } from '@/lib/points-wallet'
+import { refundBookingPoints } from '@/lib/bookings/refund'
 
 export type CancelTarget = {
   parent_id: string
@@ -181,26 +182,22 @@ export async function cancelBookingWithPartner(
   }
 
   const cancelledBookingIds: string[] = [booking.id]
-  const cancelledPartners: { parent_id: string; student_id: string }[] = []
+  // kind carries whether points actually reached that family's wallet, so a
+  // refund that failed does not turn into an email saying it succeeded.
+  const cancelledPartners: { parent_id: string; student_id: string; kind: 'points' | 'none' }[] = []
 
-  const owed = (booking.points_charged ?? 0) - (booking.points_refunded ?? 0)
-  if (refundPoints && owed > 0) {
-    try {
-      await applyPoints(svc, {
+  // What actually went back, not what was due: the email below promises the
+  // family their points, and it must not promise them on the strength of a
+  // refund that failed.
+  const refunded = refundPoints
+    ? await refundBookingPoints(svc, {
+        booking,
         parentId: booking.parent_id,
         reason: useForgiveness ? 'forgiveness' : 'cancel_refund',
-        points: owed,
-        bookingId: booking.id,
         actor: callerParentId ? 'parent' : 'system',
         consumeForgiveness: useForgiveness,
       })
-      await svc.from('bookings')
-        .update({ points_refunded: (booking.points_refunded ?? 0) + owed })
-        .eq('id', booking.id)
-    } catch (e) {
-      console.error('points refund failed for booking', booking.id, e)
-    }
-  }
+    : 0
 
   // Same-account 1-on-2 ONLY: cancel sibling bookings on the same session.
   // Other course types (1-on-4 etc.): each booking is independent — no sibling cascade.
@@ -235,18 +232,13 @@ export async function cancelBookingWithPartner(
     cancelledBookingIds.push(pb.id)
     // The sibling seat of the same 1-on-2, paid in the same debit. It follows
     // the primary: refunded when the primary was, kept when it was not.
-    const sibOwed = (pb.points_charged ?? 0) - (pb.points_refunded ?? 0)
-    if (refundPoints && sibOwed > 0) {
-      await applyPoints(svc, {
+    if (refundPoints) {
+      await refundBookingPoints(svc, {
+        booking: pb,
         parentId: booking.parent_id,
         reason: useForgiveness ? 'forgiveness' : 'cancel_refund',
-        points: sibOwed,
-        bookingId: pb.id,
         actor: callerParentId ? 'parent' : 'system',
-      }).catch(e => console.error('sibling refund failed:', e))
-      await svc.from('bookings')
-        .update({ points_refunded: (pb.points_refunded ?? 0) + sibOwed })
-        .eq('id', pb.id)
+      })
     }
   }
 
@@ -295,25 +287,22 @@ export async function cancelBookingWithPartner(
             .select('id')
           if (!c || c.length === 0) continue
           cancelledBookingIds.push(pb.id)
-          cancelledPartners.push({ parent_id: pb.parent_id, student_id: pb.student_id })
           // The OTHER family cancelled and took this one down with it. They
           // did not choose this, so their points come back in full whatever
           // the clock says, and it costs them no forgiveness -- this was never
           // their cancellation.
-          const partnerOwed = (pb.points_charged ?? 0) - (pb.points_refunded ?? 0)
-          if (partnerOwed > 0) {
-            await applyPoints(svc, {
-              parentId: pb.parent_id,
-              reason: 'school_cancel',
-              points: partnerOwed,
-              bookingId: pb.id,
-              actor: 'system',
-              note: 'the other family cancelled this 1-on-2',
-            }).catch(e => console.error('partner refund failed:', e))
-            await svc.from('bookings')
-              .update({ points_refunded: (pb.points_refunded ?? 0) + partnerOwed })
-              .eq('id', pb.id)
-          }
+          const partnerBack = await refundBookingPoints(svc, {
+            booking: pb,
+            parentId: pb.parent_id,
+            reason: 'school_cancel',
+            actor: 'system',
+            note: 'the other family cancelled this 1-on-2',
+          })
+          cancelledPartners.push({
+            parent_id: pb.parent_id,
+            student_id: pb.student_id,
+            kind: partnerBack > 0 ? 'points' : 'none',
+          })
         }
       }
     }
@@ -322,13 +311,13 @@ export async function cancelBookingWithPartner(
   // Who to tell. Handed back to the caller so a 60-minute cancellation can send
   // one message covering both halves instead of one per half.
   const emailTargets: CancelTarget[] = [
-    { parent_id: booking.parent_id, student_id: booking.student_id, kind: owed > 0 ? 'points' as const : 'none' as const },
-    ...cancelledPartners.map((p) => ({ ...p, kind: 'points' as const })),
+    { parent_id: booking.parent_id, student_id: booking.student_id, kind: refunded > 0 ? 'points' as const : 'none' as const },
+    ...cancelledPartners,
   ]
 
   if (!options.skipEmail) {
     await notifyCancellation(svc, { bookingIds: cancelledBookingIds, targets: emailTargets })
   }
 
-  return { ok: true, status: 200, cancelledBookingIds, pointsRefunded: refundPoints ? owed : 0, usedForgiveness: useForgiveness, emailTargets }
+  return { ok: true, status: 200, cancelledBookingIds, pointsRefunded: refunded, usedForgiveness: useForgiveness, emailTargets }
 }

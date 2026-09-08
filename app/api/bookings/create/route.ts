@@ -5,6 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil 
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, lessonsCompleted, WalletInArrears } from '@/lib/points-wallet'
+import { refundBookingPoints } from '@/lib/bookings/refund'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 
@@ -158,7 +159,9 @@ export async function POST(req: NextRequest) {
   if (reschedule_booking_id) {
     const { data: ob } = await svc
       .from('bookings')
-      .select('id, parent_id, status, points_charged, class_session_id, original_booking_id')
+      // points_refunded comes along because the refund below subtracts it:
+      // without it a lesson refunded in part would be refunded again in full.
+      .select('id, parent_id, status, points_charged, points_refunded, class_session_id, original_booking_id')
       .eq('id', reschedule_booking_id).single()
     if (!ob || ob.parent_id !== parent.id)
       return NextResponse.json({ error: 'Booking to reschedule not found' }, { status: 403 })
@@ -361,18 +364,14 @@ export async function POST(req: NextRequest) {
     // Rescheduling into a cross-account 1-on-2 makes a fresh invitation that
     // settles when the other family confirms, so the old booking's points come
     // back now rather than riding along.
-    if (isPartnerBooking && oldBooking.points_charged) {
-      await applyPoints(svc, {
+    if (isPartnerBooking) {
+      await refundBookingPoints(svc, {
+        booking: oldBooking,
         parentId: parent.id,
         reason: 'cancel_refund',
-        points: oldBooking.points_charged,
-        bookingId: oldBooking.id,
         actor: 'system',
         note: 'rescheduled into a new 1-on-2 invitation',
-      }).catch(e => console.error('reschedule refund failed:', e))
-      await svc.from('bookings')
-        .update({ points_refunded: oldBooking.points_charged })
-        .eq('id', oldBooking.id)
+      })
     }
   }
 

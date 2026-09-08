@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
-import { applyPoints } from '@/lib/points-wallet'
+import { refundBookingPoints } from '@/lib/bookings/refund'
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -130,14 +130,10 @@ export async function POST(req: NextRequest) {
       if (!c || c.length === 0) continue
       // Coach time-off is a school-side cancellation: full points back, no
       // allowance spent, however close to the lesson it happens.
-      const owed = (b.points_charged ?? 0) - (b.points_refunded ?? 0)
-      if (owed > 0) {
-        await applyPoints(svc, {
-          parentId: b.parent_id, reason: 'school_cancel', points: owed,
-          bookingId: b.id, actor: 'admin', note: 'Coach unavailable',
-        }).catch(e => console.error('time-off refund failed:', e))
-        await svc.from('bookings').update({ points_refunded: b.points_charged }).eq('id', b.id)
-      }
+      await refundBookingPoints(svc, {
+        booking: b, parentId: b.parent_id, reason: 'school_cancel',
+        actor: 'admin', note: 'Coach unavailable',
+      })
       touchedSessions.add(b.class_session_id)
       cancelled++
     }

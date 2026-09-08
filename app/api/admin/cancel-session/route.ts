@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
-import { applyPoints } from '@/lib/points-wallet'
+import { refundBookingPoints } from '@/lib/bookings/refund'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -84,15 +84,11 @@ export async function POST(req: NextRequest) {
       // notice period, and no late-cancellation allowance is spent. The 24-hour
       // rule exists to protect a coach's reserved time; we are the ones giving
       // it up here.
-      const owed = (b.points_charged ?? 0) - (b.points_refunded ?? 0)
-      if (owed > 0) {
-        await applyPoints(svc, {
-          parentId: b.parent_id, reason: 'school_cancel', points: owed,
-          bookingId: b.id, actor: 'admin', note: 'Lesson cancelled by the school',
-        }).catch(e => console.error('school-cancel refund failed:', e))
-        await svc.from('bookings').update({ points_refunded: b.points_charged }).eq('id', b.id)
-      }
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: owed > 0 ? 'points' : 'none' })
+      const refunded = await refundBookingPoints(svc, {
+        booking: b, parentId: b.parent_id, reason: 'school_cancel',
+        actor: 'admin', note: 'Lesson cancelled by the school',
+      })
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: refunded > 0 ? 'points' : 'none' })
     } else {
       // pending_partner etc.: no credits were deducted, cancel without refund
       const { data: c } = await svc
