@@ -1,0 +1,76 @@
+# 上線清單
+
+正式上線 = 把 `points-system` 合併進 `main`。Vercel 的 production branch 是 `main`，
+所以**合併的那一刻就是上線**，沒有中間狀態。下面每一項都要在合併之前完成。
+
+狀態：`[ ]` 未做 · `[x]` 已完成
+
+---
+
+## 1. Stripe（正式模式）
+
+目前只有測試／沙盒環境有設定。正式模式的 webhook endpoint **還沒建立**，
+這是擋住合併的第一項。
+
+- [ ] 在 **正式模式**（不是沙盒、不是測試模式）建立 webhook endpoint，指向
+      `https://www.mantasharkaquatics.net/api/stripe/webhook`
+- [ ] 勾選這 8 個事件 —— 少一個就有一段程式永遠不會被觸發：
+
+  | 事件 | 沒勾會怎樣 |
+  |---|---|
+  | `checkout.session.completed` | 家長付了錢但點數不會進錢包 |
+  | `checkout.session.expired` | 未付款的評估課會一直佔住時段 |
+  | `customer.subscription.updated` | 泳隊取消預約日期不會顯示 |
+  | `customer.subscription.deleted` | 泳隊退訂後仍算有效會員 |
+  | `invoice.paid` | 泳隊每月收據不會產生 |
+  | `invoice.payment_failed` | 泳隊欠費不會標記 past_due |
+  | `payment_intent.payment_failed` | **銀行扣款失敗，點數收不回來** |
+  | `charge.dispute.created` | **家長申訴成功，點數收不回來** |
+
+- [ ] 把該 endpoint 的 signing secret 設成 Vercel production 的
+      `STRIPE_WEBHOOK_SECRET`
+- [ ] Vercel production 的 `STRIPE_SECRET_KEY` 換成正式金鑰（`sk_live_…`）
+- [ ] 上線後用一筆真實小額交易走完整流程，確認點數真的進錢包
+
+## 2. 資料庫
+
+- [x] `point_ledger` 的 `stripe_session_id` 唯一索引（防重複入點）
+- [x] `docs/migration-ach-reversal.sql`（沖銷理由、負餘額、purchases 沖銷欄位）
+- [ ] `docs/reset-test-data.sql` —— 清掉所有測試資料。**這是不可逆的，
+      務必先在 Database → Backups 備份**
+
+## 3. 讓 Google 找得到
+
+兩個地方要同時改，只改一個沒有用：
+
+- [ ] `app/robots.ts` 第 8 行 `SEARCH_ENGINES_ALLOWED = false` → `true`
+- [ ] `app/layout.tsx` 第 25–26 行的 `robots: { index: false, … }` 整塊刪掉
+
+## 4. 法務
+
+- [ ] 服務條款與退款政策給律師看過
+- [ ] 確認加州儲值卡法規（Civil Code 1749.5）對點數制度的適用範圍
+- [ ] 現金退款的 API 與後台按鈕（條款定稿後再做）
+
+## 5. 內容與設定
+
+- [ ] `/about` 兩個照片位還是空的
+- [ ] Google Places API 金鑰加上 HTTP referrer 限制（現在任何網站都能盜用）
+
+## 6. 稽核未修項目
+
+完整清單見稽核報告。合併前至少要處理：
+
+- [ ] 第 3 點：reschedule + 第二位學生會憑空生出點數（僅 API 可觸發，
+      UI 走不到，但金額無上限）
+- [ ] 第 5 點：60 分鐘課取消時豁免次數會被扣兩次
+
+---
+
+## 已完成
+
+- [x] 教練 PIN 登入速率限制
+- [x] 重複 webhook 不會重複發點（唯一索引 + `DuplicateLedgerEntry`）
+- [x] 銀行扣款失敗／爭議會沖銷點數、釋放未上的課、通知家長
+- [x] 退點失敗不再被誤標為已退款
+- [x] 遞延收入報表（`/admin/finance`）
