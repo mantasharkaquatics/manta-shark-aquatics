@@ -27,6 +27,18 @@ export type CancelOptions = {
   // Suppress this call's own email. Used when a caller is cancelling several
   // linked bookings and will send a single consolidated message itself.
   skipEmail?: boolean
+  // The late-cancellation allowance for this lesson has already been spent by
+  // an earlier call in the same cancellation.
+  //
+  // A 60-minute lesson is two 30-minute bookings and is cancelled half by
+  // half, so without this each half took an allowance of its own: one lesson,
+  // two spent. Worse at exactly one allowance left -- the second half was
+  // refused for having none, and the hour ended up half cancelled, which is
+  // the one outcome the spec forbids.
+  //
+  // Set on the follow-up halves. They still refund in full; they just do not
+  // pay for the privilege twice.
+  forgivenessAlreadySpent?: boolean
 }
 
 // Sends one booking_cancelled email per affected parent. The time range spans
@@ -97,6 +109,85 @@ export async function notifyCancellation(
   } catch {}
 }
 
+/**
+ * Cancel a whole lesson, however many booking rows it is made of.
+ *
+ * A 60-minute lesson is two 30-minute bookings linked by lesson_group_id.
+ * cancelBookingWithPartner below cancels ONE of them (plus its 1-on-2
+ * partners); it has no idea the other half exists. Both callers that cancel on
+ * a parent's behalf need the hour, so the sweep lives here rather than in one
+ * of them -- the chat assistant used to call the half-cancel directly and tell
+ * the family their lesson was gone while a coach still had thirty minutes
+ * booked and half the points were still spent.
+ *
+ * The allowance is charged once for the lesson, not once per half.
+ *
+ * `remainingBookingIds` is non-empty only when part of an hour survived, which
+ * the spec forbids: nothing is un-cancelled, the halves that went are
+ * refunded, and staff finish the rest by hand.
+ */
+export async function cancelLesson(
+  svc: SupabaseClient,
+  bookingId: string,
+  callerParentId: string | null,
+  options: { skipEmail?: boolean } = {},
+): Promise<CancelResult & { remainingBookingIds?: string[] }> {
+  const { data: self } = await svc
+    .from('bookings').select('lesson_group_id').eq('id', bookingId).single()
+  const groupId: string | null = self?.lesson_group_id || null
+
+  const result = await cancelBookingWithPartner(svc, bookingId, callerParentId, {
+    skipEmail: options.skipEmail || !!groupId,
+  })
+  if (!result.ok || !groupId) return result
+
+  const cancelled = [...(result.cancelledBookingIds || [])]
+  const targets: CancelTarget[] = [...(result.emailTargets || [])]
+  const spentForgiveness = !!result.usedForgiveness
+
+  const { data: siblings } = await svc
+    .from('bookings').select('id')
+    .eq('lesson_group_id', groupId)
+    .not('status', 'in', '("cancelled")')
+
+  for (const sib of siblings || []) {
+    if (cancelled.includes(sib.id)) continue
+    const r = await cancelBookingWithPartner(svc, sib.id, callerParentId, {
+      skipEmail: true,
+      forgivenessAlreadySpent: spentForgiveness,
+    })
+    if (r.ok) {
+      cancelled.push(...(r.cancelledBookingIds || [sib.id]))
+      targets.push(...(r.emailTargets || []))
+    }
+    // A 403 here is expected and harmless: rows belonging to the other family
+    // are not ours to cancel directly, and the cross-account sweep inside their
+    // own half picks them up. Any other failure is caught by the check below.
+  }
+
+  // Trust the database, not the loop.
+  const { data: leftover } = await svc
+    .from('bookings').select('id')
+    .eq('lesson_group_id', groupId)
+    .not('status', 'in', '("cancelled")')
+
+  if (leftover && leftover.length > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: 'Part of this 60-minute lesson could not be cancelled. Please contact us so we can finish it.',
+      cancelledBookingIds: cancelled,
+      remainingBookingIds: leftover.map((r: any) => r.id),
+      emailTargets: targets,
+    }
+  }
+
+  // One email per family, spanning the full hour.
+  if (!options.skipEmail) await notifyCancellation(svc, { bookingIds: cancelled, targets })
+
+  return { ...result, ok: true, status: 200, cancelledBookingIds: cancelled, emailTargets: targets }
+}
+
 // Cancels one booking plus any same-account and cross-account partner bookings
 // in the same time slot, refunds credits via atomic RPCs, and emails all
 // affected parents. Idempotent: every status flip is a conditional update, so
@@ -157,15 +248,18 @@ export async function cancelBookingWithPartner(
       if (ct?.slug === '1on2' || booking.partner_booking_id) {
         return { ok: false, status: 400, error: '1-on-2 lessons starting within 24 hours cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
       }
-      const summary = await walletSummary(svc, booking.parent_id)
-      if (summary.forgiveness <= 0) {
-        // Nothing to spend, so the lesson simply cannot be cancelled online.
-        // The dashboard says so before the parent gets here; this is the
-        // server refusing to be talked past.
-        return { ok: false, status: 400, error: 'NO_FORGIVENESS_LEFT', cancelledBookingIds: [] }
+      if (!options.forgivenessAlreadySpent) {
+        const summary = await walletSummary(svc, booking.parent_id)
+        if (summary.forgiveness <= 0) {
+          // Nothing to spend, so the lesson simply cannot be cancelled online.
+          // The dashboard says so before the parent gets here; this is the
+          // server refusing to be talked past.
+          return { ok: false, status: 400, error: 'NO_FORGIVENESS_LEFT', cancelledBookingIds: [] }
+        }
       }
       // The parent asked to cancel knowing the terms, so the allowance is
-      // spent and the points come back in full.
+      // spent and the points come back in full. The second half of an hour
+      // refunds on the strength of the allowance the first half already spent.
       useForgiveness = true
     }
   }
@@ -195,7 +289,9 @@ export async function cancelBookingWithPartner(
         parentId: booking.parent_id,
         reason: useForgiveness ? 'forgiveness' : 'cancel_refund',
         actor: callerParentId ? 'parent' : 'system',
-        consumeForgiveness: useForgiveness,
+        // Refund on forgiveness terms, but burn the allowance only once per
+        // lesson -- the follow-up halves of an hour arrive already paid for.
+        consumeForgiveness: useForgiveness && !options.forgivenessAlreadySpent,
       })
     : 0
 

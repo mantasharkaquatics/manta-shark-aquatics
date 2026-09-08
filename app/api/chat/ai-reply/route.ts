@@ -9,7 +9,7 @@ import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { TOPUP_PRESETS, presetLessons } from '@/lib/points'
 import { walletSummary } from '@/lib/points-wallet'
 import { getTodayLA, getNowMinutesLA, formatTime12h, SLOT_STEP_MINUTES } from '@/lib/date'
-import { cancelBookingWithPartner } from '@/lib/bookings/cancel'
+import { cancelLesson } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
 
 const FALLBACK = 'Thanks for your message! A member of our team will get back to you shortly.'
@@ -383,7 +383,17 @@ export async function POST(req: NextRequest) {
         escalate = true
         return { error: 'This lesson starts within 24 hours and cannot be cancelled online. The conversation has been flagged for a team member.' }
       }
-      const result = await cancelBookingWithPartner(svc, row.booking_id, parent!.id)
+      // cancelLesson, not the half-cancel: a 60-minute lesson is two booking
+      // rows, and cancelling one of them while saying "done" left a coach
+      // holding thirty minutes and half the points unrefunded.
+      const result = await cancelLesson(svc, row.booking_id, parent!.id)
+      // 409 means two different things. Half an hour left standing is not
+      // "already cancelled" -- it needs a person, and saying otherwise would
+      // send the family away believing a lesson is gone that is not.
+      if (result.remainingBookingIds && result.remainingBookingIds.length > 0) {
+        escalate = true
+        return { error: 'Only part of this 60-minute lesson could be cancelled. The conversation has been flagged for a team member.' }
+      }
       if (result.status === 409) {
         return { error: 'This lesson was already cancelled. No further action was taken.' }
       }
@@ -402,7 +412,10 @@ export async function POST(req: NextRequest) {
       return {
         success: true,
         cancelled: { student: row.student, course: row.course, date: row.date, time: row.time },
-        partner_bookings_cancelled: result.cancelledBookingIds.length - 1,
+        // Every other row that went with it: the second half of an hour, a
+        // sibling's seat in a 1-on-2, the other family's seat. Not all of
+        // them are partners, so it does not claim they are.
+        also_cancelled: result.cancelledBookingIds.length - 1,
         credit_refunded: true,
       }
     }
