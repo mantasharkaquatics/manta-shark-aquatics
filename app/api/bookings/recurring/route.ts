@@ -6,7 +6,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
@@ -310,6 +310,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, booked: 0, booked_slots: [], booked_dates: [], skipped })
 
     const wallet = await walletSummary(svc, parent.id)
+    // A wallet in arrears can still show a positive total when it holds
+    // granted points, so this has to be asked before the balance question --
+    // otherwise the parent is told to buy more points when what they need to
+    // do is settle a payment that came back.
+    if (wallet.arrears > 0)
+      return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: wallet.arrears }, { status: 402 })
     const quote = priceSlots(ct.slug, okSlots, wallet.lessonsCompleted, minutes, seats)
     if (wallet.balance < quote.total)
       return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
@@ -390,6 +396,8 @@ export async function POST(req: NextRequest) {
         note: `${booked.length} lessons booked`,
       })
     } catch (e: any) {
+      if (e instanceof WalletInArrears)
+        return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
       if (e instanceof InsufficientPoints)
         return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 400 })
       console.error('points charge failed:', e)

@@ -41,7 +41,7 @@ const pointsUrl = 'data:text/javascript;base64,' + Buffer.from(
 const wallet = await load('../lib/points-wallet.ts', [
   [/from '@\/lib\/points'/, `from '${pointsUrl}'`],
 ])
-const { applyPoints, InsufficientPoints, totalBalance } = wallet
+const { applyPoints, arrears, DuplicateLedgerEntry, InsufficientPoints, reversePurchase, totalBalance, WalletInArrears } = wallet
 
 let fails = 0
 const eq = (label, got, want) => {
@@ -68,6 +68,9 @@ function makeSvc(opts = {}) {
     // underneath the code, the way a concurrent request would.
     beforeUpdate: opts.beforeUpdate || null,
     failLedgerInsert: opts.failLedgerInsert || false,
+    // '23505' makes the fake reject the insert the way the unique index on
+    // point_ledger does when the same movement arrives twice.
+    ledgerErrorCode: opts.ledgerErrorCode || null,
     updates: 0,
   }
 
@@ -104,8 +107,8 @@ function makeSvc(opts = {}) {
         insert(row) {
           return {
             select: () => ({
-              single: async () => state.failLedgerInsert
-                ? { data: null, error: { message: 'ledger is down' } }
+              single: async () => (state.failLedgerInsert || state.ledgerErrorCode)
+                ? { data: null, error: { message: state.ledgerErrorCode === '23505' ? 'duplicate key value' : 'ledger is down', code: state.ledgerErrorCode || undefined } }
                 : (state.ledger.push(row), { data: { id: 'l' + state.ledger.length }, error: null }),
             }),
           }
@@ -238,6 +241,81 @@ console.log('\n不接受 0 點與小數')
     try { await applyPoints(svc, { parentId: 'p1', reason: 'booking', points: n, actor: 'parent' }) } catch { threw = true }
     eq(label + '被拒絕', threw, true)
   }
+}
+
+// --- 10. a reversal takes the points back, even below zero ----------------
+// The whole reason ACH is offered at all: points go out the moment checkout
+// completes, and 2-4 days later the bank may say the money never moved.
+console.log('\n銀行退款：點數收回，可以變成負的')
+{
+  const { state, svc } = makeSvc({ purchased: 0 })
+  await applyPoints(svc, {
+    parentId: 'p1', reason: 'purchase', points: 650,
+    amountCents: 65000, stripeSessionId: 'cs_ach', actor: 'system',
+  })
+  // Two lessons swum before the return arrives.
+  await applyPoints(svc, { parentId: 'p1', reason: 'booking', points: -130, actor: 'parent' })
+  eq('上了兩堂之後剩 520', state.wallet.balance_purchased, 520)
+
+  await reversePurchase(svc, {
+    parentId: 'p1', amountCents: 65000, stripeSessionId: 'cs_ach',
+    reason: 'payment_failed', note: 'Bank returned payment pi_x',
+  })
+  eq('沖銷後變成負的', state.wallet.balance_purchased, -130)
+  eq('欠款 130 點', arrears(state.wallet), 130)
+  eq('累計實付金額扣回去', state.wallet.total_paid_cents, 0)
+  eq('帳本記下 -650', state.ledger.at(-1).delta_purchased, -650)
+  eq('沖銷理由入帳', state.ledger.at(-1).reason, 'payment_failed')
+}
+
+// --- 11. a reversal never eats someone else's gift ------------------------
+console.log('\n沖銷不會動到贈點')
+{
+  const { state, svc } = makeSvc({ purchased: 200, granted: 90 })
+  await reversePurchase(svc, {
+    parentId: 'p1', amountCents: 30000, stripeSessionId: 'cs_g',
+    reason: 'chargeback', note: 'disputed',
+  })
+  eq('只從購買的那一邊扣', state.wallet.balance_purchased, -100)
+  eq('贈點原封不動', state.wallet.balance_granted, 90)
+}
+
+// --- 12. a wallet in arrears cannot book ----------------------------------
+// Even with granted points sitting there: owing us money stops the booking,
+// which is the leverage that actually gets a failed payment settled.
+console.log('\n欠款時不能訂課')
+{
+  const { state, svc } = makeSvc({ purchased: -130, granted: 500 })
+  let caught = null
+  try {
+    await applyPoints(svc, { parentId: 'p1', reason: 'booking', points: -65, actor: 'parent' })
+  } catch (e) { caught = e }
+  eq('丟出 WalletInArrears，不是「點數不足」', caught instanceof WalletInArrears, true)
+  eq('訊息說得出欠多少', caught?.owed, 130)
+  eq('餘額沒有被動過', [state.wallet.balance_purchased, state.wallet.balance_granted], [-130, 500])
+  eq('沒有寫任何帳本', state.ledger.length, 0)
+}
+
+// --- 13. a duplicate ledger row is 'already done', not 'failed' -----------
+// Two webhook deliveries of one payment can both find an empty ledger and both
+// reach the wallet. The unique index decides; the loser must undo everything
+// it wrote -- the running total included -- and say so in a way the webhook
+// can answer 200 to.
+console.log('\n重複入帳：撤回自己寫的每一個欄位')
+{
+  const { state, svc } = makeSvc({ purchased: 650, ledgerErrorCode: '23505' })
+  state.wallet.total_paid_cents = 65000
+  let caught = null
+  try {
+    await applyPoints(svc, {
+      parentId: 'p1', reason: 'purchase', points: 650,
+      amountCents: 65000, stripeSessionId: 'cs_dup', actor: 'system',
+    })
+  } catch (e) { caught = e }
+  eq('丟出 DuplicateLedgerEntry', caught instanceof DuplicateLedgerEntry, true)
+  eq('餘額退回', state.wallet.balance_purchased, 650)
+  eq('累計實付金額也退回', state.wallet.total_paid_cents, 65000)
+  eq('帳本沒有新增', state.ledger.length, 0)
 }
 
 console.log(fails === 0 ? '\n全部通過\n' : `\n${fails} 項失敗\n`)

@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, lessonsCompleted } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, lessonsCompleted, WalletInArrears } from '@/lib/points-wallet'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -181,6 +181,8 @@ export async function POST(req: NextRequest) {
     })
     taken.push({ parentId: confirmingParent.id, points: myQuote.total })
   } catch (e: any) {
+    if (e instanceof WalletInArrears)
+      return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
     if (e instanceof InsufficientPoints)
       return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 402 })
     console.error('points charge failed:', e)
@@ -195,6 +197,8 @@ export async function POST(req: NextRequest) {
     taken.push({ parentId: initiatorBooking.parent_id, points: theirQuote.total })
   } catch (e: any) {
     await refundSpent('the inviting family could not pay')
+    if (e instanceof WalletInArrears)
+      return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
     if (e instanceof InsufficientPoints)
       return NextResponse.json({ error: 'The family who invited you no longer has enough points for their half of this lesson.' }, { status: 402 })
     console.error('points charge failed:', e)

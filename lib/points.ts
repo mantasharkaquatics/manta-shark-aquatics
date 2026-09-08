@@ -37,6 +37,19 @@ export const TEAM_SLUG = 'team'
 export const MIN_TOPUP_DOLLARS = 50
 export const MAX_TOPUP_DOLLARS = 10_000
 
+/**
+ * How much a family we have never been paid by may put through a bank debit.
+ *
+ * Bank debits are not guaranteed: Stripe confirms in seconds but the money can
+ * be pulled back for up to 60 days, and we credit the points immediately
+ * because a parent who has just paid expects to book tonight. That trade is
+ * fine at the volumes here -- the fee saving over cards dwarfs the losses -- as
+ * long as one unknown family cannot walk off with a 30-lesson package on the
+ * first try. Above this, the checkout offers cards only. Once a family has one
+ * payment behind them that was never reversed, the cap lifts.
+ */
+export const FIRST_TOPUP_BANK_CAP_DOLLARS = 500
+
 /* WHAT THE STOREFRONT SELLS.
 
    Three class formats x three sizes. The parent picks the format first and the

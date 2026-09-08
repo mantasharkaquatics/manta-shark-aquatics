@@ -1,6 +1,7 @@
 import { sendEmail } from '@/lib/email'
 import { centsToPoints } from '@/lib/points'
-import { creditPurchase, purchaseAlreadyCredited } from '@/lib/points-wallet'
+import { creditPurchase, DuplicateLedgerEntry, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
+import { reclaimForArrears } from '@/lib/points-arrears'
 import { formatTime12h } from '@/lib/date'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
@@ -222,11 +223,27 @@ export async function POST(req: NextRequest) {
     // The wallet first. Everything after this -- the purchase row, the invoice,
     // the chat message -- is a record of something that already happened, and a
     // failure in any of them must not cost the family their points.
-    const res = await creditPurchase(supabase, {
-      parentId: parent_id,
-      amountCents: amount_cents,
-      stripeSessionId: session.id,
-    })
+    //
+    // The check above is not a lock. Two deliveries of the same event can both
+    // read an empty ledger and both walk in here; the unique index on
+    // point_ledger is what actually decides, and the loser lands in this catch
+    // with its wallet write already undone. Answer 200 -- the points are in the
+    // wallet, just not by our hand -- because a 500 would have Stripe redeliver
+    // this same event for days.
+    let res: Awaited<ReturnType<typeof creditPurchase>>
+    try {
+      res = await creditPurchase(supabase, {
+        parentId: parent_id,
+        amountCents: amount_cents,
+        stripeSessionId: session.id,
+      })
+    } catch (e) {
+      if (e instanceof DuplicateLedgerEntry) {
+        console.log(`\u21a9\ufe0e points for session ${session.id} were credited by a concurrent delivery`)
+        return NextResponse.json({ received: true })
+      }
+      throw e
+    }
     console.log(`✅ ${points} points credited; balance ${res.balance}`)
 
     const paymentIntentId = typeof session.payment_intent === 'string'
@@ -402,6 +419,134 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+    return NextResponse.json({ received: true })
+  }
+
+  // ---- A CREDITED PAYMENT THAT DID NOT STAND UP ------------------------
+  // Bank debits are not guaranteed. We credit points the moment checkout
+  // completes because a family who has just paid expects to book tonight, and
+  // the price of that choice is this branch: when Stripe tells us the money
+  // came back out, the points have to come back out too.
+  //
+  // Two events, one path. payment_intent.payment_failed is the bank returning
+  // the debit; charge.dispute.created is the customer's own bank reversing it
+  // at their request.
+  if (event.type === 'payment_intent.payment_failed' || event.type === 'charge.dispute.created') {
+    const obj = event.data.object as any
+    const reason: ReversalReason =
+      event.type === 'charge.dispute.created' ? 'chargeback' : 'payment_failed'
+    const paymentIntentId: string | null = event.type === 'charge.dispute.created'
+      ? (typeof obj.payment_intent === 'string' ? obj.payment_intent : obj.payment_intent?.id ?? null)
+      : (obj.id ?? null)
+    if (!paymentIntentId) return NextResponse.json({ received: true })
+
+    // Ask Stripe which checkout this was rather than reading our own tables:
+    // the session id is the key the ledger was written under, and it is
+    // available even in the case where the purchase row insert failed.
+    let topUp: { sessionId: string; parentId: string; amountCents: number } | null = null
+    try {
+      const list = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId, limit: 1 })
+      const cs = list.data[0]
+      if (cs && cs.metadata?.kind === 'points' && cs.metadata?.parent_id) {
+        topUp = { sessionId: cs.id, parentId: cs.metadata.parent_id, amountCents: cs.amount_total ?? 0 }
+      }
+    } catch (e: any) {
+      // Without the session we cannot safely reverse anything. Fail the
+      // delivery so Stripe brings it back rather than losing it silently.
+      console.error(`${event.type} ${paymentIntentId}: could not read the checkout session:`, e?.message)
+      return NextResponse.json({ error: 'could not resolve session' }, { status: 503 })
+    }
+
+    // A card decline during checkout, a Swim Assessment, a team subscription:
+    // none of those put points in a wallet, so there is nothing to take back.
+    if (!topUp || topUp.amountCents <= 0) return NextResponse.json({ received: true })
+    if (!(await purchaseAlreadyCredited(supabase, topUp.sessionId))) {
+      console.log(`${event.type}: session ${topUp.sessionId} was never credited, nothing to reverse`)
+      return NextResponse.json({ received: true })
+    }
+    if (await purchaseAlreadyReversed(supabase, topUp.sessionId)) {
+      console.log(`\u21a9\ufe0e session ${topUp.sessionId} was already reversed`)
+      return NextResponse.json({ received: true })
+    }
+
+    const note = reason === 'chargeback'
+      ? `Customer disputed payment ${paymentIntentId} with their bank`
+      : `Bank returned payment ${paymentIntentId}`
+
+    try {
+      await reversePurchase(supabase, {
+        parentId: topUp.parentId,
+        amountCents: topUp.amountCents,
+        stripeSessionId: topUp.sessionId,
+        reason,
+        note,
+      })
+    } catch (e) {
+      if (e instanceof DuplicateLedgerEntry) {
+        return NextResponse.json({ received: true })
+      }
+      // The points are still out there. Let Stripe redeliver.
+      console.error(`${event.type}: reversal failed for session ${topUp.sessionId}:`, e)
+      return NextResponse.json({ error: 'reversal failed' }, { status: 500 })
+    }
+
+    await supabase.from('purchases')
+      .update({ reversed_at: new Date().toISOString(), reversal_reason: reason })
+      .eq('stripe_session_id', topUp.sessionId)
+
+    // Give back the lessons they have not swum, which pays down most of the
+    // debt on its own. Anything left is for a human to chase.
+    let reclaimed = { arrearsAfter: 0, cancelledBookingIds: [] as string[], pointsReturned: 0 }
+    try {
+      reclaimed = await reclaimForArrears(supabase, topUp.parentId, note)
+    } catch (e) {
+      console.error(`${event.type}: could not release lessons for parent ${topUp.parentId}:`, e)
+    }
+
+    console.error(
+      `\u26a0\ufe0f PAYMENT REVERSED (${reason}) parent=${topUp.parentId} ` +
+      `session=${topUp.sessionId} amount=$${(topUp.amountCents / 100).toFixed(2)} ` +
+      `released=${reclaimed.cancelledBookingIds.length} lessons (${reclaimed.pointsReturned} pts) ` +
+      `still owed=${reclaimed.arrearsAfter} pts`
+    )
+
+    // Tell the family. Best-effort on purpose -- the money side is already
+    // recorded, and a mail failure must not have Stripe redeliver the event.
+    try {
+      const { data: parentRow } = await supabase
+        .from('parents').select('first_name, email').eq('id', topUp.parentId).single()
+      if (parentRow?.email) {
+        await sendEmail({
+          type: 'payment_reversed',
+          to: parentRow.email,
+          parentName: parentRow.first_name || 'there',
+          amount: topUp.amountCents / 100,
+          pointsOwed: reclaimed.arrearsAfter,
+          lessonsReleased: reclaimed.cancelledBookingIds.length,
+          reversalKind: reason,
+        })
+      }
+      const { data: th } = await supabase.from('chat_threads').select('id')
+        .eq('parent_id', topUp.parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
+      if (th) {
+        const dollars = (topUp.amountCents / 100).toFixed(2)
+        const owedLine = reclaimed.arrearsAfter > 0
+          ? `Your balance is now ${reclaimed.arrearsAfter.toLocaleString('en-US')} points short, so booking is paused until it's settled.`
+          : 'Nothing further is owed and you can book again straight away.'
+        const body = `Your $${dollars} payment didn't complete at the bank, so those points have been removed from your wallet.` +
+          (reclaimed.cancelledBookingIds.length > 0
+            ? ` We've released ${reclaimed.cancelledBookingIds.length} lesson(s) you hadn't taken yet and returned those points.`
+            : '') +
+          `\n\n${owedLine}\n\nPaying by card on the Plans page clears this right away. If you think this is a mistake, just reply here.`
+        await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
+        await supabase.from('chat_threads')
+          .update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) })
+          .eq('id', th.id)
+      }
+    } catch (e) {
+      console.error('Payment reversal notice failed:', e)
+    }
+
     return NextResponse.json({ received: true })
   }
 

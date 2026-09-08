@@ -5,7 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil 
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 
 // Parent shopping cart. Items are real `in_cart` bookings so the DB trigger
 // counts them into enrolled_count (slot is reserved the moment it enters the
@@ -279,6 +279,8 @@ export async function POST(req: NextRequest) {
       })
       pointsTaken = quote.total
     } catch (e: any) {
+      if (e instanceof WalletInArrears)
+        return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
       if (e instanceof InsufficientPoints)
         return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 400 })
       console.error('points charge failed:', e)

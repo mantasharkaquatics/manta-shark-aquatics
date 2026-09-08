@@ -25,6 +25,7 @@ export type EmailType =
   | 'applicant_verification_code'
   | 'applicant_application_received'
   | 'applicant_password_reset'
+  | 'payment_reversed'
 
 export interface EmailPayload {
   type: EmailType
@@ -64,6 +65,11 @@ export interface EmailPayload {
   appUrl?: string
   changeField?: 'email' | 'phone'
   newValue?: string
+  // payment_reversed: what the bank sent back, what is now owed, and how many
+  // unswum lessons were released to pay part of it down.
+  pointsOwed?: number
+  lessonsReleased?: number
+  reversalKind?: 'payment_failed' | 'chargeback'
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -154,6 +160,26 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'invoice') {
     subject = `🧾 Invoice ${invoiceNumber} - Manta Shark Aquatics`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${invoiceNumber}</h2><p>Hi ${parentName},</p><p>Thank you for your payment! Your invoice is ready. Log in to your dashboard to view and download it anytime.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${invoiceNumber}</td></tr><tr><td style="padding: 8px 0; color: #666;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;"><a href="https://www.mantasharkaquatics.net/dashboard" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Go to My Dashboard</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+  } else if (type === 'payment_reversed') {
+    // Written to be read by someone who did nothing wrong. The overwhelmingly
+    // likely story is a closed account or a typo'd routing number, not a
+    // person trying it on -- so it says what happened, what it costs them, and
+    // exactly which button fixes it, and it does not accuse anyone.
+    const owed = Number(payload.pointsOwed ?? 0)
+    const released = Number(payload.lessonsReleased ?? 0)
+    const dollars = Number(amount ?? 0)
+    const cause = payload.reversalKind === 'chargeback'
+      ? 'Your bank has reversed this payment at your request.'
+      : "Your bank wasn't able to complete this payment, so the funds never reached us."
+    const releasedLine = released > 0
+      ? `<p>To keep this from growing, we've released ${released} lesson${released === 1 ? '' : 's'} you hadn't taken yet and put those points back. You'll see a cancellation notice for each one.</p>`
+      : ''
+    const owedLine = owed > 0
+      ? `<p>That leaves <strong>${owed.toLocaleString('en-US')} points</strong> to settle for lessons already taken. Booking is paused until the balance is back above zero.</p>`
+      : '<p>Your balance is settled — nothing further is owed, and you can book again straight away.</p>'
+    subject = `Action needed: your $${dollars.toFixed(2)} payment didn't go through`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Payment didn't go through</h2><p>Hi ${parentName},</p><p>${cause} We'd already added the points to your wallet, so we've had to take them back out.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;">Amount</td><td style="padding: 8px 0; font-weight: 600;">$${dollars.toFixed(2)}</td></tr><tr><td style="padding: 8px 0; color: #666;">Points removed</td><td style="padding: 8px 0; font-weight: 600;">${dollars.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td></tr></table>${releasedLine}${owedLine}<div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/plans" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Pay by card</a></div><p style="color: #666; font-size: 13px; margin-top: 16px;">Paying by card clears this immediately. If you think this is a mistake, reply to this email and we'll sort it out with you.</p></div></div>`
+
   } else if (type === 'booking_series_confirmed') {
     const dl = (payload.dates as string[] | undefined) || []
     const tl = (payload.times as string[] | undefined) || []

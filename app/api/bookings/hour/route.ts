@@ -6,7 +6,7 @@ import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, lessonsCompleted, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, lessonsCompleted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -293,6 +293,8 @@ export async function POST(req: NextRequest) {
         })
         pointsTaken = price.charged
       } catch (e: any) {
+        if (e instanceof WalletInArrears)
+          return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
         if (e instanceof InsufficientPoints)
           return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available }, { status: 400 })
         console.error('points charge failed:', e)

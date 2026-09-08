@@ -4,7 +4,7 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, lessonsCompleted } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, lessonsCompleted, WalletInArrears } from '@/lib/points-wallet'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 
@@ -230,6 +230,8 @@ export async function POST(req: NextRequest) {
       })
       chargedTotal = price.charged
     } catch (e: any) {
+      if (e instanceof WalletInArrears)
+        return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
       if (e instanceof InsufficientPoints) {
         return NextResponse.json(
           { error: 'NOT_ENOUGH_POINTS', needed: e.needed, available: e.available },

@@ -377,6 +377,8 @@ type WalletSummary = {
   balance: number
   balancePurchased: number
   balanceGranted: number
+  /** Points owed after a bank return or a dispute. Zero for almost everyone. */
+  arrears: number
   lessonsCompleted: number
   vipLevel: number
   vipDiscount: number
@@ -456,6 +458,27 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
             the second thing a parent reads about their own account. */}
         {t('points.card.worth')}
       </div>
+
+      {/* A bank return is rare and alarming, so it gets the top of the card and
+          plain words: what is paused, how much, and the one button that fixes
+          it. Nothing else on this screen changes -- their lessons, their VIP
+          level and their history are all still theirs. */}
+      {w.arrears > 0 && (
+        <div style={{ background: 'rgba(220,90,80,0.12)', border: '1px solid rgba(220,90,80,0.45)', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#f2a09a', marginBottom: '4px' }}>
+            {t('points.card.arrearsTitle', { n: w.arrears.toLocaleString() })}
+          </div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.5, marginBottom: '10px' }}>
+            {t('points.card.arrearsBody')}
+          </div>
+          <button
+            onClick={onBuy}
+            style={{ background: '#c9a84c', color: '#1a2744', border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', minHeight: '40px' }}
+          >
+            {t('points.card.arrearsCta')}
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
         <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '20px', border: '1px solid rgba(201,168,76,0.5)', color: '#c9a84c', background: 'rgba(201,168,76,0.1)' }}>

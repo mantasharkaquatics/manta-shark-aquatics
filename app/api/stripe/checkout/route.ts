@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSvcClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
-import { MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS } from '@/lib/points'
+import { FIRST_TOPUP_BANK_CAP_DOLLARS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS } from '@/lib/points'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -156,9 +156,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ---- WHICH PAYMENT METHODS THIS FAMILY GETS -----------------------
+    // Bank debit is far cheaper than a card (0.8% capped at $5, against
+    // 2.9% + 30c) and the points go into the wallet immediately either way.
+    // What differs is that a bank debit can be taken back later, so it is
+    // withheld in the two cases where that would cost us real money:
+    // a family who already owes us for a payment that came back, and a family
+    // we have never been paid by putting through more than the first-top-up
+    // cap. Neither is blocked from buying -- they are offered cards.
+    let bankDebitOk = true
+    const { data: existingWallet } = await svcForGate
+      .from('point_wallets').select('balance_purchased').eq('parent_id', parent.id).maybeSingle()
+    if ((existingWallet?.balance_purchased ?? 0) < 0) {
+      bankDebitOk = false
+    } else if (dollars > FIRST_TOPUP_BANK_CAP_DOLLARS) {
+      const { count: settled } = await svcForGate
+        .from('purchases')
+        .select('id', { count: 'exact', head: true })
+        .eq('parent_id', parent.id)
+        .eq('status', 'paid')
+        .is('reversed_at', null)
+      if (!settled) bankDebitOk = false
+    }
+
     const session = await stripe.checkout.sessions.create({
       locale: 'en',
-      payment_method_types: ['card', 'us_bank_account'],
+      payment_method_types: bankDebitOk ? ['card', 'us_bank_account'] : ['card'],
       mode: 'payment',
       customer_email: parent.email,
       line_items: [{

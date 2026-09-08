@@ -34,13 +34,53 @@ export type Wallet = {
 export type LedgerReason =
   | 'purchase' | 'booking' | 'booking_failed' | 'cancel_refund' | 'forgiveness'
   | 'school_cancel' | 'admin_grant' | 'admin_deduct' | 'cash_refund'
+  | 'payment_failed' | 'chargeback'
+
+/** The two ways a payment we already credited turns out not to have been paid. */
+export const REVERSAL_REASONS = ['payment_failed', 'chargeback'] as const
+export type ReversalReason = (typeof REVERSAL_REASONS)[number]
 
 const MAX_ATTEMPTS = 4
+
+const isReversal = (r: LedgerReason): r is ReversalReason =>
+  (REVERSAL_REASONS as readonly string[]).includes(r)
 
 export class InsufficientPoints extends Error {
   constructor(public needed: number, public available: number) {
     super('NOT_ENOUGH_POINTS')
     this.name = 'InsufficientPoints'
+  }
+}
+
+/**
+ * The family owes us points, so nothing may be spent until that is settled.
+ *
+ * Distinct from InsufficientPoints on purpose: "you need more points" and
+ * "your last payment came back" call for different words and a different
+ * button, and a wallet in arrears can still show a positive total if it holds
+ * granted points.
+ */
+export class WalletInArrears extends Error {
+  constructor(public owed: number) {
+    super('WALLET_IN_ARREARS')
+    this.name = 'WalletInArrears'
+  }
+}
+
+/**
+ * The ledger already holds this movement, so this attempt wrote nothing.
+ *
+ * Raised when the unique index on point_ledger rejects the insert -- today
+ * that is one purchase per Stripe session. Two webhook deliveries for the
+ * same payment can both pass purchaseAlreadyCredited (neither has written
+ * yet) and both reach the wallet; the index is what actually stops the
+ * second one, and this is how the caller hears about it. It means "already
+ * done", not "failed": a webhook that catches this should answer 200.
+ */
+export class DuplicateLedgerEntry extends Error {
+  constructor(public reason: LedgerReason, public stripeSessionId: string | null) {
+    super('LEDGER_DUPLICATE')
+    this.name = 'DuplicateLedgerEntry'
   }
 }
 
@@ -88,6 +128,8 @@ export async function walletSummary(svc: Svc, parentId: string) {
     balance: totalBalance(wallet),
     balancePurchased: wallet.balance_purchased,
     balanceGranted: wallet.balance_granted,
+    // Non-zero only after a bank return or a dispute clawed points back out.
+    arrears: arrears(wallet),
     lessonsCompleted: completed,
     vipLevel: tier.level,
     vipDiscount: tier.discount,
@@ -116,6 +158,13 @@ type ApplyInput = {
   actor: string
   /** forgiveness only: also burns one of the family's allowances. */
   consumeForgiveness?: boolean
+  /**
+   * Reversals only. Takes the points straight back out of the purchased
+   * bucket and lets the balance go below zero, because by the time a bank
+   * return arrives the family may already have swum the lessons. A negative
+   * balance is a debt: booking is blocked until it is paid off.
+   */
+  allowNegative?: boolean
 }
 
 export type ApplyResult = { wallet: Wallet; ledgerId: string; balance: number }
@@ -144,8 +193,16 @@ export async function applyPoints(svc: Svc, input: ApplyInput): Promise<ApplyRes
     if (input.points > 0) {
       if (input.toGranted) dGranted = input.points
       else dPurchased = input.points
+    } else if (input.allowNegative) {
+      // A reversal undoes one specific purchase, so it comes out of the bucket
+      // that purchase went into and nowhere else. Granted points were a gift
+      // from us and are never clawed back to settle someone else's bank return.
+      dPurchased = input.points
     } else {
       const owed = -input.points
+      // Owing us money stops every spend, granted points included. This is
+      // the leverage that actually settles a returned bank payment.
+      if (wallet.balance_purchased < 0) throw new WalletInArrears(-wallet.balance_purchased)
       if (totalBalance(wallet) < owed) throw new InsufficientPoints(owed, totalBalance(wallet))
       const fromGranted = Math.min(wallet.balance_granted, owed)
       dGranted = -fromGranted
@@ -166,8 +223,16 @@ export async function applyPoints(svc: Svc, input: ApplyInput): Promise<ApplyRes
     if (input.reason === 'cash_refund' && input.amountCents) {
       patch.total_refunded_cents = wallet.total_refunded_cents + input.amountCents
     }
+    if (isReversal(input.reason) && input.amountCents) {
+      // Money that came back out was never really paid, so it leaves
+      // total_paid_cents rather than joining total_refunded_cents -- a bank
+      // return is not a refund, and the deferred-revenue report must not
+      // count it as one. Clamped because the column may not go below zero.
+      patch.total_paid_cents = Math.max(0, wallet.total_paid_cents - input.amountCents)
+    }
+    const nextForgiveness = wallet.forgiveness_used + (input.consumeForgiveness ? 1 : 0)
     if (input.consumeForgiveness) {
-      patch.forgiveness_used = wallet.forgiveness_used + 1
+      patch.forgiveness_used = nextForgiveness
     }
 
     // The guard: apply only if the wallet is still exactly as we read it.
@@ -204,13 +269,45 @@ export async function applyPoints(svc: Svc, input: ApplyInput): Promise<ApplyRes
       .single()
 
     if (ledgerErr) {
-      // Put the balance back. Money that moved with no record of why is worse
+      // Put the wallet back. Money that moved with no record of why is worse
       // than money that did not move.
-      await svc.from('point_wallets').update({
+      //
+      // Two things this has to get right. It names every field this attempt
+      // touched, the running totals included -- restoring the balances alone
+      // used to leave total_paid_cents counting a payment that never landed,
+      // and that figure is what the deferred-revenue report and any future
+      // cash refund are measured against. And it is guarded on the row still
+      // holding exactly what we wrote, so if another writer got there first
+      // the undo declines rather than overwriting their work.
+      const undo: Record<string, unknown> = {
         balance_purchased: wallet.balance_purchased,
         balance_granted: wallet.balance_granted,
         forgiveness_used: wallet.forgiveness_used,
-      }).eq('id', wallet.id)
+        updated_at: new Date().toISOString(),
+      }
+      if (patch.total_paid_cents !== undefined) undo.total_paid_cents = wallet.total_paid_cents
+      if (patch.total_refunded_cents !== undefined) undo.total_refunded_cents = wallet.total_refunded_cents
+
+      const { data: undone } = await svc
+        .from('point_wallets')
+        .update(undo)
+        .eq('id', wallet.id)
+        .eq('balance_purchased', nextPurchased)
+        .eq('balance_granted', nextGranted)
+        .eq('forgiveness_used', nextForgiveness)
+        .select('id')
+        .maybeSingle()
+      if (!undone) {
+        console.error(
+          `point_wallets ${wallet.id}: a ledger write failed and the wallet moved before it could be undone. ` +
+          `Reconcile by hand: reason=${input.reason} points=${input.points} session=${input.stripeSessionId ?? 'none'}`
+        )
+      }
+
+      // A duplicate is not a failure -- the movement is already on the books.
+      if ((ledgerErr as any).code === '23505') {
+        throw new DuplicateLedgerEntry(input.reason, input.stripeSessionId ?? null)
+      }
       throw new Error(`Could not record the points movement: ${ledgerErr.message}`)
     }
 
@@ -234,6 +331,51 @@ export async function creditPurchase(
     actor: 'system',
   })
 }
+
+/**
+ * Points taken back because the payment did not stand up: a bank return, or a
+ * dispute the customer raised with their bank. Allowed to leave the wallet
+ * negative -- see ApplyInput.allowNegative.
+ *
+ * Idempotent through the ledger: a unique index permits one reversal per
+ * Stripe session, so a redelivered event raises DuplicateLedgerEntry rather
+ * than taking the points twice.
+ */
+export async function reversePurchase(
+  svc: Svc,
+  args: {
+    parentId: string
+    amountCents: number
+    stripeSessionId: string
+    reason: ReversalReason
+    note?: string | null
+  },
+) {
+  return applyPoints(svc, {
+    parentId: args.parentId,
+    reason: args.reason,
+    points: -centsToPoints(args.amountCents),
+    amountCents: args.amountCents,
+    stripeSessionId: args.stripeSessionId,
+    allowNegative: true,
+    note: args.note ?? null,
+    actor: 'system',
+  })
+}
+
+/** Has this Stripe session already been reversed? */
+export async function purchaseAlreadyReversed(svc: Svc, stripeSessionId: string): Promise<boolean> {
+  const { data } = await svc
+    .from('point_ledger')
+    .select('id')
+    .eq('stripe_session_id', stripeSessionId)
+    .in('reason', REVERSAL_REASONS as unknown as string[])
+    .limit(1)
+  return !!(data && data.length)
+}
+
+/** Points the family owes us, or 0. A wallet in arrears cannot book. */
+export const arrears = (w: Wallet) => (w.balance_purchased < 0 ? -w.balance_purchased : 0)
 
 /**
  * Has this Stripe session already been credited? Stripe retries webhooks, and
