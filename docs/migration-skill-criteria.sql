@@ -86,9 +86,9 @@ UPDATE public.skills SET name = 'Treading Water 30 sec 踩水 30 秒', pass_crit
 UPDATE public.skills SET name = 'Deep Water Object Retrieval', pass_criteria = 'Retrieves an object from the bottom of deep water and returns to the wall. 從深水池底撿起物品並游回池邊。'
   WHERE id = '9194c9af-7e03-4d13-969b-4284d49b3a84';  -- L3S2.2 was: Deep Water Object Retrieval
 UPDATE public.skills SET name = 'Water Safety Test', pass_criteria = 'Jump in, turn around, swim 5 yd back to the wall and climb out unaided. 跳入水中轉身，游 5 碼回到池邊並自行上岸。'
-  WHERE id = '997642b0-c290-48cf-a53f-ccb46d52d539';  -- L3S2.3 was: Water Safety Test
+  WHERE id = '997642b0-c290-48cf-a53f-ccb46d52d539';  -- Water Safety Test (moved to stage 3 below)
 UPDATE public.skills SET name = 'Survival Float', pass_criteria = 'Survival float face-down for 1 minute, lifting the head only to breathe. 俯漂求生 1 分鐘，只在換氣時抬頭。'
-  WHERE id = 'b2a0c2d4-5e6f-4a72-8b92-0c1d2e3f4a52';  -- L3S2.4 was: Survival Float
+  WHERE id = 'b2a0c2d4-5e6f-4a72-8b92-0c1d2e3f4a52';  -- Survival Float (renumbered below)
 UPDATE public.skills SET name = 'Roll-and-Breathe Swim 15 yd 側轉換氣游 15 碼', pass_criteria = 'Swims 15 yd rolling front-to-side to breathe, without stopping. 游 15 碼，用俯臥轉側身的方式換氣，中途不停。'
   WHERE id = '580a979a-e3f7-458f-b0f8-c39c7c20d686';  -- L3S3.1 was: BBQ Swim Technique
 UPDATE public.skills SET name = 'In-Water Turn', pass_criteria = 'Swims to the wall, turns without standing, and pushes off the other way. 游到池邊不站起來直接轉身，蹬牆往回。'
@@ -203,6 +203,33 @@ UPDATE public.skills SET name = 'Breaststroke (Race Legal) 蛙式（合規）', 
   WHERE id = '1ed417e9-431d-46db-837b-adabbdde74f3';  -- L7S3.5 was: Breaststroke (Competitive)
 UPDATE public.skills SET name = 'Butterfly (Race Legal) 蝶式（合規）', pass_criteria = 'Butterfly that would not be disqualified: simultaneous arms, no flutter kick, two-hand touch. 蝶式雙臂同時、無自由式打腿、雙手同時觸壁，不會失格。'
   WHERE id = 'b617a73c-8da4-4526-9420-58ed4c682a94';  -- L7S3.6 was: Butterfly (Competitive)
+
+-- ---------- Level 3 順序調整 ----------
+--  Water Safety Test 是 Level 3 的綜合驗收，不是一個練習項目：跳入水中、
+--  轉身、游回池邊、自行上岸，一次做完。它原本排在階段 2 的中間，等於要求
+--  學員在還沒學會「不站起來轉身」（階段 3）之前就做完整的落水演練。
+--
+--  移到階段 3 的最後一個，讓 Level 3 的形狀變成：
+--    階段 1  打水與流線型 —— 把身體練成能前進的形狀
+--    階段 2  踩水、深水撿物、求生漂 —— 深水的三項基本能力
+--    階段 3  側轉換氣游、水中轉身、海豚腿，最後綜合驗收
+--
+--  注意：階段 2 從四個技能變成三個，所以那一階段的百分比分母跟著變。
+--  已經在 Level 3 的學員，進度會重算 —— 分數本身一個都沒有動。
+UPDATE public.skills SET stage = 3, sort_order = 4 WHERE id = '997642b0-c290-48cf-a53f-ccb46d52d539';  -- Water Safety Test
+UPDATE public.skills SET stage = 2, sort_order = 3 WHERE id = 'b2a0c2d4-5e6f-4a72-8b92-0c1d2e3f4a52';  -- Survival Float
+
+-- 順序改了之後，把 Level 3 學員停留的階段重新對齊到「第一個還沒完成的階段」。
+-- 沒有任何技能分數被更動，只是重新指出他們現在該在哪一格。
+UPDATE public.students s SET current_stage = COALESCE((
+    SELECT MIN(sk.stage) FROM public.skills sk
+    JOIN public.levels l ON l.id = sk.level_id
+    WHERE l.level_number = 3 AND sk.is_active
+      AND NOT EXISTS (SELECT 1 FROM public.student_skill_progress ssp
+                      WHERE ssp.student_id = s.id AND ssp.skill_id = sk.id
+                        AND ssp.progress_percent = 100)
+  ), 3)
+  WHERE s.current_level = 3;
 
 COMMIT;
 
