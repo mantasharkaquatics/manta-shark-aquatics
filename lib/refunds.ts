@@ -46,6 +46,15 @@ export type RefundLeg = {
   cents: number
   /** refunded_cents as it was read, so the write can be guarded on it. */
   priorRefundedCents: number
+  /**
+   * This leg's share of what Stripe kept when the payment was taken. Zero for
+   * cash taken at the desk, which cost nothing; null where the payment went
+   * through Stripe but its fee has not been read back yet. Prorated when only part of
+   * a charge is being unwound. Stripe does not give the fee back on a refund,
+   * so this is money already gone -- it is here to be shown before the button
+   * is pressed, never to be added to or subtracted from what the family gets.
+   */
+  feeNotReturnedCents: number | null
 }
 
 export type RefundPlan = {
@@ -61,6 +70,14 @@ export type RefundPlan = {
   stripeCents: number
   /** ...and how much has to be handed over by a person. */
   manualCents: number
+  /**
+   * What this refund costs the school: the original processing fees on the
+   * charges being unwound, which Stripe keeps. Null legs count as zero, so
+   * treat this as a floor rather than a total -- feesIncomplete says whether
+   * any were missing.
+   */
+  feeNotReturnedCents: number
+  feesIncomplete: boolean
 }
 
 /**
@@ -90,7 +107,7 @@ export async function planRefund(
 
   const { data: purchases } = await svc
     .from('purchases')
-    .select('id, amount_cents, refunded_cents, paid_at, payment_method, stripe_payment_intent_id')
+    .select('id, amount_cents, refunded_cents, paid_at, payment_method, stripe_payment_intent_id, fee_cents')
     .eq('parent_id', parentId)
     .eq('status', 'paid')
     .is('reversed_at', null)
@@ -121,6 +138,18 @@ export async function planRefund(
   for (const p of available) {
     if (remaining <= 0) break
     const take = Math.min(p.left, remaining)
+    // Prorated by how much of the charge is coming back. Refunding $100 of a
+    // $500 payment forfeits a fifth of what that payment cost to collect.
+    //
+    // Three cases, and the third is the one worth separating: cash at the desk
+    // cost nothing to take, so its fee is zero. A Stripe payment whose fee has
+    // not been read yet is UNKNOWN, and saying zero there would quietly
+    // understate what a refund costs.
+    const fee = !p.stripe_payment_intent_id
+      ? 0
+      : p.fee_cents == null || !p.amount_cents
+        ? null
+        : Math.round((Number(p.fee_cents) * take) / Number(p.amount_cents))
     legs.push({
       purchaseId: p.id,
       paymentIntentId: p.stripe_payment_intent_id || null,
@@ -128,6 +157,7 @@ export async function planRefund(
       paidAt: p.paid_at || null,
       cents: take,
       priorRefundedCents: p.refunded_cents ?? 0,
+      feeNotReturnedCents: fee,
     })
     remaining -= take
   }
@@ -140,6 +170,10 @@ export async function planRefund(
     legs,
     stripeCents: legs.filter(l => l.paymentIntentId).reduce((a, l) => a + l.cents, 0),
     manualCents: legs.filter(l => !l.paymentIntentId).reduce((a, l) => a + l.cents, 0),
+    feeNotReturnedCents: legs.reduce((a, l) => a + (l.feeNotReturnedCents ?? 0), 0),
+    // A Stripe charge whose fee was never read. Cash at the desk had no fee to
+    // miss, so it does not make the figure incomplete.
+    feesIncomplete: legs.some(l => l.paymentIntentId && l.feeNotReturnedCents == null),
   }
 }
 

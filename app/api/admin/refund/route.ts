@@ -52,14 +52,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const plan = await planRefund(auth.svc, parentId, dollars == null ? null : Math.round(dollars * 100))
-    return NextResponse.json({
-      ...plan,
-      // Stripe keeps the processing fee from the original payment whatever
-      // happens here, so a refund costs what that payment cost to take. The
-      // figure is on the original charge in the Dashboard; it is not guessed at
-      // here, because a guessed number on a refund screen is worse than none.
-      feesNotReturned: true,
-    })
+    // plan.feeNotReturnedCents is what this refund costs the school: Stripe
+    // keeps the processing fee from the original payment whatever happens here.
+    // It comes from each charge's own balance transaction, so it is what was
+    // actually paid rather than a rate multiplied out -- and where a fee has
+    // not been read yet, feesIncomplete says so instead of the figure quietly
+    // reading low.
+    return NextResponse.json(plan)
   } catch (e) {
     return failed(e)
   }

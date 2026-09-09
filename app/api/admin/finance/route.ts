@@ -47,7 +47,7 @@ export async function GET() {
   const today = getTodayLA()
   const since = new Date(Date.now() - MONTHS_BACK * 31 * 86_400_000).toISOString()
 
-  const [{ data: wallets }, { data: ledger }, { data: bookings }] = await Promise.all([
+  const [{ data: wallets }, { data: ledger }, { data: bookings }, { data: purchases }] = await Promise.all([
     svc.from('point_wallets').select('balance_purchased, balance_granted, total_paid_cents, total_refunded_cents'),
     svc.from('point_ledger')
       .select('created_at, delta_purchased, delta_granted, reason, amount_cents')
@@ -63,6 +63,16 @@ export async function GET() {
       .select('points_charged, status, class_session_id')
       .neq('status', 'cancelled')
       .not('points_charged', 'is', null),
+    // What Stripe kept. Read from the payments themselves rather than derived
+    // from a rate: ACH is capped, cards carry extras, Terminal differs again.
+    // A payment with no fee recorded is either cash at the desk or a bank debit
+    // that has not settled -- counted separately so the total is never quietly
+    // understated.
+    svc.from('purchases')
+      .select('amount_cents, fee_cents, net_cents, fee_captured_at, paid_at, stripe_payment_intent_id')
+      .eq('status', 'paid')
+      .is('reversed_at', null)
+      .gte('paid_at', since),
   ])
 
   // Session dates come in a second query on purpose: a nested join here has
@@ -85,8 +95,8 @@ export async function GET() {
     else earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts
   }
 
-  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number }> = {}
-  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0 })
+  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; feeCents: number; feePending: number }> = {}
+  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0, feeCents: 0, feePending: 0 })
   for (const r of (ledger || []) as Row[]) {
     const m = bucket(monthKeyLA(r.created_at))
     const dp = Number(r.delta_purchased) || 0
@@ -95,6 +105,23 @@ export async function GET() {
     m.granted += Number(r.delta_granted) || 0
     if (r.reason === 'purchase') m.topUpCash += Number(r.amount_cents) || 0
     if (r.reason === 'cash_refund') m.refundCash += Number(r.amount_cents) || 0
+  }
+
+  let feeCentsTotal = 0
+  let feePendingTotal = 0
+  for (const p of (purchases || []) as any[]) {
+    if (!p.paid_at) continue
+    const m = bucket(monthKeyLA(p.paid_at))
+    if (p.fee_captured_at != null && p.fee_cents != null) {
+      const fee = Number(p.fee_cents) || 0
+      m.feeCents += fee
+      feeCentsTotal += fee
+    } else if (p.stripe_payment_intent_id) {
+      // A Stripe payment whose fee is not known yet. Cash at the desk has no
+      // fee at all and is not pending anything.
+      m.feePending += 1
+      feePendingTotal += 1
+    }
   }
 
   const walletPurchased = (wallets || []).reduce((a: number, w: any) => a + (Number(w.balance_purchased) || 0), 0)
@@ -113,6 +140,10 @@ export async function GET() {
       granted: walletGranted,
       paidCents,
       refundedCents,
+      // Over the reporting window, not all time -- fees are only recorded from
+      // the month this started being captured.
+      feeCents: feeCentsTotal,
+      feePending: feePendingTotal,
     },
     months: keys.map(k => ({
       month: k,
@@ -122,6 +153,9 @@ export async function GET() {
       purchasedIn: months[k]?.purchasedIn || 0,
       purchasedOut: months[k]?.purchasedOut || 0,
       granted: months[k]?.granted || 0,
+      feeCents: months[k]?.feeCents || 0,
+      netCash: (months[k]?.topUpCash || 0) - (months[k]?.feeCents || 0),
+      feePending: months[k]?.feePending || 0,
     })),
   })
 }

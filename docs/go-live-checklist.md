@@ -36,17 +36,27 @@
 
 - [x] `point_ledger` 的 `stripe_session_id` 唯一索引（防重複入點）
 - [x] `docs/migration-ach-reversal.sql`（沖銷理由、負餘額、purchases 沖銷欄位）
+- [ ] `docs/migration-cash-refund.sql`（退款失敗理由、purchases.refunded_cents）
+- [ ] `docs/migration-stripe-fees.sql`（purchases 的手續費欄位），跑完到
+      Finance 頁按一次「Update fees from Stripe」補抓歷史資料
 - [ ] `docs/reset-test-data.sql` —— 清掉所有測試資料。**這是不可逆的，
       務必先在 Database → Backups 備份**
 
-## 3. 讓 Google 找得到
+## 3. 排程
+
+- [ ] 把補抓手續費排進 cron-job.org（每天一次即可）：
+      `POST /api/admin/finance/sync-fees`，帶 header `x-internal-key: <CRON_SECRET>`。
+      ACH 收款要結算後才有手續費，webhook 當下抓不到，靠這個補。
+      也可以不排，改成需要時到 Finance 頁按按鈕。
+
+## 4. 讓 Google 找得到
 
 兩個地方要同時改，只改一個沒有用：
 
 - [ ] `app/robots.ts` 第 8 行 `SEARCH_ENGINES_ALLOWED = false` → `true`
 - [ ] `app/layout.tsx` 第 25–26 行的 `robots: { index: false, … }` 整塊刪掉
 
-## 4. 法務
+## 5. 法務
 
 - [ ] 服務條款與退款政策給律師看過
 - [ ] 確認加州儲值卡法規（Civil Code 1749.5）對點數制度的適用範圍
@@ -54,12 +64,12 @@
       `lib/points.ts` 的 `CASH_REFUND_ENABLED` 改成 `true`，
       再到 Members 頁加按鈕
 
-## 5. 內容與設定
+## 6. 內容與設定
 
 - [ ] `/about` 兩個照片位還是空的
 - [ ] Google Places API 金鑰加上 HTTP referrer 限制（現在任何網站都能盜用）
 
-## 6. 稽核未修項目
+## 7. 稽核未修項目
 
 完整清單見稽核報告。程式面會影響金錢的項目都已修完；剩下的多是
 UI 文案與邊緣情況，合併前再掃一次即可。
@@ -74,6 +84,7 @@ UI 文案與邊緣情況，合併前再掃一次即可。
 - [x] 退點失敗不再被誤標為已退款
 - [x] 遞延收入報表（`/admin/finance`）
 - [x] 現金退款的邏輯與 API（`lib/refunds.ts`，旗標關閉中）
+- [x] Stripe 手續費抓進網站，Finance 頁看得到每月手續費與淨收現金
 - [x] 改期不再憑空生出點數，也不再把一對二的另一位學生留在舊時段
 - [x] 60 分鐘課取消只扣一次晚取消豁免（原本兩個半小時各扣一次）
 - [x] AI 客服取消一小時課會整堂取消（原本只取消半堂卻回報成功）

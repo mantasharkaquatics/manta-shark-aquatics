@@ -392,6 +392,38 @@ console.log('\n退款：從最新的收款往回拆')
   eq('$500 要當面給', plan.manualCents, 50000)
 }
 
+// --- 14b. what the refund costs the school -------------------------------
+// Stripe keeps the processing fee whatever happens, so refunding part of a
+// charge forfeits that share of what the charge cost to collect.
+console.log('\n退款要付出的成本：手續費不退還')
+{
+  const { svc } = makeSvc({
+    purchased: 1150,
+    purchases: [
+      // $650 charge that cost $19.15 to take. Refunding $130 of it forfeits a fifth.
+      { id: 'card', parent_id: 'p1p', amount_cents: 65000, refunded_cents: 0, fee_cents: 1915, paid_at: '2026-03-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_a' },
+      { id: 'desk', parent_id: 'p1p', amount_cents: 50000, refunded_cents: 0, fee_cents: null, paid_at: '2026-06-01', status: 'paid', reversed_at: null, payment_method: 'cash', stripe_payment_intent_id: null },
+    ],
+  })
+  const plan = await planRefund(svc, 'p1p', 63000)
+  eq('櫃檯現金沒有手續費', plan.legs[0].feeNotReturnedCents, 0)
+  eq('刷卡那筆按比例分攤（$130/$650 × $19.15）', plan.legs[1].feeNotReturnedCents, 383)
+  eq('這次退款的成本 $3.83', plan.feeNotReturnedCents, 383)
+  eq('沒有缺漏的手續費', plan.feesIncomplete, false)
+}
+
+// --- 14c. a fee we have not read yet is said so, not counted as zero -----
+console.log('\n還沒抓到的手續費要講出來，不能當成 0')
+{
+  const { svc } = makeSvc({
+    purchased: 650,
+    purchases: [{ id: 'ach', parent_id: 'p1p', amount_cents: 65000, refunded_cents: 0, fee_cents: null, paid_at: '2026-09-01', status: 'paid', reversed_at: null, payment_method: 'stripe', stripe_payment_intent_id: 'pi_settling' }],
+  })
+  const plan = await planRefund(svc, 'p1p', 65000)
+  eq('這筆的手續費是未知，不是零', plan.legs[0].feeNotReturnedCents, null)
+  eq('報表誠實標記為不完整', plan.feesIncomplete, true)
+}
+
 // --- 15. the wallet caps the refund, not the charges ----------------------
 // A family who bought 1150 points and swam most of them can only get back what
 // is still in the wallet, however much they once paid.

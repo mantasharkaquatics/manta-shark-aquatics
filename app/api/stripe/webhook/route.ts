@@ -2,6 +2,7 @@ import { sendEmail } from '@/lib/email'
 import { centsToPoints } from '@/lib/points'
 import { creditPurchase, DuplicateLedgerEntry, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
 import { reclaimForArrears } from '@/lib/points-arrears'
+import { captureFee } from '@/lib/stripe-fees'
 import { formatTime12h } from '@/lib/date'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
@@ -255,7 +256,7 @@ export async function POST(req: NextRequest) {
     // that it fired. A conflict here means the purchase and its invoice were
     // already written, so there is nothing left to do -- carrying on would send
     // the family a second invoice for one payment.
-    const { error: purchaseErr } = await supabase.from('purchases').insert({
+    const { data: purchaseRow, error: purchaseErr } = await supabase.from('purchases').insert({
       parent_id,
       lesson_package_id: null,
       amount_cents,
@@ -263,7 +264,7 @@ export async function POST(req: NextRequest) {
       stripe_session_id: session.id,
       stripe_payment_intent_id: paymentIntentId,
       paid_at: new Date().toISOString(),
-    })
+    }).select('id, stripe_payment_intent_id, stripe_session_id').single()
     if (purchaseErr) {
       if (purchaseErr.code === '23505') {
         console.log(`\u21a9\ufe0e purchase for session ${session.id} was already recorded`)
@@ -272,6 +273,16 @@ export async function POST(req: NextRequest) {
       // Not a duplicate. The points are already in the wallet and that is the
       // part the family can see, so this is loud but not fatal.
       console.error('Purchase row insert failed:', purchaseErr.message)
+    }
+
+    // What Stripe kept. Asked for rather than calculated, and entirely
+    // best-effort: a card payment answers immediately, a bank debit has no
+    // balance transaction until it settles days later, and neither case is
+    // allowed to affect the points that are already in the wallet. Whatever is
+    // missed here is picked up by the fee backfill.
+    if (purchaseRow) {
+      captureFee(stripe, supabase, purchaseRow).catch(e =>
+        console.error(`fee capture failed for purchase ${purchaseRow.id}:`, e))
     }
 
     const pointsLabel = `${points.toLocaleString('en-US')} lesson points`
