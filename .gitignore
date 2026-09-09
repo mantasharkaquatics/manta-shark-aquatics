@@ -45,3 +45,6 @@ backup_*.sql
 # scratch
 /tmp/
 scripts/test-transcribe.mjs
+
+# scratch generator left behind by a session; its inputs lived in /tmp
+docs/.handbook-build.py
