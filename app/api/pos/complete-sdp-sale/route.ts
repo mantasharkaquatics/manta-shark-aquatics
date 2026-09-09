@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { BASE_POINTS, centsToPoints } from '@/lib/points'
 import { applyPoints } from '@/lib/points-wallet'
+import { insertInvoice } from '@/lib/invoices/create'
 
 // A negotiated programme sale: a set number of lessons for one named swimmer at
 // a price agreed off the price list (school districts, scholarships, a family
@@ -124,27 +125,30 @@ export async function POST(req: NextRequest) {
     const { data: parent } = await supabase
       .from('parents').select('first_name, last_name, email').eq('id', parentId).single()
 
-    const year = new Date().getFullYear()
-    const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
-    const invoice_number = `MSA-${year}-${String(seqNum || 1).padStart(4, '0')}`
-
-    const { data: invoice, error: invErr } = await supabase.from('invoices').insert({
-      invoice_number,
-      parent_id: parentId,
-      student_id: studentId,
-      amount: amountCents / 100,
-      payment_method: paymentMethod === 'stripe_terminal' ? 'card' : paymentMethod,
-      items: [
-        { name: `${courseType.name} — ${student.full_name}`, quantity: qty, unit_price: unit / 100 },
-        ...(bonusPoints > 0
-          ? [{ name: `${bonusPoints.toLocaleString('en-US')} programme-rate points`, quantity: bonusPoints, unit_price: 0 }]
-          : []),
-      ],
-      status: 'sent',
-      stripe_payment_intent_id: paymentIntentId || null,
-      notes: noteText || null,
-    }).select().single()
-    if (invErr) console.error('SDP invoice error:', invErr)
+    // The money is taken and the points are in the wallet. A receipt that
+    // cannot be numbered must not come back to the front desk as a failed
+    // sale -- the operator would take payment a second time. Loud in the log,
+    // recoverable by hand, invisible to the person at the counter.
+    let invoice: any = null
+    try {
+      invoice = await insertInvoice(supabase, {
+        parent_id: parentId,
+        student_id: studentId,
+        amount: amountCents / 100,
+        payment_method: paymentMethod === 'stripe_terminal' ? 'card' : paymentMethod,
+        items: [
+          { name: `${courseType.name} — ${student.full_name}`, quantity: qty, unit_price: unit / 100 },
+          ...(bonusPoints > 0
+            ? [{ name: `${bonusPoints.toLocaleString('en-US')} programme-rate points`, quantity: bonusPoints, unit_price: 0 }]
+            : []),
+        ],
+        status: 'sent',
+        stripe_payment_intent_id: paymentIntentId || null,
+        notes: noteText || null,
+      })
+    } catch (e: any) {
+      console.error(`\u26a0\ufe0f POS SDP sale for parent ${parentId} has no invoice:`, e?.message)
+    }
 
     if (invoice && parent) {
       try {

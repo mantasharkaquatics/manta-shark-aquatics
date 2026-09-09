@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { centsToPoints, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS } from '@/lib/points'
 import { applyPoints } from '@/lib/points-wallet'
+import { insertInvoice } from '@/lib/invoices/create'
 
 // Selling points at the front desk. The same thing the parent buys online, put
 // through by an admin who takes the card or the cash.
@@ -15,6 +16,11 @@ import { applyPoints } from '@/lib/points-wallet'
 // exactly the same way, and cannot be cashed out. That split is what lets the
 // school run "buy $1,000, get 100" without ever selling a dollar for less than
 // a dollar, which is the hole every refundable purchase discount opens.
+
+// How recently an identical cash sale counts as the same sale. Long enough to
+// cover a double-click and a retry, short enough not to block a real second
+// payment while the family is still standing there.
+const DUPLICATE_WINDOW_MS = 90_000
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,14 +53,32 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // A terminal payment can be recorded twice if the admin's screen retries.
-    // The payment intent is the natural key, so it is what we look for.
+    // A sale can be recorded twice if the front desk double-clicks or the
+    // screen retries. A terminal payment has a payment intent to key on; cash
+    // and cheques have nothing, which is why this guard used to be skipped
+    // entirely for exactly the payments nobody can trace afterwards.
     if (paymentIntentId) {
       const { data: seen } = await supabase
         .from('point_ledger').select('id')
         .eq('stripe_session_id', paymentIntentId).eq('reason', 'purchase').limit(1)
       if (seen && seen.length)
         return NextResponse.json({ error: 'This payment has already been recorded.' }, { status: 409 })
+    } else {
+      // Nothing to key on, so key on the shape of it: the same family, the same
+      // amount, moments ago. Two genuinely separate cash sales of the same size
+      // to the same family inside a minute is not a thing that happens at a
+      // front desk -- and if it does, the message says how to proceed.
+      const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString()
+      const { data: recent } = await supabase
+        .from('point_ledger').select('id')
+        .eq('parent_id', parentId).eq('reason', 'purchase')
+        .eq('amount_cents', amount)
+        .gte('created_at', since)
+        .limit(1)
+      if (recent && recent.length)
+        return NextResponse.json({
+          error: 'An identical payment for this family was recorded moments ago. If that was this sale, it is already done — check their points before charging again.',
+        }, { status: 409 })
     }
 
     const purchaseRow: Record<string, unknown> = {
@@ -106,24 +130,29 @@ export async function POST(req: NextRequest) {
     const { data: parent } = await supabase
       .from('parents').select('first_name, last_name, email').eq('id', parentId).single()
 
-    const year = new Date().getFullYear()
-    const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
-    const invoice_number = `MSA-${year}-${String(seqNum || 1).padStart(4, '0')}`
     const label = `${points.toLocaleString('en-US')} lesson points`
 
-    const { data: invoice } = await supabase.from('invoices').insert({
-      invoice_number,
-      parent_id: parentId,
-      amount: dollars,
-      payment_method: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
-      items: [
-        { name: label, quantity: points, unit_price: 1 },
-        ...(bonus > 0 ? [{ name: `${bonus.toLocaleString('en-US')} bonus points`, quantity: bonus, unit_price: 0 }] : []),
-      ],
-      status: 'sent',
-      stripe_payment_intent_id: paymentIntentId || null,
-      notes: note ? String(note).slice(0, 300) : null,
-    }).select().single()
+    // The money is taken and the points are in the wallet. A receipt that
+    // cannot be numbered must not come back to the front desk as a failed
+    // sale -- the operator would take payment a second time. Loud in the log,
+    // recoverable by hand, invisible to the person at the counter.
+    let invoice: any = null
+    try {
+      invoice = await insertInvoice(supabase, {
+        parent_id: parentId,
+        amount: dollars,
+        payment_method: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
+        items: [
+          { name: label, quantity: points, unit_price: 1 },
+          ...(bonus > 0 ? [{ name: `${bonus.toLocaleString('en-US')} bonus points`, quantity: bonus, unit_price: 0 }] : []),
+        ],
+        status: 'sent',
+        stripe_payment_intent_id: paymentIntentId || null,
+        notes: note ? String(note).slice(0, 300) : null,
+      })
+    } catch (e: any) {
+      console.error(`\u26a0\ufe0f POS sale for parent ${parentId} has no invoice:`, e?.message)
+    }
 
     if (invoice && parent) {
       try {

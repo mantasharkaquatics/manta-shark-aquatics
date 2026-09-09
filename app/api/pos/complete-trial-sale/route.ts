@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { insertInvoice } from '@/lib/invoices/create'
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,14 +69,9 @@ export async function POST(req: NextRequest) {
 
     // Create invoice
     try {
-      const year = new Date().getFullYear()
-      const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
-      const seq = seqNum || 1
-      const invoice_number = `MSA-${year}-${String(seq).padStart(4, '0')}`
       const { data: parentData } = await supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).single()
       const { data: studentData } = await supabase.from('students').select('full_name').eq('id', studentId).single()
-      const { data: inv } = await supabase.from('invoices').insert({
-        invoice_number,
+      const inv = await insertInvoice(supabase, {
         parent_id: parentId,
         lesson_credit_id: trialCredit?.id ?? null,
         amount: 85,
@@ -84,13 +80,13 @@ export async function POST(req: NextRequest) {
         status: 'sent',
         stripe_payment_intent_id: paymentIntentId || null,
         issued_at: new Date().toISOString(),
-      }).select().single()
+      })
       if (parentData && inv) {
         await sendEmail({
             type: 'invoice',
             to: parentData.email,
             parentName: parentData.first_name,
-            invoiceNumber: invoice_number,
+            invoiceNumber: inv.invoice_number,
             invoiceUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/${inv.id}/pdf`,
             amount: '85.00',
             items: [{ name: `Swim Assessment - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],

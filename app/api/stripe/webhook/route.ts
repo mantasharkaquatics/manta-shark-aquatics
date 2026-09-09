@@ -3,6 +3,7 @@ import { centsToPoints } from '@/lib/points'
 import { creditPurchase, DuplicateLedgerEntry, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
 import { reclaimForArrears } from '@/lib/points-arrears'
 import { captureFee } from '@/lib/stripe-fees'
+import { insertInvoice } from '@/lib/invoices/create'
 import { formatTime12h } from '@/lib/date'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
@@ -411,22 +412,25 @@ export async function POST(req: NextRequest) {
           const fmt = (sec: number) => new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           const coverage = period?.start && period?.end ? ` \u00b7 ${fmt(period.start)} \u2013 ${fmt(period.end)}` : ''
           const amount = (inv.amount_paid ?? 0) / 100
-          const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
-          const invoice_number = `MSA-${new Date().getFullYear()}-${String(seqNum || 1).padStart(4, '0')}`
-          const { data: created, error: invErr } = await supabase.from('invoices').insert({
-            invoice_number,
-            parent_id: stu?.parent_id || null,
-            student_id: tm.student_id,
-            team_membership_id: tm.id,
-            amount,
-            payment_method: 'stripe',
-            items: [{ name: `${tierName} \u00b7 Monthly Membership${stu?.full_name ? ` (${stu.full_name})` : ''}${coverage}`, quantity: 1, unit_price: amount, period_end: period?.end ? new Date(period.end * 1000).toISOString() : null }],
-            status: 'paid',
-            stripe_payment_intent_id: inv.id,
-            issued_at: new Date().toISOString(),
-          }).select('id').single()
-          if (invErr) console.error('Team invoice mirror insert error:', invErr)
-          else console.log(`Team invoice mirrored: ${invoice_number} (${created?.id}) for ${subId}`)
+          let created: any = null
+          try {
+            created = await insertInvoice(supabase, {
+              parent_id: stu?.parent_id || null,
+              student_id: tm.student_id,
+              team_membership_id: tm.id,
+              amount,
+              payment_method: 'stripe',
+              items: [{ name: `${tierName} \u00b7 Monthly Membership${stu?.full_name ? ` (${stu.full_name})` : ''}${coverage}`, quantity: 1, unit_price: amount, period_end: period?.end ? new Date(period.end * 1000).toISOString() : null }],
+              status: 'paid',
+              stripe_payment_intent_id: inv.id,
+              issued_at: new Date().toISOString(),
+            }, 'id, invoice_number')
+          } catch (e: any) {
+            // The subscription payment itself is settled. A missing mirror
+            // costs the family a receipt, not their membership.
+            console.error('Team invoice mirror insert error:', e?.message)
+          }
+          if (created) console.log(`Team invoice mirrored: ${created.invoice_number} (${created.id}) for ${subId}`)
         }
       }
     }

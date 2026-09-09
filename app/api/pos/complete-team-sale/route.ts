@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
+import { insertInvoice } from '@/lib/invoices/create'
 
 // POS prepaid team membership sale: buy N months upfront (cash or terminal one-off).
 // Rules (owner 2026-07-22): one track per student (block if active subscription);
@@ -129,33 +130,23 @@ export async function POST(req: NextRequest) {
     const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     const unitPrice = tier.monthly_price_cents / 100
     const amount = unitPrice * m
-    const { data: seqNum } = await supabase.rpc('get_next_invoice_seq')
-    const invoice_number = `MSA-${now.getFullYear()}-${String(seqNum || 1).padStart(4, '0')}`
-    const { data: invoice, error: invErr } = await supabase
-      .from('invoices')
-      .insert({
-        invoice_number,
-        parent_id: parentId,
-        student_id: studentId,
-        team_membership_id: membershipId,
-        amount,
-        payment_method: paymentMethod,
-        items: [{
-          name: `${tier.name} \u00b7 Prepaid Membership (${student.full_name}) \u00b7 ${m} month${m > 1 ? 's' : ''} \u00b7 ${fmt(base)} \u2013 ${fmt(end)}`,
-          quantity: m,
-          unit_price: unitPrice,
-          period_end: end.toISOString(),
-        }],
-        status: 'paid',
-        notes: overrideNote,
-        stripe_payment_intent_id: paymentIntentId || null,
-        issued_at: now.toISOString(),
-      })
-      .select('id, invoice_number').single()
-    if (invErr || !invoice) {
-      console.error('Prepaid invoice insert error:', invErr)
-      return NextResponse.json({ error: 'Membership created but invoice failed' }, { status: 500 })
-    }
+    const invoice = await insertInvoice(supabase, {
+      parent_id: parentId,
+      student_id: studentId,
+      team_membership_id: membershipId,
+      amount,
+      payment_method: paymentMethod,
+      items: [{
+        name: `${tier.name} \u00b7 Prepaid Membership (${student.full_name}) \u00b7 ${m} month${m > 1 ? 's' : ''} \u00b7 ${fmt(base)} \u2013 ${fmt(end)}`,
+        quantity: m,
+        unit_price: unitPrice,
+        period_end: end.toISOString(),
+      }],
+      status: 'paid',
+      notes: overrideNote,
+      stripe_payment_intent_id: paymentIntentId || null,
+      issued_at: now.toISOString(),
+    }, 'id, invoice_number')
 
     return NextResponse.json({ membership_id: membershipId, invoice_id: invoice.id, invoice_number: invoice.invoice_number, expires_at: end.toISOString() })
   } catch (e) {
