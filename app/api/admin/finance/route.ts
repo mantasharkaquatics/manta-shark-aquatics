@@ -95,8 +95,8 @@ export async function GET() {
     else earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts
   }
 
-  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; feeCents: number; feePending: number }> = {}
-  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0, feeCents: 0, feePending: 0 })
+  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; cashInCents: number; feeCents: number; feePending: number }> = {}
+  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0, cashInCents: 0, feeCents: 0, feePending: 0 })
   for (const r of (ledger || []) as Row[]) {
     const m = bucket(monthKeyLA(r.created_at))
     const dp = Number(r.delta_purchased) || 0
@@ -109,9 +109,18 @@ export async function GET() {
 
   let feeCentsTotal = 0
   let feePendingTotal = 0
+  let cashInTotal = 0
   for (const p of (purchases || []) as any[]) {
     if (!p.paid_at) continue
     const m = bucket(monthKeyLA(p.paid_at))
+    // Cash and fee are read from the same rows on purpose. The ledger's view of
+    // a month is what turned into POINTS, which is not the same set: a Swim
+    // Assessment is money in but never becomes points. Pairing a points-only
+    // cash figure with a fee that covered the assessment too gave a net that
+    // subtracted a fee from money it was not charged on.
+    const amt = Number(p.amount_cents) || 0
+    m.cashInCents += amt
+    cashInTotal += amt
     if (p.fee_captured_at != null && p.fee_cents != null) {
       const fee = Number(p.fee_cents) || 0
       m.feeCents += fee
@@ -145,6 +154,9 @@ export async function GET() {
       // the month this started being captured.
       feeCents: feeCentsTotal,
       feePending: feePendingTotal,
+      // Every payment taken, assessments included -- unlike paidCents, which
+      // counts only what became points.
+      cashInCents: cashInTotal,
     },
     // A zero fee total and "we could not read the fees" look identical on
     // screen, and one of them is a $0 that is not true. The migration not
@@ -158,8 +170,9 @@ export async function GET() {
       purchasedIn: months[k]?.purchasedIn || 0,
       purchasedOut: months[k]?.purchasedOut || 0,
       granted: months[k]?.granted || 0,
+      cashIn: months[k]?.cashInCents || 0,
       feeCents: months[k]?.feeCents || 0,
-      netCash: (months[k]?.topUpCash || 0) - (months[k]?.feeCents || 0),
+      netCash: (months[k]?.cashInCents || 0) - (months[k]?.feeCents || 0),
       feePending: months[k]?.feePending || 0,
     })),
   })

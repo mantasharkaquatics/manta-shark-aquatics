@@ -160,8 +160,11 @@ export default function AdminFinanceClient() {
         basis: a lesson counts in the month it was taught, no-shows included, because a no-show
         consumes the lesson and the points are not returned. &ldquo;Cash in&rdquo; is what actually
         settled through Stripe or the desk that month — if the business files on a cash basis, that
-        is the column that matters. One point is one dollar throughout. Points given as a grant are
-        excluded from the liability: they were never cash and can never be refunded as cash.
+        is the column that matters. It counts every payment, Swim Assessments included, which is why it
+        can differ from the points sold beside it: an assessment is money in that never became points.
+        Swim Team subscriptions are billed separately and are not in this table. One point is one dollar
+        throughout. Points given as a grant are excluded from the liability: they were never cash and
+        can never be refunded as cash.
         <br /><br />
         <strong style={{ color: '#fff' }}>Stripe fees</strong> come from each payment&rsquo;s own balance
         transaction, so they are what was actually charged rather than a published rate multiplied out —
