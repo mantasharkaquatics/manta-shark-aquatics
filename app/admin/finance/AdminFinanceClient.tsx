@@ -15,6 +15,7 @@ type Data = {
     feeCents: number; feePending: number
   }
   months: Month[]
+  feesUnavailable: string | null
 }
 
 const GOLD = '#c9a84c'
@@ -97,8 +98,10 @@ export default function AdminFinanceClient() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 10 }}>
         <Card label="Cash taken, all time" value={money(L.paidCents)} note="Every top-up ever settled." />
         <Card label="Cash refunded, all time" value={money(L.refundedCents)} note="Returned to families." />
-        <Card label="Stripe fees" value={money(L.feeCents)}
-          note={`What Stripe kept, read from the payments themselves — not a rate multiplied out. Never returned on a refund.${L.feePending ? ` ${L.feePending} payment${L.feePending === 1 ? '' : 's'} still settling.` : ''}`} />
+        <Card label="Stripe fees" value={d.feesUnavailable ? '—' : money(L.feeCents)}
+          note={d.feesUnavailable
+            ? 'Not being recorded yet — run docs/migration-stripe-fees.sql, then press the button below.'
+            : `What Stripe kept, read from the payments themselves — not a rate multiplied out. Never returned on a refund.${L.feePending ? ` ${L.feePending} payment${L.feePending === 1 ? '' : 's'} still settling.` : ''}`} />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>

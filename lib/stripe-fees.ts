@@ -113,13 +113,17 @@ export async function backfillFees(
   svc: Svc,
   limit = 100,
 ): Promise<{ attempted: number; captured: number; feeCentsCaptured: number; skipped: FeeCapture[] }> {
-  const { data: rows } = await svc
+  const { data: rows, error } = await svc
     .from('purchases')
     .select('id, stripe_payment_intent_id, stripe_session_id')
     .is('fee_captured_at', null)
     .not('stripe_payment_intent_id', 'is', null)
     .order('paid_at', { ascending: true })
     .limit(limit)
+  // Say so. A failed query returns no rows, and treating that as "nothing left
+  // to do" reported success on a database where the fee columns did not exist
+  // yet -- the one moment this is guaranteed to have work to do.
+  if (error) throw new Error(`Could not read purchases: ${error.message}`)
 
   let captured = 0
   let feeCentsCaptured = 0

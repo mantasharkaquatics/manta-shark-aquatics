@@ -47,7 +47,7 @@ export async function GET() {
   const today = getTodayLA()
   const since = new Date(Date.now() - MONTHS_BACK * 31 * 86_400_000).toISOString()
 
-  const [{ data: wallets }, { data: ledger }, { data: bookings }, { data: purchases }] = await Promise.all([
+  const [{ data: wallets }, { data: ledger }, { data: bookings }, { data: purchases, error: purchasesErr }] = await Promise.all([
     svc.from('point_wallets').select('balance_purchased, balance_granted, total_paid_cents, total_refunded_cents'),
     svc.from('point_ledger')
       .select('created_at, delta_purchased, delta_granted, reason, amount_cents')
@@ -145,6 +145,10 @@ export async function GET() {
       feeCents: feeCentsTotal,
       feePending: feePendingTotal,
     },
+    // A zero fee total and "we could not read the fees" look identical on
+    // screen, and one of them is a $0 that is not true. The migration not
+    // having been run is exactly when this matters.
+    feesUnavailable: purchasesErr ? (purchasesErr.message || 'could not read fees') : null,
     months: keys.map(k => ({
       month: k,
       earned: earnedByMonth[k] || 0,
