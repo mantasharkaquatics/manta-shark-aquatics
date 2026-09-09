@@ -38,7 +38,7 @@
 - [x] `docs/migration-ach-reversal.sql`（沖銷理由、負餘額、purchases 沖銷欄位）
 - [x] `docs/migration-cash-refund.sql`（退款失敗理由、purchases.refunded_cents）
 - [x] `docs/migration-stripe-fees.sql`（purchases 的手續費欄位）+ 歷史資料已補抓
-- [ ] `docs/migration-invoice-seq-lockdown.sql`（收回 `get_next_invoice_seq`
+- [x] `docs/migration-invoice-seq-lockdown.sql`（收回 `get_next_invoice_seq`
       的 authenticated 執行權，避免任何登入者空燒發票號碼）
 - [ ] `docs/reset-test-data.sql` —— 清掉所有測試資料。**這是不可逆的，
       務必先在 Database → Backups 備份**
