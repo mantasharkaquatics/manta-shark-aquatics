@@ -231,6 +231,72 @@ UPDATE public.students s SET current_stage = COALESCE((
   ), 3)
   WHERE s.current_level = 3;
 
+-- ---------- L4–L7 對照三套美國系統後的調整 ----------
+--  參考：American Red Cross Learn-to-Swim（L4–L6）、YMCA Swim Lessons
+--  （Stage 3–6）、SwimAmerica 的 station 精熟制，以及紅十字會的
+--  「水中自保五項」全美基準。
+--
+--  三件事：
+--
+--  1. 平轉身移到翻滾轉身之前。原本 Open Turn 在 L6 階段 3，Freestyle Flip
+--     Turn 卻在 L5 階段 2 —— 先教了進階的，一年後才補通用的。Red Cross 與
+--     YMCA 都是先 open 後 flip。平轉身四式都用得到，也是翻滾失敗時的退路。
+--
+--     連帶後果：原本那個技能的標準寫的是「蛙式與蝶式的雙手觸壁」，而那兩種
+--     泳姿要 L6 才教。移到 L5 就必須改寫成自由式與仰式的平轉身，否則蛙蝶的
+--     雙手觸壁規則會憑空消失 —— 所以在 L6 補回一個專講雙手觸壁的技能。
+--
+--  2. 補上省力泳姿。整套課程沒有任何低耗能、臉朝上的泳姿，但 L7 要求 400
+--     與 500 碼自由式 —— 學員累的時候無泳姿可換。Red Cross 從 L4 就教初級
+--     仰泳，其 L6 出關標準是「任選三式 500 碼，每式至少 50 碼」：多樣性本身
+--     就是耐力。位置與 Red Cross L4 一致。
+--
+--  3. 補上 25 碼的水中自保驗收。L3 的版本是 5 碼；紅十字會的全美基準是深水
+--     25 碼。那個距離才是家長聽得懂的那句話 ——「已達紅十字會水中自保標準」。
+--     放在 L4 階段 3 最後，當作該級的綜合驗收。
+--
+--  刻意沒有跟進的一項：側泳。Red Cross 有，但 YMCA 已將它移出核心階段，
+--  競技游泳也不使用。加了只是多一個技能。
+
+-- 1a. 平轉身移到 L5，範圍改成自由式與仰式
+UPDATE public.skills SET
+  stage = 2, sort_order = 3,
+  level_id = '83479c5f-2ca6-45db-a09b-d2aaa919162b',
+  name = 'Open Turn (Free & Back) 平轉身（自由式與仰式）',
+  pass_criteria = 'Swims into the wall, touches, turns and pushes off without stopping, in both freestyle and backstroke. 自由式與仰式都能游到池邊觸壁、轉身、蹬牆，中途不停。'
+  WHERE id = '0ff7355f-2cef-42b9-afa2-0749603d6c33';
+-- Surface Dive 遞補到 L5 階段 2 的第五個（原本第四）
+UPDATE public.skills SET sort_order = 5 WHERE id = 'b4a0c2d4-5e6f-4a74-8b92-0c1d2e3f4a54';
+-- Freestyle Flip Turn 排在平轉身之後
+UPDATE public.skills SET sort_order = 4 WHERE id = '22e00423-edc5-4626-8e7f-8bc4e846203f';
+
+-- 1b. L6 補回蛙蝶的雙手觸壁
+INSERT INTO public.skills (id, level_id, name, stage, sort_order, is_active, pass_criteria) VALUES
+  ('c3a0c2d4-5e6f-4a83-8b92-0c1d2e3f4a63', '627c3128-814c-481c-9925-7b435a2a6dc4', 'Two-Hand Touch Turn 雙手觸壁轉身', 3, 4, true,
+   'Turns at the wall in breaststroke and butterfly with both hands touching at the same time. 蛙式與蝶式在池邊轉身時雙手同時觸壁。')
+  ON CONFLICT (id) DO UPDATE SET level_id = EXCLUDED.level_id, name = EXCLUDED.name,
+    stage = EXCLUDED.stage, sort_order = EXCLUDED.sort_order, is_active = true,
+    pass_criteria = EXCLUDED.pass_criteria;
+
+-- 2. 初級仰泳 —— L4 階段 2，緊接在仰式 15 碼之後
+INSERT INTO public.skills (id, level_id, name, stage, sort_order, is_active, pass_criteria) VALUES
+  ('c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61', 'ed7884c1-bf10-4725-830a-981ee8b52246', 'Elementary Backstroke 25 yd 初級仰泳 25 碼', 2, 2, true,
+   'Swims 25 yd on the back with a symmetric arm pull and whip kick, gliding after each stroke. 仰躺 25 碼，雙臂對稱划水配合蛙腿，每一循環後有滑行。')
+  ON CONFLICT (id) DO UPDATE SET level_id = EXCLUDED.level_id, name = EXCLUDED.name,
+    stage = EXCLUDED.stage, sort_order = EXCLUDED.sort_order, is_active = true,
+    pass_criteria = EXCLUDED.pass_criteria;
+-- L4 階段 2 原本第 2、3 順位往後移
+UPDATE public.skills SET sort_order = 3 WHERE id = '818b6b3b-63b9-4e13-9a52-f3f466f57cc7';
+UPDATE public.skills SET sort_order = 4 WHERE id = '9722f505-b208-43dc-868d-495ba0f3c10e';
+
+-- 3. 25 碼水中自保驗收 —— L4 階段 3 最後一個
+INSERT INTO public.skills (id, level_id, name, stage, sort_order, is_active, pass_criteria) VALUES
+  ('c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62', 'ed7884c1-bf10-4725-830a-981ee8b52246', 'Water Competency 25 yd 水中自保驗收 25 碼', 3, 5, true,
+   'In deep water: jump in, surface and float or tread 1 min, turn a full circle to find the exit, swim 25 yd without stopping, climb out without the ladder. 深水中：跳入、回到水面漂或踩水 1 分鐘、原地轉一圈找到出口、不停游 25 碼、不靠扶梯上岸。')
+  ON CONFLICT (id) DO UPDATE SET level_id = EXCLUDED.level_id, name = EXCLUDED.name,
+    stage = EXCLUDED.stage, sort_order = EXCLUDED.sort_order, is_active = true,
+    pass_criteria = EXCLUDED.pass_criteria;
+
 COMMIT;
 
 -- ---------------------------------------------------------------------------
