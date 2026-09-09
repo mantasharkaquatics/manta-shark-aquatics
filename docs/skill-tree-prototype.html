@@ -1,0 +1,360 @@
+<title>Manta Shark 技能樹</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Committed to one dark world on purpose: a talent tree reads by nodes glowing
+   out of deep water, and a light version would throw that away. */
+:root{
+  --deep:#060d1b; --deeper:#040911; --panel:#0e1a30; --raised:#152442;
+  --line:#1e2f4f; --hair:#16233c;
+  --ink:#e9f0fb; --soft:#9fb0cc; --faint:#63738f;
+  --gold:#c9a84c; --lock:#28354f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:
+   radial-gradient(1200px 700px at 50% -10%, #0d1c33 0%, transparent 60%),
+   linear-gradient(#060d1b, #040911);
+  background-color:#060d1b;color:var(--ink);
+  font-family:'DM Sans',system-ui,"PingFang TC","Noto Sans TC",sans-serif;
+  font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:36px 18px 220px}
+@media(min-width:980px){.wrap{padding-right:420px}}
+
+/* ---- header ---- */
+.hero{border:1px solid var(--line);border-radius:14px;background:
+  linear-gradient(180deg,rgba(201,168,76,.06),transparent 60%),var(--panel);
+  padding:20px 24px;margin-bottom:8px}
+.kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--gold)}
+h1{font-family:'Rajdhani','DM Sans',sans-serif;font-weight:700;font-size:34px;
+  letter-spacing:.01em;margin:2px 0 4px;line-height:1.1}
+.who{color:var(--soft);font-size:14px;margin:0}
+.stats{display:flex;gap:26px;flex-wrap:wrap;margin-top:16px;padding-top:14px;
+  border-top:1px solid var(--hair)}
+.stat b{display:block;font-family:'IBM Plex Mono',monospace;font-size:22px;
+  font-variant-numeric:tabular-nums;color:var(--gold);line-height:1.2}
+.stat span{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.hint{font-size:13px;color:var(--faint);margin:14px 0 26px;text-align:center}
+
+/* ---- level band ---- */
+.band{position:relative;border:1px solid var(--line);border-radius:14px;
+  background:var(--panel);padding:16px 18px 20px;margin-top:26px}
+.band.active{border-color:var(--c);box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 40%,transparent),
+  0 14px 50px color-mix(in srgb,var(--c) 12%,transparent)}
+.band.future{opacity:.55}
+.band::before{content:"";position:absolute;left:50%;top:-26px;width:2px;height:26px;
+  background:linear-gradient(var(--line),var(--c))}
+.band:first-of-type::before{display:none}
+.bh{display:flex;align-items:center;gap:14px;padding-bottom:14px;
+  border-bottom:1px solid var(--hair);margin-bottom:16px}
+.bnum{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:9px;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:20px;
+  color:var(--c);border:1px solid var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
+.bt{flex:1;min-width:0}
+.bt h2{font-family:'Rajdhani','DM Sans',sans-serif;font-weight:600;font-size:21px;
+  margin:0;line-height:1.2;letter-spacing:.01em}
+.bzh{font-size:12.5px;color:var(--faint)}
+.bprog{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--faint);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.bprog b{color:var(--c);font-size:17px}
+
+/* ---- stages ---- */
+.stages{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap}
+.stage{flex:1 1 210px;min-width:0;border:1px solid transparent;border-radius:11px;padding:10px}
+.stage.cur{border-color:color-mix(in srgb,var(--gold) 45%,transparent);
+  background:rgba(201,168,76,.05)}
+.sh{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
+.stag{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.stage.cur .stag{color:var(--gold)}
+.sct{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--faint);margin-left:auto}
+.arrow{align-self:center;color:var(--line);font-size:26px;line-height:1;padding:0 2px}
+@media(max-width:700px){.arrow{display:none}.stage{flex:1 1 100%}}
+
+/* ---- nodes ---- */
+.nodes{display:flex;flex-wrap:wrap;gap:12px 10px}
+.node{all:unset;cursor:pointer;width:74px;display:flex;flex-direction:column;
+  align-items:center;gap:6px;text-align:center}
+.node:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:8px}
+.hexring{width:54px;height:60px;display:grid;place-items:center;
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+  background:var(--lock);transition:transform .15s ease}
+.hex{width:46px;height:52px;display:grid;place-items:center;
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+  background:#0a1526}
+.glyph{font-size:17px;line-height:1;color:var(--faint)}
+.nlabel{font-family:'Rajdhani','DM Sans',sans-serif;font-weight:600;font-size:11.5px;
+  line-height:1.25;color:var(--faint);letter-spacing:.01em}
+.node:hover .hexring{transform:translateY(-2px)}
+
+.node.done .hexring{background:var(--c);
+  box-shadow:0 0 18px color-mix(in srgb,var(--c) 45%,transparent)}
+.node.done .hex{background:color-mix(in srgb,var(--c) 22%,#0a1526)}
+.node.done .glyph{color:var(--c)}
+.node.done .nlabel{color:var(--ink)}
+
+.node.active .hexring{background:conic-gradient(var(--gold) calc(var(--p)*1%),
+  var(--lock) 0);box-shadow:0 0 22px rgba(201,168,76,.35);animation:pulse 2.4s ease-in-out infinite}
+.node.active .hex{background:#0d1730}
+.node.active .glyph{color:var(--gold)}
+.node.active .nlabel{color:var(--gold)}
+@keyframes pulse{0%,100%{box-shadow:0 0 18px rgba(201,168,76,.28)}
+  50%{box-shadow:0 0 30px rgba(201,168,76,.5)}}
+@media(prefers-reduced-motion:reduce){.node.active .hexring{animation:none}
+  .node:hover .hexring{transform:none}}
+
+.node.open .hexring{background:color-mix(in srgb,var(--c) 45%,var(--lock))}
+.node.open .glyph{color:color-mix(in srgb,var(--c) 70%,var(--soft))}
+.node.open .nlabel{color:var(--soft)}
+.node.locked{cursor:default}
+.node.locked .hexring{background:#16223a}
+.node.locked .glyph{opacity:.4;font-size:13px}
+.node.sel .hexring{outline:2px solid var(--gold);outline-offset:3px}
+
+/* ---- unlocking: the payoff ---- */
+.cheer{opacity:0;font-size:13px;transform:scale(.4);transition:opacity .3s,transform .35s cubic-bezier(.2,.9,.3,1.5)}
+.stage.cleared .cheer{opacity:1;transform:scale(1)}
+@keyframes pop{0%{transform:scale(.72)}55%{transform:scale(1.2)}100%{transform:scale(1)}}
+@keyframes burst{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 60%,transparent)}
+  100%{box-shadow:0 0 0 24px transparent}}
+.node.lighting .hexring{animation:pop .5s cubic-bezier(.2,.9,.3,1.35),burst .8s ease-out}
+@keyframes reveal{0%{transform:scale(.8) rotate(-14deg);opacity:.25}
+  100%{transform:scale(1) rotate(0);opacity:1}}
+.node.revealing .hexring{animation:reveal .55s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes cleared{0%,100%{background:rgba(201,168,76,.05)}
+  40%{background:rgba(201,168,76,.2)}}
+.stage.cleared{animation:cleared 1.1s ease}
+.arrow.charge{color:var(--gold);text-shadow:0 0 14px rgba(201,168,76,.7);
+  transform:translateX(4px);transition:all .45s ease}
+#replay{all:unset;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;
+  font-size:13px;letter-spacing:.04em;color:var(--gold);border:1px solid var(--gold);
+  border-radius:8px;padding:6px 14px;margin-left:auto;white-space:nowrap}
+#replay:hover{background:rgba(201,168,76,.12)}
+#replay:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#replay[disabled]{opacity:.4;cursor:default}
+@media(prefers-reduced-motion:reduce){
+  .node.lighting .hexring,.node.revealing .hexring,.stage.cleared{animation:none}
+  .cheer{transition:none}}
+
+/* ---- detail ---- */
+#d{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);
+  box-shadow:0 -10px 50px rgba(0,0,0,.55)}
+@media(min-width:980px){#d{top:24px;right:24px;bottom:24px;width:372px;border-radius:14px;
+  overflow-y:auto}}
+@media(max-width:979px){#d{left:0;right:0;bottom:0;max-height:64vh;overflow-y:auto;
+  border-radius:16px 16px 0 0;border-bottom:none}}
+.dpad{padding:20px 22px 24px}
+.dtag{display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 9px;border-radius:20px;border:1px solid var(--c);color:var(--c);
+  background:color-mix(in srgb,var(--c) 10%,transparent)}
+#dn{font-family:'Rajdhani','DM Sans',sans-serif;font-weight:700;font-size:22px;
+  line-height:1.25;margin:12px 0 4px}
+.dstate{font-size:12.5px;color:var(--faint);margin:0 0 16px}
+.bar{height:6px;border-radius:3px;background:var(--raised);overflow:hidden;margin-bottom:18px}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--gold)}
+.dsec{border-top:1px solid var(--hair);padding-top:13px;margin-top:13px}
+.dsec:first-of-type{border-top:none;margin-top:0;padding-top:0}
+.dk{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+.dsec.pass .dk{color:#7fd8a0} .dsec.err .dk{color:#f0917f}
+.dv{font-size:14px;color:var(--soft);line-height:1.75;margin:0}
+.dsec.pass .dv{color:var(--ink)}
+#dx{all:unset;cursor:pointer;position:absolute;top:14px;right:16px;width:28px;height:28px;
+  display:grid;place-items:center;border-radius:7px;color:var(--faint);font-size:18px}
+#dx:hover{background:var(--raised);color:var(--ink)}
+#dx:focus-visible{outline:2px solid var(--gold)}
+.demo{font-size:11.5px;color:var(--faint);text-align:center;margin-top:34px;
+  padding-top:16px;border-top:1px solid var(--hair)}
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="kicker">Manta Shark Aquatics</span>
+    <h1>技能樹</h1>
+    <p class="who">示範學員 · 陳小魚 &nbsp;·&nbsp; 這頁的進度是<strong>虛構的範例</strong>，不是真實學員資料</p>
+    <div class="stats">
+      <div class="stat"><b>4</b><span>目前級別</span></div>
+      <div class="stat"><b>2</b><span>目前階段</span></div>
+      <div class="stat"><b><span id="litv">33</span><span style="color:var(--faint);font-size:14px">/82</span></b><span>已點亮</span></div>
+      <div class="stat"><b id="pctv">40%</b><span>整體完成</span></div>
+      <button id="replay">▶ 重播解鎖動畫</button>
+    </div>
+  </header>
+  <p class="hint">點任何一個節點看它的通過標準與教法 · 🔒 是還沒解鎖的</p>
+  
+<section class="band past" style="--c:#e05a4a" id="lv1">
+  <div class="bh">
+    <div class="bnum">1</div>
+    <div class="bt"><h2>Water Discovery</h2><span class="bzh">認識水</span></div>
+    <div class="bprog"><b>9</b>/9</div>
+  </div>
+  <div class="stages"><div class="stage"><div class="sh"><span class="stag">階段 1</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L1S1.1" data-i="1" style="--p:0" aria-label="Safe Entry and Recognition"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Safe Entry and Recognition</span></button><button class="node done" data-k="L1S1.2" data-i="2" style="--p:0" aria-label="Safe Exit"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Safe Exit</span></button><button class="node done" data-k="L1S1.3" data-i="3" style="--p:0" aria-label="Wall Grasping"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Wall Grasping</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 2</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L1S2.1" data-i="1" style="--p:0" aria-label="Water Walking"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Water Walking</span></button><button class="node done" data-k="L1S2.2" data-i="2" style="--p:0" aria-label="Underwater Bubble Blowing"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Underwater Bubble Blowing</span></button><button class="node done" data-k="L1S2.3" data-i="3" style="--p:0" aria-label="Flutter Kick on Deck 岸上打水"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Flutter Kick on Deck</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 3</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L1S3.1" data-i="1" style="--p:0" aria-label="Assisted Floating"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Assisted Floating</span></button><button class="node done" data-k="L1S3.2" data-i="2" style="--p:0" aria-label="Float-to-Stand Transition"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Float-to-Stand Transition</span></button><button class="node done" data-k="L1S3.3" data-i="3" style="--p:0" aria-label="Superman Glide"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Superman Glide</span></button></div></div></div>
+</section>
+<section class="band past" style="--c:#e8883a" id="lv2">
+  <div class="bh">
+    <div class="bnum">2</div>
+    <div class="bt"><h2>Water Confidence</h2><span class="bzh">水中自在</span></div>
+    <div class="bprog"><b>10</b>/10</div>
+  </div>
+  <div class="stages"><div class="stage"><div class="sh"><span class="stag">階段 1</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L2S1.1" data-i="1" style="--p:0" aria-label="Freestyle Kick 10 yd (Board) 自由式打水 10 碼（浮板）"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Freestyle Kick 10 yd (Board)</span></button><button class="node done" data-k="L2S1.2" data-i="2" style="--p:0" aria-label="Backstroke Kick 10 yd 仰式打水 10 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Backstroke Kick 10 yd</span></button><button class="node done" data-k="L2S1.3" data-i="3" style="--p:0" aria-label="Push-Off Float"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Push-Off Float</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 2</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L2S2.1" data-i="1" style="--p:0" aria-label="BBQ Roll (Body Rotation)"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">BBQ Roll (Body Rotation)</span></button><button class="node done" data-k="L2S2.2" data-i="2" style="--p:0" aria-label="Bubble Jumps (Chest Deep) 吐泡跳（胸深）"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Bubble Jumps (Chest Deep) 吐泡跳（胸深）</span></button><button class="node done" data-k="L2S2.3" data-i="3" style="--p:0" aria-label="Breath Holding 5 sec 憋氣 5 秒"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Breath Holding 5 sec</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 3</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">4/4</span></div><div class="nodes"><button class="node done" data-k="L2S3.1" data-i="1" style="--p:0" aria-label="Object Retrieval"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Object Retrieval</span></button><button class="node done" data-k="L2S3.2" data-i="2" style="--p:0" aria-label="Starfish Float 10 sec 大字漂 10 秒"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Starfish Float 10 sec</span></button><button class="node done" data-k="L2S3.3" data-i="3" style="--p:0" aria-label="Bubble Jumps (Over Head) 吐泡跳（過頭深）"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Bubble Jumps (Over Head) 吐泡跳（過頭深）</span></button><button class="node done" data-k="L2S3.4" data-i="4" style="--p:0" aria-label="Sculling 5 yd 划手前進 5 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Sculling 5 yd</span></button></div></div></div>
+</section>
+<section class="band past" style="--c:#d4a825" id="lv3">
+  <div class="bh">
+    <div class="bnum">3</div>
+    <div class="bt"><h2>Independent Movement</h2><span class="bzh">獨立前進</span></div>
+    <div class="bprog"><b>10</b>/10</div>
+  </div>
+  <div class="stages"><div class="stage"><div class="sh"><span class="stag">階段 1</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L3S1.1" data-i="1" style="--p:0" aria-label="Freestyle Kick 25 yd 自由式打水 25 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Freestyle Kick 25 yd</span></button><button class="node done" data-k="L3S1.2" data-i="2" style="--p:0" aria-label="Backstroke Kick 25 yd 仰式打水 25 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Backstroke Kick 25 yd</span></button><button class="node done" data-k="L3S1.3" data-i="3" style="--p:0" aria-label="Streamline Push-Off"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Streamline Push-Off</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 2</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L3S2.1" data-i="1" style="--p:0" aria-label="Treading Water 30 sec 踩水 30 秒"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Treading Water 30 sec</span></button><button class="node done" data-k="L3S2.2" data-i="2" style="--p:0" aria-label="Deep Water Object Retrieval"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Deep Water Object Retrieval</span></button><button class="node done" data-k="L3S2.3" data-i="3" style="--p:0" aria-label="Survival Float"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Survival Float</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 3</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">4/4</span></div><div class="nodes"><button class="node done" data-k="L3S3.1" data-i="1" style="--p:0" aria-label="Roll-and-Breathe Swim 15 yd 側轉換氣游 15 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Roll-and-Breathe Swim 15 yd</span></button><button class="node done" data-k="L3S3.2" data-i="2" style="--p:0" aria-label="In-Water Turn"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">In-Water Turn</span></button><button class="node done" data-k="L3S3.3" data-i="3" style="--p:0" aria-label="Dolphin Kick 10 yd 海豚腿 10 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Dolphin Kick 10 yd</span></button><button class="node done" data-k="L3S3.4" data-i="4" style="--p:0" aria-label="Water Safety Test"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Water Safety Test</span></button></div></div></div>
+</section>
+<section class="band active" style="--c:#4caf72" id="lv4">
+  <div class="bh">
+    <div class="bnum">4</div>
+    <div class="bt"><h2>Stroke Foundations</h2><span class="bzh">泳姿基礎</span></div>
+    <div class="bprog"><b>4</b>/12</div>
+  </div>
+  <div class="stages"><div class="stage"><div class="sh"><span class="stag">階段 1</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">3/3</span></div><div class="nodes"><button class="node done" data-k="L4S1.1" data-i="1" style="--p:0" aria-label="Freestyle 15 yd 自由式 15 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Freestyle 15 yd</span></button><button class="node done" data-k="L4S1.2" data-i="2" style="--p:0" aria-label="Freestyle 25 yd 自由式 25 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Freestyle 25 yd</span></button><button class="node done" data-k="L4S1.3" data-i="3" style="--p:0" aria-label="Seated and Kneeling Dive"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Seated and Kneeling Dive</span></button></div></div><span class="arrow">›</span><div class="stage cur"><div class="sh"><span class="stag">階段 2</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">1/4</span></div><div class="nodes"><button class="node done" data-k="L4S2.1" data-i="1" style="--p:0" aria-label="Backstroke 15 yd 仰式 15 碼"><span class="hexring"><span class="hex"><span class="glyph">✦</span></span></span><span class="nlabel">Backstroke 15 yd</span></button><button class="node active" data-k="L4S2.2" data-i="2" style="--p:60" aria-label="Elementary Backstroke 25 yd 初級仰泳 25 碼"><span class="hexring"><span class="hex"><span class="glyph">◆</span></span></span><span class="nlabel">Elementary Backstroke 25 yd</span></button><button class="node active" data-k="L4S2.3" data-i="3" style="--p:40" aria-label="Streamline Freestyle Kicking"><span class="hexring"><span class="hex"><span class="glyph">◆</span></span></span><span class="nlabel">Streamline Freestyle Kicking</span></button><button class="node open" data-k="L4S2.4" data-i="4" style="--p:0" aria-label="Underwater Freestyle Kicking"><span class="hexring"><span class="hex"><span class="glyph">○</span></span></span><span class="nlabel">Underwater Freestyle Kicking</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 3</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/5</span></div><div class="nodes"><button class="node locked" data-k="L4S3.1" data-i="1" style="--p:0" aria-label="Starfish Float 30 sec 大字漂 30 秒"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Starfish Float 30 sec</span></button><button class="node locked" data-k="L4S3.2" data-i="2" style="--p:0" aria-label="Treading Water 1 min 踩水 1 分鐘"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Treading Water 1 min</span></button><button class="node locked" data-k="L4S3.3" data-i="3" style="--p:0" aria-label="No-Goggles Swim"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">No-Goggles Swim</span></button><button class="node locked" data-k="L4S3.4" data-i="4" style="--p:0" aria-label="Clothed Swim (7 yd)"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Clothed Swim (7 yd)</span></button><button class="node locked" data-k="L4S3.5" data-i="5" style="--p:0" aria-label="Water Competency 25 yd 水中自保驗收 25 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Water Competency 25 yd</span></button></div></div></div>
+</section>
+<section class="band future" style="--c:#4a90c4" id="lv5">
+  <div class="bh">
+    <div class="bnum">5</div>
+    <div class="bt"><h2>Stroke Development</h2><span class="bzh">泳姿發展</span></div>
+    <div class="bprog"><b>0</b>/12</div>
+  </div>
+  <div class="stages"><div class="stage"><div class="sh"><span class="stag">階段 1</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/2</span></div><div class="nodes"><button class="node locked" data-k="L5S1.1" data-i="1" style="--p:0" aria-label="Freestyle 50 yd 自由式 50 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle 50 yd</span></button><button class="node locked" data-k="L5S1.2" data-i="2" style="--p:0" aria-label="Freestyle 100 yd 自由式 100 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle 100 yd</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 2</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/5</span></div><div class="nodes"><button class="node locked" data-k="L5S2.1" data-i="1" style="--p:0" aria-label="Backstroke 25 yd 仰式 25 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Backstroke 25 yd</span></button><button class="node locked" data-k="L5S2.2" data-i="2" style="--p:0" aria-label="Backstroke 50 yd 仰式 50 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Backstroke 50 yd</span></button><button class="node locked" data-k="L5S2.3" data-i="3" style="--p:0" aria-label="Open Turn (Free &amp; Back) 平轉身（自由式與仰式）"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Open Turn (Free &amp; Back)</span></button><button class="node locked" data-k="L5S2.4" data-i="4" style="--p:0" aria-label="Freestyle Flip Turn"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle Flip Turn</span></button><button class="node locked" data-k="L5S2.5" data-i="5" style="--p:0" aria-label="Surface Dive"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Surface Dive</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 3</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/5</span></div><div class="nodes"><button class="node locked" data-k="L5S3.1" data-i="1" style="--p:0" aria-label="Breaststroke Kick 10 yd 蛙腿 10 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breaststroke Kick 10 yd 蛙腿 10 碼</span></button><button class="node locked" data-k="L5S3.2" data-i="2" style="--p:0" aria-label="Breaststroke Kick 25 yd 蛙腿 25 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breaststroke Kick 25 yd 蛙腿 25 碼</span></button><button class="node locked" data-k="L5S3.3" data-i="3" style="--p:0" aria-label="Dolphin Kick 25 yd 海豚腿 25 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Dolphin Kick 25 yd</span></button><button class="node locked" data-k="L5S3.4" data-i="4" style="--p:0" aria-label="Breath Holding 15 sec 憋氣 15 秒"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breath Holding 15 sec</span></button><button class="node locked" data-k="L5S3.5" data-i="5" style="--p:0" aria-label="Reach and Throw Rescue"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Reach and Throw Rescue</span></button></div></div></div>
+</section>
+<section class="band future" style="--c:#9d7fd0" id="lv6">
+  <div class="bh">
+    <div class="bnum">6</div>
+    <div class="bt"><h2>Four Strokes</h2><span class="bzh">四式完成</span></div>
+    <div class="bprog"><b>0</b>/13</div>
+  </div>
+  <div class="stages"><div class="stage"><div class="sh"><span class="stag">階段 1</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/4</span></div><div class="nodes"><button class="node locked" data-k="L6S1.1" data-i="1" style="--p:0" aria-label="Butterfly 10 yd 蝶式 10 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Butterfly 10 yd</span></button><button class="node locked" data-k="L6S1.2" data-i="2" style="--p:0" aria-label="Breaststroke 15 yd 蛙式 15 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breaststroke 15 yd</span></button><button class="node locked" data-k="L6S1.3" data-i="3" style="--p:0" aria-label="Individual Medley Kicking"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Individual Medley Kicking</span></button><button class="node locked" data-k="L6S1.4" data-i="4" style="--p:0" aria-label="Treading Water 2 min 踩水 2 分鐘"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Treading Water 2 min</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 2</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/4</span></div><div class="nodes"><button class="node locked" data-k="L6S2.1" data-i="1" style="--p:0" aria-label="Freestyle 200 yd 自由式 200 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle 200 yd</span></button><button class="node locked" data-k="L6S2.2" data-i="2" style="--p:0" aria-label="Backstroke 100 yd 仰式 100 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Backstroke 100 yd</span></button><button class="node locked" data-k="L6S2.3" data-i="3" style="--p:0" aria-label="Backstroke Flip Turn"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Backstroke Flip Turn</span></button><button class="node locked" data-k="L6S2.4" data-i="4" style="--p:0" aria-label="Standing Dive"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Standing Dive</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 3</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/5</span></div><div class="nodes"><button class="node locked" data-k="L6S3.1" data-i="1" style="--p:0" aria-label="Butterfly 25 yd 蝶式 25 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Butterfly 25 yd</span></button><button class="node locked" data-k="L6S3.2" data-i="2" style="--p:0" aria-label="Breaststroke 25 yd 蛙式 25 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breaststroke 25 yd</span></button><button class="node locked" data-k="L6S3.3" data-i="3" style="--p:0" aria-label="Underwater Dolphin Kick"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Underwater Dolphin Kick</span></button><button class="node locked" data-k="L6S3.4" data-i="4" style="--p:0" aria-label="Two-Hand Touch Turn 雙手觸壁轉身"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Two-Hand Touch Turn</span></button><button class="node locked" data-k="L6S3.5" data-i="5" style="--p:0" aria-label="Clothed Swim (25 yd)"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Clothed Swim (25 yd)</span></button></div></div></div>
+</section>
+<section class="band future" style="--c:#c9a84c" id="lv7">
+  <div class="bh">
+    <div class="bnum">7</div>
+    <div class="bt"><h2>Competitive Swimming</h2><span class="bzh">競技規格</span></div>
+    <div class="bprog"><b>0</b>/16</div>
+  </div>
+  <div class="stages"><div class="stage"><div class="sh"><span class="stag">階段 1</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/5</span></div><div class="nodes"><button class="node locked" data-k="L7S1.1" data-i="1" style="--p:0" aria-label="Freestyle 50 yd Timed 自由式 50 碼計時"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle 50 yd Timed</span></button><button class="node locked" data-k="L7S1.2" data-i="2" style="--p:0" aria-label="Freestyle 25 yd Sprint 自由式 25 碼衝刺"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle 25 yd Sprint</span></button><button class="node locked" data-k="L7S1.3" data-i="3" style="--p:0" aria-label="Freestyle 400 yd 自由式 400 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle 400 yd</span></button><button class="node locked" data-k="L7S1.4" data-i="4" style="--p:0" aria-label="Backstroke 200 yd 仰式 200 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Backstroke 200 yd</span></button><button class="node locked" data-k="L7S1.5" data-i="5" style="--p:0" aria-label="Clothed Swim (50 yd)"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Clothed Swim (50 yd)</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 2</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/5</span></div><div class="nodes"><button class="node locked" data-k="L7S2.1" data-i="1" style="--p:0" aria-label="Breaststroke Underwater Pullout"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breaststroke Underwater Pullout</span></button><button class="node locked" data-k="L7S2.2" data-i="2" style="--p:0" aria-label="Breaststroke 50 yd 蛙式 50 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breaststroke 50 yd</span></button><button class="node locked" data-k="L7S2.3" data-i="3" style="--p:0" aria-label="Butterfly 50 yd 蝶式 50 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Butterfly 50 yd</span></button><button class="node locked" data-k="L7S2.4" data-i="4" style="--p:0" aria-label="Freestyle 500 yd 自由式 500 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle 500 yd</span></button><button class="node locked" data-k="L7S2.5" data-i="5" style="--p:0" aria-label="Racing Start and Backstroke Start"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Racing Start and Backstroke Start</span></button></div></div><span class="arrow">›</span><div class="stage"><div class="sh"><span class="stag">階段 3</span><span class="cheer" aria-hidden="true">🎊</span><span class="sct">0/6</span></div><div class="nodes"><button class="node locked" data-k="L7S3.1" data-i="1" style="--p:0" aria-label="Stroke Transitions and Turns"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Stroke Transitions and Turns</span></button><button class="node locked" data-k="L7S3.2" data-i="2" style="--p:0" aria-label="Individual Medley 100 yd 個人混合式 100 碼"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Individual Medley 100 yd</span></button><button class="node locked" data-k="L7S3.3" data-i="3" style="--p:0" aria-label="Freestyle (Race Legal) 自由式（合規）"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Freestyle (Race Legal)</span></button><button class="node locked" data-k="L7S3.4" data-i="4" style="--p:0" aria-label="Backstroke (Race Legal) 仰式（合規）"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Backstroke (Race Legal)</span></button><button class="node locked" data-k="L7S3.5" data-i="5" style="--p:0" aria-label="Breaststroke (Race Legal) 蛙式（合規）"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Breaststroke (Race Legal)</span></button><button class="node locked" data-k="L7S3.6" data-i="6" style="--p:0" aria-label="Butterfly (Race Legal) 蝶式（合規）"><span class="hexring"><span class="hex"><span class="glyph">🔒</span></span></span><span class="nlabel">Butterfly (Race Legal)</span></button></div></div></div>
+</section>
+  <p class="demo">節點資料為 Manta Shark 真實課程的 82 個技能；學員進度為示範用。</p>
+</div>
+
+<aside id="d" hidden aria-live="polite">
+  <button id="dx" aria-label="關閉">✕</button>
+  <div class="dpad">
+    <span class="dtag" id="dt"></span>
+    <h3 id="dn"></h3>
+    <p class="dstate" id="ds"></p>
+    <div class="bar"><i id="db"></i></div>
+    <div class="dsec pass"><div class="dk">通過標準 · 100%</div><p class="dv" id="d1"></p></div>
+    <div class="dsec"><div class="dk">教學重點</div><p class="dv" id="d2"></p></div>
+    <div class="dsec err"><div class="dk">常見錯誤</div><p class="dv" id="d3"></p></div>
+  </div>
+</aside>
+
+<script>
+const D = {"L1S1.1": {"n": "Safe Entry and Recognition", "c": "Walks to the edge, waits for the coach, enters feet-first without being asked twice. 走到池邊會等教練，聽指令雙腳先入水，不用講第二次。", "t": "第一堂課的重點不是游，是「水邊有規矩」。永遠讓他走到定點、看著你、等指令再入水。", "e": "大人急著把小孩抱下水。一旦跳過等待，之後每一堂都要重新建立。", "p": 100, "s": "done", "lv": 1, "st": 1}, "L1S1.2": {"n": "Safe Exit", "c": "Climbs out unaided using the ladder or the wall, on their own. 自己用扶梯或撐池邊上岸，全程不需要人扶。", "t": "上岸和入水一樣重要——這是他掉下去時唯一的自救路徑。兩隻手抓穩再撐。", "e": "教練順手把小孩拉上來，孩子永遠學不會自己上岸。", "p": 100, "s": "done", "lv": 1, "st": 1}, "L1S1.3": {"n": "Wall Grasping", "c": "Holds the wall unaided and moves along it 5 yd hand-over-hand. 自己抓牢池邊，沿著池壁換手移動 5 碼。", "t": "手指扣住池壁邊緣，不是手掌壓著。換手時另一隻手先抓穩才放。", "e": "兩手同時放開換手。要求「一手永遠在牆上」。", "p": 100, "s": "done", "lv": 1, "st": 1}, "L1S2.1": {"n": "Water Walking", "c": "Walks 10 yd in chest-deep water, upright, without holding anything. 胸深水中站直走 10 碼，全程不扶任何東西。", "t": "先讓他自己走，怕的時候你的手放在他後背而不是牽著。距離慢慢拉長。", "e": "牽著手走十碼——那是你在走，不是他。", "p": 100, "s": "done", "lv": 1, "st": 2}, "L1S2.2": {"n": "Underwater Bubble Blowing", "c": "Face in the water, blows bubbles from the mouth for 5 seconds without lifting the head. 臉入水用嘴吐泡泡 5 秒，中途不抬頭。", "t": "先在岸上對著水面吹，再嘴巴入水，最後鼻子。「用嘴吐，不要用鼻子吸」。", "e": "憋著氣把臉放進去再拿出來。那是憋氣不是吐氣，之後換氣一定會嗆。", "p": 100, "s": "done", "lv": 1, "st": 2}, "L1S2.3": {"n": "Flutter Kick on Deck 岸上打水", "c": "Sitting on the edge, kicks from the hip with straight legs and pointed toes for 20 seconds. 坐池邊直腿繃腳尖、由髖部發力打水 20 秒。", "t": "坐池邊打，讓他看見自己的腿。強調「腿像棍子」、「腳背壓下去」。", "e": "折膝踩腳踏車。用手輕壓膝蓋，讓他感覺發力點在髖不在膝。", "p": 100, "s": "done", "lv": 1, "st": 2}, "L1S3.1": {"n": "Assisted Floating", "c": "Floats on the back for 5 seconds with the coach supporting one hand only. 教練只用單手托著，仰漂 5 秒。", "t": "托在肩胛骨下方，不是托頭。慢慢減少支撐，讓他自己發現水會撐住他。", "e": "托著頭。頭一被托住，他就永遠學不會放鬆後仰。", "p": 100, "s": "done", "lv": 1, "st": 3}, "L1S3.2": {"n": "Float-to-Stand Transition", "c": "From a front or back float, gets both feet under the body and stands up unaided. 從俯漂或仰漂自己把腳收到身體下方站起來，不需協助。", "t": "這是安全技能，比漂本身重要。膝蓋收到胸口、腳踩地、頭最後起來。", "e": "先抬頭再站——頭一抬身體就沉，孩子會嗆到而害怕漂浮。", "p": 100, "s": "done", "lv": 1, "st": 3}, "L1S3.3": {"n": "Superman Glide", "c": "Pushes off the wall and glides face-down 5 yd, arms extended, no kicking. 蹬牆俯身滑行 5 碼，雙手伸直，不打水。", "t": "手臂夾耳、下巴收、腳併攏。滑行時什麼都不做，讓他體會「水會帶著我走」。", "e": "抬頭看前面。頭一抬臀部就掉，滑不出去。", "p": 100, "s": "done", "lv": 1, "st": 3}, "L2S1.1": {"n": "Freestyle Kick 10 yd (Board) 自由式打水 10 碼（浮板）", "c": "Kicks 10 yd on a board, face in the water, legs long and from the hip. 扶浮板臉入水打水 10 碼，腿伸直、由髖部發力。", "t": "浮板抓前緣，手臂伸直，臉入水。打水小而快，水花在水面下。", "e": "打得太大太慢，膝蓋彎。要求「腳跟只微微露出水面」。", "p": 100, "s": "done", "lv": 2, "st": 1}, "L2S1.2": {"n": "Backstroke Kick 10 yd 仰式打水 10 碼", "c": "Kicks 10 yd on the back, ears in the water, hips at the surface. 仰躺打水 10 碼，耳朵入水，臀部貼近水面。", "t": "耳朵要在水裡、肚子頂高。眼睛看天花板同一個點。", "e": "坐著打水（臀部下沉）。手放在他臀下往上頂一下讓他感覺位置。", "p": 100, "s": "done", "lv": 2, "st": 1}, "L2S1.3": {"n": "Push-Off Float", "c": "Pushes off the wall into a front float and holds it 5 seconds before standing. 蹬牆進入俯漂，撐住 5 秒後才站起來。", "t": "把蹬牆和漂浮接起來，這是之後所有出發與轉身的基礎。", "e": "蹬完馬上開始掙扎。要求「先什麼都不做，數到五」。", "p": 100, "s": "done", "lv": 2, "st": 1}, "L2S2.1": {"n": "BBQ Roll (Body Rotation)", "c": "While kicking, rolls from front to side to back and back again without stopping. 打水中由俯臥轉側身轉仰臥再轉回，中途不停。", "t": "BBQ = 像烤肉架上的肉那樣翻轉。一直打水，只有身體在轉。", "e": "轉的時候腿停了。強調「腿不准停」。", "p": 100, "s": "done", "lv": 2, "st": 2}, "L2S2.2": {"n": "Bubble Jumps (Chest Deep) 吐泡跳（胸深）", "c": "Ten jumps in chest-deep water: submerge, blow out, surface, repeat rhythmically. 胸深水中連續十次：下沉、吐氣、浮起，有節奏不中斷。", "t": "建立節奏感：下沉時吐、浮起時吸。連續十次不中斷比做得漂亮重要。", "e": "在水下吸氣。先在淺水練「下去吐、上來吸」的口訣。", "p": 100, "s": "done", "lv": 2, "st": 2}, "L2S2.3": {"n": "Breath Holding 5 sec 憋氣 5 秒", "c": "Fully submerged, eyes open, holds 5 seconds and surfaces calmly. 全身入水睜眼憋 5 秒，起來時不慌張。", "t": "睜眼是重點——閉著眼睛的憋氣沒有用，因為真的落水時要看得見。", "e": "用手捏鼻子。要讓他學會用鼻子輕輕呼氣來擋水。", "p": 100, "s": "done", "lv": 2, "st": 2}, "L2S3.1": {"n": "Object Retrieval", "c": "Retrieves an object from the bottom in chest-deep water, first try. 胸深水中一次就把池底的物品撿起來。", "t": "第一次讓他睜眼在水下找東西。放在他看得到的位置，不要為難他。", "e": "一次撿不到就重來很多次，孩子會失去信心。改放淺一點。", "p": 100, "s": "done", "lv": 2, "st": 3}, "L2S3.2": {"n": "Starfish Float 10 sec 大字漂 10 秒", "c": "Back float, arms and legs spread, 10 seconds unaided and unmoving. 仰躺手腳張開漂 10 秒，無人協助、身體不掙扎。", "t": "全身放鬆是唯一的技巧。告訴他「越用力越沉」。手腳張開像海星。", "e": "腰用力弓起來。輕輕壓他的肚子讓他放鬆。", "p": 100, "s": "done", "lv": 2, "st": 3}, "L2S3.3": {"n": "Bubble Jumps (Over Head) 吐泡跳（過頭深）", "c": "Same as chest-deep but in water over their head, ten times, holding the wall. 同上，但在過頭深的水中扶牆連續十次。", "t": "過頭深時扶牆做，安全感來自牆。這是深水恐懼的過渡練習。", "e": "直接放到深水中央。他會抓你，然後怕更久。", "p": 100, "s": "done", "lv": 2, "st": 3}, "L2S3.4": {"n": "Sculling 5 yd 划手前進 5 碼", "c": "Sculls the hands figure-of-eight and travels 5 yd on the back without kicking. 仰躺以八字划手前進 5 碼，完全不打水。", "t": "划手是「感覺水」的第一課，之後所有泳姿的抓水都從這裡來。八字形，手掌像抹果醬。", "e": "划成上下拍水。放慢，讓他找到「手掌壓住水」的感覺。", "p": 100, "s": "done", "lv": 2, "st": 3}, "L3S1.1": {"n": "Freestyle Kick 25 yd 自由式打水 25 碼", "c": "Kicks 25 yd on a board with side breathing, no standing up. 扶板打水 25 碼並側轉換氣，中途不站起來。", "t": "加入換氣。頭轉到側面而不是抬起來，一隻蛙鏡留在水裡。", "e": "抬頭換氣。用「用耳朵貼著手臂轉」的提示。", "p": 100, "s": "done", "lv": 3, "st": 1}, "L3S1.2": {"n": "Backstroke Kick 25 yd 仰式打水 25 碼", "c": "Kicks 25 yd on the back, arms at the sides, staying in a straight line. 仰躺打水 25 碼，雙手貼身，能維持直線。", "t": "25 碼要能維持直線。教他用池邊的線或天花板當參考。", "e": "游成蛇行。每五碼提醒他看一次天花板的定點。", "p": 100, "s": "done", "lv": 3, "st": 1}, "L3S1.3": {"n": "Streamline Push-Off", "c": "Push-off in a tight streamline and glides 7 yd before the first kick. 蹬牆做出緊實的流線型，滑行 7 碼才開始打水。", "t": "雙手交疊夾緊耳朵、身體像一根棍子。滑行距離是流線型好不好的唯一證據。", "e": "手沒有夾緊，或蹬牆時腳位置太低。", "p": 100, "s": "done", "lv": 3, "st": 1}, "L3S2.1": {"n": "Treading Water 30 sec 踩水 30 秒", "c": "Treads water 30 seconds in deep water, chin clear, without touching the wall. 深水踩水 30 秒，下巴離開水面，不碰池壁。", "t": "先教蛋打腿（畫圈），再加手。踩水是深水安全的核心技能，不要急。", "e": "手拚命拍水、身體直上直下。強調「慢而大」的腿。", "p": 100, "s": "done", "lv": 3, "st": 2}, "L3S2.2": {"n": "Deep Water Object Retrieval", "c": "Retrieves an object from the bottom of deep water and returns to the wall. 從深水池底撿起物品並游回池邊。", "t": "深水撿物是把前面的憋氣、睜眼、下潛整合起來。第一次陪他下去。", "e": "一開始就放到最深。從深水的淺端開始。", "p": 100, "s": "done", "lv": 3, "st": 2}, "L3S2.3": {"n": "Survival Float", "c": "Survival float face-down for 1 minute, lifting the head only to breathe. 俯漂求生 1 分鐘，只在換氣時抬頭。", "t": "求生漂的重點是省力，不是漂得漂亮。抬頭換氣後臉要回到水裡。", "e": "一直抬著頭。那樣一分鐘撐不完。", "p": 100, "s": "done", "lv": 3, "st": 2}, "L3S3.1": {"n": "Roll-and-Breathe Swim 15 yd 側轉換氣游 15 碼", "c": "Swims 15 yd rolling front-to-side to breathe, without stopping. 游 15 碼，用俯臥轉側身的方式換氣，中途不停。", "t": "這是自由式的前身。先有「轉身體換氣」，再有手臂動作。", "e": "直接教手臂划水。沒有側轉的自由式之後很難改。", "p": 100, "s": "done", "lv": 3, "st": 3}, "L3S3.2": {"n": "In-Water Turn", "c": "Swims to the wall, turns without standing, and pushes off the other way. 游到池邊不站起來直接轉身，蹬牆往回。", "t": "轉身不站起來，是「連續游」的門檻。腳踩到牆才蹬。", "e": "轉身時站起來喘一口。要求全程臉不離開水面太久。", "p": 100, "s": "done", "lv": 3, "st": 3}, "L3S3.3": {"n": "Dolphin Kick 10 yd 海豚腿 10 碼", "c": "Dolphin kicks 10 yd on the front, the wave starting at the chest not the knees. 俯身海豚腿 10 碼，波浪從胸口帶動而不是折膝。", "t": "海豚腿放在這裡是當作身體波浪的訓練，不是為了教蝶式。從胸口帶動。", "e": "折膝踢水。手放在他背上讓他感覺波浪從上往下傳。", "p": 100, "s": "done", "lv": 3, "st": 3}, "L3S3.4": {"n": "Water Safety Test", "c": "Jump in, turn around, swim 5 yd back to the wall and climb out unaided. 跳入水中轉身，游 5 碼回到池邊並自行上岸。", "t": "這是 Level 3 的綜合驗收，放在最後一個——前面所有技能都是為了它。跳、轉、游、爬，一次做完。", "e": "拆開來練得很好，合起來就亂。通過之前至少完整做三次，中間不給提示。", "p": 100, "s": "done", "lv": 3, "st": 3}, "L4S1.1": {"n": "Freestyle 15 yd 自由式 15 碼", "c": "Swims 15 yd freestyle, side breathing, arms recovering over the water. 自由式 15 碼，側轉換氣，手臂從水面上方回復。", "t": "第一次完整的自由式。手臂高肘回復，入水在肩線前方。距離先短。", "e": "手臂打直繞大圈。用「手肘先出水」的提示。", "p": 100, "s": "done", "lv": 4, "st": 1}, "L4S1.2": {"n": "Freestyle 25 yd 自由式 25 碼", "c": "Swims 25 yd freestyle without stopping, breathing to one side every 2-3 strokes. 自由式 25 碼不停，每 2–3 划固定單邊換氣。", "t": "25 碼是第一個真正的里程碑。固定單邊換氣就好，先不要求兩側。", "e": "為了游完而亂划。寧可慢，動作要在。", "p": 100, "s": "done", "lv": 4, "st": 1}, "L4S1.3": {"n": "Seated and Kneeling Dive", "c": "Enters head-first from sitting and then from kneeling, hands leading, without belly-flopping. 坐姿與跪姿入水，雙手先入、頭跟著進，不拍肚子。", "t": "入水角度比姿勢重要。坐姿先做熟再跪姿。手臂夾耳，頭藏在手臂中間。", "e": "抬頭看水面。頭一抬就變成拍肚子，會痛而且會怕。", "p": 100, "s": "done", "lv": 4, "st": 1}, "L4S2.1": {"n": "Backstroke 15 yd 仰式 15 碼", "c": "Swims 15 yd backstroke, hips up, arms straight past the ear. 仰式 15 碼，臀部不下沉，手臂伸直貼耳過頭。", "t": "仰式最大的問題是臀部下沉。肚子頂高、下巴微收。", "e": "折膝打水、手臂沒有過頭。", "p": 100, "s": "done", "lv": 4, "st": 2}, "L4S2.2": {"n": "Elementary Backstroke 25 yd 初級仰泳 25 碼", "c": "Swims 25 yd on the back with a symmetric arm pull and whip kick, gliding after each stroke. 仰躺 25 碼，雙臂對稱划水配合蛙腿，每一循環後有滑行。", "t": "雙臂對稱、蛙腿、臉朝上——這是累的時候能換的省力泳姿，L7 的長距離會需要它。口訣「雞、飛機、火箭」。", "e": "手腳不同步。先分開練手、再分開練腳，最後才合起來。", "p": 60, "s": "active", "lv": 4, "st": 2}, "L4S2.3": {"n": "Streamline Freestyle Kicking", "c": "Kicks 25 yd in a tight streamline, both arms overhead, face down. 流線型雙手過頭夾緊，臉朝下打水 25 碼。", "t": "把流線型和打水結合，這是之後所有出發後動作的基礎。", "e": "手臂鬆開。要求雙手交疊夾緊。", "p": 40, "s": "active", "lv": 4, "st": 2}, "L4S2.4": {"n": "Underwater Freestyle Kicking", "c": "Kicks 10 yd fully underwater in streamline on one breath. 一口氣在水面下以流線型打水 10 碼。", "t": "水下打水一口氣 10 碼，同時練憋氣與流線型。", "e": "中途抬頭偷看。", "p": 0, "s": "open", "lv": 4, "st": 2}, "L4S3.1": {"n": "Starfish Float 30 sec 大字漂 30 秒", "c": "Back float 30 seconds in deep water, relaxed, without sculling. 深水仰躺大字漂 30 秒，放鬆、不靠划手。", "t": "深水中的漂浮是心理關卡不是技術關卡。30 秒的重點是放鬆。", "e": "教練站在旁邊一直講話。安靜讓他自己撐完。", "p": 0, "s": "locked", "lv": 4, "st": 3}, "L4S3.2": {"n": "Treading Water 1 min 踩水 1 分鐘", "c": "Treads water 1 minute in deep water with hands out of the water for the last 10 seconds. 深水踩水 1 分鐘，最後 10 秒雙手離開水面。", "t": "最後 10 秒手離開水面，是為了證明腿真的在work。", "e": "手一離開水面就沉。回去把腿練好再測。", "p": 0, "s": "locked", "lv": 4, "st": 3}, "L4S3.3": {"n": "No-Goggles Swim", "c": "Swims 25 yd freestyle with no goggles, eyes open, without panicking. 不戴蛙鏡睜眼游自由式 25 碼，過程不慌張。", "t": "不戴蛙鏡是真實落水的情境。先在淺水適應睜眼再游。", "e": "瞇著眼睛游。要求真的睜開。", "p": 0, "s": "locked", "lv": 4, "st": 3}, "L4S3.4": {"n": "Clothed Swim (7 yd)", "c": "Swims 7 yd in a T-shirt and shorts, then removes the shirt in deep water. 穿 T 恤與短褲游 7 碼，接著在深水中脫掉上衣。", "t": "著衣游泳讓他知道衣服有多重。脫上衣要在能踩水的地方做。", "e": "在腳踩得到的地方脫。那樣學不到東西。", "p": 0, "s": "locked", "lv": 4, "st": 3}, "L4S3.5": {"n": "Water Competency 25 yd 水中自保驗收 25 碼", "c": "In deep water: jump in, surface and float or tread 1 min, turn a full circle to find the exit, swim 25 yd without stopping, climb out without the ladder. 深水中：跳入、回到水面漂或踩水 1 分鐘、原地轉一圈找到出口、不停游 25 碼、不靠扶梯上岸。", "t": "紅十字會的全美水中自保基準，L4 的綜合驗收。五個動作一次做完，中間不給提示。通過之後可以直接跟家長說「已達全美標準」。", "e": "拆開練得很好，合起來就亂。深水、不戴蛙鏡、完整做三次才算。", "p": 0, "s": "locked", "lv": 4, "st": 3}, "L5S1.1": {"n": "Freestyle 50 yd 自由式 50 碼", "c": "Swims 50 yd freestyle with one wall turn, stroke holding together throughout. 自由式 50 碼含一次轉身，全程動作不散。", "t": "50 碼含轉身，考的是「動作會不會在第二趟垮掉」。後半段盯技術不盯速度。", "e": "第一趟拚快，第二趟散掉。要求前後兩趟划手次數相同。", "p": 0, "s": "locked", "lv": 5, "st": 1}, "L5S1.2": {"n": "Freestyle 100 yd 自由式 100 碼", "c": "Swims 100 yd freestyle continuous, bilateral breathing available if asked. 連續自由式 100 碼，教練要求時能做兩側換氣。", "t": "100 碼開始需要配速概念。教他用划手次數而不是感覺來控制。", "e": "換氣次數越游越多。那是配速太快的訊號。", "p": 0, "s": "locked", "lv": 5, "st": 1}, "L5S2.1": {"n": "Backstroke 25 yd 仰式 25 碼", "c": "Swims 25 yd backstroke without stopping, shoulders rolling, head still. 仰式 25 碼不停，肩膀有轉動、頭部穩定。", "t": "25 碼仰式要有肩膀轉動。手臂入水時小指先進。", "e": "身體平板沒有轉動，手臂用甩的。", "p": 0, "s": "locked", "lv": 5, "st": 2}, "L5S2.2": {"n": "Backstroke 50 yd 仰式 50 碼", "c": "Swims 50 yd backstroke with one turn, staying in the lane. 仰式 50 碼含一次轉身，能維持在水道內。", "t": "加入轉身後要能維持直線。教他數划手次數判斷離牆距離。", "e": "仰式撞牆。這是沒有數划手的必然結果，一定要教。", "p": 0, "s": "locked", "lv": 5, "st": 2}, "L5S2.3": {"n": "Open Turn (Free & Back) 平轉身（自由式與仰式）", "c": "Swims into the wall, touches, turns and pushes off without stopping, in both freestyle and backstroke. 自由式與仰式都能游到池邊觸壁、轉身、蹬牆，中途不停。", "t": "平轉身四式都用得到，也是翻滾失敗時的退路，所以排在翻滾轉身之前。先教觸壁的手，再教轉的身體。", "e": "轉身時站起來調整。要求腳只碰牆、不碰池底。", "p": 0, "s": "locked", "lv": 5, "st": 2}, "L5S2.4": {"n": "Freestyle Flip Turn", "c": "Approaches the wall, somersaults, plants both feet and pushes off on the back into streamline. 接近池壁前滾翻，雙腳踏牆，以仰姿流線型蹬出。", "t": "翻轉不是重點，蹬牆才是。要求雙腳同時踏牆、蹬出後是流線型。", "e": "翻完才找牆。要在接近牆之前就決定好距離。", "p": 0, "s": "locked", "lv": 5, "st": 2}, "L5S2.5": {"n": "Surface Dive", "c": "Surface dives head-first to the bottom of deep water and returns with an object. 頭下腳上潛入深水池底，帶物品回到水面。", "t": "頭下腳上下潛，靠的是抬腿的重量而不是划手。", "e": "用手拚命划想往下。教他「把腿舉出水面」。", "p": 0, "s": "locked", "lv": 5, "st": 2}, "L5S3.1": {"n": "Breaststroke Kick 10 yd 蛙腿 10 碼", "c": "Kicks 10 yd on a board: heels to seat, feet turned out, whip together. 扶板蛙腿 10 碼：收腿到臀、翻腳掌、夾水併攏。", "t": "蛙腿是四式中最難教的。分解成「收、翻、蹬、併」四拍，慢慢做。", "e": "腳掌沒有翻出去（剪刀腳）。用手扶著他的腳掌帶一次。", "p": 0, "s": "locked", "lv": 5, "st": 3}, "L5S3.2": {"n": "Breaststroke Kick 25 yd 蛙腿 25 碼", "c": "Kicks 25 yd breaststroke with a glide after every kick, no scissor kick. 蛙腿 25 碼，每一蹬後有滑行，沒有剪刀腳。", "t": "每一蹬之後要有滑行，這是蛙式效率的全部。", "e": "連續蹬腿不滑行。要求「蹬完數一下再收」。", "p": 0, "s": "locked", "lv": 5, "st": 3}, "L5S3.3": {"n": "Dolphin Kick 25 yd 海豚腿 25 碼", "c": "Dolphin kicks 25 yd on the front with a board, wave from the chest. 扶板俯身海豚腿 25 碼，波浪由胸口帶動。", "t": "25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。", "e": "只往下踢。強調「上來也要出力」。", "p": 0, "s": "locked", "lv": 5, "st": 3}, "L5S3.4": {"n": "Breath Holding 15 sec 憋氣 15 秒", "c": "Holds 15 seconds submerged, calm, and surfaces under control. 水下憋氣 15 秒，全程平靜，起身有控制。", "t": "15 秒憋氣是為了水下動作做準備，不是比賽。任何不適就停。", "e": "把它變成比賽。絕對不要讓學員互相比憋氣。", "p": 0, "s": "locked", "lv": 5, "st": 3}, "L5S3.5": {"n": "Reach and Throw Rescue", "c": "Reaches with a pole and throws a ring to a person 5 yd away, staying out of the water. 用長桿伸給對方、把浮圈丟到 5 碼外，自己不下水。", "t": "自己不下水是這個技能的全部重點。反覆強調「先伸、再丟、絕不跳」。", "e": "示範時教練自己下水去救。示範錯了比不教還糟。", "p": 0, "s": "locked", "lv": 5, "st": 3}, "L6S1.1": {"n": "Butterfly 10 yd 蝶式 10 碼", "c": "Swims 10 yd butterfly, two kicks per arm cycle, chin leading the breath. 蝶式 10 碼，一划兩踢，換氣時下巴先出水。", "t": "蝶式先教 10 碼就好。一划兩踢的節奏比距離重要。", "e": "為了游遠而變成一划一踢。寧可只游 10 碼。", "p": 0, "s": "locked", "lv": 6, "st": 1}, "L6S1.2": {"n": "Breaststroke 15 yd 蛙式 15 碼", "c": "Swims 15 yd breaststroke in pull-breathe-kick-glide order. 蛙式 15 碼，保持「划、吸、蹬、滑」的順序。", "t": "蛙式順序是「划、吸、蹬、滑」。順序錯了怎麼練都不會順。", "e": "先蹬再划。用口訣一拍一拍喊出來。", "p": 0, "s": "locked", "lv": 6, "st": 1}, "L6S1.3": {"n": "Individual Medley Kicking", "c": "Kicks 25 yd of each stroke in IM order without a break between them. 依混合式順序各打水 25 碼，四式之間不休息。", "t": "混合式打水是四式順序的記憶練習，同時檢查四種腿都能用。", "e": "四式之間停下來休息。要求連著做。", "p": 0, "s": "locked", "lv": 6, "st": 1}, "L6S1.4": {"n": "Treading Water 2 min 踩水 2 分鐘", "c": "Treads water 2 minutes in deep water, last 30 seconds hands out of the water. 深水踩水 2 分鐘，最後 30 秒雙手離開水面。", "t": "兩分鐘踩水是深水安全的最終驗證。最後 30 秒手離水。", "e": "越踩越沉。教他改用蛙腿踩水省力。", "p": 0, "s": "locked", "lv": 6, "st": 1}, "L6S2.1": {"n": "Freestyle 200 yd 自由式 200 碼", "c": "Swims 200 yd freestyle continuous with even pacing, turns included. 連續自由式 200 碼含轉身，配速平均不前快後崩。", "t": "200 碼開始是耐力課題。教配速：每 50 碼的時間差不超過 5 秒。", "e": "前 50 碼衝太快。用碼表讓他自己看到差距。", "p": 0, "s": "locked", "lv": 6, "st": 2}, "L6S2.2": {"n": "Backstroke 100 yd 仰式 100 碼", "c": "Swims 100 yd backstroke continuous, straight, with turns. 連續仰式 100 碼含轉身，能維持直線。", "t": "100 碼仰式含轉身，直線是最大的挑戰。", "e": "偏出水道。用天花板的燈當參考線。", "p": 0, "s": "locked", "lv": 6, "st": 2}, "L6S2.3": {"n": "Backstroke Flip Turn", "c": "Rolls to the front, somersaults and pushes off on the back, all within the legal one stroke. 轉為俯臥後前滾翻，以仰姿蹬牆，動作在規則允許的一划內完成。", "t": "仰式轉身的規則細節多。轉為俯臥後只能划一次就要翻。", "e": "轉成俯臥後多划兩下。比賽會失格。", "p": 0, "s": "locked", "lv": 6, "st": 2}, "L6S2.4": {"n": "Standing Dive", "c": "Standing dive from the edge: enters through one hole, hands first, no belly-flop. 站姿跳水：雙手先入，身體從同一個入水點進去，不拍肚子。", "t": "站姿跳水前務必確認水深。手先入、身體從同一個洞進去。", "e": "腳先蹬起來太高導致過度翻轉。", "p": 0, "s": "locked", "lv": 6, "st": 2}, "L6S3.1": {"n": "Butterfly 25 yd 蝶式 25 碼", "c": "Swims 25 yd butterfly without stopping, rhythm holding to the wall. 蝶式 25 碼不停，節奏維持到觸壁。", "t": "25 碼蝶式考的是節奏能不能撐到觸壁。後半段最容易垮。", "e": "最後 5 碼變成掙扎。寧可放慢節奏也要維持形狀。", "p": 0, "s": "locked", "lv": 6, "st": 3}, "L6S3.2": {"n": "Breaststroke 25 yd 蛙式 25 碼", "c": "Swims 25 yd breaststroke with a visible glide every stroke. 蛙式 25 碼，每一循環都看得到滑行。", "t": "25 碼蛙式每一循環都要看得到滑行。", "e": "划手太大、滑行消失。", "p": 0, "s": "locked", "lv": 6, "st": 3}, "L6S3.3": {"n": "Underwater Dolphin Kick", "c": "Dolphin kicks 15 yd underwater off the wall on one breath. 蹬牆後一口氣在水面下海豚腿 15 碼。", "t": "水下海豚腿 15 碼是競技游泳的關鍵武器。注意規則上限。", "e": "為了距離而缺氧。任何不適立刻停。", "p": 0, "s": "locked", "lv": 6, "st": 3}, "L6S3.4": {"n": "Two-Hand Touch Turn 雙手觸壁轉身", "c": "Turns at the wall in breaststroke and butterfly with both hands touching at the same time. 蛙式與蝶式在池邊轉身時雙手同時觸壁。", "t": "蛙式與蝶式的轉身規則和自由式不同：雙手必須同時碰到牆。比賽單手觸壁就是直接失格。", "e": "疲勞時單手先觸壁。從一開始就要求雙手，不要等到 L7 才改。", "p": 0, "s": "locked", "lv": 6, "st": 3}, "L6S3.5": {"n": "Clothed Swim (25 yd)", "c": "Swims 25 yd clothed without goggles, then treads 1 minute still clothed. 著衣不戴蛙鏡游 25 碼，接著著衣踩水 1 分鐘。", "t": "著衣 25 碼加踩水一分鐘，是完整的落水求生演練。", "e": "衣服太薄。要用真的會吸水的棉質衣物。", "p": 0, "s": "locked", "lv": 6, "st": 3}, "L7S1.1": {"n": "Freestyle 50 yd Timed 自由式 50 碼計時", "c": "Swims 50 yd freestyle on the clock and improves the time over three attempts. 自由式 50 碼計時，三次測驗內成績有進步。", "t": "計時的重點是「有沒有進步」，不是絕對成績。三次測驗取趨勢。", "e": "把成績拿來跟別人比。只跟自己的上一次比。", "p": 0, "s": "locked", "lv": 7, "st": 1}, "L7S1.2": {"n": "Freestyle 25 yd Sprint 自由式 25 碼衝刺", "c": "All-out 25 yd freestyle with no breath in the last 5 yd. 自由式 25 碼全力衝刺，最後 5 碼不換氣。", "t": "衝刺的重點是最後 5 碼不換氣。那是比賽輸贏的地方。", "e": "全程不換氣。那不是衝刺是憋氣。", "p": 0, "s": "locked", "lv": 7, "st": 1}, "L7S1.3": {"n": "Freestyle 400 yd 自由式 400 碼", "c": "Swims 400 yd freestyle continuous, pace held within 5 seconds per 50. 連續自由式 400 碼，每 50 碼配速差距在 5 秒內。", "t": "400 碼配速課。每 50 碼差距在 5 秒內才算過。", "e": "前 200 快、後 200 崩。", "p": 0, "s": "locked", "lv": 7, "st": 1}, "L7S1.4": {"n": "Backstroke 200 yd 仰式 200 碼", "c": "Swims 200 yd backstroke continuous with legal turns. 連續仰式 200 碼，轉身合乎規則。", "t": "200 碼仰式含合規轉身。體能與規則同時考。", "e": "疲勞之後轉身變得不合規。", "p": 0, "s": "locked", "lv": 7, "st": 1}, "L7S1.5": {"n": "Clothed Swim (50 yd)", "c": "Swims 50 yd clothed without goggles, then removes clothing while treading. 著衣不戴蛙鏡游 50 碼，接著在踩水中脫掉衣物。", "t": "50 碼著衣加水中脫衣，是全部求生技能的總驗收。", "e": "在能站的地方脫衣服。", "p": 0, "s": "locked", "lv": 7, "st": 1}, "L7S2.1": {"n": "Breaststroke Underwater Pullout", "c": "One pull-down: full pull to the thighs, one dolphin kick, recovery, break out. 一次水下划手：長划到大腿、一次海豚腿、收手、破水。", "t": "蛙式水下划手是規則允許的一次長划加一次海豚腿。順序錯就失格。", "e": "划兩次，或海豚腿踢在划手之前。", "p": 0, "s": "locked", "lv": 7, "st": 2}, "L7S2.2": {"n": "Breaststroke 50 yd 蛙式 50 碼", "c": "Swims 50 yd breaststroke with a legal turn and a legal finish. 蛙式 50 碼，轉身與終點觸壁都合乎規則。", "t": "50 碼蛙式，轉身與終點都是雙手同時觸壁。", "e": "終點單手觸壁。", "p": 0, "s": "locked", "lv": 7, "st": 2}, "L7S2.3": {"n": "Butterfly 50 yd 蝶式 50 碼", "c": "Swims 50 yd butterfly with a legal turn, rhythm intact on the second length. 蝶式 50 碼含合規轉身，第二趟節奏沒有垮掉。", "t": "50 碼蝶式，第二趟節奏維持是重點。", "e": "第二趟變成一划一踢。", "p": 0, "s": "locked", "lv": 7, "st": 2}, "L7S2.4": {"n": "Freestyle 500 yd 自由式 500 碼", "c": "Swims 500 yd freestyle continuous, counting their own laps. 連續自由式 500 碼，能自己數趟數。", "t": "500 碼要自己數趟。這是比賽的實際要求。", "e": "數錯趟數。教他每 100 碼記一次。", "p": 0, "s": "locked", "lv": 7, "st": 2}, "L7S2.5": {"n": "Racing Start and Backstroke Start", "c": "Legal racing start from the block and a legal backstroke start from the wall. 出發台合規出發，以及池壁的合規仰式出發。", "t": "出發台出發與仰式出發都有規則細節。搶跳即失格。", "e": "沒有等到信號。反覆練「聽到才動」。", "p": 0, "s": "locked", "lv": 7, "st": 2}, "L7S3.1": {"n": "Stroke Transitions and Turns", "c": "Legal transitions between all four strokes plus every turn in an IM. 四式之間的合規銜接，以及混合式中的每一種轉身。", "t": "四式銜接的每一個轉身規則都不一樣。逐一拆開練，再串起來。", "e": "把四種轉身混在一起做。", "p": 0, "s": "locked", "lv": 7, "st": 3}, "L7S3.2": {"n": "Individual Medley 100 yd 個人混合式 100 碼", "c": "Swims 100 yd IM in stroke order with legal transitions throughout. 依序完成混合式 100 碼，每一次銜接都合規。", "t": "100 碼個人混合式是全課程的集大成。順序：蝶、仰、蛙、自。", "e": "順序記錯。上場前一定要複誦。", "p": 0, "s": "locked", "lv": 7, "st": 3}, "L7S3.3": {"n": "Freestyle (Race Legal) 自由式（合規）", "c": "Freestyle that would not be disqualified: legal turn, legal finish, no walking. 自由式的動作、轉身與終點都不會被判失格。", "t": "合規自由式：轉身觸壁、終點觸壁、全程不踩底。", "e": "轉身時站起來調整。", "p": 0, "s": "locked", "lv": 7, "st": 3}, "L7S3.4": {"n": "Backstroke (Race Legal) 仰式（合規）", "c": "Backstroke that would not be disqualified: stays on the back, legal turn and finish. 仰式全程保持仰姿，轉身與終點合規、不會失格。", "t": "合規仰式：除了轉身允許的部分，全程必須保持仰姿。", "e": "終點時翻身。", "p": 0, "s": "locked", "lv": 7, "st": 3}, "L7S3.5": {"n": "Breaststroke (Race Legal) 蛙式（合規）", "c": "Breaststroke that would not be disqualified: symmetric, one pull one kick, two-hand touch. 蛙式左右對稱、一划一蹬、雙手同時觸壁，不會失格。", "t": "合規蛙式：左右對稱、一划一蹬、雙手同時觸壁。", "e": "出現剪刀腳或不對稱划手。", "p": 0, "s": "locked", "lv": 7, "st": 3}, "L7S3.6": {"n": "Butterfly (Race Legal) 蝶式（合規）", "c": "Butterfly that would not be disqualified: simultaneous arms, no flutter kick, two-hand touch. 蝶式雙臂同時、無自由式打腿、雙手同時觸壁，不會失格。", "t": "合規蝶式：雙臂同時前進、不可自由式打腿、雙手同時觸壁。", "e": "疲勞時單手先觸壁。", "p": 0, "s": "locked", "lv": 7, "st": 3}};
+const LC = {"1": "#e05a4a", "2": "#e8883a", "3": "#d4a825", "4": "#4caf72", "5": "#4a90c4", "6": "#9d7fd0", "7": "#c9a84c"};
+const STATE = {done:'已完成',active:'進行中',open:'尚未開始',locked:'完成前一階段後解鎖'};
+const panel = document.getElementById('d');
+let sel = null;
+
+function show(k){
+  const d = D[k]; if(!d) return;
+  if(sel) sel.classList.remove('sel');
+  sel = document.querySelector('.node[data-k="'+k+'"]');
+  if(sel) sel.classList.add('sel');
+  panel.style.setProperty('--c', LC[d.lv]);
+  document.getElementById('dt').textContent = 'Level ' + d.lv + ' · 階段 ' + d.st;
+  document.getElementById('dn').textContent = d.n;
+  document.getElementById('ds').textContent = STATE[d.s] + ' · ' + d.p + '%';
+  document.getElementById('db').style.width = d.p + '%';
+  document.getElementById('d1').textContent = d.c;
+  document.getElementById('d2').textContent = d.t;
+  document.getElementById('d3').textContent = d.e;
+  panel.hidden = false;
+}
+document.querySelectorAll('.node').forEach(n =>
+  n.addEventListener('click', () => show(n.dataset.k)));
+document.getElementById('dx').addEventListener('click', () => {
+  panel.hidden = true; if(sel) sel.classList.remove('sel'); sel = null;
+});
+document.addEventListener('keydown', ev => { if(ev.key === 'Escape') document.getElementById('dx').click(); });
+// Open on the skill the swimmer is actually working on, so the page says
+// something the moment it loads.
+show('L4S2.2');
+
+/* ---- finishing a stage ----------------------------------------------------
+   The reward is not the ticks: it is the row below going from locked to
+   available. So the sequence lights the finished stage one node at a time,
+   marks it cleared, charges the arrow, and only then reveals what that opened.
+   Everything is readable before it runs and after it ends; nothing is hidden
+   waiting for it. */
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const N = k => document.querySelector('.node[data-k="' + k + '"]');
+const wait = ms => new Promise(r => setTimeout(r, REDUCED ? 0 : ms));
+const DEMO_FROM = {'L4S2.2':60,'L4S2.3':40,'L4S2.4':0};
+const S3 = Object.keys(D).filter(k => D[k].lv === 4 && D[k].st === 3);
+const litv = document.getElementById('litv'), pctv = document.getElementById('pctv');
+const TOTAL = Object.keys(D).length;
+let lit = Object.values(D).filter(d => d.p >= 100).length;
+const bump = n => { lit += n; litv.textContent = lit;
+  pctv.textContent = Math.round(100 * lit / TOTAL) + '%'; };
+
+function paint(k, p, state){
+  const el = N(k); if(!el) return;
+  D[k].p = p; D[k].s = state;
+  el.className = 'node ' + state + (el.classList.contains('sel') ? ' sel' : '');
+  el.style.setProperty('--p', p);
+  el.querySelector('.glyph').textContent =
+    state === 'done' ? '✦' : state === 'active' ? '◆' : state === 'open' ? '○' : '🔒';
+}
+
+function reset(){
+  for(const [k, p] of Object.entries(DEMO_FROM)){
+    if(D[k].p >= 100) bump(-1);
+    paint(k, p, p > 0 ? 'active' : 'open');
+  }
+  S3.forEach(k => paint(k, 0, 'locked'));
+  document.querySelectorAll('.stage.cleared').forEach(s => s.classList.remove('cleared'));
+  document.querySelectorAll('.arrow.charge').forEach(a => a.classList.remove('charge'));
+}
+
+let playing = false;
+async function play(){
+  if(playing) return; playing = true;
+  const btn = document.getElementById('replay'); btn.disabled = true;
+  reset(); await wait(450);
+
+  // 1. the remaining nodes of stage 2 fill, in teaching order
+  for(const k of Object.keys(DEMO_FROM)){
+    paint(k, 100, 'done'); bump(1);
+    const el = N(k);
+    el.classList.add('lighting');
+    setTimeout(() => el.classList.remove('lighting'), 800);
+    await wait(320);
+  }
+  await wait(280);
+
+  // 2. the stage reads as cleared
+  const st2 = N('L4S2.1').closest('.stage');
+  st2.classList.add('cleared');
+  const arrow = st2.nextElementSibling;
+  if(arrow && arrow.classList.contains('arrow')) arrow.classList.add('charge');
+  await wait(700);
+
+  // 3. ...which is what opens the next one
+  for(const k of S3){
+    paint(k, 0, 'open');
+    const el = N(k);
+    el.classList.add('revealing');
+    setTimeout(() => el.classList.remove('revealing'), 700);
+    await wait(150);
+  }
+  btn.disabled = false; playing = false;
+}
+document.getElementById('replay').addEventListener('click', play);
+setTimeout(play, 900);
+</script>
