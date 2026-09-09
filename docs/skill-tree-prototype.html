@@ -16,8 +16,8 @@ body{margin:0;background:
   background-color:#060d1b;color:var(--ink);
   font-family:'DM Sans',system-ui,"PingFang TC","Noto Sans TC",sans-serif;
   font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1180px;margin:0 auto;padding:36px 18px 220px}
-@media(min-width:980px){.wrap{padding-right:420px}}
+.wrap{max-width:1280px;margin:0 auto;padding:36px 18px 220px}
+@media(min-width:1100px){.wrap{padding-right:420px}}
 
 /* ---- header ---- */
 .hero{border:1px solid var(--line);border-radius:14px;background:
@@ -80,8 +80,8 @@ button.bh:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-
   stroke-dasharray:5 7}
 
 /* ---- stages ---- */
-.stages{display:flex;align-items:flex-start;gap:26px}
-.stage{flex:1 1 0;min-width:0;border:1px solid transparent;border-radius:11px;padding:10px}
+.stages{display:flex;align-items:flex-start;gap:20px}
+.stage{flex:1 1 0;min-width:0;border:1px solid transparent;border-radius:11px;padding:8px 8px 12px}
 .stage.cur{border-color:color-mix(in srgb,var(--gold) 45%,transparent);
   background:rgba(201,168,76,.05)}
 .sh{position:relative;z-index:1;display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
@@ -91,8 +91,9 @@ button.bh:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-
 .sct{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--faint);margin-left:auto}
 
 /* ---- nodes ---- */
-.nodes{display:flex;flex-wrap:wrap;gap:26px 14px}
-.node{all:unset;cursor:pointer;position:relative;z-index:1;width:68px;
+.nodes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:start;gap:26px 6px}
+.node{all:unset;cursor:pointer;position:relative;z-index:1;width:100%;
   display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
 .node:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:8px}
 .hexring{width:52px;height:58px;flex:none;display:grid;place-items:center;
@@ -102,8 +103,9 @@ button.bh:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-
   clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
   background:#0a1526}
 .glyph{font-size:16px;line-height:1;color:var(--faint)}
-.nlabel{font-family:'Rajdhani','DM Sans',sans-serif;font-weight:600;font-size:11.5px;
-  line-height:1.25;color:var(--faint);letter-spacing:.01em}
+.nlabel{font-family:'Rajdhani','DM Sans',sans-serif;font-weight:600;font-size:11px;
+  line-height:1.25;color:var(--faint);letter-spacing:.01em;
+  width:100%;overflow-wrap:break-word}
 .node:hover .hexring{transform:translateY(-2px)}
 
 .node.done .hexring{background:var(--c);
@@ -130,29 +132,24 @@ button.bh:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-
 .node.locked .glyph{opacity:.4;font-size:13px}
 .node.sel .hexring{outline:2px solid var(--gold);outline-offset:3px}
 
-/* ---- phone: one node per row, hex left, name right ----
-   Level 7 has sixteen nodes; wrapping them into 68px cells on a 390px screen
-   turns the level into confetti. A list keeps every name readable and lets the
-   wire run straight down the left as a spine. */
+/* ---- phone ----
+   The grid stays three across; the stages stop sitting side by side and stack,
+   which is what gives each cell enough width for the name to read. */
 @media(max-width:860px){
-  .stages{flex-direction:column;gap:8px}
-  .stage{flex:1 1 auto;width:100%;padding:8px 10px 12px}
-  .sh{padding-left:56px;margin-bottom:10px}
-  .nodes{flex-direction:column;flex-wrap:nowrap;gap:14px}
-  .node{width:100%;flex-direction:row;align-items:center;gap:14px;text-align:left}
-  .hexring{width:44px;height:50px}
-  .hex{width:37px;height:42px}
-  .glyph{font-size:14px}
-  .nlabel{font-size:13.5px;line-height:1.35;flex:1;min-width:0}
+  .stages{flex-direction:column;gap:10px}
+  .stage{flex:1 1 auto;width:100%;padding:8px 10px 14px}
+  .sh{margin-bottom:10px}
+  .nodes{gap:24px 8px}
+  .nlabel{font-size:12.5px}
   .fold{display:none}
 }
 
 /* ---- detail ---- */
 #d{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);
   box-shadow:0 -10px 50px rgba(0,0,0,.55)}
-@media(min-width:980px){#d{top:24px;right:24px;bottom:24px;width:372px;border-radius:14px;
+@media(min-width:1100px){#d{top:24px;right:24px;bottom:24px;width:372px;border-radius:14px;
   overflow-y:auto}}
-@media(max-width:979px){#d{left:0;right:0;bottom:0;max-height:64vh;overflow-y:auto;
+@media(max-width:1099px){#d{left:0;right:0;bottom:0;max-height:64vh;overflow-y:auto;
   border-radius:16px 16px 0 0;border-bottom:none}}
 .dpad{padding:20px 22px 24px}
 .dtag{display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;
@@ -298,7 +295,13 @@ function boxOf(node, br){
 function route(a, b, env){
   const dx = b.cx - a.cx, dy = b.cy - a.cy;
   if(Math.abs(dy) < 6 && dx > 0) return [[a.r, a.cy], [b.l, b.cy]];
-  if(Math.abs(dx) < 6 && dy > 0) return [[a.cx, a.b], [b.cx, b.t]];
+  if(Math.abs(dx) < 6 && dy > 0){
+    if(!env.cross) return [[a.cx, a.b], [b.cx, b.t]];
+    // stages stacked: step aside so the drop misses the next stage's heading
+    const x = a.r + 14, lane = b.t - 13;
+    return [[a.cx, a.b], [a.cx, a.b + 12], [x, a.b + 12], [x, lane],
+            [b.cx, lane], [b.cx, b.t]];
+  }
   if(dx < 0 && dy > 0){                       // the row wrapped: carriage return
     const lane = b.t - 13;
     const x = env.rx != null ? Math.max(a.r + 6, Math.min(a.r + 10, env.rx)) : a.r + 10;
@@ -337,13 +340,9 @@ function draw(){
     for(let i = 0; i < ns.length - 1; i++){
       const a = boxOf(ns[i], br), b = boxOf(ns[i+1], br);
       const sa = ns[i].closest('.stage'), sb = ns[i+1].closest('.stage');
-      let env;
-      if(sa === sb){
-        env = {rx: sa.getBoundingClientRect().right - br.left - 6};
-      } else {
-        const ra = sa.getBoundingClientRect(), rb = sb.getBoundingClientRect();
-        env = {gx: (ra.right + rb.left) / 2 - br.left};
-      }
+      const ra = sa.getBoundingClientRect(), rb = sb.getBoundingClientRect();
+      const env = {cross: sa !== sb, rx: ra.right - br.left - 6};
+      if(sa !== sb) env.gx = (ra.right + rb.left) / 2 - br.left;
       const from = D[ns[i].dataset.k], to = D[ns[i+1].dataset.k];
       const p = document.createElementNS(NS, 'path');
       p.setAttribute('d', rounded(route(a, b, env), 9));
@@ -361,7 +360,7 @@ addEventListener('load', draw);
 // Open on the skill the swimmer is actually working on, so the page says
 // something the moment it loads. On a phone the detail is a bottom sheet that
 // would cover the tree, so there we only highlight the node.
-if(matchMedia('(min-width: 980px)').matches){
+if(matchMedia('(min-width: 1100px)').matches){
   show('L4S2.2');
 } else {
   sel = document.querySelector('.node[data-k="L4S2.2"]');
