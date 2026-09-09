@@ -41,7 +41,9 @@ export async function GET(req: NextRequest) {
 
   const { data: skills } = await supabase
     .from('skills')
-    .select('id, name, sort_order, stage')
+    // pass_criteria rides along: a coach deciding between 60 and 80 needs the
+    // standard in front of them, not in a handbook they would have to go and open.
+    .select('id, name, sort_order, stage, pass_criteria')
     .eq('level_id', levelData.id)
     .order('stage')
     .order('sort_order')

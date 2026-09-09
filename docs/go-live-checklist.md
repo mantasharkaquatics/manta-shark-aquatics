@@ -40,6 +40,9 @@
 - [x] `docs/migration-stripe-fees.sql`（purchases 的手續費欄位）+ 歷史資料已補抓
 - [x] `docs/migration-invoice-seq-lockdown.sql`（收回 `get_next_invoice_seq`
       的 authenticated 執行權，避免任何登入者空燒發票號碼）
+- [ ] `docs/migration-skill-criteria.sql`（技能改成可量測的名稱 + 加上
+      通過標準）。技能 id 不變，家長的歷史進度全部保留。
+      跑完到教練 app 的「進度」頁確認標準有顯示在百分比按鈕上方。
 - [ ] `docs/reset-test-data.sql` —— 清掉所有測試資料。**這是不可逆的，
       務必先在 Database → Backups 備份**
 

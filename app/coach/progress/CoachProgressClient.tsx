@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
 
-type Skill = { id: string; name: string; sort_order: number; stage: number | null }
+type Skill = { id: string; name: string; sort_order: number; stage: number | null; pass_criteria?: string | null }
 type StudentProgress = {
   student: { id: string; full_name: string; current_level: string | null; current_stage: number | null; level: { level_number: number; name: string } | null }
   skills: Skill[]
@@ -401,6 +401,11 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                       <span className="text-white text-sm">{skill.name}</span>
                                       <span className="text-xs font-mono" style={{ color }}>{pct}%</span>
                                     </div>
+                                    {skill.pass_criteria && (
+                                      <p className="text-[11px] leading-relaxed text-gray-400 mb-2">
+                                        <span className="text-[#c9a84c] font-semibold">100%：</span>{skill.pass_criteria}
+                                      </p>
+                                    )}
                                     <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
                                       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
                                     </div>

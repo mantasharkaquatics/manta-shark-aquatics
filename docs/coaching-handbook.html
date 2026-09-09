@@ -1,0 +1,421 @@
+<title>Manta Shark 教練進度手冊</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#f2f5fa; --surface:#fff; --raised:#e9eef6; --line:#cfd8e8; --hair:#e3e9f2;
+  --ink:#141d33; --soft:#48546f; --faint:#78849c;
+  --gold:#8f7420; --gold-bg:#f5efdc;
+  --pass:#1f7a4d; --pass-bg:#e6f4ec; --err:#b5432f; --err-bg:#fbeae6;
+  --lv1:#c2412f; --lv2:#b96a1c; --lv3:#9c7a12; --lv4:#2f7d4e; --lv5:#2f6f9c; --lv6:#634790; --lv7:#9a7d24;
+  --shadow:0 1px 2px rgba(20,29,51,.05),0 6px 20px rgba(20,29,51,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0c1424; --surface:#101c33; --raised:#18253f; --line:#243352; --hair:#1c2a45;
+  --ink:#e8eef9; --soft:#a6b3cb; --faint:#6f7d99;
+  --gold:#c9a84c; --gold-bg:#282211;
+  --pass:#7fd8a0; --pass-bg:#112c1d; --err:#f0917f; --err-bg:#331817;
+  --lv1:#e05a4a; --lv2:#e8883a; --lv3:#d4a825; --lv4:#4caf72; --lv5:#4a90c4; --lv6:#9d7fd0; --lv7:#c9a84c;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.25);
+}}
+:root[data-theme="dark"]{
+  --ground:#0c1424; --surface:#101c33; --raised:#18253f; --line:#243352; --hair:#1c2a45;
+  --ink:#e8eef9; --soft:#a6b3cb; --faint:#6f7d99;
+  --gold:#c9a84c; --gold-bg:#282211;
+  --pass:#7fd8a0; --pass-bg:#112c1d; --err:#f0917f; --err-bg:#331817;
+  --lv1:#e05a4a; --lv2:#e8883a; --lv3:#d4a825; --lv4:#4caf72; --lv5:#4a90c4; --lv6:#9d7fd0; --lv7:#c9a84c;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:'DM Sans',system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;
+  font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:44px 20px 90px}
+h1,h2,h3{text-wrap:balance}
+h1{font-family:'Playfair Display',Georgia,serif;font-weight:900;
+  font-size:clamp(28px,5vw,42px);line-height:1.1;margin:8px 0 12px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--gold)}
+.stand{font-size:17px;color:var(--soft);max-width:60ch;margin:0}
+.meta{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);display:flex;
+  flex-wrap:wrap;gap:6px 24px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--faint)}
+.meta b{color:var(--soft);font-weight:600}
+h2{font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;
+  line-height:1.25;margin:0}
+h2 .zh{font-family:'DM Sans',sans-serif;font-size:16px;font-weight:500;color:var(--soft);margin-left:12px}
+h3{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 14px}
+p{margin:0 0 14px;max-width:66ch}
+code{font-family:'IBM Plex Mono',monospace;font-size:.875em;background:var(--raised);
+  padding:1px 5px;border-radius:4px;border:1px solid var(--hair)}
+section{margin-top:56px}
+
+/* ---- the scoring ladder: the page's thesis ---- */
+.ladder{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.rung{display:grid;grid-template-columns:76px 1fr;gap:18px;align-items:baseline;
+  background:var(--surface);padding:14px 18px}
+.rv{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:19px;
+  font-variant-numeric:tabular-nums;text-align:right;color:var(--faint)}
+.rung[data-v="100"] .rv{color:var(--pass)}
+.rung[data-v="100"]{background:var(--pass-bg)}
+.rt b{display:block;font-size:15.5px}
+.rt span{display:block;font-size:13.5px;color:var(--soft);line-height:1.6}
+
+/* ---- rules ---- */
+.rules{list-style:none;padding:0;margin:0;display:grid;gap:0}
+.rules li{padding:13px 0 13px 26px;border-bottom:1px solid var(--hair);position:relative;
+  color:var(--soft);font-size:14.5px;line-height:1.7}
+.rules li:last-child{border-bottom:none}
+.rules li::before{content:"→";position:absolute;left:0;top:13px;color:var(--gold);font-weight:700}
+.rules b{color:var(--ink)}
+
+/* ---- level nav ---- */
+.nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;margin-top:26px}
+.nav a{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:9px;
+  text-decoration:none;background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--lc)}
+.nav a b{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--lc);letter-spacing:.06em}
+.nav a span{font-size:13.5px;color:var(--ink)}
+.nav a:hover{background:var(--raised)}
+
+/* ---- level block ---- */
+.lv-h{border-left:4px solid var(--lc);padding-left:16px}
+.lv-num{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lc);font-weight:600}
+.lv-intro{margin:8px 0 0;color:var(--soft);font-size:14.5px}
+.plan{margin:20px 0 8px;overflow-x:auto}
+.plan table{border-collapse:collapse;width:100%;min-width:440px;font-size:14.5px}
+.plan th,.plan td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--hair)}
+.plan thead th{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--faint);border-bottom:1px solid var(--line)}
+.plan .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.plan tbody tr:last-child td{border-bottom:none}
+.plan caption{caption-side:bottom;text-align:left;padding-top:9px;font-size:12.5px;color:var(--faint)}
+.plan caption b{color:var(--lc)}
+
+.stage{margin-top:22px}
+.stage-h{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.sn{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 9px;border-radius:20px;color:var(--lc);
+  border:1px solid var(--lc)}
+.sc{font-size:12.5px;color:var(--faint)}
+.skills{display:grid;gap:10px}
+.skill{background:var(--surface);border:1px solid var(--hair);border-left:3px solid var(--lc);
+  border-radius:0 10px 10px 0;padding:14px 18px}
+.skill h4{margin:0 0 10px;font-size:15.5px;font-weight:700;line-height:1.4}
+.skill dl{margin:0;display:grid;gap:7px}
+.f{display:grid;grid-template-columns:74px 1fr;gap:4px 14px;align-items:baseline}
+.f dt{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--faint);white-space:nowrap}
+.f dd{margin:0;font-size:14px;color:var(--soft);line-height:1.7}
+.f.pass dt{color:var(--pass)}
+.f.pass dd{color:var(--ink)}
+.f.err dt{color:var(--err)}
+@media(max-width:560px){.f{grid-template-columns:1fr}.rung{grid-template-columns:52px 1fr;gap:12px}}
+
+.note{border:1px solid var(--line);border-left:3px solid var(--gold);background:var(--surface);
+  border-radius:0 10px 10px 0;padding:16px 20px;margin-top:22px}
+.note p:last-child{margin-bottom:0}
+a{color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:3px}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Manta Shark Aquatics</span>
+  <h1>教練進度手冊</h1>
+  <p class="stand">七個級別、三個階段、79 個技能，從完全不會水到四式合規。每個技能寫清楚三件事：怎樣算過、這堂課要教什麼、學員最常卡在哪。</p>
+  <div class="meta">
+    <span><b>版本</b> 2026-09-09</span>
+    <span><b>技能數</b> 79</span>
+    <span><b>零基礎到 Level 7</b> 約 129–156 堂</span>
+    <span><b>單位</b> 碼（yd）</span>
+  </div>
+</header>
+
+<section>
+  <h3>先讀這一段</h3>
+  <h2 style="margin-bottom:14px">0 到 100 是什麼意思</h2>
+  <p>這是整本手冊最重要的一頁。教練在 app 上點的六個格子，全校用<strong>同一套定義</strong>——不然 A 教練的 60% 和 B 教練的 60% 不是同一件事，家長看到的百分比就沒有意義。</p>
+  <div class="ladder"><div class="rung" data-v="0"><div class="rv">0</div><div class="rt"><b>未教或未評估</b><span>這堂課沒有練到這個技能，就讓它留在原地。</span></div></div><div class="rung" data-v="20"><div class="rv">20</div><div class="rt"><b>示範過了，學員做不出來</b><span>看得懂要做什麼，身體還做不到。</span></div></div><div class="rung" data-v="40"><div class="rv">40</div><div class="rt"><b>做得出來，需要大量協助</b><span>教練的手還在他身上，或全程靠浮具。</span></div></div><div class="rung" data-v="60"><div class="rv">60</div><div class="rt"><b>做得出來，需要少量協助或提示</b><span>偶爾扶一下，或需要口頭提醒才做對。</span></div></div><div class="rung" data-v="80"><div class="rv">80</div><div class="rt"><b>能獨立完成，但不穩定或未達標準</b><span>今天做到了，明天不一定；或做對了但距離、時間還不夠。</span></div></div><div class="rung" data-v="100"><div class="rv">100</div><div class="rt"><b>獨立、穩定，並達到該技能的通過標準</b><span>不需要提示、上一堂也做到，而且符合通過標準寫的條件。</span></div></div></div>
+  <div class="note">
+    <p><strong>百分比是怎麼算出來的。</strong>一個階段的百分比 = 該階段所有技能的平均。所以把一個技能從 0 拉到 100，和把五個技能各拉 20，家長看到的進度條移動一樣多——但前者是真的學會了一件事，後者只是每樣都碰過。<strong>寧可把一個技能做到 100，不要五個技能都停在 40。</strong></p>
+    <p style="margin-bottom:0">一個階段要<strong>每一個技能都 100</strong> 才算完成，三個階段都完成才能升級。升級是管理者按的，不是自動的。</p>
+  </div>
+</section>
+
+<section>
+  <h3>每一堂課</h3>
+  <h2 style="margin-bottom:14px">怎麼上、怎麼記</h2>
+  <ul class="rules">
+    <li><b>只動今天真的練到的技能。</b>沒練到的就讓它留在原地。手癢把整個階段都往上調一格，是把紀錄變成廢紙最快的方法。</li>
+    <li><b>一次只前進一格。</b>從 40 直接跳到 100，代表中間那兩堂課沒有被記錄下來，家長也看不到孩子是怎麼進步的。</li>
+    <li><b>100 分要看兩堂。</b>今天不用提示就做到，而且<strong>上一堂也做到</strong>，才給 100。只做到一次是 80。</li>
+    <li><b>一堂課練 2–3 個技能就好。</b>30 分鐘的課，練五個技能等於五個都沒練到。</li>
+    <li><b>照著階段的順序教。</b>階段 1 沒完成，app 不會讓你填階段 2——那是刻意的，不是壞掉。</li>
+    <li><b>學員卡住時往回退。</b>蛙腿卡住就回去練海豚腿的髖部發力；換氣卡住就回去練吐泡泡。往回退一級不是退步，硬撐才是。</li>
+    <li><b>通過標準寫在按鈕旁邊。</b>不確定該給幾分的時候，看那一行字，不要憑印象。</li>
+  </ul>
+</section>
+
+<section>
+  <h3>七個級別</h3>
+  <h2>從不會水到四式合規</h2>
+  <p style="margin-top:12px">堂數是<strong>估計值，不是承諾</strong>。同一個級別，每週上兩堂的孩子會比每週一堂的快超過兩倍——因為間隔短，忘掉的比較少。跟家長講的時候用區間，不要給單一數字。</p>
+  <nav class="nav"><a href="#L1" style="--lc:var(--lv1)"><b>L1</b><span>認識水</span></a>
+<a href="#L2" style="--lc:var(--lv2)"><b>L2</b><span>水中自在</span></a>
+<a href="#L3" style="--lc:var(--lv3)"><b>L3</b><span>獨立前進</span></a>
+<a href="#L4" style="--lc:var(--lv4)"><b>L4</b><span>泳姿基礎</span></a>
+<a href="#L5" style="--lc:var(--lv5)"><b>L5</b><span>泳姿發展</span></a>
+<a href="#L6" style="--lc:var(--lv6)"><b>L6</b><span>四式完成</span></a>
+<a href="#L7" style="--lc:var(--lv7)"><b>L7</b><span>競技規格</span></a></nav>
+</section>
+
+
+<section class="lv" id="L1" style="--lc:var(--lv1)">
+  <header class="lv-h">
+    <div class="lv-num">Level 1</div>
+    <h2>Water Discovery<span class="zh">認識水</span></h2>
+    <p class="lv-intro">完全不會水的孩子，從「靠近水邊有規矩」到「臉敢進水、身體能漂」。這一級教的是安全與信任，不是游泳。</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>整級約 <b>11–14</b> 堂 30 分鐘課</caption>
+      <thead><tr><th>階段</th><th class="num">預估堂數</th><th>這個階段在做什麼</th></tr></thead>
+      <tbody><tr><td>階段 1</td><td class="num">3–4</td><td>建立池邊規矩與自行上岸</td></tr><tr><td>階段 2</td><td class="num">4–5</td><td>敢把臉放進水裡吐氣</td></tr><tr><td>階段 3</td><td class="num">4–5</td><td>能漂、能自己站起來</td></tr></tbody>
+    </table>
+  </div>
+  <div class="stage"><div class="stage-h"><span class="sn">階段 1</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Safe Entry and Recognition</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Walks to the edge, waits for the coach, enters feet-first without being asked twice. 走到池邊會等教練，聽指令雙腳先入水，不用講第二次。</dd></div><div class="f"><dt>教學重點</dt><dd>第一堂課的重點不是游，是「水邊有規矩」。永遠讓他走到定點、看著你、等指令再入水。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>大人急著把小孩抱下水。一旦跳過等待，之後每一堂都要重新建立。</dd></div></dl></article>
+<article class="skill"><h4>Safe Exit</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Climbs out unaided using the ladder or the wall, on their own. 自己用扶梯或撐池邊上岸，全程不需要人扶。</dd></div><div class="f"><dt>教學重點</dt><dd>上岸和入水一樣重要——這是他掉下去時唯一的自救路徑。兩隻手抓穩再撐。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>教練順手把小孩拉上來，孩子永遠學不會自己上岸。</dd></div></dl></article>
+<article class="skill"><h4>Wall Grasping</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Holds the wall unaided and moves along it 5 yd hand-over-hand. 自己抓牢池邊，沿著池壁換手移動 5 碼。</dd></div><div class="f"><dt>教學重點</dt><dd>手指扣住池壁邊緣，不是手掌壓著。換手時另一隻手先抓穩才放。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>兩手同時放開換手。要求「一手永遠在牆上」。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 2</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Water Walking</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Walks 10 yd in chest-deep water, upright, without holding anything. 胸深水中站直走 10 碼，全程不扶任何東西。</dd></div><div class="f"><dt>教學重點</dt><dd>先讓他自己走，怕的時候你的手放在他後背而不是牽著。距離慢慢拉長。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>牽著手走十碼——那是你在走，不是他。</dd></div></dl></article>
+<article class="skill"><h4>Underwater Bubble Blowing</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Face in the water, blows bubbles from the mouth for 5 seconds without lifting the head. 臉入水用嘴吐泡泡 5 秒，中途不抬頭。</dd></div><div class="f"><dt>教學重點</dt><dd>先在岸上對著水面吹，再嘴巴入水，最後鼻子。「用嘴吐，不要用鼻子吸」。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>憋著氣把臉放進去再拿出來。那是憋氣不是吐氣，之後換氣一定會嗆。</dd></div></dl></article>
+<article class="skill"><h4>Flutter Kick on Deck 岸上打水</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Sitting on the edge, kicks from the hip with straight legs and pointed toes for 20 seconds. 坐池邊直腿繃腳尖、由髖部發力打水 20 秒。</dd></div><div class="f"><dt>教學重點</dt><dd>坐池邊打，讓他看見自己的腿。強調「腿像棍子」、「腳背壓下去」。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>折膝踩腳踏車。用手輕壓膝蓋，讓他感覺發力點在髖不在膝。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 3</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Assisted Floating</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Floats on the back for 5 seconds with the coach supporting one hand only. 教練只用單手托著，仰漂 5 秒。</dd></div><div class="f"><dt>教學重點</dt><dd>托在肩胛骨下方，不是托頭。慢慢減少支撐，讓他自己發現水會撐住他。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>托著頭。頭一被托住，他就永遠學不會放鬆後仰。</dd></div></dl></article>
+<article class="skill"><h4>Float-to-Stand Transition</h4><dl><div class="f pass"><dt>通過標準</dt><dd>From a front or back float, gets both feet under the body and stands up unaided. 從俯漂或仰漂自己把腳收到身體下方站起來，不需協助。</dd></div><div class="f"><dt>教學重點</dt><dd>這是安全技能，比漂本身重要。膝蓋收到胸口、腳踩地、頭最後起來。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>先抬頭再站——頭一抬身體就沉，孩子會嗆到而害怕漂浮。</dd></div></dl></article>
+<article class="skill"><h4>Superman Glide</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Pushes off the wall and glides face-down 5 yd, arms extended, no kicking. 蹬牆俯身滑行 5 碼，雙手伸直，不打水。</dd></div><div class="f"><dt>教學重點</dt><dd>手臂夾耳、下巴收、腳併攏。滑行時什麼都不做，讓他體會「水會帶著我走」。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>抬頭看前面。頭一抬臀部就掉，滑不出去。</dd></div></dl></article>
+</div></div>
+</section>
+<section class="lv" id="L2" style="--lc:var(--lv2)">
+  <header class="lv-h">
+    <div class="lv-num">Level 2</div>
+    <h2>Water Confidence<span class="zh">水中自在</span></h2>
+    <p class="lv-intro">有了漂浮之後開始移動。打水、翻轉、深水過渡。這一級的關鍵字是「放鬆」——越用力越沉。</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>整級約 <b>13–15</b> 堂 30 分鐘課</caption>
+      <thead><tr><th>階段</th><th class="num">預估堂數</th><th>這個階段在做什麼</th></tr></thead>
+      <tbody><tr><td>階段 1</td><td class="num">4</td><td>俯臥與仰躺都能打水前進</td></tr><tr><td>階段 2</td><td class="num">4–5</td><td>身體能翻轉、有換氣節奏</td></tr><tr><td>階段 3</td><td class="num">5–6</td><td>深水不慌、能漂能划</td></tr></tbody>
+    </table>
+  </div>
+  <div class="stage"><div class="stage-h"><span class="sn">階段 1</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle Kick 10 yd (Board) 自由式打水 10 碼（浮板）</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 10 yd on a board, face in the water, legs long and from the hip. 扶浮板臉入水打水 10 碼，腿伸直、由髖部發力。</dd></div><div class="f"><dt>教學重點</dt><dd>浮板抓前緣，手臂伸直，臉入水。打水小而快，水花在水面下。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>打得太大太慢，膝蓋彎。要求「腳跟只微微露出水面」。</dd></div></dl></article>
+<article class="skill"><h4>Backstroke Kick 10 yd 仰式打水 10 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 10 yd on the back, ears in the water, hips at the surface. 仰躺打水 10 碼，耳朵入水，臀部貼近水面。</dd></div><div class="f"><dt>教學重點</dt><dd>耳朵要在水裡、肚子頂高。眼睛看天花板同一個點。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>坐著打水（臀部下沉）。手放在他臀下往上頂一下讓他感覺位置。</dd></div></dl></article>
+<article class="skill"><h4>Push-Off Float</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Pushes off the wall into a front float and holds it 5 seconds before standing. 蹬牆進入俯漂，撐住 5 秒後才站起來。</dd></div><div class="f"><dt>教學重點</dt><dd>把蹬牆和漂浮接起來，這是之後所有出發與轉身的基礎。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>蹬完馬上開始掙扎。要求「先什麼都不做，數到五」。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 2</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>BBQ Roll (Body Rotation)</h4><dl><div class="f pass"><dt>通過標準</dt><dd>While kicking, rolls from front to side to back and back again without stopping. 打水中由俯臥轉側身轉仰臥再轉回，中途不停。</dd></div><div class="f"><dt>教學重點</dt><dd>BBQ = 像烤肉架上的肉那樣翻轉。一直打水，只有身體在轉。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>轉的時候腿停了。強調「腿不准停」。</dd></div></dl></article>
+<article class="skill"><h4>Bubble Jumps (Chest Deep) 吐泡跳（胸深）</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Ten jumps in chest-deep water: submerge, blow out, surface, repeat rhythmically. 胸深水中連續十次：下沉、吐氣、浮起，有節奏不中斷。</dd></div><div class="f"><dt>教學重點</dt><dd>建立節奏感：下沉時吐、浮起時吸。連續十次不中斷比做得漂亮重要。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>在水下吸氣。先在淺水練「下去吐、上來吸」的口訣。</dd></div></dl></article>
+<article class="skill"><h4>Breath Holding 5 sec 憋氣 5 秒</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Fully submerged, eyes open, holds 5 seconds and surfaces calmly. 全身入水睜眼憋 5 秒，起來時不慌張。</dd></div><div class="f"><dt>教學重點</dt><dd>睜眼是重點——閉著眼睛的憋氣沒有用，因為真的落水時要看得見。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>用手捏鼻子。要讓他學會用鼻子輕輕呼氣來擋水。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 3</span><span class="sc">4 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Object Retrieval</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Retrieves an object from the bottom in chest-deep water, first try. 胸深水中一次就把池底的物品撿起來。</dd></div><div class="f"><dt>教學重點</dt><dd>第一次讓他睜眼在水下找東西。放在他看得到的位置，不要為難他。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>一次撿不到就重來很多次，孩子會失去信心。改放淺一點。</dd></div></dl></article>
+<article class="skill"><h4>Starfish Float 10 sec 大字漂 10 秒</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Back float, arms and legs spread, 10 seconds unaided and unmoving. 仰躺手腳張開漂 10 秒，無人協助、身體不掙扎。</dd></div><div class="f"><dt>教學重點</dt><dd>全身放鬆是唯一的技巧。告訴他「越用力越沉」。手腳張開像海星。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>腰用力弓起來。輕輕壓他的肚子讓他放鬆。</dd></div></dl></article>
+<article class="skill"><h4>Bubble Jumps (Over Head) 吐泡跳（過頭深）</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Same as chest-deep but in water over their head, ten times, holding the wall. 同上，但在過頭深的水中扶牆連續十次。</dd></div><div class="f"><dt>教學重點</dt><dd>過頭深時扶牆做，安全感來自牆。這是深水恐懼的過渡練習。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>直接放到深水中央。他會抓你，然後怕更久。</dd></div></dl></article>
+<article class="skill"><h4>Sculling 5 yd 划手前進 5 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Sculls the hands figure-of-eight and travels 5 yd on the back without kicking. 仰躺以八字划手前進 5 碼，完全不打水。</dd></div><div class="f"><dt>教學重點</dt><dd>划手是「感覺水」的第一課，之後所有泳姿的抓水都從這裡來。八字形，手掌像抹果醬。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>划成上下拍水。放慢，讓他找到「手掌壓住水」的感覺。</dd></div></dl></article>
+</div></div>
+</section>
+<section class="lv" id="L3" style="--lc:var(--lv3)">
+  <header class="lv-h">
+    <div class="lv-num">Level 3</div>
+    <h2>Independent Movement<span class="zh">獨立前進</span></h2>
+    <p class="lv-intro">第一次「自己一個人游得動」。加入換氣、踩水與落水求生。這一級結束時，孩子掉進深水能自己回到池邊。</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>整級約 <b>15–18</b> 堂 30 分鐘課</caption>
+      <thead><tr><th>階段</th><th class="num">預估堂數</th><th>這個階段在做什麼</th></tr></thead>
+      <tbody><tr><td>階段 1</td><td class="num">4–5</td><td>25 碼打水加換氣</td></tr><tr><td>階段 2</td><td class="num">6–7</td><td>踩水與深水安全測驗</td></tr><tr><td>階段 3</td><td class="num">5–6</td><td>側轉換氣游、不站起來轉身</td></tr></tbody>
+    </table>
+  </div>
+  <div class="stage"><div class="stage-h"><span class="sn">階段 1</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle Kick 25 yd 自由式打水 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 25 yd on a board with side breathing, no standing up. 扶板打水 25 碼並側轉換氣，中途不站起來。</dd></div><div class="f"><dt>教學重點</dt><dd>加入換氣。頭轉到側面而不是抬起來，一隻蛙鏡留在水裡。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>抬頭換氣。用「用耳朵貼著手臂轉」的提示。</dd></div></dl></article>
+<article class="skill"><h4>Backstroke Kick 25 yd 仰式打水 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 25 yd on the back, arms at the sides, staying in a straight line. 仰躺打水 25 碼，雙手貼身，能維持直線。</dd></div><div class="f"><dt>教學重點</dt><dd>25 碼要能維持直線。教他用池邊的線或天花板當參考。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>游成蛇行。每五碼提醒他看一次天花板的定點。</dd></div></dl></article>
+<article class="skill"><h4>Streamline Push-Off</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Push-off in a tight streamline and glides 7 yd before the first kick. 蹬牆做出緊實的流線型，滑行 7 碼才開始打水。</dd></div><div class="f"><dt>教學重點</dt><dd>雙手交疊夾緊耳朵、身體像一根棍子。滑行距離是流線型好不好的唯一證據。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>手沒有夾緊，或蹬牆時腳位置太低。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 2</span><span class="sc">4 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Treading Water 30 sec 踩水 30 秒</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Treads water 30 seconds in deep water, chin clear, without touching the wall. 深水踩水 30 秒，下巴離開水面，不碰池壁。</dd></div><div class="f"><dt>教學重點</dt><dd>先教蛋打腿（畫圈），再加手。踩水是深水安全的核心技能，不要急。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>手拚命拍水、身體直上直下。強調「慢而大」的腿。</dd></div></dl></article>
+<article class="skill"><h4>Deep Water Object Retrieval</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Retrieves an object from the bottom of deep water and returns to the wall. 從深水池底撿起物品並游回池邊。</dd></div><div class="f"><dt>教學重點</dt><dd>深水撿物是把前面的憋氣、睜眼、下潛整合起來。第一次陪他下去。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>一開始就放到最深。從深水的淺端開始。</dd></div></dl></article>
+<article class="skill"><h4>Water Safety Test</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Jump in, turn around, swim 5 yd back to the wall and climb out unaided. 跳入水中轉身，游 5 碼回到池邊並自行上岸。</dd></div><div class="f"><dt>教學重點</dt><dd>這是「掉進水裡怎麼辦」的完整演練。跳、轉、游、爬，一次做完。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>拆開來練得很好，合起來就亂。至少完整做三次。</dd></div></dl></article>
+<article class="skill"><h4>Survival Float</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Survival float face-down for 1 minute, lifting the head only to breathe. 俯漂求生 1 分鐘，只在換氣時抬頭。</dd></div><div class="f"><dt>教學重點</dt><dd>求生漂的重點是省力，不是漂得漂亮。抬頭換氣後臉要回到水裡。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>一直抬著頭。那樣一分鐘撐不完。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 3</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Roll-and-Breathe Swim 15 yd 側轉換氣游 15 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 15 yd rolling front-to-side to breathe, without stopping. 游 15 碼，用俯臥轉側身的方式換氣，中途不停。</dd></div><div class="f"><dt>教學重點</dt><dd>這是自由式的前身。先有「轉身體換氣」，再有手臂動作。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>直接教手臂划水。沒有側轉的自由式之後很難改。</dd></div></dl></article>
+<article class="skill"><h4>In-Water Turn</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims to the wall, turns without standing, and pushes off the other way. 游到池邊不站起來直接轉身，蹬牆往回。</dd></div><div class="f"><dt>教學重點</dt><dd>轉身不站起來，是「連續游」的門檻。腳踩到牆才蹬。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>轉身時站起來喘一口。要求全程臉不離開水面太久。</dd></div></dl></article>
+<article class="skill"><h4>Dolphin Kick 10 yd 海豚腿 10 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Dolphin kicks 10 yd on the front, the wave starting at the chest not the knees. 俯身海豚腿 10 碼，波浪從胸口帶動而不是折膝。</dd></div><div class="f"><dt>教學重點</dt><dd>海豚腿放在這裡是當作身體波浪的訓練，不是為了教蝶式。從胸口帶動。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>折膝踢水。手放在他背上讓他感覺波浪從上往下傳。</dd></div></dl></article>
+</div></div>
+</section>
+<section class="lv" id="L4" style="--lc:var(--lv4)">
+  <header class="lv-h">
+    <div class="lv-num">Level 4</div>
+    <h2>Stroke Foundations<span class="zh">泳姿基礎</span></h2>
+    <p class="lv-intro">正式泳姿從這裡開始。自由式與仰式各自成形，同時加入入水與深水求生。第一個「看得出來在游泳」的階段。</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>整級約 <b>17–20</b> 堂 30 分鐘課</caption>
+      <thead><tr><th>階段</th><th class="num">預估堂數</th><th>這個階段在做什麼</th></tr></thead>
+      <tbody><tr><td>階段 1</td><td class="num">6–7</td><td>自由式 15→25 碼</td></tr><tr><td>階段 2</td><td class="num">5–6</td><td>仰式與流線型打水</td></tr><tr><td>階段 3</td><td class="num">6–7</td><td>深水漂、踩水、著衣求生</td></tr></tbody>
+    </table>
+  </div>
+  <div class="stage"><div class="stage-h"><span class="sn">階段 1</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 15 yd 自由式 15 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 15 yd freestyle, side breathing, arms recovering over the water. 自由式 15 碼，側轉換氣，手臂從水面上方回復。</dd></div><div class="f"><dt>教學重點</dt><dd>第一次完整的自由式。手臂高肘回復，入水在肩線前方。距離先短。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>手臂打直繞大圈。用「手肘先出水」的提示。</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 25 yd 自由式 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 25 yd freestyle without stopping, breathing to one side every 2-3 strokes. 自由式 25 碼不停，每 2–3 划固定單邊換氣。</dd></div><div class="f"><dt>教學重點</dt><dd>25 碼是第一個真正的里程碑。固定單邊換氣就好，先不要求兩側。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>為了游完而亂划。寧可慢，動作要在。</dd></div></dl></article>
+<article class="skill"><h4>Seated and Kneeling Dive</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Enters head-first from sitting and then from kneeling, hands leading, without belly-flopping. 坐姿與跪姿入水，雙手先入、頭跟著進，不拍肚子。</dd></div><div class="f"><dt>教學重點</dt><dd>入水角度比姿勢重要。坐姿先做熟再跪姿。手臂夾耳，頭藏在手臂中間。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>抬頭看水面。頭一抬就變成拍肚子，會痛而且會怕。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 2</span><span class="sc">3 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Backstroke 15 yd 仰式 15 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 15 yd backstroke, hips up, arms straight past the ear. 仰式 15 碼，臀部不下沉，手臂伸直貼耳過頭。</dd></div><div class="f"><dt>教學重點</dt><dd>仰式最大的問題是臀部下沉。肚子頂高、下巴微收。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>折膝打水、手臂沒有過頭。</dd></div></dl></article>
+<article class="skill"><h4>Streamline Freestyle Kicking</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 25 yd in a tight streamline, both arms overhead, face down. 流線型雙手過頭夾緊，臉朝下打水 25 碼。</dd></div><div class="f"><dt>教學重點</dt><dd>把流線型和打水結合，這是之後所有出發後動作的基礎。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>手臂鬆開。要求雙手交疊夾緊。</dd></div></dl></article>
+<article class="skill"><h4>Underwater Freestyle Kicking</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 10 yd fully underwater in streamline on one breath. 一口氣在水面下以流線型打水 10 碼。</dd></div><div class="f"><dt>教學重點</dt><dd>水下打水一口氣 10 碼，同時練憋氣與流線型。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>中途抬頭偷看。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 3</span><span class="sc">4 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Starfish Float 30 sec 大字漂 30 秒</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Back float 30 seconds in deep water, relaxed, without sculling. 深水仰躺大字漂 30 秒，放鬆、不靠划手。</dd></div><div class="f"><dt>教學重點</dt><dd>深水中的漂浮是心理關卡不是技術關卡。30 秒的重點是放鬆。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>教練站在旁邊一直講話。安靜讓他自己撐完。</dd></div></dl></article>
+<article class="skill"><h4>Treading Water 1 min 踩水 1 分鐘</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Treads water 1 minute in deep water with hands out of the water for the last 10 seconds. 深水踩水 1 分鐘，最後 10 秒雙手離開水面。</dd></div><div class="f"><dt>教學重點</dt><dd>最後 10 秒手離開水面，是為了證明腿真的在work。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>手一離開水面就沉。回去把腿練好再測。</dd></div></dl></article>
+<article class="skill"><h4>No-Goggles Swim</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 25 yd freestyle with no goggles, eyes open, without panicking. 不戴蛙鏡睜眼游自由式 25 碼，過程不慌張。</dd></div><div class="f"><dt>教學重點</dt><dd>不戴蛙鏡是真實落水的情境。先在淺水適應睜眼再游。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>瞇著眼睛游。要求真的睜開。</dd></div></dl></article>
+<article class="skill"><h4>Clothed Swim (7 yd)</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 7 yd in a T-shirt and shorts, then removes the shirt in deep water. 穿 T 恤與短褲游 7 碼，接著在深水中脫掉上衣。</dd></div><div class="f"><dt>教學重點</dt><dd>著衣游泳讓他知道衣服有多重。脫上衣要在能踩水的地方做。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>在腳踩得到的地方脫。那樣學不到東西。</dd></div></dl></article>
+</div></div>
+</section>
+<section class="lv" id="L5" style="--lc:var(--lv5)">
+  <header class="lv-h">
+    <div class="lv-num">Level 5</div>
+    <h2>Stroke Development<span class="zh">泳姿發展</span></h2>
+    <p class="lv-intro">距離拉長、轉身出現、蛙腿與海豚腿開始鋪路。這一級最長也最容易卡住——蛙腿是四式裡最難教的動作。</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>整級約 <b>20–24</b> 堂 30 分鐘課</caption>
+      <thead><tr><th>階段</th><th class="num">預估堂數</th><th>這個階段在做什麼</th></tr></thead>
+      <tbody><tr><td>階段 1</td><td class="num">5–6</td><td>自由式 50→100 碼</td></tr><tr><td>階段 2</td><td class="num">7–8</td><td>仰式加長、翻滾轉身、水面下潛</td></tr><tr><td>階段 3</td><td class="num">8–10</td><td>蛙腿與海豚腿、救援與憋氣</td></tr></tbody>
+    </table>
+  </div>
+  <div class="stage"><div class="stage-h"><span class="sn">階段 1</span><span class="sc">2 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 50 yd 自由式 50 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 50 yd freestyle with one wall turn, stroke holding together throughout. 自由式 50 碼含一次轉身，全程動作不散。</dd></div><div class="f"><dt>教學重點</dt><dd>50 碼含轉身，考的是「動作會不會在第二趟垮掉」。後半段盯技術不盯速度。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>第一趟拚快，第二趟散掉。要求前後兩趟划手次數相同。</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 100 yd 自由式 100 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 100 yd freestyle continuous, bilateral breathing available if asked. 連續自由式 100 碼，教練要求時能做兩側換氣。</dd></div><div class="f"><dt>教學重點</dt><dd>100 碼開始需要配速概念。教他用划手次數而不是感覺來控制。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>換氣次數越游越多。那是配速太快的訊號。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 2</span><span class="sc">4 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Backstroke 25 yd 仰式 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 25 yd backstroke without stopping, shoulders rolling, head still. 仰式 25 碼不停，肩膀有轉動、頭部穩定。</dd></div><div class="f"><dt>教學重點</dt><dd>25 碼仰式要有肩膀轉動。手臂入水時小指先進。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>身體平板沒有轉動，手臂用甩的。</dd></div></dl></article>
+<article class="skill"><h4>Backstroke 50 yd 仰式 50 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 50 yd backstroke with one turn, staying in the lane. 仰式 50 碼含一次轉身，能維持在水道內。</dd></div><div class="f"><dt>教學重點</dt><dd>加入轉身後要能維持直線。教他數划手次數判斷離牆距離。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>仰式撞牆。這是沒有數划手的必然結果，一定要教。</dd></div></dl></article>
+<article class="skill"><h4>Freestyle Flip Turn</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Approaches the wall, somersaults, plants both feet and pushes off on the back into streamline. 接近池壁前滾翻，雙腳踏牆，以仰姿流線型蹬出。</dd></div><div class="f"><dt>教學重點</dt><dd>翻轉不是重點，蹬牆才是。要求雙腳同時踏牆、蹬出後是流線型。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>翻完才找牆。要在接近牆之前就決定好距離。</dd></div></dl></article>
+<article class="skill"><h4>Surface Dive</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Surface dives head-first to the bottom of deep water and returns with an object. 頭下腳上潛入深水池底，帶物品回到水面。</dd></div><div class="f"><dt>教學重點</dt><dd>頭下腳上下潛，靠的是抬腿的重量而不是划手。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>用手拚命划想往下。教他「把腿舉出水面」。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 3</span><span class="sc">5 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Breaststroke Kick 10 yd 蛙腿 10 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 10 yd on a board: heels to seat, feet turned out, whip together. 扶板蛙腿 10 碼：收腿到臀、翻腳掌、夾水併攏。</dd></div><div class="f"><dt>教學重點</dt><dd>蛙腿是四式中最難教的。分解成「收、翻、蹬、併」四拍，慢慢做。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>腳掌沒有翻出去（剪刀腳）。用手扶著他的腳掌帶一次。</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke Kick 25 yd 蛙腿 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 25 yd breaststroke with a glide after every kick, no scissor kick. 蛙腿 25 碼，每一蹬後有滑行，沒有剪刀腳。</dd></div><div class="f"><dt>教學重點</dt><dd>每一蹬之後要有滑行，這是蛙式效率的全部。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>連續蹬腿不滑行。要求「蹬完數一下再收」。</dd></div></dl></article>
+<article class="skill"><h4>Dolphin Kick 25 yd 海豚腿 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Dolphin kicks 25 yd on the front with a board, wave from the chest. 扶板俯身海豚腿 25 碼，波浪由胸口帶動。</dd></div><div class="f"><dt>教學重點</dt><dd>25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>只往下踢。強調「上來也要出力」。</dd></div></dl></article>
+<article class="skill"><h4>Breath Holding 15 sec 憋氣 15 秒</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Holds 15 seconds submerged, calm, and surfaces under control. 水下憋氣 15 秒，全程平靜，起身有控制。</dd></div><div class="f"><dt>教學重點</dt><dd>15 秒憋氣是為了水下動作做準備，不是比賽。任何不適就停。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>把它變成比賽。絕對不要讓學員互相比憋氣。</dd></div></dl></article>
+<article class="skill"><h4>Reach and Throw Rescue</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Reaches with a pole and throws a ring to a person 5 yd away, staying out of the water. 用長桿伸給對方、把浮圈丟到 5 碼外，自己不下水。</dd></div><div class="f"><dt>教學重點</dt><dd>自己不下水是這個技能的全部重點。反覆強調「先伸、再丟、絕不跳」。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>示範時教練自己下水去救。示範錯了比不教還糟。</dd></div></dl></article>
+</div></div>
+</section>
+<section class="lv" id="L6" style="--lc:var(--lv6)">
+  <header class="lv-h">
+    <div class="lv-num">Level 6</div>
+    <h2>Four Strokes<span class="zh">四式完成</span></h2>
+    <p class="lv-intro">蝶式與蛙式加入，四式到齊。這一級同時教兩種新泳姿，負擔最重，不要趕。耐力與轉身也在這裡成形。</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>整級約 <b>24–29</b> 堂 30 分鐘課</caption>
+      <thead><tr><th>階段</th><th class="num">預估堂數</th><th>這個階段在做什麼</th></tr></thead>
+      <tbody><tr><td>階段 1</td><td class="num">8–10</td><td>蝶式與蛙式起步、混合式打水</td></tr><tr><td>階段 2</td><td class="num">7–8</td><td>耐力 200 碼、仰式轉身、站姿跳水</td></tr><tr><td>階段 3</td><td class="num">9–11</td><td>蝶蛙加長、水下海豚腿、平轉身</td></tr></tbody>
+    </table>
+  </div>
+  <div class="stage"><div class="stage-h"><span class="sn">階段 1</span><span class="sc">4 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Butterfly 10 yd 蝶式 10 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 10 yd butterfly, two kicks per arm cycle, chin leading the breath. 蝶式 10 碼，一划兩踢，換氣時下巴先出水。</dd></div><div class="f"><dt>教學重點</dt><dd>蝶式先教 10 碼就好。一划兩踢的節奏比距離重要。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>為了游遠而變成一划一踢。寧可只游 10 碼。</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke 15 yd 蛙式 15 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 15 yd breaststroke in pull-breathe-kick-glide order. 蛙式 15 碼，保持「划、吸、蹬、滑」的順序。</dd></div><div class="f"><dt>教學重點</dt><dd>蛙式順序是「划、吸、蹬、滑」。順序錯了怎麼練都不會順。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>先蹬再划。用口訣一拍一拍喊出來。</dd></div></dl></article>
+<article class="skill"><h4>Individual Medley Kicking</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Kicks 25 yd of each stroke in IM order without a break between them. 依混合式順序各打水 25 碼，四式之間不休息。</dd></div><div class="f"><dt>教學重點</dt><dd>混合式打水是四式順序的記憶練習，同時檢查四種腿都能用。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>四式之間停下來休息。要求連著做。</dd></div></dl></article>
+<article class="skill"><h4>Treading Water 2 min 踩水 2 分鐘</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Treads water 2 minutes in deep water, last 30 seconds hands out of the water. 深水踩水 2 分鐘，最後 30 秒雙手離開水面。</dd></div><div class="f"><dt>教學重點</dt><dd>兩分鐘踩水是深水安全的最終驗證。最後 30 秒手離水。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>越踩越沉。教他改用蛙腿踩水省力。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 2</span><span class="sc">4 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 200 yd 自由式 200 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 200 yd freestyle continuous with even pacing, turns included. 連續自由式 200 碼含轉身，配速平均不前快後崩。</dd></div><div class="f"><dt>教學重點</dt><dd>200 碼開始是耐力課題。教配速：每 50 碼的時間差不超過 5 秒。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>前 50 碼衝太快。用碼表讓他自己看到差距。</dd></div></dl></article>
+<article class="skill"><h4>Backstroke 100 yd 仰式 100 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 100 yd backstroke continuous, straight, with turns. 連續仰式 100 碼含轉身，能維持直線。</dd></div><div class="f"><dt>教學重點</dt><dd>100 碼仰式含轉身，直線是最大的挑戰。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>偏出水道。用天花板的燈當參考線。</dd></div></dl></article>
+<article class="skill"><h4>Backstroke Flip Turn</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Rolls to the front, somersaults and pushes off on the back, all within the legal one stroke. 轉為俯臥後前滾翻，以仰姿蹬牆，動作在規則允許的一划內完成。</dd></div><div class="f"><dt>教學重點</dt><dd>仰式轉身的規則細節多。轉為俯臥後只能划一次就要翻。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>轉成俯臥後多划兩下。比賽會失格。</dd></div></dl></article>
+<article class="skill"><h4>Standing Dive</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Standing dive from the edge: enters through one hole, hands first, no belly-flop. 站姿跳水：雙手先入，身體從同一個入水點進去，不拍肚子。</dd></div><div class="f"><dt>教學重點</dt><dd>站姿跳水前務必確認水深。手先入、身體從同一個洞進去。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>腳先蹬起來太高導致過度翻轉。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 3</span><span class="sc">5 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Butterfly 25 yd 蝶式 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 25 yd butterfly without stopping, rhythm holding to the wall. 蝶式 25 碼不停，節奏維持到觸壁。</dd></div><div class="f"><dt>教學重點</dt><dd>25 碼蝶式考的是節奏能不能撐到觸壁。後半段最容易垮。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>最後 5 碼變成掙扎。寧可放慢節奏也要維持形狀。</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke 25 yd 蛙式 25 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 25 yd breaststroke with a visible glide every stroke. 蛙式 25 碼，每一循環都看得到滑行。</dd></div><div class="f"><dt>教學重點</dt><dd>25 碼蛙式每一循環都要看得到滑行。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>划手太大、滑行消失。</dd></div></dl></article>
+<article class="skill"><h4>Underwater Dolphin Kick</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Dolphin kicks 15 yd underwater off the wall on one breath. 蹬牆後一口氣在水面下海豚腿 15 碼。</dd></div><div class="f"><dt>教學重點</dt><dd>水下海豚腿 15 碼是競技游泳的關鍵武器。注意規則上限。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>為了距離而缺氧。任何不適立刻停。</dd></div></dl></article>
+<article class="skill"><h4>Open Turn</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Two-hand touch, open turn and push-off for breaststroke and butterfly. 蛙式與蝶式的雙手觸壁、平轉身並蹬牆。</dd></div><div class="f"><dt>教學重點</dt><dd>平轉身是蛙蝶的規定動作。雙手同時觸壁是判定重點。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>單手觸壁。這在比賽是直接失格。</dd></div></dl></article>
+<article class="skill"><h4>Clothed Swim (25 yd)</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 25 yd clothed without goggles, then treads 1 minute still clothed. 著衣不戴蛙鏡游 25 碼，接著著衣踩水 1 分鐘。</dd></div><div class="f"><dt>教學重點</dt><dd>著衣 25 碼加踩水一分鐘，是完整的落水求生演練。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>衣服太薄。要用真的會吸水的棉質衣物。</dd></div></dl></article>
+</div></div>
+</section>
+<section class="lv" id="L7" style="--lc:var(--lv7)">
+  <header class="lv-h">
+    <div class="lv-num">Level 7</div>
+    <h2>Competitive Swimming<span class="zh">競技規格</span></h2>
+    <p class="lv-intro">從「會游」到「不會被判失格」。配速、出發、轉身規則、個人混合式。這一級沒有真正的終點——最後一個階段有六個技能並排，會走很久，那是正常的。</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>整級約 <b>29–36</b> 堂 30 分鐘課</caption>
+      <thead><tr><th>階段</th><th class="num">預估堂數</th><th>這個階段在做什麼</th></tr></thead>
+      <tbody><tr><td>階段 1</td><td class="num">8–10</td><td>計時、衝刺、400 碼配速</td></tr><tr><td>階段 2</td><td class="num">9–11</td><td>蛙蝶加長、水下划手、出發</td></tr><tr><td>階段 3</td><td class="num">12–15</td><td>四式合規、個人混合式</td></tr></tbody>
+    </table>
+  </div>
+  <div class="stage"><div class="stage-h"><span class="sn">階段 1</span><span class="sc">5 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 50 yd Timed 自由式 50 碼計時</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 50 yd freestyle on the clock and improves the time over three attempts. 自由式 50 碼計時，三次測驗內成績有進步。</dd></div><div class="f"><dt>教學重點</dt><dd>計時的重點是「有沒有進步」，不是絕對成績。三次測驗取趨勢。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>把成績拿來跟別人比。只跟自己的上一次比。</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 25 yd Sprint 自由式 25 碼衝刺</h4><dl><div class="f pass"><dt>通過標準</dt><dd>All-out 25 yd freestyle with no breath in the last 5 yd. 自由式 25 碼全力衝刺，最後 5 碼不換氣。</dd></div><div class="f"><dt>教學重點</dt><dd>衝刺的重點是最後 5 碼不換氣。那是比賽輸贏的地方。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>全程不換氣。那不是衝刺是憋氣。</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 400 yd 自由式 400 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 400 yd freestyle continuous, pace held within 5 seconds per 50. 連續自由式 400 碼，每 50 碼配速差距在 5 秒內。</dd></div><div class="f"><dt>教學重點</dt><dd>400 碼配速課。每 50 碼差距在 5 秒內才算過。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>前 200 快、後 200 崩。</dd></div></dl></article>
+<article class="skill"><h4>Backstroke 200 yd 仰式 200 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 200 yd backstroke continuous with legal turns. 連續仰式 200 碼，轉身合乎規則。</dd></div><div class="f"><dt>教學重點</dt><dd>200 碼仰式含合規轉身。體能與規則同時考。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>疲勞之後轉身變得不合規。</dd></div></dl></article>
+<article class="skill"><h4>Clothed Swim (50 yd)</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 50 yd clothed without goggles, then removes clothing while treading. 著衣不戴蛙鏡游 50 碼，接著在踩水中脫掉衣物。</dd></div><div class="f"><dt>教學重點</dt><dd>50 碼著衣加水中脫衣，是全部求生技能的總驗收。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>在能站的地方脫衣服。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 2</span><span class="sc">5 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Breaststroke Underwater Pullout</h4><dl><div class="f pass"><dt>通過標準</dt><dd>One pull-down: full pull to the thighs, one dolphin kick, recovery, break out. 一次水下划手：長划到大腿、一次海豚腿、收手、破水。</dd></div><div class="f"><dt>教學重點</dt><dd>蛙式水下划手是規則允許的一次長划加一次海豚腿。順序錯就失格。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>划兩次，或海豚腿踢在划手之前。</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke 50 yd 蛙式 50 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 50 yd breaststroke with a legal turn and a legal finish. 蛙式 50 碼，轉身與終點觸壁都合乎規則。</dd></div><div class="f"><dt>教學重點</dt><dd>50 碼蛙式，轉身與終點都是雙手同時觸壁。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>終點單手觸壁。</dd></div></dl></article>
+<article class="skill"><h4>Butterfly 50 yd 蝶式 50 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 50 yd butterfly with a legal turn, rhythm intact on the second length. 蝶式 50 碼含合規轉身，第二趟節奏沒有垮掉。</dd></div><div class="f"><dt>教學重點</dt><dd>50 碼蝶式，第二趟節奏維持是重點。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>第二趟變成一划一踢。</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 500 yd 自由式 500 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 500 yd freestyle continuous, counting their own laps. 連續自由式 500 碼，能自己數趟數。</dd></div><div class="f"><dt>教學重點</dt><dd>500 碼要自己數趟。這是比賽的實際要求。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>數錯趟數。教他每 100 碼記一次。</dd></div></dl></article>
+<article class="skill"><h4>Racing Start and Backstroke Start</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Legal racing start from the block and a legal backstroke start from the wall. 出發台合規出發，以及池壁的合規仰式出發。</dd></div><div class="f"><dt>教學重點</dt><dd>出發台出發與仰式出發都有規則細節。搶跳即失格。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>沒有等到信號。反覆練「聽到才動」。</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">階段 3</span><span class="sc">6 個技能</span></div>
+<div class="skills">
+<article class="skill"><h4>Stroke Transitions and Turns</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Legal transitions between all four strokes plus every turn in an IM. 四式之間的合規銜接，以及混合式中的每一種轉身。</dd></div><div class="f"><dt>教學重點</dt><dd>四式銜接的每一個轉身規則都不一樣。逐一拆開練，再串起來。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>把四種轉身混在一起做。</dd></div></dl></article>
+<article class="skill"><h4>Individual Medley 100 yd 個人混合式 100 碼</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Swims 100 yd IM in stroke order with legal transitions throughout. 依序完成混合式 100 碼，每一次銜接都合規。</dd></div><div class="f"><dt>教學重點</dt><dd>100 碼個人混合式是全課程的集大成。順序：蝶、仰、蛙、自。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>順序記錯。上場前一定要複誦。</dd></div></dl></article>
+<article class="skill"><h4>Freestyle (Race Legal) 自由式（合規）</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Freestyle that would not be disqualified: legal turn, legal finish, no walking. 自由式的動作、轉身與終點都不會被判失格。</dd></div><div class="f"><dt>教學重點</dt><dd>合規自由式：轉身觸壁、終點觸壁、全程不踩底。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>轉身時站起來調整。</dd></div></dl></article>
+<article class="skill"><h4>Backstroke (Race Legal) 仰式（合規）</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Backstroke that would not be disqualified: stays on the back, legal turn and finish. 仰式全程保持仰姿，轉身與終點合規、不會失格。</dd></div><div class="f"><dt>教學重點</dt><dd>合規仰式：除了轉身允許的部分，全程必須保持仰姿。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>終點時翻身。</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke (Race Legal) 蛙式（合規）</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Breaststroke that would not be disqualified: symmetric, one pull one kick, two-hand touch. 蛙式左右對稱、一划一蹬、雙手同時觸壁，不會失格。</dd></div><div class="f"><dt>教學重點</dt><dd>合規蛙式：左右對稱、一划一蹬、雙手同時觸壁。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>出現剪刀腳或不對稱划手。</dd></div></dl></article>
+<article class="skill"><h4>Butterfly (Race Legal) 蝶式（合規）</h4><dl><div class="f pass"><dt>通過標準</dt><dd>Butterfly that would not be disqualified: simultaneous arms, no flutter kick, two-hand touch. 蝶式雙臂同時、無自由式打腿、雙手同時觸壁，不會失格。</dd></div><div class="f"><dt>教學重點</dt><dd>合規蝶式：雙臂同時前進、不可自由式打腿、雙手同時觸壁。</dd></div><div class="f err"><dt>常見錯誤</dt><dd>疲勞時單手先觸壁。</dd></div></dl></article>
+</div></div>
+</section>
+
+<section>
+  <div class="note">
+    <p><strong>這份手冊和 app 是同一份資料。</strong>每個技能的通過標準也寫進了資料庫，教練在評分介面點百分比的時候，那一行字就顯示在按鈕上方。手冊改了，app 也要改——兩邊講的必須是同一件事。</p>
+    <p style="margin-bottom:0"><strong>還沒解決的一件事：</strong>Level 7 的階段 3 有六個技能並排，要全部 100 才算完成整個課程。學員在那裡會停留很久，進度條幾乎不動。這是刻意保留的——競技規格本來就慢——但跟家長溝通時要先講清楚，不要讓他們以為孩子卡住了。</p>
+  </div>
+</section>
+</div>
