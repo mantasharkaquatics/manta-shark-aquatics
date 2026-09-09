@@ -107,7 +107,7 @@ export async function planRefund(
 
   const { data: purchases } = await svc
     .from('purchases')
-    .select('id, amount_cents, refunded_cents, paid_at, payment_method, stripe_payment_intent_id, fee_cents')
+    .select('id, amount_cents, refunded_cents, paid_at, payment_method, stripe_payment_intent_id, stripe_session_id, fee_cents')
     .eq('parent_id', parentId)
     .eq('status', 'paid')
     .is('reversed_at', null)
@@ -145,7 +145,7 @@ export async function planRefund(
     // cost nothing to take, so its fee is zero. A Stripe payment whose fee has
     // not been read yet is UNKNOWN, and saying zero there would quietly
     // understate what a refund costs.
-    const fee = !p.stripe_payment_intent_id
+    const fee = !p.stripe_payment_intent_id && !p.stripe_session_id
       ? 0
       : p.fee_cents == null || !p.amount_cents
         ? null

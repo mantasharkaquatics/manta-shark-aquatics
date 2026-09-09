@@ -69,7 +69,7 @@ export async function GET() {
     // that has not settled -- counted separately so the total is never quietly
     // understated.
     svc.from('purchases')
-      .select('amount_cents, fee_cents, net_cents, fee_captured_at, paid_at, stripe_payment_intent_id')
+      .select('amount_cents, fee_cents, net_cents, fee_captured_at, paid_at, stripe_payment_intent_id, stripe_session_id')
       .eq('status', 'paid')
       .is('reversed_at', null)
       .gte('paid_at', since),
@@ -116,9 +116,10 @@ export async function GET() {
       const fee = Number(p.fee_cents) || 0
       m.feeCents += fee
       feeCentsTotal += fee
-    } else if (p.stripe_payment_intent_id) {
-      // A Stripe payment whose fee is not known yet. Cash at the desk has no
-      // fee at all and is not pending anything.
+    } else if (p.stripe_payment_intent_id || p.stripe_session_id) {
+      // A Stripe payment whose fee is not known yet -- either identifier means
+      // it went through Stripe. Cash at the desk has no fee at all and is not
+      // pending anything.
       m.feePending += 1
       feePendingTotal += 1
     }

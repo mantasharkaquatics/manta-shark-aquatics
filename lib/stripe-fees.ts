@@ -113,11 +113,15 @@ export async function backfillFees(
   svc: Svc,
   limit = 100,
 ): Promise<{ attempted: number; captured: number; feeCentsCaptured: number; skipped: FeeCapture[] }> {
+  // Either identifier will do. captureFee resolves a session to its payment
+  // intent, and narrowing this to payment_intent excluded exactly the rows that
+  // fallback exists for -- the early top-ups and the Swim Assessments, which
+  // recorded only the checkout session.
   const { data: rows, error } = await svc
     .from('purchases')
     .select('id, stripe_payment_intent_id, stripe_session_id')
     .is('fee_captured_at', null)
-    .not('stripe_payment_intent_id', 'is', null)
+    .or('stripe_payment_intent_id.not.is.null,stripe_session_id.not.is.null')
     .order('paid_at', { ascending: true })
     .limit(limit)
   // Say so. A failed query returns no rows, and treating that as "nothing left

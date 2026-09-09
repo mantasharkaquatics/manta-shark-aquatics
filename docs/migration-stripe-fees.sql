@@ -30,9 +30,12 @@ COMMENT ON COLUMN public.purchases.fee_captured_at IS
    ACH 則要等到結算後才會有。';
 
 -- 補抓作業要找的就是這些：有 Stripe 交易、但還沒抓到手續費的收款。
+-- 任一個識別碼都算：早期的儲值和游泳評估只記了 checkout session，
+-- 沒記 payment intent，補抓時會先去 Stripe 換一次。
 CREATE INDEX IF NOT EXISTS purchases_fee_pending_idx
   ON public.purchases (paid_at DESC)
-  WHERE fee_captured_at IS NULL AND stripe_payment_intent_id IS NOT NULL;
+  WHERE fee_captured_at IS NULL
+    AND (stripe_payment_intent_id IS NOT NULL OR stripe_session_id IS NOT NULL);
 
 COMMIT;
 
