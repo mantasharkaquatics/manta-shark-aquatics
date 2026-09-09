@@ -50,6 +50,11 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (!partnerBooking) return NextResponse.json({ error: 'Partner booking not found' }, { status: 404 })
+  // Their half has to still exist. Asking a family to confirm a move for a
+  // lesson they already cancelled puts a button on their dashboard that cannot
+  // do anything, and leaves this side pending until it expires.
+  if (partnerBooking.status !== 'confirmed')
+    return NextResponse.json({ error: 'The other family is no longer booked into this lesson, so it cannot be moved. Please cancel and book again.' }, { status: 409 })
 
   // Verify the new session exists
   const { data: newSession } = await supabase

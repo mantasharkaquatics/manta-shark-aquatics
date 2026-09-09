@@ -423,7 +423,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
 
     const { data: curSess } = await svc.from('class_sessions')
-      .select('id, session_date, start_time').in('id', Array.from(excludeSessIds))
+      // coach_id and end_time come along so a half-done move can be undone.
+      .select('id, session_date, start_time, end_time, coach_id').in('id', Array.from(excludeSessIds))
     const ordered = (curSess || []).sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))
     if (ordered.length < 2)
       return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
@@ -445,12 +446,32 @@ export async function POST(req: NextRequest) {
       { id: ordered[0].id, coach_id: coach1_id, start: toT(s1), end: toT(mid) },
       { id: ordered[1].id, coach_id: coach2_id, start: toT(mid), end: toT(e2) },
     ]
+    // Two updates, and the second can still lose a race the checks above just
+    // won. Remember where each half was so a failure halfway can put the moved
+    // one back: an hour split across two times is the one outcome the spec
+    // forbids, and it is worse than a reschedule that simply did not happen.
+    const before = new Map(
+      (curSess || []).map((c: any) => [c.id, { session_date: c.session_date, start_time: c.start_time, end_time: c.end_time, coach_id: c.coach_id }]),
+    )
+    const moved: string[] = []
     for (const h of halves) {
       const { error: uErr } = await svc.from('class_sessions')
         .update({ coach_id: h.coach_id, session_date, start_time: h.start, end_time: h.end })
         .eq('id', h.id)
-      if (uErr)
+      if (uErr) {
+        for (const id of moved) {
+          const was = before.get(id)
+          if (!was) continue
+          const { error: backErr } = await svc.from('class_sessions').update(was).eq('id', id)
+          if (backErr) {
+            console.error(
+              `\u26a0\ufe0f hour reschedule: half ${id} moved but could not be put back after the other half failed. ` +
+              `That lesson is now split across two times \u2014 fix by hand:`, backErr.message)
+          }
+        }
         return NextResponse.json({ error: uErr.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not move the lesson.' }, { status: 409 })
+      }
+      moved.push(h.id)
     }
 
     // Name everyone actually in the lesson, read back from the group rather

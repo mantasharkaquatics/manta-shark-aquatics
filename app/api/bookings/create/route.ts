@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       // points_refunded comes along because the refund below subtracts it:
       // without it a lesson refunded in part would be refunded again in full.
-      .select('id, parent_id, status, points_charged, points_refunded, class_session_id, original_booking_id')
+      .select('id, parent_id, status, points_charged, points_refunded, class_session_id, original_booking_id, partner_booking_id, lesson_group_id')
       .eq('id', reschedule_booking_id).single()
     if (!ob || ob.parent_id !== parent.id)
       return NextResponse.json({ error: 'Booking to reschedule not found' }, { status: 403 })
@@ -190,6 +190,22 @@ export async function POST(req: NextRequest) {
     // moved onto a 1-on-1 (65) and the difference never charged.
     if (oldSess && oldSess.course_type_id !== course.id)
       return NextResponse.json({ error: 'A lesson can only be moved to the same kind of lesson. Please cancel and book again instead.' }, { status: 400 })
+
+    // Two kinds of lesson this route cannot move, because moving them means
+    // touching rows it does not own or does not know about. Both have their own
+    // route, and the booking page already sends them there -- but the booking
+    // page is not the only way in, and a request that arrives here would move
+    // one half and silently orphan the other.
+    //
+    // A cross-account 1-on-2 belongs to two families: the other family has to
+    // agree before their child's lesson moves, which is what
+    // /api/bookings/reschedule-partner and the confirmation that follows exist
+    // for. A 60-minute lesson is two linked rows that /api/bookings/hour moves
+    // in place, keeping their ids, their points and their link to each other.
+    if (ob.partner_booking_id)
+      return NextResponse.json({ error: 'This lesson is shared with another family, so it has to be moved from your dashboard — the other family confirms the new time.' }, { status: 400 })
+    if (ob.lesson_group_id)
+      return NextResponse.json({ error: 'This is a 60-minute lesson and both halves move together. Please reschedule it from your dashboard.' }, { status: 400 })
 
     // Every seat of the old lesson this family paid for. A same-account 1-on-2
     // is ONE lesson spread over two rows sharing a single debit, so both move
