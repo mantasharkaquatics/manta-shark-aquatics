@@ -36,9 +36,8 @@
 
 - [x] `point_ledger` 的 `stripe_session_id` 唯一索引（防重複入點）
 - [x] `docs/migration-ach-reversal.sql`（沖銷理由、負餘額、purchases 沖銷欄位）
-- [ ] `docs/migration-cash-refund.sql`（退款失敗理由、purchases.refunded_cents）
-- [ ] `docs/migration-stripe-fees.sql`（purchases 的手續費欄位），跑完到
-      Finance 頁按一次「Update fees from Stripe」補抓歷史資料
+- [x] `docs/migration-cash-refund.sql`（退款失敗理由、purchases.refunded_cents）
+- [x] `docs/migration-stripe-fees.sql`（purchases 的手續費欄位）+ 歷史資料已補抓
 - [ ] `docs/reset-test-data.sql` —— 清掉所有測試資料。**這是不可逆的，
       務必先在 Database → Backups 備份**
 
