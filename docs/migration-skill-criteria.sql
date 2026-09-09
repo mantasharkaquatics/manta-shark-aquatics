@@ -308,7 +308,7 @@ COMMIT;
 --  WHERE s.is_active AND (s.pass_criteria IS NULL OR btrim(s.pass_criteria) = '')
 --  ORDER BY l.level_number, s.stage, s.sort_order;
 --
--- 全部看一遍（79 列）：
+-- 全部看一遍（跑完應該是 82 列：原本 79 個 + 新增 3 個）：
 -- SELECT l.level_number AS lv, s.stage, s.sort_order, s.name, s.pass_criteria
 --   FROM public.skills s JOIN public.levels l ON l.id = s.level_id
 --  WHERE s.is_active ORDER BY l.level_number, s.stage, s.sort_order;
