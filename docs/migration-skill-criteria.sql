@@ -98,7 +98,8 @@ UPDATE public.skills SET name = 'Dolphin Kick 10 yd 海豚腿 10 碼', pass_crit
 
 -- ---------- Level 4 — Stroke Foundations 泳姿基礎 ----------
 UPDATE public.skills SET name = 'Freestyle 15 yd 自由式 15 碼', pass_criteria = 'Swims 15 yd freestyle, side breathing, arms recovering over the water. 自由式 15 碼，側轉換氣，手臂從水面上方回復。'
-  WHERE id = 'dff814b2-90df-4043-a4e3-dd4e4df64fbe';  -- L4S1.1 was: Freestyle (Basic)
+  WHERE id = 'dff814b2-90df-4043-aeb3-dd4e4df64fbe';  -- L4S1.1 was: Freestyle (Basic)
+UPDATE public.skills SET sort_order = 1 WHERE id = 'dff814b2-90df-4043-aeb3-dd4e4df64fbe';  -- was tied at 2 with Freestyle 25 yd
 UPDATE public.skills SET name = 'Freestyle 25 yd 自由式 25 碼', pass_criteria = 'Swims 25 yd freestyle without stopping, breathing to one side every 2-3 strokes. 自由式 25 碼不停，每 2–3 划固定單邊換氣。'
   WHERE id = '91e61121-5528-456b-9e7d-b97953ed0c39';  -- L4S1.2 was: Freestyle (Advanced)
 UPDATE public.skills SET name = 'Seated and Kneeling Dive', pass_criteria = 'Enters head-first from sitting and then from kneeling, hands leading, without belly-flopping. 坐姿與跪姿入水，雙手先入、頭跟著進，不拍肚子。'
