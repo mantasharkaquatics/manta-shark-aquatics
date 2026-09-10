@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useT } from '@/lib/i18n/provider'
 
 const TABS = [
-  { href: '/coach', label: 'Today' },
-  { href: '/coach/schedule', label: 'Schedule' },
-  { href: '/coach/time-off', label: 'Time Off' },
-  { href: '/coach/progress', label: 'Progress' },
+  { href: '/coach', key: 'coach.nav.today' },
+  { href: '/coach/schedule', key: 'coach.nav.schedule' },
+  { href: '/coach/time-off', key: 'coach.nav.timeOff' },
+  { href: '/coach/progress', key: 'coach.nav.progress' },
 ]
 
 /**
@@ -23,8 +24,9 @@ const TABS = [
  */
 export default function CoachTabs() {
   const pathname = usePathname()
+  const t = useT()
   return (
-    <nav className="flex border-b border-[#1e3a6e]" aria-label="Coach portal">
+    <nav className="flex border-b border-[#1e3a6e]" aria-label={t('coach.nav.aria')}>
       {TABS.map(tab => {
         const active = pathname === tab.href
         return (
@@ -38,7 +40,7 @@ export default function CoachTabs() {
                 : 'border-transparent text-gray-300 hover:text-[#c9a84c]'
             }`}
           >
-            {tab.label}
+            {t(tab.key)}
           </Link>
         )
       })}

@@ -1,4 +1,5 @@
 'use client'
+import { useT } from '@/lib/i18n/provider'
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -29,6 +30,7 @@ export default function LessonNoteCapture({
   studentName, defaultLanguage, disabled, onChange,
 }: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
+  const t = useT()
   const [language, setLanguage] = useState<'zh-Hant' | 'en'>(defaultLanguage)
   const [seconds, setSeconds] = useState(0)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -96,7 +98,7 @@ export default function LessonNoteCapture({
       }, 1000)
       setPhase('recording')
     } catch {
-      setMessage('Could not open the microphone. Check this site has permission.')
+      setMessage(t('coach.note.micDenied'))
       setPhase('error')
     }
   }
@@ -112,7 +114,7 @@ export default function LessonNoteCapture({
   return (
     <div className="bg-[#0d1529] rounded-xl border border-[#1e3a6e] p-4 mb-3">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-gray-500 text-xs uppercase tracking-wider">Lesson Note</p>
+        <p className="text-gray-500 text-xs uppercase tracking-wider">{t('coach.note.title')}</p>
         {phase === 'idle' && (
           <div className="inline-flex rounded-lg overflow-hidden border border-[#1e3a6e]">
             {(['en', 'zh-Hant'] as const).map(l => (
@@ -124,7 +126,7 @@ export default function LessonNoteCapture({
                   language === l ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-transparent text-gray-400'
                 }`}
               >
-                {l === 'en' ? 'English' : 'Chinese'}
+                {l === 'en' ? t('coach.note.langEn') : t('coach.note.langZh')}
               </button>
             ))}
           </div>
@@ -137,7 +139,7 @@ export default function LessonNoteCapture({
           disabled={disabled}
           className="w-full bg-[#c9a84c] hover:opacity-90 disabled:opacity-40 text-[#1a2744] font-semibold py-3 rounded-lg text-sm"
         >
-          ● Record a note for {studentName}
+          {t('coach.note.record', { name: studentName })}
         </button>
       )}
 
@@ -151,7 +153,7 @@ export default function LessonNoteCapture({
             onClick={stop}
             className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg text-sm"
           >
-            ■ Stop
+            {t('coach.note.stop')}
           </button>
         </div>
       )}
@@ -160,13 +162,13 @@ export default function LessonNoteCapture({
         <div className="space-y-2">
           {audioUrl && <audio controls src={audioUrl} className="w-full" />}
           <div className="flex items-center justify-between">
-            <span className="text-green-400 text-xs">✓ Recorded {mmss}</span>
+            <span className="text-green-400 text-xs">{t('coach.note.recorded')} {mmss}</span>
             <button
               onClick={reset}
               disabled={disabled}
               className="text-xs text-gray-400 hover:text-white border border-[#1e3a6e] px-3 py-1.5 rounded-lg disabled:opacity-40"
             >
-              Re-record
+              {t('coach.note.reRecord')}
             </button>
           </div>
         </div>
@@ -179,7 +181,7 @@ export default function LessonNoteCapture({
             onClick={reset}
             className="w-full bg-[#1e3a6e] hover:bg-[#2a4d8f] text-white font-semibold py-2 rounded-lg text-xs"
           >
-            Try again
+            {t('coach.note.tryAgain')}
           </button>
         </div>
       )}

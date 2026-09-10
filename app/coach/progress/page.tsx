@@ -100,7 +100,7 @@ export default async function CoachProgressPage() {
     id: s.id,
     start_time: s.start_time,
     end_time: s.end_time,
-    course_types: { name: courseTypeMap[s.course_type_id] || '' },
+    course_types: { id: s.course_type_id, name: courseTypeMap[s.course_type_id] || '' },
     bookings: bookings
       .filter(b => b.class_session_id === s.id)
       .map(b => ({ id: b.id, lesson_group_id: b.lesson_group_id, students: studentMap[b.student_id] || null }))

@@ -1,11 +1,14 @@
 'use client'
 
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
+
 type Student = { id: string; full_name: string; current_level: string }
 type Booking = { id: string; status: string; students: Student }
 type Session = {
   id: string; session_date: string; start_time: string; end_time: string
   status: string; enrolled_count: number; max_students: number
-  course_types: { name: string; slug: string }; bookings: Booking[]
+  course_types: { id?: string; name: string; slug: string }; bookings: Booking[]
 }
 
 export default function CoachScheduleClient({
@@ -15,15 +18,18 @@ export default function CoachScheduleClient({
   sessions: Session[]
   today: string
 }) {
-  const formatTime = (t: string) => {
-    const [h, m] = t.split(':')
+  const t = useT()
+  const locale = useLocale()
+
+  const formatTime = (time: string) => {
+    const [h, m] = time.split(':')
     const hour = parseInt(h)
     return `${hour > 12 ? hour - 12 : hour === 0 ? 12 : hour}:${m} ${hour >= 12 ? 'PM' : 'AM'}`
   }
 
   const formatDate = (d: string) => {
     const date = new Date(d + 'T12:00:00')
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    return date.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
   const isToday = (d: string) => d === today
@@ -40,13 +46,13 @@ export default function CoachScheduleClient({
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Schedule</h1>
-        <p className="text-gray-400 mt-1">Your upcoming classes for the next 30 days</p>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('coach.schedule.title')}</h1>
+        <p className="text-gray-400 mt-1">{t('coach.schedule.subtitle')}</p>
       </div>
 
       {Object.keys(grouped).length === 0 ? (
         <div className="bg-[#111d38] rounded-xl p-12 text-center border border-[#1e3a6e]">
-          <p className="text-gray-400">No upcoming classes scheduled</p>
+          <p className="text-gray-400">{t('coach.schedule.none')}</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -64,7 +70,9 @@ export default function CoachScheduleClient({
                   <div key={session.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <p className="text-white font-semibold">{session.course_types?.name}</p>
+                        <p className="text-white font-semibold">{session.course_types?.id
+                          ? tDb(locale, 'course_types', session.course_types.id, session.course_types.name)
+                          : session.course_types?.name}</p>
                         <p className="text-[#c9a84c] text-sm mt-0.5">
                           {formatTime(session.start_time)} – {formatTime(session.end_time)}
                         </p>
@@ -74,7 +82,7 @@ export default function CoachScheduleClient({
                           ? 'bg-red-900/30 text-red-400'
                           : 'bg-[#1e3a6e] text-gray-300'
                       }`}>
-                        {activeBookings(session).length}/{session.max_students} students
+                        {t('coach.schedule.seats', { n: activeBookings(session).length, max: session.max_students })}
                       </span>
                     </div>
 
@@ -89,13 +97,13 @@ export default function CoachScheduleClient({
                             </div>
                             <div>
                               <p className="text-white text-sm">{booking.students?.full_name}</p>
-                              <p className="text-gray-500 text-xs">Level {booking.students?.current_level}</p>
+                              <p className="text-gray-500 text-xs">{t('coach.level', { n: booking.students?.current_level ?? '' })}</p>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-gray-500 text-sm">No students booked yet</p>
+                      <p className="text-gray-500 text-sm">{t('coach.schedule.noStudents')}</p>
                     )}
                   </div>
                 ))}

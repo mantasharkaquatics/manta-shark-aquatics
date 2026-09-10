@@ -1,4 +1,5 @@
 'use client'
+import { useT } from '@/lib/i18n/provider'
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,6 +7,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
 export default function CoachLoginPage() {
+  const t = useT()
   const [pin, setPin] = useState(['', '', '', '', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -32,7 +34,7 @@ export default function CoachLoginPage() {
         // The server knows how many tries are left and how long a lock lasts;
         // a hard-coded "please try again" here would have thrown that away and
         // left a locked-out coach retyping the right PIN to no effect.
-        setError(data?.error || 'Incorrect PIN. Please try again.')
+        setError(data?.error || t('coach.login.badPin'))
         setPin(['', '', '', '', '', '', '', ''])
         if (data?.locked) { setLocked(true); return }
         inputs.current[0]?.focus()
@@ -46,7 +48,7 @@ export default function CoachLoginPage() {
       })
 
       if (sessionError) {
-        setError('Login failed. Please try again.')
+        setError(t('coach.login.failed'))
         setPin(['', '', '', '', '', '', '', ''])
         inputs.current[0]?.focus()
         return
@@ -54,7 +56,7 @@ export default function CoachLoginPage() {
 
       router.push('/coach')
     } catch {
-      setError('Connection error. Please try again.')
+      setError(t('coach.login.network'))
     } finally {
       setLoading(false)
     }
@@ -88,9 +90,9 @@ export default function CoachLoginPage() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-10">
           <Image src="/logo.png" alt="Manta Shark" width={72} height={72} className="mb-4" />
-          <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest mb-1">Coach Portal</p>
-          <h1 className="text-white text-2xl font-bold">Coach Login</h1>
-          <p className="text-gray-400 text-sm mt-1">Enter your 8-digit PIN</p>
+          <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest mb-1">{t('coach.portal')}</p>
+          <h1 className="text-white text-2xl font-bold">{t('coach.login.title')}</h1>
+          <p className="text-gray-400 text-sm mt-1">{t('coach.login.prompt')}</p>
         </div>
 
         {/* Eight fixed 40px boxes plus seven 8px gaps is 376px, which does not fit a
@@ -115,11 +117,11 @@ export default function CoachLoginPage() {
         </div>
 
         {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
-        {loading && <p className="text-gray-400 text-sm text-center">Verifying...</p>}
+        {loading && <p className="text-gray-400 text-sm text-center">{t('coach.login.verifying')}</p>}
 
         <div className="mt-8 text-center">
           <a href="/login" className="text-gray-500 text-xs hover:text-gray-300 transition-colors">
-            Sign in with Email
+            {t('coach.login.emailLink')}
           </a>
         </div>
       </div>

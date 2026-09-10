@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
+import { levelNameKey } from '@/lib/levels'
 import { STAGES } from '@/lib/levels'
 
 
@@ -26,7 +29,7 @@ type Session = {
   start_time: string
   end_time: string
   status: string
-  course_types: { name: string; slug: string }
+  course_types: { id?: string; name: string; slug: string }
   bookings: Booking[]
 }
 
@@ -48,6 +51,8 @@ export default function CoachDashboardClient({
   today: string
 }) {
   const supabase = createClient()
+  const t = useT()
+  const locale = useLocale()
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
@@ -158,16 +163,17 @@ export default function CoachDashboardClient({
   }
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
+  const greetKey = hour < 12 ? 'coach.today.greetMorning'
+    : hour < 17 ? 'coach.today.greetAfternoon' : 'coach.today.greetEvening'
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">
-          Good {greeting}, Coach {coach.first_name}
+          {t(greetKey, { name: coach.first_name })}
         </h1>
         <p className="text-gray-400 mt-1">
-          {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })}
+          {new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })}
         </p>
       </div>
 
@@ -175,12 +181,12 @@ export default function CoachDashboardClient({
         {/* Left: Today's Sessions */}
         <div>
           <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider">
-            Today's Classes
+            {t('coach.today.classes')}
           </h2>
 
           {todaySessions.length === 0 ? (
             <div className="bg-[#111d38] rounded-xl p-8 text-center border border-[#1e3a6e]">
-              <p className="text-gray-400">No classes scheduled for today</p>
+              <p className="text-gray-400">{t('coach.today.none')}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -194,11 +200,13 @@ export default function CoachDashboardClient({
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-white font-semibold">{session.course_types?.name}</p>
+                      <p className="text-white font-semibold">{session.course_types?.id
+                        ? tDb(locale, 'course_types', session.course_types.id, session.course_types.name)
+                        : session.course_types?.name}</p>
                       <p className="text-[#c9a84c] text-sm">{formatTime(session.start_time)} – {formatTime(session.end_time)}</p>
                     </div>
                     <span className="bg-[#1e3a6e] text-gray-300 text-xs px-3 py-1 rounded-full">
-                      {activeBookings(session).length} student{activeBookings(session).length !== 1 ? 's' : ''}
+                      {t('coach.today.studentCount', { n: activeBookings(session).length })}
                     </span>
                   </div>
 
@@ -218,9 +226,9 @@ export default function CoachDashboardClient({
                         </div>
                         <div>
                           <p className="text-white text-sm font-medium">{booking.students.full_name}</p>
-                          <p className="text-gray-400 text-xs">Level {booking.students.current_level}</p>
+                          <p className="text-gray-400 text-xs">{t('coach.level', { n: booking.students.current_level })}</p>
                         </div>
-                        <span className="ml-auto text-gray-500 text-xs">View Progress →</span>
+                        <span className="ml-auto text-gray-500 text-xs">{t('coach.today.viewProgress')}</span>
                       </button>
                     ))}
                   </div>
@@ -233,18 +241,18 @@ export default function CoachDashboardClient({
         {/* Right: Lesson note, then Skill Progress */}
         <div>
           <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider flex items-center gap-2 flex-wrap">
-            Skill Progress
-            <span className="text-[10px] font-medium normal-case tracking-normal text-gray-500 bg-white/5 px-2 py-0.5 rounded">view only</span>
+            {t('coach.skillProgress')}
+            <span className="text-[10px] font-medium normal-case tracking-normal text-gray-500 bg-white/5 px-2 py-0.5 rounded">{t('coach.today.readOnly')}</span>
           </h2>
 
           {!selectedStudent ? (
             <div className="bg-[#111d38] rounded-xl p-8 text-center border border-[#1e3a6e]">
               <div className="text-4xl mb-3">👆</div>
-              <p className="text-gray-400">Select a student from today's classes to view and update their skill progress</p>
+              <p className="text-gray-400">{t('coach.today.pickStudent')}</p>
             </div>
           ) : loadingSkills ? (
             <div className="bg-[#111d38] rounded-xl p-8 text-center border border-[#1e3a6e]">
-              <p className="text-gray-400">Loading skills...</p>
+              <p className="text-gray-400">{t('coach.today.loadingSkills')}</p>
             </div>
           ) : (
             <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
@@ -255,13 +263,13 @@ export default function CoachDashboardClient({
                   </div>
                   <div>
                     <p className="text-white font-semibold">{selectedStudent.full_name}</p>
-                    <p className="text-gray-400 text-sm">{levelName || `Level ${selectedStudent.current_level}`}</p>
+                    <p className="text-gray-400 text-sm">{selectedStudent.current_level ? t(levelNameKey(selectedStudent.current_level)) : levelName}</p>
                   </div>
                 </div>
                 {allComplete && (
                   <div className="mt-3 bg-[#c9a84c]/20 border border-[#c9a84c]/50 rounded-lg p-3 flex items-center gap-2">
                     <span>🏆</span>
-                    <p className="text-[#c9a84c] text-sm font-medium">All skills complete! Ready for level upgrade.</p>
+                    <p className="text-[#c9a84c] text-sm font-medium">{t('coach.today.allComplete')}</p>
                   </div>
                 )}
               </div>
@@ -273,7 +281,7 @@ export default function CoachDashboardClient({
                   mouse wheel makes it a convenience rather than a trap. */}
               <div className="p-5 space-y-3 md:max-h-[500px] md:overflow-y-auto">
                 {skills.length === 0 ? (
-                  <p className="text-gray-400 text-sm">No skills found for this level.</p>
+                  <p className="text-gray-400 text-sm">{t('coach.today.noSkills')}</p>
                 ) : STAGES.flatMap(st => {
                   const inStage = skills.filter(k => Number(k.stage || 1) === st)
                   if (inStage.length === 0) return []
@@ -290,19 +298,19 @@ export default function CoachDashboardClient({
                       aria-expanded={expanded}
                       className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${st <= curStage ? '' : 'opacity-40'}`}
                     >
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>Stage {st}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>{t('coach.stage', { n: st })}</span>
                       {isCurrent
-                        ? <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>
+                        ? <span className="text-[10px] text-[#c9a84c] font-semibold">{t('coach.stage.current')}</span>
                         : st < curStage
-                          ? <span className="text-[10px] text-gray-500">{allDone ? '🎊 done' : 'passed'}</span>
-                          : <span className="text-[10px] text-gray-500">🔒 not yet</span>}
+                          ? <span className="text-[10px] text-gray-500">{allDone ? '🎊 ' + t('coach.stage.done') : t('coach.stage.passed')}</span>
+                          : <span className="text-[10px] text-gray-500">🔒 {t('coach.stage.notYet')}</span>}
                       <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
                       <span className="text-[10px] text-gray-500 w-3 text-right">{expanded ? '▴' : '▾'}</span>
                     </button>
                   ), ...(expanded ? inStage : []).map(skill => (
                   <div key={skill.id} className={st <= curStage ? '' : 'opacity-40'}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-300 text-sm">{skill.name}</span>
+                      <span className="text-gray-300 text-sm">{tDb(locale, 'skills', skill.id, skill.name)}</span>
                       <span className={`text-sm font-semibold ${skill.progress === 100 ? 'text-[#c9a84c]' : 'text-gray-400'}`}>
                         {skill.progress}%
                       </span>
@@ -323,8 +331,8 @@ export default function CoachDashboardClient({
                 <div className="p-5 border-t border-[#1e3a6e]">
                   {/* Read-only here on purpose: a lesson report is progress AND a
                       recording together, so it is filled in on one screen only. */}
-                  <p className="text-gray-500 text-xs text-center mb-3">Today&apos;s picture. Record the lesson under Progress.</p>
-                  <a href="/coach/progress" className="block text-center w-full bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold py-3 rounded-lg transition-all">Go to Progress</a>
+                  <p className="text-gray-500 text-xs text-center mb-3">{t('coach.today.footnote')}</p>
+                  <a href="/coach/progress" className="block text-center w-full bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold py-3 rounded-lg transition-all">{t('coach.today.goProgress')}</a>
                 </div>
               )}
             </div>

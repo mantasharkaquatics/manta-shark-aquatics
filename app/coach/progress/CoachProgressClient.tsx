@@ -1,5 +1,7 @@
 'use client'
 import { tDb } from '@/lib/i18n'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { levelNameKey } from '@/lib/levels'
 
 import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 
@@ -30,6 +32,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   completedKeys: string[]
   scheduledToday?: number
 }) {
+  const t = useT()
+  const locale = useLocale()
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null)
   const [studentDataMap, setStudentDataMap] = useState<Record<string, StudentProgress>>({})
   const [localProgressMap, setLocalProgressMap] = useState<Record<string, Record<string, number>>>({})
@@ -84,7 +88,9 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
         start_time: s.start_time || '',
         end_time: s.end_time || '',
         sessionDate: (s as any).session_date || today,
-        courseName: s.course_types?.name || '',
+        courseName: s.course_types?.id
+          ? tDb(locale, 'course_types', s.course_types.id, s.course_types?.name || '')
+          : (s.course_types?.name || ''),
         entryKey,
       })
     }
@@ -142,7 +148,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     const res = await fetch('/api/coach/lesson-note', { method: 'POST', body: form })
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      setErrorMap(prev => ({ ...prev, [entryKey]: j.error || 'Could not send. Please try again.' }))
+      setErrorMap(prev => ({ ...prev, [entryKey]: j.error || t('coach.progress.sendFailed') }))
     }
     if (res.ok) {
       // Mark completed and collapse this card
@@ -181,11 +187,11 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     <div className="max-w-2xl mx-auto">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Progress Entry</h1>
+          <h1 className="text-2xl font-bold text-white">{t('coach.progress.title')}</h1>
           <p className="text-gray-400 text-sm mt-1">
             {today} · {sessionEntries.length === 0 && scheduledToday > 0
-              ? `${scheduledToday} ${scheduledToday === 1 ? 'lesson' : 'lessons'} scheduled`
-              : `${sessionEntries.length} ${sessionEntries.length === 1 ? 'lesson' : 'lessons'} today`}
+              ? t('coach.progress.countScheduled', { n: scheduledToday })
+              : t('coach.progress.countToday', { n: sessionEntries.length })}
           </p>
         </div>
 
@@ -198,13 +204,13 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center">
           {scheduledToday > 0 ? (
             <>
-              <p className="text-gray-300">No students checked in yet</p>
+              <p className="text-gray-300">{t('coach.progress.noCheckins')}</p>
               <p className="text-gray-500 text-sm mt-1.5">
-                You have {scheduledToday} {scheduledToday === 1 ? 'lesson' : 'lessons'} today. Progress can be written once a student is checked in.
+                {t('coach.progress.noCheckinsHint', { n: scheduledToday })}
               </p>
             </>
           ) : (
-            <p className="text-gray-400">No lessons scheduled today</p>
+            <p className="text-gray-400">{t('coach.progress.noLessons')}</p>
           )}
         </div>
       ) : (
@@ -249,15 +255,15 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {/* Completion status */}
                     {isCompleted ? (
-                      <span className="text-xs px-2 py-1 rounded-full bg-green-900/40 text-green-400 font-medium whitespace-nowrap">Completed</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-green-900/40 text-green-400 font-medium whitespace-nowrap">{t('coach.progress.completed')}</span>
                     ) : (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400 whitespace-nowrap">Not filled</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400 whitespace-nowrap">{t('coach.progress.notFilled')}</span>
                     )}
                     {/* Level badge */}
                     {lvl ? (
                       <span className="text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap" style={{ backgroundColor: color + '33', color }}>L{lvl}</span>
                     ) : (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400 whitespace-nowrap">Unassigned</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700/50 text-gray-400 whitespace-nowrap">{t('coach.progress.unassigned')}</span>
                     )}
                     <span className="text-gray-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
                   </div>
@@ -267,26 +273,26 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                 {isExpanded && (
                   <div className="border-t border-[#1e3a6e] p-4">
                     {loading ? (
-                      <div className="text-center text-gray-400 py-6">Loading...</div>
+                      <div className="text-center text-gray-400 py-6">{t('coach.loading')}</div>
                     ) : data ? (
                       <>
                         {/* Unassigned — recommend a level */}
                         {!data.student.level && (
                           <div className="bg-[#0d1529] rounded-xl border border-[#c9a84c]/30 p-4 mb-3">
                             <div className="flex items-center justify-between mb-3">
-                              <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">Recommended Level (sent for admin review)</p>
+                              <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">{t('coach.progress.recTitle')}</p>
                               {recLevel && !showChange && (
                                 <button onClick={() => { setShowChangeMap(prev => ({ ...prev, [s.entryKey]: true })); setRecommendLevelInput(prev => ({ ...prev, [s.entryKey]: recLevel })) }}
                                   disabled={locked}
                                   className="text-xs text-gray-400 hover:text-white border border-[#1e3a6e] px-2 py-1 rounded-lg transition-all disabled:opacity-40">
-                                  Change
+                                  {t('coach.progress.recChange')}
                                 </button>
                               )}
                             </div>
                             {recLevel && !showChange ? (
                               <div className="flex items-center gap-3 py-2">
                                 <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                                <p className="text-green-400 text-sm font-medium">Recommendation submitted: Level {recLevel} · {LEVEL_NAMES[recLevel]}</p>
+                                <p className="text-green-400 text-sm font-medium">{t('coach.progress.recSubmitted', { n: recLevel, name: t(levelNameKey(recLevel)) })}</p>
                               </div>
                             ) : (
                               <>
@@ -312,7 +318,10 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                     disabled={!recInput || recommending || locked}
                                     className={`flex-1 py-2 rounded-lg font-semibold text-xs transition-all ${recInput && !locked ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
                                   >
-                                    {recommending ? 'Submitting...' : showChange ? `Confirm Change to L${recInput}` : recInput ? `Submit: L${recInput} · ${LEVEL_NAMES[recInput]}` : 'Select a level to recommend'}
+                                    {recommending ? t('coach.progress.recSending')
+                                      : showChange ? t('coach.progress.recConfirm', { n: recInput })
+                                      : recInput ? t('coach.progress.recSubmit', { n: recInput, name: t(levelNameKey(recInput)) })
+                                      : t('coach.progress.recPick')}
                                   </button>
                                 </div>
                               </>
@@ -334,7 +343,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                             )}
 
                             <div className="flex justify-between items-center mb-3">
-                              <p className="text-gray-500 text-xs uppercase tracking-wider">Skill Progress</p>
+                              <p className="text-gray-500 text-xs uppercase tracking-wider">{t('coach.skillProgress')}</p>
                               <button
                                 onClick={() => sendReport(s.entryKey, s.studentId, s.sessionId, s.lessonGroupId, s.sessionDate)}
                                 disabled={saving || !hasChanges || !captureMap[s.entryKey] || locked || isCompleted}
@@ -344,12 +353,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   'bg-gray-700 text-gray-500 cursor-not-allowed'
                                 }`}
                               >
-                                {saving ? 'Sending...'
-                                  : isCompleted ? '\u2713 Done for Today'
-                                  : locked ? 'Locked'
-                                  : !hasChanges ? 'Set the skills first'
-                                  : !captureMap[s.entryKey] ? 'Record a note first'
-                                  : 'Send Lesson Report'}
+                                {saving ? t('coach.progress.sending')
+                                  : isCompleted ? t('coach.progress.doneToday')
+                                  : locked ? t('coach.progress.locked')
+                                  : !hasChanges ? t('coach.progress.needSkills')
+                                  : !captureMap[s.entryKey] ? t('coach.progress.needNote')
+                                  : t('coach.progress.send')}
                               </button>
                             </div>
                             {errorMap[s.entryKey] && (
@@ -381,13 +390,13 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${stageOpen ? '' : 'opacity-40'}`}
                                 >
                                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>
-                                    Stage {st}
+                                    {t('coach.stage', { n: st })}
                                   </span>
                                   {isCurrent
-                                    ? <span className="text-[10px] text-[#c9a84c] font-semibold">current</span>
+                                    ? <span className="text-[10px] text-[#c9a84c] font-semibold">{t('coach.stage.current')}</span>
                                     : st < curStage
-                                      ? <span className="text-[10px] text-gray-500">{allDone ? '🎊 done' : 'passed · editable'}</span>
-                                      : <span className="text-[10px] text-gray-500">🔒 finish Stage {curStage} first</span>}
+                                      ? <span className="text-[10px] text-gray-500">{allDone ? '🎊 ' + t('coach.stage.done') : t('coach.stage.passedEditable')}</span>
+                                      : <span className="text-[10px] text-gray-500">🔒 {t('coach.stage.finishFirst', { n: curStage })}</span>}
                                   <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
                                   <span className="text-[10px] text-gray-500 w-3 text-right">{expanded ? '▴' : '▾'}</span>
                                 </button>
@@ -399,12 +408,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 return (
                                   <div key={skill.id} className="bg-[#0d1529] rounded-lg p-3">
                                     <div className="flex items-center justify-between mb-2">
-                                      <span className="text-white text-sm">{tDb('en', 'skills', skill.id, skill.name)}</span>
+                                      <span className="text-white text-sm">{tDb(locale, 'skills', skill.id, skill.name)}</span>
                                       <span className="text-xs font-mono" style={{ color }}>{pct}%</span>
                                     </div>
                                     {skill.pass_criteria && (
                                       <p className="text-[11px] leading-relaxed text-gray-400 mb-2">
-                                        <span className="text-[#c9a84c] font-semibold">100%: </span>{tDb('en', 'skill_criteria', skill.id, skill.pass_criteria)}
+                                        <span className="text-[#c9a84c] font-semibold">{t('coach.criteria')} </span>{tDb(locale, 'skill_criteria', skill.id, skill.pass_criteria)}
                                       </p>
                                     )}
                                     <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useT, useLocale } from '@/lib/i18n/provider'
 
 type TimeOff = { id: string; date: string; reason: string | null; created_at: string; start_time: string | null; end_time: string | null }
 
@@ -15,6 +16,8 @@ export default function CoachTimeOffClient({
   today: string
 }) {
   const supabase = createClient()
+  const t = useT()
+  const locale = useLocale()
   const [timeOffList, setTimeOffList] = useState<TimeOff[]>(initial)
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
@@ -27,7 +30,7 @@ export default function CoachTimeOffClient({
 
   const formatDate = (d: string) => {
     const dt = new Date(d + 'T12:00:00')
-    return dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    return dt.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' })
   }
 
   const fmt12 = (t: string) => {
@@ -38,11 +41,11 @@ export default function CoachTimeOffClient({
   }
 
   const handleSubmit = async () => {
-    if (!date) { setError('Please select a date.'); return }
-    if (date < today) { setError('Cannot request time off for past dates.'); return }
+    if (!date) { setError(t('coach.timeOff.errDate')); return }
+    if (date < today) { setError(t('coach.timeOff.errPast')); return }
     if (!allDay) {
-      if (!startTime || !endTime) { setError('Please select start and end times.'); return }
-      if (startTime >= endTime) { setError('End time must be after start time.'); return }
+      if (!startTime || !endTime) { setError(t('coach.timeOff.errTimes')); return }
+      if (startTime >= endTime) { setError(t('coach.timeOff.errOrder')); return }
     }
     const toM = (t: string) => { const [h, m] = t.slice(0, 5).split(':').map(Number); return h * 60 + m }
     const clash = timeOffList.some(t => {
@@ -50,7 +53,7 @@ export default function CoachTimeOffClient({
       if (allDay || t.start_time == null || t.end_time == null) return true
       return toM(startTime) < toM(t.end_time) && toM(endTime) > toM(t.start_time)
     })
-    if (clash) { setError('This overlaps with your existing time off on this date.'); return }
+    if (clash) { setError(t('coach.timeOff.errClash')); return }
     setSubmitting(true)
     setError('')
     setSuccess('')
@@ -60,7 +63,7 @@ export default function CoachTimeOffClient({
       .select()
       .single()
     if (err) {
-      setError('Failed to submit. Please try again.')
+      setError(t('coach.timeOff.errSend'))
     } else {
       setTimeOffList(prev => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)))
       setDate('')
@@ -68,7 +71,7 @@ export default function CoachTimeOffClient({
       setAllDay(true)
       setStartTime('')
       setEndTime('')
-      setSuccess(`Time off requested for ${formatDate(date)}!`)
+      setSuccess(t('coach.timeOff.done', { date: formatDate(date) }))
     }
     setSubmitting(false)
   }
@@ -81,16 +84,16 @@ export default function CoachTimeOffClient({
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Time Off Requests</h1>
-        <p className="text-gray-400 mt-1">Request days off — admin will be notified</p>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('coach.timeOff.title')}</h1>
+        <p className="text-gray-400 mt-1">{t('coach.timeOff.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6">
-          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">New Request</h2>
+          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">{t('coach.timeOff.newRequest')}</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-gray-400 text-sm mb-2">Date</label>
+              <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.date')}</label>
               <input
                 type="date"
                 value={date}
@@ -107,12 +110,12 @@ export default function CoachTimeOffClient({
                 onChange={e => setAllDay(e.target.checked)}
                 className="w-4 h-4 accent-[#c9a84c]"
               />
-              <label htmlFor="allDay" className="text-gray-400 text-sm select-none">All day</label>
+              <label htmlFor="allDay" className="text-gray-400 text-sm select-none">{t('coach.timeOff.allDay')}</label>
             </div>
             {!allDay && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-400 text-sm mb-2">From</label>
+                  <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.from')}</label>
                   <input
                     type="time"
                     value={startTime}
@@ -121,7 +124,7 @@ export default function CoachTimeOffClient({
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-400 text-sm mb-2">To</label>
+                  <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.to')}</label>
                   <input
                     type="time"
                     value={endTime}
@@ -132,11 +135,11 @@ export default function CoachTimeOffClient({
               </div>
             )}
             <div>
-              <label className="block text-gray-400 text-sm mb-2">Reason <span className="text-gray-600">(optional)</span></label>
+              <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.reason')} <span className="text-gray-600">{t('coach.timeOff.optional')}</span></label>
               <textarea
                 value={reason}
                 onChange={e => setReason(e.target.value)}
-                placeholder="e.g. Family event, Medical appointment..."
+                placeholder={t('coach.timeOff.reasonHint')}
                 rows={3}
                 className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors resize-none placeholder-gray-600"
               />
@@ -148,16 +151,16 @@ export default function CoachTimeOffClient({
               disabled={submitting}
               className="w-full bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] font-semibold py-3 rounded-lg transition-all"
             >
-              {submitting ? 'Submitting...' : 'Request Time Off'}
+              {submitting ? t('coach.timeOff.submitting') : t('coach.timeOff.submit')}
             </button>
           </div>
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">Upcoming Time Off</h2>
+          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">{t('coach.timeOff.upcoming')}</h2>
           {timeOffList.length === 0 ? (
             <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center">
-              <p className="text-gray-400">No upcoming time off scheduled</p>
+              <p className="text-gray-400">{t('coach.timeOff.noneUpcoming')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -165,14 +168,14 @@ export default function CoachTimeOffClient({
                 <div key={item.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4 flex items-center justify-between">
                   <div>
                     <p className="text-white font-medium">{formatDate(item.date)}</p>
-                    <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : 'All day'}</p>
+                    <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</p>
                     {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
                   </div>
                   <button
                     onClick={() => handleDelete(item.id)}
                     className="text-gray-500 hover:text-red-400 transition-colors text-sm ml-4 flex-shrink-0"
                   >
-                    Cancel
+                    {t('coach.cancel')}
                   </button>
                 </div>
               ))}

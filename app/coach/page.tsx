@@ -55,7 +55,7 @@ export default async function CoachDashboardPage() {
     .from('class_sessions')
     .select(`
       id, session_date, start_time, end_time, status,
-      course_types(name, slug),
+      course_types(id, name, slug),
       bookings!class_session_id(
         id, status, lesson_group_id,
         students(id, full_name, current_level, current_stage, profile_photo_url)

@@ -56,7 +56,10 @@ export function clearExplicitLocale() {
   document.cookie = LOCALE_EXPLICIT_COOKIE + '=; path=/; max-age=0; samesite=lax';
 }
 
-export function LocaleProvider({ locale, children }: { locale?: Locale; children: ReactNode }) {
+export function LocaleProvider(
+  { locale, persist = true, children }:
+  { locale?: Locale; persist?: boolean; children: ReactNode }
+) {
   const [detected, setDetected] = useState<Locale>(locale ?? DEFAULT_LOCALE);
   const pathname = usePathname();
 
@@ -82,14 +85,19 @@ export function LocaleProvider({ locale, children }: { locale?: Locale; children
   // cookie is unset. Persist the URL's locale, otherwise the first click onto a
   // page with no localised route (legal pages, /login, /booking, the dashboard)
   // silently drops them back to English.
+  //
+  // persist={false} is for a surface that carries its own language rather than
+  // the site's -- the coach portal, whose locale comes from the coach's account.
+  // Writing the site cookie there would switch the public site under a coach who
+  // is also a parent, which is not what choosing a portal language means.
   useEffect(() => {
-    if (locale) rememberLocale(locale);
-  }, [locale]);
+    if (locale && persist) rememberLocale(locale);
+  }, [locale, persist]);
 
   const setLocale = useCallback((next: Locale) => {
-    rememberLocale(next);
+    if (persist) rememberLocale(next);
     setDetected(next);
-  }, []);
+  }, [persist]);
 
   const value = useMemo(
     () => ({ locale: active, t: getT(active), setLocale }),

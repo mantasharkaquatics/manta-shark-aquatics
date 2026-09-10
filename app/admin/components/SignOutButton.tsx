@@ -2,7 +2,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-export default function SignOutButton() {
+export default function SignOutButton({ label }: { label?: string } = {}) {
   const supabase = createClient()
   const router = useRouter()
 
@@ -17,7 +17,7 @@ export default function SignOutButton() {
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
         <path d="m16 17 5-5-5-5M21 12H9" />
       </svg>
-      <span>Sign Out</span>
+      <span>{label ?? 'Sign Out'}</span>
     </button>
   )
 }

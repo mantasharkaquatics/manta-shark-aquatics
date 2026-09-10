@@ -57,7 +57,7 @@ export default async function CoachSchedulePage() {
     .from('class_sessions')
     .select(`
       id, session_date, start_time, end_time, status, enrolled_count, max_students,
-      course_types(name, slug),
+      course_types(id, name, slug),
       bookings!class_session_id(id, status, lesson_group_id, students(id, full_name, current_level))
     `)
     .eq('coach_id', coach.id)
