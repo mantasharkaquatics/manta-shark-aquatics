@@ -382,6 +382,7 @@
   "dash.resModal.title": "Change this booking?",
   "dash.showAllRecords": "Show all {n} records",
   "dash.showMoreDays": "Show {n} more days",
+  "dash.skillTree": "Skill tree",
   "dash.stageCompletion": "Stage progress",
   "dash.stageN": "Stage {n}",
   "dash.status.cancelled": "Canceled",
@@ -1006,5 +1007,18 @@
   "team.showInvoices": "Show {n} invoices",
   "team.showSchedule": "Show practice schedule",
   "team.title": "Swim Team",
-  "team.unlimited": "unlimited practices"
+  "team.unlimited": "unlimited practices",
+  "tree.criteria": "What counts as 100%",
+  "tree.levelMeta": "{n} skills",
+  "tree.loadFailed": "The curriculum could not be loaded. Please try again.",
+  "tree.noCriteria": "No pass standard recorded for this skill yet.",
+  "tree.stat.level": "Current level",
+  "tree.stat.lit": "Skills passed",
+  "tree.stat.overall": "Whole programme",
+  "tree.stat.stage": "Current stage",
+  "tree.state.active": "In progress",
+  "tree.state.done": "Passed",
+  "tree.state.locked": "Unlocks at this level",
+  "tree.state.open": "Not started",
+  "tree.title": "Skill Tree"
 }

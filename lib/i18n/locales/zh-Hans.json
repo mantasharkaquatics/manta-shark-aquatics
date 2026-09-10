@@ -382,6 +382,7 @@
   "dash.resModal.title": "要更改这笔预约吗？",
   "dash.showAllRecords": "显示全部 {n} 笔记录",
   "dash.showMoreDays": "再显示 {n} 天",
+  "dash.skillTree": "技能树",
   "dash.stageCompletion": "本阶段完成度",
   "dash.stageN": "阶段 {n}",
   "dash.status.cancelled": "已取消",
@@ -1006,5 +1007,18 @@
   "team.showInvoices": "显示 {n} 张账单",
   "team.showSchedule": "显示练习时段",
   "team.title": "泳队",
-  "team.unlimited": "无限次练习"
+  "team.unlimited": "无限次练习",
+  "tree.criteria": "通过标准（100%）",
+  "tree.levelMeta": "{n} 个技能",
+  "tree.loadFailed": "课程内容载入失败，请再试一次。",
+  "tree.noCriteria": "这个技能还没有登录通过标准。",
+  "tree.stat.level": "目前级别",
+  "tree.stat.lit": "已通过技能",
+  "tree.stat.overall": "全课程完成",
+  "tree.stat.stage": "目前阶段",
+  "tree.state.active": "进行中",
+  "tree.state.done": "已通过",
+  "tree.state.locked": "升到这一级才会开始",
+  "tree.state.open": "尚未开始",
+  "tree.title": "技能树"
 }

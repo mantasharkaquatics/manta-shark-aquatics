@@ -382,6 +382,7 @@
   "dash.resModal.title": "要更改這筆預約嗎？",
   "dash.showAllRecords": "顯示全部 {n} 筆紀錄",
   "dash.showMoreDays": "再顯示 {n} 天",
+  "dash.skillTree": "技能樹",
   "dash.stageCompletion": "本階段完成度",
   "dash.stageN": "階段 {n}",
   "dash.status.cancelled": "已取消",
@@ -1006,5 +1007,18 @@
   "team.showInvoices": "顯示 {n} 張帳單",
   "team.showSchedule": "顯示練習時段",
   "team.title": "泳隊",
-  "team.unlimited": "無限次練習"
+  "team.unlimited": "無限次練習",
+  "tree.criteria": "通過標準（100%）",
+  "tree.levelMeta": "{n} 個技能",
+  "tree.loadFailed": "課程內容載入失敗，請再試一次。",
+  "tree.noCriteria": "這個技能還沒有登錄通過標準。",
+  "tree.stat.level": "目前級別",
+  "tree.stat.lit": "已通過技能",
+  "tree.stat.overall": "全課程完成",
+  "tree.stat.stage": "目前階段",
+  "tree.state.active": "進行中",
+  "tree.state.done": "已通過",
+  "tree.state.locked": "升到這一級才會開始",
+  "tree.state.open": "尚未開始",
+  "tree.title": "技能樹"
 }

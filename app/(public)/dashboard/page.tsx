@@ -15,6 +15,7 @@ import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
+import SkillTree from './SkillTree'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -749,6 +750,9 @@ export default function DashboardPage() {
   // Which stage a family has opened on a student's card, keyed by student id.
   const [openStageMap, setOpenStageMap] = useState<Record<string, number>>({})
   const [expandedProgress, setExpandedProgress] = useState<Set<string>>(new Set())
+  /* The tree is a whole-curriculum view, so it opens over the page rather than
+     inside a 280px card. One at a time: it is a reading surface, not a panel. */
+  const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
   const [progressPage, setProgressPage] = useState<Record<string, number>>({})
   const [expandedRecord, setExpandedRecord] = useState<Record<string, string | null>>({})
   // An hour invitation arrives as two rows (one per half). Show ONE card
@@ -1632,6 +1636,26 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
+                        {/* the same progress, but against the whole road ahead */}
+                        <button
+                          className="tap-auto"
+                          onClick={() => setTreeFor({
+                            name: student.full_name,
+                            level: lvl,
+                            stage: curStage,
+                            percents: Object.fromEntries(prog.stageSkills.map(k => [k.skill_id, k.percent])),
+                          })}
+                          style={{
+                            width: '100%', marginTop: '12px', padding: '9px 12px', borderRadius: '9px',
+                            border: `1px solid ${GOLD}55`, background: `${GOLD}14`, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            fontSize: '12px', fontWeight: 700, color: GOLD,
+                          }}
+                        >
+                          <span>🌊 {t('dash.skillTree')}</span>
+                          <span style={{ fontSize: '11px' }}>›</span>
+                        </button>
+
                         {/* the lesson-by-lesson record still lives underneath */}
                         <button
                           className="tap-auto"
@@ -2507,6 +2531,15 @@ export default function DashboardPage() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
       <style>{MOBILE_CSS}</style>
       {parent && <ChatWidget parentId={parent.id} />}
+      {treeFor && (
+        <SkillTree
+          studentName={treeFor.name}
+          currentLevel={treeFor.level}
+          currentStage={treeFor.stage}
+          percentBySkillId={treeFor.percents}
+          onClose={() => setTreeFor(null)}
+        />
+      )}
     </div>
   )
 }
