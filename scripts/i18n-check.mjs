@@ -6,6 +6,7 @@ const DIR = 'lib/i18n/locales';
 
 const TABLES = {
   skills: { table: 'skills', column: 'name' },
+  skill_criteria: { table: 'skills', column: 'pass_criteria' },
   course_types: { table: 'course_types', column: 'name' },
   team_tiers: { table: 'team_tiers', column: 'name' },
 };

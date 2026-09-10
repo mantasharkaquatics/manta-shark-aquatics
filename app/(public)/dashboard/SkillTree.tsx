@@ -421,7 +421,7 @@ export default function SkillTree({ studentName, currentLevel, currentStage, per
               {t('tree.criteria')}
             </div>
             <p style={{ margin: 0, fontSize: '13.5px', lineHeight: 1.75, color: sel.criteria ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)' }}>
-              {sel.criteria || t('tree.noCriteria')}
+              {sel.criteria ? tDb(locale, 'skill_criteria', sel.id, sel.criteria) : t('tree.noCriteria')}
             </p>
           </div>
         </aside>

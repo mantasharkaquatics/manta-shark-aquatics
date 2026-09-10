@@ -1,4 +1,5 @@
 'use client'
+import { tDb } from '@/lib/i18n'
 
 import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 
@@ -398,12 +399,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 return (
                                   <div key={skill.id} className="bg-[#0d1529] rounded-lg p-3">
                                     <div className="flex items-center justify-between mb-2">
-                                      <span className="text-white text-sm">{skill.name}</span>
+                                      <span className="text-white text-sm">{tDb('en', 'skills', skill.id, skill.name)}</span>
                                       <span className="text-xs font-mono" style={{ color }}>{pct}%</span>
                                     </div>
                                     {skill.pass_criteria && (
                                       <p className="text-[11px] leading-relaxed text-gray-400 mb-2">
-                                        <span className="text-[#c9a84c] font-semibold">100%：</span>{skill.pass_criteria}
+                                        <span className="text-[#c9a84c] font-semibold">100%: </span>{tDb('en', 'skill_criteria', skill.id, skill.pass_criteria)}
                                       </p>
                                     )}
                                     <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
