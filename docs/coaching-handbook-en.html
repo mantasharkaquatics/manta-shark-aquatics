@@ -1,0 +1,431 @@
+<title>Manta Shark Coaching Handbook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#f2f5fa; --surface:#fff; --raised:#e9eef6; --line:#cfd8e8; --hair:#e3e9f2;
+  --ink:#141d33; --soft:#48546f; --faint:#78849c;
+  --gold:#8f7420; --gold-bg:#f5efdc;
+  --pass:#1f7a4d; --pass-bg:#e6f4ec; --err:#b5432f; --err-bg:#fbeae6;
+  --lv1:#c2412f; --lv2:#b96a1c; --lv3:#9c7a12; --lv4:#2f7d4e; --lv5:#2f6f9c; --lv6:#634790; --lv7:#9a7d24;
+  --shadow:0 1px 2px rgba(20,29,51,.05),0 6px 20px rgba(20,29,51,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0c1424; --surface:#101c33; --raised:#18253f; --line:#243352; --hair:#1c2a45;
+  --ink:#e8eef9; --soft:#a6b3cb; --faint:#6f7d99;
+  --gold:#c9a84c; --gold-bg:#282211;
+  --pass:#7fd8a0; --pass-bg:#112c1d; --err:#f0917f; --err-bg:#331817;
+  --lv1:#e05a4a; --lv2:#e8883a; --lv3:#d4a825; --lv4:#4caf72; --lv5:#4a90c4; --lv6:#9d7fd0; --lv7:#c9a84c;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.25);
+}}
+:root[data-theme="dark"]{
+  --ground:#0c1424; --surface:#101c33; --raised:#18253f; --line:#243352; --hair:#1c2a45;
+  --ink:#e8eef9; --soft:#a6b3cb; --faint:#6f7d99;
+  --gold:#c9a84c; --gold-bg:#282211;
+  --pass:#7fd8a0; --pass-bg:#112c1d; --err:#f0917f; --err-bg:#331817;
+  --lv1:#e05a4a; --lv2:#e8883a; --lv3:#d4a825; --lv4:#4caf72; --lv5:#4a90c4; --lv6:#9d7fd0; --lv7:#c9a84c;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:'DM Sans',system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;
+  font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:44px 20px 90px}
+h1,h2,h3{text-wrap:balance}
+h1{font-family:'Playfair Display',Georgia,serif;font-weight:900;
+  font-size:clamp(28px,5vw,42px);line-height:1.1;margin:8px 0 12px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--gold)}
+.stand{font-size:17px;color:var(--soft);max-width:60ch;margin:0}
+.meta{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);display:flex;
+  flex-wrap:wrap;gap:6px 24px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--faint)}
+.meta b{color:var(--soft);font-weight:600}
+h2{font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;
+  line-height:1.25;margin:0}
+h2 .zh{font-family:'DM Sans',sans-serif;font-size:16px;font-weight:500;color:var(--soft);margin-left:12px}
+h3{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 14px}
+p{margin:0 0 14px;max-width:66ch}
+code{font-family:'IBM Plex Mono',monospace;font-size:.875em;background:var(--raised);
+  padding:1px 5px;border-radius:4px;border:1px solid var(--hair)}
+section{margin-top:56px}
+
+/* ---- the scoring ladder: the page's thesis ---- */
+.ladder{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.rung{display:grid;grid-template-columns:76px 1fr;gap:18px;align-items:baseline;
+  background:var(--surface);padding:14px 18px}
+.rv{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:19px;
+  font-variant-numeric:tabular-nums;text-align:right;color:var(--faint)}
+.rung[data-v="100"] .rv{color:var(--pass)}
+.rung[data-v="100"]{background:var(--pass-bg)}
+.rt b{display:block;font-size:15.5px}
+.rt span{display:block;font-size:13.5px;color:var(--soft);line-height:1.6}
+
+/* ---- rules ---- */
+.rules{list-style:none;padding:0;margin:0;display:grid;gap:0}
+.rules li{padding:13px 0 13px 26px;border-bottom:1px solid var(--hair);position:relative;
+  color:var(--soft);font-size:14.5px;line-height:1.7}
+.rules li:last-child{border-bottom:none}
+.rules li::before{content:"→";position:absolute;left:0;top:13px;color:var(--gold);font-weight:700}
+.rules b{color:var(--ink)}
+
+/* ---- level nav ---- */
+.nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;margin-top:26px}
+.nav a{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:9px;
+  text-decoration:none;background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--lc)}
+.nav a b{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--lc);letter-spacing:.06em}
+.nav a span{font-size:13.5px;color:var(--ink)}
+.nav a:hover{background:var(--raised)}
+
+/* ---- level block ---- */
+.lv-h{border-left:4px solid var(--lc);padding-left:16px}
+.lv-num{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lc);font-weight:600}
+.lv-intro{margin:8px 0 0;color:var(--soft);font-size:14.5px}
+.plan{margin:20px 0 8px;overflow-x:auto}
+.plan table{border-collapse:collapse;width:100%;min-width:440px;font-size:14.5px}
+.plan th,.plan td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--hair)}
+.plan thead th{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--faint);border-bottom:1px solid var(--line)}
+.plan .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.plan tbody tr:last-child td{border-bottom:none}
+.plan caption{caption-side:bottom;text-align:left;padding-top:9px;font-size:12.5px;color:var(--faint)}
+.plan caption b{color:var(--lc)}
+
+.stage{margin-top:22px}
+.stage-h{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.sn{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 9px;border-radius:20px;color:var(--lc);
+  border:1px solid var(--lc)}
+.sc{font-size:12.5px;color:var(--faint)}
+.skills{display:grid;gap:10px}
+.skill{background:var(--surface);border:1px solid var(--hair);border-left:3px solid var(--lc);
+  border-radius:0 10px 10px 0;padding:14px 18px}
+.skill h4{margin:0 0 10px;font-size:15.5px;font-weight:700;line-height:1.4}
+.skill dl{margin:0;display:grid;gap:7px}
+.f{display:grid;grid-template-columns:74px 1fr;gap:4px 14px;align-items:baseline}
+.f dt{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--faint);white-space:nowrap}
+.f dd{margin:0;font-size:14px;color:var(--soft);line-height:1.7}
+.f.pass dt{color:var(--pass)}
+.f.pass dd{color:var(--ink)}
+.f.err dt{color:var(--err)}
+@media(max-width:560px){.f{grid-template-columns:1fr}.rung{grid-template-columns:52px 1fr;gap:12px}}
+
+.note{border:1px solid var(--line);border-left:3px solid var(--gold);background:var(--surface);
+  border-radius:0 10px 10px 0;padding:16px 20px;margin-top:22px}
+.note p:last-child{margin-bottom:0}
+a{color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:3px}
+</style>
+
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Manta Shark Aquatics</span>
+  <h1>Coaching Handbook</h1>
+  <p class="stand">Seven levels, three stages each, 82 skills, from never having been in water to four race-legal strokes. Every skill says three things: what counts as passed, what to teach this lesson, and where swimmers get stuck.</p>
+  <div class="meta">
+    <span><b>Version</b> 2026-09-11</span>
+    <span><b>Skills</b> 82</span>
+    <span><b>Beginner to Level 7</b> 133–162</span>
+    <span><b>Units</b> yards</span>
+  </div>
+</header>
+
+<section>
+<h3>Read this first</h3>
+  <h2 style="margin-bottom:14px">What 0 to 100 means</h2>
+  <p>This is the most important page in the handbook. The six buttons a coach taps in the app mean <strong>the same thing school-wide</strong> &mdash; otherwise coach A's 60% and coach B's 60% are not the same thing, and the percentage a parent sees means nothing.</p>
+  <div class="ladder"><div class="rung" data-v="0"><div class="rv">0</div><div class="rt"><b>Not taught, not assessed</b><span>The skill was not worked on this lesson. Leave it where it is.</span></div></div><div class="rung" data-v="20"><div class="rv">20</div><div class="rt"><b>Shown it, cannot do it</b><span>They understand what is being asked. The body cannot do it yet.</span></div></div><div class="rung" data-v="40"><div class="rv">40</div><div class="rt"><b>Can do it with heavy help</b><span>Your hands are still on them, or they are on a float the whole way.</span></div></div><div class="rung" data-v="60"><div class="rv">60</div><div class="rt"><b>Can do it with light help or a cue</b><span>An occasional hand, or a spoken reminder to get it right.</span></div></div><div class="rung" data-v="80"><div class="rv">80</div><div class="rt"><b>Unaided, but not consistent or not to standard</b><span>Managed it today, may not tomorrow; or did it right but short of the distance or time.</span></div></div><div class="rung" data-v="100"><div class="rv">100</div><div class="rt"><b>Unaided, consistent, and meets the pass standard</b><span>No cue needed, did it last lesson too, and meets what the pass standard says.</span></div></div></div>
+  <div class="note">
+    <p><strong>How the percentage is worked out.</strong> A stage's percentage is the average of its skills. So taking one skill from 0 to 100 moves the parent's progress bar exactly as far as nudging five skills up by 20 &mdash; but the first means something was actually learnt, and the second means everything was touched once. <strong>Take one skill to 100 rather than leaving five at 40.</strong></p>
+    <p style="margin-bottom:0">A stage is complete only when <strong>every skill in it reads 100</strong>, and all three stages must be complete before a level-up. The level-up is pressed by an administrator; it does not happen on its own.</p>
+  </div></section>
+
+<section>
+<h3>Every lesson</h3>
+  <h2 style="margin-bottom:14px">How to teach it, how to record it</h2>
+  <ul class="rules">
+    <li><b>Only move the skills you actually worked on today.</b> Leave the rest where they are. Nudging a whole stage up one notch because it feels about right is the fastest way to turn the record into waste paper.</li>
+    <li><b>One notch at a time.</b> Jumping 40 straight to 100 means the two lessons in between were never written down, and the parent cannot see how their child got there.</li>
+    <li><b>100 takes two lessons.</b> Unprompted today <strong>and</strong> unprompted last lesson. Once is 80.</li>
+    <li><b>Two or three skills per lesson.</b> In thirty minutes, working five skills means none of them were worked.</li>
+    <li><b>Teach the stages in order.</b> The app will not let you fill in stage 2 before stage 1 is finished. That is deliberate, not broken.</li>
+    <li><b>Go backwards when they are stuck.</b> Stuck on the whip kick? Go back to driving the dolphin kick from the hip. Stuck on breathing? Go back to blowing bubbles. Dropping back a step is not losing ground; pushing on regardless is.</li>
+    <li><b>The pass standard is beside the button.</b> When you are unsure what to give, read that line rather than going on impression.</li>
+  </ul>
+  <div class="note" style="border-left-color:var(--err)">
+    <p style="margin-bottom:0"><strong>Breath-holding: three rules that are never bent.</strong> The Red Cross writes <em>without hyperventilating</em> after its underwater swimming item, because <strong>holding the breath after hyperventilating causes shallow-water blackout, and a person loses consciousness without struggling</strong> &mdash; usually with nobody noticing. So: <strong>one, never allow repeated deep breaths before going under. Two, never run a breath-holding contest of any kind, including between swimmers. Three, if anyone reports dizziness, tingling or feeling unwell, the underwater work ends for that lesson.</strong> This curriculum has three underwater items (L4 underwater kicking, L5 breath holding 15 sec, L6 underwater dolphin kick) and all three are covered by this.</p>
+  </div></section>
+
+<section>
+<h3>Seven levels</h3>
+  <h2>From never in the water to four race-legal strokes</h2>
+  <p style="margin-top:12px">Lesson counts are <strong>estimates, not promises</strong>. Within the same level a child swimming twice a week gets through it more than twice as fast as one swimming once &mdash; the gap is shorter, so less is forgotten. Give parents a range, never a single number.</p>
+  
+  <nav class="nav"><a href="#L1" style="--lc:var(--lv1)"><b>L1</b><span>Water Discovery</span></a>
+<a href="#L2" style="--lc:var(--lv2)"><b>L2</b><span>Water Confidence</span></a>
+<a href="#L3" style="--lc:var(--lv3)"><b>L3</b><span>Independent Movement</span></a>
+<a href="#L4" style="--lc:var(--lv4)"><b>L4</b><span>Stroke Foundations</span></a>
+<a href="#L5" style="--lc:var(--lv5)"><b>L5</b><span>Stroke Development</span></a>
+<a href="#L6" style="--lc:var(--lv6)"><b>L6</b><span>Four Strokes</span></a>
+<a href="#L7" style="--lc:var(--lv7)"><b>L7</b><span>Competitive Swimming</span></a></nav>
+</section>
+
+<section class="lv" id="L1" style="--lc:var(--lv1)">
+  <header class="lv-h">
+    <div class="lv-num">Level 1</div>
+    <h2>Water Discovery</h2>
+    <p class="lv-intro">A child who has never been in water, from "there are rules near the pool" to "my face goes in and my body floats". This level teaches safety and trust, not swimming.</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>About <b>11–14</b> thirty-minute lessons for the level</caption>
+      <thead><tr><th>Stage</th><th class="num">Lessons</th><th>What this stage is for</th></tr></thead>
+      <tbody><tr><td>Stage 1</td><td class="num">3–4</td><td>Pool-deck rules and getting out unaided</td></tr><tr><td>Stage 2</td><td class="num">4–5</td><td>Face in the water, blowing bubbles</td></tr><tr><td>Stage 3</td><td class="num">4–5</td><td>Floating, and standing up from a float</td></tr></tbody>
+    </table>
+  </div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 1</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Safe Entry and Recognition</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Walks to the edge, waits for the coach, enters feet-first without being asked twice.</dd></div><div class="f"><dt>How to teach it</dt><dd>The first lesson is not about swimming, it is about there being rules at the water's edge. Every time: walk to the spot, look at you, wait for the word, then go in.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>An adult in a hurry lifts the child straight in. Skip the waiting once and you rebuild it every lesson afterwards.</dd></div></dl></article>
+<article class="skill"><h4>Safe Exit</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Climbs out unaided using the ladder or the wall, on their own.</dd></div><div class="f"><dt>How to teach it</dt><dd>Getting out matters as much as getting in — it is the only way back if they fall. Both hands gripped before they push.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>The coach reflexively hauls them out, and the child never learns to climb out at all.</dd></div></dl></article>
+<article class="skill"><h4>Wall Grasping</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Holds the wall unaided and moves along it 5 yd hand-over-hand.</dd></div><div class="f"><dt>How to teach it</dt><dd>Fingers hooked over the lip of the wall, not a flat palm pressing. Moving along, the new hand grips before the old one lets go.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Both hands off at once to change grip. Ask for one hand on the wall at all times.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 2</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Water Walking</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Walks 10 yd in chest-deep water, upright, without holding anything.</dd></div><div class="f"><dt>How to teach it</dt><dd>Let them walk themselves. When they get nervous your hand goes on their back, not in their hand. Stretch the distance gradually.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Walking ten yards hand in hand — that is you walking, not them.</dd></div></dl></article>
+<article class="skill"><h4>Underwater Bubble Blowing</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Face in the water, blows bubbles from the mouth for 5 seconds without lifting the head.</dd></div><div class="f"><dt>How to teach it</dt><dd>Blow at the surface from the deck first, then mouth in, then nose. Out through the mouth, never in through the nose.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Holding the breath, dipping the face and lifting it straight back out. That is breath holding, not blowing out, and breathing will choke them later.</dd></div></dl></article>
+<article class="skill"><h4>Flutter Kick on Deck</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Sitting on the edge, kicks from the hip with straight legs and pointed toes for 20 seconds.</dd></div><div class="f"><dt>How to teach it</dt><dd>Sitting on the edge so they can watch their own legs. Legs like sticks, toes pressed down.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Bent knees, pedalling a bicycle. A light hand on the knee shows them the drive comes from the hip, not the knee.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 3</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Assisted Floating</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Floats on the back for 5 seconds with the coach supporting one hand only.</dd></div><div class="f"><dt>How to teach it</dt><dd>Support under the shoulder blades, not under the head. Take the support away a little at a time so they discover the water holds them up.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Holding the head. Once the head is held they never learn to relax back.</dd></div></dl></article>
+<article class="skill"><h4>Float-to-Stand Transition</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>From a front or back float, gets both feet under the body and stands up unaided.</dd></div><div class="f"><dt>How to teach it</dt><dd>This is a safety skill and matters more than the float itself. Knees to the chest, feet down, head up last.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Head first, then standing — lift the head and the body sinks, they swallow water and start fearing the float.</dd></div></dl></article>
+<article class="skill"><h4>Superman Glide</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Pushes off the wall and glides face-down 5 yd, arms extended, no kicking.</dd></div><div class="f"><dt>How to teach it</dt><dd>Arms squeezing the ears, chin tucked, feet together. Nothing happens during the glide: let them feel the water carrying them.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Lifting the head to look ahead. The head comes up, the hips drop, and the glide stops.</dd></div></dl></article>
+</div></div>
+</section>
+
+<section class="lv" id="L2" style="--lc:var(--lv2)">
+  <header class="lv-h">
+    <div class="lv-num">Level 2</div>
+    <h2>Water Confidence</h2>
+    <p class="lv-intro">Floating comes first, then moving. Kicking, rolling, the first crossings of deep water. The word for this level is relax &mdash; the harder they try, the more they sink.</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>About <b>13–15</b> thirty-minute lessons for the level</caption>
+      <thead><tr><th>Stage</th><th class="num">Lessons</th><th>What this stage is for</th></tr></thead>
+      <tbody><tr><td>Stage 1</td><td class="num">4</td><td>Kicking forward on the front and on the back</td></tr><tr><td>Stage 2</td><td class="num">4–5</td><td>Rolling the body, finding a breathing rhythm</td></tr><tr><td>Stage 3</td><td class="num">5–6</td><td>Calm in deep water: floating and sculling</td></tr></tbody>
+    </table>
+  </div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 1</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle Kick 10 yd (Board)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 10 yd on a board, face in the water, legs long and from the hip.</dd></div><div class="f"><dt>How to teach it</dt><dd>Hold the front edge of the board, arms straight, face in. Small fast kick with the splash staying under the surface.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Big slow kicks with bent knees. Ask for heels that barely break the surface.</dd></div></dl></article>
+<article class="skill"><h4>Backstroke Kick 10 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 10 yd on the back, ears in the water, hips at the surface.</dd></div><div class="f"><dt>How to teach it</dt><dd>Ears in the water, stomach pushed up. Eyes on one fixed point on the ceiling.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Kicking while sitting — hips sunk. A hand under the hips, lifting once, shows them where they should be.</dd></div></dl></article>
+<article class="skill"><h4>Push-Off Float</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Pushes off the wall into a front float and holds it 5 seconds before standing.</dd></div><div class="f"><dt>How to teach it</dt><dd>Joins the push-off to the float. Every start and turn later is built on this.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Struggling the moment they leave the wall. Ask for nothing at all until they have counted to five.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 2</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>BBQ Roll (Body Rotation)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>While kicking, rolls from front to side to back and back again without stopping.</dd></div><div class="f"><dt>How to teach it</dt><dd>BBQ as in meat turning on a spit. The kick never stops; only the body rotates.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>The legs stop during the roll. Keep saying: the legs are not allowed to stop.</dd></div></dl></article>
+<article class="skill"><h4>Bubble Jumps (Chest Deep)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Ten jumps in chest-deep water: submerge, blow out, surface, repeat rhythmically.</dd></div><div class="f"><dt>How to teach it</dt><dd>Build the rhythm: out on the way down, in on the way up. Ten without a break matters more than ten that look pretty.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Breathing in underwater. Practise the phrase in shallow water first: down and out, up and in.</dd></div></dl></article>
+<article class="skill"><h4>Breath Holding 5 sec</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Fully submerged, eyes open, holds 5 seconds and surfaces calmly.</dd></div><div class="f"><dt>How to teach it</dt><dd>Eyes open is the point. Breath holding with the eyes shut is worthless, because in a real fall they need to see.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Pinching the nose with the fingers. They need to learn to keep water out with a gentle breath out through the nose.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 3</span><span class="sc">4 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Object Retrieval</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Retrieves an object from the bottom in chest-deep water, first try.</dd></div><div class="f"><dt>How to teach it</dt><dd>Their first time looking for something underwater with their eyes open. Put it where they can see it; do not make it hard.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Repeating a failed dive again and again costs them confidence. Put it shallower instead.</dd></div></dl></article>
+<article class="skill"><h4>Starfish Float 10 sec</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Back float, arms and legs spread, 10 seconds unaided and unmoving.</dd></div><div class="f"><dt>How to teach it</dt><dd>Relaxing is the whole technique. Tell them: the harder you try, the more you sink. Arms and legs spread like a starfish.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Arching the back with effort. A light press on the stomach lets them relax.</dd></div></dl></article>
+<article class="skill"><h4>Bubble Jumps (Over Head)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Same as chest-deep but in water over their head, ten times, holding the wall.</dd></div><div class="f"><dt>How to teach it</dt><dd>Over head-deep, done holding the wall — the wall is where the courage comes from. This is the bridge into deep water.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Straight into the middle of the deep end. They grab you, and the fear lasts longer.</dd></div></dl></article>
+<article class="skill"><h4>Sculling 5 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Sculls the hands figure-of-eight and travels 5 yd on the back without kicking.</dd></div><div class="f"><dt>How to teach it</dt><dd>Sculling is the first lesson in feeling the water; every catch in every stroke comes from here. Figure of eight, palms spreading jam.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Slapping up and down instead of sculling. Slow it down until they find the palm pressing on the water.</dd></div></dl></article>
+</div></div>
+</section>
+
+<section class="lv" id="L3" style="--lc:var(--lv3)">
+  <header class="lv-h">
+    <div class="lv-num">Level 3</div>
+    <h2>Independent Movement</h2>
+    <p class="lv-intro">The first time they move through the water on their own. Breathing, treading and fall-in survival come in here. By the end of this level a child who falls into deep water can get themselves back to the wall.</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>About <b>15–18</b> thirty-minute lessons for the level</caption>
+      <thead><tr><th>Stage</th><th class="num">Lessons</th><th>What this stage is for</th></tr></thead>
+      <tbody><tr><td>Stage 1</td><td class="num">4–5</td><td>25 yd of kicking with breathing</td></tr><tr><td>Stage 2</td><td class="num">5–6</td><td>Treading, deep-water retrieval, survival float</td></tr><tr><td>Stage 3</td><td class="num">6–7</td><td>Roll-and-breathe swimming, in-water turns, then the level test</td></tr></tbody>
+    </table>
+  </div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 1</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle Kick 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 25 yd on a board with side breathing, no standing up.</dd></div><div class="f"><dt>How to teach it</dt><dd>Breathing is added here. The head turns to the side rather than lifting, with one goggle staying in the water.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Lifting the head to breathe. Use the cue: turn with your ear on your arm.</dd></div></dl></article>
+<article class="skill"><h4>Backstroke Kick 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 25 yd on the back, arms at the sides, staying in a straight line.</dd></div><div class="f"><dt>How to teach it</dt><dd>Twenty-five yards has to hold a straight line. Teach them to use the lane line or a fixed point on the ceiling.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Swimming a snake. Every five yards, remind them to find the point on the ceiling again.</dd></div></dl></article>
+<article class="skill"><h4>Streamline Push-Off</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Push-off in a tight streamline and glides 7 yd before the first kick.</dd></div><div class="f"><dt>How to teach it</dt><dd>Hands stacked and squeezing the ears, body like a stick. The distance of the glide is the only proof the streamline is any good.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Arms not squeezed, or feet planted too low on the wall.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 2</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Treading Water 30 sec</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Treads water 30 seconds in deep water, chin clear, without touching the wall.</dd></div><div class="f"><dt>How to teach it</dt><dd>Teach the eggbeater first — circles — then add the hands. Treading is the core of deep-water safety; do not rush it.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Hands slapping frantically while the body bobs straight up and down. Ask for slow, big legs.</dd></div></dl></article>
+<article class="skill"><h4>Deep Water Object Retrieval</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Retrieves an object from the bottom of deep water and returns to the wall.</dd></div><div class="f"><dt>How to teach it</dt><dd>Deep-water retrieval pulls together the breath holding, the open eyes and the dive. Go down with them the first time.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Starting at the deepest point. Start at the shallow end of the deep water.</dd></div></dl></article>
+<article class="skill"><h4>Survival Float</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Survival float face-down for 1 minute, lifting the head only to breathe.</dd></div><div class="f"><dt>How to teach it</dt><dd>The survival float is about saving energy, not about looking good. The face goes back in the water after each breath.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Keeping the head up the whole time. That will not last a minute.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 3</span><span class="sc">4 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Roll-and-Breathe Swim 15 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 15 yd rolling front-to-side to breathe, without stopping.</dd></div><div class="f"><dt>How to teach it</dt><dd>This is freestyle before freestyle. Rolling to breathe comes first; the arms come after.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Teaching the arm pull straight away. Freestyle without the roll is very hard to fix later.</dd></div></dl></article>
+<article class="skill"><h4>In-Water Turn</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims to the wall, turns without standing, and pushes off the other way.</dd></div><div class="f"><dt>How to teach it</dt><dd>Turning without standing up is the threshold of swimming continuously. The feet find the wall before they push.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Standing up at the turn to catch a breath. Ask for the face to stay near the water throughout.</dd></div></dl></article>
+<article class="skill"><h4>Dolphin Kick 10 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Dolphin kicks 10 yd on the front, the wave starting at the chest not the knees.</dd></div><div class="f"><dt>How to teach it</dt><dd>The dolphin kick sits here as body-wave training, not to teach butterfly. The wave starts at the chest.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Kicking from a bent knee. A hand on their back lets them feel the wave travelling down.</dd></div></dl></article>
+<article class="skill"><h4>Water Safety Test</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Jump in, turn around, swim 5 yd back to the wall and climb out unaided.</dd></div><div class="f"><dt>How to teach it</dt><dd>This is the Level 3 test and sits last on purpose — every skill before it exists for this. Jump, turn, swim, climb out, in one go.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Beautiful in pieces, a mess joined up. Three clean run-throughs, with no prompting, before you pass it.</dd></div></dl></article>
+</div></div>
+</section>
+
+<section class="lv" id="L4" style="--lc:var(--lv4)">
+  <header class="lv-h">
+    <div class="lv-num">Level 4</div>
+    <h2>Stroke Foundations</h2>
+    <p class="lv-intro">Real strokes start here. Freestyle and backstroke each take shape, an energy-saving stroke is added, and the level finishes against the Red Cross water-competency benchmark. By the end of it a child who falls into deep water can get themselves out.</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>About <b>20–24</b> thirty-minute lessons for the level</caption>
+      <thead><tr><th>Stage</th><th class="num">Lessons</th><th>What this stage is for</th></tr></thead>
+      <tbody><tr><td>Stage 1</td><td class="num">6–7</td><td>Freestyle 15 → 25 yd</td></tr><tr><td>Stage 2</td><td class="num">7–8</td><td>Backstroke, elementary backstroke, streamlined kicking</td></tr><tr><td>Stage 3</td><td class="num">7–9</td><td>Deep-water survival, finishing with the 25 yd competency test</td></tr></tbody>
+    </table>
+  </div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 1</span><span class="sc">3 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 15 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 15 yd freestyle, side breathing, arms recovering over the water.</dd></div><div class="f"><dt>How to teach it</dt><dd>Their first whole freestyle. High-elbow recovery, hand entering ahead of the shoulder line. Keep the distance short at first.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Straight arms swinging in a wide circle. Use the cue: elbow out of the water first.</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 25 yd freestyle without stopping, breathing to one side every 2-3 strokes.</dd></div><div class="f"><dt>How to teach it</dt><dd>Twenty-five yards is the first real milestone. One fixed breathing side is enough; do not ask for both yet.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Thrashing to get to the end. Slower is fine — the stroke has to still be there.</dd></div></dl></article>
+<article class="skill"><h4>Seated and Kneeling Dive</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Enters head-first from sitting and then from kneeling, hands leading, without belly-flopping.</dd></div><div class="f"><dt>How to teach it</dt><dd>The angle of entry matters more than the posture. Get the seated dive solid before kneeling. Arms squeezing the ears, head hidden between them.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Lifting the head to look at the surface. Up comes the head and it becomes a belly flop — it hurts, and then they are afraid of it.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 2</span><span class="sc">4 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Backstroke 15 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 15 yd backstroke, hips up, arms straight past the ear.</dd></div><div class="f"><dt>How to teach it</dt><dd>The problem with backstroke is always sinking hips. Stomach pushed up, chin lightly tucked.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Kicking from bent knees, and arms that never go past the head.</dd></div></dl></article>
+<article class="skill"><h4>Elementary Backstroke 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 25 yd on the back with a symmetric arm pull and whip kick, gliding after each stroke.</dd></div><div class="f"><dt>How to teach it</dt><dd>Symmetric arms, whip kick, face up — this is the stroke they switch to when they are tired, and the long swims in L7 will need it. Chicken, aeroplane, rocket.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Arms and legs out of time. Practise the arms alone, then the legs alone, and only then put them together.</dd></div></dl></article>
+<article class="skill"><h4>Streamline Freestyle Kicking</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 25 yd in a tight streamline, both arms overhead, face down.</dd></div><div class="f"><dt>How to teach it</dt><dd>Joins the streamline to the kick. Everything that happens after a start is built on this.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Arms coming apart. Ask for hands stacked and squeezed.</dd></div></dl></article>
+<article class="skill"><h4>Underwater Freestyle Kicking</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 10 yd fully underwater in streamline on one breath.</dd></div><div class="f"><dt>How to teach it</dt><dd>Ten yards of kicking underwater on one breath, training the breath hold and the streamline at the same time.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Sneaking the head up halfway.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 3</span><span class="sc">5 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Starfish Float 30 sec</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Back float 30 seconds in deep water, relaxed, without sculling.</dd></div><div class="f"><dt>How to teach it</dt><dd>Floating in deep water is a nerve problem, not a technique problem. The thirty seconds is about relaxing.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>The coach standing there talking the whole time. Go quiet and let them finish it themselves.</dd></div></dl></article>
+<article class="skill"><h4>Treading Water 1 min</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Treads water 1 minute in deep water with hands out of the water for the last 10 seconds.</dd></div><div class="f"><dt>How to teach it</dt><dd>Hands out of the water for the last ten seconds, to prove the legs are actually doing the work.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Sinking the moment the hands come up. Go back and build the legs before testing again.</dd></div></dl></article>
+<article class="skill"><h4>No-Goggles Swim</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 25 yd freestyle with no goggles, eyes open, without panicking.</dd></div><div class="f"><dt>How to teach it</dt><dd>No goggles is what a real fall looks like. Get used to open eyes in shallow water before swimming it.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Swimming with the eyes screwed half shut. Ask for them properly open.</dd></div></dl></article>
+<article class="skill"><h4>Clothed Swim (7 yd)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 7 yd in a T-shirt and shorts, then removes the shirt in deep water.</dd></div><div class="f"><dt>How to teach it</dt><dd>Swimming clothed teaches them how heavy clothes are. Take the top off somewhere they can tread, not stand.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Taking it off where they can stand. Nothing is learnt that way.</dd></div></dl></article>
+<article class="skill"><h4>Water Competency 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>In deep water: jump in, surface and float or tread 1 min, turn a full circle to find the exit, swim 25 yd without stopping, climb out without the ladder.</dd></div><div class="f"><dt>How to teach it</dt><dd>The Red Cross water-competency benchmark, and the Level 4 test. Five actions in one go with no prompting in between. Once they pass it you can tell the parents they meet the national standard.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Beautiful in pieces, a mess joined up. Deep water, no goggles, three complete run-throughs before it counts.</dd></div></dl></article>
+</div></div>
+</section>
+
+<section class="lv" id="L5" style="--lc:var(--lv5)">
+  <header class="lv-h">
+    <div class="lv-num">Level 5</div>
+    <h2>Stroke Development</h2>
+    <p class="lv-intro">Distance grows, turns appear, and the whip kick and dolphin kick start being laid down. Turns are taught open first, then flip. This is the longest level and the easiest to stall in &mdash; the whip kick is the hardest movement in the four strokes to teach.</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>About <b>21–26</b> thirty-minute lessons for the level</caption>
+      <thead><tr><th>Stage</th><th class="num">Lessons</th><th>What this stage is for</th></tr></thead>
+      <tbody><tr><td>Stage 1</td><td class="num">5–6</td><td>Freestyle 50 → 100 yd</td></tr><tr><td>Stage 2</td><td class="num">8–10</td><td>Longer backstroke, open and flip turns, surface dive</td></tr><tr><td>Stage 3</td><td class="num">8–10</td><td>Whip kick and dolphin kick, rescue and breath holding</td></tr></tbody>
+    </table>
+  </div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 1</span><span class="sc">2 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 50 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 50 yd freestyle with one wall turn, stroke holding together throughout.</dd></div><div class="f"><dt>How to teach it</dt><dd>Fifty yards includes a turn, and the question is whether the stroke falls apart on the second length. Watch technique on the way back, not speed.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Sprinting the first length and falling apart on the second. Ask for the same stroke count both ways.</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 100 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 100 yd freestyle continuous, bilateral breathing available if asked.</dd></div><div class="f"><dt>How to teach it</dt><dd>A hundred yards is where pacing starts to matter. Teach them to control it by stroke count, not by feel.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Breathing more often as the swim goes on. That is the signal the pace was too fast.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 2</span><span class="sc">5 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Backstroke 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 25 yd backstroke without stopping, shoulders rolling, head still.</dd></div><div class="f"><dt>How to teach it</dt><dd>Twenty-five yards of backstroke needs the shoulders rotating. Little finger enters the water first.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>A flat body with no rotation, and arms thrown rather than swung.</dd></div></dl></article>
+<article class="skill"><h4>Backstroke 50 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 50 yd backstroke with one turn, staying in the lane.</dd></div><div class="f"><dt>How to teach it</dt><dd>With a turn added, the line still has to hold. Teach them to count strokes to know where the wall is.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Hitting the wall on backstroke. That is what happens without counting strokes, every time, so it has to be taught.</dd></div></dl></article>
+<article class="skill"><h4>Open Turn</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Two-hand touch, open turn and push-off for breaststroke and butterfly.</dd></div><div class="f"><dt>How to teach it</dt><dd>The open turn is used in all four strokes and is the fallback when a flip goes wrong, so it comes before the flip turn. Teach the touching hand first, then the turning body.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Standing up mid-turn to reset. Ask for feet that touch the wall and never the floor.</dd></div></dl></article>
+<article class="skill"><h4>Freestyle Flip Turn</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Approaches the wall, somersaults, plants both feet and pushes off on the back into streamline.</dd></div><div class="f"><dt>How to teach it</dt><dd>The somersault is not the point; the push-off is. Both feet planted together, and a streamline off the wall.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Looking for the wall after the flip. The distance has to be settled before they get there.</dd></div></dl></article>
+<article class="skill"><h4>Surface Dive</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Surface dives head-first to the bottom of deep water and returns with an object.</dd></div><div class="f"><dt>How to teach it</dt><dd>Head down, feet up: the dive is driven by the weight of the lifted legs, not by pulling with the arms.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Clawing downwards with the hands. Teach them to lift the legs clear of the water.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 3</span><span class="sc">5 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Breaststroke Kick 10 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 10 yd on a board: heels to seat, feet turned out, whip together.</dd></div><div class="f"><dt>How to teach it</dt><dd>The whip kick is the hardest movement in the four strokes to teach. Break it into four counts — draw up, turn out, drive, together — and go slowly.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Feet never turning out, so it becomes a scissor kick. Hold their feet and walk them through it once.</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke Kick 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 25 yd breaststroke with a glide after every kick, no scissor kick.</dd></div><div class="f"><dt>How to teach it</dt><dd>There is a glide after every drive, and that glide is the whole of breaststroke efficiency.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Kicking continuously with no glide. Ask them to count one after the drive before drawing up.</dd></div></dl></article>
+<article class="skill"><h4>Dolphin Kick 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Dolphin kicks 25 yd on the front with a board, wave from the chest.</dd></div><div class="f"><dt>How to teach it</dt><dd>Twenty-five yards of dolphin kick is the physical base for butterfly. The up and the down should be even, not all down.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Only kicking down. Keep saying: the way up has to work too.</dd></div></dl></article>
+<article class="skill"><h4>Breath Holding 15 sec</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Holds 15 seconds submerged, calm, and surfaces under control.</dd></div><div class="f"><dt>How to teach it</dt><dd>Fifteen seconds prepares them for underwater work. It is not a contest. Any discomfort and it stops.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Turning it into a contest. Never let swimmers hold their breath against each other.</dd></div></dl></article>
+<article class="skill"><h4>Reach and Throw Rescue</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Reaches with a pole and throws a ring to a person 5 yd away, staying out of the water.</dd></div><div class="f"><dt>How to teach it</dt><dd>Not going in yourself is the entire point of this skill. Say it over and over: reach first, throw second, never jump.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>The coach going in to demonstrate the rescue. A wrong demonstration is worse than none.</dd></div></dl></article>
+</div></div>
+</section>
+
+<section class="lv" id="L6" style="--lc:var(--lv6)">
+  <header class="lv-h">
+    <div class="lv-num">Level 6</div>
+    <h2>Four Strokes</h2>
+    <p class="lv-intro">Butterfly and breaststroke arrive and the four strokes are complete. Two new strokes are being taught at once, which makes this the heaviest level &mdash; do not rush it. Endurance and turns take shape here too.</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>About <b>24–29</b> thirty-minute lessons for the level</caption>
+      <thead><tr><th>Stage</th><th class="num">Lessons</th><th>What this stage is for</th></tr></thead>
+      <tbody><tr><td>Stage 1</td><td class="num">8–10</td><td>Butterfly and breaststroke begin, medley kicking</td></tr><tr><td>Stage 2</td><td class="num">7–8</td><td>Endurance to 200 yd, backstroke turn, standing dive</td></tr><tr><td>Stage 3</td><td class="num">9–11</td><td>Longer butterfly and breaststroke, underwater dolphin, two-hand touch turn</td></tr></tbody>
+    </table>
+  </div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 1</span><span class="sc">4 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Butterfly 10 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 10 yd butterfly, two kicks per arm cycle, chin leading the breath.</dd></div><div class="f"><dt>How to teach it</dt><dd>Ten yards is enough for butterfly to begin with. The one-pull-two-kicks rhythm matters more than the distance.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Stretching the distance until it becomes one pull, one kick. Ten good yards is better.</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke 15 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 15 yd breaststroke in pull-breathe-kick-glide order.</dd></div><div class="f"><dt>How to teach it</dt><dd>Breaststroke runs pull, breathe, drive, glide. Get the order wrong and no amount of practice makes it flow.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Driving before pulling. Call the four counts out loud, one at a time.</dd></div></dl></article>
+<article class="skill"><h4>Individual Medley Kicking</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Kicks 25 yd of each stroke in IM order without a break between them.</dd></div><div class="f"><dt>How to teach it</dt><dd>Medley kicking drills the order of the four strokes and checks all four sets of legs still work.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Stopping for a rest between strokes. Ask for it unbroken.</dd></div></dl></article>
+<article class="skill"><h4>Treading Water 2 min</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Treads water 2 minutes in deep water, last 30 seconds hands out of the water.</dd></div><div class="f"><dt>How to teach it</dt><dd>Two minutes of treading is the final proof of deep-water safety. Hands out of the water for the last thirty seconds.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Sinking lower as it goes on. Switch them to a whip-kick tread to save energy.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 2</span><span class="sc">4 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 200 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 200 yd freestyle continuous with even pacing, turns included.</dd></div><div class="f"><dt>How to teach it</dt><dd>Two hundred yards is where endurance starts. Teach pacing: no more than five seconds between any two 50s.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Going out too hard on the first 50. Put a stopwatch on it so they see the gap themselves.</dd></div></dl></article>
+<article class="skill"><h4>Backstroke 100 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 100 yd backstroke continuous, straight, with turns.</dd></div><div class="f"><dt>How to teach it</dt><dd>A hundred yards of backstroke with turns, where holding a straight line is the real challenge.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Drifting out of the lane. Use the ceiling lights as a guide line.</dd></div></dl></article>
+<article class="skill"><h4>Backstroke Flip Turn</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Rolls to the front, somersaults and pushes off on the back, all within the legal one stroke.</dd></div><div class="f"><dt>How to teach it</dt><dd>The backstroke turn has a lot of rule detail. Once they roll to the front, one arm pull only before the somersault.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Two or three extra strokes after rolling over. That is a disqualification.</dd></div></dl></article>
+<article class="skill"><h4>Standing Dive</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Standing dive from the edge: enters through one hole, hands first, no belly-flop.</dd></div><div class="f"><dt>How to teach it</dt><dd>Check the water depth before any standing dive. Hands in first, and the body follows through the same hole.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Driving the feet up too hard, so they over-rotate.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 3</span><span class="sc">5 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Butterfly 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 25 yd butterfly without stopping, rhythm holding to the wall.</dd></div><div class="f"><dt>How to teach it</dt><dd>Twenty-five yards of butterfly asks whether the rhythm survives to the wall. The back half is where it goes.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>The last five yards turning into a struggle. Slow the rhythm rather than lose the shape.</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke 25 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 25 yd breaststroke with a visible glide every stroke.</dd></div><div class="f"><dt>How to teach it</dt><dd>Every cycle of a 25 yd breaststroke should have a visible glide in it.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>An over-large arm pull that swallows the glide.</dd></div></dl></article>
+<article class="skill"><h4>Underwater Dolphin Kick</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Dolphin kicks 15 yd underwater off the wall on one breath.</dd></div><div class="f"><dt>How to teach it</dt><dd>Fifteen yards of underwater dolphin is a real competitive weapon. Mind the distance the rules allow.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Going short of air chasing distance. Any discomfort and it stops immediately.</dd></div></dl></article>
+<article class="skill"><h4>Two-Hand Touch Turn</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Turns at the wall in breaststroke and butterfly with both hands touching at the same time.</dd></div><div class="f"><dt>How to teach it</dt><dd>Breaststroke and butterfly turn under different rules from freestyle: both hands must touch the wall together. In a race, one hand is an immediate disqualification.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>One hand reaching first when they are tired. Ask for two hands from the very first lesson, not from L7.</dd></div></dl></article>
+<article class="skill"><h4>Clothed Swim (25 yd)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 25 yd clothed without goggles, then treads 1 minute still clothed.</dd></div><div class="f"><dt>How to teach it</dt><dd>Twenty-five yards clothed plus a minute of treading is a complete fall-in survival rehearsal.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Clothes that are too light. Use real cotton that soaks up water.</dd></div></dl></article>
+</div></div>
+</section>
+
+<section class="lv" id="L7" style="--lc:var(--lv7)">
+  <header class="lv-h">
+    <div class="lv-num">Level 7</div>
+    <h2>Competitive Swimming</h2>
+    <p class="lv-intro">From swimming well to not being disqualified. Pacing, starts, the rules of turns, the individual medley. This level has no real finish line &mdash; the last stage has six skills side by side and takes a long time. That is normal.</p>
+  </header>
+  <div class="plan">
+    <table>
+      <caption>About <b>29–36</b> thirty-minute lessons for the level</caption>
+      <thead><tr><th>Stage</th><th class="num">Lessons</th><th>What this stage is for</th></tr></thead>
+      <tbody><tr><td>Stage 1</td><td class="num">8–10</td><td>Timed swims, sprint, 400 yd pacing</td></tr><tr><td>Stage 2</td><td class="num">9–11</td><td>Longer breaststroke and butterfly, underwater pullout, starts</td></tr><tr><td>Stage 3</td><td class="num">12–15</td><td>Four race-legal strokes, individual medley</td></tr></tbody>
+    </table>
+  </div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 1</span><span class="sc">5 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Freestyle 50 yd Timed</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 50 yd freestyle on the clock and improves the time over three attempts.</dd></div><div class="f"><dt>How to teach it</dt><dd>A timed swim is about whether they are improving, not about the number. Take the trend across three attempts.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Comparing the time with another swimmer. Compare it only with their own last one.</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 25 yd Sprint</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>All-out 25 yd freestyle with no breath in the last 5 yd.</dd></div><div class="f"><dt>How to teach it</dt><dd>A sprint is won or lost in the last five yards, and those are the ones without a breath.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Not breathing at all for the whole swim. That is breath holding, not sprinting.</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 400 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 400 yd freestyle continuous, pace held within 5 seconds per 50.</dd></div><div class="f"><dt>How to teach it</dt><dd>Four hundred yards is a pacing lesson. Every 50 within five seconds of the others to pass.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Fast for the first 200 and falling apart over the second.</dd></div></dl></article>
+<article class="skill"><h4>Backstroke 200 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 200 yd backstroke continuous with legal turns.</dd></div><div class="f"><dt>How to teach it</dt><dd>Two hundred yards of backstroke with legal turns — fitness and rules tested at the same time.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Turns stop being legal once they are tired.</dd></div></dl></article>
+<article class="skill"><h4>Clothed Swim (50 yd)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 50 yd clothed without goggles, then removes clothing while treading.</dd></div><div class="f"><dt>How to teach it</dt><dd>Fifty yards clothed, undressing in the water: the final test of every survival skill.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Undressing where they can stand.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 2</span><span class="sc">5 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Breaststroke Underwater Pullout</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>One pull-down: full pull to the thighs, one dolphin kick, recovery, break out.</dd></div><div class="f"><dt>How to teach it</dt><dd>The pullout is one long pull and one dolphin kick, in the order the rules allow. Out of order is a disqualification.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Two pulls, or the dolphin kick before the pull.</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke 50 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 50 yd breaststroke with a legal turn and a legal finish.</dd></div><div class="f"><dt>How to teach it</dt><dd>Fifty yards of breaststroke: both hands together on the wall at the turn and at the finish.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>One hand at the finish.</dd></div></dl></article>
+<article class="skill"><h4>Butterfly 50 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 50 yd butterfly with a legal turn, rhythm intact on the second length.</dd></div><div class="f"><dt>How to teach it</dt><dd>Fifty yards of butterfly, where the point is holding the rhythm through the second length.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>The second length collapsing into one pull, one kick.</dd></div></dl></article>
+<article class="skill"><h4>Freestyle 500 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 500 yd freestyle continuous, counting their own laps.</dd></div><div class="f"><dt>How to teach it</dt><dd>Five hundred yards means counting their own lengths. That is what a race actually asks of them.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Losing count. Teach them to mark it every 100 yards.</dd></div></dl></article>
+<article class="skill"><h4>Racing Start and Backstroke Start</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Legal racing start from the block and a legal backstroke start from the wall.</dd></div><div class="f"><dt>How to teach it</dt><dd>Both the block start and the backstroke start have rule detail. Moving early is a disqualification.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Going before the signal. Drill it: nothing moves until you hear it.</dd></div></dl></article>
+</div></div>
+<div class="stage"><div class="stage-h"><span class="sn">Stage 3</span><span class="sc">6 skills</span></div>
+<div class="skills">
+<article class="skill"><h4>Stroke Transitions and Turns</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Legal transitions between all four strokes plus every turn in an IM.</dd></div><div class="f"><dt>How to teach it</dt><dd>Every turn between two strokes has its own rule. Break them out one at a time, then join them up.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Practising all four turns jumbled together.</dd></div></dl></article>
+<article class="skill"><h4>Individual Medley 100 yd</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Swims 100 yd IM in stroke order with legal transitions throughout.</dd></div><div class="f"><dt>How to teach it</dt><dd>The 100 yd IM is where the whole programme comes together. The order is butterfly, backstroke, breaststroke, freestyle.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Getting the order wrong. Have them say it back before they step up.</dd></div></dl></article>
+<article class="skill"><h4>Freestyle (Race Legal)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Freestyle that would not be disqualified: legal turn, legal finish, no walking.</dd></div><div class="f"><dt>How to teach it</dt><dd>Race-legal freestyle: touch at the turn, touch at the finish, and never stand on the bottom.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Standing up mid-turn to reset.</dd></div></dl></article>
+<article class="skill"><h4>Backstroke (Race Legal)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Backstroke that would not be disqualified: stays on the back, legal turn and finish.</dd></div><div class="f"><dt>How to teach it</dt><dd>Race-legal backstroke: on the back the whole way, apart from the part of the turn the rules allow.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>Rolling over at the finish.</dd></div></dl></article>
+<article class="skill"><h4>Breaststroke (Race Legal)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Breaststroke that would not be disqualified: symmetric, one pull one kick, two-hand touch.</dd></div><div class="f"><dt>How to teach it</dt><dd>Race-legal breaststroke: symmetric left and right, one pull to one kick, both hands touching together.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>A scissor kick appearing, or an uneven pull.</dd></div></dl></article>
+<article class="skill"><h4>Butterfly (Race Legal)</h4><dl><div class="f pass"><dt>Pass standard</dt><dd>Butterfly that would not be disqualified: simultaneous arms, no flutter kick, two-hand touch.</dd></div><div class="f"><dt>How to teach it</dt><dd>Race-legal butterfly: both arms recovering together, no flutter kick, both hands touching together.</dd></div><div class="f err"><dt>Where they get stuck</dt><dd>One hand reaching the wall first when they are tired.</dd></div></dl></article>
+</div></div>
+</section>
+
+<section>
+<div class="note">
+    <p><strong>This handbook and the app are the same data.</strong> Every pass standard here is also in the database, and it appears above the buttons when a coach taps a percentage. If the handbook changes the app changes with it &mdash; the two must say the same thing.</p>
+    <p style="margin-bottom:0"><strong>One thing still unsolved:</strong> stage 3 of Level 7 has six skills side by side, and all six must read 100 before the programme is complete. Swimmers sit there a long time and the bar barely moves. That is deliberate &mdash; racing standards are slow by nature &mdash; but say so to parents in advance, so they do not think their child has stalled.</p>
+  </div></section>
+</div>

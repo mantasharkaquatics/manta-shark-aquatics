@@ -1,0 +1,1345 @@
+{
+ "_note": "教練手冊的內容來源。技能名稱與通過標準不在這裡 —— 那些一律讀 lib/i18n/locales/db-strings.json，才不會像舊版手冊一樣自己存一份然後跟資料庫走散。這裡只放手冊獨有的東西：教學重點、常見錯誤，以及各級別的課程規劃文字。 level/stage/sort 是課程結構，跟資料庫一致；哪天在資料庫改了順序，這裡要一起改，否則手冊的分組會跟 app 對不上。",
+ "head": {
+  "title": {
+   "zh-Hant": "Manta Shark 教練進度手冊"
+  },
+  "standing": {
+   "zh-Hant": "七個級別、三個階段、82 個技能，從完全不會水到四式合規。每個技能寫清楚三件事：怎樣算過、這堂課要教什麼、學員最常卡在哪。",
+   "en": "Seven levels, three stages each, 82 skills, from never having been in water to four race-legal strokes. Every skill says three things: what counts as passed, what to teach this lesson, and where swimmers get stuck."
+  }
+ },
+ "intro_sections": [
+  {
+   "zh-Hant": "<h3>先讀這一段</h3>\n  <h2 style=\"margin-bottom:14px\">0 到 100 是什麼意思</h2>\n  <p>這是整本手冊最重要的一頁。教練在 app 上點的六個格子，全校用<strong>同一套定義</strong>——不然 A 教練的 60% 和 B 教練的 60% 不是同一件事，家長看到的百分比就沒有意義。</p>\n  <div class=\"ladder\"><div class=\"rung\" data-v=\"0\"><div class=\"rv\">0</div><div class=\"rt\"><b>未教或未評估</b><span>這堂課沒有練到這個技能，就讓它留在原地。</span></div></div><div class=\"rung\" data-v=\"20\"><div class=\"rv\">20</div><div class=\"rt\"><b>示範過了，學員做不出來</b><span>看得懂要做什麼，身體還做不到。</span></div></div><div class=\"rung\" data-v=\"40\"><div class=\"rv\">40</div><div class=\"rt\"><b>做得出來，需要大量協助</b><span>教練的手還在他身上，或全程靠浮具。</span></div></div><div class=\"rung\" data-v=\"60\"><div class=\"rv\">60</div><div class=\"rt\"><b>做得出來，需要少量協助或提示</b><span>偶爾扶一下，或需要口頭提醒才做對。</span></div></div><div class=\"rung\" data-v=\"80\"><div class=\"rv\">80</div><div class=\"rt\"><b>能獨立完成，但不穩定或未達標準</b><span>今天做到了，明天不一定；或做對了但距離、時間還不夠。</span></div></div><div class=\"rung\" data-v=\"100\"><div class=\"rv\">100</div><div class=\"rt\"><b>獨立、穩定，並達到該技能的通過標準</b><span>不需要提示、上一堂也做到，而且符合通過標準寫的條件。</span></div></div></div>\n  <div class=\"note\">\n    <p><strong>百分比是怎麼算出來的。</strong>一個階段的百分比 = 該階段所有技能的平均。所以把一個技能從 0 拉到 100，和把五個技能各拉 20，家長看到的進度條移動一樣多——但前者是真的學會了一件事，後者只是每樣都碰過。<strong>寧可把一個技能做到 100，不要五個技能都停在 40。</strong></p>\n    <p style=\"margin-bottom:0\">一個階段要<strong>每一個技能都 100</strong> 才算完成，三個階段都完成才能升級。升級是管理者按的，不是自動的。</p>\n  </div>",
+   "en": "<h3>Read this first</h3>\n  <h2 style=\"margin-bottom:14px\">What 0 to 100 means</h2>\n  <p>This is the most important page in the handbook. The six buttons a coach taps in the app mean <strong>the same thing school-wide</strong> &mdash; otherwise coach A's 60% and coach B's 60% are not the same thing, and the percentage a parent sees means nothing.</p>\n  <div class=\"ladder\"><div class=\"rung\" data-v=\"0\"><div class=\"rv\">0</div><div class=\"rt\"><b>Not taught, not assessed</b><span>The skill was not worked on this lesson. Leave it where it is.</span></div></div><div class=\"rung\" data-v=\"20\"><div class=\"rv\">20</div><div class=\"rt\"><b>Shown it, cannot do it</b><span>They understand what is being asked. The body cannot do it yet.</span></div></div><div class=\"rung\" data-v=\"40\"><div class=\"rv\">40</div><div class=\"rt\"><b>Can do it with heavy help</b><span>Your hands are still on them, or they are on a float the whole way.</span></div></div><div class=\"rung\" data-v=\"60\"><div class=\"rv\">60</div><div class=\"rt\"><b>Can do it with light help or a cue</b><span>An occasional hand, or a spoken reminder to get it right.</span></div></div><div class=\"rung\" data-v=\"80\"><div class=\"rv\">80</div><div class=\"rt\"><b>Unaided, but not consistent or not to standard</b><span>Managed it today, may not tomorrow; or did it right but short of the distance or time.</span></div></div><div class=\"rung\" data-v=\"100\"><div class=\"rv\">100</div><div class=\"rt\"><b>Unaided, consistent, and meets the pass standard</b><span>No cue needed, did it last lesson too, and meets what the pass standard says.</span></div></div></div>\n  <div class=\"note\">\n    <p><strong>How the percentage is worked out.</strong> A stage's percentage is the average of its skills. So taking one skill from 0 to 100 moves the parent's progress bar exactly as far as nudging five skills up by 20 &mdash; but the first means something was actually learnt, and the second means everything was touched once. <strong>Take one skill to 100 rather than leaving five at 40.</strong></p>\n    <p style=\"margin-bottom:0\">A stage is complete only when <strong>every skill in it reads 100</strong>, and all three stages must be complete before a level-up. The level-up is pressed by an administrator; it does not happen on its own.</p>\n  </div>"
+  },
+  {
+   "zh-Hant": "<h3>每一堂課</h3>\n  <h2 style=\"margin-bottom:14px\">怎麼上、怎麼記</h2>\n  <ul class=\"rules\">\n    <li><b>只動今天真的練到的技能。</b>沒練到的就讓它留在原地。手癢把整個階段都往上調一格，是把紀錄變成廢紙最快的方法。</li>\n    <li><b>一次只前進一格。</b>從 40 直接跳到 100，代表中間那兩堂課沒有被記錄下來，家長也看不到孩子是怎麼進步的。</li>\n    <li><b>100 分要看兩堂。</b>今天不用提示就做到，而且<strong>上一堂也做到</strong>，才給 100。只做到一次是 80。</li>\n    <li><b>一堂課練 2–3 個技能就好。</b>30 分鐘的課，練五個技能等於五個都沒練到。</li>\n    <li><b>照著階段的順序教。</b>階段 1 沒完成，app 不會讓你填階段 2——那是刻意的，不是壞掉。</li>\n    <li><b>學員卡住時往回退。</b>蛙腿卡住就回去練海豚腿的髖部發力；換氣卡住就回去練吐泡泡。往回退一級不是退步，硬撐才是。</li>\n    <li><b>通過標準寫在按鈕旁邊。</b>不確定該給幾分的時候，看那一行字，不要憑印象。</li>\n  </ul>\n  <div class=\"note\" style=\"border-left-color:var(--err)\">\n    <p style=\"margin-bottom:0\"><strong>水下憋氣：三條不可違反的規則。</strong>紅十字會在水下游泳那一項後面明寫 <em>without hyperventilating</em>，理由是<strong>過度換氣後憋氣會造成淺水昏迷，人在沒有掙扎的情況下失去意識</strong>，而且通常沒有人發現。所以：<strong>一、絕不允許下水前連續深呼吸。二、絕不舉辦任何形式的憋氣比賽，學員之間也不行。三、任何人表示頭暈、刺痛或不適，該堂課的水下項目立即結束。</strong>本課程有三個水下項目（L4 水下打水、L5 憋氣 15 秒、L6 水下海豚腿），每一個都適用。</p>\n  </div>",
+   "en": "<h3>Every lesson</h3>\n  <h2 style=\"margin-bottom:14px\">How to teach it, how to record it</h2>\n  <ul class=\"rules\">\n    <li><b>Only move the skills you actually worked on today.</b> Leave the rest where they are. Nudging a whole stage up one notch because it feels about right is the fastest way to turn the record into waste paper.</li>\n    <li><b>One notch at a time.</b> Jumping 40 straight to 100 means the two lessons in between were never written down, and the parent cannot see how their child got there.</li>\n    <li><b>100 takes two lessons.</b> Unprompted today <strong>and</strong> unprompted last lesson. Once is 80.</li>\n    <li><b>Two or three skills per lesson.</b> In thirty minutes, working five skills means none of them were worked.</li>\n    <li><b>Teach the stages in order.</b> The app will not let you fill in stage 2 before stage 1 is finished. That is deliberate, not broken.</li>\n    <li><b>Go backwards when they are stuck.</b> Stuck on the whip kick? Go back to driving the dolphin kick from the hip. Stuck on breathing? Go back to blowing bubbles. Dropping back a step is not losing ground; pushing on regardless is.</li>\n    <li><b>The pass standard is beside the button.</b> When you are unsure what to give, read that line rather than going on impression.</li>\n  </ul>\n  <div class=\"note\" style=\"border-left-color:var(--err)\">\n    <p style=\"margin-bottom:0\"><strong>Breath-holding: three rules that are never bent.</strong> The Red Cross writes <em>without hyperventilating</em> after its underwater swimming item, because <strong>holding the breath after hyperventilating causes shallow-water blackout, and a person loses consciousness without struggling</strong> &mdash; usually with nobody noticing. So: <strong>one, never allow repeated deep breaths before going under. Two, never run a breath-holding contest of any kind, including between swimmers. Three, if anyone reports dizziness, tingling or feeling unwell, the underwater work ends for that lesson.</strong> This curriculum has three underwater items (L4 underwater kicking, L5 breath holding 15 sec, L6 underwater dolphin kick) and all three are covered by this.</p>\n  </div>"
+  },
+  {
+   "zh-Hant": "<h3>七個級別</h3>\n  <h2>從不會水到四式合規</h2>\n  <p style=\"margin-top:12px\">堂數是<strong>估計值，不是承諾</strong>。同一個級別，每週上兩堂的孩子會比每週一堂的快超過兩倍——因為間隔短，忘掉的比較少。跟家長講的時候用區間，不要給單一數字。</p>\n  ",
+   "en": "<h3>Seven levels</h3>\n  <h2>From never in the water to four race-legal strokes</h2>\n  <p style=\"margin-top:12px\">Lesson counts are <strong>estimates, not promises</strong>. Within the same level a child swimming twice a week gets through it more than twice as fast as one swimming once &mdash; the gap is shorter, so less is forgotten. Give parents a range, never a single number.</p>\n  "
+  }
+ ],
+ "levels": {
+  "1": {
+   "en_name": "Water Discovery",
+   "zh_name": "認識水",
+   "intro": {
+    "zh-Hant": "完全不會水的孩子，從「靠近水邊有規矩」到「臉敢進水、身體能漂」。這一級教的是安全與信任，不是游泳。",
+    "en": "A child who has never been in water, from \"there are rules near the pool\" to \"my face goes in and my body floats\". This level teaches safety and trust, not swimming."
+   },
+   "hours": "11–14",
+   "plan": [
+    {
+     "stage": 1,
+     "lessons": "3–4",
+     "what": {
+      "zh-Hant": "建立池邊規矩與自行上岸",
+      "en": "Pool-deck rules and getting out unaided"
+     }
+    },
+    {
+     "stage": 2,
+     "lessons": "4–5",
+     "what": {
+      "zh-Hant": "敢把臉放進水裡吐泡泡",
+      "en": "Face in the water, blowing bubbles"
+     }
+    },
+    {
+     "stage": 3,
+     "lessons": "4–5",
+     "what": {
+      "zh-Hant": "能漂、能自己站起來",
+      "en": "Floating, and standing up from a float"
+     }
+    }
+   ]
+  },
+  "2": {
+   "en_name": "Water Confidence",
+   "zh_name": "水中自在",
+   "intro": {
+    "zh-Hant": "有了漂浮之後開始移動。打水、翻轉、深水過渡。這一級的關鍵字是「放鬆」——越用力越沉。",
+    "en": "Floating comes first, then moving. Kicking, rolling, the first crossings of deep water. The word for this level is relax &mdash; the harder they try, the more they sink."
+   },
+   "hours": "13–15",
+   "plan": [
+    {
+     "stage": 1,
+     "lessons": "4",
+     "what": {
+      "zh-Hant": "俯臥與仰躺都能打水前進",
+      "en": "Kicking forward on the front and on the back"
+     }
+    },
+    {
+     "stage": 2,
+     "lessons": "4–5",
+     "what": {
+      "zh-Hant": "身體能翻轉、有換氣節奏",
+      "en": "Rolling the body, finding a breathing rhythm"
+     }
+    },
+    {
+     "stage": 3,
+     "lessons": "5–6",
+     "what": {
+      "zh-Hant": "深水不慌、能漂能划",
+      "en": "Calm in deep water: floating and sculling"
+     }
+    }
+   ]
+  },
+  "3": {
+   "en_name": "Independent Movement",
+   "zh_name": "獨立前進",
+   "intro": {
+    "zh-Hant": "第一次「自己一個人游得動」。加入換氣、踩水與落水求生。這一級結束時，孩子掉進深水能自己回到池邊。",
+    "en": "The first time they move through the water on their own. Breathing, treading and fall-in survival come in here. By the end of this level a child who falls into deep water can get themselves back to the wall."
+   },
+   "hours": "15–18",
+   "plan": [
+    {
+     "stage": 1,
+     "lessons": "4–5",
+     "what": {
+      "zh-Hant": "25 碼打水加換氣",
+      "en": "25 yd of kicking with breathing"
+     }
+    },
+    {
+     "stage": 2,
+     "lessons": "5–6",
+     "what": {
+      "zh-Hant": "踩水、深水撿物、求生漂",
+      "en": "Treading, deep-water retrieval, survival float"
+     }
+    },
+    {
+     "stage": 3,
+     "lessons": "6–7",
+     "what": {
+      "zh-Hant": "側轉換氣游、水中轉身，最後綜合驗收",
+      "en": "Roll-and-breathe swimming, in-water turns, then the level test"
+     }
+    }
+   ]
+  },
+  "4": {
+   "en_name": "Stroke Foundations",
+   "zh_name": "泳姿基礎",
+   "intro": {
+    "zh-Hant": "正式泳姿從這裡開始。自由式與仰式各自成形，加入省力泳姿，最後以紅十字會的全美水中自保基準驗收。這一級結束時，孩子在深水中掉下去能自己回到岸上。",
+    "en": "Real strokes start here. Freestyle and backstroke each take shape, an energy-saving stroke is added, and the level finishes against the Red Cross water-competency benchmark. By the end of it a child who falls into deep water can get themselves out."
+   },
+   "hours": "20–24",
+   "plan": [
+    {
+     "stage": 1,
+     "lessons": "6–7",
+     "what": {
+      "zh-Hant": "自由式 15→25 碼",
+      "en": "Freestyle 15 → 25 yd"
+     }
+    },
+    {
+     "stage": 2,
+     "lessons": "7–8",
+     "what": {
+      "zh-Hant": "仰式、初級仰泳、流線型打水",
+      "en": "Backstroke, elementary backstroke, streamlined kicking"
+     }
+    },
+    {
+     "stage": 3,
+     "lessons": "7–9",
+     "what": {
+      "zh-Hant": "深水求生，最後 25 碼自保驗收",
+      "en": "Deep-water survival, finishing with the 25 yd competency test"
+     }
+    }
+   ]
+  },
+  "5": {
+   "en_name": "Stroke Development",
+   "zh_name": "泳姿發展",
+   "intro": {
+    "zh-Hant": "距離拉長、轉身出現、蛙腿與海豚腿開始鋪路。轉身先學通用的平轉身再學翻滾。這一級最長也最容易卡住——蛙腿是四式裡最難教的動作。",
+    "en": "Distance grows, turns appear, and the whip kick and dolphin kick start being laid down. Turns are taught open first, then flip. This is the longest level and the easiest to stall in &mdash; the whip kick is the hardest movement in the four strokes to teach."
+   },
+   "hours": "21–26",
+   "plan": [
+    {
+     "stage": 1,
+     "lessons": "5–6",
+     "what": {
+      "zh-Hant": "自由式 50→100 碼",
+      "en": "Freestyle 50 → 100 yd"
+     }
+    },
+    {
+     "stage": 2,
+     "lessons": "8–10",
+     "what": {
+      "zh-Hant": "仰式加長、平轉身與翻滾轉身、水面下潛",
+      "en": "Longer backstroke, open and flip turns, surface dive"
+     }
+    },
+    {
+     "stage": 3,
+     "lessons": "8–10",
+     "what": {
+      "zh-Hant": "蛙腿與海豚腿、救援與憋氣",
+      "en": "Whip kick and dolphin kick, rescue and breath holding"
+     }
+    }
+   ]
+  },
+  "6": {
+   "en_name": "Four Strokes",
+   "zh_name": "四式完成",
+   "intro": {
+    "zh-Hant": "蝶式與蛙式加入，四式到齊。這一級同時教兩種新泳姿，負擔最重，不要趕。耐力與轉身也在這裡成形。",
+    "en": "Butterfly and breaststroke arrive and the four strokes are complete. Two new strokes are being taught at once, which makes this the heaviest level &mdash; do not rush it. Endurance and turns take shape here too."
+   },
+   "hours": "24–29",
+   "plan": [
+    {
+     "stage": 1,
+     "lessons": "8–10",
+     "what": {
+      "zh-Hant": "蝶式與蛙式起步、混合式打水",
+      "en": "Butterfly and breaststroke begin, medley kicking"
+     }
+    },
+    {
+     "stage": 2,
+     "lessons": "7–8",
+     "what": {
+      "zh-Hant": "耐力 200 碼、仰式轉身、站姿跳水",
+      "en": "Endurance to 200 yd, backstroke turn, standing dive"
+     }
+    },
+    {
+     "stage": 3,
+     "lessons": "9–11",
+     "what": {
+      "zh-Hant": "蝶蛙加長、水下海豚腿、雙手觸壁轉身",
+      "en": "Longer butterfly and breaststroke, underwater dolphin, two-hand touch turn"
+     }
+    }
+   ]
+  },
+  "7": {
+   "en_name": "Competitive Swimming",
+   "zh_name": "競技規格",
+   "intro": {
+    "zh-Hant": "從「會游」到「不會被判失格」。配速、出發、轉身規則、個人混合式。這一級沒有真正的終點——最後一個階段有六個技能並排，會走很久，那是正常的。",
+    "en": "From swimming well to not being disqualified. Pacing, starts, the rules of turns, the individual medley. This level has no real finish line &mdash; the last stage has six skills side by side and takes a long time. That is normal."
+   },
+   "hours": "29–36",
+   "plan": [
+    {
+     "stage": 1,
+     "lessons": "8–10",
+     "what": {
+      "zh-Hant": "計時、衝刺、400 碼配速",
+      "en": "Timed swims, sprint, 400 yd pacing"
+     }
+    },
+    {
+     "stage": 2,
+     "lessons": "9–11",
+     "what": {
+      "zh-Hant": "蛙蝶加長、水下划手、出發",
+      "en": "Longer breaststroke and butterfly, underwater pullout, starts"
+     }
+    },
+    {
+     "stage": 3,
+     "lessons": "12–15",
+     "what": {
+      "zh-Hant": "四式合規、個人混合式",
+      "en": "Four race-legal strokes, individual medley"
+     }
+    }
+   ]
+  }
+ },
+ "skills": {
+  "0280911e-9a79-4eed-8916-883e64dee3de": {
+   "level": 7,
+   "stage": 1,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "衝刺的重點是最後 5 碼不換氣。那是比賽輸贏的地方。",
+    "en": "A sprint is won or lost in the last five yards, and those are the ones without a breath."
+   },
+   "err": {
+    "zh-Hant": "全程不換氣。那不是衝刺是憋氣。",
+    "en": "Not breathing at all for the whole swim. That is breath holding, not sprinting."
+   }
+  },
+  "084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7": {
+   "level": 2,
+   "stage": 2,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "睜眼是重點——閉著眼睛的憋氣沒有用，因為真的落水時要看得見。",
+    "en": "Eyes open is the point. Breath holding with the eyes shut is worthless, because in a real fall they need to see."
+   },
+   "err": {
+    "zh-Hant": "用手捏鼻子。要讓他學會用鼻子輕輕呼氣來擋水。",
+    "en": "Pinching the nose with the fingers. They need to learn to keep water out with a gentle breath out through the nose."
+   }
+  },
+  "0b50339e-3764-40f3-8d12-fa53502831ec": {
+   "level": 5,
+   "stage": 3,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "15 秒憋氣是為了水下動作做準備，不是比賽。任何不適就停。",
+    "en": "Fifteen seconds prepares them for underwater work. It is not a contest. Any discomfort and it stops."
+   },
+   "err": {
+    "zh-Hant": "把它變成比賽。絕對不要讓學員互相比憋氣。",
+    "en": "Turning it into a contest. Never let swimmers hold their breath against each other."
+   }
+  },
+  "0d151d1b-8492-49bc-824e-c4e26a657046": {
+   "level": 1,
+   "stage": 2,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "先在岸上對著水面吹，再嘴巴入水，最後鼻子。「用嘴吐，不要用鼻子吸」。",
+    "en": "Blow at the surface from the deck first, then mouth in, then nose. Out through the mouth, never in through the nose."
+   },
+   "err": {
+    "zh-Hant": "憋著氣把臉放進去再拿出來。那是憋氣不是吐氣，之後換氣一定會嗆。",
+    "en": "Holding the breath, dipping the face and lifting it straight back out. That is breath holding, not blowing out, and breathing will choke them later."
+   }
+  },
+  "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
+   "level": 5,
+   "stage": 2,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "平轉身四式都用得到，也是翻滾失敗時的退路，所以排在翻滾轉身之前。先教觸壁的手，再教轉的身體。",
+    "en": "The open turn is used in all four strokes and is the fallback when a flip goes wrong, so it comes before the flip turn. Teach the touching hand first, then the turning body."
+   },
+   "err": {
+    "zh-Hant": "轉身時站起來調整。要求腳只碰牆、不碰池底。",
+    "en": "Standing up mid-turn to reset. Ask for feet that touch the wall and never the floor."
+   }
+  },
+  "11f3d107-8ea1-43f9-9301-3875cd71dad0": {
+   "level": 7,
+   "stage": 3,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "合規仰式：除了轉身允許的部分，全程必須保持仰姿。",
+    "en": "Race-legal backstroke: on the back the whole way, apart from the part of the turn the rules allow."
+   },
+   "err": {
+    "zh-Hant": "終點時翻身。",
+    "en": "Rolling over at the finish."
+   }
+  },
+  "18a6462c-4c67-4e93-8838-8bc03717b463": {
+   "level": 5,
+   "stage": 1,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "100 碼開始需要配速概念。教他用划手次數而不是感覺來控制。",
+    "en": "A hundred yards is where pacing starts to matter. Teach them to control it by stroke count, not by feel."
+   },
+   "err": {
+    "zh-Hant": "換氣次數越游越多。那是配速太快的訊號。",
+    "en": "Breathing more often as the swim goes on. That is the signal the pace was too fast."
+   }
+  },
+  "1b7d1a52-bac5-44a5-9bc4-18a7ab70903f": {
+   "level": 6,
+   "stage": 3,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "25 碼蛙式每一循環都要看得到滑行。",
+    "en": "Every cycle of a 25 yd breaststroke should have a visible glide in it."
+   },
+   "err": {
+    "zh-Hant": "划手太大、滑行消失。",
+    "en": "An over-large arm pull that swallows the glide."
+   }
+  },
+  "1b90e0d5-e21d-4991-9d97-a16394d3913b": {
+   "level": 2,
+   "stage": 3,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "全身放鬆是唯一的技巧。告訴他「越用力越沉」。手腳張開像海星。",
+    "en": "Relaxing is the whole technique. Tell them: the harder you try, the more you sink. Arms and legs spread like a starfish."
+   },
+   "err": {
+    "zh-Hant": "腰用力弓起來。輕輕壓他的肚子讓他放鬆。",
+    "en": "Arching the back with effort. A light press on the stomach lets them relax."
+   }
+  },
+  "1ed417e9-431d-46db-837b-adabbdde74f3": {
+   "level": 7,
+   "stage": 3,
+   "sort": 5,
+   "teach": {
+    "zh-Hant": "合規蛙式：左右對稱、一划一蹬、雙手同時觸壁。",
+    "en": "Race-legal breaststroke: symmetric left and right, one pull to one kick, both hands touching together."
+   },
+   "err": {
+    "zh-Hant": "出現剪刀腳或不對稱划手。",
+    "en": "A scissor kick appearing, or an uneven pull."
+   }
+  },
+  "22e00423-edc5-4626-8e7f-8bc4e846203f": {
+   "level": 5,
+   "stage": 2,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "翻轉不是重點，蹬牆才是。要求雙腳同時踏牆、蹬出後是流線型。",
+    "en": "The somersault is not the point; the push-off is. Both feet planted together, and a streamline off the wall."
+   },
+   "err": {
+    "zh-Hant": "翻完才找牆。要在接近牆之前就決定好距離。",
+    "en": "Looking for the wall after the flip. The distance has to be settled before they get there."
+   }
+  },
+  "2eb2c769-054f-4e44-9769-779c7972318b": {
+   "level": 1,
+   "stage": 2,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "坐池邊打，讓他看見自己的腿。強調「腿像棍子」、「腳背壓下去」。",
+    "en": "Sitting on the edge so they can watch their own legs. Legs like sticks, toes pressed down."
+   },
+   "err": {
+    "zh-Hant": "折膝踩腳踏車。用手輕壓膝蓋，讓他感覺發力點在髖不在膝。",
+    "en": "Bent knees, pedalling a bicycle. A light hand on the knee shows them the drive comes from the hip, not the knee."
+   }
+  },
+  "31dc4fc7-ef0b-4e4c-a80c-419ceebc7360": {
+   "level": 6,
+   "stage": 1,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "蝶式先教 10 碼就好。一划兩踢的節奏比距離重要。",
+    "en": "Ten yards is enough for butterfly to begin with. The one-pull-two-kicks rhythm matters more than the distance."
+   },
+   "err": {
+    "zh-Hant": "為了游遠而變成一划一踢。寧可只游 10 碼。",
+    "en": "Stretching the distance until it becomes one pull, one kick. Ten good yards is better."
+   }
+  },
+  "327265d2-e212-4917-90d9-21daa2a5520e": {
+   "level": 5,
+   "stage": 3,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。",
+    "en": "Twenty-five yards of dolphin kick is the physical base for butterfly. The up and the down should be even, not all down."
+   },
+   "err": {
+    "zh-Hant": "只往下踢。強調「上來也要出力」。",
+    "en": "Only kicking down. Keep saying: the way up has to work too."
+   }
+  },
+  "35250d84-1461-4c39-85fc-7686d9576753": {
+   "level": 2,
+   "stage": 2,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "建立節奏感：下沉時吐、浮起時吸。連續十次不中斷比做得漂亮重要。",
+    "en": "Build the rhythm: out on the way down, in on the way up. Ten without a break matters more than ten that look pretty."
+   },
+   "err": {
+    "zh-Hant": "在水下吸氣。先在淺水練「下去吐、上來吸」的口訣。",
+    "en": "Breathing in underwater. Practise the phrase in shallow water first: down and out, up and in."
+   }
+  },
+  "3aa56665-8ce2-4524-819d-efcf30057a02": {
+   "level": 1,
+   "stage": 1,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "第一堂課的重點不是游，是「水邊有規矩」。永遠讓他走到定點、看著你、等指令再入水。",
+    "en": "The first lesson is not about swimming, it is about there being rules at the water's edge. Every time: walk to the spot, look at you, wait for the word, then go in."
+   },
+   "err": {
+    "zh-Hant": "大人急著把小孩抱下水。一旦跳過等待，之後每一堂都要重新建立。",
+    "en": "An adult in a hurry lifts the child straight in. Skip the waiting once and you rebuild it every lesson afterwards."
+   }
+  },
+  "3c01a30f-147d-4880-9738-75c245fc3325": {
+   "level": 6,
+   "stage": 1,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "兩分鐘踩水是深水安全的最終驗證。最後 30 秒手離水。",
+    "en": "Two minutes of treading is the final proof of deep-water safety. Hands out of the water for the last thirty seconds."
+   },
+   "err": {
+    "zh-Hant": "越踩越沉。教他改用蛙腿踩水省力。",
+    "en": "Sinking lower as it goes on. Switch them to a whip-kick tread to save energy."
+   }
+  },
+  "3e66c970-61b6-4189-9fa8-353809086556": {
+   "level": 6,
+   "stage": 2,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "仰式轉身的規則細節多。轉為俯臥後只能划一次就要翻。",
+    "en": "The backstroke turn has a lot of rule detail. Once they roll to the front, one arm pull only before the somersault."
+   },
+   "err": {
+    "zh-Hant": "轉成俯臥後多划兩下。比賽會失格。",
+    "en": "Two or three extra strokes after rolling over. That is a disqualification."
+   }
+  },
+  "456f3041-33b2-4583-9f0a-4543ca2464c0": {
+   "level": 6,
+   "stage": 2,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "200 碼開始是耐力課題。教配速：每 50 碼的時間差不超過 5 秒。",
+    "en": "Two hundred yards is where endurance starts. Teach pacing: no more than five seconds between any two 50s."
+   },
+   "err": {
+    "zh-Hant": "前 50 碼衝太快。用碼表讓他自己看到差距。",
+    "en": "Going out too hard on the first 50. Put a stopwatch on it so they see the gap themselves."
+   }
+  },
+  "4a0a72ff-a39f-404c-a40f-49b83b5ea4ff": {
+   "level": 3,
+   "stage": 1,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "25 碼要能維持直線。教他用池邊的線或天花板當參考。",
+    "en": "Twenty-five yards has to hold a straight line. Teach them to use the lane line or a fixed point on the ceiling."
+   },
+   "err": {
+    "zh-Hant": "游成蛇行。每五碼提醒他看一次天花板的定點。",
+    "en": "Swimming a snake. Every five yards, remind them to find the point on the ceiling again."
+   }
+  },
+  "4dd3928b-8433-40c4-8057-29b454ce5a03": {
+   "level": 3,
+   "stage": 2,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "先教蛋打水（畫圈），再加手。踩水是深水安全的核心技能，不要急。",
+    "en": "Teach the eggbeater first — circles — then add the hands. Treading is the core of deep-water safety; do not rush it."
+   },
+   "err": {
+    "zh-Hant": "手拚命拍水、身體直上直下。強調「慢而大」的腿。",
+    "en": "Hands slapping frantically while the body bobs straight up and down. Ask for slow, big legs."
+   }
+  },
+  "4fd1fce7-9293-475e-a142-5a8d2ecf954d": {
+   "level": 2,
+   "stage": 1,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "浮板抓前緣，手臂伸直，臉入水。打水小而快，水花在水面下。",
+    "en": "Hold the front edge of the board, arms straight, face in. Small fast kick with the splash staying under the surface."
+   },
+   "err": {
+    "zh-Hant": "打得太大太慢，膝蓋彎。要求「腳跟只微微露出水面」。",
+    "en": "Big slow kicks with bent knees. Ask for heels that barely break the surface."
+   }
+  },
+  "52ad780b-a73d-418d-988f-f49651cbc088": {
+   "level": 1,
+   "stage": 3,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "這是安全技能，比漂本身重要。膝蓋收到胸口、腳踩地、頭最後起來。",
+    "en": "This is a safety skill and matters more than the float itself. Knees to the chest, feet down, head up last."
+   },
+   "err": {
+    "zh-Hant": "先抬頭再站——頭一抬身體就沉，孩子會嗆到而害怕漂浮。",
+    "en": "Head first, then standing — lift the head and the body sinks, they swallow water and start fearing the float."
+   }
+  },
+  "580a979a-e3f7-458f-b0f8-c39c7c20d686": {
+   "level": 3,
+   "stage": 3,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "這是自由式的前身。先有「轉身體換氣」，再有手臂動作。",
+    "en": "This is freestyle before freestyle. Rolling to breathe comes first; the arms come after."
+   },
+   "err": {
+    "zh-Hant": "直接教划手。沒有側轉的自由式之後很難改。",
+    "en": "Teaching the arm pull straight away. Freestyle without the roll is very hard to fix later."
+   }
+  },
+  "58842492-eacd-4c4d-9506-a18e562c64b5": {
+   "level": 1,
+   "stage": 2,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "先讓他自己走，怕的時候你的手放在他後背而不是牽著。距離慢慢拉長。",
+    "en": "Let them walk themselves. When they get nervous your hand goes on their back, not in their hand. Stretch the distance gradually."
+   },
+   "err": {
+    "zh-Hant": "牽著手走十碼——那是你在走，不是他。",
+    "en": "Walking ten yards hand in hand — that is you walking, not them."
+   }
+  },
+  "58b20bb7-23a5-4ee2-affb-5f16284a7563": {
+   "level": 7,
+   "stage": 3,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "四式銜接的每一個轉身規則都不一樣。逐一拆開練，再串起來。",
+    "en": "Every turn between two strokes has its own rule. Break them out one at a time, then join them up."
+   },
+   "err": {
+    "zh-Hant": "把四種轉身混在一起做。",
+    "en": "Practising all four turns jumbled together."
+   }
+  },
+  "5aa1716e-8d05-41b0-a660-7fce60b69390": {
+   "level": 3,
+   "stage": 3,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "海豚腿放在這裡是當作身體波浪的訓練，不是為了教蝶式。從胸口帶動。",
+    "en": "The dolphin kick sits here as body-wave training, not to teach butterfly. The wave starts at the chest."
+   },
+   "err": {
+    "zh-Hant": "折膝踢水。手放在他背上讓他感覺波浪從上往下傳。",
+    "en": "Kicking from a bent knee. A hand on their back lets them feel the wave travelling down."
+   }
+  },
+  "61765b4c-fd81-458d-acb9-1f4c19201994": {
+   "level": 6,
+   "stage": 3,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "水下海豚腿 15 碼是競技游泳的關鍵武器。注意規則上限。",
+    "en": "Fifteen yards of underwater dolphin is a real competitive weapon. Mind the distance the rules allow."
+   },
+   "err": {
+    "zh-Hant": "為了距離而缺氧。任何不適立刻停。",
+    "en": "Going short of air chasing distance. Any discomfort and it stops immediately."
+   }
+  },
+  "6d6b6afb-ed92-47b1-b557-52904c7931ab": {
+   "level": 7,
+   "stage": 3,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "合規自由式：轉身觸壁、終點觸壁、全程不踩底。",
+    "en": "Race-legal freestyle: touch at the turn, touch at the finish, and never stand on the bottom."
+   },
+   "err": {
+    "zh-Hant": "轉身時站起來調整。",
+    "en": "Standing up mid-turn to reset."
+   }
+  },
+  "77dcafb5-fee7-4fde-8020-9691b99f5064": {
+   "level": 2,
+   "stage": 1,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "耳朵要在水裡、肚子頂高。眼睛看天花板同一個點。",
+    "en": "Ears in the water, stomach pushed up. Eyes on one fixed point on the ceiling."
+   },
+   "err": {
+    "zh-Hant": "坐著打水（臀部下沉）。手放在他臀下往上頂一下讓他感覺位置。",
+    "en": "Kicking while sitting — hips sunk. A hand under the hips, lifting once, shows them where they should be."
+   }
+  },
+  "7a62a560-01cd-4199-b464-68a78a8ee98a": {
+   "level": 3,
+   "stage": 3,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "轉身不站起來，是「連續游」的門檻。腳踩到牆才蹬。",
+    "en": "Turning without standing up is the threshold of swimming continuously. The feet find the wall before they push."
+   },
+   "err": {
+    "zh-Hant": "轉身時站起來喘一口。要求全程臉不離開水面太久。",
+    "en": "Standing up at the turn to catch a breath. Ask for the face to stay near the water throughout."
+   }
+  },
+  "806e2b61-f66e-460b-b31b-264097fee097": {
+   "level": 4,
+   "stage": 3,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "深水中的漂浮是心理關卡不是技術關卡。30 秒的重點是放鬆。",
+    "en": "Floating in deep water is a nerve problem, not a technique problem. The thirty seconds is about relaxing."
+   },
+   "err": {
+    "zh-Hant": "教練站在旁邊一直講話。安靜讓他自己撐完。",
+    "en": "The coach standing there talking the whole time. Go quiet and let them finish it themselves."
+   }
+  },
+  "81568486-d273-49b0-a824-d53569fefc37": {
+   "level": 4,
+   "stage": 3,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "著衣游泳讓他知道衣服有多重。脫上衣要在能踩水的地方做。",
+    "en": "Swimming clothed teaches them how heavy clothes are. Take the top off somewhere they can tread, not stand."
+   },
+   "err": {
+    "zh-Hant": "在腳踩得到的地方脫。那樣學不到東西。",
+    "en": "Taking it off where they can stand. Nothing is learnt that way."
+   }
+  },
+  "818b6b3b-63b9-4e13-9a52-f3f466f57cc7": {
+   "level": 4,
+   "stage": 2,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "把流線型和打水結合，這是之後所有出發後動作的基礎。",
+    "en": "Joins the streamline to the kick. Everything that happens after a start is built on this."
+   },
+   "err": {
+    "zh-Hant": "手臂鬆開。要求雙手交疊夾緊。",
+    "en": "Arms coming apart. Ask for hands stacked and squeezed."
+   }
+  },
+  "840dbdc7-1774-46ce-95ca-fe2f87d23475": {
+   "level": 7,
+   "stage": 1,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "200 碼仰式含合規轉身。體能與規則同時考。",
+    "en": "Two hundred yards of backstroke with legal turns — fitness and rules tested at the same time."
+   },
+   "err": {
+    "zh-Hant": "疲勞之後轉身變得不合規。",
+    "en": "Turns stop being legal once they are tired."
+   }
+  },
+  "89ca69a6-6f96-4c1d-a52d-6ba16edab33b": {
+   "level": 3,
+   "stage": 1,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "雙手交疊夾緊耳朵、身體像一根棍子。滑行距離是流線型好不好的唯一證據。",
+    "en": "Hands stacked and squeezing the ears, body like a stick. The distance of the glide is the only proof the streamline is any good."
+   },
+   "err": {
+    "zh-Hant": "手沒有夾緊，或蹬牆時腳位置太低。",
+    "en": "Arms not squeezed, or feet planted too low on the wall."
+   }
+  },
+  "9194c9af-7e03-4d13-969b-4284d49b3a84": {
+   "level": 3,
+   "stage": 2,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "深水撿物是把前面的憋氣、睜眼、下潛整合起來。第一次陪他下去。",
+    "en": "Deep-water retrieval pulls together the breath holding, the open eyes and the dive. Go down with them the first time."
+   },
+   "err": {
+    "zh-Hant": "一開始就放到最深。從深水的淺端開始。",
+    "en": "Starting at the deepest point. Start at the shallow end of the deep water."
+   }
+  },
+  "91adaea7-aefa-432c-8b9a-44ca43976bdb": {
+   "level": 7,
+   "stage": 1,
+   "sort": 5,
+   "teach": {
+    "zh-Hant": "50 碼著衣加水中脫衣，是全部求生技能的總驗收。",
+    "en": "Fifty yards clothed, undressing in the water: the final test of every survival skill."
+   },
+   "err": {
+    "zh-Hant": "在能站的地方脫衣服。",
+    "en": "Undressing where they can stand."
+   }
+  },
+  "91e61121-5528-456b-9e7d-b97953ed0c39": {
+   "level": 4,
+   "stage": 1,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "25 碼是第一個真正的里程碑。固定單邊換氣就好，先不要求兩側。",
+    "en": "Twenty-five yards is the first real milestone. One fixed breathing side is enough; do not ask for both yet."
+   },
+   "err": {
+    "zh-Hant": "為了游完而亂划。寧可慢，動作要在。",
+    "en": "Thrashing to get to the end. Slower is fine — the stroke has to still be there."
+   }
+  },
+  "92751613-6a3c-465f-bcdb-251754df1dff": {
+   "level": 1,
+   "stage": 3,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "托在肩胛骨下方，不是托頭。慢慢減少支撐，讓他自己發現水會撐住他。",
+    "en": "Support under the shoulder blades, not under the head. Take the support away a little at a time so they discover the water holds them up."
+   },
+   "err": {
+    "zh-Hant": "托著頭。頭一被托住，他就永遠學不會放鬆後仰。",
+    "en": "Holding the head. Once the head is held they never learn to relax back."
+   }
+  },
+  "95bf3bc3-79b3-48a4-9a90-cf53103ca965": {
+   "level": 4,
+   "stage": 3,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "不戴蛙鏡是真實落水的情境。先在淺水適應睜眼再游。",
+    "en": "No goggles is what a real fall looks like. Get used to open eyes in shallow water before swimming it."
+   },
+   "err": {
+    "zh-Hant": "瞇著眼睛游。要求真的睜開。",
+    "en": "Swimming with the eyes screwed half shut. Ask for them properly open."
+   }
+  },
+  "96c47b53-df33-4b4a-9a8e-a84eed10c7b8": {
+   "level": 4,
+   "stage": 2,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "仰式最大的問題是臀部下沉。肚子頂高、下巴微收。",
+    "en": "The problem with backstroke is always sinking hips. Stomach pushed up, chin lightly tucked."
+   },
+   "err": {
+    "zh-Hant": "折膝打水、手臂沒有過頭。",
+    "en": "Kicking from bent knees, and arms that never go past the head."
+   }
+  },
+  "9722f505-b208-43dc-868d-495ba0f3c10e": {
+   "level": 4,
+   "stage": 2,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "水下打水一口氣 10 碼，同時練憋氣與流線型。",
+    "en": "Ten yards of kicking underwater on one breath, training the breath hold and the streamline at the same time."
+   },
+   "err": {
+    "zh-Hant": "中途抬頭偷看。",
+    "en": "Sneaking the head up halfway."
+   }
+  },
+  "97804fbb-13d4-4367-ab9d-0276b25591d6": {
+   "level": 5,
+   "stage": 2,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "加入轉身後要能維持直線。教他數划手次數判斷離牆距離。",
+    "en": "With a turn added, the line still has to hold. Teach them to count strokes to know where the wall is."
+   },
+   "err": {
+    "zh-Hant": "仰式撞牆。這是沒有數划手的必然結果，一定要教。",
+    "en": "Hitting the wall on backstroke. That is what happens without counting strokes, every time, so it has to be taught."
+   }
+  },
+  "997642b0-c290-48cf-a53f-ccb46d52d539": {
+   "level": 3,
+   "stage": 3,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "這是 Level 3 的綜合驗收，放在最後一個——前面所有技能都是為了它。跳、轉、游、爬，一次做完。",
+    "en": "This is the Level 3 test and sits last on purpose — every skill before it exists for this. Jump, turn, swim, climb out, in one go."
+   },
+   "err": {
+    "zh-Hant": "拆開來練得很好，合起來就亂。通過之前至少完整做三次，中間不給提示。",
+    "en": "Beautiful in pieces, a mess joined up. Three clean run-throughs, with no prompting, before you pass it."
+   }
+  },
+  "9f37e0f9-68d5-4bae-8349-c9d2d99d8225": {
+   "level": 6,
+   "stage": 1,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "蛙式順序是「划、吸、蹬、滑」。順序錯了怎麼練都不會順。",
+    "en": "Breaststroke runs pull, breathe, drive, glide. Get the order wrong and no amount of practice makes it flow."
+   },
+   "err": {
+    "zh-Hant": "先蹬再划。用口訣一拍一拍喊出來。",
+    "en": "Driving before pulling. Call the four counts out loud, one at a time."
+   }
+  },
+  "a5ec094e-4338-4259-9e43-4b913cd02ca3": {
+   "level": 1,
+   "stage": 1,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "手指扣住池壁邊緣，不是手掌壓著。換手時另一隻手先抓穩才放。",
+    "en": "Fingers hooked over the lip of the wall, not a flat palm pressing. Moving along, the new hand grips before the old one lets go."
+   },
+   "err": {
+    "zh-Hant": "兩手同時放開換手。要求「一手永遠在牆上」。",
+    "en": "Both hands off at once to change grip. Ask for one hand on the wall at all times."
+   }
+  },
+  "a8d00e21-01af-4ad5-a90d-a7e8bd59e6a8": {
+   "level": 7,
+   "stage": 2,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "500 碼要自己數趟。這是比賽的實際要求。",
+    "en": "Five hundred yards means counting their own lengths. That is what a race actually asks of them."
+   },
+   "err": {
+    "zh-Hant": "數錯趟數。教他每 100 碼記一次。",
+    "en": "Losing count. Teach them to mark it every 100 yards."
+   }
+  },
+  "b02f51e3-1e69-487e-86b1-18e21ddb6812": {
+   "level": 5,
+   "stage": 3,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "蛙腿是四式中最難教的。分解成「收、翻、蹬、併」四拍，慢慢做。",
+    "en": "The whip kick is the hardest movement in the four strokes to teach. Break it into four counts — draw up, turn out, drive, together — and go slowly."
+   },
+   "err": {
+    "zh-Hant": "腳掌沒有翻出去（剪刀腳）。用手扶著他的腳掌帶一次。",
+    "en": "Feet never turning out, so it becomes a scissor kick. Hold their feet and walk them through it once."
+   }
+  },
+  "b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51": {
+   "level": 2,
+   "stage": 3,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "划手是「感覺水」的第一課，之後所有泳姿的抓水都從這裡來。八字形，手掌像抹果醬。",
+    "en": "Sculling is the first lesson in feeling the water; every catch in every stroke comes from here. Figure of eight, palms spreading jam."
+   },
+   "err": {
+    "zh-Hant": "划成上下拍水。放慢，讓他找到「手掌壓住水」的感覺。",
+    "en": "Slapping up and down instead of sculling. Slow it down until they find the palm pressing on the water."
+   }
+  },
+  "b2a0c2d4-5e6f-4a72-8b92-0c1d2e3f4a52": {
+   "level": 3,
+   "stage": 2,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "求生漂的重點是省力，不是漂得漂亮。抬頭換氣後臉要回到水裡。",
+    "en": "The survival float is about saving energy, not about looking good. The face goes back in the water after each breath."
+   },
+   "err": {
+    "zh-Hant": "一直抬著頭。那樣一分鐘撐不完。",
+    "en": "Keeping the head up the whole time. That will not last a minute."
+   }
+  },
+  "b3a0c2d4-5e6f-4a73-8b92-0c1d2e3f4a53": {
+   "level": 4,
+   "stage": 1,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "入水角度比姿勢重要。坐姿先做熟再跪姿。手臂夾耳，頭藏在手臂中間。",
+    "en": "The angle of entry matters more than the posture. Get the seated dive solid before kneeling. Arms squeezing the ears, head hidden between them."
+   },
+   "err": {
+    "zh-Hant": "抬頭看水面。頭一抬就變成拍肚子，會痛而且會怕。",
+    "en": "Lifting the head to look at the surface. Up comes the head and it becomes a belly flop — it hurts, and then they are afraid of it."
+   }
+  },
+  "b46c9773-7e09-4da4-8beb-d79050075710": {
+   "level": 2,
+   "stage": 1,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "把蹬牆和漂浮接起來，這是之後所有出發與轉身的基礎。",
+    "en": "Joins the push-off to the float. Every start and turn later is built on this."
+   },
+   "err": {
+    "zh-Hant": "蹬完馬上開始掙扎。要求「先什麼都不做，數到五」。",
+    "en": "Struggling the moment they leave the wall. Ask for nothing at all until they have counted to five."
+   }
+  },
+  "b4a0c2d4-5e6f-4a74-8b92-0c1d2e3f4a54": {
+   "level": 5,
+   "stage": 2,
+   "sort": 5,
+   "teach": {
+    "zh-Hant": "頭下腳上下潛，靠的是抬腿的重量而不是划手。",
+    "en": "Head down, feet up: the dive is driven by the weight of the lifted legs, not by pulling with the arms."
+   },
+   "err": {
+    "zh-Hant": "用手拚命划想往下。教他「把腿舉出水面」。",
+    "en": "Clawing downwards with the hands. Teach them to lift the legs clear of the water."
+   }
+  },
+  "b4e9ff8e-535c-4e5e-bc9a-8ceb9c252113": {
+   "level": 4,
+   "stage": 3,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "最後 10 秒手離開水面，是為了證明腿真的在work。",
+    "en": "Hands out of the water for the last ten seconds, to prove the legs are actually doing the work."
+   },
+   "err": {
+    "zh-Hant": "手一離開水面就沉。回去把腿練好再測。",
+    "en": "Sinking the moment the hands come up. Go back and build the legs before testing again."
+   }
+  },
+  "b5a0c2d4-5e6f-4a75-8b92-0c1d2e3f4a55": {
+   "level": 5,
+   "stage": 3,
+   "sort": 5,
+   "teach": {
+    "zh-Hant": "自己不下水是這個技能的全部重點。反覆強調「先伸、再丟、絕不跳」。",
+    "en": "Not going in yourself is the entire point of this skill. Say it over and over: reach first, throw second, never jump."
+   },
+   "err": {
+    "zh-Hant": "示範時教練自己下水去救。示範錯了比不教還糟。",
+    "en": "The coach going in to demonstrate the rescue. A wrong demonstration is worse than none."
+   }
+  },
+  "b617a73c-8da4-4526-9420-58ed4c682a94": {
+   "level": 7,
+   "stage": 3,
+   "sort": 6,
+   "teach": {
+    "zh-Hant": "合規蝶式：雙臂同時前進、不可自由式打水、雙手同時觸壁。",
+    "en": "Race-legal butterfly: both arms recovering together, no flutter kick, both hands touching together."
+   },
+   "err": {
+    "zh-Hant": "疲勞時單手先觸壁。",
+    "en": "One hand reaching the wall first when they are tired."
+   }
+  },
+  "b6a0c2d4-5e6f-4a76-8b92-0c1d2e3f4a56": {
+   "level": 6,
+   "stage": 2,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "站姿跳水前務必確認水深。手先入、身體從同一個洞進去。",
+    "en": "Check the water depth before any standing dive. Hands in first, and the body follows through the same hole."
+   },
+   "err": {
+    "zh-Hant": "腳先蹬起來太高導致過度翻轉。",
+    "en": "Driving the feet up too hard, so they over-rotate."
+   }
+  },
+  "b7525cfb-5d9b-43b2-9868-393578adf991": {
+   "level": 6,
+   "stage": 1,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "混合式打水是四式順序的記憶練習，同時檢查四種腿都能用。",
+    "en": "Medley kicking drills the order of the four strokes and checks all four sets of legs still work."
+   },
+   "err": {
+    "zh-Hant": "四式之間停下來休息。要求連著做。",
+    "en": "Stopping for a rest between strokes. Ask for it unbroken."
+   }
+  },
+  "b7a0c2d4-5e6f-4a77-8b92-0c1d2e3f4a57": {
+   "level": 7,
+   "stage": 2,
+   "sort": 5,
+   "teach": {
+    "zh-Hant": "出發台出發與仰式出發都有規則細節。搶跳即失格。",
+    "en": "Both the block start and the backstroke start have rule detail. Moving early is a disqualification."
+   },
+   "err": {
+    "zh-Hant": "沒有等到信號。反覆練「聽到才動」。",
+    "en": "Going before the signal. Drill it: nothing moves until you hear it."
+   }
+  },
+  "be760433-09d7-4cac-9863-fa758abc9009": {
+   "level": 5,
+   "stage": 1,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "50 碼含轉身，考的是「動作會不會在第二趟垮掉」。後半段盯技術不盯速度。",
+    "en": "Fifty yards includes a turn, and the question is whether the stroke falls apart on the second length. Watch technique on the way back, not speed."
+   },
+   "err": {
+    "zh-Hant": "第一趟拚快，第二趟散掉。要求前後兩趟划手次數相同。",
+    "en": "Sprinting the first length and falling apart on the second. Ask for the same stroke count both ways."
+   }
+  },
+  "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
+   "level": 4,
+   "stage": 2,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "雙臂對稱、蛙腿、臉朝上——這是累的時候能換的省力泳姿，L7 的長距離會需要它。口訣「雞、飛機、火箭」。",
+    "en": "Symmetric arms, whip kick, face up — this is the stroke they switch to when they are tired, and the long swims in L7 will need it. Chicken, aeroplane, rocket."
+   },
+   "err": {
+    "zh-Hant": "手腳不同步。先分開練手、再分開練腳，最後才合起來。",
+    "en": "Arms and legs out of time. Practise the arms alone, then the legs alone, and only then put them together."
+   }
+  },
+  "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
+   "level": 4,
+   "stage": 3,
+   "sort": 5,
+   "teach": {
+    "zh-Hant": "紅十字會的全美水中自保基準，L4 的綜合驗收。五個動作一次做完，中間不給提示。通過之後可以直接跟家長說「已達全美標準」。",
+    "en": "The Red Cross water-competency benchmark, and the Level 4 test. Five actions in one go with no prompting in between. Once they pass it you can tell the parents they meet the national standard."
+   },
+   "err": {
+    "zh-Hant": "拆開練得很好，合起來就亂。深水、不戴蛙鏡、完整做三次才算。",
+    "en": "Beautiful in pieces, a mess joined up. Deep water, no goggles, three complete run-throughs before it counts."
+   }
+  },
+  "c3a0c2d4-5e6f-4a83-8b92-0c1d2e3f4a63": {
+   "level": 6,
+   "stage": 3,
+   "sort": 4,
+   "teach": {
+    "zh-Hant": "蛙式與蝶式的轉身規則和自由式不同：雙手必須同時碰到牆。比賽單手觸壁就是直接失格。",
+    "en": "Breaststroke and butterfly turn under different rules from freestyle: both hands must touch the wall together. In a race, one hand is an immediate disqualification."
+   },
+   "err": {
+    "zh-Hant": "疲勞時單手先觸壁。從一開始就要求雙手，不要等到 L7 才改。",
+    "en": "One hand reaching first when they are tired. Ask for two hands from the very first lesson, not from L7."
+   }
+  },
+  "c4b854b3-f337-4799-9631-33c6459951c6": {
+   "level": 7,
+   "stage": 1,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "計時的重點是「有沒有進步」，不是絕對成績。三次測驗取趨勢。",
+    "en": "A timed swim is about whether they are improving, not about the number. Take the trend across three attempts."
+   },
+   "err": {
+    "zh-Hant": "把成績拿來跟別人比。只跟自己的上一次比。",
+    "en": "Comparing the time with another swimmer. Compare it only with their own last one."
+   }
+  },
+  "c7022acb-3075-471f-8c45-4d5330139369": {
+   "level": 2,
+   "stage": 3,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "過頭深時扶牆做，安全感來自牆。這是深水恐懼的過渡練習。",
+    "en": "Over head-deep, done holding the wall — the wall is where the courage comes from. This is the bridge into deep water."
+   },
+   "err": {
+    "zh-Hant": "直接放到深水中央。他會抓你，然後怕更久。",
+    "en": "Straight into the middle of the deep end. They grab you, and the fear lasts longer."
+   }
+  },
+  "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
+   "level": 7,
+   "stage": 2,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "50 碼蝶式，第二趟節奏維持是重點。",
+    "en": "Fifty yards of butterfly, where the point is holding the rhythm through the second length."
+   },
+   "err": {
+    "zh-Hant": "第二趟變成一划一踢。",
+    "en": "The second length collapsing into one pull, one kick."
+   }
+  },
+  "d6915327-5d9d-4907-be40-b59ad3536c8d": {
+   "level": 1,
+   "stage": 3,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "手臂夾耳、下巴收、腳併攏。滑行時什麼都不做，讓他體會「水會帶著我走」。",
+    "en": "Arms squeezing the ears, chin tucked, feet together. Nothing happens during the glide: let them feel the water carrying them."
+   },
+   "err": {
+    "zh-Hant": "抬頭看前面。頭一抬臀部就掉，滑不出去。",
+    "en": "Lifting the head to look ahead. The head comes up, the hips drop, and the glide stops."
+   }
+  },
+  "daefdc4c-aa3f-4df6-b001-4e95569c4d78": {
+   "level": 5,
+   "stage": 2,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "25 碼仰式要有肩膀轉動。手臂入水時小指先進。",
+    "en": "Twenty-five yards of backstroke needs the shoulders rotating. Little finger enters the water first."
+   },
+   "err": {
+    "zh-Hant": "身體平板沒有轉動，手臂用甩的。",
+    "en": "A flat body with no rotation, and arms thrown rather than swung."
+   }
+  },
+  "de916eb5-53b3-4ab3-b451-53f793a1666f": {
+   "level": 7,
+   "stage": 2,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "50 碼蛙式，轉身與終點都是雙手同時觸壁。",
+    "en": "Fifty yards of breaststroke: both hands together on the wall at the turn and at the finish."
+   },
+   "err": {
+    "zh-Hant": "終點單手觸壁。",
+    "en": "One hand at the finish."
+   }
+  },
+  "dff814b2-90df-4043-aeb3-dd4e4df64fbe": {
+   "level": 4,
+   "stage": 1,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "第一次完整的自由式。手臂高肘回復，入水在肩線前方。距離先短。",
+    "en": "Their first whole freestyle. High-elbow recovery, hand entering ahead of the shoulder line. Keep the distance short at first."
+   },
+   "err": {
+    "zh-Hant": "手臂打直繞大圈。用「手肘先出水」的提示。",
+    "en": "Straight arms swinging in a wide circle. Use the cue: elbow out of the water first."
+   }
+  },
+  "e858562b-a3aa-4875-84ef-e1f6875770e5": {
+   "level": 5,
+   "stage": 3,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "每一蹬之後要有滑行，這是蛙式效率的全部。",
+    "en": "There is a glide after every drive, and that glide is the whole of breaststroke efficiency."
+   },
+   "err": {
+    "zh-Hant": "連續蹬腿不滑行。要求「蹬完數一下再收」。",
+    "en": "Kicking continuously with no glide. Ask them to count one after the drive before drawing up."
+   }
+  },
+  "e8fd87dc-4e41-4ea5-adda-d8038881f573": {
+   "level": 3,
+   "stage": 1,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "加入換氣。頭轉到側面而不是抬起來，一隻蛙鏡留在水裡。",
+    "en": "Breathing is added here. The head turns to the side rather than lifting, with one goggle staying in the water."
+   },
+   "err": {
+    "zh-Hant": "抬頭換氣。用「用耳朵貼著手臂轉」的提示。",
+    "en": "Lifting the head to breathe. Use the cue: turn with your ear on your arm."
+   }
+  },
+  "e9374f19-259b-4c49-85c2-a6faebae05e9": {
+   "level": 6,
+   "stage": 3,
+   "sort": 5,
+   "teach": {
+    "zh-Hant": "著衣 25 碼加踩水一分鐘，是完整的落水求生演練。",
+    "en": "Twenty-five yards clothed plus a minute of treading is a complete fall-in survival rehearsal."
+   },
+   "err": {
+    "zh-Hant": "衣服太薄。要用真的會吸水的棉質衣物。",
+    "en": "Clothes that are too light. Use real cotton that soaks up water."
+   }
+  },
+  "e9f7b834-3e50-446f-a775-33d547ba776b": {
+   "level": 7,
+   "stage": 3,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "100 碼個人混合式是全課程的集大成。順序：蝶、仰、蛙、自。",
+    "en": "The 100 yd IM is where the whole programme comes together. The order is butterfly, backstroke, breaststroke, freestyle."
+   },
+   "err": {
+    "zh-Hant": "順序記錯。上場前一定要複誦。",
+    "en": "Getting the order wrong. Have them say it back before they step up."
+   }
+  },
+  "eaa47012-b0e4-4e77-ba05-f87b6acc80db": {
+   "level": 7,
+   "stage": 1,
+   "sort": 3,
+   "teach": {
+    "zh-Hant": "400 碼配速課。每 50 碼差距在 5 秒內才算過。",
+    "en": "Four hundred yards is a pacing lesson. Every 50 within five seconds of the others to pass."
+   },
+   "err": {
+    "zh-Hant": "前 200 快、後 200 崩。",
+    "en": "Fast for the first 200 and falling apart over the second."
+   }
+  },
+  "eb420091-b357-41af-892a-73a1059ecfda": {
+   "level": 6,
+   "stage": 3,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "25 碼蝶式考的是節奏能不能撐到觸壁。後半段最容易垮。",
+    "en": "Twenty-five yards of butterfly asks whether the rhythm survives to the wall. The back half is where it goes."
+   },
+   "err": {
+    "zh-Hant": "最後 5 碼變成掙扎。寧可放慢節奏也要維持形狀。",
+    "en": "The last five yards turning into a struggle. Slow the rhythm rather than lose the shape."
+   }
+  },
+  "ed0e69e4-3edb-4668-84d8-a39064fe2425": {
+   "level": 2,
+   "stage": 3,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "第一次讓他睜眼在水下找東西。放在他看得到的位置，不要為難他。",
+    "en": "Their first time looking for something underwater with their eyes open. Put it where they can see it; do not make it hard."
+   },
+   "err": {
+    "zh-Hant": "一次撿不到就重來很多次，孩子會失去信心。改放淺一點。",
+    "en": "Repeating a failed dive again and again costs them confidence. Put it shallower instead."
+   }
+  },
+  "ed4c463b-6c65-497b-b370-18e9bd945468": {
+   "level": 2,
+   "stage": 2,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "BBQ = 像烤肉架上的肉那樣翻轉。一直打水，只有身體在轉。",
+    "en": "BBQ as in meat turning on a spit. The kick never stops; only the body rotates."
+   },
+   "err": {
+    "zh-Hant": "轉的時候腿停了。強調「腿不准停」。",
+    "en": "The legs stop during the roll. Keep saying: the legs are not allowed to stop."
+   }
+  },
+  "f0b828a0-63a5-4aea-8000-13e1b05b1682": {
+   "level": 1,
+   "stage": 1,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "上岸和入水一樣重要——這是他掉下去時唯一的自救路徑。兩隻手抓穩再撐。",
+    "en": "Getting out matters as much as getting in — it is the only way back if they fall. Both hands gripped before they push."
+   },
+   "err": {
+    "zh-Hant": "教練順手把小孩拉上來，孩子永遠學不會自己上岸。",
+    "en": "The coach reflexively hauls them out, and the child never learns to climb out at all."
+   }
+  },
+  "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
+   "level": 7,
+   "stage": 2,
+   "sort": 1,
+   "teach": {
+    "zh-Hant": "蛙式水下划手是規則允許的一次長划加一次海豚腿。順序錯就失格。",
+    "en": "The pullout is one long pull and one dolphin kick, in the order the rules allow. Out of order is a disqualification."
+   },
+   "err": {
+    "zh-Hant": "划兩次，或海豚腿踢在划手之前。",
+    "en": "Two pulls, or the dolphin kick before the pull."
+   }
+  },
+  "fe6b4f6e-cfa9-4cfe-979a-6cd3cf6d5af9": {
+   "level": 6,
+   "stage": 2,
+   "sort": 2,
+   "teach": {
+    "zh-Hant": "100 碼仰式含轉身，直線是最大的挑戰。",
+    "en": "A hundred yards of backstroke with turns, where holding a straight line is the real challenge."
+   },
+   "err": {
+    "zh-Hant": "偏出水道。用天花板的燈當參考線。",
+    "en": "Drifting out of the lane. Use the ceiling lights as a guide line."
+   }
+  }
+ },
+ "closing": {
+  "zh-Hant": "<div class=\"note\">\n    <p><strong>這份手冊和 app 是同一份資料。</strong>每個技能的通過標準也寫進了資料庫，教練在評分介面點百分比的時候，那一行字就顯示在按鈕上方。手冊改了，app 也要改——兩邊講的必須是同一件事。</p>\n    <p style=\"margin-bottom:0\"><strong>還沒解決的一件事：</strong>Level 7 的階段 3 有六個技能並排，要全部 100 才算完成整個課程。學員在那裡會停留很久，進度條幾乎不動。這是刻意保留的——競技規格本來就慢——但跟家長溝通時要先講清楚，不要讓他們以為孩子卡住了。</p>\n  </div>",
+  "en": "<div class=\"note\">\n    <p><strong>This handbook and the app are the same data.</strong> Every pass standard here is also in the database, and it appears above the buttons when a coach taps a percentage. If the handbook changes the app changes with it &mdash; the two must say the same thing.</p>\n    <p style=\"margin-bottom:0\"><strong>One thing still unsolved:</strong> stage 3 of Level 7 has six skills side by side, and all six must read 100 before the programme is complete. Swimmers sit there a long time and the bar barely moves. That is deliberate &mdash; racing standards are slow by nature &mdash; but say so to parents in advance, so they do not think their child has stalled.</p>\n  </div>"
+ }
+}

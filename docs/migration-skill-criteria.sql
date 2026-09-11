@@ -30,7 +30,7 @@ ALTER TABLE public.skills
 
 COMMENT ON COLUMN public.skills.pass_criteria IS
   '這個技能算「100%」的條件，一句話。顯示在教練評分介面的按鈕旁邊。
-   全校統一的六格階梯（0/20/40/60/80/100）定義見 docs/coaching-handbook.md。';
+   全校統一的六格階梯（0/20/40/60/80/100）定義見 docs/coaching-handbook-zh.html。';
 
 -- ---------- Level 1 — Water Discovery 認識水 ----------
 UPDATE public.skills SET name = 'Safe Entry and Recognition', pass_criteria = 'Walks to the edge, waits for the coach, enters feet-first without being asked twice. 走到池邊會等教練，聽指令雙腳先入水，不用講第二次。'
