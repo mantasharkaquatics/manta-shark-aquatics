@@ -202,7 +202,7 @@ UPDATE public.skills SET name = 'Backstroke (Race Legal) 仰式（合規）', pa
   WHERE id = '11f3d107-8ea1-43f9-9301-3875cd71dad0';  -- L7S3.4 was: Backstroke (Competitive)
 UPDATE public.skills SET name = 'Breaststroke (Race Legal) 蛙式（合規）', pass_criteria = 'Breaststroke that would not be disqualified: symmetric, one pull one kick, two-hand touch. 蛙式左右對稱、一划一蹬、雙手同時觸壁，不會失格。'
   WHERE id = '1ed417e9-431d-46db-837b-adabbdde74f3';  -- L7S3.5 was: Breaststroke (Competitive)
-UPDATE public.skills SET name = 'Butterfly (Race Legal) 蝶式（合規）', pass_criteria = 'Butterfly that would not be disqualified: simultaneous arms, no flutter kick, two-hand touch. 蝶式雙臂同時、無自由式打腿、雙手同時觸壁，不會失格。'
+UPDATE public.skills SET name = 'Butterfly (Race Legal) 蝶式（合規）', pass_criteria = 'Butterfly that would not be disqualified: simultaneous arms, no flutter kick, two-hand touch. 蝶式雙臂同時、無自由式打水、雙手同時觸壁，不會失格。'
   WHERE id = 'b617a73c-8da4-4526-9420-58ed4c682a94';  -- L7S3.6 was: Butterfly (Competitive)
 
 -- ---------- Level 3 順序調整 ----------
@@ -282,7 +282,7 @@ INSERT INTO public.skills (id, level_id, name, stage, sort_order, is_active, pas
 -- 2. 初級仰泳 —— L4 階段 2，緊接在仰式 15 碼之後
 INSERT INTO public.skills (id, level_id, name, stage, sort_order, is_active, pass_criteria) VALUES
   ('c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61', 'ed7884c1-bf10-4725-830a-981ee8b52246', 'Elementary Backstroke 25 yd 初級仰泳 25 碼', 2, 2, true,
-   'Swims 25 yd on the back with a symmetric arm pull and whip kick, gliding after each stroke. 仰躺 25 碼，雙臂對稱划水配合蛙腿，每一循環後有滑行。')
+   'Swims 25 yd on the back with a symmetric arm pull and whip kick, gliding after each stroke. 仰躺 25 碼，雙臂對稱划手配合蛙腿，每一循環後有滑行。')
   ON CONFLICT (id) DO UPDATE SET level_id = EXCLUDED.level_id, name = EXCLUDED.name,
     stage = EXCLUDED.stage, sort_order = EXCLUDED.sort_order, is_active = true,
     pass_criteria = EXCLUDED.pass_criteria;

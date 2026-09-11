@@ -17,8 +17,8 @@
     },
     "0d151d1b-8492-49bc-824e-c4e26a657046": {
       "en": "Underwater Bubble Blowing",
-      "zh-Hant": "水下吐氣",
-      "zh-Hans": "水下吐气"
+      "zh-Hant": "水中吐泡泡",
+      "zh-Hans": "水中吐泡泡"
     },
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "en": "Open Turn",
@@ -177,8 +177,8 @@
     },
     "89ca69a6-6f96-4c1d-a52d-6ba16edab33b": {
       "en": "Streamline Push-Off",
-      "zh-Hant": "流線推牆",
-      "zh-Hans": "流线推墙"
+      "zh-Hant": "流線蹬牆",
+      "zh-Hans": "流线蹬墙"
     },
     "9194c9af-7e03-4d13-969b-4284d49b3a84": {
       "en": "Deep Water Object Retrieval",
@@ -262,8 +262,8 @@
     },
     "b46c9773-7e09-4da4-8beb-d79050075710": {
       "en": "Push-Off Float",
-      "zh-Hant": "推牆漂浮",
-      "zh-Hans": "推墙漂浮"
+      "zh-Hant": "蹬牆漂浮",
+      "zh-Hans": "蹬墙漂浮"
     },
     "b4a0c2d4-5e6f-4a74-8b92-0c1d2e3f4a54": {
       "en": "Surface Dive",
@@ -733,7 +733,7 @@
     },
     "b617a73c-8da4-4526-9420-58ed4c682a94": {
       "en": "Butterfly that would not be disqualified: simultaneous arms, no flutter kick, two-hand touch.",
-      "zh-Hant": "蝶式雙臂同時、無自由式打腿、雙手同時觸壁，不會失格。",
+      "zh-Hant": "蝶式雙臂同時、無自由式打水、雙手同時觸壁，不會失格。",
       "zh-Hans": "蝶泳双臂同时、无自由泳打腿、双手同时触壁，不会失格。"
     },
     "b6a0c2d4-5e6f-4a76-8b92-0c1d2e3f4a56": {
@@ -758,8 +758,8 @@
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
       "en": "Swims 25 yd on the back with a symmetric arm pull and whip kick, gliding after each stroke.",
-      "zh-Hant": "仰躺 25 碼，雙臂對稱划水配合蛙腿，每一循環後有滑行。",
-      "zh-Hans": "仰躺 25 码，双臂对称划水配合蛙腿，每一循环后有滑行。"
+      "zh-Hant": "仰躺 25 碼，雙臂對稱划手配合蛙腿，每一循環後有滑行。",
+      "zh-Hans": "仰躺 25 码，双臂对称划手配合蛙腿，每一循环后有滑行。"
     },
     "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
       "en": "In deep water: jump in, surface and float or tread 1 min, turn a full circle to find the exit, swim 25 yd without stopping, climb out without the ladder.",
