@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import CoachTabs from './CoachTabs'
 import CoachLangSwitch from './CoachLangSwitch'
-import CoachChrome from './CoachChrome'
+import { CoachPortalLabel, CoachSignOut } from './CoachChrome'
 import { LocaleProvider } from '@/lib/i18n/provider'
 import { isLocale, DEFAULT_LOCALE, type Locale } from '@/lib/i18n'
 
@@ -55,7 +55,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <Image src="/logo.png" alt="Manta Shark" width={64} height={64} className="w-10 h-10 sm:w-16 sm:h-16 shrink-0" />
               <div className="min-w-0">
-                <CoachChrome.PortalLabel />
+                <CoachPortalLabel />
                 <p className="text-white font-semibold truncate">{coach.first_name} {coach.last_name}</p>
               </div>
             </div>
@@ -63,7 +63,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
             <div className="shrink-0 flex items-center gap-2">
               <CoachLangSwitch />
               <div className="[&_button]:w-auto [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:border-[#1e3a6e]">
-                <CoachChrome.SignOut />
+                <CoachSignOut />
               </div>
             </div>
           </div>
