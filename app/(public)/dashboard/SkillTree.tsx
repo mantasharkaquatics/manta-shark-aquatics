@@ -26,6 +26,7 @@ import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { LEVEL_COLORS, MAX_LEVEL, levelNameKey, stageNameKey } from '@/lib/levels'
 import { masteryOf, masteryKey, MASTERY_COLOR, MASTERY_VALUE, PASS_LEVEL, UNLOCK_LEVEL } from '@/lib/mastery'
+import { placeLevel, routeWires } from '@/lib/tree-layout'
 
 const GOLD = '#c9a84c'
 
@@ -107,7 +108,7 @@ const CSS = `
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
 .mst-panel { position: relative; width: 100%; max-width: 1180px; background: #0b1428;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
-  --cw: 112px; --rh: 116px; --sz: 52px; --rkb: 4px }
+  --cw: 112px; --rh: 116px; --sz: 52px; --rkb: 4px; --lane: 26px; --pad: 30px }
 @media (min-width: 900px) { .mst-panel { margin: 24px; border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.1) } }
 
@@ -138,8 +139,8 @@ const CSS = `
 .mst-scroll { overflow-x: auto; margin: 8px 20px 0; background: #111d38;
   border: 1px solid #1e3a6e; border-radius: 13px; padding: 16px 14px 12px }
 .mst-board { position: relative; margin: 0 auto;
-  width: calc(var(--cols) * var(--cw));
-  height: calc((var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
+  width: calc(var(--cols) * var(--cw) + 2 * var(--lane));
+  height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
 .mst-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
   overflow: visible }
 .mst-w { fill: none; stroke: #25395f; stroke-width: 2 }
@@ -149,8 +150,8 @@ const CSS = `
   background: #16233f; border: 1px solid #1e3a6e; display: grid; place-items: center;
   padding: 0; cursor: pointer; color: rgba(255,255,255,0.35);
   font-size: 17px; line-height: 1;
-  left: calc(var(--c) * var(--cw) + (var(--cw) - var(--sz)) / 2);
-  top: calc((var(--r) - 1) * var(--rh)) }
+  left: calc(var(--lane) + var(--c) * var(--cw) + (var(--cw) - var(--sz)) / 2);
+  top: calc(var(--pad) + (var(--r) - 1) * var(--rh)) }
 /* One pixel above the geometric centre, and the same one pixel on every tile:
    the percentage along the bottom pulls the eye down, so dead centre reads low.
    A pixel is also the smallest move a screen can actually make -- anything
@@ -205,7 +206,7 @@ const CSS = `
 .mst-pre span b { font-weight: 700; opacity: .65; margin-left: 4px; font-size: 10px }
 
 @media (max-width: 640px) {
-  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkb: 2px }
+  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkb: 2px; --lane: 22px; --pad: 30px }
   .mst-rk { font-size: 9px }
   .mst-scroll { margin: 8px 14px 0; padding: 14px 10px 10px }
   .mst-tabs, .mst-meta, .mst-key { padding-left: 14px; padding-right: 14px }
@@ -281,35 +282,20 @@ export default function SkillTree({
         })
       }
 
-      /* A skill's row is one past the deepest thing it needs FROM THE SAME
-         LEVEL; prerequisites from an earlier level do not push it down, because
-         by the time a swimmer is working this level those are behind them. */
-      const byId = new Map(built.map(b => [b.id, b]))
-      const memo: Record<string, number> = {}
-      const rowOf = (id: string, seen = new Set<string>()): number => {
-        if (memo[id]) return memo[id]
-        if (seen.has(id)) return 1                 // a cycle cannot happen; do not hang on one
-        seen.add(id)
-        const me = byId.get(id)
-        const same = (need[id] || []).filter(q => byId.get(q)?.level === me?.level)
-        return memo[id] = same.length ? 1 + Math.max(...same.map(q => rowOf(q, seen))) : 1
-      }
-      for (const b of built) b.row = rowOf(b.id)
-
-      /* Columns: a skill takes its first same-level prerequisite's column when
-         that column is free, so a chain reads as one line straight down. */
+      /* Rows are the stages: 階段 1 on the top row, 階段 2 under it, 階段 3
+         under that, level by level. The layout -- which column each skill
+         takes -- and the lines both come out of lib/tree-layout. */
       for (let L = 1; L <= MAX_LEVEL; L++) {
         const inL = built.filter(b => b.level === L)
-        const maxRow = inL.length ? Math.max(...inL.map(b => b.row)) : 0
-        for (let r = 1; r <= maxRow; r++) {
-          const taken = new Set<number>()
-          for (const b of inL.filter(x => x.row === r)
-            .sort((x, y) => x.stage - y.stage || x.sort - y.sort)) {
-            const par = (need[b.id] || []).map(q => byId.get(q)).find(q => q?.level === L)
-            let c = par && !taken.has(par.col) ? par.col : 0
-            while (taken.has(c)) c++
-            taken.add(c); b.col = c
-          }
+        if (!inL.length) continue
+        const here = new Set(inL.map(b => b.id))
+        const { spots } = placeLevel(inL.map(b => ({
+          id: b.id, stage: b.stage, sort: b.sort,
+          needs: (need[b.id] || []).filter(q => here.has(q)),
+        })))
+        for (const b of inL) {
+          const sp = spots[b.id]
+          if (sp) { b.row = sp.row; b.col = sp.col }
         }
       }
 
@@ -320,7 +306,10 @@ export default function SkillTree({
   }, [supabase, currentLevel, currentStage, percentBySkillId, forCoach])
 
   const inLv = useMemo(() => (skills || []).filter(s => s.level === lv), [skills, lv])
-  const cols = inLv.length ? Math.max(...inLv.map(s => s.col)) + 1 : 1
+  /* Columns come from the widest stage, not from the highest column index:
+     a short row is centred, so its columns are half-steps. */
+  const cols = inLv.length
+    ? Math.max(...[1, 2, 3].map(st => inLv.filter(s => s.stage === st).length)) : 1
   const rows = inLv.length ? Math.max(...inLv.map(s => s.row)) : 1
 
   /* The wires are drawn from the geometry the CSS is actually using, so the
@@ -337,20 +326,14 @@ export default function SkillTree({
       if (!cw || !rh || !sz) return
       const svg = board.querySelector('svg')
       if (svg) svg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`)
+      const lane = parseFloat(cs.getPropertyValue('--lane')) || 0
+      const pad = parseFloat(cs.getPropertyValue('--pad')) || 0
+      const spots = Object.fromEntries(inLv.map(s => [s.id, { row: s.row, col: s.col }]))
+      const edges = inLv.flatMap(s => (needs[s.id] || [])
+        .filter(q => spots[q]).map(q => ({ from: q, to: s.id })))
+      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols })
       for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
-        const [c1, r1] = (el.dataset.from || '0,1').split(',').map(Number)
-        const [c2, r2] = (el.dataset.to || '0,1').split(',').map(Number)
-        const px = (c: number) => c * cw + cw / 2
-        const py = (r: number) => (r - 1) * rh + sz / 2
-        const x1 = px(c1), y1 = py(r1) + sz / 2 + 2
-        const x2 = px(c2), y2 = py(r2) - sz / 2 - 4
-        /* The horizontal leg runs in the channel between one row's names and
-           the next row's tiles. Placing it part-way down put it through the
-           middle of the text. */
-        const mid = py(r2) - sz / 2 - 20
-        el.setAttribute('d', Math.abs(x1 - x2) < 2
-          ? `M${x1} ${y1} L${x2} ${y2}`
-          : `M${x1} ${y1} L${x1} ${mid} L${x2} ${mid} L${x2} ${y2}`)
+        el.setAttribute('d', paths[el.dataset.k || ''] || '')
       }
     }
     draw()
@@ -358,7 +341,7 @@ export default function SkillTree({
     ro.observe(board)
     window.addEventListener('resize', draw)
     return () => { ro.disconnect(); window.removeEventListener('resize', draw) }
-  }, [inLv, cols, rows])
+  }, [inLv, needs, cols, rows])
 
   const total = skills?.length ?? 0
   const done = skills?.filter(s => s.state === 'done').length ?? 0
@@ -427,7 +410,7 @@ export default function SkillTree({
                     .map(q => (
                       <path key={q.id + '>' + s.id}
                         className={'mst-w' + (masteryOf(q.percent) >= UNLOCK_LEVEL ? ' lit' : '')}
-                        data-from={`${q.col},${q.row}`} data-to={`${s.col},${s.row}`} />
+                        data-k={`${q.id}>${s.id}`} />
                     )))}
                 </svg>
                 {inLv.map(s => {
