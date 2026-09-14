@@ -1,0 +1,1178 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stroke Lab · Manta Shark</title>
+<style>
+:root{
+  --deep:#0d1529; --panel:#111d38; --raised:#1a2744; --line:#1e3a6e; --hair:#16244a;
+  --ink:#e9f0fb; --soft:#9fb0cc; --faint:#68789a;
+  --gold:#c9a84c; --ok:#4caf72; --warn:#e8a33a; --bad:#e0574a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--deep);color:var(--ink);
+  font:15px/1.6 'DM Sans',system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1400px;margin:0 auto;padding:22px 18px 80px}
+h1{font-size:20px;font-weight:800;margin:0}
+.sub{font-size:12.5px;color:var(--faint);margin:2px 0 0}
+mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding-bottom:16px;border-bottom:1px solid var(--hair);margin-bottom:18px}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--faint)}
+select,input[type=file]{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;font:inherit;font-size:13px}
+button{background:var(--gold);color:#14203a;border:none;border-radius:8px;padding:9px 16px;
+  font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+button.ghost{background:transparent;color:var(--soft);border:1px solid var(--line)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.ghost:hover:not(:disabled){color:var(--ink);border-color:var(--gold)}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:18px;align-items:start}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+
+.card{background:var(--panel);border:1px solid var(--hair);border-radius:12px;padding:14px 16px}
+.card h2{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 12px}
+
+#stage{position:relative;background:#05090f;border-radius:10px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;min-height:220px}
+#stage video{display:block;max-width:100%;max-height:62vh}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.empty{color:var(--faint);font-size:13px;padding:70px 20px;text-align:center;line-height:1.9}
+
+#bar{height:6px;background:var(--hair);border-radius:3px;overflow:hidden;margin:12px 0 4px}
+#bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .12s linear}
+#status{font-size:12px;color:var(--soft);min-height:19px}
+
+/* the tracking strip: where the model actually saw the swimmer */
+#quality{width:100%;height:16px;display:block;border-radius:4px;background:var(--hair);margin-top:10px}
+.qlegend{display:flex;gap:14px;font-size:11px;color:var(--faint);margin-top:5px;flex-wrap:wrap}
+.qlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+#scrub{width:100%;accent-color:var(--gold);margin-top:10px}
+
+.metrics{display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:10px;
+  overflow:hidden}
+.m{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;
+  background:var(--panel);padding:9px 13px}
+.m .k{font-size:12.5px;color:var(--soft)}
+.m .k small{display:block;font-size:10.5px;color:var(--faint);line-height:1.45;margin-top:1px}
+.m .v{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:600;white-space:nowrap}
+.m.head{background:var(--raised)}
+.v.ok{color:var(--ok)} .v.warn{color:var(--warn)} .v.bad{color:var(--bad)} .v.na{color:var(--faint);font-size:12px}
+
+canvas.chart{width:100%;height:88px;display:block;background:#0a1322;border-radius:8px;margin-top:8px}
+.clab{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-top:12px}
+
+.note{border-left:3px solid var(--gold);background:rgba(201,168,76,.07);border-radius:0 8px 8px 0;
+  padding:11px 14px;font-size:12.5px;color:var(--soft);line-height:1.75;margin-top:14px}
+.note b{color:var(--ink)}
+.warnbox{border-left-color:var(--bad);background:rgba(224,87,74,.08)}
+
+.waterrow{display:flex;gap:14px;align-items:flex-end;margin-top:12px;flex-wrap:wrap}
+.waterrow input[type=range]{accent-color:#5b9bd5;width:100%}
+input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;width:110px}
+.hint{font-size:11.5px;color:var(--faint);line-height:1.7;margin:6px 0 0}
+.tog{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--soft);
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:8px 12px;cursor:pointer;white-space:nowrap}
+.tog input{accent-color:var(--gold);margin:0}
+
+/* the four a parent reads */
+.big{display:grid;gap:10px}
+.b{background:var(--raised);border:1px solid var(--hair);border-radius:10px;padding:12px 14px}
+.b .lab{font-size:11.5px;color:var(--soft)}
+.b .num{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;
+  font-size:30px;font-weight:700;line-height:1.15;margin:2px 0 0}
+.b .num.na{font-size:15px;color:var(--faint);font-weight:600}
+.b .said{font-size:12.5px;color:var(--soft);line-height:1.7;margin:5px 0 0}
+.b .said b{color:var(--ink)}
+.num.ok{color:var(--ok)} .num.warn{color:var(--warn)} .num.bad{color:var(--bad)}
+
+details.card summary{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--faint);cursor:pointer;list-style:none}
+details.card summary::-webkit-details-marker{display:none}
+details.card summary::before{content:'▸ ';color:var(--gold)}
+details.card[open] summary::before{content:'▾ '}
+
+table.cmp{width:100%;border-collapse:collapse;font-size:13px}
+table.cmp th,table.cmp td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--hair)}
+table.cmp th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600}
+table.cmp td.n{text-align:right;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.delta.up{color:var(--ok)} .delta.down{color:var(--bad)} .delta.flat{color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Stroke Lab</h1>
+    <p class="sub">影片只在這台電腦上處理，不會上傳到任何地方。</p>
+  </div>
+  <div class="ctrls">
+    <label class="f">影片
+      <input type="file" id="file" accept="video/*">
+    </label>
+    <label class="f">泳姿
+      <select id="stroke">
+        <option value="free">自由式</option>
+        <option value="back">仰式</option>
+        <option value="fly">蝶式</option>
+        <option value="breast">蛙式</option>
+      </select>
+    </label>
+    <label class="f">模型
+      <select id="model">
+        <option value="lite">lite（最快）</option>
+        <option value="full" selected>full（平衡）</option>
+        <option value="heavy">heavy（最準、最慢）</option>
+      </select>
+    </label>
+    <label class="f">速度
+      <select id="rate">
+        <option value="1">1×</option>
+        <option value="2" selected>2×</option>
+        <option value="4">4×</option>
+      </select>
+    </label>
+    <button id="run" disabled>開始分析</button>
+    <label class="f" title="只有在連不到 Google 的模型網址時才需要">模型檔（備用）
+      <input type="file" id="modelFile" accept=".task">
+    </label>
+  </div>
+</header>
+
+<div class="grid">
+
+  <div>
+    <div class="card">
+      <h2>影片</h2>
+      <div id="stage">
+        <div class="empty" id="empty">
+          選一段影片開始。<br>
+          建議：池邊固定機位，側面拍，整趟都在畫面裡，不要跟著游。<br>
+          先拍 15–30 秒就好。
+        </div>
+        <video id="video" playsinline muted hidden></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <div id="bar"><i></i></div>
+      <div id="status">尚未載入模型。</div>
+      <input type="range" id="scrub" min="0" max="0" value="0" step="1" disabled>
+
+      <div class="waterrow">
+        <label class="f" style="flex:1">水面線（拉到水面的高度）
+          <input type="range" id="waterline" min="0" max="1000" value="500" step="1" disabled>
+        </label>
+        <label class="f">這段游了幾公尺
+          <input type="number" id="meters" min="0" max="200" step="1" placeholder="例如 25">
+        </label>
+        <label class="tog"><input type="checkbox" id="silhouette">顯示身體輪廓</label>
+      </div>
+      <p class="hint">水面線決定「臉在水裡的比例」。拉到影片裡水面的位置，
+        藍線壓在水面上就對了。填了距離才算得出「連續游完幾公尺」。</p>
+
+      <canvas id="quality" class="chart" style="height:16px"></canvas>
+      <div class="qlegend">
+        <span><i style="background:var(--ok)"></i>抓得到</span>
+        <span><i style="background:var(--warn)"></i>勉強</span>
+        <span><i style="background:var(--bad)"></i>抓不到</span>
+        <span><i style="background:#8d6fd1"></i>沒在動（人已離開畫面）</span>
+        <span>—— 這條是整個工具最重要的一行。紅色或紫色多，下面的數字就不要信。</span>
+      </div>
+
+      <div class="clab">手腕高度（藍＝左，橘＝右）</div>
+      <canvas id="chWrist" class="chart"></canvas>
+      <div class="clab">肩線傾角（身體滾轉）</div>
+      <canvas id="chRoll" class="chart"></canvas>
+      <div class="clab">臀部高度（身體位置）</div>
+      <canvas id="chHip" class="chart"></canvas>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>給家長看的</h2>
+      <div id="parent">
+        <p class="hint" style="margin:0">分析完就會出現四個數字，還有可以直接念給家長聽的白話。</p>
+      </div>
+      <div class="note">
+        影片本身才是主角。這四個數字的用途是把「看起來有差」變成「差多少」，
+        不是取代影片。並排播三個月前和現在的兩段，家長自己就看得出來。
+      </div>
+      <div class="ctrls" style="margin-top:14px">
+        <button class="ghost" id="exportJson" disabled>匯出這次（JSON）</button>
+        <button class="ghost" id="exportCsv" disabled>逐格資料（CSV）</button>
+      </div>
+    </div>
+
+    <details class="card" style="margin-top:18px">
+      <summary>原始數據（教練自己看）</summary>
+      <div class="metrics" id="metrics" style="margin-top:12px">
+        <div class="m"><div class="k">還沒有資料</div><div class="v na">—</div></div>
+      </div>
+      <div class="note" id="honesty">
+        每一個數字都是從關節座標算出來的幾何量，不是模型「覺得」。
+        抓不到的畫格不列入計算，分母會寫在旁邊。
+      </div>
+    </details>
+
+    <div class="card" style="margin-top:18px">
+      <h2>跟上次比</h2>
+      <div class="ctrls">
+        <label class="f">載入之前匯出的 JSON
+          <input type="file" id="baseline" accept="application/json,.json">
+        </label>
+      </div>
+      <div id="cmp" style="margin-top:12px;font-size:12.5px;color:var(--faint)">
+        載入一份舊的分析結果，這裡會列出兩次的差異。這就是給家長看的「有沒有進步」。
+      </div>
+    </div>
+
+    <div class="card warnbox note" style="margin-top:18px;border-radius:12px;padding:14px 16px">
+      <b>做不到的事，先講清楚：</b>水面下的動作這個工具判讀不了。
+      蝶式推水推不推直、蛙腿有沒有翻腳掌、划手的抓水路徑——都在水面下，
+      單機從池邊拍，姿態模型在那些畫格會失準。想看那些要水下攝影機。
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script type="module">
+/* The library is imported lazily inside loadModel(), not at the top of the
+   module. A top-level import that fails -- no network, a blocked CDN, a
+   corporate proxy -- takes the entire page down silently, and the first thing
+   you would see is a page that does nothing when clicked. This way the page,
+   the charts and the maths all work offline; only the detector needs the net,
+   and it says so when it cannot get there. */
+const LIB = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1';
+let FilesetResolver = null, PoseLandmarker = null;
+
+/* ── landmark indices we care about ─────────────────────────────────────── */
+const NOSE=0, LSH=11, RSH=12, LEL=13, REL=14, LWR=15, RWR=16,
+      LHIP=23, RHIP=24, LKNE=25, RKNE=26, LANK=27, RANK=28,
+      LHEEL=29, RHEEL=30, LTOE=31, RTOE=32;
+/* the joints that decide whether a frame counts as tracked at all */
+const CORE = [LSH, RSH, LHIP, RHIP];
+const ARMS = [LWR, RWR];
+/* All 33 points are kept now. The feet were the reason: with the heel and the
+   toe you get the ankle angle, which is how you see a beginner kicking with a
+   flexed foot -- braking on every kick -- and it is above water on free and
+   back, so a poolside camera can actually see it. */
+const KEEP = Array.from({ length: 33 }, (_, i) => i);
+const SKELETON = [
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],          // head
+  [LSH,RSH],[LSH,LEL],[LEL,LWR],[RSH,REL],[REL,RWR],               // arms
+  [LWR,17],[LWR,19],[LWR,21],[17,19],[RWR,18],[RWR,20],[RWR,22],[18,20],
+  [LSH,LHIP],[RSH,RHIP],[LHIP,RHIP],                               // torso
+  [LHIP,LKNE],[LKNE,LANK],[RHIP,RKNE],[RKNE,RANK],                 // legs
+  [LANK,LHEEL],[LHEEL,LTOE],[LANK,LTOE],                           // feet
+  [RANK,RHEEL],[RHEEL,RTOE],[RANK,RTOE]];
+
+const $ = id => document.getElementById(id);
+const video = $('video'), overlay = $('overlay'), octx = overlay.getContext('2d');
+
+let landmarker = null, frames = [], metrics = null, baseline = null, busy = false;
+let waterY = 0.5;                                   // normalised height of the surface
+const aspectOf = () => (video.videoWidth && video.videoHeight)
+  ? video.videoWidth / video.videoHeight : 16 / 9;
+
+/* ── model ──────────────────────────────────────────────────────────────── */
+const MODEL = v =>
+  `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${v}/float16/latest/pose_landmarker_${v}.task`;
+
+let localModelBuf = null;   // a .task the user downloaded by hand, if the CDN is unreachable
+
+async function loadModel(variant) {
+  if (!PoseLandmarker) {
+    say('載入函式庫中…');
+    try {
+      const m = await import(`${LIB}/vision_bundle.mjs`);
+      ({ FilesetResolver, PoseLandmarker } = m);
+    } catch (e) {
+      throw new Error('連不到 MediaPipe 函式庫（' + LIB + '）。'
+        + '確認這台電腦能上網，或把公司/學校的網路限制排除後再試。');
+    }
+  }
+  say('載入模型中…（第一次會下載幾 MB，之後瀏覽器會快取）');
+  const vision = await FilesetResolver.forVisionTasks(`${LIB}/wasm`);
+  if (landmarker) { landmarker.close(); landmarker = null; }
+  const baseOptions = localModelBuf
+    ? { modelAssetBuffer: localModelBuf, delegate: 'GPU' }
+    : { modelAssetPath: MODEL(variant), delegate: 'GPU' };
+  landmarker = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions,
+    runningMode: 'VIDEO',
+    numPoses: 1,
+    minPoseDetectionConfidence: 0.3,   // a swimmer is a hard pose; let weak ones through
+    minPosePresenceConfidence: 0.3,    // and judge them on visibility instead
+    minTrackingConfidence: 0.3,
+    outputSegmentationMasks: false,
+  });
+  say('模型就緒。');
+}
+
+/* The silhouette runs on a SECOND detector, in image mode.
+   The batch pass is in video mode, which demands timestamps that only ever go
+   forward -- fine for a single sweep, useless for a scrub bar the coach drags
+   both ways. A separate image-mode instance can be asked about any frame in any
+   order. It also keeps segmentation off the batch pass, which is why analysis
+   takes exactly as long as it did before. */
+let segmenter = null, segOn = false, segGen = 0, maskCv = null;
+
+async function loadSegmenter() {
+  if (segmenter) return segmenter;
+  if (!PoseLandmarker) {
+    const m = await import(`${LIB}/vision_bundle.mjs`);
+    ({ FilesetResolver, PoseLandmarker } = m);
+  }
+  const vision = await FilesetResolver.forVisionTasks(`${LIB}/wasm`);
+  segmenter = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: localModelBuf
+      ? { modelAssetBuffer: localModelBuf, delegate: 'GPU' }
+      : { modelAssetPath: MODEL($('model').value), delegate: 'GPU' },
+    runningMode: 'IMAGE',
+    numPoses: 1,
+    outputSegmentationMasks: true,
+    minPoseDetectionConfidence: 0.3,
+    minPosePresenceConfidence: 0.3,
+  });
+  return segmenter;
+}
+
+const say = t => { $('status').textContent = t; };
+const prog = p => { $('bar').firstElementChild.style.width = (p * 100).toFixed(1) + '%'; };
+
+/* ── file in ────────────────────────────────────────────────────────────── */
+$('file').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  video.src = URL.createObjectURL(f);
+  video.hidden = false;
+  $('empty').style.display = 'none';
+  frames = []; metrics = null;
+  $('run').disabled = false;
+  $('scrub').disabled = true;
+  $('exportJson').disabled = $('exportCsv').disabled = true;
+  video.currentTime = 0;
+  say(`已載入 ${f.name}（${(f.size / 1048576).toFixed(1)} MB）。按「開始分析」。`);
+  video.addEventListener('loadedmetadata', fitCanvas, { once: true });
+});
+
+function fitCanvas() {
+  overlay.width = video.videoWidth;
+  overlay.height = video.videoHeight;
+  overlay.style.width = video.clientWidth + 'px';
+  overlay.style.height = video.clientHeight + 'px';
+}
+addEventListener('resize', fitCanvas);
+
+/* ── the analysis pass ──────────────────────────────────────────────────── */
+$('run').addEventListener('click', async () => {
+  if (busy || !video.src) return;
+  busy = true; $('run').disabled = true;
+  try {
+    const want = localModelBuf ? 'local' : $('model').value;
+    if (!landmarker || landmarker._variant !== want) {
+      await loadModel($('model').value);
+      landmarker._variant = want;
+    }
+    frames = [];
+    video.currentTime = 0;
+    video.playbackRate = Number($('rate').value);
+    await video.play();
+    say('分析中…（請不要切走這個分頁，背景分頁瀏覽器會停掉畫格）');
+
+    await new Promise(resolve => {
+      const step = (now, meta) => {
+        if (video.ended || video.paused) { resolve(); return; }
+        const tMs = meta.mediaTime * 1000;
+        let res = null;
+        try { res = landmarker.detectForVideo(video, Math.round(tMs)); } catch { /* skip bad frame */ }
+        const lm = res && res.landmarks && res.landmarks[0] ? res.landmarks[0] : null;
+        frames.push(pack(meta.mediaTime, lm));
+        prog(video.duration ? video.currentTime / video.duration : 0);
+        video.requestVideoFrameCallback(step);
+      };
+      video.requestVideoFrameCallback(step);
+      video.addEventListener('ended', resolve, { once: true });
+    });
+
+    prog(1);
+    video.playbackRate = 1;
+    /* Start the surface at the median shoulder height: a swimmer's shoulders sit
+       at the waterline, so this is right more often than the middle of frame is.
+       The coach still moves it -- it is one drag, and every face number depends
+       on it, so guessing silently would be worse than asking. */
+    const shY = frames.filter(f => f.ok && f.core >= 0.5)
+                      .map(f => (f.p[LSH].y + f.p[RSH].y) / 2);
+    if (shY.length > 10) waterY = p(shY, 50);
+    $('waterline').value = Math.round(waterY * 1000);
+    $('waterline').disabled = false;
+    recompute();
+    $('scrub').max = Math.max(0, frames.length - 1);
+    $('scrub').value = 0; $('scrub').disabled = false;
+    $('exportJson').disabled = $('exportCsv').disabled = false;
+    showFrame(0);
+    say(`分析完成：${frames.length} 個畫格，${(video.duration).toFixed(1)} 秒。`);
+  } catch (err) {
+    say('出錯了：' + (err && err.message ? err.message : err));
+    console.error(err);
+  } finally {
+    busy = false; $('run').disabled = false;
+  }
+});
+
+/* keep only what the metrics need — a full 33-point dump per frame is wasteful */
+function pack(t, lm) {
+  if (!lm) return { t, ok: false };
+  const g = i => ({ x: lm[i].x, y: lm[i].y, v: lm[i].visibility ?? 0 });
+  const o = { t, ok: true, p: {} };
+  for (const i of KEEP) o.p[i] = g(i);
+  o.core = mean(CORE.map(i => o.p[i].v));
+  o.arms = mean(ARMS.map(i => o.p[i].v));
+  return o;
+}
+
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+const pct = (n, d) => d ? (100 * n / d) : 0;
+const deg = (dy, dx) => Math.atan2(dy, dx) * 180 / Math.PI;
+
+/* ── metrics ────────────────────────────────────────────────────────────── */
+/* `aspect` is width/height of the video. Landmarks come back normalised to each
+   axis separately, so on a 16:9 clip one unit of x is 1.78 units of y. Every
+   angle below would be wrong by that factor if x were used raw. */
+function compute(F, stroke, aspect = 16 / 9, waterY = null) {
+  const n = F.length;
+  markFrozen(F, aspect);
+  const live = f => f.ok && !f.frozen && f.core >= 0.5;
+  const tracked = F.filter(live);
+  const weak    = F.filter(f => f.ok && !f.frozen && f.core >= 0.25 && f.core < 0.5);
+  const armOk   = F.filter(f => live(f) && f.arms >= 0.5);
+  const frozen  = F.filter(f => f.ok && f.frozen);
+  const dur = n ? (F[n - 1].t - F[0].t) : 0;
+
+  const M = {
+    meta: { frames: n, seconds: +dur.toFixed(2), stroke,
+            model: $('model').value, when: new Date().toISOString().slice(0, 19) },
+    quality: { trackedPct: +pct(tracked.length, n).toFixed(1),
+               weakPct: +pct(weak.length, n).toFixed(1),
+               armPct: +pct(armOk.length, n).toFixed(1),
+               frozenPct: +pct(frozen.length, n).toFixed(1) },
+    values: {},
+  };
+
+  // every series carries its own timestamps: gaps must not be silently closed up
+  const series = (sel, need) => {
+    const out = { t: [], y: [] };
+    for (const f of F) {
+      if (!live(f)) continue;
+      if (need === 'arm' && f.arms < 0.5) continue;
+      out.t.push(f.t); out.y.push(sel(f));
+    }
+    return out;
+  };
+  const shoulderW = f => Math.hypot(f.p[LSH].x - f.p[RSH].x, f.p[LSH].y - f.p[RSH].y) || 1e-6;
+
+  const wrL = smooth(series(f => f.p[LWR].y, 'arm'), 3);
+  const wrR = smooth(series(f => f.p[RWR].y, 'arm'), 3);
+  const roll = smooth(unwrap(series(f => deg(f.p[RSH].y - f.p[LSH].y, (f.p[RSH].x - f.p[LSH].x) * aspect))), 3);
+  const hip = smooth(series(f => (f.p[LHIP].y + f.p[RHIP].y) / 2), 5);
+  /* Which ankle signal depends on the stroke, and getting this wrong is silent.
+     A flutter kick alternates, so the mean of the two ankles is flat and reads
+     as no kick at all; the difference between them is the signal. A dolphin or
+     whip kick moves both legs together, where the opposite is true.
+     Smoothing stays at one frame either side: the kick runs several times the
+     arm frequency and a wider window averages it away. */
+  const flutter = (stroke === 'free' || stroke === 'back');
+  const ank = smooth(series(f => flutter
+    ? f.p[LANK].y - f.p[RANK].y
+    : (f.p[LANK].y + f.p[RANK].y) / 2), 1);
+  const headOff = smooth(series(f => {
+    const midX = (f.p[LSH].x + f.p[RSH].x) / 2;
+    return (f.p[NOSE].x - midX) / shoulderW(f);
+  }), 3);
+  M.series = { wrL, wrR, roll, hip };
+
+  const enough = M.quality.armPct >= 35;
+
+  if (stroke === 'fly' || stroke === 'breast') {
+    const both = { t: wrL.t, y: wrL.y.map((v, i) => (v + (wrR.y[i] ?? v)) / 2) };
+    const pk = peaks(both, -1, 0.35);
+    M.values.cycles = enough ? pk.length : null;
+    const hzF = cadence(pk, both.t);
+    M.values.rate = enough && hzF ? +(hzF * 60).toFixed(1) : null;
+    // both arms should break the surface together: this one IS visible from above
+    if (enough && pk.length) {
+      const d = pk.map(i => Math.abs(wrL.y[i] - (wrR.y[i] ?? wrL.y[i])));
+      M.values.armGapMean = +(mean(d) * 100).toFixed(1);
+      M.values.armGapMax = +(Math.max(...d) * 100).toFixed(1);
+    }
+  } else {
+    const pkL = peaks(wrL, -1, 0.35), pkR = peaks(wrR, -1, 0.35);
+    M.values.armL = enough ? pkL.length : null;
+    M.values.armR = enough ? pkR.length : null;
+    M.values.cycles = enough ? Math.min(pkL.length, pkR.length) : null;
+    const hzL = cadence(pkL, wrL.t), hzR = cadence(pkR, wrR.t);
+    const hzA = (hzL && hzR) ? (hzL + hzR) / 2 : (hzL || hzR);
+    M.values.rate = enough && hzA ? +(hzA * 60).toFixed(1) : null;
+  }
+
+  if (stroke === 'free' && headOff.y.length > 20) {
+    const hi = peaks(headOff, +1, 0.5), lo = peaks(headOff, -1, 0.5);
+    const L = hi.filter(i => headOff.y[i] > 0.35).length;
+    const R = lo.filter(i => headOff.y[i] < -0.35).length;
+    M.values.breaths = L + R;
+    M.values.breathSide = (L + R) === 0 ? null : (L > R * 2 ? '單邊' : R > L * 2 ? '單邊' : '兩側');
+    if (M.values.cycles) M.values.strokesPerBreath = +(M.values.cycles * 2 / Math.max(1, L + R)).toFixed(1);
+  }
+
+  if (roll.y.length > 20) M.values.rollRange = +(p(roll.y, 95) - p(roll.y, 5)).toFixed(1);
+  if (hip.y.length > 20) M.values.hipSteady = +((p(hip.y, 95) - p(hip.y, 5)) * 100).toFixed(1);
+
+  const ankVis = pct(F.filter(f => live(f) && f.p[LANK].v >= 0.5).length, n);
+  M.values.kickVisible = +ankVis.toFixed(0);
+  const fps = dur ? n / dur : 0;
+  if (ankVis >= 40 && ank.y.length > 20 && dur) {
+    const k = peaks(ank, -1, 0.12, 1);
+    const hz = cadence(k, ank.t) ?? (k.length / dur);
+    M.values.kickRate = +(hz * 60).toFixed(0);
+    /* Counting a peak needs roughly eight samples per cycle. Below that the
+       count only ever comes out low, so say the number is a floor rather than
+       quietly reporting a slow kick. */
+    M.values.kickFps = +fps.toFixed(0);
+    if (hz > fps / 8) M.values.kickUnderRead = true;
+  }
+
+  /* ── the four a parent actually reads ──────────────────────────────────
+     None of these describe stroke quality, because a beginner has no stroke
+     yet. They describe the things that change first: daring to put the face
+     in, the body coming level, staying up for a whole length, and the flailing
+     settling into a rhythm. */
+
+  // 1. how much of the time the face was actually in the water
+  const noseOk = F.filter(f => live(f) && f.p[NOSE].v >= 0.5);
+  if (waterY != null && noseOk.length >= 10 && pct(noseOk.length, n) >= 30) {
+    const under = noseOk.filter(f => f.p[NOSE].y > waterY).length;
+    M.values.faceInPct = +pct(under, noseOk.length).toFixed(0);
+  }
+
+  // 2. how far the hips hang below the shoulders, and every time he stood up
+  const tiltSeries = series(f => {
+    const sy = (f.p[LSH].y + f.p[RSH].y) / 2, hy = (f.p[LHIP].y + f.p[RHIP].y) / 2;
+    const sx = (f.p[LSH].x + f.p[RSH].x) / 2, hx = (f.p[LHIP].x + f.p[RHIP].x) / 2;
+    return deg(hy - sy, Math.abs(hx - sx) * aspect);   // 0 = flat, 90 = upright
+  });
+  if (tiltSeries.y.length > 20) {
+    /* A frame where the body is near-vertical is not bad swimming, it is not
+       swimming: he is standing on the bottom. Those frames have to come out of
+       the tilt or one stop drags the whole average up. */
+    const UP = 55, HOLD = 0.4;
+    const swim = [], stands = [];
+    let runStart = null, runEnd = null;
+    for (let i = 0; i < tiltSeries.y.length; i++) {
+      const v = tiltSeries.y[i], t = tiltSeries.t[i];
+      if (v >= UP) {
+        if (runStart == null) runStart = t;
+        runEnd = t;
+      } else {
+        if (runStart != null && runEnd - runStart >= HOLD) stands.push(runStart);
+        runStart = null;
+        swim.push(v);
+      }
+    }
+    if (runStart != null && runEnd - runStart >= HOLD) stands.push(runStart);
+    M.values.standUps = stands.length;
+    if (swim.length > 20) M.values.bodyTilt = +p(swim, 50).toFixed(0);
+  }
+
+  // 3. whether the arms have found a rhythm yet
+  /* Each arm is measured on its own and the two are averaged. Pooling both
+     arms' peaks into one list looks tidier and breaks badly: whenever the model
+     hands back two similar wrist traces -- which is most of the time, because
+     the far arm is underwater and gets guessed -- the two arms peak within a
+     frame of each other, the median gap becomes the gap BETWEEN THE WRISTS
+     rather than between strokes, and the filter then throws away every real
+     stroke interval. It reports noise or nothing at all. */
+  if (enough) {
+    const cvOf = s => {
+      const pk = peaks(s, -1, 0.35);
+      if (pk.length < 5) return null;
+      const gaps = [];
+      for (let i = 1; i < pk.length; i++) gaps.push(s.t[pk[i]] - s.t[pk[i - 1]]);
+      const med = p(gaps, 50);
+      const keep = gaps.filter(g => g < med * 2.5);   // drop gaps that span a stop
+      if (keep.length < 4) return null;
+      const mu = mean(keep);
+      if (!(mu > 0)) return null;
+      return 100 * Math.sqrt(mean(keep.map(g => (g - mu) ** 2))) / mu;
+    };
+    const cvs = [cvOf(wrL), cvOf(wrR)].filter(v => v != null);
+    if (cvs.length) M.values.rhythmCV = +mean(cvs).toFixed(0);
+  }
+
+  /* 4. the ankle. 180 is a pointed toe, 90 is a foot held square to the shin --
+     the beginner's flexed ankle, which brakes on every kick. Measured at the
+     joint between shin and foot, so it does not care which way he is swimming. */
+  const ankAngles = [];
+  for (const f of F) {
+    if (!live(f)) continue;
+    for (const [kn, an, toe] of [[LKNE, LANK, LTOE], [RKNE, RANK, RTOE]]) {
+      const a = f.p[kn], b = f.p[an], c = f.p[toe];
+      if (!a || !b || !c) continue;
+      if (Math.min(a.v, b.v, c.v) < 0.5) continue;
+      const v1x = (a.x - b.x) * aspect, v1y = a.y - b.y;
+      const v2x = (c.x - b.x) * aspect, v2y = c.y - b.y;
+      const n1 = Math.hypot(v1x, v1y), n2 = Math.hypot(v2x, v2y);
+      if (n1 < 1e-6 || n2 < 1e-6) continue;
+      const cos = Math.min(1, Math.max(-1, (v1x * v2x + v1y * v2y) / (n1 * n2)));
+      ankAngles.push(Math.acos(cos) * 180 / Math.PI);
+    }
+  }
+  if (ankAngles.length >= 20) {
+    M.values.ankleAngle = +p(ankAngles, 50).toFixed(0);
+    M.values.ankleSeen = +pct(ankAngles.length / 2, n).toFixed(0);
+  }
+  return M;
+}
+
+/* A pose model does not say "he is gone". Once the swimmer leaves frame it
+   keeps emitting a confident skeleton -- same coordinates, high visibility,
+   frame after frame -- and every downstream number swallows it: a dead flat
+   wrist trace produces spurious peaks at whatever the noise floor is, and the
+   stroke intervals built from them are nonsense. Visibility cannot catch this,
+   because the model is not unsure; it is wrong. Movement catches it. A swimmer
+   is never still for a second, so a run of frames where nothing moves is a run
+   of frames where nothing is being seen. */
+const MOVERS = [LSH, RSH, LHIP, RHIP, LWR, RWR, LANK, RANK, NOSE];
+
+function markFrozen(F, aspect, winSec = 0.7, minMove = 0.5) {
+  for (const f of F) f.frozen = false;
+  const pts = [], ts = [], torsos = [];
+  for (const f of F) {
+    ts.push(f.t);
+    if (!f.ok || !f.p[LSH]) { pts.push(null); continue; }
+    pts.push(MOVERS.map(i => f.p[i] ? [f.p[i].x * aspect, f.p[i].y] : null));
+    const sx = (f.p[LSH].x + f.p[RSH].x) / 2 * aspect, sy = (f.p[LSH].y + f.p[RSH].y) / 2;
+    const hx = (f.p[LHIP].x + f.p[RHIP].x) / 2 * aspect, hy = (f.p[LHIP].y + f.p[RHIP].y) / 2;
+    torsos.push(Math.hypot(sx - hx, sy - hy));
+  }
+  /* Movement is judged against the swimmer's own torso, not against a fixed
+     number of screen widths. An absolute threshold cannot work: a lost
+     detection does not sit perfectly still, it jitters, and how big that jitter
+     looks depends entirely on how far away the swimmer is. As a fraction of
+     torso length the comparison holds at any distance -- a real wrist travels
+     most of a torso every stroke, while a jittering ghost moves a few percent. */
+  const scale = p(torsos, 50) || 0.1;
+  const act = new Array(F.length).fill(null);
+  let a = 0;
+  for (let i = 0; i < F.length; i++) {
+    if (!pts[i]) continue;
+    while (ts[i] - ts[a] > winSec) a++;
+    let b = i;
+    while (b + 1 < F.length && ts[b + 1] - ts[i] <= winSec) b++;
+    /* The test is whether ANY joint moved, not whether the body travelled.
+       Judging by the torso's travel alone condemns two perfectly good cases: a
+       coach who pans to follow the swimmer (the torso then sits still in frame
+       while the limbs work), and a swimmer held in place. */
+    let moved = 0, seen = 0;
+    for (let k = 0; k < MOVERS.length; k++) {
+      let xlo = Infinity, xhi = -Infinity, ylo = Infinity, yhi = -Infinity, c = 0;
+      for (let j = a; j <= b; j++) {
+        const q = pts[j] && pts[j][k];
+        if (!q) continue;
+        c++;
+        xlo = Math.min(xlo, q[0]); xhi = Math.max(xhi, q[0]);
+        ylo = Math.min(ylo, q[1]); yhi = Math.max(yhi, q[1]);
+      }
+      if (c < 5) continue;
+      seen++;
+      moved = Math.max(moved, xhi - xlo, yhi - ylo);
+    }
+    if (seen >= 4) act[i] = moved / scale;
+  }
+  /* Measured on synthetic clips: real swimming moves about 3.0 torso lengths
+     per window, a held detection 0.07-0.35 depending on how much it jitters,
+     and the worst legitimate case -- a streamline glide under a panning camera
+     -- 0.20. So the fixed floor sits at 0.5: well clear of every ghost, six
+     times below real swimming. The adaptive half exists because a model that
+     jitters harder than any of these would walk straight past a fixed number;
+     the fixed half exists because a clip the model ghosted from beginning to
+     end has no busy frames to calibrate against. Whichever is higher wins. */
+  const busy = act.filter(v => v != null);
+  const thr = Math.max(minMove, 0.2 * p(busy, 75));
+  for (let i = 0; i < F.length; i++) if (act[i] != null && act[i] < thr) F[i].frozen = true;
+}
+
+/* Undo the +180/-180 jump before anything measures a spread.
+   atan2 hands back an angle cut at the half turn, so a swimmer whose shoulders
+   cross through edge-on -- every roll, and constantly in an underwater side
+   shot -- produces a trace that leaps from +175 to -175. The leap is not
+   movement, but a 5-95 percentile spread counts it as 350 degrees of it, which
+   is how a real clip reported 198.7 degrees of body roll. */
+function unwrap(s) {
+  const y = s.y.slice();
+  for (let i = 1; i < y.length; i++) {
+    let d = y[i] - y[i - 1];
+    while (d > 180) { y[i] -= 360; d -= 360; }
+    while (d < -180) { y[i] += 360; d += 360; }
+  }
+  return { t: s.t, y };
+}
+
+/* moving average that respects the sample times it was given */
+function smooth(s, w) {
+  const y = s.y.slice();
+  for (let i = 0; i < y.length; i++) {
+    let a = 0, c = 0;
+    for (let j = Math.max(0, i - w); j <= Math.min(y.length - 1, i + w); j++) { a += s.y[j]; c++; }
+    y[i] = a / c;
+  }
+  return { t: s.t, y };
+}
+
+/* Local maxima of (sign * y), needing prominence and a minimum separation.
+   Both knobs have to suit the frequency being counted. Counting the kick with
+   the arm settings gave 226/min against a synthetic 240: a 0.25 s minimum
+   separation is exactly one kick period, so every second peak was being merged,
+   and a five-point comparison spans most of a cycle at 30 fps. */
+function peaks(s, sign, minSepSec, halfWin = 2, minRange = 0.006) {
+  const y = s.y.map(v => v * sign), t = s.t;
+  if (y.length < 2 * halfWin + 1) return [];
+  /* Threshold on amplitude, not on standard deviation. A mean-plus-sigma
+     threshold collapses onto the mean when the trace is flat, so every frame
+     clears it and a motionless ankle reported 445 kicks a minute. A trace whose
+     whole range is smaller than a real movement has no strokes in it at all. */
+  const lo = p(y, 5), hi = p(y, 95);
+  if (hi - lo < minRange) return [];
+  const thr = lo + 0.6 * (hi - lo), out = [];
+  for (let i = halfWin; i < y.length - halfWin; i++) {
+    if (y[i] < thr) continue;
+    let top = true;
+    /* strict on one side so a plateau is counted once, not once per sample */
+    for (let d = 1; d <= halfWin; d++) if (!(y[i] > y[i-d] && y[i] >= y[i+d])) { top = false; break; }
+    if (!top) continue;
+    if (out.length && t[i] - t[out[out.length-1]] < minSepSec) {
+      if (y[i] > y[out[out.length-1]]) out[out.length-1] = i;
+      continue;
+    }
+    out.push(i);
+  }
+  return out;
+}
+
+function p(a, q) {
+  if (!a.length) return 0;
+  const s = a.slice().sort((x, y) => x - y);
+  return s[Math.min(s.length - 1, Math.floor(q / 100 * s.length))];
+}
+
+/* Frequency from the MEDIAN gap between peaks, not count/duration.
+   Whenever the model loses the swimmer for a second the count drops but the
+   clock does not, so count/duration reports a slower stroke than was swum --
+   and it reports it most for the worst footage, which is exactly where a
+   parent would read it as "he slowed down". The median gap ignores the hole. */
+function cadence(idx, t) {
+  if (idx.length < 2) return null;
+  const gaps = [];
+  for (let i = 1; i < idx.length; i++) gaps.push(t[idx[i]] - t[idx[i - 1]]);
+  const m = p(gaps, 50);
+  if (!(m > 0)) return null;
+  /* Throw away gaps that straddle a dropout, then AVERAGE what is left rather
+     than taking the median. A fast kick filmed at 30fps lands each peak on a
+     whole frame, so the true 0.25s period is stored as an alternating 7 and 8
+     frames; the median picks one of the two and reads ~7% off, while the mean
+     averages the rounding away. */
+  const keep = gaps.filter(g => g < m * 1.8);
+  return keep.length ? 1 / mean(keep) : 1 / m;
+}
+
+/* ── render ─────────────────────────────────────────────────────────────── */
+const ROWS = [
+  ['quality.trackedPct', '抓得到的畫格', '這個數字低於 60，下面全部不用看', '%', v => v >= 75 ? 'ok' : v >= 55 ? 'warn' : 'bad'],
+  ['quality.armPct', '手腕也抓得到', '划手類的數字用的是這個分母', '%', v => v >= 60 ? 'ok' : v >= 40 ? 'warn' : 'bad'],
+  ['values.faceInPct', '臉在水裡的比例', '看水面線位置而定', '%', v => v >= 70 ? 'ok' : v >= 40 ? 'warn' : 'bad'],
+  ['values.bodyTilt', '身體水平度', '臀部比肩膀低幾度，0 就是平的', '°', v => v <= 10 ? 'ok' : v <= 25 ? 'warn' : 'bad'],
+  ['values.standUps', '中途站起來', '身體接近直立超過 0.4 秒算一次', ' 次', v => v === 0 ? 'ok' : 'warn'],
+  ['values.rhythmCV', '動作規律度', '划手間隔的變異，越小越穩', '%', v => v <= 15 ? 'ok' : v <= 30 ? 'warn' : 'bad'],
+  ['values.ankleAngle', '腳背角度', '180 是腳背打直，90 是勾著腳', '°', v => v >= 150 ? 'ok' : v >= 120 ? 'warn' : 'bad'],
+  ['values.ankleSeen', '腳掌看得到的比例', '腳跟和腳尖都抓到才算', '%', v => v >= 50 ? 'ok' : 'warn'],
+  ['values.cycles', '划手循環', '左右各一次算一循環', '', null],
+  ['values.rate', '划頻', '循環／分鐘', '/min', null],
+  ['values.armL', '左臂次數', '', '', null],
+  ['values.armR', '右臂次數', '', '', null],
+  ['values.armGapMean', '雙臂落差（平均）', '蝶蛙專用：出水時兩手高度差，越小越同步', '', null],
+  ['values.armGapMax', '雙臂落差（最大）', '', '', null],
+  ['values.breaths', '換氣次數', '鼻子相對肩線的橫向位移', '', null],
+  ['values.breathSide', '換氣邊', '', '', null],
+  ['values.strokesPerBreath', '幾划換一次氣', '通過標準寫「每 2–3 划」的那幾條就是看這個', '', null],
+  ['values.rollRange', '身體滾轉幅度', '肩線傾角的 5–95 百分位差，單位是度', '°', null],
+  ['values.hipSteady', '臀部起伏', '越小代表身體越平穩', '', null],
+  ['values.kickVisible', '腳踝看得到的比例', '低於 40 就不算打水頻率', '%', v => v >= 50 ? 'ok' : 'warn'],
+  ['values.kickRate', '打水頻率', '次／分鐘', '/min', null],
+  ['values.kickFps', '影片影格率', '打水這種快動作，每秒要有 8 倍以上的畫格才數得準', 'fps', null],
+];
+
+function dig(o, path) { return path.split('.').reduce((a, k) => (a == null ? a : a[k]), o); }
+
+function render() {
+  const box = $('metrics');
+  box.innerHTML = '';
+  for (const [path, label, hint, unit, cls] of ROWS) {
+    const v = dig(metrics, path);
+    if (v === undefined) continue;
+    const row = document.createElement('div');
+    row.className = 'm';
+    const na = (v === null || v === '');
+    let extra = '';
+    if (path === 'values.kickRate' && metrics.values.kickUnderRead) {
+      extra = '<small style="color:var(--warn)">影格率不足，實際比這個數字快。用 60 fps 重拍才數得準。</small>';
+    }
+    row.innerHTML =
+      `<div class="k">${label}${hint ? `<small>${hint}</small>` : ''}${extra}</div>` +
+      `<div class="v ${na ? 'na' : (cls ? cls(v) : (path === 'values.kickRate' && metrics.values.kickUnderRead ? 'warn' : ''))}">` +
+      `${na ? '資料不足' : v + unit}</div>`;
+    box.appendChild(row);
+  }
+  drawQuality();
+  drawChart($('chWrist'), [
+    { s: metrics.series.wrL, c: '#5b9bd5' },
+    { s: metrics.series.wrR, c: '#e8883a' }], true);
+  drawChart($('chRoll'), [{ s: metrics.series.roll, c: '#c9a84c' }]);
+  drawChart($('chHip'), [{ s: metrics.series.hip, c: '#4caf72' }], true);
+  if (baseline) drawCompare();
+}
+
+function drawQuality() {
+  const c = $('quality'), x = c.getContext('2d');
+  c.width = c.clientWidth * devicePixelRatio; c.height = 16 * devicePixelRatio;
+  x.scale(devicePixelRatio, devicePixelRatio);
+  const w = c.clientWidth, n = frames.length || 1;
+  for (let i = 0; i < n; i++) {
+    const f = frames[i];
+    const q = !f.ok ? 0 : f.core;
+    /* purple, not red: the model was sure and it was still wrong. Worth its own
+       colour so the coach can see the difference between "lost him" and
+       "kept drawing him after he left". */
+    x.fillStyle = f.frozen ? '#8d6fd1'
+      : q >= 0.5 ? '#4caf72' : q >= 0.25 ? '#e8a33a' : '#e0574a';
+    x.fillRect(i / n * w, 0, Math.max(1, w / n + 0.5), 16);
+  }
+}
+
+function drawChart(c, lines, invert) {
+  const x = c.getContext('2d');
+  c.width = c.clientWidth * devicePixelRatio; c.height = 88 * devicePixelRatio;
+  x.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  const w = c.clientWidth, h = 88;
+  x.clearRect(0, 0, w, h);
+  const all = lines.flatMap(l => l.s.y);
+  if (!all.length) { x.fillStyle = '#68789a'; x.font = '12px system-ui';
+    x.fillText('資料不足', 10, 48); return; }
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if (hi - lo < 1e-6) { hi = lo + 1e-6; }
+  const t0 = Math.min(...lines.map(l => l.s.t[0] ?? 0));
+  const t1 = Math.max(...lines.map(l => l.s.t[l.s.t.length - 1] ?? 1));
+  const X = t => (t - t0) / Math.max(1e-6, t1 - t0) * (w - 4) + 2;
+  const Y = v => { const u = (v - lo) / (hi - lo); return (invert ? u : 1 - u) * (h - 12) + 6; };
+  for (const l of lines) {
+    x.beginPath(); x.strokeStyle = l.c; x.lineWidth = 1.5;
+    l.s.y.forEach((v, i) => { const px = X(l.s.t[i]), py = Y(v);
+      i ? x.lineTo(px, py) : x.moveTo(px, py); });
+    x.stroke();
+  }
+}
+
+function recompute() {
+  if (!frames.length) return;
+  metrics = compute(frames, $('stroke').value, aspectOf(), waterY);
+  metrics.meta.waterY = +waterY.toFixed(4);
+  const m = Number($('meters').value);
+  if (m > 0) metrics.values.meters = m;
+  render();
+  renderParent();
+  if (baseline) drawCompare();
+}
+
+$('waterline').addEventListener('input', e => {
+  waterY = Number(e.target.value) / 1000;
+  showFrame(Number($('scrub').value) || 0);
+  recompute();
+});
+$('meters').addEventListener('input', () => { if (frames.length) recompute(); });
+
+/* ── scrub & overlay ────────────────────────────────────────────────────── */
+$('scrub').addEventListener('input', e => showFrame(+e.target.value));
+
+function showFrame(i) {
+  const f = frames[i];
+  if (!f) return;
+  video.currentTime = f.t;
+  fitCanvas();
+  paint(f, null);
+  if (segOn) silhouette(f);   // async; repaints with the body filled in
+}
+
+/* one place that puts the overlay together, so the silhouette pass and the
+   plain pass can never drift out of step */
+function paint(f, mask) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (mask) octx.drawImage(mask, 0, 0, overlay.width, overlay.height);
+  drawWater();
+  if (!f || !f.ok) return;
+  const W = overlay.width, H = overlay.height;
+  octx.lineWidth = Math.max(2, W / 420);
+  for (const [a, b] of SKELETON) {
+    const pa = f.p[a], pb = f.p[b];
+    if (!pa || !pb) continue;
+    const v = Math.min(pa.v, pb.v);
+    octx.strokeStyle = v >= 0.5 ? 'rgba(201,168,76,.95)' : 'rgba(224,87,74,.55)';
+    octx.beginPath(); octx.moveTo(pa.x * W, pa.y * H); octx.lineTo(pb.x * W, pb.y * H); octx.stroke();
+  }
+  for (const k in f.p) {
+    const q = f.p[k];
+    octx.fillStyle = q.v >= 0.5 ? '#e9f0fb' : 'rgba(224,87,74,.6)';
+    octx.beginPath(); octx.arc(q.x * W, q.y * H, Math.max(2, W / 340), 0, 7); octx.fill();
+  }
+}
+
+$('silhouette').addEventListener('change', async e => {
+  segOn = e.target.checked;
+  const f = frames[Number($('scrub').value) || 0];
+  if (!segOn) { if (f) paint(f, null); return; }
+  say('第一次開輪廓要再載入一次模型…');
+  try { await loadSegmenter(); say('輪廓就緒。拖時間軸看。'); }
+  catch { say('輪廓載入失敗（連不到模型）。其他功能不受影響。'); segOn = false; e.target.checked = false; return; }
+  if (f) silhouette(f);
+});
+
+/* Every call bumps a generation counter and a stale one throws its own result
+   away. Without it, dragging the scrub bar queues a dozen detections that all
+   finish out of order and the picture ends up showing a frame you left long ago. */
+async function silhouette(f) {
+  const gen = ++segGen;
+  try {
+    const seg = await loadSegmenter();
+    if (gen !== segGen || !segOn) return;
+    if (Math.abs(video.currentTime - f.t) > 0.002) {
+      await new Promise(done => {
+        const fin = () => { video.removeEventListener('seeked', fin); done(); };
+        video.addEventListener('seeked', fin);
+        video.currentTime = f.t;
+        setTimeout(fin, 800);            // never hang on a seek that never lands
+      });
+    }
+    if (gen !== segGen || !segOn) return;
+    const res = seg.detect(video);
+    if (gen !== segGen || !segOn) return;
+    const m = res.segmentationMasks && res.segmentationMasks[0];
+    if (!m) { paint(f, null); return; }
+    paint(f, maskToCanvas(m));
+    m.close();
+  } catch {
+    /* the silhouette is a nicety -- it must never take the page down with it */
+    if (gen === segGen) paint(f, null);
+  }
+}
+
+function maskToCanvas(m) {
+  const w = m.width, h = m.height;
+  const d = m.getAsFloat32Array ? m.getAsFloat32Array() : m.getAsUint8Array();
+  const scale = (d instanceof Float32Array) ? 1 : 1 / 255;
+  if (!maskCv) maskCv = document.createElement('canvas');
+  maskCv.width = w; maskCv.height = h;
+  const c = maskCv.getContext('2d');
+  const img = c.createImageData(w, h);
+  for (let i = 0, j = 0; i < w * h; i++, j += 4) {
+    const v = d[i] * scale;
+    img.data[j] = 91; img.data[j + 1] = 155; img.data[j + 2] = 213;
+    img.data[j + 3] = v > 0.5 ? 130 : 0;
+  }
+  c.putImageData(img, 0, 0);
+  return maskCv;
+}
+
+function drawWater() {
+  const W = overlay.width, H = overlay.height;
+  if (!W || !H) return;
+  const y = waterY * H;
+  octx.save();
+  octx.strokeStyle = 'rgba(91,155,213,.9)';
+  octx.lineWidth = Math.max(1.5, W / 700);
+  octx.setLineDash([W / 60, W / 90]);
+  octx.beginPath(); octx.moveTo(0, y); octx.lineTo(W, y); octx.stroke();
+  octx.restore();
+}
+
+/* ── what the parent is shown ───────────────────────────────────────────── */
+/* Four cards, each with the number and a sentence a coach can read out loud.
+   The sentence matters more than the number: "臀部比肩膀低 8 度" means nothing
+   to a parent until it is followed by what that looks like in the water. */
+const band = (v, good, ok) => v == null ? '' : (v <= good ? 'ok' : v <= ok ? 'warn' : 'bad');
+
+function parentCards(mute = false) {
+  const V = metrics.values, out = [];
+  const push = (lab, num, cls, said) =>
+    out.push(`<div class="b"><div class="lab">${lab}</div>
+      <div class="num ${num == null ? 'na' : cls}">${num == null ? '資料不足' : num}</div>
+      <div class="said">${mute && num != null
+        ? '這段影片的追蹤不可靠，這個數字不代表泳者的動作。'
+        : said}</div></div>`);
+
+  // 1 — face in the water
+  const fi = V.faceInPct ?? null;
+  push('臉在水裡的時間', fi == null ? null : fi + '%',
+    fi == null ? '' : (fi >= 70 ? 'ok' : fi >= 40 ? 'warn' : 'bad'),
+    fi == null ? '鼻子抓不到，或水面線還沒拉。拉一下影片下面那條藍線。'
+    : fi >= 70 ? '臉大部分時間在水裡，代表他已經不怕水、也不用一直抬頭搶氣了。'
+    : fi >= 40 ? `還有 ${100 - fi}% 的時間頭是抬著的。抬頭會讓腿沉下去，這是下一個要練的。`
+    : '大部分時間頭都抬著。先練吐氣和把臉放進水裡，其他動作現在練效果有限。');
+
+  // 2 — how level the body is
+  const bt = V.bodyTilt ?? null;
+  push('身體水平度（臀部低幾度）', bt == null ? null : bt + '°',
+    band(bt, 10, 25),
+    bt == null ? '側面拍才量得到。如果是從正面或斜角拍，這個數字不成立。'
+    : bt <= 10 ? '身體幾乎是平的躺在水面上，這是省力游泳的基礎，已經做到了。'
+    : bt <= 25 ? `臀部比肩膀低 ${bt} 度，還有一點坐姿。多半是頭抬太高造成的。`
+    : `臀部比肩膀低 ${bt} 度，身體是斜著在水裡走的，會非常費力。這是現在最該改的一件事。`);
+
+  // 3 — did he get all the way down without standing up
+  const su = V.standUps, mt = V.meters;
+  const n3 = su == null ? null : (su === 0 ? (mt ? mt + ' 公尺' : '沒有停') : su + ' 次');
+  push('連續游完，沒有站起來', n3,
+    su == null ? '' : (su === 0 ? 'ok' : su <= 2 ? 'warn' : 'bad'),
+    su == null ? '需要側面拍才判斷得出站立。'
+    : su === 0 ? (mt ? `全程 ${mt} 公尺沒有停下來站起來過。這是最好懂的進步指標。`
+                     : '整段沒有站起來過。在上面填「這段游了幾公尺」，這句話會更有力。')
+    : `中途站起來 ${su} 次。${mt ? `這段是 ${mt} 公尺。` : ''}下次比的時候，次數變少就是進步。`);
+
+  // 4 — has the flailing become a rhythm
+  const cv = V.rhythmCV ?? null;
+  push('動作規律度（越小越穩）', cv == null ? null : '±' + cv + '%',
+    band(cv, 15, 30),
+    cv == null ? '划手次數不夠，或手腕常常抓不到，算不出節奏。'
+    : cv <= 15 ? '每一划的間隔幾乎一樣，已經游出節奏了。這比游得快更重要。'
+    : cv <= 30 ? '節奏大致有了，但還會忽快忽慢，通常是換氣那一下打亂的。'
+    : '每一划的快慢差很多，還在手忙腳亂的階段。規律下來會比現在省力很多。');
+
+  // 5 — the ankle: pointed, or flexed and braking
+  const aa = V.ankleAngle ?? null, seen = V.ankleSeen ?? 0;
+  push('腳背角度（打直還是勾著）', aa == null ? null : aa + '°',
+    aa == null ? '' : (aa >= 150 ? 'ok' : aa >= 120 ? 'warn' : 'bad'),
+    aa == null ? '腳掌抓不到。腳大半在水下，或畫面裡人太小。'
+    : seen < 40 ? `只有 ${seen}% 的畫格看得到腳掌，這個數字參考就好。`
+    : aa >= 150 ? '腳背是打直的，水才推得到。這件事很多大人都做不到。'
+    : aa >= 120 ? `腳背約 ${aa} 度，還有點勾。腳踝放鬆一點，打水會更有推進力。`
+    : `腳是勾著在打水的（${aa} 度）。這等於每一下都在踩煞車，會越打越退。`);
+
+  return out.join('');
+}
+
+function renderParent() {
+  const q = metrics.quality.trackedPct, fz = metrics.quality.frozenPct ?? 0;
+  const bad = [];
+  if (fz >= 15) bad.push(`有 ${fz}% 的畫格人根本不在畫面裡（品質條上的紫色），
+    模型還是照畫。這段影片請從泳者入鏡到出鏡剪一下再跑。`);
+  if (q < 60) bad.push(`真正追蹤到的只有 ${q}%。換一段人更清楚、水花更少的影片。`);
+  /* When the footage is this far outside what the tool can read, the cards must
+     stop asserting things about the swimmer. A sentence like "還在手忙腳亂的階段"
+     printed under a bad clip is the one failure that would actually cost the
+     school something, because the coach would read it out to a parent. */
+  const mute = fz >= 15 || q < 60;
+  const warn = bad.length
+    ? `<div class="note warnbox" style="margin:0 0 12px"><b>這段不能拿去跟家長講：</b>
+       ${bad.join(' ')}</div>` : '';
+  $('parent').innerHTML = warn + `<div class="big">${parentCards(mute)}</div>`;
+}
+
+/* ── export & compare ───────────────────────────────────────────────────── */
+function save(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+$('exportJson').addEventListener('click', () => {
+  const { series, ...lean } = metrics;
+  save(`stroke-${lean.meta.stroke}-${lean.meta.when.replace(/[:T]/g, '-')}.json`,
+       JSON.stringify(lean, null, 1), 'application/json');
+});
+$('exportCsv').addEventListener('click', () => {
+  const head = 't,tracked,core_vis,arm_vis,lwr_y,rwr_y,roll_deg,hip_y,nose_x\n';
+  const rows = frames.map(f => f.ok
+    ? [f.t.toFixed(3), f.core >= .5 ? 1 : 0, f.core.toFixed(2), f.arms.toFixed(2),
+       f.p[LWR].y.toFixed(4), f.p[RWR].y.toFixed(4),
+       (Math.atan2(f.p[RSH].y - f.p[LSH].y, f.p[RSH].x - f.p[LSH].x) * 180 / Math.PI).toFixed(2),
+       ((f.p[LHIP].y + f.p[RHIP].y) / 2).toFixed(4), f.p[NOSE].x.toFixed(4)].join(',')
+    : [f.t.toFixed(3), 0, 0, 0, '', '', '', '', ''].join(','));
+  save(`stroke-frames-${Date.now()}.csv`, head + rows.join('\n'), 'text/csv');
+});
+
+$('modelFile').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  localModelBuf = new Uint8Array(await f.arrayBuffer());
+  if (landmarker) { landmarker.close(); landmarker = null; }
+  say(`改用本機模型檔 ${f.name}（${(f.size / 1048576).toFixed(1)} MB）。`);
+});
+
+$('baseline').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { baseline = JSON.parse(r.result); drawCompare(); }
+    catch { $('cmp').textContent = '這不是這個工具匯出的 JSON。'; }
+  };
+  r.readAsText(f);
+});
+
+/* higher is better for some of these and lower for others — say which */
+const BETTER = { faceInPct: +1, bodyTilt: -1, standUps: -1, rhythmCV: -1, ankleAngle: +1,
+                 cycles: 0, rate: 0, armGapMean: -1, armGapMax: -1, breaths: 0,
+                 strokesPerBreath: +1, rollRange: 0, hipSteady: -1, kickRate: 0,
+                 meters: +1, 'quality.trackedPct': +1 };
+function drawCompare() {
+  if (!baseline || !metrics) return;
+  const rows = [];
+  const add = (label, a, b, key) => {
+    if (a == null || b == null || typeof a !== 'number' || typeof b !== 'number') return;
+    const d = b - a, dir = BETTER[key] ?? 0;
+    const cls = dir === 0 || Math.abs(d) < 1e-9 ? 'flat' : (d * dir > 0 ? 'up' : 'down');
+    rows.push(`<tr><td>${label}</td><td class="n">${a}</td><td class="n">${b}</td>
+      <td class="n delta ${cls}">${d > 0 ? '+' : ''}${+d.toFixed(1)}</td></tr>`);
+  };
+  add('抓得到的畫格 %', baseline.quality?.trackedPct, metrics.quality.trackedPct, 'quality.trackedPct');
+  for (const [path, label] of ROWS.map(r => [r[0], r[1]])) {
+    if (!path.startsWith('values.')) continue;
+    const k = path.slice(7);
+    add(label, dig(baseline, path), dig(metrics, path), k);
+  }
+  $('cmp').innerHTML = rows.length
+    ? `<table class="cmp"><thead><tr><th>項目</th><th style="text-align:right">上次</th>
+       <th style="text-align:right">這次</th><th style="text-align:right">變化</th></tr></thead>
+       <tbody>${rows.join('')}</tbody></table>
+       <p style="margin:10px 0 0;font-size:11.5px;color:var(--faint)">
+       綠色＝往好的方向。划頻和划手次數沒有標顏色——那兩個變快變慢都不一定是好事，要看情境。</p>`
+    : '兩次沒有可以對照的欄位（可能泳姿不同，或其中一次資料不足）。';
+}
+
+/* exposed so the maths can be checked against synthetic input without a video */
+globalThis.__lab = { compute, peaks, smooth, unwrap, cadence, pack, render, renderParent,
+  setFrames: f => { frames = f; },
+  setMetrics: m => { metrics = m; },
+  setWater: y => { waterY = y; } };
+
+say('選一段影片。模型會在你按「開始分析」時才下載。');
+</script>
+</body>
+</html>
