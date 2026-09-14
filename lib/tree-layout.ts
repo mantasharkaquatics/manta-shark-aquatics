@@ -163,13 +163,15 @@ export function routeWires(
         }
         const mid = g0.mid / g0.rows.length
         const onLeft = Math.abs(mid - leftEdge) <= Math.abs(mid - rightEdge)
+        /* One gutter per side, not one per group: everything that has to get
+           past the middle row on the left goes down the same line. The price is
+           that the trunk no longer says which prerequisite a branch came from --
+           the branches leave it at different heights, and the coach's detail
+           panel is where the exact list lives. */
         const slot = onLeft ? leftUsed++ : rightUsed++
         lane0 = {
-          gx: onLeft ? Math.max(6, leftEdge - 10 - slot * 7)
-                     : Math.min(width - 6, rightEdge + 10 + slot * 7),
-          /* Two gutters on the same side would otherwise share their horizontal
-             run as well and read as one line. */
-          yOut: lane(e.a.row + 1, 2) + slot * 3,
+          gx: onLeft ? Math.max(6, leftEdge - 10) : Math.min(width - 6, rightEdge + 10),
+          yOut: lane(e.a.row + 1, 2) + slot * 4,
         }
         gutter.set(e.from, lane0)
       }
