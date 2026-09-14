@@ -168,10 +168,10 @@ export function routeWires(
            that the trunk no longer says which prerequisite a branch came from --
            the branches leave it at different heights, and the coach's detail
            panel is where the exact list lives. */
-        const slot = onLeft ? leftUsed++ : rightUsed++
+        if (onLeft) leftUsed++; else rightUsed++
         lane0 = {
           gx: onLeft ? Math.max(6, leftEdge - 10) : Math.min(width - 6, rightEdge + 10),
-          yOut: lane(e.a.row + 1, 2) + slot * 4,
+          yOut: lane(e.a.row + 1, 2),
         }
         gutter.set(e.from, lane0)
       }
