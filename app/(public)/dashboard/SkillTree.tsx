@@ -162,8 +162,7 @@ const CSS = `
    off the corner: "100%" measures 30px at any readable size, which on a 44px
    phone tile overhung the skill name and reached into the next column. Taking it
    out of the flow leaves the mark on the tile's own centre, recorded or not. */
-.mst-rk { position: absolute; left: 0; right: 0; bottom: var(--rkb); text-align: center;
-  transform: translateX(1px);
+.mst-rk { position: absolute; left: 4px; right: 0; bottom: var(--rkb); text-align: center;
   font-size: 9.5px; font-weight: 700; font-style: normal; line-height: 1;
   font-variant-numeric: tabular-nums; letter-spacing: .02em; opacity: .82 }
 .mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
