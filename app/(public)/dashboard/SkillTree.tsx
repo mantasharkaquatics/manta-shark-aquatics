@@ -1,38 +1,39 @@
 'use client'
 
 /*
- * The whole curriculum as one picture.
+ * The whole curriculum as one picture, laid out the way a talent tree is: tiles
+ * on a grid, one level at a time, with an arrow drawn for every prerequisite
+ * that actually exists.
  *
- * The dashboard card already answers "how is this stage going". What it cannot
- * answer is "where does this end, and how far along are we" -- for that a
- * parent has to hold seven levels in their head. This does it for them: all 82
- * skills, in teaching order, wired together, with everything already passed lit
- * up behind the swimmer and everything still locked ahead of them.
+ * The arrows are the point. The previous version wired consecutive nodes
+ * together in reading order, which looked like a dependency graph and was not
+ * one -- it implied that dryland kicking waited on bubble blowing because they
+ * happened to sit next to each other. Every line here comes from a row in
+ * skill_prerequisites, so what the picture says is what the curriculum says.
  *
- * Three rules keep it honest:
- *   - A level below the current one is complete, because finishing it is the
- *     only way to leave it. The approved history can lag; the fact does not.
- *   - Inside the current level the numbers are the real recorded percentages,
- *     including a stage the coach has already started ahead of schedule.
- *   - A level above the current one is locked. Nothing is scored there yet, so
- *     showing 0% would imply a judgement nobody has made.
+ * Two audiences, one component. A coach gets the pass standard and the list of
+ * prerequisites; a family does not. The standard is written in the coach's
+ * terms for the person who has to apply it -- on a family's screen it turns a
+ * map of where the swimmer is going into a checklist they are invited to grade
+ * their own child against. `forCoach` is also why the criteria are not even
+ * fetched for a parent: not shown has to mean not sent.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { LEVEL_COLORS, MAX_LEVEL, levelNameKey, stageNameKey } from '@/lib/levels'
-import { masteryOf, masteryKey, MASTERY_COLOR, MASTERY_FILL, PASS_LEVEL, UNLOCK_LEVEL } from '@/lib/mastery'
+import { masteryOf, masteryKey, MASTERY_COLOR, MASTERY_VALUE, PASS_LEVEL, UNLOCK_LEVEL } from '@/lib/mastery'
 
 const GOLD = '#c9a84c'
 
 /* 'ready' is the state the stage model could not express: everything this skill
-   needs is already done, but it sits in a level the swimmer has not reached, so
-   the school has not got to it yet. Saying "locked" there would be untrue -- the
-   coach could teach it tomorrow -- and saying "open" would promise a lesson
-   nobody has scheduled. Rescue-from-the-side is the clearest case: it needs no
-   swimming at all, and it lives in Level 5. */
+   needs is done, but it sits in a level the school has not reached yet. Saying
+   "locked" there would be untrue -- the coach could teach it tomorrow -- and
+   "open" would promise a lesson nobody has scheduled. Rescue-from-the-side is
+   the clearest case: it needs no swimming at all, and it lives in Level 5. */
 type NodeState = 'done' | 'active' | 'open' | 'ready' | 'locked'
 
 type TreeSkill = {
@@ -41,8 +42,8 @@ type TreeSkill = {
   criteria: string
   level: number
   stage: number
-  /** which row of its own level -- 1 means nothing in this level comes first */
   row: number
+  col: number
   sort: number
   percent: number
   state: NodeState
@@ -55,296 +56,323 @@ type Props = {
   /** Every recorded value for this student, keyed by skill id, all levels. */
   percentBySkillId: Record<string, number>
   onClose: () => void
+  /** Coaches see the pass standard and what each skill waits on. Families do not. */
+  forCoach?: boolean
 }
 
-const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
+/* The five state marks, drawn rather than typed. They used to be characters --
+   a star, a diamond, a ring, a padlock -- and a character is whatever font the
+   browser finds it in: four glyphs from four different fallback fonts, each
+   with its own size and its own idea of where the middle is, and a different
+   answer again on a phone. These are the same four shapes as paths on one
+   20x20 box, so every tile draws its mark at the same 13px and on the same
+   centre line, in every browser. */
+const MARK: Record<NodeState, ReactElement> = {
+  done: (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path fill="currentColor" d="M10 3.2C10.7 7.6 12.4 9.3 16.8 10
+        C12.4 10.7 10.7 12.4 10 16.8C9.3 12.4 7.6 10.7 3.2 10
+        C7.6 9.3 9.3 7.6 10 3.2Z" />
+    </svg>
+  ),
+  active: (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path fill="currentColor" d="M10 3.4 16.6 10 10 16.6 3.4 10Z" />
+    </svg>
+  ),
+  open: (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  ),
+  /* Same ring, broken: the skill is reachable but not on the plan yet. */
+  ready: (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.8"
+        strokeDasharray="2.3 2.5" strokeLinecap="round" />
+    </svg>
+  ),
+  locked: (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+        <rect x="4.8" y="9.4" width="10.4" height="6.3" rx="1.5" />
+        <path d="M7.5 9.4V6.8a2.5 2.5 0 0 1 5 0v2.6" strokeLinecap="round" />
+      </g>
+    </svg>
+  ),
+}
 
-const GLYPH: Record<NodeState, string> = { done: '✦', active: '◆', open: '○', ready: '·', locked: '🔒' }
-
-/* Inline styles beat media queries, and this needs to lay out differently on a
-   phone, so everything width-dependent lives here as a class. */
 const CSS = `
-.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(4,9,17,0.86);
+.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(4,9,17,0.88);
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
 .mst-panel { position: relative; width: 100%; max-width: 1180px; background: #0b1428;
-  overflow-y: auto; -webkit-overflow-scrolling: touch }
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  --cw: 112px; --rh: 116px; --sz: 52px; --rkh: 14px }
 @media (min-width: 900px) { .mst-panel { margin: 24px; border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.1) } .mst-back { padding: 0 } }
+  border: 1px solid rgba(255,255,255,0.1) } }
 
-.mst-head { position: sticky; top: 0; z-index: 3; background: #0b1428;
-  border-bottom: 1px solid rgba(255,255,255,0.08); padding: 16px 20px 14px }
+.mst-head { position: sticky; top: 0; z-index: 5; background: #0b1428;
+  border-bottom: 1px solid rgba(255,255,255,0.08); padding: 16px 20px 12px }
 .mst-x { position: absolute; top: 12px; right: 14px; width: 34px; height: 34px; border: none;
   border-radius: 9px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75);
   font-size: 17px; cursor: pointer; line-height: 1 }
-.mst-x:hover { background: rgba(255,255,255,0.14); color: #fff }
-.mst-stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 12px }
-.mst-stat b { display: block; font-size: 19px; font-weight: 800; line-height: 1.2;
+.mst-stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px }
+.mst-stat b { display: block; font-size: 19px; font-weight: 800; line-height: 1.1;
   font-variant-numeric: tabular-nums }
-.mst-stat span { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
-  color: rgba(255,255,255,0.38) }
+.mst-stat span { font-size: 10px; letter-spacing: .09em; color: rgba(255,255,255,0.4) }
 
-.mst-body { padding: 18px 20px 64px }
+.mst-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 20px 4px }
+.mst-tab { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start;
+  gap: 1px; background: #111d38; border: 1px solid #1e3a6e; border-radius: 10px;
+  padding: 7px 13px; cursor: pointer; color: rgba(255,255,255,0.62); font: inherit;
+  min-height: 48px }
+.mst-tab b { font-size: 11px; letter-spacing: .09em; color: rgba(255,255,255,0.38);
+  font-weight: 700 }
+.mst-tab span { font-size: 13px; font-weight: 500; white-space: nowrap }
+.mst-tab[aria-selected=true] { background: rgba(201,168,76,.12); border-color: ${GOLD};
+  color: #fff }
+.mst-tab[aria-selected=true] b { color: ${GOLD} }
+.mst-tab:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 2px }
 
-.mst-band { position: relative; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px;
-  background: #12203c; padding: 14px 16px 18px; margin-top: 22px }
-.mst-band:first-child { margin-top: 0 }
-.mst-band.is-locked { opacity: 0.62 }
-.mst-band::before { content: ""; position: absolute; left: 50%; top: -22px; width: 2px; height: 22px;
-  background: rgba(255,255,255,0.12) }
-.mst-band:first-child::before { display: none }
+.mst-meta { font-size: 11.5px; color: rgba(255,255,255,0.35); margin: 0; padding: 8px 20px 0 }
+.mst-scroll { overflow-x: auto; margin: 8px 20px 0; background: #111d38;
+  border: 1px solid #1e3a6e; border-radius: 13px; padding: 16px 14px 12px }
+.mst-board { position: relative; margin: 0 auto;
+  width: calc(var(--cols) * var(--cw));
+  height: calc((var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
+.mst-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+  overflow: visible }
+.mst-w { fill: none; stroke: #25395f; stroke-width: 2 }
+.mst-w.lit { stroke: rgba(201,168,76,.8) }
 
-.mst-bh { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px;
-  width: 100%; text-align: left; background: none; border: none; padding: 0 0 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 14px; color: inherit }
-.mst-band.is-folded .mst-bh { border-bottom: none; margin-bottom: 0; padding-bottom: 0 }
-button.mst-bh { cursor: pointer }
-button.mst-bh:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 4px; border-radius: 8px }
-.mst-band.is-folded .mst-stages { display: none }
-.mst-num { width: 34px; height: 34px; flex: none; display: flex; align-items: center;
-  justify-content: center; border-radius: 9px; font-size: 17px; font-weight: 800 }
-.mst-bt { flex: 1; min-width: 0 }
-.mst-bt h3 { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.25; color: #fff }
-.mst-bt span { font-size: 11px; color: rgba(255,255,255,0.4) }
-.mst-bp { font-size: 12px; color: rgba(255,255,255,0.4); white-space: nowrap;
-  font-variant-numeric: tabular-nums }
-.mst-chev { font-size: 12px; color: rgba(255,255,255,0.4); flex: none }
+.mst-tile { position: absolute; width: var(--sz); height: var(--sz); border-radius: 10px;
+  background: #16233f; border: 1px solid #1e3a6e; display: grid;
+  grid-template-rows: 1fr var(--rkh); place-items: center;
+  padding: 0; cursor: pointer; color: rgba(255,255,255,0.35);
+  font-size: 17px; line-height: 1;
+  left: calc(var(--c) * var(--cw) + (var(--cw) - var(--sz)) / 2);
+  top: calc((var(--r) - 1) * var(--rh)) }
+.mst-mk { display: block; width: 20px; height: 20px }
+.mst-mk svg { display: block; width: 100%; height: 100% }
+/* The number gets its own row inside the tile instead of a badge hung off the
+   corner: "100%" measures 30px at any readable size, which on a 44px phone tile
+   overhung the skill name and reached into the next column. A reserved row also
+   keeps every mark at the same height, whether or not that skill has a record. */
+.mst-rk { font-size: 9.5px; font-weight: 700; font-style: normal; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: .02em; opacity: .82 }
+.mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
+  left: calc((var(--sz) - var(--cw)) / 2); font-size: 10.5px; line-height: 1.3;
+  text-align: center; color: rgba(255,255,255,0.35); font-weight: 500 }
+.mst-tile:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 3px }
+.mst-tile.open { border-color: #31497a; background: #1a2a4a; color: #6d8cc0 }
+.mst-tile.open .mst-nm { color: rgba(255,255,255,0.6) }
+/* A dotted ring is mostly gaps, so it needs more contrast than a solid
+   one to read at the same weight. */
+.mst-tile.ready { border-color: #3a5487; border-style: dashed; color: rgba(255,255,255,0.68) }
+.mst-tile.ready .mst-nm { color: rgba(255,255,255,0.5) }
+.mst-tile.active { border-color: ${GOLD}; background: #262112; color: ${GOLD};
+  box-shadow: 0 0 15px rgba(201,168,76,.32) }
+.mst-tile.active .mst-nm { color: ${GOLD}; font-weight: 700 }
+.mst-tile.done { border-color: #4caf72; background: #112d1e; color: #4caf72;
+  box-shadow: 0 0 15px rgba(76,175,114,.28) }
+.mst-tile.done .mst-nm { color: #4caf72; font-weight: 700 }
+.mst-tile.locked { opacity: .58 }
+.mst-tile[aria-current=true] { box-shadow: 0 0 0 2px #e9f0fb }
 
-.mst-wires { position: absolute; inset: 0; z-index: 0; pointer-events: none }
-.mst-w { fill: none; stroke: rgba(255,255,255,0.09); stroke-width: 2;
-  stroke-linecap: round; stroke-linejoin: round }
+.mst-key { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 11.5px;
+  color: rgba(255,255,255,0.38); padding: 12px 20px 0 }
+.mst-key span { display: inline-flex; align-items: center; gap: 6px }
+.mst-key i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none }
 
-.mst-stages { display: flex; align-items: flex-start; gap: 18px }
-.mst-stage { flex: 1 1 0; min-width: 0; border: 1px solid transparent; border-radius: 11px;
-  padding: 8px 8px 12px }
-.mst-sh { position: relative; z-index: 2; display: flex; align-items: baseline; gap: 8px;
-  margin-bottom: 12px }
-.mst-sh em { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 1.1px;
-  text-transform: uppercase; color: rgba(255,255,255,0.38) }
-.mst-sh i { font-style: normal; font-size: 11px; margin-left: auto; color: rgba(255,255,255,0.35);
-  font-variant-numeric: tabular-nums }
+.mst-detail { margin: 14px 20px 26px; background: #111d38; border: 1px solid #1e3a6e;
+  border-radius: 13px; padding: 14px 16px }
+.mst-detail h3 { margin: 0; font-size: 15.5px; color: #fff }
+.mst-detail .dm { font-size: 11.5px; color: rgba(255,255,255,0.38); margin: 3px 0 0 }
+.mst-band { display: inline-block; margin-top: 9px; font-size: 11.5px; font-weight: 700;
+  border-radius: 6px; padding: 2px 9px; border: 1px solid currentColor }
+.mst-dt { font-size: 10px; letter-spacing: .1em; color: rgba(255,255,255,0.35);
+  margin: 12px 0 4px }
+.mst-dd { margin: 0; font-size: 12.5px; color: rgba(255,255,255,0.72); line-height: 1.7 }
+.mst-pre { display: flex; flex-wrap: wrap; gap: 5px }
+.mst-pre span { font-size: 11.5px; border-radius: 6px; padding: 2px 8px; background: #16233f;
+  color: rgba(255,255,255,0.6) }
+.mst-pre span.ok { background: #112d1e; color: #4caf72 }
+.mst-pre span b { font-weight: 700; opacity: .65; margin-left: 4px; font-size: 10px }
 
-.mst-nodes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start; gap: 24px 6px }
-.mst-node { position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column;
-  align-items: center; gap: 6px; text-align: center; background: none; border: none;
-  padding: 0; cursor: pointer; color: inherit }
-.mst-node:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 4px; border-radius: 8px }
-.mst-ring { width: 50px; height: 56px; flex: none; display: flex; align-items: center;
-  justify-content: center;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%) }
-.mst-hex { width: 42px; height: 48px; display: flex; align-items: center; justify-content: center;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%) }
-.mst-glyph { font-size: 15px; line-height: 1 }
-.mst-label { width: 100%; font-size: 11px; font-weight: 600; line-height: 1.3;
-  overflow-wrap: break-word }
-
-@media (max-width: 860px) {
-  .mst-stages { flex-direction: column; gap: 10px }
-  .mst-stage { flex: 1 1 auto; width: 100% }
-  .mst-nodes { gap: 22px 8px }
-  .mst-label { font-size: 12.5px }
-  .mst-body { padding: 14px 12px 64px }
-  .mst-band { padding: 12px 12px 16px }
-}
-
-.mst-detail { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1300; max-height: 62vh;
-  overflow-y: auto; background: #12203c; border-top: 1px solid rgba(255,255,255,0.12);
-  border-radius: 16px 16px 0 0; box-shadow: 0 -12px 44px rgba(0,0,0,0.5) }
-/* The card is read against the node it describes, so the tree moves out from
-   under it rather than being covered by it -- but only where there is width to
-   give: a stage needs three hexes across, and below this the card would squeeze
-   them out, so there it stays a bottom sheet. The wires redraw on the reflow. */
-@media (min-width: 1280px) {
-  .mst-detail { left: auto; right: 28px; bottom: 28px; width: 348px;
-    border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); max-height: 66vh }
-  .mst-panel.has-detail { max-width: none }
-  .mst-panel.has-detail .mst-body { padding-right: 384px }
+@media (max-width: 640px) {
+  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkh: 13px }
+  .mst-rk { font-size: 9px }
+  .mst-scroll { margin: 8px 14px 0; padding: 14px 10px 10px }
+  .mst-tabs, .mst-meta, .mst-key { padding-left: 14px; padding-right: 14px }
+  .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0 }
+  .mst-nm { font-size: 9.5px }
 }
 `
 
-export default function SkillTree({ studentName, currentLevel, currentStage, percentBySkillId, onClose }: Props) {
+export default function SkillTree({
+  studentName, currentLevel, currentStage, percentBySkillId, onClose, forCoach = false,
+}: Props) {
   const supabase = createClient()
   const locale = useLocale()
   const t = useT()
 
   const [skills, setSkills] = useState<TreeSkill[] | null>(null)
+  const [needs, setNeeds] = useState<Record<string, string[]>>({})
   const [failed, setFailed] = useState(false)
-  const [folded, setFolded] = useState<Set<number>>(new Set())
+  const [lv, setLv] = useState(Math.min(Math.max(1, currentLevel || 1), MAX_LEVEL))
   const [sel, setSel] = useState<TreeSkill | null>(null)
-  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
 
-  /* ---- the curriculum, once ---- */
   useEffect(() => {
     let alive = true
     ;(async () => {
+      const cols = forCoach
+        ? 'id, name, pass_criteria, stage, sort_order, level_id'
+        : 'id, name, stage, sort_order, level_id'
       const [{ data: levRows }, { data: skRows }, { data: preRows }] = await Promise.all([
         supabase.from('levels').select('id, level_number'),
-        supabase.from('skills').select('id, name, pass_criteria, stage, sort_order, level_id')
-          .eq('is_active', true).order('sort_order'),
+        supabase.from('skills').select(cols).eq('is_active', true).order('sort_order'),
         supabase.from('skill_prerequisites').select('skill_id, requires_id'),
       ])
       if (!alive) return
       if (!levRows || !skRows) { setFailed(true); return }
+
       const levelOf: Record<string, number> = {}
       for (const l of levRows as any[]) levelOf[String(l.id)] = Number(l.level_number)
 
-      /* A skill opens when everything it needs is at "on their own" -- the same
-         bar a stage advances on. Skills with no row here open on day one, which
-         is the whole point: dryland kicking never needed anything. */
-      const needs: Record<string, string[]> = {}
+      const need: Record<string, string[]> = {}
       for (const r of (preRows || []) as any[]) {
-        (needs[String(r.skill_id)] ||= []).push(String(r.requires_id))
+        (need[String(r.skill_id)] ||= []).push(String(r.requires_id))
       }
       const ready = (id: string) =>
-        (needs[id] || []).every(req => masteryOf(percentBySkillId[req] ?? 0) >= UNLOCK_LEVEL)
+        (need[id] || []).every(q => masteryOf(percentBySkillId[q] ?? 0) >= UNLOCK_LEVEL)
 
       const built: TreeSkill[] = []
       for (const s of skRows as any[]) {
         const level = levelOf[String(s.level_id)]
         if (!level) continue
-        const stage = Number(s.stage) || 1
-        let percent: number
-        let state: NodeState
-        /* What was actually recorded always wins. That matters more than it
-           used to: a coach may now grade any skill in the current level, so a
-           later stage can legitimately hold real marks, and a level the swimmer
-           has moved past is no longer guaranteed to be finished -- a stage now
-           advances at "on their own", not at "solid". Claiming 100% for every
-           earlier level would be inventing a pass the coach never gave.
-           The assumption is kept only where there is nothing on file at all. */
-        const rec = percentBySkillId[String(s.id)]
-        /* Two separate questions, and the old code could only ask one.
+        const id = String(s.id)
+        const rec = percentBySkillId[id]
+        /* Two separate questions the stage model could only ask as one.
            CAN he start it -- are the prerequisites done?
            IS it scheduled -- has the school reached this level and stage? */
-        const canStart = ready(String(s.id))
+        const canStart = ready(id)
+        const stage = Number(s.stage) || 1
         const scheduled = level < currentLevel || (level === currentLevel && stage <= currentStage)
+        let percent = 0
+        let state: NodeState
         if (rec != null && masteryOf(rec) > 0) {
           percent = clamp(rec)
           state = masteryOf(percent) >= PASS_LEVEL ? 'done' : 'active'
         } else if (level < currentLevel && rec == null) {
-          // promoted past it with nothing on file: the promotion is the record
-          percent = 100; state = 'done'
+          percent = 100; state = 'done'          // promoted past it; the promotion is the record
         } else {
           percent = rec != null ? clamp(rec) : 0
           state = !canStart ? 'locked' : scheduled ? 'open' : 'ready'
         }
         built.push({
-          id: String(s.id), name: String(s.name || ''),
-          criteria: String(s.pass_criteria || ''),
-          level, stage, row: 1, sort: Number(s.sort_order) || 0, percent, state,
+          id, name: String(s.name || ''), criteria: String((s as any).pass_criteria || ''),
+          level, stage, row: 1, col: 0, sort: Number(s.sort_order) || 0, percent, state,
         })
       }
+
       /* A skill's row is one past the deepest thing it needs FROM THE SAME
-         LEVEL. Prerequisites from an earlier level do not push it down: by the
-         time a swimmer is working this level those are already behind them, so
-         row 1 reads as "nothing here has to come first", not "nothing at all".
-         This is what the stage grouping could not say -- dryland kicking sat in
-         stage 2 purely because somebody had to put it somewhere. */
-      const lvlById: Record<string, number> = {}
-      for (const b of built) lvlById[b.id] = b.level
-      const rowMemo: Record<string, number> = {}
+         LEVEL; prerequisites from an earlier level do not push it down, because
+         by the time a swimmer is working this level those are behind them. */
+      const byId = new Map(built.map(b => [b.id, b]))
+      const memo: Record<string, number> = {}
       const rowOf = (id: string, seen = new Set<string>()): number => {
-        if (rowMemo[id]) return rowMemo[id]
-        if (seen.has(id)) return 1          // a cycle should be impossible; do not hang on one
+        if (memo[id]) return memo[id]
+        if (seen.has(id)) return 1                 // a cycle cannot happen; do not hang on one
         seen.add(id)
-        const same = (needs[id] || []).filter(q => lvlById[q] === lvlById[id])
-        return rowMemo[id] = same.length ? 1 + Math.max(...same.map(q => rowOf(q, seen))) : 1
+        const me = byId.get(id)
+        const same = (need[id] || []).filter(q => byId.get(q)?.level === me?.level)
+        return memo[id] = same.length ? 1 + Math.max(...same.map(q => rowOf(q, seen))) : 1
       }
       for (const b of built) b.row = rowOf(b.id)
-      built.sort((a, b) => a.level - b.level || a.row - b.row || a.sort - b.sort)
-      setSkills(built)
-      // A level that is entirely behind them opens folded: the page should
-      // start on the water the swimmer is actually in.
-      const done = new Set<number>()
-      for (let lv = 1; lv <= MAX_LEVEL; lv++) {
-        const inLv = built.filter(s => s.level === lv)
-        if (inLv.length > 0 && inLv.every(s => s.percent >= 100)) done.add(lv)
-      }
-      setFolded(done)
-    })().catch(() => { if (alive) setFailed(true) })
-    return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLevel, currentStage])
 
-  /* ---- escape closes, and the page behind stops scrolling ---- */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      if (sel) setSel(null); else onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
-  }, [onClose, sel])
-
-  /* ---- the wires ----
-     One path per consecutive pair of skills, stage boundaries included, so the
-     line itself is the order the swimmer works through. They are drawn from
-     measured hex positions rather than from the data, which is what lets the
-     same routing serve the three-column desktop grid and the stacked phone
-     layout; that also means React cannot own them, so the paths are written
-     straight into the SVG after layout. */
-  const draw = useCallback(() => {
-    const root = bodyRef.current
-    if (!root) return
-    root.querySelectorAll<SVGSVGElement>('svg.mst-wires').forEach(svg => {
-      while (svg.firstChild) svg.removeChild(svg.firstChild)
-      const band = svg.parentElement
-      if (!band || band.classList.contains('is-folded')) return
-      const br = band.getBoundingClientRect()
-      svg.setAttribute('width', String(br.width))
-      svg.setAttribute('height', String(br.height))
-      svg.setAttribute('viewBox', `0 0 ${br.width} ${br.height}`)
-      const nodes = Array.from(band.querySelectorAll<HTMLElement>('.mst-node'))
-      for (let i = 0; i < nodes.length - 1; i++) {
-        const a = boxOf(nodes[i], br), b = boxOf(nodes[i + 1], br)
-        if (!a || !b) continue
-        const sa = nodes[i].closest('.mst-stage'), sb = nodes[i + 1].closest('.mst-stage')
-        if (!sa || !sb) continue
-        const ra = sa.getBoundingClientRect(), rb = sb.getBoundingClientRect()
-        const env: Env = { cross: sa !== sb, rx: ra.right - br.left - 6 }
-        if (sa !== sb) env.gx = (ra.right + rb.left) / 2 - br.left
-        const from = Number(nodes[i].dataset.pct || 0), to = Number(nodes[i + 1].dataset.pct || 0)
-        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-        p.setAttribute('d', rounded(route(a, b, env), 9))
-        p.setAttribute('class', 'mst-w')
-        if (from >= 100) {
-          const c = nodes[i].dataset.color || '#c9a84c'
-          p.setAttribute('stroke', to >= 100 ? c : '#c9a84c')
-          p.setAttribute('stroke-width', '2.5')
-          if (to < 100) p.setAttribute('stroke-dasharray', '5 7')
+      /* Columns: a skill takes its first same-level prerequisite's column when
+         that column is free, so a chain reads as one line straight down. */
+      for (let L = 1; L <= MAX_LEVEL; L++) {
+        const inL = built.filter(b => b.level === L)
+        const maxRow = inL.length ? Math.max(...inL.map(b => b.row)) : 0
+        for (let r = 1; r <= maxRow; r++) {
+          const taken = new Set<number>()
+          for (const b of inL.filter(x => x.row === r)
+            .sort((x, y) => x.stage - y.stage || x.sort - y.sort)) {
+            const par = (need[b.id] || []).map(q => byId.get(q)).find(q => q?.level === L)
+            let c = par && !taken.has(par.col) ? par.col : 0
+            while (taken.has(c)) c++
+            taken.add(c); b.col = c
+          }
         }
-        svg.appendChild(p)
       }
-    })
-  }, [])
 
+      built.sort((a, b) => a.level - b.level || a.row - b.row || a.col - b.col)
+      setSkills(built); setNeeds(need)
+    })()
+    return () => { alive = false }
+  }, [supabase, currentLevel, currentStage, percentBySkillId, forCoach])
+
+  const inLv = useMemo(() => (skills || []).filter(s => s.level === lv), [skills, lv])
+  const cols = inLv.length ? Math.max(...inLv.map(s => s.col)) + 1 : 1
+  const rows = inLv.length ? Math.max(...inLv.map(s => s.row)) : 1
+
+  /* The wires are drawn from the geometry the CSS is actually using, so the
+     phone's smaller grid needs no second set of numbers -- it changes --cw and
+     --sz and this redraws against them. */
   useLayoutEffect(() => {
+    const board = boardRef.current
+    if (!board) return
+    const draw = () => {
+      const cs = getComputedStyle(board)
+      const cw = parseFloat(cs.getPropertyValue('--cw'))
+      const rh = parseFloat(cs.getPropertyValue('--rh'))
+      const sz = parseFloat(cs.getPropertyValue('--sz'))
+      if (!cw || !rh || !sz) return
+      const svg = board.querySelector('svg')
+      if (svg) svg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`)
+      for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
+        const [c1, r1] = (el.dataset.from || '0,1').split(',').map(Number)
+        const [c2, r2] = (el.dataset.to || '0,1').split(',').map(Number)
+        const px = (c: number) => c * cw + cw / 2
+        const py = (r: number) => (r - 1) * rh + sz / 2
+        const x1 = px(c1), y1 = py(r1) + sz / 2 + 2
+        const x2 = px(c2), y2 = py(r2) - sz / 2 - 4
+        /* The horizontal leg runs in the channel between one row's names and
+           the next row's tiles. Placing it part-way down put it through the
+           middle of the text. */
+        const mid = py(r2) - sz / 2 - 20
+        el.setAttribute('d', Math.abs(x1 - x2) < 2
+          ? `M${x1} ${y1} L${x2} ${y2}`
+          : `M${x1} ${y1} L${x1} ${mid} L${x2} ${mid} L${x2} ${y2}`)
+      }
+    }
     draw()
-    const root = bodyRef.current
-    if (!root) return
-    const ro = new ResizeObserver(() => draw())
-    ro.observe(root)
+    const ro = new ResizeObserver(draw)
+    ro.observe(board)
     window.addEventListener('resize', draw)
-    const f = (document as any).fonts
-    if (f && f.ready) f.ready.then(draw).catch(() => {})
     return () => { ro.disconnect(); window.removeEventListener('resize', draw) }
-  }, [draw, skills, folded, sel])
+  }, [inLv, cols, rows])
 
   const total = skills?.length ?? 0
-  const done = skills?.filter(s => s.percent >= 100).length ?? 0
+  const done = skills?.filter(s => s.state === 'done').length ?? 0
+  const lvDone = inLv.filter(s => s.state === 'done').length
+  const color = LEVEL_COLORS[String(lv)] || GOLD
 
   return (
-    <div className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')} onClick={onClose}>
+    <div className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')}
+      onClick={onClose}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className={'mst-panel' + (sel ? ' has-detail' : '')} onClick={e => e.stopPropagation()}>
+      <div className="mst-panel" onClick={e => e.stopPropagation()}>
         <div className="mst-head">
           <button className="mst-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
           <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: GOLD }}>
             {t('tree.title')}
           </div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginTop: '2px' }}>{studentName}</div>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginTop: '2px' }}>
+            {studentName}
+          </div>
           <div className="mst-stats">
             <div className="mst-stat">
               <b style={{ color: LEVEL_COLORS[String(currentLevel)] || GOLD }}>{currentLevel}</b>
@@ -355,7 +383,9 @@ export default function SkillTree({ studentName, currentLevel, currentStage, per
               <span>{t('tree.stat.stage')}</span>
             </div>
             <div className="mst-stat">
-              <b style={{ color: GOLD }}>{done}<span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>/{total || '—'}</span></b>
+              <b style={{ color: GOLD }}>{done}
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>/{total || '—'}</span>
+              </b>
               <span>{t('tree.stat.lit')}</span>
             </div>
             <div className="mst-stat">
@@ -365,198 +395,107 @@ export default function SkillTree({ studentName, currentLevel, currentStage, per
           </div>
         </div>
 
-        <div className="mst-body" ref={bodyRef}>
-          {skills === null && !failed && (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-              {t('common.loading')}
-            </div>
-          )}
-          {failed && (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
-              {t('tree.loadFailed')}
-            </div>
-          )}
-          {skills !== null && !failed && Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(lv => {
-            const inLv = skills.filter(s => s.level === lv)
-            if (inLv.length === 0) return null
-            const color = LEVEL_COLORS[String(lv)] || GOLD
-            const lvDone = inLv.filter(s => s.percent >= 100).length
-            const full = lvDone === inLv.length
-            const isFolded = folded.has(lv)
-            const HeadTag: any = full ? 'button' : 'div'
-            return (
-              <section key={lv} className={
-                'mst-band' + (isFolded ? ' is-folded' : '') + (lv > currentLevel ? ' is-locked' : '')
-              } style={lv === currentLevel ? { borderColor: color, boxShadow: `0 0 0 1px ${color}55` } : undefined}>
-                <svg className="mst-wires" aria-hidden="true" />
-                <HeadTag
-                  className="mst-bh"
-                  {...(full ? {
-                    'aria-expanded': !isFolded,
-                    onClick: () => setFolded(prev => {
-                      const next = new Set(prev)
-                      if (next.has(lv)) next.delete(lv); else next.add(lv)
-                      return next
-                    }),
-                  } : {})}
-                >
-                  <div className="mst-num" style={{ color, border: `1px solid ${color}`, background: `${color}22` }}>{lv}</div>
-                  <div className="mst-bt">
-                    <h3>{t(levelNameKey(lv))}</h3>
-                    <span>{t('tree.levelMeta', { n: inLv.length })}</span>
-                  </div>
-                  <div className="mst-bp"><b style={{ color, fontSize: '15px' }}>{lvDone}</b>/{inLv.length}</div>
-                  {full && <div className="mst-chev">{isFolded ? '▾' : '▴'}</div>}
-                </HeadTag>
-                <div className="mst-stages">
-                  {Array.from({ length: Math.max(1, ...inLv.map(s => s.row)) }, (_, i) => i + 1).map(st => {
-                    const rows = inLv.filter(s => s.row === st)
-                    const stDone = rows.filter(s => s.percent >= 100).length
-                    /* The live row is the earliest one still holding work, not a
-                       number on the student record: that is where the next
-                       lesson actually happens. */
-                    const workRow = Math.min(...inLv
-                      .filter(s => s.state === 'open' || s.state === 'active')
-                      .map(s => s.row), Infinity)
-                    const isNow = lv === currentLevel && st === workRow
-                    return (
-                      <div key={st} className="mst-stage"
-                        style={isNow ? { borderColor: `${GOLD}70`, background: 'rgba(201,168,76,0.06)' } : undefined}>
-                        <div className="mst-sh">
-                          <em style={isNow ? { color: GOLD } : undefined}>{t('tree.rowN', { n: st })}</em>
-                          <i>{stDone}/{rows.length}</i>
-                        </div>
-                        <div className="mst-nodes">
-                          {rows.map(sk => {
-                            const skin = nodeSkin(sk, color)
-                            return (
-                              <button key={sk.id} className="mst-node" data-pct={sk.percent} data-color={color}
-                                onClick={() => setSel(sk)}
-                                aria-label={tDb(locale, 'skills', sk.id, sk.name)}>
-                                <span className="mst-ring" style={skin.ring}>
-                                  <span className="mst-hex" style={{ background: skin.hex }}>
-                                    <span className="mst-glyph" style={{ color: skin.glyph }}>{GLYPH[sk.state]}</span>
-                                  </span>
-                                </span>
-                                <span className="mst-label" style={{ color: skin.label }}>
-                                  {tDb(locale, 'skills', sk.id, sk.name)}
-                                </span>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            )
-          })}
-        </div>
-      </div>
+        {failed && <p className="mst-meta" style={{ padding: '22px 20px' }}>{t('tree.loadFailed')}</p>}
 
-      {sel && (
-        <aside className="mst-detail" onClick={e => e.stopPropagation()} aria-live="polite">
-          <div style={{ padding: '18px 20px 22px', position: 'relative' }}>
-            <button className="mst-x" style={{ top: '10px', right: '12px' }} onClick={() => setSel(null)} aria-label={t('common.close')}>✕</button>
-            <span style={{
-              display: 'inline-block', fontSize: '10px', letterSpacing: '1.2px', textTransform: 'uppercase',
-              padding: '3px 9px', borderRadius: '20px', color: LEVEL_COLORS[String(sel.level)] || GOLD,
-              border: `1px solid ${LEVEL_COLORS[String(sel.level)] || GOLD}`,
-              background: `${LEVEL_COLORS[String(sel.level)] || GOLD}18`,
-            }}>
-              {t('level.badge', { n: sel.level, name: t(levelNameKey(sel.level)) })}
-            </span>
-            <h4 style={{ margin: '12px 0 2px', fontSize: '18px', fontWeight: 800, color: '#fff', lineHeight: 1.3 }}>
-              {tDb(locale, 'skills', sel.id, sel.name)}
-            </h4>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '14px' }}>
-              {t('dash.stageN', { n: sel.stage })} · {t(stageNameKey(sel.level, sel.stage))} · {t(`tree.state.${sel.state}`)} · {t(masteryKey(masteryOf(sel.percent)))}
+        {skills && (
+          <>
+            <div className="mst-tabs" role="tablist">
+              {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(n => (
+                <button key={n} className="mst-tab" role="tab" aria-selected={n === lv}
+                  onClick={() => { setLv(n); setSel(null) }}>
+                  <b>L{n}</b><span>{t(levelNameKey(n))}</span>
+                </button>
+              ))}
             </div>
-            <div style={{ height: '6px', borderRadius: '3px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: '16px' }}>
-              <div style={{ height: '100%', width: sel.percent + '%', borderRadius: '3px', background: sel.percent >= 100 ? '#4caf72' : GOLD }} />
-            </div>
-            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#7fd6a2', marginBottom: '5px' }}>
-              {t('tree.criteria')}
-            </div>
-            <p style={{ margin: 0, fontSize: '13.5px', lineHeight: 1.75, color: sel.criteria ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)' }}>
-              {sel.criteria ? tDb(locale, 'skill_criteria', sel.id, sel.criteria) : t('tree.noCriteria')}
+
+            <p className="mst-meta">
+              {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
             </p>
-          </div>
-        </aside>
-      )}
+
+            <div className="mst-scroll">
+              <div className="mst-board" ref={boardRef}
+                style={{ ['--cols' as any]: cols, ['--rows' as any]: rows }}>
+                <svg className="mst-wires" preserveAspectRatio="none">
+                  {inLv.flatMap(s => (needs[s.id] || [])
+                    .map(q => (skills || []).find(x => x.id === q))
+                    .filter((q): q is TreeSkill => !!q && q.level === lv)
+                    .map(q => (
+                      <path key={q.id + '>' + s.id}
+                        className={'mst-w' + (masteryOf(q.percent) >= UNLOCK_LEVEL ? ' lit' : '')}
+                        data-from={`${q.col},${q.row}`} data-to={`${s.col},${s.row}`} />
+                    )))}
+                </svg>
+                {inLv.map(s => {
+                  const band = masteryOf(s.percent)
+                  return (
+                    <button key={s.id} className={'mst-tile ' + s.state}
+                      style={{ ['--c' as any]: s.col, ['--r' as any]: s.row }}
+                      aria-current={sel?.id === s.id || undefined}
+                      onClick={() => setSel(s)}
+                      aria-label={tDb(locale, 'skills', s.id, s.name)}>
+                      <span className="mst-mk">{MARK[s.state]}</span>
+                      {band > 0 && <i className="mst-rk">{MASTERY_VALUE[band]}%</i>}
+                      <span className="mst-nm">{tDb(locale, 'skills', s.id, s.name)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="mst-key">
+              <span><i style={{ color: '#4caf72' }} />{t('tree.state.done')}</span>
+              <span><i style={{ color: GOLD }} />{t('tree.state.active')}</span>
+              <span><i style={{ color: '#6d8cc0' }} />{t('tree.state.open')}</span>
+              <span><i style={{ opacity: .6, boxShadow: 'inset 0 0 0 1px currentColor', background: 'transparent' }} />{t('tree.state.ready')}</span>
+              <span><i style={{ opacity: .45 }} />{t('tree.state.locked')}</span>
+            </div>
+
+            <div className="mst-detail">
+              {!sel && <p className="mst-dd" style={{ opacity: .6 }}>{t('tree.pickHint')}</p>}
+              {sel && (
+                <>
+                  <h3>{tDb(locale, 'skills', sel.id, sel.name)}</h3>
+                  <p className="dm">
+                    {t(levelNameKey(sel.level))} · {t('dash.stageN', { n: sel.stage })} ·{' '}
+                    {t(stageNameKey(sel.level, sel.stage))}
+                  </p>
+                  <span className="mst-band" style={{ color: MASTERY_COLOR[masteryOf(sel.percent)] }}>
+                    {t(masteryKey(masteryOf(sel.percent)))}
+                  </span>
+                  {forCoach && (
+                    <>
+                      <p className="mst-dt">{t('tree.needs')}</p>
+                      {(needs[sel.id] || []).length === 0
+                        ? <p className="mst-dd">{t('tree.noNeeds')}</p>
+                        : <div className="mst-pre">
+                            {(needs[sel.id] || []).map(q => {
+                              const r = (skills || []).find(x => x.id === q)
+                              if (!r) return null
+                              const ok = masteryOf(r.percent) >= UNLOCK_LEVEL
+                              return (
+                                <span key={q} className={ok ? 'ok' : ''}>
+                                  {tDb(locale, 'skills', r.id, r.name)}
+                                  {r.level !== sel.level && <b>L{r.level}</b>}
+                                </span>
+                              )
+                            })}
+                          </div>}
+                      <p className="mst-dt">{t('tree.criteria')}</p>
+                      <p className="mst-dd">
+                        {sel.criteria
+                          ? tDb(locale, 'skill_criteria', sel.id, sel.criteria)
+                          : t('tree.noCriteria')}
+                      </p>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
 
-function nodeSkin(sk: TreeSkill, color: string) {
-  if (sk.state === 'done') return {
-    ring: { background: color, boxShadow: `0 0 16px ${color}70` },
-    hex: `color-mix(in srgb, ${color} 22%, #0a1526)`, glyph: color, label: '#fff',
-  }
-  if (sk.state === 'active') return {
-    ring: { background: `conic-gradient(${MASTERY_COLOR[masteryOf(sk.percent)]} ${MASTERY_FILL[masteryOf(sk.percent)]}%, #28354f 0)`, boxShadow: `0 0 18px ${MASTERY_COLOR[masteryOf(sk.percent)]}55` },
-    hex: '#0d1730', glyph: GOLD, label: GOLD,
-  }
-  if (sk.state === 'open') return {
-    ring: { background: `color-mix(in srgb, ${color} 42%, #28354f)` },
-    hex: '#0a1526', glyph: 'rgba(255,255,255,0.6)', label: 'rgba(255,255,255,0.62)',
-  }
-  /* Dashed, not filled: he could do this one, we just have not got to it. */
-  if (sk.state === 'ready') return {
-    ring: { background: '#16223a', border: `1px dashed color-mix(in srgb, ${color} 55%, #46557a)` },
-    hex: '#0a1526', glyph: 'rgba(255,255,255,0.45)', label: 'rgba(255,255,255,0.45)',
-  }
-  return {
-    ring: { background: '#16223a' },
-    hex: '#0a1526', glyph: 'rgba(255,255,255,0.35)', label: 'rgba(255,255,255,0.32)',
-  }
-}
-
-/* ---- orthogonal routing, from measured boxes ---- */
-type Box = { l: number; r: number; t: number; b: number; cx: number; cy: number }
-type Env = { cross: boolean; rx: number; gx?: number }
-
-function boxOf(node: HTMLElement, br: DOMRect): Box | null {
-  const ring = node.querySelector('.mst-ring')
-  if (!ring) return null
-  const r = ring.getBoundingClientRect()
-  return {
-    l: r.left - br.left, r: r.right - br.left, t: r.top - br.top, b: r.bottom - br.top,
-    cx: (r.left + r.right) / 2 - br.left, cy: (r.top + r.bottom) / 2 - br.top,
-  }
-}
-
-function route(a: Box, b: Box, env: Env): [number, number][] {
-  const dx = b.cx - a.cx, dy = b.cy - a.cy
-  if (Math.abs(dy) < 6 && dx > 0) return [[a.r, a.cy], [b.l, b.cy]]
-  if (Math.abs(dx) < 6 && dy > 0) {
-    if (!env.cross) return [[a.cx, a.b], [b.cx, b.t]]
-    // stages stacked: step aside so the drop misses the next stage's heading
-    const x = a.r + 14, lane = b.t - 13
-    return [[a.cx, a.b], [a.cx, a.b + 12], [x, a.b + 12], [x, lane], [b.cx, lane], [b.cx, b.t]]
-  }
-  if (dx < 0 && dy > 0) {                       // the row wrapped: carriage return
-    const lane = b.t - 13
-    const x = Math.max(a.r + 6, Math.min(a.r + 10, env.rx))
-    return [[a.r, a.cy], [x, a.cy], [x, lane], [b.cx, lane], [b.cx, b.t]]
-  }
-  // on to the next stage: turn in the gutter between the two stage boxes
-  const mx = env.gx != null ? env.gx : (a.r + b.l) / 2
-  return [[a.r, a.cy], [mx, a.cy], [mx, b.cy], [b.l, b.cy]]
-}
-
-function rounded(pts: [number, number][], r: number): string {
-  let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`
-  for (let i = 1; i < pts.length - 1; i++) {
-    const [px, py] = pts[i - 1], [cx, cy] = pts[i], [nx, ny] = pts[i + 1]
-    const d1 = Math.hypot(cx - px, cy - py), d2 = Math.hypot(nx - cx, ny - cy)
-    if (d1 < 1 || d2 < 1) continue
-    const rr = Math.min(r, d1 / 2, d2 / 2)
-    d += ` L ${(cx + ((px - cx) / d1) * rr).toFixed(1)} ${(cy + ((py - cy) / d1) * rr).toFixed(1)}`
-      + ` Q ${cx.toFixed(1)} ${cy.toFixed(1)}`
-      + ` ${(cx + ((nx - cx) / d2) * rr).toFixed(1)} ${(cy + ((ny - cy) / d2) * rr).toFixed(1)}`
-  }
-  const e = pts[pts.length - 1]
-  return d + ` L ${e[0].toFixed(1)} ${e[1].toFixed(1)}`
-}
+const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)))

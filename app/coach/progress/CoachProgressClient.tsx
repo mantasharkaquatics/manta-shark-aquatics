@@ -7,6 +7,7 @@ import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 
 import { useState, useEffect } from 'react'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
+import SkillTree from '@/app/(public)/dashboard/SkillTree'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
 
@@ -52,6 +53,11 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   // the stage they are actually in opens, and the other two stay shut, so a
   // coach lands on the right list without scrolling past work that is locked.
   const [openStageMap, setOpenStageMap] = useState<Record<string, number>>({})
+  /* The whole curriculum from the coach's side. Same component the family sees,
+     with forCoach on -- that is what adds the pass standard and the list of what
+     each skill is waiting on, neither of which belongs on a family's screen. */
+  const [treeFor, setTreeFor] = useState<
+    { name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
 
   useEffect(() => {
     // Locked for the whole 00:00 hour in Los Angeles. This used to read the hour
@@ -365,6 +371,19 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                             {errorMap[s.entryKey] && (
                               <p className="text-red-400 text-xs mb-3">{errorMap[s.entryKey]}</p>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => setTreeFor({
+                                name: s.full_name,
+                                level: Number(data.student.current_level) || 1,
+                                stage: Number(data.student.current_stage) || 1,
+                                // what is on screen, including marks not yet sent
+                                percents: { ...data.progress, ...localProgress },
+                              })}
+                              className="w-full mb-3 py-2.5 px-3 rounded-lg border border-[#c9a84c]/45 bg-[#c9a84c]/10 text-[#c9a84c] text-xs font-bold flex items-center justify-between"
+                            >
+                              <span>{t('tree.title')}</span><span className="text-[11px]">›</span>
+                            </button>
                             <div className="space-y-3">
                               {/* Skills are taught a stage at a time. Grouping them here is what
                                   stops a coach signing off stage 3 work before stage 1 is done. */}
@@ -427,7 +446,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                     <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
                                       <div className="h-full rounded-full transition-all" style={{ width: `${MASTERY_FILL[masteryOf(pct)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(pct)] }} />
                                     </div>
-                                    <div className="flex gap-1.5">
+                                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                                       {MASTERY_LEVELS.map(b => {
                                         const v = MASTERY_VALUE[b]
                                         const on = masteryOf(pct) === b
@@ -435,7 +454,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                         <button key={b}
                                           disabled={!stageOpen || locked || isCompleted}
                                           onClick={() => { if (stageOpen && !locked && !isCompleted) setLocalProgressMap(prev => ({ ...prev, [s.entryKey]: { ...prev[s.entryKey], [skill.id]: v } })) }}
-                                          className={`flex-1 py-1.5 rounded text-[11px] leading-tight font-medium transition-all ${on ? 'font-bold' : 'text-gray-400 bg-white/5'} ${stageOpen && !locked && !isCompleted ? 'hover:bg-white/10' : 'cursor-not-allowed'}`}
+                                          className={`w-full py-2 rounded text-[11px] leading-tight font-medium transition-all ${on ? 'font-bold' : 'text-gray-400 bg-white/5'} ${stageOpen && !locked && !isCompleted ? 'hover:bg-white/10' : 'cursor-not-allowed'}`}
                                           style={on ? { backgroundColor: MASTERY_COLOR[b], color: '#1a2744' } : {}}
                                         >
                                           {t(masteryKey(b))}
@@ -462,6 +481,16 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
             )
           })}
         </div>
+      )}
+      {treeFor && (
+        <SkillTree
+          studentName={treeFor.name}
+          currentLevel={treeFor.level}
+          currentStage={treeFor.stage}
+          percentBySkillId={treeFor.percents}
+          forCoach
+          onClose={() => setTreeFor(null)}
+        />
       )}
     </div>
   )

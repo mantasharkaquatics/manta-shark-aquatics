@@ -1,0 +1,390 @@
+<title>游泳技能樹</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@700&display=swap">
+<style>
+:root{
+  --deep:#0a1220; --panel:#101c33; --tile:#16233f; --line:#1d3054; --wire:#25395f;
+  --ink:#e9f0fb; --soft:#93a6c6; --faint:#5d7098;
+  --gold:#c9a84c; --done:#4caf72; --open:#6d8cc0;
+  --cw:112px; --rh:116px; --sz:52px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--deep);color:var(--ink);
+  font:15px/1.6 'DM Sans',system-ui,"PingFang TC","Noto Sans TC",sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding-block:28px 60px;padding-left:16px;padding-right:16px}
+h1{font-family:'Playfair Display',Georgia,serif;font-size:28px;margin:0;text-wrap:balance}
+.sub{color:var(--soft);font-size:13.5px;margin:6px 0 0;max-width:62ch}
+.note{font-size:12px;color:var(--faint);margin:6px 0 0}
+
+/* level tabs -- the three columns of a talent panel, but seven and scrollable */
+.tabs{display:flex;gap:6px;margin-top:20px;overflow-x:auto;padding-bottom:4px;
+  scrollbar-width:thin}
+.tab{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:7px 13px;cursor:pointer;color:var(--soft);font:inherit;min-height:48px;
+  transition:border-color .12s,background .12s}
+.tab b{font-size:11px;letter-spacing:.09em;color:var(--faint);font-weight:700}
+.tab span{font-size:13px;font-weight:500;white-space:nowrap}
+.tab:hover{border-color:#2d4570}
+.tab[aria-selected=true]{background:rgba(201,168,76,.11);border-color:var(--gold);color:var(--ink)}
+.tab[aria-selected=true] b{color:var(--gold)}
+.tab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.lv{margin-top:14px}
+.meta{font-size:11.5px;color:var(--faint);margin:0 0 8px}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:13px;padding:16px 14px 12px}
+.board{position:relative;
+  width:calc(var(--cols) * var(--cw));
+  height:calc((var(--rows) - 1) * var(--rh) + var(--sz) + 40px);
+  margin:0 auto}
+.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.w{fill:none;stroke:var(--wire);stroke-width:2;marker-end:url(#ar)}
+.w.lit{stroke:rgba(201,168,76,.8);marker-end:url(#arl)}
+
+.tile{position:absolute;width:var(--sz);height:var(--sz);border-radius:10px;
+  background:var(--tile);border:1px solid var(--line);display:grid;place-items:center;
+  padding:0;cursor:pointer;color:var(--faint);
+  left:calc(var(--c) * var(--cw) + (var(--cw) - var(--sz)) / 2);
+  top:calc((var(--r) - 1) * var(--rh));
+  transition:transform .1s,box-shadow .12s}
+.tile{font-size:17px;line-height:1}
+.mk{display:block;line-height:1}
+.mk[data-m=done]{transform:translateY(1.4px)}
+.mk[data-m=active],.mk[data-m=open]{transform:translateY(-.5px)}
+.mk[data-m=locked]{transform:translateY(.4px)}
+.tile .rk{position:absolute;right:-6px;bottom:-6px;min-width:18px;height:18px;
+  border-radius:6px;background:var(--deep);border:1px solid currentColor;
+  font-size:10.5px;font-weight:700;font-style:normal;display:grid;place-items:center;
+  padding:0 3px;line-height:1}
+.tile .nm{position:absolute;top:calc(var(--sz) + 6px);width:var(--cw);
+  left:calc((var(--sz) - var(--cw)) / 2);font-size:10.5px;line-height:1.3;
+  text-align:center;color:var(--faint);font-weight:500}
+.tile:hover{transform:translateY(-1px)}
+.tile:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.tile.open{border-color:#31497a;background:#1a2a4a;color:var(--open)}
+.tile.open .nm{color:var(--soft)}
+.tile.active{border-color:var(--gold);background:#262112;color:var(--gold);
+  box-shadow:0 0 15px rgba(201,168,76,.32)}
+.tile.active .nm{color:var(--gold);font-weight:700}
+.tile.done{border-color:var(--done);background:#112d1e;color:var(--done);
+  box-shadow:0 0 15px rgba(76,175,114,.28)}
+.tile.done .nm{color:var(--done);font-weight:700}
+.tile.locked{opacity:.58}
+.tile[aria-current=true]{box-shadow:0 0 0 2px var(--ink)}
+
+.key{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11.5px;color:var(--faint);
+  margin-top:12px}
+.key span{display:inline-flex;align-items:center;gap:6px}
+.key i{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+
+/* detail: a panel on a wide screen, a sheet pinned to the bottom on a phone */
+.detail{margin-top:14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:13px;padding:14px 16px}
+.detail h3{margin:0;font-size:15.5px}
+.detail .dm{font-size:11.5px;color:var(--faint);margin:3px 0 0}
+.detail .band{display:inline-block;margin-top:9px;font-size:11.5px;font-weight:700;
+  border-radius:6px;padding:2px 9px;border:1px solid currentColor}
+.detail dl{margin:11px 0 0;display:grid;gap:5px}
+.detail dt{font-size:10.5px;letter-spacing:.08em;color:var(--faint)}
+.detail dd{margin:0;font-size:12.5px;color:var(--soft);line-height:1.65}
+.pre{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px}
+.pre span{font-size:11.5px;border-radius:6px;padding:2px 8px;
+  background:#16233f;color:var(--soft)}
+.pre span.ok{background:#112d1e;color:var(--done)}
+.pre span b{font-weight:700;opacity:.65;margin-left:4px;font-size:10px}
+.empty{color:var(--faint);font-size:12.5px}
+
+@media (max-width:640px){
+  :root{ --cw:88px; --rh:108px; --sz:44px }
+  h1{font-size:23px}
+  .scroll{padding:14px 10px 10px;border-radius:11px}
+  .tile .nm{font-size:9.5px}
+  .detail{position:sticky;bottom:0}
+}
+@media (prefers-reduced-motion:reduce){ .tile{transition:none} }
+</style>
+<div class="wrap">
+<h1>游泳技能樹</h1>
+<p class="sub">每一格是一個技能，箭頭是真正的前置關係 —— 上面那個做到「自己做」，下面才會亮。
+點任何一格看它需要什麼、怎樣算通過。</p>
+<p class="note">畫面上是示範狀態，不是真實學生的資料。</p>
+
+<div class="tabs" role="tablist"><button class="tab" data-lv="1"><b>L1</b><span>認識水</span></button><button class="tab" data-lv="2"><b>L2</b><span>水中自在</span></button><button class="tab" data-lv="3"><b>L3</b><span>獨立前進</span></button><button class="tab" data-lv="4"><b>L4</b><span>泳姿基礎</span></button><button class="tab" data-lv="5"><b>L5</b><span>泳姿發展</span></button><button class="tab" data-lv="6"><b>L6</b><span>四式</span></button><button class="tab" data-lv="7"><b>L7</b><span>競技游泳</span></button></div>
+<section class="lv" data-lv="1" hidden>
+    <p class="meta">9 個技能 · 3 個階段 · 已通過 1</p>
+    <div class="scroll"><div class="board" style="--cols:4;--rows:3">
+      <svg class="wires" preserveAspectRatio="none"><path class="w lit" data-from="0,1" data-to="0,2"/><path class="w lit" data-from="1,1" data-to="0,2"/><path class="w" data-from="0,2" data-to="0,3"/><path class="w lit" data-from="2,1" data-to="2,2"/><path class="w" data-from="2,2" data-to="2,3"/><path class="w" data-from="2,2" data-to="1,3"/></svg><button class="tile active" style="--c:0;--r:1" data-k="安全入水與辨識"
+      aria-label="安全入水與辨識"><span class="mk" data-m="active">◆</span><i class="rk">2</i>
+      <span class="nm">安全入水與辨識</span></button><button class="tile active" style="--c:1;--r:1" data-k="安全出水"
+      aria-label="安全出水"><span class="mk" data-m="active">◆</span><i class="rk">2</i>
+      <span class="nm">安全出水</span></button><button class="tile active" style="--c:2;--r:1" data-k="抓握池壁"
+      aria-label="抓握池壁"><span class="mk" data-m="active">◆</span><i class="rk">2</i>
+      <span class="nm">抓握池壁</span></button><button class="tile done" style="--c:3;--r:1" data-k="岸上打水"
+      aria-label="岸上打水"><span class="mk" data-m="done">✦</span><i class="rk">3</i>
+      <span class="nm">岸上打水</span></button><button class="tile open" style="--c:0;--r:2" data-k="水中行走"
+      aria-label="水中行走"><span class="mk" data-m="open">○</span>
+      <span class="nm">水中行走</span></button><button class="tile locked" style="--c:0;--r:3" data-k="水中吐泡泡"
+      aria-label="水中吐泡泡"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水中吐泡泡</span></button><button class="tile open" style="--c:2;--r:2" data-k="輔助漂浮"
+      aria-label="輔助漂浮"><span class="mk" data-m="open">○</span>
+      <span class="nm">輔助漂浮</span></button><button class="tile locked" style="--c:2;--r:3" data-k="漂浮站立轉換"
+      aria-label="漂浮站立轉換"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">漂浮站立轉換</span></button><button class="tile locked" style="--c:1;--r:3" data-k="超人滑行"
+      aria-label="超人滑行"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">超人滑行</span></button>
+    </div></div></section><section class="lv" data-lv="2" hidden>
+    <p class="meta">10 個技能 · 2 個階段 · 已通過 0</p>
+    <div class="scroll"><div class="board" style="--cols:7;--rows:2">
+      <svg class="wires" preserveAspectRatio="none"><path class="w" data-from="5,1" data-to="5,2"/><path class="w" data-from="4,1" data-to="5,2"/><path class="w" data-from="4,1" data-to="4,2"/><path class="w" data-from="5,1" data-to="4,2"/><path class="w" data-from="0,1" data-to="0,2"/><path class="w" data-from="2,1" data-to="0,2"/></svg><button class="tile locked" style="--c:0;--r:1" data-k="自由式打水 10 碼（浮板）"
+      aria-label="自由式打水 10 碼（浮板）"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式打水 10 碼（浮板）</span></button><button class="tile locked" style="--c:1;--r:1" data-k="仰式打水 10 碼"
+      aria-label="仰式打水 10 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式打水 10 碼</span></button><button class="tile locked" style="--c:2;--r:1" data-k="蹬牆漂浮"
+      aria-label="蹬牆漂浮"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蹬牆漂浮</span></button><button class="tile locked" style="--c:3;--r:1" data-k="BBQ身體旋轉"
+      aria-label="BBQ身體旋轉"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">BBQ身體旋轉</span></button><button class="tile locked" style="--c:4;--r:1" data-k="吐泡跳（胸深）"
+      aria-label="吐泡跳（胸深）"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">吐泡跳（胸深）</span></button><button class="tile locked" style="--c:5;--r:1" data-k="憋氣 5 秒"
+      aria-label="憋氣 5 秒"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">憋氣 5 秒</span></button><button class="tile locked" style="--c:5;--r:2" data-k="水中撿物"
+      aria-label="水中撿物"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水中撿物</span></button><button class="tile locked" style="--c:6;--r:1" data-k="大字漂 10 秒"
+      aria-label="大字漂 10 秒"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">大字漂 10 秒</span></button><button class="tile locked" style="--c:4;--r:2" data-k="吐泡跳（過頭深）"
+      aria-label="吐泡跳（過頭深）"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">吐泡跳（過頭深）</span></button><button class="tile locked" style="--c:0;--r:2" data-k="划手前進 5 碼"
+      aria-label="划手前進 5 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">划手前進 5 碼</span></button>
+    </div></div></section><section class="lv" data-lv="3" hidden>
+    <p class="meta">10 個技能 · 3 個階段 · 已通過 0</p>
+    <div class="scroll"><div class="board" style="--cols:5;--rows:3">
+      <svg class="wires" preserveAspectRatio="none"><path class="w" data-from="3,1" data-to="3,2"/><path class="w" data-from="0,1" data-to="0,2"/><path class="w" data-from="0,1" data-to="1,2"/><path class="w" data-from="2,1" data-to="2,2"/><path class="w" data-from="3,2" data-to="3,3"/><path class="w" data-from="3,1" data-to="3,3"/><path class="w" data-from="4,1" data-to="3,3"/></svg><button class="tile locked" style="--c:0;--r:1" data-k="自由式打水 25 碼"
+      aria-label="自由式打水 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式打水 25 碼</span></button><button class="tile locked" style="--c:1;--r:1" data-k="仰式打水 25 碼"
+      aria-label="仰式打水 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式打水 25 碼</span></button><button class="tile locked" style="--c:2;--r:1" data-k="流線蹬牆"
+      aria-label="流線蹬牆"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">流線蹬牆</span></button><button class="tile locked" style="--c:3;--r:1" data-k="踩水 30 秒"
+      aria-label="踩水 30 秒"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">踩水 30 秒</span></button><button class="tile locked" style="--c:4;--r:1" data-k="深水撿物"
+      aria-label="深水撿物"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">深水撿物</span></button><button class="tile locked" style="--c:3;--r:2" data-k="求生漂浮"
+      aria-label="求生漂浮"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">求生漂浮</span></button><button class="tile locked" style="--c:0;--r:2" data-k="側轉換氣游 15 碼"
+      aria-label="側轉換氣游 15 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">側轉換氣游 15 碼</span></button><button class="tile locked" style="--c:1;--r:2" data-k="水中轉身"
+      aria-label="水中轉身"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水中轉身</span></button><button class="tile locked" style="--c:2;--r:2" data-k="海豚腿 10 碼"
+      aria-label="海豚腿 10 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">海豚腿 10 碼</span></button><button class="tile locked" style="--c:3;--r:3" data-k="水域安全測驗"
+      aria-label="水域安全測驗"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水域安全測驗</span></button>
+    </div></div></section><section class="lv" data-lv="4" hidden>
+    <p class="meta">12 個技能 · 3 個階段 · 已通過 0</p>
+    <div class="scroll"><div class="board" style="--cols:6;--rows:3">
+      <svg class="wires" preserveAspectRatio="none"><path class="w" data-from="0,1" data-to="0,2"/><path class="w" data-from="2,1" data-to="2,2"/><path class="w" data-from="3,1" data-to="3,2"/><path class="w" data-from="0,1" data-to="1,2"/><path class="w" data-from="1,2" data-to="1,3"/><path class="w" data-from="5,1" data-to="1,3"/><path class="w" data-from="5,1" data-to="5,2"/><path class="w" data-from="4,1" data-to="5,2"/></svg><button class="tile locked" style="--c:0;--r:1" data-k="自由式 15 碼"
+      aria-label="自由式 15 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 15 碼</span></button><button class="tile locked" style="--c:0;--r:2" data-k="自由式 25 碼"
+      aria-label="自由式 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 25 碼</span></button><button class="tile open" style="--c:1;--r:1" data-k="坐姿與跪姿入水"
+      aria-label="坐姿與跪姿入水"><span class="mk" data-m="open">○</span>
+      <span class="nm">坐姿與跪姿入水</span></button><button class="tile locked" style="--c:2;--r:1" data-k="仰式 15 碼"
+      aria-label="仰式 15 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式 15 碼</span></button><button class="tile locked" style="--c:2;--r:2" data-k="初級仰泳 25 碼"
+      aria-label="初級仰泳 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">初級仰泳 25 碼</span></button><button class="tile locked" style="--c:3;--r:1" data-k="流線自由式打水"
+      aria-label="流線自由式打水"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">流線自由式打水</span></button><button class="tile locked" style="--c:3;--r:2" data-k="水下自由式打水"
+      aria-label="水下自由式打水"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水下自由式打水</span></button><button class="tile locked" style="--c:4;--r:1" data-k="大字漂 30 秒"
+      aria-label="大字漂 30 秒"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">大字漂 30 秒</span></button><button class="tile locked" style="--c:5;--r:1" data-k="踩水 1 分鐘"
+      aria-label="踩水 1 分鐘"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">踩水 1 分鐘</span></button><button class="tile locked" style="--c:1;--r:2" data-k="無蛙鏡游泳"
+      aria-label="無蛙鏡游泳"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">無蛙鏡游泳</span></button><button class="tile locked" style="--c:1;--r:3" data-k="著衣不戴蛙鏡游 7 碼"
+      aria-label="著衣不戴蛙鏡游 7 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">著衣不戴蛙鏡游 7 碼</span></button><button class="tile locked" style="--c:5;--r:2" data-k="水中自保驗收 25 碼"
+      aria-label="水中自保驗收 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水中自保驗收 25 碼</span></button>
+    </div></div></section><section class="lv" data-lv="5" hidden>
+    <p class="meta">12 個技能 · 2 個階段 · 已通過 0</p>
+    <div class="scroll"><div class="board" style="--cols:8;--rows:2">
+      <svg class="wires" preserveAspectRatio="none"><path class="w" data-from="0,1" data-to="0,2"/><path class="w" data-from="1,1" data-to="1,2"/><path class="w" data-from="2,1" data-to="2,2"/><path class="w" data-from="0,1" data-to="2,2"/><path class="w" data-from="4,1" data-to="4,2"/></svg><button class="tile locked" style="--c:0;--r:1" data-k="自由式 50 碼"
+      aria-label="自由式 50 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 50 碼</span></button><button class="tile locked" style="--c:0;--r:2" data-k="自由式 100 碼"
+      aria-label="自由式 100 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 100 碼</span></button><button class="tile locked" style="--c:1;--r:1" data-k="仰式 25 碼"
+      aria-label="仰式 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式 25 碼</span></button><button class="tile locked" style="--c:1;--r:2" data-k="仰式 50 碼"
+      aria-label="仰式 50 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式 50 碼</span></button><button class="tile locked" style="--c:2;--r:1" data-k="開放式轉身"
+      aria-label="開放式轉身"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">開放式轉身</span></button><button class="tile locked" style="--c:2;--r:2" data-k="自由式翻滾轉身"
+      aria-label="自由式翻滾轉身"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式翻滾轉身</span></button><button class="tile locked" style="--c:3;--r:1" data-k="水面下潛"
+      aria-label="水面下潛"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水面下潛</span></button><button class="tile locked" style="--c:4;--r:1" data-k="蛙腿 10 碼"
+      aria-label="蛙腿 10 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蛙腿 10 碼</span></button><button class="tile locked" style="--c:4;--r:2" data-k="蛙腿 25 碼"
+      aria-label="蛙腿 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蛙腿 25 碼</span></button><button class="tile locked" style="--c:5;--r:1" data-k="海豚腿 25 碼"
+      aria-label="海豚腿 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">海豚腿 25 碼</span></button><button class="tile locked" style="--c:6;--r:1" data-k="憋氣 15 秒"
+      aria-label="憋氣 15 秒"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">憋氣 15 秒</span></button><button class="tile open" style="--c:7;--r:1" data-k="岸上伸援與拋繩救援"
+      aria-label="岸上伸援與拋繩救援"><span class="mk" data-m="open">○</span>
+      <span class="nm">岸上伸援與拋繩救援</span></button>
+    </div></div></section><section class="lv" data-lv="6" hidden>
+    <p class="meta">13 個技能 · 2 個階段 · 已通過 0</p>
+    <div class="scroll"><div class="board" style="--cols:9;--rows:2">
+      <svg class="wires" preserveAspectRatio="none"><path class="w" data-from="0,1" data-to="0,2"/><path class="w" data-from="1,1" data-to="1,2"/><path class="w" data-from="1,1" data-to="2,2"/><path class="w" data-from="3,1" data-to="3,2"/></svg><button class="tile locked" style="--c:0;--r:1" data-k="蝶式 10 碼"
+      aria-label="蝶式 10 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蝶式 10 碼</span></button><button class="tile locked" style="--c:1;--r:1" data-k="蛙式 15 碼"
+      aria-label="蛙式 15 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蛙式 15 碼</span></button><button class="tile locked" style="--c:2;--r:1" data-k="個人混合式打水"
+      aria-label="個人混合式打水"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">個人混合式打水</span></button><button class="tile locked" style="--c:3;--r:1" data-k="踩水 2 分鐘"
+      aria-label="踩水 2 分鐘"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">踩水 2 分鐘</span></button><button class="tile locked" style="--c:4;--r:1" data-k="自由式 200 碼"
+      aria-label="自由式 200 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 200 碼</span></button><button class="tile locked" style="--c:5;--r:1" data-k="仰式 100 碼"
+      aria-label="仰式 100 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式 100 碼</span></button><button class="tile locked" style="--c:6;--r:1" data-k="仰式翻滾轉身"
+      aria-label="仰式翻滾轉身"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式翻滾轉身</span></button><button class="tile locked" style="--c:7;--r:1" data-k="站姿跳水"
+      aria-label="站姿跳水"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">站姿跳水</span></button><button class="tile locked" style="--c:0;--r:2" data-k="蝶式 25 碼"
+      aria-label="蝶式 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蝶式 25 碼</span></button><button class="tile locked" style="--c:1;--r:2" data-k="蛙式 25 碼"
+      aria-label="蛙式 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蛙式 25 碼</span></button><button class="tile locked" style="--c:8;--r:1" data-k="水下海豚腿"
+      aria-label="水下海豚腿"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">水下海豚腿</span></button><button class="tile locked" style="--c:2;--r:2" data-k="雙手觸壁轉身"
+      aria-label="雙手觸壁轉身"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">雙手觸壁轉身</span></button><button class="tile locked" style="--c:3;--r:2" data-k="著衣不戴蛙鏡游 25 碼"
+      aria-label="著衣不戴蛙鏡游 25 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">著衣不戴蛙鏡游 25 碼</span></button>
+    </div></div></section><section class="lv" data-lv="7" hidden>
+    <p class="meta">16 個技能 · 2 個階段 · 已通過 0</p>
+    <div class="scroll"><div class="board" style="--cols:9;--rows:2">
+      <svg class="wires" preserveAspectRatio="none"><path class="w" data-from="0,1" data-to="0,2"/><path class="w" data-from="1,1" data-to="1,2"/><path class="w" data-from="8,1" data-to="8,2"/><path class="w" data-from="0,1" data-to="2,2"/><path class="w" data-from="2,1" data-to="3,2"/><path class="w" data-from="5,1" data-to="5,2"/><path class="w" data-from="4,1" data-to="5,2"/><path class="w" data-from="6,1" data-to="6,2"/></svg><button class="tile locked" style="--c:0;--r:1" data-k="自由式 50 碼計時"
+      aria-label="自由式 50 碼計時"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 50 碼計時</span></button><button class="tile locked" style="--c:0;--r:2" data-k="自由式 25 碼衝刺"
+      aria-label="自由式 25 碼衝刺"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 25 碼衝刺</span></button><button class="tile locked" style="--c:1;--r:1" data-k="自由式 400 碼"
+      aria-label="自由式 400 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 400 碼</span></button><button class="tile locked" style="--c:2;--r:1" data-k="仰式 200 碼"
+      aria-label="仰式 200 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式 200 碼</span></button><button class="tile locked" style="--c:3;--r:1" data-k="著衣不戴蛙鏡游 50 碼"
+      aria-label="著衣不戴蛙鏡游 50 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">著衣不戴蛙鏡游 50 碼</span></button><button class="tile locked" style="--c:4;--r:1" data-k="蛙式水下划手"
+      aria-label="蛙式水下划手"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蛙式水下划手</span></button><button class="tile locked" style="--c:5;--r:1" data-k="蛙式 50 碼"
+      aria-label="蛙式 50 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蛙式 50 碼</span></button><button class="tile locked" style="--c:6;--r:1" data-k="蝶式 50 碼"
+      aria-label="蝶式 50 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蝶式 50 碼</span></button><button class="tile locked" style="--c:1;--r:2" data-k="自由式 500 碼"
+      aria-label="自由式 500 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式 500 碼</span></button><button class="tile locked" style="--c:7;--r:1" data-k="出發台起跳與仰式出發"
+      aria-label="出發台起跳與仰式出發"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">出發台起跳與仰式出發</span></button><button class="tile locked" style="--c:8;--r:1" data-k="泳式轉換與轉身"
+      aria-label="泳式轉換與轉身"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">泳式轉換與轉身</span></button><button class="tile locked" style="--c:8;--r:2" data-k="個人混合式 100 碼"
+      aria-label="個人混合式 100 碼"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">個人混合式 100 碼</span></button><button class="tile locked" style="--c:2;--r:2" data-k="自由式（合規）"
+      aria-label="自由式（合規）"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">自由式（合規）</span></button><button class="tile locked" style="--c:3;--r:2" data-k="仰式（合規）"
+      aria-label="仰式（合規）"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">仰式（合規）</span></button><button class="tile locked" style="--c:5;--r:2" data-k="蛙式（合規）"
+      aria-label="蛙式（合規）"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蛙式（合規）</span></button><button class="tile locked" style="--c:6;--r:2" data-k="蝶式（合規）"
+      aria-label="蝶式（合規）"><span class="mk" data-m="locked">🔒</span>
+      <span class="nm">蝶式（合規）</span></button>
+    </div></div></section>
+<div class="key">
+  <span><i style="color:var(--done)"></i>穩定做</span>
+  <span><i style="color:var(--gold)"></i>進行中（角標是等級）</span>
+  <span><i style="color:var(--open)"></i>可以開始</span>
+  <span><i style="opacity:.45"></i>前置還沒到</span>
+  <span>金色的線 ＝ 已經打通的路</span>
+</div>
+<div class="detail" id="detail"><p class="empty">點一格看它需要什麼。</p></div>
+</div>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+<marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+  <path d="M0 0 L6 3 L0 6 z" fill="#25395f"/></marker>
+<marker id="arl" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+  <path d="M0 0 L6 3 L0 6 z" fill="rgba(201,168,76,.8)"/></marker>
+</defs></svg>
+
+<script>
+const DATA = {"安全入水與辨識":{"lvl":1,"st":1,"band":2,"state":"active","crit":"走到池邊會等教練，聽指令雙腳先入水，不用講第二次。","pre":[]},"安全出水":{"lvl":1,"st":1,"band":2,"state":"active","crit":"自己用扶梯或撐池邊上岸，全程不需要人扶。","pre":[]},"抓握池壁":{"lvl":1,"st":1,"band":2,"state":"active","crit":"自己抓牢池邊，沿著池壁換手移動 5 碼。","pre":[]},"岸上打水":{"lvl":1,"st":2,"band":3,"state":"done","crit":"坐池邊直腿繃腳尖、由髖部發力打水 20 秒。","pre":[]},"水中行走":{"lvl":1,"st":2,"band":0,"state":"open","crit":"胸深水中站直走 10 碼，全程不扶任何東西。","pre":[{"n":"安全入水與辨識","lvl":1,"ok":true},{"n":"安全出水","lvl":1,"ok":true}]},"水中吐泡泡":{"lvl":1,"st":2,"band":0,"state":"locked","crit":"臉入水用嘴吐泡泡 5 秒，中途不抬頭。","pre":[{"n":"水中行走","lvl":1,"ok":false}]},"輔助漂浮":{"lvl":1,"st":3,"band":0,"state":"open","crit":"教練只用單手托著，仰漂 5 秒。","pre":[{"n":"抓握池壁","lvl":1,"ok":true}]},"漂浮站立轉換":{"lvl":1,"st":3,"band":0,"state":"locked","crit":"從俯漂或仰漂自己把腳收到身體下方站起來，不需協助。","pre":[{"n":"輔助漂浮","lvl":1,"ok":false}]},"超人滑行":{"lvl":1,"st":3,"band":0,"state":"locked","crit":"蹬牆俯身滑行 5 碼，雙手伸直，不打水。","pre":[{"n":"輔助漂浮","lvl":1,"ok":false}]},"自由式打水 10 碼（浮板）":{"lvl":2,"st":1,"band":0,"state":"locked","crit":"扶浮板臉入水打水 10 碼，腿伸直、由髖部發力。","pre":[{"n":"岸上打水","lvl":1,"ok":true},{"n":"水中吐泡泡","lvl":1,"ok":false}]},"仰式打水 10 碼":{"lvl":2,"st":1,"band":0,"state":"locked","crit":"仰躺打水 10 碼，耳朵入水，臀部貼近水面。","pre":[{"n":"岸上打水","lvl":1,"ok":true},{"n":"漂浮站立轉換","lvl":1,"ok":false}]},"蹬牆漂浮":{"lvl":2,"st":1,"band":0,"state":"locked","crit":"蹬牆進入俯漂，撐住 5 秒後才站起來。","pre":[{"n":"超人滑行","lvl":1,"ok":false},{"n":"抓握池壁","lvl":1,"ok":true}]},"BBQ身體旋轉":{"lvl":2,"st":2,"band":0,"state":"locked","crit":"打水中由俯臥轉側身轉仰臥再轉回，中途不停。","pre":[{"n":"超人滑行","lvl":1,"ok":false}]},"吐泡跳（胸深）":{"lvl":2,"st":2,"band":0,"state":"locked","crit":"胸深水中連續十次：下沉、吐氣、浮起，有節奏不中斷。","pre":[{"n":"水中吐泡泡","lvl":1,"ok":false},{"n":"漂浮站立轉換","lvl":1,"ok":false}]},"憋氣 5 秒":{"lvl":2,"st":2,"band":0,"state":"locked","crit":"全身入水睜眼憋 5 秒，起來時不慌張。","pre":[{"n":"水中吐泡泡","lvl":1,"ok":false}]},"水中撿物":{"lvl":2,"st":3,"band":0,"state":"locked","crit":"胸深水中一次就把池底的物品撿起來。","pre":[{"n":"憋氣 5 秒","lvl":2,"ok":false},{"n":"吐泡跳（胸深）","lvl":2,"ok":false}]},"大字漂 10 秒":{"lvl":2,"st":3,"band":0,"state":"locked","crit":"仰躺手腳張開漂 10 秒，無人協助、身體不掙扎。","pre":[{"n":"漂浮站立轉換","lvl":1,"ok":false}]},"吐泡跳（過頭深）":{"lvl":2,"st":3,"band":0,"state":"locked","crit":"同上，但在過頭深的水中扶牆連續十次。","pre":[{"n":"吐泡跳（胸深）","lvl":2,"ok":false},{"n":"憋氣 5 秒","lvl":2,"ok":false}]},"划手前進 5 碼":{"lvl":2,"st":3,"band":0,"state":"locked","crit":"仰躺以八字划手前進 5 碼，完全不打水。","pre":[{"n":"自由式打水 10 碼（浮板）","lvl":2,"ok":false},{"n":"蹬牆漂浮","lvl":2,"ok":false}]},"自由式打水 25 碼":{"lvl":3,"st":1,"band":0,"state":"locked","crit":"扶板打水 25 碼並側轉換氣，中途不站起來。","pre":[{"n":"自由式打水 10 碼（浮板）","lvl":2,"ok":false}]},"仰式打水 25 碼":{"lvl":3,"st":1,"band":0,"state":"locked","crit":"仰躺打水 25 碼，雙手貼身，能維持直線。","pre":[{"n":"仰式打水 10 碼","lvl":2,"ok":false}]},"流線蹬牆":{"lvl":3,"st":1,"band":0,"state":"locked","crit":"蹬牆做出緊實的流線型，滑行 7 碼才開始打水。","pre":[{"n":"蹬牆漂浮","lvl":2,"ok":false},{"n":"BBQ身體旋轉","lvl":2,"ok":false}]},"踩水 30 秒":{"lvl":3,"st":2,"band":0,"state":"locked","crit":"深水踩水 30 秒，下巴離開水面，不碰池壁。","pre":[{"n":"吐泡跳（過頭深）","lvl":2,"ok":false},{"n":"大字漂 10 秒","lvl":2,"ok":false}]},"深水撿物":{"lvl":3,"st":2,"band":0,"state":"locked","crit":"從深水池底撿起物品並游回池邊。","pre":[{"n":"水中撿物","lvl":2,"ok":false},{"n":"吐泡跳（過頭深）","lvl":2,"ok":false}]},"求生漂浮":{"lvl":3,"st":2,"band":0,"state":"locked","crit":"俯漂求生 1 分鐘，只在換氣時抬頭。","pre":[{"n":"大字漂 10 秒","lvl":2,"ok":false},{"n":"踩水 30 秒","lvl":3,"ok":false}]},"側轉換氣游 15 碼":{"lvl":3,"st":3,"band":0,"state":"locked","crit":"游 15 碼，用俯臥轉側身的方式換氣，中途不停。","pre":[{"n":"划手前進 5 碼","lvl":2,"ok":false},{"n":"自由式打水 25 碼","lvl":3,"ok":false},{"n":"BBQ身體旋轉","lvl":2,"ok":false}]},"水中轉身":{"lvl":3,"st":3,"band":0,"state":"locked","crit":"游到池邊不站起來直接轉身，蹬牆往回。","pre":[{"n":"自由式打水 25 碼","lvl":3,"ok":false}]},"海豚腿 10 碼":{"lvl":3,"st":3,"band":0,"state":"locked","crit":"俯身海豚腿 10 碼，波浪從胸口帶動而不是折膝。","pre":[{"n":"流線蹬牆","lvl":3,"ok":false}]},"水域安全測驗":{"lvl":3,"st":3,"band":0,"state":"locked","crit":"跳入水中轉身，游 5 碼回到池邊並自行上岸。","pre":[{"n":"求生漂浮","lvl":3,"ok":false},{"n":"踩水 30 秒","lvl":3,"ok":false},{"n":"深水撿物","lvl":3,"ok":false}]},"自由式 15 碼":{"lvl":4,"st":1,"band":0,"state":"locked","crit":"自由式 15 碼，側轉換氣，手臂從水面上方回復。","pre":[{"n":"側轉換氣游 15 碼","lvl":3,"ok":false}]},"自由式 25 碼":{"lvl":4,"st":1,"band":0,"state":"locked","crit":"自由式 25 碼不停，每 2–3 划固定單邊換氣。","pre":[{"n":"自由式 15 碼","lvl":4,"ok":false}]},"坐姿與跪姿入水":{"lvl":4,"st":1,"band":0,"state":"open","crit":"坐姿與跪姿入水，雙手先入、頭跟著進，不拍肚子。","pre":[{"n":"安全入水與辨識","lvl":1,"ok":true}]},"仰式 15 碼":{"lvl":4,"st":2,"band":0,"state":"locked","crit":"仰式 15 碼，臀部不下沉，手臂伸直貼耳過頭。","pre":[{"n":"仰式打水 25 碼","lvl":3,"ok":false}]},"初級仰泳 25 碼":{"lvl":4,"st":2,"band":0,"state":"locked","crit":"仰躺 25 碼，雙臂對稱划手配合蛙腿，每一循環後有滑行。","pre":[{"n":"仰式 15 碼","lvl":4,"ok":false}]},"流線自由式打水":{"lvl":4,"st":2,"band":0,"state":"locked","crit":"流線型雙手過頭夾緊，臉朝下打水 25 碼。","pre":[{"n":"流線蹬牆","lvl":3,"ok":false},{"n":"自由式打水 25 碼","lvl":3,"ok":false}]},"水下自由式打水":{"lvl":4,"st":2,"band":0,"state":"locked","crit":"一口氣在水面下以流線型打水 10 碼。","pre":[{"n":"流線自由式打水","lvl":4,"ok":false},{"n":"憋氣 5 秒","lvl":2,"ok":false}]},"大字漂 30 秒":{"lvl":4,"st":3,"band":0,"state":"locked","crit":"深水仰躺大字漂 30 秒，放鬆、不靠划手。","pre":[{"n":"大字漂 10 秒","lvl":2,"ok":false}]},"踩水 1 分鐘":{"lvl":4,"st":3,"band":0,"state":"locked","crit":"深水踩水 1 分鐘，最後 10 秒雙手離開水面。","pre":[{"n":"踩水 30 秒","lvl":3,"ok":false}]},"無蛙鏡游泳":{"lvl":4,"st":3,"band":0,"state":"locked","crit":"不戴蛙鏡睜眼游自由式 25 碼，過程不慌張。","pre":[{"n":"自由式 15 碼","lvl":4,"ok":false},{"n":"水中撿物","lvl":2,"ok":false}]},"著衣不戴蛙鏡游 7 碼":{"lvl":4,"st":3,"band":0,"state":"locked","crit":"穿 T 恤與短褲游 7 碼，接著在深水中脫掉上衣。","pre":[{"n":"無蛙鏡游泳","lvl":4,"ok":false},{"n":"踩水 1 分鐘","lvl":4,"ok":false}]},"水中自保驗收 25 碼":{"lvl":4,"st":3,"band":0,"state":"locked","crit":"深水中：跳入、回到水面漂或踩水 1 分鐘、原地轉一圈找到出口、不停游 25 碼、不靠扶梯上岸。","pre":[{"n":"求生漂浮","lvl":3,"ok":false},{"n":"踩水 1 分鐘","lvl":4,"ok":false},{"n":"大字漂 30 秒","lvl":4,"ok":false}]},"自由式 50 碼":{"lvl":5,"st":1,"band":0,"state":"locked","crit":"自由式 50 碼含一次轉身，全程動作不散。","pre":[{"n":"自由式 25 碼","lvl":4,"ok":false}]},"自由式 100 碼":{"lvl":5,"st":1,"band":0,"state":"locked","crit":"連續自由式 100 碼，教練要求時能做兩側換氣。","pre":[{"n":"自由式 50 碼","lvl":5,"ok":false}]},"仰式 25 碼":{"lvl":5,"st":2,"band":0,"state":"locked","crit":"仰式 25 碼不停，肩膀有轉動、頭部穩定。","pre":[{"n":"初級仰泳 25 碼","lvl":4,"ok":false}]},"仰式 50 碼":{"lvl":5,"st":2,"band":0,"state":"locked","crit":"仰式 50 碼含一次轉身，能維持在水道內。","pre":[{"n":"仰式 25 碼","lvl":5,"ok":false}]},"開放式轉身":{"lvl":5,"st":2,"band":0,"state":"locked","crit":"蛙式與蝶式的雙手觸壁、平轉身並蹬牆。","pre":[{"n":"自由式 25 碼","lvl":4,"ok":false},{"n":"水中轉身","lvl":3,"ok":false}]},"自由式翻滾轉身":{"lvl":5,"st":2,"band":0,"state":"locked","crit":"接近池壁前滾翻，雙腳踏牆，以仰姿流線型蹬出。","pre":[{"n":"開放式轉身","lvl":5,"ok":false},{"n":"自由式 50 碼","lvl":5,"ok":false}]},"水面下潛":{"lvl":5,"st":2,"band":0,"state":"locked","crit":"頭下腳上潛入深水池底，帶物品回到水面。","pre":[{"n":"水下自由式打水","lvl":4,"ok":false},{"n":"深水撿物","lvl":3,"ok":false}]},"蛙腿 10 碼":{"lvl":5,"st":3,"band":0,"state":"locked","crit":"扶板蛙腿 10 碼：收腿到臀、翻腳掌、夾水併攏。","pre":[{"n":"蹬牆漂浮","lvl":2,"ok":false}]},"蛙腿 25 碼":{"lvl":5,"st":3,"band":0,"state":"locked","crit":"蛙腿 25 碼，每一蹬後有滑行，沒有剪刀腳。","pre":[{"n":"蛙腿 10 碼","lvl":5,"ok":false}]},"海豚腿 25 碼":{"lvl":5,"st":3,"band":0,"state":"locked","crit":"扶板俯身海豚腿 25 碼，波浪由胸口帶動。","pre":[{"n":"海豚腿 10 碼","lvl":3,"ok":false}]},"憋氣 15 秒":{"lvl":5,"st":3,"band":0,"state":"locked","crit":"水下憋氣 15 秒，全程平靜，起身有控制。","pre":[{"n":"憋氣 5 秒","lvl":2,"ok":false}]},"岸上伸援與拋繩救援":{"lvl":5,"st":3,"band":0,"state":"open","crit":"用長桿伸給對方、把浮圈丟到 5 碼外，自己不下水。","pre":[]},"蝶式 10 碼":{"lvl":6,"st":1,"band":0,"state":"locked","crit":"蝶式 10 碼，一划兩踢，換氣時下巴先出水。","pre":[{"n":"海豚腿 25 碼","lvl":5,"ok":false},{"n":"流線自由式打水","lvl":4,"ok":false}]},"蛙式 15 碼":{"lvl":6,"st":1,"band":0,"state":"locked","crit":"蛙式 15 碼，保持「划、吸、蹬、滑」的順序。","pre":[{"n":"蛙腿 25 碼","lvl":5,"ok":false}]},"個人混合式打水":{"lvl":6,"st":1,"band":0,"state":"locked","crit":"依混合式順序各打水 25 碼，四式之間不休息。","pre":[{"n":"海豚腿 25 碼","lvl":5,"ok":false},{"n":"蛙腿 25 碼","lvl":5,"ok":false},{"n":"仰式打水 25 碼","lvl":3,"ok":false}]},"踩水 2 分鐘":{"lvl":6,"st":1,"band":0,"state":"locked","crit":"深水踩水 2 分鐘，最後 30 秒雙手離開水面。","pre":[{"n":"踩水 1 分鐘","lvl":4,"ok":false}]},"自由式 200 碼":{"lvl":6,"st":2,"band":0,"state":"locked","crit":"連續自由式 200 碼含轉身，配速平均不前快後崩。","pre":[{"n":"自由式 100 碼","lvl":5,"ok":false}]},"仰式 100 碼":{"lvl":6,"st":2,"band":0,"state":"locked","crit":"連續仰式 100 碼含轉身，能維持直線。","pre":[{"n":"仰式 50 碼","lvl":5,"ok":false}]},"仰式翻滾轉身":{"lvl":6,"st":2,"band":0,"state":"locked","crit":"轉為俯臥後前滾翻，以仰姿蹬牆，動作在規則允許的一划內完成。","pre":[{"n":"自由式翻滾轉身","lvl":5,"ok":false},{"n":"仰式 50 碼","lvl":5,"ok":false}]},"站姿跳水":{"lvl":6,"st":2,"band":0,"state":"locked","crit":"站姿跳水：雙手先入，身體從同一個入水點進去，不拍肚子。","pre":[{"n":"坐姿與跪姿入水","lvl":4,"ok":false},{"n":"流線蹬牆","lvl":3,"ok":false}]},"蝶式 25 碼":{"lvl":6,"st":3,"band":0,"state":"locked","crit":"蝶式 25 碼不停，節奏維持到觸壁。","pre":[{"n":"蝶式 10 碼","lvl":6,"ok":false}]},"蛙式 25 碼":{"lvl":6,"st":3,"band":0,"state":"locked","crit":"蛙式 25 碼，每一循環都看得到滑行。","pre":[{"n":"蛙式 15 碼","lvl":6,"ok":false}]},"水下海豚腿":{"lvl":6,"st":3,"band":0,"state":"locked","crit":"蹬牆後一口氣在水面下海豚腿 15 碼。","pre":[{"n":"海豚腿 25 碼","lvl":5,"ok":false},{"n":"水面下潛","lvl":5,"ok":false}]},"雙手觸壁轉身":{"lvl":6,"st":3,"band":0,"state":"locked","crit":"蛙式與蝶式在池邊轉身時雙手同時觸壁。","pre":[{"n":"蛙式 15 碼","lvl":6,"ok":false},{"n":"開放式轉身","lvl":5,"ok":false}]},"著衣不戴蛙鏡游 25 碼":{"lvl":6,"st":3,"band":0,"state":"locked","crit":"著衣不戴蛙鏡游 25 碼，接著著衣踩水 1 分鐘。","pre":[{"n":"著衣不戴蛙鏡游 7 碼","lvl":4,"ok":false},{"n":"踩水 2 分鐘","lvl":6,"ok":false}]},"自由式 50 碼計時":{"lvl":7,"st":1,"band":0,"state":"locked","crit":"自由式 50 碼計時，三次測驗內成績有進步。","pre":[{"n":"自由式 200 碼","lvl":6,"ok":false},{"n":"自由式翻滾轉身","lvl":5,"ok":false}]},"自由式 25 碼衝刺":{"lvl":7,"st":1,"band":0,"state":"locked","crit":"自由式 25 碼全力衝刺，最後 5 碼不換氣。","pre":[{"n":"自由式 50 碼計時","lvl":7,"ok":false}]},"自由式 400 碼":{"lvl":7,"st":1,"band":0,"state":"locked","crit":"連續自由式 400 碼，每 50 碼配速差距在 5 秒內。","pre":[{"n":"自由式 200 碼","lvl":6,"ok":false}]},"仰式 200 碼":{"lvl":7,"st":1,"band":0,"state":"locked","crit":"連續仰式 200 碼，轉身合乎規則。","pre":[{"n":"仰式 100 碼","lvl":6,"ok":false}]},"著衣不戴蛙鏡游 50 碼":{"lvl":7,"st":1,"band":0,"state":"locked","crit":"著衣不戴蛙鏡游 50 碼，接著在踩水中脫掉衣物。","pre":[{"n":"著衣不戴蛙鏡游 25 碼","lvl":6,"ok":false}]},"蛙式水下划手":{"lvl":7,"st":2,"band":0,"state":"locked","crit":"一次水下划手：長划到大腿、一次海豚腿、收手、破水。","pre":[{"n":"蛙式 25 碼","lvl":6,"ok":false},{"n":"水面下潛","lvl":5,"ok":false}]},"蛙式 50 碼":{"lvl":7,"st":2,"band":0,"state":"locked","crit":"蛙式 50 碼，轉身與終點觸壁都合乎規則。","pre":[{"n":"蛙式 25 碼","lvl":6,"ok":false},{"n":"雙手觸壁轉身","lvl":6,"ok":false}]},"蝶式 50 碼":{"lvl":7,"st":2,"band":0,"state":"locked","crit":"蝶式 50 碼含合規轉身，第二趟節奏沒有垮掉。","pre":[{"n":"蝶式 25 碼","lvl":6,"ok":false}]},"自由式 500 碼":{"lvl":7,"st":2,"band":0,"state":"locked","crit":"連續自由式 500 碼，能自己數趟數。","pre":[{"n":"自由式 400 碼","lvl":7,"ok":false}]},"出發台起跳與仰式出發":{"lvl":7,"st":2,"band":0,"state":"locked","crit":"出發台合規出發，以及池壁的合規仰式出發。","pre":[{"n":"站姿跳水","lvl":6,"ok":false},{"n":"仰式翻滾轉身","lvl":6,"ok":false}]},"泳式轉換與轉身":{"lvl":7,"st":3,"band":0,"state":"locked","crit":"四式之間的合規銜接，以及混合式中的每一種轉身。","pre":[{"n":"蝶式 25 碼","lvl":6,"ok":false},{"n":"蛙式 25 碼","lvl":6,"ok":false},{"n":"仰式翻滾轉身","lvl":6,"ok":false},{"n":"雙手觸壁轉身","lvl":6,"ok":false}]},"個人混合式 100 碼":{"lvl":7,"st":3,"band":0,"state":"locked","crit":"依序完成混合式 100 碼，每一次銜接都合規。","pre":[{"n":"泳式轉換與轉身","lvl":7,"ok":false},{"n":"個人混合式打水","lvl":6,"ok":false}]},"自由式（合規）":{"lvl":7,"st":3,"band":0,"state":"locked","crit":"自由式的動作、轉身與終點都不會被判失格。","pre":[{"n":"自由式 50 碼計時","lvl":7,"ok":false}]},"仰式（合規）":{"lvl":7,"st":3,"band":0,"state":"locked","crit":"仰式全程保持仰姿，轉身與終點合規、不會失格。","pre":[{"n":"仰式 200 碼","lvl":7,"ok":false}]},"蛙式（合規）":{"lvl":7,"st":3,"band":0,"state":"locked","crit":"蛙式左右對稱、一划一蹬、雙手同時觸壁，不會失格。","pre":[{"n":"蛙式 50 碼","lvl":7,"ok":false},{"n":"蛙式水下划手","lvl":7,"ok":false}]},"蝶式（合規）":{"lvl":7,"st":3,"band":0,"state":"locked","crit":"蝶式雙臂同時、無自由式打水、雙手同時觸壁，不會失格。","pre":[{"n":"蝶式 50 碼","lvl":7,"ok":false}]}};
+const BAND = ["沒教過","帶著做","自己做","穩定做"];
+const LVZH = {"1":"認識水","2":"水中自在","3":"獨立前進","4":"泳姿基礎","5":"泳姿發展","6":"四式","7":"競技游泳"};
+const COLOR = { done:'var(--done)', active:'var(--gold)', open:'var(--open)', locked:'var(--faint)' };
+
+/* The wires are drawn from the tiles' measured positions rather than from
+   numbers baked in at build time, so one set of paths serves both the desktop
+   and the phone geometry -- the CSS changes --cw and --sz, and this redraws. */
+function drawWires(board){
+  const svg = board.querySelector('.wires');
+  const cw = parseFloat(getComputedStyle(board).getPropertyValue('--cw'));
+  const rh = parseFloat(getComputedStyle(board).getPropertyValue('--rh'));
+  const sz = parseFloat(getComputedStyle(board).getPropertyValue('--sz'));
+  svg.setAttribute('viewBox', '0 0 ' + board.clientWidth + ' ' + board.clientHeight);
+  const px = (c) => c * cw + cw / 2;
+  const py = (r) => (r - 1) * rh + sz / 2;
+  for (const w of svg.querySelectorAll('.w')){
+    const [c1, r1] = w.dataset.from.split(',').map(Number);
+    const [c2, r2] = w.dataset.to.split(',').map(Number);
+    const x1 = px(c1), y1 = py(r1) + sz / 2 + 2;
+    const x2 = px(c2), y2 = py(r2) - sz / 2 - 4;
+    const mid = py(r2) - sz / 2 - 20;   // in the channel, below the names above
+    w.setAttribute('d', Math.abs(x1 - x2) < 2
+      ? 'M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2
+      : 'M' + x1 + ' ' + y1 + ' L' + x1 + ' ' + mid + ' L' + x2 + ' ' + mid + ' L' + x2 + ' ' + y2);
+  }
+}
+
+function show(lv){
+  for (const t of document.querySelectorAll('.tab'))
+    t.setAttribute('aria-selected', String(+t.dataset.lv === lv));
+  for (const s of document.querySelectorAll('.lv')) s.hidden = +s.dataset.lv !== lv;
+  const b = document.querySelector('.lv[data-lv="' + lv + '"] .board');
+  if (b) drawWires(b);
+}
+
+function pick(name, el){
+  const d = DATA[name];
+  if (!d) return;
+  for (const t of document.querySelectorAll('.tile')) t.removeAttribute('aria-current');
+  if (el) el.setAttribute('aria-current', 'true');
+  const pre = d.pre.length
+    ? '<div class="pre">' + d.pre.map(p =>
+        '<span class="' + (p.ok ? 'ok' : '') + '">' + p.n +
+        (p.lvl !== d.lvl ? '<b>L' + p.lvl + '</b>' : '') + '</span>').join('') + '</div>'
+    : '<dd>不用前置，第一天就能開始。</dd>';
+  document.getElementById('detail').innerHTML =
+    '<h3>' + name + '</h3>' +
+    '<p class="dm">等級 ' + d.lvl + ' · ' + LVZH[d.lvl] + ' · 原階段 ' + d.st + '</p>' +
+    '<span class="band" style="color:' + COLOR[d.state] + '">' + BAND[d.band] + '</span>' +
+    '<dl><dt>需要先完成</dt>' + (d.pre.length ? '<dd>' + pre + '</dd>' : pre) +
+    (d.crit ? '<dt style="margin-top:6px">怎樣算「穩定做」</dt><dd>' + d.crit + '</dd>' : '') +
+    '</dl>';
+}
+
+document.querySelector('.tabs').addEventListener('click', e => {
+  const t = e.target.closest('.tab'); if (t) show(+t.dataset.lv);
+});
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tile'); if (t) pick(t.dataset.k, t);
+});
+addEventListener('resize', () => {
+  const b = document.querySelector('.lv:not([hidden]) .board'); if (b) drawWires(b);
+});
+show(1);
+</script>
