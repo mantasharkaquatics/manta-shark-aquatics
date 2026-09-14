@@ -119,6 +119,21 @@ export function routeWires(
      long ones end up outside them: the lines nest instead of braiding. */
   list.sort((p, q) => Math.abs(p.a.col - p.b.col) - Math.abs(q.a.col - q.b.col))
 
+  /* Skills that skip a row are grouped by the skill they come from: two
+     dependants of the same prerequisite ride the same gutter and split at the
+     bottom, instead of drawing two near-identical lines side by side. Lines
+     from DIFFERENT prerequisites are never merged -- a shared line would say
+     they share a cause, and they do not. */
+  const group = new Map<string, { x1: number; mid: number; rows: number[] }>()
+  for (const e of list) {
+    if (e.b.row - e.a.row < 2) continue
+    const g0 = group.get(e.from) || { x1: x(e.a.col), mid: 0, rows: [] }
+    g0.mid += (x(e.a.col) + x(e.b.col)) / 2
+    g0.rows.push(e.b.row)
+    group.set(e.from, g0)
+  }
+  const gutter = new Map<string, { gx: number; yOut: number }>()
+
   let leftUsed = 0, rightUsed = 0
   for (const e of list) {
     const x1 = x(e.a.col), x2 = x(e.b.col)
@@ -134,27 +149,35 @@ export function routeWires(
       const y = top(e.a.row) - 4, ly = lane(e.a.row, 1)
       out[key] = `M${x1} ${y} L${x1} ${ly} L${x2} ${ly} L${x2} ${y}`
     } else {
-      /* Every row it has to get past, and the free space they all share. */
-      let leftEdge = width, rightEdge = 0
-      for (let r = e.a.row + 1; r < e.b.row; r++) {
-        const sp = span[r]
-        if (!sp) continue
-        leftEdge = Math.min(leftEdge, g.lane + sp.lo * g.cw)
-        rightEdge = Math.max(rightEdge, g.lane + (sp.hi + 1) * g.cw)
+      let lane0 = gutter.get(e.from)
+      if (!lane0) {
+        /* Every row this group has to get past, and the space they all leave. */
+        const g0 = group.get(e.from)!
+        const deepest = Math.max(...g0.rows)
+        let leftEdge = width, rightEdge = 0
+        for (let r = e.a.row + 1; r < deepest; r++) {
+          const sp = span[r]
+          if (!sp) continue
+          leftEdge = Math.min(leftEdge, g.lane + sp.lo * g.cw)
+          rightEdge = Math.max(rightEdge, g.lane + (sp.hi + 1) * g.cw)
+        }
+        const mid = g0.mid / g0.rows.length
+        const onLeft = Math.abs(mid - leftEdge) <= Math.abs(mid - rightEdge)
+        const slot = onLeft ? leftUsed++ : rightUsed++
+        lane0 = {
+          gx: onLeft ? Math.max(6, leftEdge - 10 - slot * 7)
+                     : Math.min(width - 6, rightEdge + 10 + slot * 7),
+          /* Two gutters on the same side would otherwise share their horizontal
+             run as well and read as one line. */
+          yOut: lane(e.a.row + 1, 2) + slot * 3,
+        }
+        gutter.set(e.from, lane0)
       }
-      const onLeft = Math.abs((x1 + x2) / 2 - leftEdge) <= Math.abs((x1 + x2) / 2 - rightEdge)
-      const slot = onLeft ? leftUsed++ : rightUsed++
-      const gx = onLeft
-        ? Math.max(6, leftEdge - 10 - slot * 7)
-        : Math.min(width - 6, rightEdge + 10 + slot * 7)
-      /* Two of these on the same side would otherwise share the same
-         horizontal run as well as the same gutter and read as one line. */
-      const yOut = lane(e.a.row + 1, 2) + slot * 3
-      const yIn = lane(e.b.row, 2) + slot * 3
+      const yIn = lane(e.b.row, 2)
       const y1 = bottom(e.a.row) + 2, y2 = top(e.b.row) - 4
       out[key] =
-        `M${x1} ${y1} L${x1} ${yOut} L${gx} ${yOut} ` +
-        `L${gx} ${yIn} L${x2} ${yIn} L${x2} ${y2}`
+        `M${x1} ${y1} L${x1} ${lane0.yOut} L${lane0.gx} ${lane0.yOut} ` +
+        `L${lane0.gx} ${yIn} L${x2} ${yIn} L${x2} ${y2}`
     }
   }
   return out
