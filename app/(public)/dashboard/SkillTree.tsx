@@ -151,7 +151,12 @@ const CSS = `
   font-size: 17px; line-height: 1;
   left: calc(var(--c) * var(--cw) + (var(--cw) - var(--sz)) / 2);
   top: calc((var(--r) - 1) * var(--rh)) }
-.mst-mk { display: block; width: 20px; height: 20px }
+/* One pixel above the geometric centre, and the same one pixel on every tile:
+   the percentage along the bottom pulls the eye down, so dead centre reads low.
+   A pixel is also the smallest move a screen can actually make -- anything
+   finer is rounding noise, and it comes out in whichever direction the
+   rasteriser feels like. */
+.mst-mk { display: block; width: 20px; height: 20px; transform: translateY(-1px) }
 .mst-mk svg { display: block; width: 100%; height: 100% }
 /* The number sits inside the tile, along the bottom, rather than in a badge hung
    off the corner: "100%" measures 30px at any readable size, which on a 44px
