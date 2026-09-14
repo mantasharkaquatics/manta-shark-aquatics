@@ -31,3 +31,31 @@ export const LANGUAGE_LABELS: Record<string, string> = {
   ko: 'Korean',
   ja: 'Japanese',
 }
+
+/**
+ * Which language a recording turned out to be in, read from the words the
+ * transcriber returned rather than from anything the coach set beforehand.
+ *
+ * The transcription call has never been told a language -- it detects one on
+ * its own -- so a toggle in the recorder could only ever decide what language
+ * the POLISHED note was written in. That let the two drift: a coach speaking
+ * Chinese with the toggle left on English produced an English note against
+ * Chinese audio, and the admin's whole check is reading the note WHILE hearing
+ * the recording. Deciding from the transcript keeps them in step by
+ * construction, and the coach no longer has to remember anything.
+ *
+ * Counting script rather than asking a model keeps this free, instant and
+ * predictable. Ideographs are weighted because a Chinese note deliberately
+ * keeps its English swim terms -- "streamline" is in the glossary for exactly
+ * that reason -- and a handful of Latin words must not outvote the Chinese
+ * carrying the sentence.
+ */
+export function detectNoteLanguage(
+  transcript: string,
+  fallback: string = 'en',
+): string {
+  const cjk = (transcript.match(/[㐀-䶿一-鿿]/g) || []).length
+  const latin = (transcript.match(/[A-Za-z]/g) || []).length
+  if (cjk === 0 && latin === 0) return fallback   // nothing to judge on
+  return cjk * 3 >= latin ? 'zh-Hant' : 'en'
+}

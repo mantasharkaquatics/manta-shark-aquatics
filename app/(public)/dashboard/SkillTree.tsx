@@ -22,11 +22,18 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react
 import { createClient } from '@/lib/supabase/client'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
-import { LEVEL_COLORS, MAX_LEVEL, STAGES, levelNameKey, stageNameKey } from '@/lib/levels'
+import { LEVEL_COLORS, MAX_LEVEL, levelNameKey, stageNameKey } from '@/lib/levels'
+import { masteryOf, masteryKey, MASTERY_COLOR, MASTERY_FILL, PASS_LEVEL, UNLOCK_LEVEL } from '@/lib/mastery'
 
 const GOLD = '#c9a84c'
 
-type NodeState = 'done' | 'active' | 'open' | 'locked'
+/* 'ready' is the state the stage model could not express: everything this skill
+   needs is already done, but it sits in a level the swimmer has not reached, so
+   the school has not got to it yet. Saying "locked" there would be untrue -- the
+   coach could teach it tomorrow -- and saying "open" would promise a lesson
+   nobody has scheduled. Rescue-from-the-side is the clearest case: it needs no
+   swimming at all, and it lives in Level 5. */
+type NodeState = 'done' | 'active' | 'open' | 'ready' | 'locked'
 
 type TreeSkill = {
   id: string
@@ -34,6 +41,8 @@ type TreeSkill = {
   criteria: string
   level: number
   stage: number
+  /** which row of its own level -- 1 means nothing in this level comes first */
+  row: number
   sort: number
   percent: number
   state: NodeState
@@ -43,14 +52,14 @@ type Props = {
   studentName: string
   currentLevel: number
   currentStage: number
-  /** Live percent for the current level's skills, keyed by skill id. */
+  /** Every recorded value for this student, keyed by skill id, all levels. */
   percentBySkillId: Record<string, number>
   onClose: () => void
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
 
-const GLYPH: Record<NodeState, string> = { done: '✦', active: '◆', open: '○', locked: '🔒' }
+const GLYPH: Record<NodeState, string> = { done: '✦', active: '◆', open: '○', ready: '·', locked: '🔒' }
 
 /* Inline styles beat media queries, and this needs to lay out differently on a
    phone, so everything width-dependent lives here as a class. */
@@ -168,15 +177,26 @@ export default function SkillTree({ studentName, currentLevel, currentStage, per
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const [{ data: levRows }, { data: skRows }] = await Promise.all([
+      const [{ data: levRows }, { data: skRows }, { data: preRows }] = await Promise.all([
         supabase.from('levels').select('id, level_number'),
         supabase.from('skills').select('id, name, pass_criteria, stage, sort_order, level_id')
           .eq('is_active', true).order('sort_order'),
+        supabase.from('skill_prerequisites').select('skill_id, requires_id'),
       ])
       if (!alive) return
       if (!levRows || !skRows) { setFailed(true); return }
       const levelOf: Record<string, number> = {}
       for (const l of levRows as any[]) levelOf[String(l.id)] = Number(l.level_number)
+
+      /* A skill opens when everything it needs is at "on their own" -- the same
+         bar a stage advances on. Skills with no row here open on day one, which
+         is the whole point: dryland kicking never needed anything. */
+      const needs: Record<string, string[]> = {}
+      for (const r of (preRows || []) as any[]) {
+        (needs[String(r.skill_id)] ||= []).push(String(r.requires_id))
+      }
+      const ready = (id: string) =>
+        (needs[id] || []).every(req => masteryOf(percentBySkillId[req] ?? 0) >= UNLOCK_LEVEL)
 
       const built: TreeSkill[] = []
       for (const s of skRows as any[]) {
@@ -185,20 +205,53 @@ export default function SkillTree({ studentName, currentLevel, currentStage, per
         const stage = Number(s.stage) || 1
         let percent: number
         let state: NodeState
-        if (level < currentLevel) { percent = 100; state = 'done' }
-        else if (level > currentLevel) { percent = 0; state = 'locked' }
-        else if (stage < currentStage) { percent = 100; state = 'done' }
-        else {
-          percent = clamp(percentBySkillId[String(s.id)] ?? 0)
-          state = percent >= 100 ? 'done' : percent > 0 ? 'active' : 'open'
+        /* What was actually recorded always wins. That matters more than it
+           used to: a coach may now grade any skill in the current level, so a
+           later stage can legitimately hold real marks, and a level the swimmer
+           has moved past is no longer guaranteed to be finished -- a stage now
+           advances at "on their own", not at "solid". Claiming 100% for every
+           earlier level would be inventing a pass the coach never gave.
+           The assumption is kept only where there is nothing on file at all. */
+        const rec = percentBySkillId[String(s.id)]
+        /* Two separate questions, and the old code could only ask one.
+           CAN he start it -- are the prerequisites done?
+           IS it scheduled -- has the school reached this level and stage? */
+        const canStart = ready(String(s.id))
+        const scheduled = level < currentLevel || (level === currentLevel && stage <= currentStage)
+        if (rec != null && masteryOf(rec) > 0) {
+          percent = clamp(rec)
+          state = masteryOf(percent) >= PASS_LEVEL ? 'done' : 'active'
+        } else if (level < currentLevel && rec == null) {
+          // promoted past it with nothing on file: the promotion is the record
+          percent = 100; state = 'done'
+        } else {
+          percent = rec != null ? clamp(rec) : 0
+          state = !canStart ? 'locked' : scheduled ? 'open' : 'ready'
         }
         built.push({
           id: String(s.id), name: String(s.name || ''),
           criteria: String(s.pass_criteria || ''),
-          level, stage, sort: Number(s.sort_order) || 0, percent, state,
+          level, stage, row: 1, sort: Number(s.sort_order) || 0, percent, state,
         })
       }
-      built.sort((a, b) => a.level - b.level || a.stage - b.stage || a.sort - b.sort)
+      /* A skill's row is one past the deepest thing it needs FROM THE SAME
+         LEVEL. Prerequisites from an earlier level do not push it down: by the
+         time a swimmer is working this level those are already behind them, so
+         row 1 reads as "nothing here has to come first", not "nothing at all".
+         This is what the stage grouping could not say -- dryland kicking sat in
+         stage 2 purely because somebody had to put it somewhere. */
+      const lvlById: Record<string, number> = {}
+      for (const b of built) lvlById[b.id] = b.level
+      const rowMemo: Record<string, number> = {}
+      const rowOf = (id: string, seen = new Set<string>()): number => {
+        if (rowMemo[id]) return rowMemo[id]
+        if (seen.has(id)) return 1          // a cycle should be impossible; do not hang on one
+        seen.add(id)
+        const same = (needs[id] || []).filter(q => lvlById[q] === lvlById[id])
+        return rowMemo[id] = same.length ? 1 + Math.max(...same.map(q => rowOf(q, seen))) : 1
+      }
+      for (const b of built) b.row = rowOf(b.id)
+      built.sort((a, b) => a.level - b.level || a.row - b.row || a.sort - b.sort)
       setSkills(built)
       // A level that is entirely behind them opens folded: the page should
       // start on the water the swimmer is actually in.
@@ -356,15 +409,21 @@ export default function SkillTree({ studentName, currentLevel, currentStage, per
                   {full && <div className="mst-chev">{isFolded ? '▾' : '▴'}</div>}
                 </HeadTag>
                 <div className="mst-stages">
-                  {STAGES.map(st => {
-                    const rows = inLv.filter(s => s.stage === st)
+                  {Array.from({ length: Math.max(1, ...inLv.map(s => s.row)) }, (_, i) => i + 1).map(st => {
+                    const rows = inLv.filter(s => s.row === st)
                     const stDone = rows.filter(s => s.percent >= 100).length
-                    const isNow = lv === currentLevel && st === currentStage
+                    /* The live row is the earliest one still holding work, not a
+                       number on the student record: that is where the next
+                       lesson actually happens. */
+                    const workRow = Math.min(...inLv
+                      .filter(s => s.state === 'open' || s.state === 'active')
+                      .map(s => s.row), Infinity)
+                    const isNow = lv === currentLevel && st === workRow
                     return (
                       <div key={st} className="mst-stage"
                         style={isNow ? { borderColor: `${GOLD}70`, background: 'rgba(201,168,76,0.06)' } : undefined}>
                         <div className="mst-sh">
-                          <em style={isNow ? { color: GOLD } : undefined}>{t('dash.stageN', { n: st })}</em>
+                          <em style={isNow ? { color: GOLD } : undefined}>{t('tree.rowN', { n: st })}</em>
                           <i>{stDone}/{rows.length}</i>
                         </div>
                         <div className="mst-nodes">
@@ -412,7 +471,7 @@ export default function SkillTree({ studentName, currentLevel, currentStage, per
               {tDb(locale, 'skills', sel.id, sel.name)}
             </h4>
             <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '14px' }}>
-              {t('dash.stageN', { n: sel.stage })} · {t(stageNameKey(sel.level, sel.stage))} · {t(`tree.state.${sel.state}`)} · {sel.percent}%
+              {t('dash.stageN', { n: sel.stage })} · {t(stageNameKey(sel.level, sel.stage))} · {t(`tree.state.${sel.state}`)} · {t(masteryKey(masteryOf(sel.percent)))}
             </div>
             <div style={{ height: '6px', borderRadius: '3px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: '16px' }}>
               <div style={{ height: '100%', width: sel.percent + '%', borderRadius: '3px', background: sel.percent >= 100 ? '#4caf72' : GOLD }} />
@@ -436,12 +495,17 @@ function nodeSkin(sk: TreeSkill, color: string) {
     hex: `color-mix(in srgb, ${color} 22%, #0a1526)`, glyph: color, label: '#fff',
   }
   if (sk.state === 'active') return {
-    ring: { background: `conic-gradient(${GOLD} ${sk.percent}%, #28354f 0)`, boxShadow: `0 0 18px ${GOLD}55` },
+    ring: { background: `conic-gradient(${MASTERY_COLOR[masteryOf(sk.percent)]} ${MASTERY_FILL[masteryOf(sk.percent)]}%, #28354f 0)`, boxShadow: `0 0 18px ${MASTERY_COLOR[masteryOf(sk.percent)]}55` },
     hex: '#0d1730', glyph: GOLD, label: GOLD,
   }
   if (sk.state === 'open') return {
     ring: { background: `color-mix(in srgb, ${color} 42%, #28354f)` },
     hex: '#0a1526', glyph: 'rgba(255,255,255,0.6)', label: 'rgba(255,255,255,0.62)',
+  }
+  /* Dashed, not filled: he could do this one, we just have not got to it. */
+  if (sk.state === 'ready') return {
+    ring: { background: '#16223a', border: `1px dashed color-mix(in srgb, ${color} 55%, #46557a)` },
+    hex: '#0a1526', glyph: 'rgba(255,255,255,0.45)', label: 'rgba(255,255,255,0.45)',
   }
   return {
     ring: { background: '#16223a' },

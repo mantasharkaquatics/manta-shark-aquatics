@@ -1,3 +1,4 @@
+import { UNLOCK_VALUE } from './mastery'
 // The curriculum shape, in one place.
 //
 // Seven levels, three stages each. A level is a body of work; a stage is the
@@ -87,11 +88,18 @@ export function stageProgress(
       return { stage, percent: 0, complete: false, skillCount: 0 }
     }
     const values = inStage.map(s => Math.max(0, Math.min(100, percentBySkillId[s.id] ?? 0)))
-    const total = values.reduce((a, b) => a + b, 0)
+    /* The bar measures one thing: how close this stage is to handing the swimmer
+       to the next one. That happens when every skill reaches "on their own", so
+       the bar counts the skills that have, rather than averaging the raw numbers.
+       Averaging put back exactly the false precision the four bands removed --
+       and it disagreed with the database, which stopped requiring 100 when the
+       stage gate moved to "on their own". "Solid" is still the goal for each
+       skill; the learning map is where that shows, skill by skill. */
+    const reached = values.filter(v => v >= UNLOCK_VALUE).length
     return {
       stage,
-      percent: Math.round(total / inStage.length),
-      complete: values.every(v => v >= 100),
+      percent: Math.round(100 * reached / inStage.length),
+      complete: reached === inStage.length,
       skillCount: inStage.length,
     }
   })

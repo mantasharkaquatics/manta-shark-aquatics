@@ -8,6 +8,7 @@ import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 import { useState, useEffect } from 'react'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
+import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
 
 type Skill = { id: string; name: string; sort_order: number; stage: number | null; pass_criteria?: string | null }
 type StudentProgress = {
@@ -378,7 +379,14 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 // already passed stay open: locking them would make a mistyped
                                 // 100% unfixable, and there is no admin screen that edits a
                                 // single skill.
-                                const stageOpen = st <= curStage
+                                /* Every stage of the level the swimmer is in is recordable. Stages still
+                                   order the teaching -- the one they are on stays highlighted and the
+                                   later ones sit dimmed -- but a coach who watched a swimmer do
+                                   something may now write it down, whatever stage it happens to sit in.
+                                   Refusing the entry did not slow the swimmer down, it only lost the
+                                   observation. The API agrees: it accepts any skill in the current level. */
+                                const stageOpen = true
+                                const stageAhead = st > curStage
                                 const expanded = (openStageMap[s.entryKey] ?? curStage) === st
                                 const allDone = done === inStage.length
                                 return (
@@ -387,7 +395,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   type="button"
                                   onClick={() => setOpenStageMap(prev => ({ ...prev, [s.entryKey]: expanded ? 0 : st }))}
                                   aria-expanded={expanded}
-                                  className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${stageOpen ? '' : 'opacity-40'}`}
+                                  className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${stageAhead ? 'opacity-60' : ''}`}
                                 >
                                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>
                                     {t('coach.stage', { n: st })}
@@ -401,7 +409,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   <span className="text-[10px] text-gray-500 w-3 text-right">{expanded ? '▴' : '▾'}</span>
                                 </button>
                                 {expanded && (
-                                <div className={`space-y-3 ${stageOpen ? '' : 'opacity-40'}`}>
+                                <div className={`space-y-3 ${stageAhead ? 'opacity-75' : ''}`}>
                               {inStage.map(skill => {
                                 const pct = localProgress[skill.id] ?? 0
                                 const color = barColor(pct)
@@ -409,7 +417,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   <div key={skill.id} className="bg-[#0d1529] rounded-lg p-3">
                                     <div className="flex items-center justify-between mb-2">
                                       <span className="text-white text-sm">{tDb(locale, 'skills', skill.id, skill.name)}</span>
-                                      <span className="text-xs font-mono" style={{ color }}>{pct}%</span>
+                                      <span className="text-xs font-semibold" style={{ color: MASTERY_COLOR[masteryOf(pct)] }}>{t(masteryKey(masteryOf(pct)))}</span>
                                     </div>
                                     {skill.pass_criteria && (
                                       <p className="text-[11px] leading-relaxed text-gray-400 mb-2">
@@ -417,19 +425,23 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                       </p>
                                     )}
                                     <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
-                                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                                      <div className="h-full rounded-full transition-all" style={{ width: `${MASTERY_FILL[masteryOf(pct)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(pct)] }} />
                                     </div>
                                     <div className="flex gap-1.5">
-                                      {[0, 20, 40, 60, 80, 100].map(v => (
-                                        <button key={v}
+                                      {MASTERY_LEVELS.map(b => {
+                                        const v = MASTERY_VALUE[b]
+                                        const on = masteryOf(pct) === b
+                                        return (
+                                        <button key={b}
                                           disabled={!stageOpen || locked || isCompleted}
                                           onClick={() => { if (stageOpen && !locked && !isCompleted) setLocalProgressMap(prev => ({ ...prev, [s.entryKey]: { ...prev[s.entryKey], [skill.id]: v } })) }}
-                                          className={`flex-1 py-1 rounded text-xs font-medium transition-all ${pct === v ? 'font-bold' : 'text-gray-400 bg-white/5'} ${stageOpen && !locked && !isCompleted ? 'hover:bg-white/10' : 'cursor-not-allowed'}`}
-                                          style={pct === v ? { backgroundColor: color, color: '#1a2744' } : {}}
+                                          className={`flex-1 py-1.5 rounded text-[11px] leading-tight font-medium transition-all ${on ? 'font-bold' : 'text-gray-400 bg-white/5'} ${stageOpen && !locked && !isCompleted ? 'hover:bg-white/10' : 'cursor-not-allowed'}`}
+                                          style={on ? { backgroundColor: MASTERY_COLOR[b], color: '#1a2744' } : {}}
                                         >
-                                          {v}%
+                                          {t(masteryKey(b))}
                                         </button>
-                                      ))}
+                                        )
+                                      })}
                                     </div>
                                   </div>
                                 )

@@ -80,7 +80,7 @@ export async function loadReviewQueues(
     const ppSessionIds = [...new Set(allPendingProgress.map((p: any) => p.class_session_id).filter(Boolean))]
     const { data: ppStudents } = await svc.from('students').select('id, full_name, current_level').in('id', ppStudentIds)
     const { data: ppCoaches } = await svc.from('coaches').select('id, first_name').in('id', ppCoachIds)
-    const { data: ppSkills } = await svc.from('skills').select('id, name, sort_order, level_id').order('sort_order')
+    const { data: ppSkills } = await svc.from('skills').select('id, name, stage, sort_order, level_id').order('stage').order('sort_order')
     const ppSMap: Record<string, any> = {}
     for (const s of ppStudents || []) ppSMap[s.id] = s
     const ppCMap: Record<string, any> = {}

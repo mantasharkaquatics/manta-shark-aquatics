@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 // Match /api/chat/ai-reply so there is one model string to change, not two.
-import { POLISH_MODEL, RECORDING_LANGUAGES, LANGUAGE_NAMES } from '@/lib/ai/models'
+import { POLISH_MODEL, RECORDING_LANGUAGES, LANGUAGE_NAMES, detectNoteLanguage } from '@/lib/ai/models'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   )
 
   const { data: coach } = await svc
-    .from('coaches').select('id, first_name, last_name')
+    .from('coaches').select('id, first_name, last_name, default_note_language')
     .eq('auth_user_id', user.id).single()
   if (!coach) return NextResponse.json({ error: 'Not a coach' }, { status: 403 })
 
@@ -32,8 +32,12 @@ export async function POST(req: NextRequest) {
   const classSessionId = String(form.get('class_session_id') || '')
   const lessonGroupId = (form.get('lesson_group_id') as string) || null
   const sessionDate = String(form.get('session_date') || '')
-  const posted = String(form.get('language') || 'en')
-  const language = (RECORDING_LANGUAGES as readonly string[]).includes(posted) ? posted : 'en'
+  /* The recorder no longer asks. The language is read off the transcript
+      further down, once there is something to read. This stays only as the
+      fallback for a recording with no words in it at all. */
+  const fallbackLang = (RECORDING_LANGUAGES as readonly string[])
+    .includes(String((coach as any).default_note_language)) 
+      ? String((coach as any).default_note_language) : 'en'
   const seconds = parseInt(String(form.get('seconds') || '0'), 10) || null
 
   // The skill percentages travel with the recording: the owner's rule is that a
@@ -121,6 +125,11 @@ export async function POST(req: NextRequest) {
   if (!transcript) {
     return NextResponse.json({ error: 'Nothing was heard in that recording' }, { status: 422 })
   }
+
+  /* Whatever the coach actually spoke. The note is then written in that same
+     language, which is what makes the admin's review valid: they read the note
+     while listening to the recording. */
+  const language = detectNoteLanguage(transcript, fallbackLang)
 
   // ---- 3. Turn speech into a note a parent can read ----
   let note = transcript

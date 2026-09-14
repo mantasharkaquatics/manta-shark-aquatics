@@ -150,9 +150,14 @@ export async function POST(req: NextRequest) {
     if (lvl) {
       const { data: levelSkills } = await supabase
         .from('skills').select('id, stage').eq('level_id', lvl.id).eq('is_active', true)
-      const stage = Number(gateStudent.current_stage) || 1
-      // Stages up to and including the current one; a future stage is refused.
-      allowed = new Set((levelSkills || []).filter(k => (Number(k.stage) || 1) <= stage).map(k => k.id))
+      // Any skill in the level the swimmer is sitting in, whatever stage it
+      // belongs to. The old rule refused to even RECORD a later stage, which
+      // threw away real observations: a swimmer whose butterfly is still coming
+      // could not be marked on freestyle distance, because butterfly happens to
+      // sit in the stage before it. Stages still order the TEACHING; they no
+      // longer decide what a coach is allowed to have seen. What a swimmer may
+      // not do is jump a LEVEL -- that stays an admin decision.
+      allowed = new Set((levelSkills || []).map(k => k.id))
       const { data: existing } = await supabase
         .from('student_skill_progress').select('skill_id, progress_percent').eq('student_id', student_id)
       for (const row of existing || []) stored[row.skill_id] = row.progress_percent

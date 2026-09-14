@@ -75,7 +75,16 @@ export function LocaleProvider(
     setDetected(readLocaleCookie() ?? matchLocaleTags(browserTags) ?? DEFAULT_LOCALE);
   }, [locale, pathname]);
 
-  const active = locale ?? detected;
+  /* A surface that is handed its language by the server -- the coach portal --
+     still has to let the person in front of it change that language NOW. The
+     prop used to win outright, so the switcher wrote the coach's choice to the
+     database and changed nothing on screen until the next full load. The
+     override is what the switcher sets; it steps aside as soon as the server
+     comes back with a locale of its own, which by then is the same choice. */
+  const [override, setOverride] = useState<Locale | null>(null);
+  useEffect(() => { setOverride(null); }, [locale]);
+
+  const active = override ?? locale ?? detected;
 
   useEffect(() => {
     document.documentElement.lang = active;
@@ -96,6 +105,7 @@ export function LocaleProvider(
 
   const setLocale = useCallback((next: Locale) => {
     if (persist) rememberLocale(next);
+    setOverride(next);
     setDetected(next);
   }, [persist]);
 

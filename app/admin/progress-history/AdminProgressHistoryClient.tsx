@@ -1,6 +1,7 @@
 'use client'
 
 import { LANGUAGE_LABELS } from '@/lib/ai/models'
+import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, MASTERY_LABEL, masteryOf, UNLOCK_LEVEL } from '@/lib/mastery'
 import { useState, useMemo } from 'react'
 
 type Record_ = {
@@ -147,9 +148,8 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                   {group.map(rec => {
                     const isOpen = expandedId === rec.id
                     const entries = Object.entries(rec.snapshot || {})
-                    const avgPct = entries.length > 0
-                      ? Math.round(entries.reduce((s, [, v]) => s + (v as number), 0) / entries.length)
-                      : 0
+                    const selfCount = entries.filter(([, v]) => masteryOf(v as number) >= UNLOCK_LEVEL).length
+                    const avgPct = entries.length > 0 ? Math.round(100 * selfCount / entries.length) : 0
 
                     return (
                       <div key={rec.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
@@ -170,7 +170,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                               <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full" style={{ width: `${avgPct}%`, backgroundColor: barColor(avgPct) }} />
                               </div>
-                              <span className="text-xs font-mono" style={{ color: barColor(avgPct) }}>{avgPct}%</span>
+                              <span className="text-xs font-mono" style={{ color: barColor(avgPct) }}>{selfCount}/{entries.length}</span>
                             </div>
                             <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
                           </div>
@@ -239,24 +239,28 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                   <p className="text-gray-300 text-xs w-52 flex-shrink-0">{skillMap[skillId] || skillId}</p>
                                   {editingId === rec.id ? (
                                     <div className="flex-1 flex gap-1">
-                                      {[0, 20, 40, 60, 80, 100].map(v => (
+                                      {MASTERY_LEVELS.map(b => {
+                                        const v = MASTERY_VALUE[b]
+                                        const on = masteryOf(editSnapshot[skillId] as number) === b
+                                        return (
                                         <button
-                                          key={v}
+                                          key={b}
                                           onClick={() => setEditSnapshot(prev => ({ ...prev, [skillId]: v }))}
-                                          className="flex-1 rounded py-1 text-[11px] font-mono border transition-colors"
+                                          className="flex-1 rounded py-1 text-[10px] leading-tight border transition-colors"
                                           style={{
-                                            borderColor: editSnapshot[skillId] === v ? barColor(v) : 'rgba(255,255,255,0.12)',
-                                            color: editSnapshot[skillId] === v ? barColor(v) : 'rgba(255,255,255,0.45)',
+                                            borderColor: on ? MASTERY_COLOR[b] : 'rgba(255,255,255,0.12)',
+                                            color: on ? MASTERY_COLOR[b] : 'rgba(255,255,255,0.45)',
                                           }}
-                                        >{v}%</button>
-                                      ))}
+                                        >{MASTERY_LABEL[b]}</button>
+                                        )
+                                      })}
                                     </div>
                                   ) : (
                                     <>
                                       <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                        <div className="h-full rounded-full" style={{ width: `${p}%`, backgroundColor: color }} />
+                                        <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p)] }} />
                                       </div>
-                                      <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p}%</span>
+                                      <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p)] }}>{MASTERY_LABEL[masteryOf(p)]}</span>
                                     </>
                                   )}
                                 </div>

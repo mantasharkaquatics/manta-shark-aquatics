@@ -5,6 +5,7 @@ import { formatTime12h } from '@/lib/date'
 import AdminLessonNoteReview from '../upgrades/AdminLessonNoteReview'
 import AlertModal from '@/components/AlertModal'
 import { LEVEL_NAMES, LEVEL_COLORS } from '@/lib/levels'
+import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, MASTERY_LABEL, masteryOf } from '@/lib/mastery'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
@@ -207,12 +208,12 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     <div className="space-y-2">
                       {levelSkills.map(sk => {
                         const pct = prog[sk.id] ?? 0
-                        const options = [0, 20, 40, 60, 80, 100]
+                        const options = MASTERY_LEVELS.map(b => MASTERY_VALUE[b])
                         return (
                           <div key={sk.id}>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-gray-300 text-xs">{sk.name}</span>
-                              <span className="text-xs font-mono" style={{ color: pct >= 100 ? '#3ecf8e' : pct > 0 ? '#f5a623' : 'rgba(255,255,255,0.25)' }}>{pct}%</span>
+                              <span className="text-xs font-semibold" style={{ color: MASTERY_COLOR[masteryOf(pct)] }}>{MASTERY_LABEL[masteryOf(pct)]}</span>
                             </div>
                             <div className="flex gap-1">
                               {options.map(v => (
@@ -226,7 +227,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                                       ? 'bg-[#c9a84c] text-[#111d38]'
                                       : 'bg-[#0d1529] border border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'
                                   }`}
-                                >{v}%</button>
+                                >{MASTERY_LABEL[masteryOf(v)]}</button>
                               ))}
                             </div>
                           </div>
@@ -259,7 +260,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                   const lvlObj = levels.find(l => String(l.level_number) === String(p.student?.current_level))
                   return lvlObj && sk.level_id === lvlObj.id
                 })
-                .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                .sort((a: any, b: any) => (a.stage || 1) - (b.stage || 1) || a.sort_order - b.sort_order)
               const allEntries: [string, number][] = levelSkillIds.length > 0
                 ? levelSkillIds.map((sk: any) => [sk.id, (p.snapshot || {})[sk.id] ?? 0])
                 : Object.entries(p.snapshot || {}).map(([k, v]) => [k, v as number])
@@ -306,12 +307,12 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                           <div key={skillId} className="flex items-center gap-3">
                             <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
                             <div className="flex gap-1">
-                              {[0, 20, 40, 60, 80, 100].map(opt => (
+                              {MASTERY_LEVELS.map(b => (
                                 <button
-                                  key={opt}
-                                  onClick={() => setEditedPct(p.id, skillId, opt)}
-                                  className={`px-2 py-1 rounded text-[10px] font-mono border transition-all ${p2 === opt ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >{opt}</button>
+                                  key={b}
+                                  onClick={() => setEditedPct(p.id, skillId, MASTERY_VALUE[b])}
+                                  className={`px-2 py-1 rounded text-[10px] border transition-all ${masteryOf(p2) === b ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
+                                >{MASTERY_LABEL[b]}</button>
                               ))}
                             </div>
                           </div>
@@ -321,7 +322,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                   )}
                   {!isEditing && (
                     <div className="space-y-2 mt-2">
-                      {Object.entries(p.snapshot || {}).map(([skillId, pct]) => {
+                      {allEntries.map(([skillId, pct]) => {
                         const skillName = skillMap[skillId] || skillId
                         const p2 = pct as number
                         const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
@@ -329,9 +330,9 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                           <div key={skillId} className="flex items-center gap-3">
                             <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
                             <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                              <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p2)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p2)] }} />
                             </div>
-                            <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
+                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{MASTERY_LABEL[masteryOf(p2)]}</span>
                           </div>
                         )
                       })}
@@ -362,7 +363,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                   const lvlObj = levels.find(l => String(l.level_number) === String(p.student?.current_level))
                   return lvlObj && sk.level_id === lvlObj.id
                 })
-                .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                .sort((a: any, b: any) => (a.stage || 1) - (b.stage || 1) || a.sort_order - b.sort_order)
               const allEntries: [string, number][] = levelSkillIds.length > 0
                 ? levelSkillIds.map((sk: any) => [sk.id, (p.snapshot || {})[sk.id] ?? 0])
                 : Object.entries(p.snapshot || {}).map(([k, v]) => [k, v as number])
@@ -410,12 +411,12 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                           <div key={skillId} className="flex items-center gap-3">
                             <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
                             <div className="flex gap-1">
-                              {[0, 20, 40, 60, 80, 100].map(opt => (
+                              {MASTERY_LEVELS.map(b => (
                                 <button
-                                  key={opt}
-                                  onClick={() => setEditedPct(p.id, skillId, opt)}
-                                  className={`px-2 py-1 rounded text-[10px] font-mono border transition-all ${p2 === opt ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >{opt}</button>
+                                  key={b}
+                                  onClick={() => setEditedPct(p.id, skillId, MASTERY_VALUE[b])}
+                                  className={`px-2 py-1 rounded text-[10px] border transition-all ${masteryOf(p2) === b ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
+                                >{MASTERY_LABEL[b]}</button>
                               ))}
                             </div>
                           </div>
@@ -425,7 +426,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                   )}
                   {!isEditing && (
                     <div className="space-y-2 mt-2">
-                      {Object.entries(p.snapshot || {}).map(([skillId, pct]) => {
+                      {allEntries.map(([skillId, pct]) => {
                         const skillName = skillMap[skillId] || skillId
                         const p2 = pct as number
                         const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
@@ -433,9 +434,9 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                           <div key={skillId} className="flex items-center gap-3">
                             <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
                             <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${p2}%`, backgroundColor: color }} />
+                              <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p2)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p2)] }} />
                             </div>
-                            <span className="text-xs font-mono w-8 text-right" style={{ color }}>{p2}%</span>
+                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{MASTERY_LABEL[masteryOf(p2)]}</span>
                           </div>
                         )
                       })}

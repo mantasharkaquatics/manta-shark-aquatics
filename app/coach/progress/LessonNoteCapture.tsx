@@ -116,20 +116,7 @@ export default function LessonNoteCapture({
       <div className="flex items-center justify-between mb-3">
         <p className="text-gray-500 text-xs uppercase tracking-wider">{t('coach.note.title')}</p>
         {phase === 'idle' && (
-          <div className="inline-flex rounded-lg overflow-hidden border border-[#1e3a6e]">
-            {(['en', 'zh-Hant'] as const).map(l => (
-              <button
-                key={l}
-                onClick={() => setLanguage(l)}
-                disabled={disabled}
-                className={`px-3 py-1 text-xs font-bold disabled:opacity-40 ${
-                  language === l ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-transparent text-gray-400'
-                }`}
-              >
-                {l === 'en' ? t('coach.note.langEn') : t('coach.note.langZh')}
-              </button>
-            ))}
-          </div>
+          <span className="text-gray-500 text-[10px]">{t('coach.note.anyLang')}</span>
         )}
       </div>
 

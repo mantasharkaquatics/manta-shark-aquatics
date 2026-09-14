@@ -1,5 +1,6 @@
 'use client'
 import ChatWidget from '@/components/ChatWidget'
+import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
@@ -147,6 +148,9 @@ interface StudentProgress {
   stages: StageProgress[]
   // Every skill of the current level, so a family can open a stage and read it.
   stageSkills: StageSkill[]
+  /** every skill the coach has ever recorded, across all levels -- the learning
+   *  map needs this because a coach may now record ahead of the current stage */
+  allPercents: Record<string, number>
 }
 
 interface Booking {
@@ -819,7 +823,11 @@ export default function DashboardPage() {
     else setGreeting('evening')
   }, [])
 
-  useEffect(() => { fetchAll() }, [])
+  /* locale is a dependency because the coach's note is now read in the site's
+     language: the text is chosen during this fetch, so without it a parent who
+     switches language keeps the note they already had until a full reload --
+     which is the same thing that made the coach portal's switcher look dead. */
+  useEffect(() => { fetchAll() }, [locale])
 
   async function fetchAll() {
     loadWallet()
@@ -1152,10 +1160,16 @@ export default function DashboardPage() {
         const hNotes = hNotesRes.data as any[] | null
         for (const n of hNotes || []) noteByKey[(n as any).lesson_key] = (n as any).note || ''
 
-        // A family reads notes in the language they chose. Only notes recorded
-        // in another language have a translation stored, and a missing one just
-        // leaves the original in place.
-        const wantLang = (parentData as any).preferred_language || 'en'
+        /* The note is read in whatever language the family is reading the SITE
+           in. Keying it off the account setting alone meant a parent could
+           switch the page to English and still be handed a Chinese note, which
+           reads as broken however deliberate it was. Every approved note is
+           translated into all three of en / zh-Hant / zh-Hans on approval, and
+           those are exactly the site's three locales, so the lookup always has
+           something to find. The account setting stays as the fallback -- it is
+           what a family who never touches the site switcher gets -- and a
+           missing translation still falls through to the original. */
+        const wantLang = locale || (parentData as any).preferred_language || 'en'
         const foreignIds = (hNotes || []).filter((n: any) => n.language !== wantLang).map((n: any) => n.id)
         if (foreignIds.length > 0) {
           const { data: hTrans } = await supabase
@@ -1249,6 +1263,7 @@ export default function DashboardPage() {
               student_id: sid,
               records,
               stages: stageProgress(allLevelSkills, currentPct),
+              allPercents: currentPct,
               stageSkills: allLevelSkills.map(sk => ({
                 stage: Number(sk.stage) || 1,
                 skill_id: sk.id,
@@ -1280,7 +1295,7 @@ export default function DashboardPage() {
               progress_percent: pct as number, sort_order: skillNameMap[skill_id]?.sort_order || 999,
             })).sort((a, b) => a.sort_order - b.sort_order),
           }))
-          progressMap[sid] = { student_id: sid, records, stages: [], stageSkills: [] }
+          progressMap[sid] = { student_id: sid, records, stages: [], stageSkills: [], allPercents: {} }
         }
         setStudentProgressMap(progressMap)
       }
@@ -1527,7 +1542,7 @@ export default function DashboardPage() {
                   )}
 
                   {hasLevel && (() => {
-                    const prog: StudentProgress = studentProgressMap[student.id] || { student_id: student.id, records: [], stages: [], stageSkills: [] }
+                    const prog: StudentProgress = studentProgressMap[student.id] || { student_id: student.id, records: [], stages: [], stageSkills: [], allPercents: {} }
                     const lvl = Number(student.current_level)
                     const stages: StageProgress[] = prog.stages.length === 3
                       ? prog.stages
@@ -1606,14 +1621,20 @@ export default function DashboardPage() {
                                 {t('dash.stageN', { n: openStage })} · {t(stageNameKey(lvl, openStage))}
                               </div>
                               {rows.map(k => {
-                                // A passed stage is 100% by definition of how a
-                                // swimmer leaves it; the approved history can lag.
-                                const pct = stagePassed ? 100 : k.percent
+                                /* Show what was recorded, including for a stage the
+                                   swimmer has already left. Forcing 100 was right when a
+                                   stage could only be left with every skill finished; a
+                                   stage now advances at "on their own", so the claim
+                                   became false -- this card said "solid" while the
+                                   learning map, reading the same row honestly, said
+                                   "in progress". Moving on is not the same as mastered,
+                                   and the parent is entitled to see which one it is. */
+                                const pct = k.percent
                                 return (
                                   <div key={k.skill_id}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '3px' }}>
                                       <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>{tDb(locale, 'skills', k.skill_id, k.skill_name)}</span>
-                                      <span style={{ fontSize: '11px', fontWeight: 700, flexShrink: 0, color: pct >= 100 ? '#4caf72' : pct > 0 ? GOLD : 'rgba(255,255,255,0.25)' }}>{pct}%</span>
+                                      <span style={{ fontSize: '11px', fontWeight: 700, flexShrink: 0, color: MASTERY_COLOR[masteryOf(pct)] }}>{t(masteryKey(masteryOf(pct)))}</span>
                                     </div>
                                     <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
                                       <div style={{ height: '100%', width: pct + '%', background: pct >= 100 ? '#4caf72' : GOLD, borderRadius: '2px' }} />
@@ -1643,7 +1664,7 @@ export default function DashboardPage() {
                             name: student.full_name,
                             level: lvl,
                             stage: curStage,
-                            percents: Object.fromEntries(prog.stageSkills.map(k => [k.skill_id, k.percent])),
+                            percents: prog.allPercents,
                           })}
                           style={{
                             width: '100%', marginTop: '12px', padding: '9px 12px', borderRadius: '9px',
@@ -1652,7 +1673,7 @@ export default function DashboardPage() {
                             fontSize: '12px', fontWeight: 700, color: GOLD,
                           }}
                         >
-                          <span>🌊 {t('dash.skillTree')}</span>
+                          <span>{t('dash.skillTree')}</span>
                           <span style={{ fontSize: '11px' }}>›</span>
                         </button>
 
@@ -1708,7 +1729,7 @@ export default function DashboardPage() {
                                         <div key={sk.skill_id}>
                                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
                                             <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>{sk.skill_id ? tDb(locale, 'skills', sk.skill_id, sk.skill_name) : sk.skill_name}</span>
-                                            <span style={{ fontSize: '11px', fontWeight: 700, color: sk.progress_percent >= 100 ? '#4caf72' : sk.progress_percent > 0 ? GOLD : 'rgba(255,255,255,0.25)' }}>{sk.progress_percent}%</span>
+                                            <span style={{ fontSize: '11px', fontWeight: 700, color: MASTERY_COLOR[masteryOf(sk.progress_percent)] }}>{t(masteryKey(masteryOf(sk.progress_percent)))}</span>
                                           </div>
                                           <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
                                             <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : GOLD, borderRadius: '2px' }} />
