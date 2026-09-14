@@ -107,7 +107,7 @@ const CSS = `
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
 .mst-panel { position: relative; width: 100%; max-width: 1180px; background: #0b1428;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
-  --cw: 112px; --rh: 116px; --sz: 52px; --rkh: 14px }
+  --cw: 112px; --rh: 116px; --sz: 52px; --rkb: 4px }
 @media (min-width: 900px) { .mst-panel { margin: 24px; border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.1) } }
 
@@ -146,19 +146,19 @@ const CSS = `
 .mst-w.lit { stroke: rgba(201,168,76,.8) }
 
 .mst-tile { position: absolute; width: var(--sz); height: var(--sz); border-radius: 10px;
-  background: #16233f; border: 1px solid #1e3a6e; display: grid;
-  grid-template-rows: 1fr var(--rkh); place-items: center;
+  background: #16233f; border: 1px solid #1e3a6e; display: grid; place-items: center;
   padding: 0; cursor: pointer; color: rgba(255,255,255,0.35);
   font-size: 17px; line-height: 1;
   left: calc(var(--c) * var(--cw) + (var(--cw) - var(--sz)) / 2);
   top: calc((var(--r) - 1) * var(--rh)) }
 .mst-mk { display: block; width: 20px; height: 20px }
 .mst-mk svg { display: block; width: 100%; height: 100% }
-/* The number gets its own row inside the tile instead of a badge hung off the
-   corner: "100%" measures 30px at any readable size, which on a 44px phone tile
-   overhung the skill name and reached into the next column. A reserved row also
-   keeps every mark at the same height, whether or not that skill has a record. */
-.mst-rk { font-size: 9.5px; font-weight: 700; font-style: normal; line-height: 1;
+/* The number sits inside the tile, along the bottom, rather than in a badge hung
+   off the corner: "100%" measures 30px at any readable size, which on a 44px
+   phone tile overhung the skill name and reached into the next column. Taking it
+   out of the flow leaves the mark on the tile's own centre, recorded or not. */
+.mst-rk { position: absolute; left: 0; right: 0; bottom: var(--rkb); text-align: center;
+  font-size: 9.5px; font-weight: 700; font-style: normal; line-height: 1;
   font-variant-numeric: tabular-nums; letter-spacing: .02em; opacity: .82 }
 .mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
   left: calc((var(--sz) - var(--cw)) / 2); font-size: 10.5px; line-height: 1.3;
@@ -200,7 +200,7 @@ const CSS = `
 .mst-pre span b { font-weight: 700; opacity: .65; margin-left: 4px; font-size: 10px }
 
 @media (max-width: 640px) {
-  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkh: 13px }
+  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkb: 2px }
   .mst-rk { font-size: 9px }
   .mst-scroll { margin: 8px 14px 0; padding: 14px 10px 10px }
   .mst-tabs, .mst-meta, .mst-key { padding-left: 14px; padding-right: 14px }
