@@ -1123,6 +1123,7 @@
   "tree.noCriteria": "這個技能還沒有登錄通過標準。",
   "tree.noNeeds": "不用前置，第一天就能開始。",
   "tree.pickHint": "點一個技能看它的內容。",
+  "tree.stageTest": "階段測驗",
   "tree.stat.level": "目前級別",
   "tree.stat.lit": "已通過技能",
   "tree.stat.overall": "全課程完成",
