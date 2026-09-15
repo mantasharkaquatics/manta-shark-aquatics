@@ -48,9 +48,13 @@ export type Geom = {
 export type Edge = { from: string; to: string }
 
 /**
- * Rows are the stages. Inside a row, a skill sits over the average column of
- * the prerequisites it has on this level, so a chain reads as a line down the
- * board instead of a zigzag across it.
+ * Rows are the stages. Inside a row, a skill stands directly under the
+ * prerequisite it comes from, so the line between them is straight down.
+ *
+ * Centring a short row was the older rule and it put every tile half a column
+ * off its parent, which turned every line into a dog-leg for no reason. A skill
+ * whose prerequisites are all on its own row (or on an earlier level) has
+ * nothing to stand under, so it fills a gap the anchored ones left.
  */
 export function placeLevel(nodes: TreeInput[]): {
   rows: number
@@ -62,19 +66,58 @@ export function placeLevel(nodes: TreeInput[]): {
   for (let r = 1; r <= rows; r++) {
     byRow[r] = nodes.filter(n => n.stage === r).sort((a, b) => a.sort - b.sort)
   }
-  const cols = Math.max(1, ...byRow.slice(1).map(r => r.length))
+  let cols = Math.max(1, ...byRow.slice(1).map(r => r.length))
 
   const spots: Record<string, Spot> = {}
-  for (let r = 1; r <= rows; r++) {
+  /* The first row has nothing to align to, so it is centred. */
+  const first = byRow[1] || []
+  first.forEach((n, i) => { spots[n.id] = { row: 1, col: (cols - first.length) / 2 + i } })
+
+  for (let r = 2; r <= rows; r++) {
     const row = byRow[r]
-    const off = (cols - row.length) / 2
-    const keyed = row.map((n, i) => {
+    if (!row.length) continue
+
+    /* Two prerequisites in different columns average to a half column, which
+       would stand the child between two tiles instead of under one. Round to a
+       whole column: under one of its parents beats between both of them. */
+    const want = (n: TreeInput) => {
       const above = n.needs.map(q => spots[q]).filter(Boolean)
-      const bary = above.length ? above.reduce((s, p) => s + p.col, 0) / above.length : null
-      return { n, i, key: bary ?? off + i }
-    })
-    keyed.sort((a, b) => a.key - b.key || a.i - b.i)
-    keyed.forEach((k, i) => { spots[k.n.id] = { row: r, col: off + i } })
+      if (!above.length) return null
+      return Math.round(above.reduce((s, p) => s + p.col, 0) / above.length)
+    }
+    const anchored = row.map((n, i) => ({ n, i, w: want(n) }))
+      .filter(x => x.w !== null) as { n: TreeInput; i: number; w: number }[]
+    const floating = row.map((n, i) => ({ n, i, w: want(n) })).filter(x => x.w === null)
+
+    if (!anchored.length) {
+      const off = (cols - row.length) / 2
+      row.forEach((n, i) => { spots[n.id] = { row: r, col: off + i } })
+      continue
+    }
+
+    /* Anchored tiles keep their parent's column, in order, never closer than one
+       column apart; if that pushes the last one off the right edge the whole run
+       slides back left by however much it overflowed. */
+    anchored.sort((a, b) => a.w - b.w || a.i - b.i)
+    const at: number[] = []
+    anchored.forEach((x, k) => { at.push(k ? Math.max(x.w, at[k - 1] + 1) : x.w) })
+    const over = at[at.length - 1] - (cols - 1)
+    if (over > 0) { const back = Math.min(over, at[0]); for (let k = 0; k < at.length; k++) at[k] -= back }
+    anchored.forEach((x, k) => { spots[x.n.id] = { row: r, col: at[k] } })
+
+    /* Everything else takes the nearest free column to where its sort order puts
+       it, so the row still reads left to right. */
+    const taken = () => row.map(n => spots[n.id]).filter(Boolean).map(sp => sp!.col)
+    for (const x of floating) {
+      const free = (c: number) => taken().every(t => Math.abs(t - c) >= 0.999)
+      let best: number | null = null
+      for (let c = 0; c <= cols - 1; c += 0.5) {
+        if (!free(c)) continue
+        if (best === null || Math.abs(c - x.i) < Math.abs(best - x.i)) best = c
+      }
+      if (best === null) { best = Math.max(...taken(), -1) + 1; cols = Math.max(cols, best + 1) }
+      spots[x.n.id] = { row: r, col: best }
+    }
   }
   return { rows, cols, spots }
 }

@@ -313,7 +313,7 @@
     "0d151d1b-8492-49bc-824e-c4e26a657046": {
       "level": 1,
       "stage": 2,
-      "sort": 2,
+      "sort": 1,
       "teach": {
         "zh-Hant": "先在岸上對著水面吹，再嘴巴入水，最後鼻子。「用嘴吐，不要用鼻子吸」。",
         "en": "Blow at the surface from the deck first, then mouth in, then nose. Out through the mouth, never in through the nose."
@@ -456,7 +456,7 @@
     "35250d84-1461-4c39-85fc-7686d9576753": {
       "level": 2,
       "stage": 2,
-      "sort": 3,
+      "sort": 4,
       "teach": {
         "zh-Hant": "建立節奏感：下沉時吐、浮起時吸。連續十次不中斷比做得漂亮重要。",
         "en": "Build the rhythm: out on the way down, in on the way up. Ten without a break matters more than ten that look pretty."
@@ -573,7 +573,7 @@
     "58842492-eacd-4c4d-9506-a18e562c64b5": {
       "level": 1,
       "stage": 2,
-      "sort": 1,
+      "sort": 2,
       "teach": {
         "zh-Hant": "先讓他自己走，怕的時候你的手放在他後背而不是牽著。距離慢慢拉長。",
         "en": "Let them walk themselves. When they get nervous your hand goes on their back, not in their hand. Stretch the distance gradually."
@@ -768,7 +768,7 @@
     "92751613-6a3c-465f-bcdb-251754df1dff": {
       "level": 1,
       "stage": 3,
-      "sort": 1,
+      "sort": 2,
       "teach": {
         "zh-Hant": "托在肩胛骨下方，不是托頭。慢慢減少支撐，讓他自己發現水會撐住他。",
         "en": "Support under the shoulder blades, not under the head. Take the support away a little at a time so they discover the water holds them up."
@@ -898,7 +898,7 @@
     "b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51": {
       "level": 2,
       "stage": 3,
-      "sort": 4,
+      "sort": 2,
       "teach": {
         "zh-Hant": "划手是「感覺水」的第一課，之後所有泳姿的抓水都從這裡來。八字形，手掌像抹果醬。",
         "en": "Sculling is the first lesson in feeling the water; every catch in every stroke comes from here. Figure of eight, palms spreading jam."
@@ -1106,7 +1106,7 @@
     "c7022acb-3075-471f-8c45-4d5330139369": {
       "level": 2,
       "stage": 3,
-      "sort": 2,
+      "sort": 4,
       "teach": {
         "zh-Hant": "過頭深時扶牆做，安全感來自牆。這是深水恐懼的過渡練習。",
         "en": "Over head-deep, done holding the wall — the wall is where the courage comes from. This is the bridge into deep water."
@@ -1353,7 +1353,7 @@
     "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
       "level": 1,
       "stage": 3,
-      "sort": 2,
+      "sort": 1,
       "teach": {
         "zh-Hant": "鼻子吐氣是嗆水的保險。先在水面上用鼻子哼出聲音，再入水。",
         "en": "Nose exhale is the insurance against choking. Hum out through the nose above water first, then go in."
@@ -1366,7 +1366,7 @@
     "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
       "level": 2,
       "stage": 2,
-      "sort": 4,
+      "sort": 3,
       "teach": {
         "zh-Hant": "先讓他知道自己會浮起來。手腳放掉，不要撐、不要划——撐住的人才會沉。",
         "en": "The point is feeling that they float on their own. Limbs loose: the ones who hold themselves up are the ones who sink."
