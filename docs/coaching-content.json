@@ -1375,6 +1375,19 @@
         "zh-Hant": "憋著氣還一直動手腳。動得越多沉得越快，讓他停下來數十秒。",
         "en": "Holding the breath while still paddling. The more they move the faster they sink -- get them to stop and count."
       }
+    },
+    "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
+      "level": 2,
+      "stage": 3,
+      "sort": 5,
+      "teach": {
+        "zh-Hant": "先坐著入水、再蹲著、最後才站著跳。每一步都要他自己回到池壁，接住他等於少練一次。",
+        "en": "Sit in first, then crouch, then stand. Every step ends with them getting back to the wall themselves -- catching them is one repetition wasted."
+      },
+      "err": {
+        "zh-Hant": "跳完在水裡等人拉。跳進去到抓到牆是同一個動作，不能拆開。",
+        "en": "Waiting in the water to be pulled out. The jump and the return to the wall are one movement, not two."
+      }
     }
   },
   "closing": {

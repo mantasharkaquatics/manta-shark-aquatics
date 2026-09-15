@@ -16,9 +16,9 @@
       "zh-Hans": "憋气 15 秒"
     },
     "0d151d1b-8492-49bc-824e-c4e26a657046": {
-      "en": "Surface Bubbles",
-      "zh-Hant": "水面吐泡泡",
-      "zh-Hans": "水面吐泡泡"
+      "en": "Mouth Bubbles at the Surface",
+      "zh-Hant": "水面嘴巴吐泡泡",
+      "zh-Hans": "水面嘴巴吐泡泡"
     },
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "en": "Open Turn",
@@ -231,9 +231,9 @@
       "zh-Hans": "蛙泳 15 码"
     },
     "a5ec094e-4338-4259-9e43-4b913cd02ca3": {
-      "en": "Wall Grasping",
-      "zh-Hant": "抓握池壁",
-      "zh-Hans": "抓握池壁"
+      "en": "Wall Traverse",
+      "zh-Hant": "沿壁移動",
+      "zh-Hans": "沿壁移动"
     },
     "a8d00e21-01af-4ad5-a90d-a7e8bd59e6a8": {
       "en": "Freestyle 500 yd",
@@ -429,6 +429,11 @@
       "en": "Jellyfish Float",
       "zh-Hant": "水母漂",
       "zh-Hans": "水母漂"
+    },
+    "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
+      "en": "Jump into Chest-Deep Water",
+      "zh-Hant": "跳入胸深水",
+      "zh-Hans": "跳入胸深水"
     }
   },
   "course_types": {
@@ -797,9 +802,9 @@
       "zh-Hans": "自由泳 50 码计时，三次测验内成绩有进步。"
     },
     "c7022acb-3075-471f-8c45-4d5330139369": {
-      "en": "Same as chest-deep but in water over their head, ten times, holding the wall.",
-      "zh-Hant": "同上，但在過頭深的水中扶牆連續十次。",
-      "zh-Hans": "同上，但在过头深的水中扶墙连续十次。"
+      "en": "Ten in a row in water over their head, holding the wall: down, breathe out, up, in rhythm.",
+      "zh-Hant": "過頭深的水中扶牆連續十次：下沉、吐氣、浮起，有節奏不中斷。",
+      "zh-Hans": "过头深的水中扶墙连续十次：下沉、吐气、浮起，有节奏不中断。"
     },
     "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
       "en": "Swims 50 yd butterfly with a legal turn, rhythm intact on the second length.",
@@ -832,9 +837,9 @@
       "zh-Hans": "蛙腿 25 码，每一蹬后有滑行，没有剪刀脚。"
     },
     "e8fd87dc-4e41-4ea5-adda-d8038881f573": {
-      "en": "Kicks 25 yd on a board with side breathing, no standing up.",
-      "zh-Hant": "扶板打水 25 碼並側轉換氣，中途不站起來。",
-      "zh-Hans": "扶板打水 25 码并侧转换气，中途不站起来。"
+      "en": "Kicks 25 yards holding a board without stopping or standing up.",
+      "zh-Hant": "扶板打水 25 碼，中途不停、不站起來。",
+      "zh-Hans": "扶板打水 25 码，中途不停、不站起来。"
     },
     "e9374f19-259b-4c49-85c2-a6faebae05e9": {
       "en": "Swims 25 yd clothed without goggles, then treads 1 minute still clothed.",
@@ -900,6 +905,11 @@
       "en": "Face in, arms and legs hanging loose, floats for ten seconds and stands up unaided.",
       "zh-Hant": "臉入水、手腳自然垂下漂 10 秒，自己抬頭站起來。",
       "zh-Hans": "脸入水、手脚自然垂下漂 10 秒，自己抬头站起来。"
+    },
+    "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
+      "en": "Jumps in feet-first from the edge into chest-deep water, surfaces and gets to the wall or stands up unaided.",
+      "zh-Hant": "從池邊雙腳跳進胸深水，自己浮起來抓到池壁或站起來，不需要人接。",
+      "zh-Hans": "从池边双脚跳进胸深水，自己浮起来抓到池壁或站起来，不需要人接。"
     }
   }
 }
