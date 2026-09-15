@@ -50,9 +50,7 @@ END $$;
 DELETE FROM public.skill_prerequisites;
 
 INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
-  ('58842492-eacd-4c4d-9506-a18e562c64b5', '3aa56665-8ce2-4524-819d-efcf30057a02'),   -- 水中行走 ← 辨識泳池環境
   ('58842492-eacd-4c4d-9506-a18e562c64b5', 'f0b828a0-63a5-4aea-8000-13e1b05b1682'),   -- 水中行走 ← 安全進出泳池
-  ('92751613-6a3c-465f-bcdb-251754df1dff', 'a5ec094e-4338-4259-9e43-4b913cd02ca3'),   -- 面部入水漂浮 ← 沿壁移動
   ('92751613-6a3c-465f-bcdb-251754df1dff', '49f02c5d-009c-459c-8ef0-de2dad48c25d'),   -- 面部入水漂浮 ← 面部入水
   ('d6915327-5d9d-4907-be40-b59ad3536c8d', '92751613-6a3c-465f-bcdb-251754df1dff'),   -- 超人滑行 ← 面部入水漂浮
   ('84716c30-a569-4905-9970-855a998068e1', 'f0b828a0-63a5-4aea-8000-13e1b05b1682'),   -- 輔助仰面漂浮 ← 安全進出泳池
@@ -102,7 +100,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
   ('997642b0-c290-48cf-a53f-ccb46d52d539', '4dd3928b-8433-40c4-8057-29b454ce5a03'),   -- 水域安全測驗 ← 踩水 30 秒
   ('dff814b2-90df-4043-aeb3-dd4e4df64fbe', '580a979a-e3f7-458f-b0f8-c39c7c20d686'),   -- 自由式 15 碼 ← 側轉換氣游 15 碼
   ('91e61121-5528-456b-9e7d-b97953ed0c39', 'dff814b2-90df-4043-aeb3-dd4e4df64fbe'),   -- 自由式 25 碼 ← 自由式 15 碼
-  ('b3a0c2d4-5e6f-4a73-8b92-0c1d2e3f4a53', '3aa56665-8ce2-4524-819d-efcf30057a02'),   -- 坐姿與跪姿入水 ← 辨識泳池環境
+  ('b3a0c2d4-5e6f-4a73-8b92-0c1d2e3f4a53', '63f1fc23-f60a-4417-86e1-2d4dd2d191c3'),   -- 坐姿與跪姿入水 ← 跳入胸深水
   ('96c47b53-df33-4b4a-9a8e-a84eed10c7b8', '4a0a72ff-a39f-404c-a40f-49b83b5ea4ff'),   -- 仰式 15 碼 ← 仰式打水 25 碼
   ('c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61', '96c47b53-df33-4b4a-9a8e-a84eed10c7b8'),   -- 初級仰泳 25 碼 ← 仰式 15 碼
   ('818b6b3b-63b9-4e13-9a52-f3f466f57cc7', '89ca69a6-6f96-4c1d-a52d-6ba16edab33b'),   -- 流線自由式打水 ← 流線蹬牆
@@ -182,7 +180,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
 COMMIT;
 
 -- ---------- 跑完的驗證 ----------
--- 應該是 128 列：
+-- 應該是 126 列：
 -- select count(*) from skill_prerequisites;
 --
 -- 第一天就能開始的技能（沒有任何前置）：
