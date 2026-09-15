@@ -68,10 +68,8 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
   ('084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7', '0d151d1b-8492-49bc-824e-c4e26a657046'),   -- 憋氣 5 秒 ← 水面嘴巴吐泡泡
   ('ed0e69e4-3edb-4668-84d8-a39064fe2425', '268cc43e-0038-4fa9-9f28-18fff4aedcca'),   -- 水中撿物 ← 水母漂
   ('ed0e69e4-3edb-4668-84d8-a39064fe2425', '35250d84-1461-4c39-85fc-7686d9576753'),   -- 水中撿物 ← 吐泡跳（胸深）
-  ('ed0e69e4-3edb-4668-84d8-a39064fe2425', '084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7'),   -- 水中撿物 ← 憋氣 5 秒
   ('1b90e0d5-e21d-4991-9d97-a16394d3913b', '84716c30-a569-4905-9970-855a998068e1'),   -- 大字漂 10 秒 ← 輔助仰面漂浮
   ('c7022acb-3075-471f-8c45-4d5330139369', '35250d84-1461-4c39-85fc-7686d9576753'),   -- 吐泡跳（過頭深） ← 吐泡跳（胸深）
-  ('c7022acb-3075-471f-8c45-4d5330139369', '084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7'),   -- 吐泡跳（過頭深） ← 憋氣 5 秒
   ('b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51', '4fd1fce7-9293-475e-a142-5a8d2ecf954d'),   -- 划手前進 5 碼 ← 自由式打水 10 碼（浮板）
   ('b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51', 'b46c9773-7e09-4da4-8beb-d79050075710'),   -- 划手前進 5 碼 ← 蹬牆漂浮
   ('268cc43e-0038-4fa9-9f28-18fff4aedcca', '084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7'),   -- 水母漂 ← 憋氣 5 秒
@@ -180,7 +178,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
 COMMIT;
 
 -- ---------- 跑完的驗證 ----------
--- 應該是 126 列：
+-- 應該是 124 列：
 -- select count(*) from skill_prerequisites;
 --
 -- 第一天就能開始的技能（沒有任何前置）：

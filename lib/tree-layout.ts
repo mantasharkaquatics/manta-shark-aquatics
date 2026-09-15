@@ -88,7 +88,10 @@ export function placeLevel(nodes: TreeInput[]): {
     const want = (n: TreeInput) => {
       const above = n.needs.map(q => spots[q]).filter(Boolean)
       if (!above.length) return null
-      return Math.round(above.reduce((s, p) => s + p.col, 0) / above.length)
+      /* Half a column between two parents rounds DOWN, towards the left: the
+         row fills from the left, so leaning left leaves room on the right and
+         keeps the run from being pushed off the board. */
+      return Math.round(above.reduce((s, p) => s + p.col, 0) / above.length - 0.001)
     }
     const anchored = row.map((n, i) => ({ n, i, w: want(n) }))
       .filter(x => x.w !== null) as { n: TreeInput; i: number; w: number }[]
@@ -107,7 +110,13 @@ export function placeLevel(nodes: TreeInput[]): {
     const at: number[] = []
     anchored.forEach((x, k) => { at.push(k ? Math.max(x.w, at[k - 1] + 1) : x.w) })
     const over = at[at.length - 1] - (cols - 1)
-    if (over > 0) { const back = Math.min(over, at[0]); for (let k = 0; k < at.length; k++) at[k] -= back }
+    if (over > 0) {
+      const back = Math.min(over, at[0])
+      for (let k = 0; k < at.length; k++) at[k] -= back
+      /* Whatever is still hanging off the right widens the board, rather than
+         leaving a tile (and its line) outside it. */
+      cols = Math.max(cols, at[at.length - 1] + 1)
+    }
     anchored.forEach((x, k) => { spots[x.n.id] = { row: r, col: at[k] } })
 
     /* A line that has to pass THROUGH this row needs a column to drop down, and
