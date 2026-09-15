@@ -110,14 +110,35 @@ export function placeLevel(nodes: TreeInput[]): {
     if (over > 0) { const back = Math.min(over, at[0]); for (let k = 0; k < at.length; k++) at[k] -= back }
     anchored.forEach((x, k) => { spots[x.n.id] = { row: r, col: at[k] } })
 
-    /* Everything else takes the nearest free column to where its sort order puts
-       it, so the row still reads left to right. */
+    /* A line that has to pass THROUGH this row needs a column to drop down, and
+       the tidiest column is the one its parent is already standing in. So that
+       column is held open first, and the skills with nothing above them fill
+       what is left, in their own order. Holding it open is only allowed while
+       there are still enough columns for everyone. */
     const taken = () => row.map(n => spots[n.id]).filter(Boolean).map(sp => sp!.col)
+    const wants: number[] = []
+    for (const n of nodes) {
+      if (n.stage <= r) continue
+      for (const q of n.needs) {
+        const sp = spots[q]
+        if (sp && sp.row < r) wants.push(sp.col)
+      }
+    }
+    const isFree = (c: number, extra: number[] = []) =>
+      [...taken(), ...extra].every(t => Math.abs(t - c) >= 0.999)
+
+    let slots: number[] = []
+    for (let c = 0; c <= cols - 1; c += 1) if (isFree(c)) slots.push(c)
+    const held = [...new Set(wants)].filter(c => slots.includes(c))
+    const keep = slots.filter(c => !held.includes(c))
+    if (keep.length >= floating.length) slots = keep
+
+    /* Each one takes the free column nearest to where its own order puts it, so
+       the row still reads left to right. */
     for (const x of floating) {
-      const free = (c: number) => taken().every(t => Math.abs(t - c) >= 0.999)
       let best: number | null = null
-      for (let c = 0; c <= cols - 1; c += 0.5) {
-        if (!free(c)) continue
+      for (const c of slots) {
+        if (!isFree(c)) continue
         if (best === null || Math.abs(c - x.i) < Math.abs(best - x.i)) best = c
       }
       if (best === null) { best = Math.max(...taken(), -1) + 1; cols = Math.max(cols, best + 1) }
