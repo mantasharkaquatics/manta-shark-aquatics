@@ -110,6 +110,16 @@ const MARK: Record<NodeState, ReactElement> = {
   ),
 }
 
+/* The checkpoint's own mark: a medal, not a step. Same 20x20 box as the state
+   marks so it sits on the same centre line. */
+const MEDAL = (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="M8.6 15.2 6 22.4l6-2.6 6 2.6-2.6-7.2" />
+    <circle cx="12" cy="9" r="7" fill="none" stroke="currentColor" strokeWidth="1.7" />
+    <path fill="currentColor" d="M12 4.9 13.4 7.8l3.2.5-2.3 2.2.5 3.2-2.8-1.5-2.8 1.5.5-3.2L7.4 8.3l3.2-.5z" />
+  </svg>
+)
+
 const CSS = `
 .mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(4,9,17,0.88);
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
@@ -176,11 +186,35 @@ const CSS = `
 .mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
   left: calc((var(--sz) - var(--cw)) / 2); font-size: 10.5px; line-height: 1.3;
   text-align: center; color: rgba(255,255,255,0.35); font-weight: 500 }
-.mst-apart { position: absolute; left: 0; right: 0; display: flex; align-items: center;
-  gap: 10px; color: rgba(255,255,255,0.28); font-size: 10px; letter-spacing: .12em;
-  top: calc(var(--pad) + (var(--r) - 1) * var(--rh) - 22px) }
-.mst-apart::before, .mst-apart::after { content: ''; flex: 1; height: 1px;
-  background: rgba(255,255,255,0.09) }
+.mst-apart { position: absolute; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10) 20%,
+    rgba(255,255,255,0.10) 80%, transparent);
+  top: calc(var(--pad) + (var(--r) - 1) * var(--rh) - 24px) }
+
+/* A checkpoint is not a step, so it is not drawn as one: a wide badge, its own
+   band, a medal instead of a state mark. It is the thing a whole level was for,
+   and on the board it should look like it. */
+.mst-tile.apart { width: min(268px, 86%); height: 64px; left: 50%;
+  transform: translateX(-50%); border-radius: 15px; padding: 0 16px;
+  display: flex; align-items: center; gap: 13px; text-align: left;
+  background: linear-gradient(135deg, #16233f 0%, #1b2b4d 52%, #16233f 100%);
+  border: 1px solid #31497a }
+.mst-tile.apart::after { content: ''; position: absolute; inset: 0; border-radius: 15px;
+  background: linear-gradient(115deg, transparent 38%, rgba(255,255,255,.055) 50%,
+    transparent 62%); pointer-events: none }
+.mst-tile.apart .mst-mk { width: 26px; height: 26px; transform: none; flex: none }
+.mst-tile.apart .mst-nm { position: static; width: auto; left: auto; top: auto;
+  font-size: 13px; font-weight: 700; text-align: left; line-height: 1.25 }
+.mst-tile.apart .mst-eb { font-size: 9px; letter-spacing: .16em; font-weight: 700;
+  font-style: normal; opacity: .62; display: block; margin-bottom: 3px }
+.mst-tile.apart .mst-rk { position: static; margin-left: auto; font-size: 11px;
+  opacity: 1 }
+.mst-tile.apart.done { border-color: #4caf72;
+  background: linear-gradient(135deg, #112d1e 0%, #17382a 52%, #112d1e 100%);
+  box-shadow: 0 0 22px rgba(76,175,114,.22) }
+.mst-tile.apart.active { border-color: ${GOLD};
+  box-shadow: 0 0 22px rgba(201,168,76,.26) }
+.mst-tile.apart.locked { opacity: .5 }
 .mst-tile:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 3px }
 .mst-tile.open { border-color: #31497a; background: #1a2a4a; color: #6d8cc0 }
 .mst-tile.open .mst-nm { color: rgba(255,255,255,0.6) }
@@ -450,9 +484,16 @@ export default function SkillTree({
                       aria-current={sel?.id === s.id || undefined}
                       onClick={() => setSel(s)}
                       aria-label={tDb(locale, 'skills', s.id, s.name)}>
-                      <span className="mst-mk">{MARK[s.state]}</span>
+                      <span className="mst-mk">{s.apart ? MEDAL : MARK[s.state]}</span>
+                      {s.apart
+                        ? (
+                          <span className="mst-nm">
+                            <i className="mst-eb">{t('tree.apart')}</i>
+                            {tDb(locale, 'skills', s.id, s.name)}
+                          </span>
+                        )
+                        : <span className="mst-nm">{tDb(locale, 'skills', s.id, s.name)}</span>}
                       {band > 0 && <i className="mst-rk">{MASTERY_VALUE[band]}%</i>}
-                      <span className="mst-nm">{tDb(locale, 'skills', s.id, s.name)}</span>
                     </button>
                   )
                 })}

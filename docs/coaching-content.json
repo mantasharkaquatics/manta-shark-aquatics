@@ -377,8 +377,8 @@
     },
     "1b90e0d5-e21d-4991-9d97-a16394d3913b": {
       "level": 2,
-      "stage": 2,
-      "sort": 4,
+      "stage": 1,
+      "sort": 3,
       "teach": {
         "zh-Hant": "全身放鬆是唯一的技巧。告訴他「越用力越沉」。手腳張開像海星。",
         "en": "Relaxing is the whole technique. Tell them: the harder you try, the more you sink. Arms and legs spread like a starfish."
@@ -1361,6 +1361,19 @@
       "err": {
         "zh-Hant": "憋著鼻子只用嘴。一抬頭鼻子吸到水就哭。",
         "en": "Holding the nose shut and using only the mouth. The first sniff on the way up ends the lesson."
+      }
+    },
+    "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
+      "level": 2,
+      "stage": 2,
+      "sort": 4,
+      "teach": {
+        "zh-Hant": "先讓他知道自己會浮起來。手腳放掉，不要撐、不要划——撐住的人才會沉。",
+        "en": "The point is feeling that they float on their own. Limbs loose: the ones who hold themselves up are the ones who sink."
+      },
+      "err": {
+        "zh-Hant": "憋著氣還一直動手腳。動得越多沉得越快，讓他停下來數十秒。",
+        "en": "Holding the breath while still paddling. The more they move the faster they sink -- get them to stop and count."
       }
     }
   },

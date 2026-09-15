@@ -424,6 +424,11 @@
       "en": "Nose Bubbles",
       "zh-Hant": "水中鼻子吐泡泡",
       "zh-Hans": "水中鼻子吐泡泡"
+    },
+    "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
+      "en": "Jellyfish Float",
+      "zh-Hant": "水母漂",
+      "zh-Hans": "水母漂"
     }
   },
   "course_types": {
@@ -890,6 +895,11 @@
       "en": "Blows bubbles through the nose for five seconds with the face in, without lifting the head.",
       "zh-Hant": "臉入水用鼻子吐泡泡 5 秒，中途不抬頭、不嗆到。",
       "zh-Hans": "脸入水用鼻子吐泡泡 5 秒，中途不抬头、不呛到。"
+    },
+    "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
+      "en": "Face in, arms and legs hanging loose, floats for ten seconds and stands up unaided.",
+      "zh-Hant": "臉入水、手腳自然垂下漂 10 秒，自己抬頭站起來。",
+      "zh-Hans": "脸入水、手脚自然垂下漂 10 秒，自己抬头站起来。"
     }
   }
 }
