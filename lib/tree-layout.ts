@@ -43,6 +43,11 @@ export type Geom = {
       row -- a bracket over the top row needs somewhere to be. */
   pad: number
   cols: number
+  /** What is actually in the way on each row: the tiles and the names as they
+      really render, measured rather than assumed. A row-skipping line drops
+      through the gaps between them; without this it had to go round the outside
+      of the board, which drew a box around half the level. */
+  blocked?: Record<number, Array<[number, number]>>
 }
 
 export type Edge = { from: string; to: string }
@@ -144,14 +149,31 @@ export function routeWires(
      Three lanes in it, so one horizontal run never sits on another. */
   const lane = (r: number, k: 0 | 1 | 2) => top(r) - [8, 17, 26][k]
 
-  /* Where a skill-free vertical gutter is, row by row: a centred row's tiles
-     are contiguous, so the empty space is whatever lies left of its first name
-     and right of its last one. The outer `lane` is empty on every row, which is
-     what makes a fallback always available. */
-  const span: Record<number, { lo: number; hi: number }> = {}
-  for (const s of Object.values(spots)) {
-    const r = span[s.row] || (span[s.row] = { lo: s.col, hi: s.col })
-    r.lo = Math.min(r.lo, s.col); r.hi = Math.max(r.hi, s.col)
+  /* A vertical corridor a line can drop through: free on every row it has to
+     get past. The outer margin is always free, so there is always a fallback. */
+  const corridor = (from: number, to: number, desired: number): number => {
+    let free: Array<[number, number]> = [[4, width - 4]]
+    for (let r = from; r < to; r++) {
+      const busy = (g.blocked?.[r] || []).slice().sort((p, q) => p[0] - q[0])
+      const next: Array<[number, number]> = []
+      for (const [lo, hi] of free) {
+        let cur = lo
+        for (const [bl, bh] of busy) {
+          if (bh <= cur || bl >= hi) continue
+          if (bl - cur >= 12) next.push([cur, bl])
+          cur = Math.max(cur, bh)
+        }
+        if (hi - cur >= 12) next.push([cur, hi])
+      }
+      free = next
+      if (!free.length) return desired < width / 2 ? 8 : width - 8
+    }
+    let best = free[0], bestD = Infinity
+    for (const f of free) {
+      const d = desired < f[0] ? f[0] - desired : desired > f[1] ? desired - f[1] : 0
+      if (d < bestD) { bestD = d; best = f }
+    }
+    return Math.min(Math.max(desired, best[0] + 6), best[1] - 6)
   }
 
   const out: Record<string, string> = {}
@@ -194,28 +216,16 @@ export function routeWires(
     } else {
       let lane0 = gutter.get(e.from)
       if (!lane0) {
-        /* Every row this group has to get past, and the space they all leave. */
         const g0 = group.get(e.from)!
         const deepest = Math.max(...g0.rows)
-        let leftEdge = width, rightEdge = 0
-        for (let r = e.a.row + 1; r < deepest; r++) {
-          const sp = span[r]
-          if (!sp) continue
-          leftEdge = Math.min(leftEdge, g.lane + sp.lo * g.cw)
-          rightEdge = Math.max(rightEdge, g.lane + (sp.hi + 1) * g.cw)
-        }
         const mid = g0.mid / g0.rows.length
-        const onLeft = Math.abs(mid - leftEdge) <= Math.abs(mid - rightEdge)
-        /* One gutter per side, not one per group: everything that has to get
-           past the middle row on the left goes down the same line. The price is
-           that the trunk no longer says which prerequisite a branch came from --
-           the branches leave it at different heights, and the coach's detail
-           panel is where the exact list lives. */
-        if (onLeft) leftUsed++; else rightUsed++
-        lane0 = {
-          gx: onLeft ? Math.max(6, leftEdge - 10) : Math.min(width - 6, rightEdge + 10),
-          yOut: lane(e.a.row + 1, 2),
+        let gx = corridor(e.a.row + 1, deepest, mid)
+        /* Two corridors on the same spot would read as one line. */
+        for (const other of gutter.values()) {
+          if (Math.abs(other.gx - gx) < 7) gx = other.gx + 7
         }
+        if (gx < width / 2) leftUsed++; else rightUsed++
+        lane0 = { gx, yOut: lane(e.a.row + 1, 2) }
         gutter.set(e.from, lane0)
       }
       const yIn = lane(e.b.row, 2)

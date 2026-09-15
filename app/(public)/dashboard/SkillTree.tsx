@@ -389,7 +389,26 @@ export default function SkillTree({
       const edges = inLv.filter(s => !s.apart).flatMap(s => (needs[s.id] || [])
         .filter(q => spots[q] && !inLv.find(x => x.id === q)?.apart)
         .map(q => ({ from: q, to: s.id })))
-      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols })
+      /* What a line has to get past on each row, measured off the page: the
+         tile, and the name as it actually renders. A short name leaves a gap a
+         line can drop through; assuming the whole column was blocked was what
+         sent those lines round the outside of the board. */
+      const base = board.getBoundingClientRect()
+      const blocked: Record<number, Array<[number, number]>> = {}
+      for (const el of Array.from(board.querySelectorAll<HTMLElement>('.mst-tile'))) {
+        const row = Number(getComputedStyle(el).getPropertyValue('--r')) || 0
+        const put = (l: number, r: number) => { (blocked[row] ||= []).push([l, r]) }
+        const b = el.getBoundingClientRect()
+        put(b.left - base.left - 4, b.right - base.left + 4)
+        const nm = el.querySelector('.mst-nm')
+        if (nm) {
+          const range = document.createRange()
+          range.selectNodeContents(nm)
+          const t = range.getBoundingClientRect()
+          if (t.width) put(t.left - base.left - 5, t.right - base.left + 5)
+        }
+      }
+      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked })
       for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
         el.setAttribute('d', paths[el.dataset.k || ''] || '')
       }
