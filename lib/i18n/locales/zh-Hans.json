@@ -1114,7 +1114,9 @@
   "team.showSchedule": "显示练习时段",
   "team.title": "泳队",
   "team.unlimited": "无限次练习",
+  "tree.apart": "独立验收",
   "tree.criteria": "怎样算「稳定做」",
+  "tree.err": "最常见的错",
   "tree.levelMeta": "{n} 个技能",
   "tree.loadFailed": "课程内容载入失败，请再试一次。",
   "tree.needs": "要先完成",
@@ -1130,5 +1132,6 @@
   "tree.state.locked": "要先完成前面的技能",
   "tree.state.open": "可以开始了",
   "tree.state.ready": "条件到了，还没排到",
+  "tree.teach": "教学重点",
   "tree.title": "学习地图"
 }

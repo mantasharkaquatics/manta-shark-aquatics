@@ -1114,7 +1114,9 @@
   "team.showSchedule": "顯示練習時段",
   "team.title": "泳隊",
   "team.unlimited": "無限次練習",
+  "tree.apart": "獨立驗收",
   "tree.criteria": "怎樣算「穩定做」",
+  "tree.err": "最常見的錯",
   "tree.levelMeta": "{n} 個技能",
   "tree.loadFailed": "課程內容載入失敗，請再試一次。",
   "tree.needs": "要先完成",
@@ -1130,5 +1132,6 @@
   "tree.state.locked": "要先完成前面的技能",
   "tree.state.open": "可以開始了",
   "tree.state.ready": "條件到了，還沒排到",
+  "tree.teach": "教學重點",
   "tree.title": "學習地圖"
 }

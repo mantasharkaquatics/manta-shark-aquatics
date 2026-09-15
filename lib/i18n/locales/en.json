@@ -1114,7 +1114,9 @@
   "team.showSchedule": "Show practice schedule",
   "team.title": "Swim Team",
   "team.unlimited": "unlimited practices",
+  "tree.apart": "Stands apart",
   "tree.criteria": "What counts as Solid",
+  "tree.err": "What goes wrong most",
   "tree.levelMeta": "{n} skills",
   "tree.loadFailed": "The curriculum could not be loaded. Please try again.",
   "tree.needs": "Needs first",
@@ -1130,5 +1132,6 @@
   "tree.state.locked": "Needs earlier skills first",
   "tree.state.open": "Ready to start",
   "tree.state.ready": "Ready — not scheduled yet",
+  "tree.teach": "How to teach it",
   "tree.title": "Learning Map"
 }

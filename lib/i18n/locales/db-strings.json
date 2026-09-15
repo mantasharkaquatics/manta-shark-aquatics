@@ -16,9 +16,9 @@
       "zh-Hans": "憋气 15 秒"
     },
     "0d151d1b-8492-49bc-824e-c4e26a657046": {
-      "en": "Underwater Bubble Blowing",
-      "zh-Hant": "水中吐泡泡",
-      "zh-Hans": "水中吐泡泡"
+      "en": "Surface Bubbles",
+      "zh-Hant": "水面吐泡泡",
+      "zh-Hans": "水面吐泡泡"
     },
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "en": "Open Turn",
@@ -76,9 +76,9 @@
       "zh-Hans": "吐泡跳（胸深）"
     },
     "3aa56665-8ce2-4524-819d-efcf30057a02": {
-      "en": "Safe Entry and Recognition",
-      "zh-Hant": "安全入水與辨識",
-      "zh-Hans": "安全入水与辨识"
+      "en": "Pool Safety Awareness",
+      "zh-Hant": "辨識泳池環境",
+      "zh-Hans": "辨识泳池环境"
     },
     "3c01a30f-147d-4880-9738-75c245fc3325": {
       "en": "Treading Water 2 min",
@@ -196,9 +196,9 @@
       "zh-Hans": "自由泳 25 码"
     },
     "92751613-6a3c-465f-bcdb-251754df1dff": {
-      "en": "Assisted Floating",
-      "zh-Hant": "輔助漂浮",
-      "zh-Hans": "辅助漂浮"
+      "en": "Assisted Front Float",
+      "zh-Hant": "面部入水漂浮",
+      "zh-Hans": "面部入水漂浮"
     },
     "95bf3bc3-79b3-48a4-9a90-cf53103ca965": {
       "en": "No-Goggles Swim",
@@ -396,9 +396,9 @@
       "zh-Hans": "BBQ身体旋转"
     },
     "f0b828a0-63a5-4aea-8000-13e1b05b1682": {
-      "en": "Safe Exit",
-      "zh-Hant": "安全出水",
-      "zh-Hans": "安全出水"
+      "en": "Safe Entry and Exit",
+      "zh-Hant": "安全進出泳池",
+      "zh-Hans": "安全进出泳池"
     },
     "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
       "en": "Breaststroke Underwater Pullout",
@@ -409,6 +409,21 @@
       "en": "Backstroke 100 yd",
       "zh-Hant": "仰式 100 碼",
       "zh-Hans": "仰泳 100 码"
+    },
+    "49f02c5d-009c-459c-8ef0-de2dad48c25d": {
+      "en": "Face in Water",
+      "zh-Hant": "面部入水",
+      "zh-Hans": "面部入水"
+    },
+    "84716c30-a569-4905-9970-855a998068e1": {
+      "en": "Assisted Back Float",
+      "zh-Hant": "輔助仰面漂浮",
+      "zh-Hans": "辅助仰面漂浮"
+    },
+    "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
+      "en": "Nose Bubbles",
+      "zh-Hant": "水中鼻子吐泡泡",
+      "zh-Hans": "水中鼻子吐泡泡"
     }
   },
   "course_types": {
@@ -467,9 +482,9 @@
       "zh-Hans": "水下憋气 15 秒，全程平静，起身有控制。"
     },
     "0d151d1b-8492-49bc-824e-c4e26a657046": {
-      "en": "Face in the water, blows bubbles from the mouth for 5 seconds without lifting the head.",
-      "zh-Hant": "臉入水用嘴吐泡泡 5 秒，中途不抬頭。",
-      "zh-Hans": "脸入水用嘴吐泡泡 5 秒，中途不抬头。"
+      "en": "Blows bubbles with the mouth on the surface for five seconds, bubbles visible and no water swallowed.",
+      "zh-Hant": "嘴巴貼著水面吹泡泡 5 秒，吹得出泡泡、不喝到水。",
+      "zh-Hans": "嘴巴贴着水面吹泡泡 5 秒，吹得出泡泡、不喝到水。"
     },
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "en": "Two-hand touch, open turn and push-off for breaststroke and butterfly.",
@@ -527,9 +542,9 @@
       "zh-Hans": "胸深水中连续十次：下沉、吐气、浮起，有节奏不中断。"
     },
     "3aa56665-8ce2-4524-819d-efcf30057a02": {
-      "en": "Walks to the edge, waits for the coach, enters feet-first without being asked twice.",
-      "zh-Hant": "走到池邊會等教練，聽指令雙腳先入水，不用講第二次。",
-      "zh-Hans": "走到池边会等教练，听指令双脚先入水，不用讲第二次。"
+      "en": "Waits for the coach at the edge, and can point out the deep end and where not to run.",
+      "zh-Hant": "走到池邊會等教練，說得出哪裡是深水、哪裡不能跑。",
+      "zh-Hans": "走到池边会等教练，说得出哪里是深水、哪里不能跑。"
     },
     "3c01a30f-147d-4880-9738-75c245fc3325": {
       "en": "Treads water 2 minutes in deep water, last 30 seconds hands out of the water.",
@@ -647,9 +662,9 @@
       "zh-Hans": "自由泳 25 码不停，每 2–3 划固定单边换气。"
     },
     "92751613-6a3c-465f-bcdb-251754df1dff": {
-      "en": "Floats on the back for 5 seconds with the coach supporting one hand only.",
-      "zh-Hant": "教練只用單手托著，仰漂 5 秒。",
-      "zh-Hans": "教练只用单手托着，仰漂 5 秒。"
+      "en": "Front float for five seconds with one hand of support, arms and legs relaxed and straight.",
+      "zh-Hant": "臉入水俯漂 5 秒，教練單手托著，手腳放鬆伸直。",
+      "zh-Hans": "脸入水俯漂 5 秒，教练单手托着，手脚放松伸直。"
     },
     "95bf3bc3-79b3-48a4-9a90-cf53103ca965": {
       "en": "Swims 25 yd freestyle with no goggles, eyes open, without panicking.",
@@ -847,9 +862,9 @@
       "zh-Hans": "打水中由俯卧转侧身转仰卧再转回，中途不停。"
     },
     "f0b828a0-63a5-4aea-8000-13e1b05b1682": {
-      "en": "Climbs out unaided using the ladder or the wall, on their own.",
-      "zh-Hant": "自己用扶梯或撐池邊上岸，全程不需要人扶。",
-      "zh-Hans": "自己用扶梯或撑池边上岸，全程不需要人扶。"
+      "en": "Enters feet-first on the coach’s word, and climbs out unaided by the ladder or the wall.",
+      "zh-Hant": "聽指令雙腳先入水；自己用扶梯或撐池邊上岸，不用人扶。",
+      "zh-Hans": "听指令双脚先入水；自己用扶梯或撑池边上岸，不用人扶。"
     },
     "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
       "en": "One pull-down: full pull to the thighs, one dolphin kick, recovery, break out.",
@@ -860,6 +875,21 @@
       "en": "Swims 100 yd backstroke continuous, straight, with turns.",
       "zh-Hant": "連續仰式 100 碼含轉身，能維持直線。",
       "zh-Hans": "连续仰泳 100 码含转身，能维持直线。"
+    },
+    "49f02c5d-009c-459c-8ef0-de2dad48c25d": {
+      "en": "Puts the whole face in the water for three seconds and comes up unaided, without wiping the face.",
+      "zh-Hant": "臉整個入水 3 秒，自己抬頭起來，不抹臉也不慌。",
+      "zh-Hans": "脸整个入水 3 秒，自己抬头起来，不抹脸也不慌。"
+    },
+    "84716c30-a569-4905-9970-855a998068e1": {
+      "en": "Back float for five seconds with one hand under the back, ears in the water and hips at the surface.",
+      "zh-Hant": "教練單手托背，仰面漂 5 秒，耳朵入水、肚子朝上。",
+      "zh-Hans": "教练单手托背，仰面漂 5 秒，耳朵入水、肚子朝上。"
+    },
+    "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
+      "en": "Blows bubbles through the nose for five seconds with the face in, without lifting the head.",
+      "zh-Hant": "臉入水用鼻子吐泡泡 5 秒，中途不抬頭、不嗆到。",
+      "zh-Hans": "脸入水用鼻子吐泡泡 5 秒，中途不抬头、不呛到。"
     }
   }
 }

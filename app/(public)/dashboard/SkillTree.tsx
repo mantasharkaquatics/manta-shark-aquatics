@@ -48,6 +48,10 @@ type TreeSkill = {
   sort: number
   percent: number
   state: NodeState
+  /** A checkpoint rather than a step: it sits in its own band with no lines.
+      The prerequisites still exist and still gate it -- they are just not the
+      thing the picture is about. */
+  apart: boolean
 }
 
 type Props = {
@@ -59,6 +63,9 @@ type Props = {
   onClose: () => void
   /** Coaches see the pass standard and what each skill waits on. Families do not. */
   forCoach?: boolean
+  /** Teaching notes, keyed by skill id, from docs/coaching-content.json. Only
+      the admin curriculum page passes these; nobody else sees them. */
+  notes?: Record<string, { teach: Record<string, string>; err: Record<string, string> }>
 }
 
 /* The five state marks, drawn rather than typed. They used to be characters --
@@ -169,6 +176,11 @@ const CSS = `
 .mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
   left: calc((var(--sz) - var(--cw)) / 2); font-size: 10.5px; line-height: 1.3;
   text-align: center; color: rgba(255,255,255,0.35); font-weight: 500 }
+.mst-apart { position: absolute; left: 0; right: 0; display: flex; align-items: center;
+  gap: 10px; color: rgba(255,255,255,0.28); font-size: 10px; letter-spacing: .12em;
+  top: calc(var(--pad) + (var(--r) - 1) * var(--rh) - 22px) }
+.mst-apart::before, .mst-apart::after { content: ''; flex: 1; height: 1px;
+  background: rgba(255,255,255,0.09) }
 .mst-tile:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 3px }
 .mst-tile.open { border-color: #31497a; background: #1a2a4a; color: #6d8cc0 }
 .mst-tile.open .mst-nm { color: rgba(255,255,255,0.6) }
@@ -217,6 +229,7 @@ const CSS = `
 
 export default function SkillTree({
   studentName, currentLevel, currentStage, percentBySkillId, onClose, forCoach = false,
+  notes,
 }: Props) {
   const supabase = createClient()
   const locale = useLocale()
@@ -233,8 +246,8 @@ export default function SkillTree({
     let alive = true
     ;(async () => {
       const cols = forCoach
-        ? 'id, name, pass_criteria, stage, sort_order, level_id'
-        : 'id, name, stage, sort_order, level_id'
+        ? 'id, name, pass_criteria, stage, sort_order, level_id, is_standalone'
+        : 'id, name, stage, sort_order, level_id, is_standalone'
       const [{ data: levRows }, { data: skRows }, { data: preRows }] = await Promise.all([
         supabase.from('levels').select('id, level_number'),
         supabase.from('skills').select(cols).eq('is_active', true).order('sort_order'),
@@ -279,6 +292,7 @@ export default function SkillTree({
         built.push({
           id, name: String(s.name || ''), criteria: String((s as any).pass_criteria || ''),
           level, stage, row: 1, col: 0, sort: Number(s.sort_order) || 0, percent, state,
+          apart: Boolean((s as any).is_standalone),
         })
       }
 
@@ -288,15 +302,23 @@ export default function SkillTree({
       for (let L = 1; L <= MAX_LEVEL; L++) {
         const inL = built.filter(b => b.level === L)
         if (!inL.length) continue
-        const here = new Set(inL.map(b => b.id))
-        const { spots } = placeLevel(inL.map(b => ({
+        const onBoard = inL.filter(b => !b.apart)
+        const here = new Set(onBoard.map(b => b.id))
+        const { rows: nRows, spots } = placeLevel(onBoard.map(b => ({
           id: b.id, stage: b.stage, sort: b.sort,
           needs: (need[b.id] || []).filter(q => here.has(q)),
         })))
-        for (const b of inL) {
+        for (const b of onBoard) {
           const sp = spots[b.id]
           if (sp) { b.row = sp.row; b.col = sp.col }
         }
+        /* The standalone ones get a band of their own under the last row. */
+        const apart = inL.filter(b => b.apart).sort((a, b) => a.stage - b.stage || a.sort - b.sort)
+        const width = Math.max(1, ...[1, 2, 3].map(st => onBoard.filter(b => b.stage === st).length))
+        apart.forEach((b, i) => {
+          b.row = nRows + 1
+          b.col = (width - apart.length) / 2 + i
+        })
       }
 
       built.sort((a, b) => a.level - b.level || a.row - b.row || a.col - b.col)
@@ -309,8 +331,9 @@ export default function SkillTree({
   /* Columns come from the widest stage, not from the highest column index:
      a short row is centred, so its columns are half-steps. */
   const cols = inLv.length
-    ? Math.max(...[1, 2, 3].map(st => inLv.filter(s => s.stage === st).length)) : 1
+    ? Math.max(...[1, 2, 3].map(st => inLv.filter(s => s.stage === st && !s.apart).length)) : 1
   const rows = inLv.length ? Math.max(...inLv.map(s => s.row)) : 1
+  const apartRow = inLv.some(s => s.apart) ? Math.max(...inLv.map(s => s.row)) : 0
 
   /* The wires are drawn from the geometry the CSS is actually using, so the
      phone's smaller grid needs no second set of numbers -- it changes --cw and
@@ -329,8 +352,9 @@ export default function SkillTree({
       const lane = parseFloat(cs.getPropertyValue('--lane')) || 0
       const pad = parseFloat(cs.getPropertyValue('--pad')) || 0
       const spots = Object.fromEntries(inLv.map(s => [s.id, { row: s.row, col: s.col }]))
-      const edges = inLv.flatMap(s => (needs[s.id] || [])
-        .filter(q => spots[q]).map(q => ({ from: q, to: s.id })))
+      const edges = inLv.filter(s => !s.apart).flatMap(s => (needs[s.id] || [])
+        .filter(q => spots[q] && !inLv.find(x => x.id === q)?.apart)
+        .map(q => ({ from: q, to: s.id })))
       const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols })
       for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
         el.setAttribute('d', paths[el.dataset.k || ''] || '')
@@ -404,15 +428,20 @@ export default function SkillTree({
               <div className="mst-board" ref={boardRef}
                 style={{ ['--cols' as any]: cols, ['--rows' as any]: rows }}>
                 <svg className="mst-wires" preserveAspectRatio="none">
-                  {inLv.flatMap(s => (needs[s.id] || [])
+                  {inLv.filter(s => !s.apart).flatMap(s => (needs[s.id] || [])
                     .map(q => (skills || []).find(x => x.id === q))
-                    .filter((q): q is TreeSkill => !!q && q.level === lv)
+                    .filter((q): q is TreeSkill => !!q && q.level === lv && !q.apart)
                     .map(q => (
                       <path key={q.id + '>' + s.id}
                         className={'mst-w' + (masteryOf(q.percent) >= UNLOCK_LEVEL ? ' lit' : '')}
                         data-k={`${q.id}>${s.id}`} />
                     )))}
                 </svg>
+                {apartRow > 0 && (
+                  <div className="mst-apart" style={{ ['--r' as any]: apartRow + 1 }}>
+                    <span>{t('tree.apart')}</span>
+                  </div>
+                )}
                 {inLv.map(s => {
                   const band = masteryOf(s.percent)
                   return (
@@ -468,6 +497,18 @@ export default function SkillTree({
                               )
                             })}
                           </div>}
+                      {notes?.[sel.id] && (notes[sel.id].teach[locale] || notes[sel.id].teach['zh-Hant']) && (
+                        <>
+                          <p className="mst-dt">{t('tree.teach')}</p>
+                          <p className="mst-dd">
+                            {notes[sel.id].teach[locale] || notes[sel.id].teach['zh-Hant']}
+                          </p>
+                          <p className="mst-dt">{t('tree.err')}</p>
+                          <p className="mst-dd">
+                            {notes[sel.id].err[locale] || notes[sel.id].err['zh-Hant']}
+                          </p>
+                        </>
+                      )}
                       <p className="mst-dt">{t('tree.criteria')}</p>
                       <p className="mst-dd">
                         {sel.criteria
