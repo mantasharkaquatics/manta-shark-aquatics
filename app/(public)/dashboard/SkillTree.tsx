@@ -472,14 +472,13 @@ export default function SkillTree({
                     )))}
                 </svg>
                 {apartRow > 0 && (
-                  <div className="mst-apart" style={{ ['--r' as any]: apartRow + 1 }}>
-                    <span>{t('tree.apart')}</span>
-                  </div>
+                  <div className="mst-apart" style={{ ['--r' as any]: apartRow }} />
                 )}
                 {inLv.map(s => {
                   const band = masteryOf(s.percent)
                   return (
-                    <button key={s.id} className={'mst-tile ' + s.state}
+                    <button key={s.id}
+                      className={'mst-tile ' + s.state + (s.apart ? ' apart' : '')}
                       style={{ ['--c' as any]: s.col, ['--r' as any]: s.row }}
                       aria-current={sel?.id === s.id || undefined}
                       onClick={() => setSel(s)}
