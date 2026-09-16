@@ -75,8 +75,12 @@ export function placeLevel(nodes: TreeInput[]): {
 
   const spots: Record<string, Spot> = {}
   /* The first row has nothing to align to, so it is centred. */
+  /* Whole columns, not half ones: a row of three in a board of four sits at
+     1,2,3 rather than 0.5,1.5,2.5, so the rows below can stand directly under
+     it instead of half a tile off. */
   const first = byRow[1] || []
-  first.forEach((n, i) => { spots[n.id] = { row: 1, col: (cols - first.length) / 2 + i } })
+  const firstOff = Math.floor((cols - first.length) / 2)   // 半格往左靠，跟下面幾排一致
+  first.forEach((n, i) => { spots[n.id] = { row: 1, col: firstOff + i } })
 
   for (let r = 2; r <= rows; r++) {
     const row = byRow[r]
@@ -93,12 +97,21 @@ export function placeLevel(nodes: TreeInput[]): {
          keeps the run from being pushed off the board. */
       return Math.round(above.reduce((s, p) => s + p.col, 0) / above.length - 0.001)
     }
-    const anchored = row.map((n, i) => ({ n, i, w: want(n) }))
-      .filter(x => x.w !== null) as { n: TreeInput; i: number; w: number }[]
-    const floating = row.map((n, i) => ({ n, i, w: want(n) })).filter(x => x.w === null)
+    /* A skill with no line at all -- nothing above it, nothing below it on this
+       level -- has no column it belongs in, so it simply stands where its own
+       order puts it, and the ones with lines arrange themselves around it. */
+    const linked = (n: TreeInput) =>
+      n.needs.some(q => spots[q] || row.some(m => m.id === q)) ||
+      nodes.some(m => m.needs.includes(n.id) && m.stage !== undefined)
+    const marks = row.map((n, i) => ({ n, i, w: want(n), free: !linked(n) }))
+    for (const x of marks) if (x.free) spots[x.n.id] = { row: r, col: x.i }
+
+    const anchored = marks.filter(x => !x.free && x.w !== null) as
+      { n: TreeInput; i: number; w: number; free: boolean }[]
+    const floating = marks.filter(x => !x.free && x.w === null)
 
     if (!anchored.length) {
-      const off = (cols - row.length) / 2
+      const off = Math.floor((cols - row.length) / 2)
       row.forEach((n, i) => { spots[n.id] = { row: r, col: off + i } })
       continue
     }
@@ -107,8 +120,10 @@ export function placeLevel(nodes: TreeInput[]): {
        column apart; if that pushes the last one off the right edge the whole run
        slides back left by however much it overflowed. */
     anchored.sort((a, b) => a.w - b.w || a.i - b.i)
+    const fixed = marks.filter(x => x.free).map(x => x.i)
+    const clear = (c: number) => { while (fixed.some(f => Math.abs(f - c) < 0.999)) c += 1; return c }
     const at: number[] = []
-    anchored.forEach((x, k) => { at.push(k ? Math.max(x.w, at[k - 1] + 1) : x.w) })
+    anchored.forEach((x, k) => { at.push(clear(k ? Math.max(x.w, at[k - 1] + 1) : x.w)) })
     const over = at[at.length - 1] - (cols - 1)
     if (over > 0) {
       const back = Math.min(over, at[0])

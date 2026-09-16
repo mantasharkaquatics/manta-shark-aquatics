@@ -560,7 +560,7 @@
     "580a979a-e3f7-458f-b0f8-c39c7c20d686": {
       "level": 3,
       "stage": 3,
-      "sort": 1,
+      "sort": 2,
       "teach": {
         "zh-Hant": "這是自由式的前身。先有「轉身體換氣」，再有手臂動作。",
         "en": "This is freestyle before freestyle. Rolling to breathe comes first; the arms come after."
@@ -599,7 +599,7 @@
     "5aa1716e-8d05-41b0-a660-7fce60b69390": {
       "level": 3,
       "stage": 3,
-      "sort": 3,
+      "sort": 4,
       "teach": {
         "zh-Hant": "海豚腿放在這裡是當作身體波浪的訓練，不是為了教蝶式。從胸口帶動。",
         "en": "The dolphin kick sits here as body-wave training, not to teach butterfly. The wave starts at the chest."
@@ -651,7 +651,7 @@
     "7a62a560-01cd-4199-b464-68a78a8ee98a": {
       "level": 3,
       "stage": 3,
-      "sort": 2,
+      "sort": 3,
       "teach": {
         "zh-Hant": "轉身不站起來，是「連續游」的門檻。腳踩到牆才蹬。",
         "en": "Turning without standing up is the threshold of swimming continuously. The feet find the wall before they push."
@@ -833,7 +833,7 @@
     "997642b0-c290-48cf-a53f-ccb46d52d539": {
       "level": 3,
       "stage": 3,
-      "sort": 4,
+      "sort": 5,
       "teach": {
         "zh-Hant": "這是 Level 3 的綜合驗收，放在最後一個——前面所有技能都是為了它。跳、轉、游、爬，一次做完。",
         "en": "This is the Level 3 test and sits last on purpose — every skill before it exists for this. Jump, turn, swim, climb out, in one go."
@@ -898,7 +898,7 @@
     "b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51": {
       "level": 2,
       "stage": 3,
-      "sort": 2,
+      "sort": 1,
       "teach": {
         "zh-Hant": "划手是「感覺水」的第一課，之後所有泳姿的抓水都從這裡來。八字形，手掌像抹果醬。",
         "en": "Sculling is the first lesson in feeling the water; every catch in every stroke comes from here. Figure of eight, palms spreading jam."
@@ -1106,7 +1106,7 @@
     "c7022acb-3075-471f-8c45-4d5330139369": {
       "level": 2,
       "stage": 3,
-      "sort": 4,
+      "sort": 3,
       "teach": {
         "zh-Hant": "過頭深時扶牆做，安全感來自牆。這是深水恐懼的過渡練習。",
         "en": "Over head-deep, done holding the wall — the wall is where the courage comes from. This is the bridge into deep water."
@@ -1262,7 +1262,7 @@
     "ed0e69e4-3edb-4668-84d8-a39064fe2425": {
       "level": 2,
       "stage": 3,
-      "sort": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "第一次讓他睜眼在水下找東西。放在他看得到的位置，不要為難他。",
         "en": "Their first time looking for something underwater with their eyes open. Put it where they can see it; do not make it hard."
@@ -1273,7 +1273,7 @@
       }
     },
     "ed4c463b-6c65-497b-b370-18e9bd945468": {
-      "level": 2,
+      "level": 3,
       "stage": 3,
       "sort": 1,
       "teach": {
@@ -1379,7 +1379,7 @@
     "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
       "level": 2,
       "stage": 3,
-      "sort": 5,
+      "sort": 4,
       "teach": {
         "zh-Hant": "先坐著入水、再蹲著、最後才站著跳。每一步都要他自己回到池壁，接住他等於少練一次。",
         "en": "Sit in first, then crouch, then stand. Every step ends with them getting back to the wall themselves -- catching them is one repetition wasted."
