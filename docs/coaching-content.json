@@ -649,22 +649,22 @@
       }
     },
     "806e2b61-f66e-460b-b31b-264097fee097": {
-      "level": 4,
-      "stage": 3,
-      "sort": 1,
+      "level": 3,
+      "stage": 2,
+      "sort": 4,
       "teach": {
-        "zh-Hant": "深水中的漂浮是心理關卡不是技術關卡。30 秒的重點是放鬆。",
-        "en": "Floating in deep water is a nerve problem, not a technique problem. The thirty seconds is about relaxing."
+        "zh-Hant": "這是深水版的海星漂，和 L2 那個 10 秒的差別不只是秒數，是腳下沒有地板。第一次讓他從扶牆放手開始，教練站在旁邊但不碰。三十秒很長，重點是讓他相信水會撐住他。",
+        "en": "The deep-water starfish. The difference from the ten-second one is not the clock, it is that there is no floor. Start from letting go of the wall, coach beside but not touching. Thirty seconds is long; the point is that he learns the water holds him."
       },
       "err": {
-        "zh-Hant": "教練站在旁邊一直講話。安靜讓他自己撐完。",
-        "en": "The coach standing there talking the whole time. Go quiet and let them finish it themselves."
+        "zh-Hant": "一沉就用手划，越划越沉。手腳張開不要動，讓他數到三十。",
+        "en": "Sculling the moment the hips drop, which sinks him faster. Arms and legs out and still, and count to thirty."
       }
     },
     "81568486-d273-49b0-a824-d53569fefc37": {
       "level": 4,
       "stage": 3,
-      "sort": 4,
+      "sort": 3,
       "teach": {
         "zh-Hant": "著衣游泳讓他知道衣服有多重。脫上衣要在能踩水的地方做。",
         "en": "Swimming clothed teaches them how heavy clothes are. Take the top off somewhere they can tread, not stand."
@@ -768,7 +768,7 @@
     "95bf3bc3-79b3-48a4-9a90-cf53103ca965": {
       "level": 4,
       "stage": 3,
-      "sort": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "不戴蛙鏡是真實落水的情境。先在淺水適應睜眼再游。",
         "en": "No goggles is what a real fall looks like. Get used to open eyes in shallow water before swimming it."
@@ -822,12 +822,12 @@
       "stage": 3,
       "sort": 5,
       "teach": {
-        "zh-Hant": "這是 Level 3 的綜合驗收，放在最後一個——前面所有技能都是為了它。跳、轉、游、爬，一次做完。",
-        "en": "This is the Level 3 test and sits last on purpose — every skill before it exists for this. Jump, turn, swim, climb out, in one go."
+        "zh-Hant": "Level 3 的綜合驗收，前面所有技能都是為了它。七個動作一次接完，中間不站起來、教練不出手。把玩具交給教練那一下是唯一可以喘的地方。最難的不是任何單一動作，是撿完玩具之後從直立轉成仰漂——先單獨練這個銜接。",
+        "en": "The Level 3 checkpoint; everything before it exists for this. Seven moves in one unbroken run, no standing up, no hand from the coach. Handing over the toy is the only breath. The hard part is not any single move but going from upright to a back float after the retrieval -- drill that transition on its own."
       },
       "err": {
-        "zh-Hant": "拆開來練得很好，合起來就亂。通過之前至少完整做三次，中間不給提示。",
-        "en": "Beautiful in pieces, a mess joined up. Three clean run-throughs, with no prompting, before you pass it."
+        "zh-Hant": "分開練都很好，接起來就亂——通常是撿完玩具急著站起來。通過之前至少完整做三次，中間不給任何提示。",
+        "en": "Every piece clean on its own and a mess joined up -- usually standing up after the retrieval. Three complete runs with no prompting before it is signed off."
       }
     },
     "9f37e0f9-68d5-4bae-8349-c9d2d99d8225": {
@@ -937,7 +937,7 @@
     "b4e9ff8e-535c-4e5e-bc9a-8ceb9c252113": {
       "level": 4,
       "stage": 3,
-      "sort": 2,
+      "sort": 1,
       "teach": {
         "zh-Hant": "最後 10 秒手離開水面，是為了證明腿真的在work。",
         "en": "Hands out of the water for the last ten seconds, to prove the legs are actually doing the work."
@@ -1041,7 +1041,7 @@
     "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
       "level": 4,
       "stage": 3,
-      "sort": 5,
+      "sort": 4,
       "teach": {
         "zh-Hant": "紅十字會的全美水中自保基準，L4 的綜合驗收。五個動作一次做完，中間不給提示。通過之後可以直接跟家長說「已達全美標準」。",
         "en": "The Red Cross water-competency benchmark, and the Level 4 test. Five actions in one go with no prompting in between. Once they pass it you can tell the parents they meet the national standard."
@@ -1355,12 +1355,12 @@
       "stage": 3,
       "sort": 4,
       "teach": {
-        "zh-Hant": "先坐著入水、再蹲著、最後才站著跳。每一步都要他自己回到池壁，接住他等於少練一次。",
-        "en": "Sit in first, then crouch, then stand. Every step ends with them getting back to the wall themselves -- catching them is one repetition wasted."
+        "zh-Hant": "跳進深水是水域安全測驗的第一個動作。先坐著、再蹲著、最後才站著跳。每一次都要他自己浮起來回到池壁，教練接住他等於少練一次。",
+        "en": "Jumping into deep water is the first move of the water safety test. Sitting, then crouching, then standing. Every time he comes back to the wall himself; catching him is one repetition lost."
       },
       "err": {
-        "zh-Hant": "跳完在水裡等人拉。跳進去到抓到牆是同一個動作，不能拆開。",
-        "en": "Waiting in the water to be pulled out. The jump and the return to the wall are one movement, not two."
+        "zh-Hant": "跳完在水裡等人拉。跳進去、浮起來、回到牆是同一個動作，不能拆開。",
+        "en": "Waiting in the water to be pulled out. Jump, surface, return to the wall is one movement, not three."
       }
     },
     "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {

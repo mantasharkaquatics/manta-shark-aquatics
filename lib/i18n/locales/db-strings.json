@@ -42,8 +42,8 @@
     },
     "1b90e0d5-e21d-4991-9d97-a16394d3913b": {
       "en": "Starfish Float 10 sec",
-      "zh-Hant": "大字漂 10 秒",
-      "zh-Hans": "大字漂 10 秒"
+      "zh-Hant": "海星漂 10 秒",
+      "zh-Hans": "海星漂 10 秒"
     },
     "1ed417e9-431d-46db-837b-adabbdde74f3": {
       "en": "Breaststroke (Race Legal)",
@@ -157,8 +157,8 @@
     },
     "806e2b61-f66e-460b-b31b-264097fee097": {
       "en": "Starfish Float 30 sec",
-      "zh-Hant": "大字漂 30 秒",
-      "zh-Hans": "大字漂 30 秒"
+      "zh-Hant": "海星漂 30 秒",
+      "zh-Hans": "海星漂 30 秒"
     },
     "81568486-d273-49b0-a824-d53569fefc37": {
       "en": "Clothed Swim (7 yd)",
@@ -431,9 +431,9 @@
       "zh-Hans": "水母漂"
     },
     "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
-      "en": "Jump into Chest-Deep Water",
-      "zh-Hant": "跳入胸深水",
-      "zh-Hans": "跳入胸深水"
+      "en": "Jump into Deep Water",
+      "zh-Hant": "跳入深水",
+      "zh-Hans": "跳入深水"
     },
     "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
       "en": "Freestyle Kick 10 yd, No Board",
@@ -642,9 +642,9 @@
       "zh-Hans": "游到池边不站起来直接转身，蹬墙往回。"
     },
     "806e2b61-f66e-460b-b31b-264097fee097": {
-      "en": "Back float 30 seconds in deep water, relaxed, without sculling.",
-      "zh-Hant": "深水仰躺大字漂 30 秒，放鬆、不靠划手。",
-      "zh-Hans": "深水仰躺大字漂 30 秒，放松、不靠划手。"
+      "en": "Starfish floats on the back for 30 seconds in deep water, relaxed, without sculling.",
+      "zh-Hant": "深水中仰躺海星漂 30 秒，放鬆、不靠划手。",
+      "zh-Hans": "深水中仰躺海星漂 30 秒，放松、不靠划手。"
     },
     "81568486-d273-49b0-a824-d53569fefc37": {
       "en": "Swims 7 yd in a T-shirt and shorts, then removes the shirt in deep water.",
@@ -707,9 +707,9 @@
       "zh-Hans": "仰泳 50 码含一次转身，能维持在水道内。"
     },
     "997642b0-c290-48cf-a53f-ccb46d52d539": {
-      "en": "Jump in, turn around, swim 5 yd back to the wall and climb out unaided.",
-      "zh-Hant": "跳入水中轉身，游 5 碼回到池邊並自行上岸。",
-      "zh-Hans": "跳入水中转身，游 5 码回到池边并自行上岸。"
+      "en": "One unbroken run: jump into deep water from the deck, submerge and retrieve the toy, five bobs, hand the toy to the coach, starfish float 30 seconds, freestyle kick 10 yards to the mark, and climb out unaided.",
+      "zh-Hant": "一次做完不中斷：從池邊跳進深水、下潛撿起玩具、五個吐泡跳、把玩具交給教練、海星漂 30 秒、自由式打水 10 碼到指定位置，最後自己爬上岸。",
+      "zh-Hans": "一次做完不中断：从池边跳进深水、下潜捡起玩具、五个吐泡跳、把玩具交给教练、海星漂 30 秒、自由泳打水 10 码到指定位置，最后自己爬上岸。"
     },
     "9f37e0f9-68d5-4bae-8349-c9d2d99d8225": {
       "en": "Swims 15 yd breaststroke in pull-breathe-kick-glide order.",
@@ -917,9 +917,9 @@
       "zh-Hans": "脸入水、手脚自然垂下漂 10 秒，自己抬头站起来。"
     },
     "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
-      "en": "Jumps in feet-first from the edge into chest-deep water, surfaces and gets to the wall or stands up unaided.",
-      "zh-Hant": "從池邊雙腳跳進胸深水，自己浮起來抓到池壁或站起來，不需要人接。",
-      "zh-Hans": "从池边双脚跳进胸深水，自己浮起来抓到池壁或站起来，不需要人接。"
+      "en": "Jumps feet-first from the deck into deep water, surfaces and returns to the wall unaided, with nobody catching him.",
+      "zh-Hant": "從池邊雙腳跳進深水，自己浮起來回到池壁，不需要人接。",
+      "zh-Hans": "从池边双脚跳进深水，自己浮起来回到池壁，不需要人接。"
     },
     "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
       "en": "Kicks 10 yards with no board, arms extended in front, lifting the head to breathe and putting the face straight back in, kick never stopping.",

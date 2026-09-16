@@ -384,6 +384,28 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                             >
                               <span>{t('tree.title')}</span><span className="text-[11px]">›</span>
                             </button>
+                            {/* Six steps, and only the last one had any words behind it -- the
+                                pass criteria printed under each skill describes "mastered". The
+                                four in between were left to each coach's judgement, which is the
+                                exact thing the six-step scale was meant to remove: two coaches
+                                watching the same swimmer landed on different chips. The
+                                boundaries are written out here, in the place where the marking
+                                actually happens, rather than in a handbook nobody has open on
+                                the pool deck. */}
+                            <details className="mb-3 rounded-lg border border-white/10 bg-white/5">
+                              <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-semibold text-gray-400">
+                                {t('mastery.legend')}
+                              </summary>
+                              <div className="space-y-1.5 px-3 pb-3">
+                                {MASTERY_LEVELS.map(b => (
+                                  <p key={b} className="text-[11px] leading-relaxed text-gray-400">
+                                    <span className="font-bold" style={{ color: MASTERY_COLOR[b] }}>{t(masteryKey(b))}</span>
+                                    {' \u2014 '}{t(`mastery.def.${b}`)}
+                                  </p>
+                                ))}
+                                <p className="pt-1 text-[11px] leading-relaxed text-[#c9a84c]">{t('mastery.hint')}</p>
+                              </div>
+                            </details>
                             <div className="space-y-3">
                               {/* Skills are taught a stage at a time. Grouping them here is what
                                   stops a coach signing off stage 3 work before stage 1 is done. */}
