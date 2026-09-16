@@ -434,6 +434,16 @@
       "en": "Jump into Chest-Deep Water",
       "zh-Hant": "跳入胸深水",
       "zh-Hans": "跳入胸深水"
+    },
+    "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
+      "en": "Freestyle Kick 10 yd, No Board",
+      "zh-Hant": "自由式打水 10 碼（無浮板抬頭換氣）",
+      "zh-Hans": "自由泳打水 10 码（无浮板抬头换气）"
+    },
+    "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
+      "en": "Side Kick",
+      "zh-Hant": "側邊打水",
+      "zh-Hans": "侧边打水"
     }
   },
   "course_types": {
@@ -910,6 +920,16 @@
       "en": "Jumps in feet-first from the edge into chest-deep water, surfaces and gets to the wall or stands up unaided.",
       "zh-Hant": "從池邊雙腳跳進胸深水，自己浮起來抓到池壁或站起來，不需要人接。",
       "zh-Hans": "从池边双脚跳进胸深水，自己浮起来抓到池壁或站起来，不需要人接。"
+    },
+    "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
+      "en": "Kicks 10 yards with no board, arms extended in front, lifting the head to breathe and putting the face straight back in, kick never stopping.",
+      "zh-Hant": "不拿浮板、雙手往前伸直打水 10 碼；換氣時抬頭吸一口就把臉放回水裡，腳全程不停。",
+      "zh-Hans": "不拿浮板、双手往前伸直打水 10 码；换气时抬头吸一口就把脸放回水里，脚全程不停。"
+    },
+    "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
+      "en": "Kicks 10 yards on the side, bottom arm extended, top arm on the thigh, shoulders stacked and the head still. Both sides.",
+      "zh-Hant": "側躺打水 10 碼，下面的手往前伸直、上面的手貼大腿，兩邊肩膀疊在一起、頭不動。左右兩邊都要做。",
+      "zh-Hans": "侧躺打水 10 码，下面的手往前伸直、上面的手贴大腿，两边肩膀叠在一起、头不动。左右两边都要做。"
     }
   }
 }

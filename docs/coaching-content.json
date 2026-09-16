@@ -531,19 +531,6 @@
         "en": "Swimming a snake. Every five yards, remind them to find the point on the ceiling again."
       }
     },
-    "4dd3928b-8433-40c4-8057-29b454ce5a03": {
-      "level": 3,
-      "stage": 2,
-      "sort": 1,
-      "teach": {
-        "zh-Hant": "先教蛋打水（畫圈），再加手。踩水是深水安全的核心技能，不要急。",
-        "en": "Teach the eggbeater first — circles — then add the hands. Treading is the core of deep-water safety; do not rush it."
-      },
-      "err": {
-        "zh-Hant": "手拚命拍水、身體直上直下。強調「慢而大」的腿。",
-        "en": "Hands slapping frantically while the body bobs straight up and down. Ask for slow, big legs."
-      }
-    },
     "4fd1fce7-9293-475e-a142-5a8d2ecf954d": {
       "level": 2,
       "stage": 2,
@@ -906,19 +893,6 @@
       "err": {
         "zh-Hant": "划成上下拍水。放慢，讓他找到「手掌壓住水」的感覺。",
         "en": "Slapping up and down instead of sculling. Slow it down until they find the palm pressing on the water."
-      }
-    },
-    "b2a0c2d4-5e6f-4a72-8b92-0c1d2e3f4a52": {
-      "level": 3,
-      "stage": 2,
-      "sort": 3,
-      "teach": {
-        "zh-Hant": "求生漂的重點是省力，不是漂得漂亮。抬頭換氣後臉要回到水裡。",
-        "en": "The survival float is about saving energy, not about looking good. The face goes back in the water after each breath."
-      },
-      "err": {
-        "zh-Hant": "一直抬著頭。那樣一分鐘撐不完。",
-        "en": "Keeping the head up the whole time. That will not last a minute."
       }
     },
     "b3a0c2d4-5e6f-4a73-8b92-0c1d2e3f4a53": {
@@ -1387,6 +1361,32 @@
       "err": {
         "zh-Hant": "跳完在水裡等人拉。跳進去到抓到牆是同一個動作，不能拆開。",
         "en": "Waiting in the water to be pulled out. The jump and the return to the wall are one movement, not two."
+      }
+    },
+    "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
+      "level": 3,
+      "stage": 2,
+      "sort": 1,
+      "teach": {
+        "zh-Hant": "浮板拿掉以後，手要自己撐住身體那條線。抬頭換氣一定會掉屁股，所以吸完氣馬上把臉放回水裡，不要停在抬頭的姿勢。",
+        "en": "Without the board the arms have to hold the line themselves. Lifting the head always drops the hips, so the face goes straight back in after the breath."
+      },
+      "err": {
+        "zh-Hant": "換完氣還一直抬著頭游，身體變成坐著的，腳也停了。",
+        "en": "Swimming on with the head up after the breath, so the body sits down and the kick stops."
+      }
+    },
+    "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
+      "level": 3,
+      "stage": 2,
+      "sort": 3,
+      "teach": {
+        "zh-Hant": "側邊打水是側轉換氣的前一步。整個身體轉成側面、兩邊肩膀疊在一起，頭不要往後倒。左右兩邊都要練，不能只練順手的那一邊。",
+        "en": "Side kick is the step before side breathing. The whole body turns onto its side with the shoulders stacked, head still. Both sides, not just the easy one."
+      },
+      "err": {
+        "zh-Hant": "只轉一半，變成趴著歪一邊；或是頭往上抬，身體就平回去了。",
+        "en": "Turning only halfway, so it is a tilted front position; or lifting the head, which flattens the body back out."
       }
     }
   },
