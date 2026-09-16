@@ -661,19 +661,6 @@
         "en": "Sculling the moment the hips drop, which sinks him faster. Arms and legs out and still, and count to thirty."
       }
     },
-    "81568486-d273-49b0-a824-d53569fefc37": {
-      "level": 4,
-      "stage": 3,
-      "sort": 3,
-      "teach": {
-        "zh-Hant": "著衣游泳讓他知道衣服有多重。脫上衣要在能踩水的地方做。",
-        "en": "Swimming clothed teaches them how heavy clothes are. Take the top off somewhere they can tread, not stand."
-      },
-      "err": {
-        "zh-Hant": "在腳踩得到的地方脫。那樣學不到東西。",
-        "en": "Taking it off where they can stand. Nothing is learnt that way."
-      }
-    },
     "818b6b3b-63b9-4e13-9a52-f3f466f57cc7": {
       "level": 4,
       "stage": 2,
@@ -741,8 +728,8 @@
     },
     "91e61121-5528-456b-9e7d-b97953ed0c39": {
       "level": 4,
-      "stage": 1,
-      "sort": 2,
+      "stage": 2,
+      "sort": 1,
       "teach": {
         "zh-Hant": "25 碼是第一個真正的里程碑。固定單邊換氣就好，先不要求兩側。",
         "en": "Twenty-five yards is the first real milestone. One fixed breathing side is enough; do not ask for both yet."
@@ -765,23 +752,10 @@
         "en": "Holding the head. Once the head is held they never learn to relax back."
       }
     },
-    "95bf3bc3-79b3-48a4-9a90-cf53103ca965": {
-      "level": 4,
-      "stage": 3,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "不戴蛙鏡是真實落水的情境。先在淺水適應睜眼再游。",
-        "en": "No goggles is what a real fall looks like. Get used to open eyes in shallow water before swimming it."
-      },
-      "err": {
-        "zh-Hant": "瞇著眼睛游。要求真的睜開。",
-        "en": "Swimming with the eyes screwed half shut. Ask for them properly open."
-      }
-    },
     "96c47b53-df33-4b4a-9a8e-a84eed10c7b8": {
       "level": 4,
       "stage": 2,
-      "sort": 1,
+      "sort": 2,
       "teach": {
         "zh-Hant": "仰式最大的問題是臀部下沉。肚子頂高、下巴微收。",
         "en": "The problem with backstroke is always sinking hips. Stomach pushed up, chin lightly tucked."
@@ -898,7 +872,7 @@
     "b3a0c2d4-5e6f-4a73-8b92-0c1d2e3f4a53": {
       "level": 4,
       "stage": 1,
-      "sort": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "入水角度比姿勢重要。坐姿先做熟再跪姿。手臂夾耳，頭藏在手臂中間。",
         "en": "The angle of entry matters more than the posture. Get the seated dive solid before kneeling. Arms squeezing the ears, head hidden between them."
@@ -937,7 +911,7 @@
     "b4e9ff8e-535c-4e5e-bc9a-8ceb9c252113": {
       "level": 4,
       "stage": 3,
-      "sort": 1,
+      "sort": 2,
       "teach": {
         "zh-Hant": "最後 10 秒手離開水面，是為了證明腿真的在work。",
         "en": "Hands out of the water for the last ten seconds, to prove the legs are actually doing the work."
@@ -1027,8 +1001,8 @@
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
       "level": 4,
-      "stage": 2,
-      "sort": 2,
+      "stage": 3,
+      "sort": 1,
       "teach": {
         "zh-Hant": "雙臂對稱、蛙腿、臉朝上——這是累的時候能換的省力泳姿，L7 的長距離會需要它。口訣「雞、飛機、火箭」。",
         "en": "Symmetric arms, whip kick, face up — this is the stroke they switch to when they are tired, and the long swims in L7 will need it. Chicken, aeroplane, rocket."
@@ -1036,19 +1010,6 @@
       "err": {
         "zh-Hant": "手腳不同步。先分開練手、再分開練腳，最後才合起來。",
         "en": "Arms and legs out of time. Practise the arms alone, then the legs alone, and only then put them together."
-      }
-    },
-    "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
-      "level": 4,
-      "stage": 3,
-      "sort": 4,
-      "teach": {
-        "zh-Hant": "紅十字會的全美水中自保基準，L4 的綜合驗收。五個動作一次做完，中間不給提示。通過之後可以直接跟家長說「已達全美標準」。",
-        "en": "The Red Cross water-competency benchmark, and the Level 4 test. Five actions in one go with no prompting in between. Once they pass it you can tell the parents they meet the national standard."
-      },
-      "err": {
-        "zh-Hant": "拆開練得很好，合起來就亂。深水、不戴蛙鏡、完整做三次才算。",
-        "en": "Beautiful in pieces, a mess joined up. Deep water, no goggles, three complete run-throughs before it counts."
       }
     },
     "c3a0c2d4-5e6f-4a83-8b92-0c1d2e3f4a63": {
