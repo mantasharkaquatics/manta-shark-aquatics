@@ -822,8 +822,8 @@
       "stage": 3,
       "sort": 5,
       "teach": {
-        "zh-Hant": "Level 3 的綜合驗收，前面所有技能都是為了它。七個動作一次接完，中間不站起來、教練不出手。把玩具交給教練那一下是唯一可以喘的地方。最難的不是任何單一動作，是撿完玩具之後從直立轉成仰漂——先單獨練這個銜接。",
-        "en": "The Level 3 checkpoint; everything before it exists for this. Seven moves in one unbroken run, no standing up, no hand from the coach. Handing over the toy is the only breath. The hard part is not any single move but going from upright to a back float after the retrieval -- drill that transition on its own."
+        "zh-Hant": "Level 3 的綜合驗收，前面所有技能都是為了它。七個動作一次接完，中間不站起來、不扶牆、教練不出手。把玩具交給教練那一下是唯一可以喘的地方。最難的不是任何單一動作，是撿完玩具之後從直立轉成仰漂——先單獨練這個銜接。五個吐泡跳是在水中央做的，練習時可以扶牆，測驗不行。",
+        "en": "The Level 3 checkpoint; everything before it exists for this. Seven moves in one unbroken run: no standing up, no holding the wall, no hand from the coach. Handing over the toy is the only breath. The hard part is not any single move but going from upright to a back float after the retrieval -- drill that transition on its own. The five bobs are done off the wall: holding on is for practice, not for the test."
       },
       "err": {
         "zh-Hant": "分開練都很好，接起來就亂——通常是撿完玩具急著站起來。通過之前至少完整做三次，中間不給任何提示。",
@@ -1173,12 +1173,12 @@
       "stage": 1,
       "sort": 1,
       "teach": {
-        "zh-Hant": "加入換氣。頭轉到側面而不是抬起來，一隻蛙鏡留在水裡。",
-        "en": "Breathing is added here. The head turns to the side rather than lifting, with one goggle staying in the water."
+        "zh-Hant": "換氣先教抬頭：抬頭吸一口，臉馬上回水裡，腳不准停。側轉換氣不在這裡教——那是階段 2 的 側邊打水 和 階段 3 的 側轉換氣游 的事。先把抬頭換氣練到不慌，再去轉身體。",
+        "en": "Head-up breathing first: lift, one breath, face straight back in, kick never stopping. Side breathing is not taught here -- that is Side Kick in stage 2 and Roll-and-Breathe in stage 3. Get the head-up breath calm before turning the body."
       },
       "err": {
-        "zh-Hant": "抬頭換氣。用「用耳朵貼著手臂轉」的提示。",
-        "en": "Lifting the head to breathe. Use the cue: turn with your ear on your arm."
+        "zh-Hant": "用浮板把上半身撐起來換氣，整個人變成坐著推板子，腿就沉了。",
+        "en": "Pushing down on the board to lift the chest for the breath, which turns the swim into sitting and pushing a board, and the legs drop."
       }
     },
     "e9374f19-259b-4c49-85c2-a6faebae05e9": {

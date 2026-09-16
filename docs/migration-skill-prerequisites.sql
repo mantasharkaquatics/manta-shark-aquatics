@@ -89,8 +89,10 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
   ('997642b0-c290-48cf-a53f-ccb46d52d539', '806e2b61-f66e-460b-b31b-264097fee097'),   -- 水域安全測驗 ← 海星漂 30 秒
   ('997642b0-c290-48cf-a53f-ccb46d52d539', '9ac7c46d-2f0f-495b-a0cc-95a13e6684fc'),   -- 水域安全測驗 ← 自由式打水 10 碼（無浮板抬頭換氣）
   ('997642b0-c290-48cf-a53f-ccb46d52d539', 'f0b828a0-63a5-4aea-8000-13e1b05b1682'),   -- 水域安全測驗 ← 安全進出泳池
+  ('ed4c463b-6c65-497b-b370-18e9bd945468', '6d8d921a-e413-4bf9-81d6-a1930dab3404'),   -- BBQ打水 ← 側邊打水
   ('9ac7c46d-2f0f-495b-a0cc-95a13e6684fc', 'e8fd87dc-4e41-4ea5-adda-d8038881f573'),   -- 自由式打水 10 碼（無浮板抬頭換氣） ← 自由式打水 25 碼
   ('6d8d921a-e413-4bf9-81d6-a1930dab3404', 'e8fd87dc-4e41-4ea5-adda-d8038881f573'),   -- 側邊打水 ← 自由式打水 25 碼
+  ('6d8d921a-e413-4bf9-81d6-a1930dab3404', '4a0a72ff-a39f-404c-a40f-49b83b5ea4ff'),   -- 側邊打水 ← 仰式打水 25 碼
   ('806e2b61-f66e-460b-b31b-264097fee097', '1b90e0d5-e21d-4991-9d97-a16394d3913b'),   -- 海星漂 30 秒 ← 海星漂 10 秒
   ('dff814b2-90df-4043-aeb3-dd4e4df64fbe', '580a979a-e3f7-458f-b0f8-c39c7c20d686'),   -- 自由式 15 碼 ← 側轉換氣游 15 碼
   ('91e61121-5528-456b-9e7d-b97953ed0c39', 'dff814b2-90df-4043-aeb3-dd4e4df64fbe'),   -- 自由式 25 碼 ← 自由式 15 碼
@@ -172,7 +174,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
 COMMIT;
 
 -- ---------- 跑完的驗證 ----------
--- 應該是 118 列：
+-- 應該是 120 列：
 -- select count(*) from skill_prerequisites;
 --
 -- 第一天就能開始的技能（沒有任何前置）：
