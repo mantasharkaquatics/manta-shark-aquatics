@@ -454,6 +454,16 @@
       "en": "Breaststroke Kick Drill",
       "zh-Hant": "蛙腿分解練習",
       "zh-Hans": "蛙腿分解练习"
+    },
+    "ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb": {
+      "en": "Freestyle Drill: Two Right, Two Left",
+      "zh-Hant": "自由式技術游（右二左二）",
+      "zh-Hans": "自由泳技术游（右二左二）"
+    },
+    "6b94b35a-4890-4ffb-ad7e-f8b630415c8b": {
+      "en": "Freestyle Drill: Single-Arm with Rotation",
+      "zh-Hant": "自由式技術游（單手轉肩游）",
+      "zh-Hans": "自由泳技术游（单手转肩游）"
     }
   },
   "course_types": {
@@ -950,6 +960,16 @@
       "en": "Ten breaststroke kicks at the wall or on a board, the four counts -- heels up, feet out, drive, together -- clearly separated.",
       "zh-Hant": "扶牆或扶板做蛙腿 10 次：收腿到臀、腳掌翻出去、蹬開、併攏，四拍分得清楚。",
       "zh-Hans": "扶墙或扶板做蛙腿 10 次：收腿到臀、脚掌翻出去、蹬开、并拢，四拍分得清楚。"
+    },
+    "ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb": {
+      "en": "25 yards alternating two strokes with the right arm and two with the left, the other arm extended out front and waiting, both strokes on a side looking the same.",
+      "zh-Hant": "右手連續划兩下、左手連續划兩下交替，游 25 碼；沒在划的那隻手伸直在前面等，同一邊的兩下動作一樣。",
+      "zh-Hans": "右手连续划两下、左手连续划两下交替，游 25 码；没在划的那只手伸直在前面等，同一边的两下动作一样。"
+    },
+    "6b94b35a-4890-4ffb-ad7e-f8b630415c8b": {
+      "en": "25 yards each side with one arm extended out front and only the other swimming, the working shoulder rolling clear of the water and the breath taken to that side.",
+      "zh-Hant": "一手伸直在前面不動、只用另一手游 25 碼，左右各一趟；划手那一邊的肩膀要轉出水面，換氣跟著那隻手。",
+      "zh-Hans": "一手伸直在前面不动、只用另一手游 25 码，左右各一趟；划手那一边的肩膀要转出水面，换气跟着那只手。"
     }
   }
 }

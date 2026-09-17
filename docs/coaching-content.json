@@ -443,7 +443,7 @@
     "327265d2-e212-4917-90d9-21daa2a5520e": {
       "level": 4,
       "stage": 3,
-      "sort": 1,
+      "sort": 4,
       "teach": {
         "zh-Hant": "25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。",
         "en": "Twenty-five yards of dolphin kick is the physical base for butterfly. The up and the down should be even, not all down."
@@ -1314,7 +1314,7 @@
     "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
       "level": 4,
       "stage": 3,
-      "sort": 2,
+      "sort": 3,
       "teach": {
         "zh-Hant": "距離拉長之後，考的是後半段動作會不會垮，還有能不能游直。教他用天花板的一個定點或水道線當參考，每五碼確認一次。",
         "en": "At this distance the question is whether the stroke survives the second half, and whether he can hold a line. Give him one point on the ceiling or the lane line and check it every five yards."
@@ -1335,6 +1335,32 @@
       "err": {
         "zh-Hant": "收、翻、蹬併成一個動作，腳掌沒翻出去就變成剪刀腳。用手扶著他的腳掌帶一次。",
         "en": "The three counts collapsing into one, with the feet never turning out -- that is the scissor kick. Guide his feet through it once by hand."
+      }
+    },
+    "ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb": {
+      "level": 4,
+      "stage": 3,
+      "sort": 1,
+      "teach": {
+        "zh-Hant": "右手連續划兩下、左手連續划兩下，交替。另一隻手伸直在前面等。一邊連做兩下，他才來得及感覺到那隻手在做什麼——正常交替划太快，來不及修。要求兩下的動作一模一樣。",
+        "en": "Two strokes with the right arm, two with the left, alternating, the other arm waiting out front. Two in a row on one side gives him time to feel what that arm is doing; normal alternating is too fast to correct. The two should look identical."
+      },
+      "err": {
+        "zh-Hant": "等在前面的那隻手沉下去，變成兩隻手都在動；或是第二下比第一下隨便。",
+        "en": "The waiting arm sinking so both arms end up moving; or the second stroke sloppier than the first."
+      }
+    },
+    "6b94b35a-4890-4ffb-ad7e-f8b630415c8b": {
+      "level": 4,
+      "stage": 3,
+      "sort": 2,
+      "teach": {
+        "zh-Hant": "一隻手全程伸直在前面不動，只用另一隻手游，重點在肩膀——划手的那一邊肩膀要轉出水面，身體跟著側過去。換氣跟著那隻手。左右兩邊各一趟。",
+        "en": "One arm stays extended out front the whole way and only the other swims; the point is the shoulder -- the working side rolls clear of the water and the body turns with it. He breathes to the working arm. One length each side."
+      },
+      "err": {
+        "zh-Hant": "只有手臂在動、肩膀和身體是平的。那就變成手臂練習，不是轉肩練習。",
+        "en": "Only the arm moving while the shoulders and body stay flat -- that is an arm drill, not a rotation drill."
       }
     }
   },
