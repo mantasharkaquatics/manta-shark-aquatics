@@ -441,9 +441,9 @@
       }
     },
     "327265d2-e212-4917-90d9-21daa2a5520e": {
-      "level": 5,
+      "level": 4,
       "stage": 3,
-      "sort": 3,
+      "sort": 1,
       "teach": {
         "zh-Hant": "25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。",
         "en": "Twenty-five yards of dolphin kick is the physical base for butterfly. The up and the down should be even, not all down."
@@ -845,8 +845,8 @@
     },
     "b02f51e3-1e69-487e-86b1-18e21ddb6812": {
       "level": 4,
-      "stage": 3,
-      "sort": 1,
+      "stage": 2,
+      "sort": 4,
       "teach": {
         "zh-Hant": "蛙腿是四式中最難教的。分解成「收、翻、蹬、併」四拍，慢慢做。",
         "en": "The whip kick is the hardest movement in the four strokes to teach. Break it into four counts — draw up, turn out, drive, together — and go slowly."
@@ -1309,6 +1309,32 @@
       "err": {
         "zh-Hant": "只轉一半，變成趴著歪一邊；或是頭往上抬，身體就平回去了。",
         "en": "Turning only halfway, so it is a tilted front position; or lifting the head, which flattens the body back out."
+      }
+    },
+    "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
+      "level": 4,
+      "stage": 3,
+      "sort": 2,
+      "teach": {
+        "zh-Hant": "距離拉長之後，考的是後半段動作會不會垮，還有能不能游直。教他用天花板的一個定點或水道線當參考，每五碼確認一次。",
+        "en": "At this distance the question is whether the stroke survives the second half, and whether he can hold a line. Give him one point on the ceiling or the lane line and check it every five yards."
+      },
+      "err": {
+        "zh-Hant": "游成蛇行；或是後半段肩膀不轉了，手臂變成用甩的。",
+        "en": "Weaving down the lane; or the shoulders stopping their roll in the second half so the arms start being thrown."
+      }
+    },
+    "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
+      "level": 4,
+      "stage": 1,
+      "sort": 4,
+      "teach": {
+        "zh-Hant": "蛙腿最難的是「翻腳掌」。先扶牆做，讓他自己看得到腳。分成「收、翻、蹬、併」四拍，一拍一拍喊，不要急著連起來。",
+        "en": "The hard part of a breaststroke kick is turning the feet out. Start at the wall where he can see them. Four counts -- heels up, feet out, drive, together -- called one at a time, not joined up."
+      },
+      "err": {
+        "zh-Hant": "收、翻、蹬併成一個動作，腳掌沒翻出去就變成剪刀腳。用手扶著他的腳掌帶一次。",
+        "en": "The three counts collapsing into one, with the feet never turning out -- that is the scissor kick. Guide his feet through it once by hand."
       }
     }
   },

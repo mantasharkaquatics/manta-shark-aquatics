@@ -66,9 +66,9 @@
       "zh-Hans": "蝶泳 10 码"
     },
     "327265d2-e212-4917-90d9-21daa2a5520e": {
-      "en": "Dolphin Kick 25 yd",
-      "zh-Hant": "海豚腿 25 碼",
-      "zh-Hans": "海豚腿 25 码"
+      "en": "Butterfly Kick 25 yd",
+      "zh-Hant": "蝶式打水 25 碼",
+      "zh-Hans": "蝶泳打水 25 码"
     },
     "35250d84-1461-4c39-85fc-7686d9576753": {
       "en": "Bubble Jumps (Chest Deep)",
@@ -306,9 +306,9 @@
       "zh-Hans": "自由泳 50 码"
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
-      "en": "Backstroke 25 yd",
-      "zh-Hant": "仰式 25 碼",
-      "zh-Hans": "仰泳 25 码"
+      "en": "Backstroke 15 yd",
+      "zh-Hant": "仰式 15 碼",
+      "zh-Hans": "仰泳 15 码"
     },
     "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
       "en": "Water Competency 25 yd",
@@ -444,6 +444,16 @@
       "en": "Side Kick",
       "zh-Hant": "側邊打水",
       "zh-Hans": "侧边打水"
+    },
+    "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
+      "en": "Backstroke 25 yd",
+      "zh-Hant": "仰式 25 碼",
+      "zh-Hans": "仰泳 25 码"
+    },
+    "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
+      "en": "Breaststroke Kick Drill",
+      "zh-Hant": "蛙腿分解練習",
+      "zh-Hans": "蛙腿分解练习"
     }
   },
   "course_types": {
@@ -552,9 +562,9 @@
       "zh-Hans": "蝶泳 10 码，一划两踢，换气时下巴先出水。"
     },
     "327265d2-e212-4917-90d9-21daa2a5520e": {
-      "en": "Dolphin kicks 25 yd on the front with a board, wave from the chest.",
-      "zh-Hant": "扶板俯身海豚腿 25 碼，波浪由胸口帶動。",
-      "zh-Hans": "扶板俯身海豚腿 25 码，波浪由胸口带动。"
+      "en": "Butterfly kick 25 yards on a board, face down, the wave driven from the chest.",
+      "zh-Hant": "扶板俯身蝶式打水 25 碼，波浪由胸口帶動。",
+      "zh-Hans": "扶板俯身蝶泳打水 25 码，波浪由胸口带动。"
     },
     "35250d84-1461-4c39-85fc-7686d9576753": {
       "en": "Ten jumps in chest-deep water: submerge, blow out, surface, repeat rhythmically.",
@@ -792,9 +802,9 @@
       "zh-Hans": "自由泳 50 码含一次转身，全程动作不散。"
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
-      "en": "Backstroke 25 yards without stopping, shoulders rolling and the head steady, little finger entering first and the push finishing past the thigh.",
-      "zh-Hant": "仰式 25 碼不停，肩膀有轉動、頭部穩定；手臂小指先入水，推水推到大腿。",
-      "zh-Hans": "仰泳 25 码不停，肩膀有转动、头部稳定；手臂小指先入水，推水推到大腿。"
+      "en": "Backstroke 15 yards without stopping, shoulders rolling and the head steady, little finger entering first and the push finishing past the thigh.",
+      "zh-Hant": "仰式 15 碼不停，肩膀有轉動、頭部穩定；手臂小指先入水，推水推到大腿。",
+      "zh-Hans": "仰泳 15 码不停，肩膀有转动、头部稳定；手臂小指先入水，推水推到大腿。"
     },
     "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
       "en": "In deep water: jump in, surface and float or tread 1 min, turn a full circle to find the exit, swim 25 yd without stopping, climb out without the ladder.",
@@ -930,6 +940,16 @@
       "en": "Kicks 10 yards on the side, bottom arm extended, top arm on the thigh, shoulders stacked and the head still. Both sides.",
       "zh-Hant": "側躺打水 10 碼，下面的手往前伸直、上面的手貼大腿，兩邊肩膀疊在一起、頭不動。左右兩邊都要做。",
       "zh-Hans": "侧躺打水 10 码，下面的手往前伸直、上面的手贴大腿，两边肩膀叠在一起、头不动。左右两边都要做。"
+    },
+    "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
+      "en": "Backstroke 25 yards without stopping, holding a straight line, the stroke as good on the second half as the first.",
+      "zh-Hant": "仰式 25 碼不停，能維持直線，後半段的動作跟前半段一樣。",
+      "zh-Hans": "仰泳 25 码不停，能维持直线，后半段的动作跟前半段一样。"
+    },
+    "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
+      "en": "Ten breaststroke kicks at the wall or on a board, the four counts -- heels up, feet out, drive, together -- clearly separated.",
+      "zh-Hant": "扶牆或扶板做蛙腿 10 次：收腿到臀、腳掌翻出去、蹬開、併攏，四拍分得清楚。",
+      "zh-Hans": "扶墙或扶板做蛙腿 10 次：收腿到臀、脚掌翻出去、蹬开、并拢，四拍分得清楚。"
     }
   }
 }
