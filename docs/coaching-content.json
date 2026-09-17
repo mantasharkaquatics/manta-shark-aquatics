@@ -663,7 +663,7 @@
     },
     "818b6b3b-63b9-4e13-9a52-f3f466f57cc7": {
       "level": 4,
-      "stage": 2,
+      "stage": 1,
       "sort": 3,
       "teach": {
         "zh-Hant": "把流線型和打水結合，這是之後所有出發後動作的基礎。",
@@ -754,21 +754,21 @@
     },
     "96c47b53-df33-4b4a-9a8e-a84eed10c7b8": {
       "level": 4,
-      "stage": 2,
+      "stage": 1,
       "sort": 2,
       "teach": {
-        "zh-Hant": "仰式最大的問題是臀部下沉。肚子頂高、下巴微收。",
-        "en": "The problem with backstroke is always sinking hips. Stomach pushed up, chin lightly tucked."
+        "zh-Hant": "分解游是把仰式拆成「回手」和「推水」兩件事分開練。一手抱浮板，他就不用擔心浮不浮得起來，只要專心在動的那一隻手。手臂伸直過頭、小指先入水，推水一路推到大腿旁邊才出水。左右兩邊都要練。",
+        "en": "The drill splits backstroke into the recovery and the push, one at a time. One arm on a board so he is not worrying about floating, all the attention on the working arm: straight overhead, little finger in first, push all the way past the thigh before it leaves the water. Both sides."
       },
       "err": {
-        "zh-Hant": "折膝打水、手臂沒有過頭。",
-        "en": "Kicking from bent knees, and arms that never go past the head."
+        "zh-Hant": "推水推到一半就抬手出水，力量全丟掉；或是手臂彎著從身體側面繞過去。",
+        "en": "Lifting the arm out halfway through the push, which throws the power away; or a bent arm swinging round the side instead of straight overhead."
       }
     },
     "9722f505-b208-43dc-868d-495ba0f3c10e": {
       "level": 4,
       "stage": 2,
-      "sort": 4,
+      "sort": 3,
       "teach": {
         "zh-Hant": "水下打水一口氣 10 碼，同時練憋氣與流線型。",
         "en": "Ten yards of kicking underwater on one breath, training the breath hold and the streamline at the same time."
@@ -844,7 +844,7 @@
       }
     },
     "b02f51e3-1e69-487e-86b1-18e21ddb6812": {
-      "level": 5,
+      "level": 4,
       "stage": 3,
       "sort": 1,
       "teach": {
@@ -867,19 +867,6 @@
       "err": {
         "zh-Hant": "划成上下拍水。放慢，讓他找到「手掌壓住水」的感覺。",
         "en": "Slapping up and down instead of sculling. Slow it down until they find the palm pressing on the water."
-      }
-    },
-    "b3a0c2d4-5e6f-4a73-8b92-0c1d2e3f4a53": {
-      "level": 4,
-      "stage": 1,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "入水角度比姿勢重要。坐姿先做熟再跪姿。手臂夾耳，頭藏在手臂中間。",
-        "en": "The angle of entry matters more than the posture. Get the seated dive solid before kneeling. Arms squeezing the ears, head hidden between them."
-      },
-      "err": {
-        "zh-Hant": "抬頭看水面。頭一抬就變成拍肚子，會痛而且會怕。",
-        "en": "Lifting the head to look at the surface. Up comes the head and it becomes a belly flop — it hurts, and then they are afraid of it."
       }
     },
     "b46c9773-7e09-4da4-8beb-d79050075710": {
@@ -906,19 +893,6 @@
       "err": {
         "zh-Hant": "用手拚命划想往下。教他「把腿舉出水面」。",
         "en": "Clawing downwards with the hands. Teach them to lift the legs clear of the water."
-      }
-    },
-    "b4e9ff8e-535c-4e5e-bc9a-8ceb9c252113": {
-      "level": 4,
-      "stage": 3,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "最後 10 秒手離開水面，是為了證明腿真的在work。",
-        "en": "Hands out of the water for the last ten seconds, to prove the legs are actually doing the work."
-      },
-      "err": {
-        "zh-Hant": "手一離開水面就沉。回去把腿練好再測。",
-        "en": "Sinking the moment the hands come up. Go back and build the legs before testing again."
       }
     },
     "b5a0c2d4-5e6f-4a75-8b92-0c1d2e3f4a55": {
@@ -1001,15 +975,15 @@
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
       "level": 4,
-      "stage": 3,
-      "sort": 1,
+      "stage": 2,
+      "sort": 2,
       "teach": {
-        "zh-Hant": "雙臂對稱、蛙腿、臉朝上——這是累的時候能換的省力泳姿，L7 的長距離會需要它。口訣「雞、飛機、火箭」。",
-        "en": "Symmetric arms, whip kick, face up — this is the stroke they switch to when they are tired, and the long swims in L7 will need it. Chicken, aeroplane, rocket."
+        "zh-Hant": "把分解游的兩隻手接起來。仰式要有肩膀轉動——身體像烤肉架一樣左右滾，頭不動、眼睛看同一個點。手臂入水時小指先進，推水推到大腿。",
+        "en": "Joining the two arms from the drill. Backstroke needs shoulder roll: the body turns side to side while the head stays still and the eyes hold one point. Little finger enters first, and the push finishes past the thigh."
       },
       "err": {
-        "zh-Hant": "手腳不同步。先分開練手、再分開練腳，最後才合起來。",
-        "en": "Arms and legs out of time. Practise the arms alone, then the legs alone, and only then put them together."
+        "zh-Hant": "身體平板沒有轉動，手臂用甩的；或是臀部下沉變成坐著游。",
+        "en": "A flat body with no roll and arms thrown round; or the hips dropping until he is sitting rather than swimming."
       }
     },
     "c3a0c2d4-5e6f-4a83-8b92-0c1d2e3f4a63": {
@@ -1075,19 +1049,6 @@
       "err": {
         "zh-Hant": "抬頭看前面。頭一抬臀部就掉，滑不出去。",
         "en": "Lifting the head to look ahead. The head comes up, the hips drop, and the glide stops."
-      }
-    },
-    "daefdc4c-aa3f-4df6-b001-4e95569c4d78": {
-      "level": 5,
-      "stage": 2,
-      "sort": 1,
-      "teach": {
-        "zh-Hant": "25 碼仰式要有肩膀轉動。手臂入水時小指先進。",
-        "en": "Twenty-five yards of backstroke needs the shoulders rotating. Little finger enters the water first."
-      },
-      "err": {
-        "zh-Hant": "身體平板沒有轉動，手臂用甩的。",
-        "en": "A flat body with no rotation, and arms thrown rather than swung."
       }
     },
     "de916eb5-53b3-4ab3-b451-53f793a1666f": {

@@ -206,9 +206,9 @@
       "zh-Hans": "无泳镜游泳"
     },
     "96c47b53-df33-4b4a-9a8e-a84eed10c7b8": {
-      "en": "Backstroke 15 yd",
-      "zh-Hant": "仰式 15 碼",
-      "zh-Hans": "仰泳 15 码"
+      "en": "Backstroke Single-Arm Drill",
+      "zh-Hant": "仰式分解游",
+      "zh-Hans": "仰泳分解游"
     },
     "9722f505-b208-43dc-868d-495ba0f3c10e": {
       "en": "Underwater Freestyle Kicking",
@@ -306,9 +306,9 @@
       "zh-Hans": "自由泳 50 码"
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
-      "en": "Elementary Backstroke 25 yd",
-      "zh-Hant": "初學仰泳 25 碼",
-      "zh-Hans": "初学仰泳 25 码"
+      "en": "Backstroke 25 yd",
+      "zh-Hant": "仰式 25 碼",
+      "zh-Hans": "仰泳 25 码"
     },
     "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
       "en": "Water Competency 25 yd",
@@ -692,9 +692,9 @@
       "zh-Hans": "不戴泳镜睁眼游自由泳 25 码，过程不慌张。"
     },
     "96c47b53-df33-4b4a-9a8e-a84eed10c7b8": {
-      "en": "Swims 15 yd backstroke, hips up, arms straight past the ear.",
-      "zh-Hant": "仰式 15 碼，臀部不下沉，手臂伸直貼耳過頭。",
-      "zh-Hans": "仰泳 15 码，臀部不下沉，手臂伸直贴耳过头。"
+      "en": "Holds a board with one arm and swims a full backstroke arm with the other for 15 yards, both sides: arm straight overhead, little finger first, pushing past the thigh.",
+      "zh-Hant": "一手抱浮板、另一手做完整的仰式划手 15 碼，左右各一趟：手臂伸直過頭、小指先入水，推水推到大腿旁邊。",
+      "zh-Hans": "一手抱浮板、另一手做完整的仰泳划手 15 码，左右各一趟：手臂伸直过头、小指先入水，推水推到大腿旁边。"
     },
     "9722f505-b208-43dc-868d-495ba0f3c10e": {
       "en": "Kicks 10 yd fully underwater in streamline on one breath.",
@@ -792,9 +792,9 @@
       "zh-Hans": "自由泳 50 码含一次转身，全程动作不散。"
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
-      "en": "Swims 25 yd on the back with a symmetric arm pull and whip kick, gliding after each stroke.",
-      "zh-Hant": "仰躺 25 碼，雙臂對稱划手配合蛙腿，每一循環後有滑行。",
-      "zh-Hans": "仰躺 25 码，双臂对称划手配合蛙腿，每一循环后有滑行。"
+      "en": "Backstroke 25 yards without stopping, shoulders rolling and the head steady, little finger entering first and the push finishing past the thigh.",
+      "zh-Hant": "仰式 25 碼不停，肩膀有轉動、頭部穩定；手臂小指先入水，推水推到大腿。",
+      "zh-Hans": "仰泳 25 码不停，肩膀有转动、头部稳定；手臂小指先入水，推水推到大腿。"
     },
     "c2a0c2d4-5e6f-4a82-8b92-0c1d2e3f4a62": {
       "en": "In deep water: jump in, surface and float or tread 1 min, turn a full circle to find the exit, swim 25 yd without stopping, climb out without the ladder.",
