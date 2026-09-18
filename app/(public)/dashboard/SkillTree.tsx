@@ -52,6 +52,9 @@ type TreeSkill = {
       The prerequisites still exist and still gate it -- they are just not the
       thing the picture is about. */
   apart: boolean
+  /** skills.col_override -- a column the owner pinned by hand, overriding what
+      the prerequisites would have chosen. Null for almost every skill. */
+  pin: number | null
 }
 
 type Props = {
@@ -280,8 +283,8 @@ export default function SkillTree({
     let alive = true
     ;(async () => {
       const cols = forCoach
-        ? 'id, name, pass_criteria, stage, sort_order, level_id, is_standalone'
-        : 'id, name, stage, sort_order, level_id, is_standalone'
+        ? 'id, name, pass_criteria, stage, sort_order, level_id, is_standalone, col_override'
+        : 'id, name, stage, sort_order, level_id, is_standalone, col_override'
       const [{ data: levRows }, { data: skRows }, { data: preRows }] = await Promise.all([
         supabase.from('levels').select('id, level_number'),
         supabase.from('skills').select(cols).eq('is_active', true).order('sort_order'),
@@ -327,6 +330,7 @@ export default function SkillTree({
           id, name: String(s.name || ''), criteria: String((s as any).pass_criteria || ''),
           level, stage, row: 1, col: 0, sort: Number(s.sort_order) || 0, percent, state,
           apart: Boolean((s as any).is_standalone),
+          pin: (s as any).col_override == null ? null : Number((s as any).col_override),
         })
       }
 
@@ -339,7 +343,7 @@ export default function SkillTree({
         const onBoard = inL.filter(b => !b.apart)
         const here = new Set(onBoard.map(b => b.id))
         const { rows: nRows, spots } = placeLevel(onBoard.map(b => ({
-          id: b.id, stage: b.stage, sort: b.sort,
+          id: b.id, stage: b.stage, sort: b.sort, col: b.pin,
           needs: (need[b.id] || []).filter(q => here.has(q)),
         })))
         for (const b of onBoard) {

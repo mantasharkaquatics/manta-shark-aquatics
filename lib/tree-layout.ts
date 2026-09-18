@@ -24,6 +24,13 @@ export type TreeInput = {
   sort: number
   /** Prerequisite ids. Only the ones on this level matter here. */
   needs: string[]
+  /** Pin this skill to a column instead of letting the prerequisites decide.
+      May be negative: the board grows a column on the left rather than
+      refusing. This exists because the prerequisite graph cannot always say
+      what the owner wants the picture to say -- two skills hanging off the
+      same parent always pile up to its right, and sometimes the row should
+      straddle it instead. Nothing sets this by default. */
+  col?: number | null
 }
 
 export type Spot = {
@@ -79,8 +86,15 @@ export function placeLevel(nodes: TreeInput[]): {
      1,2,3 rather than 0.5,1.5,2.5, so the rows below can stand directly under
      it instead of half a tile off. */
   const first = byRow[1] || []
-  const firstOff = Math.floor((cols - first.length) / 2)   // 半格往左靠，跟下面幾排一致
-  first.forEach((n, i) => { spots[n.id] = { row: 1, col: firstOff + i } })
+  const firstPinned = first.filter(n => n.col != null)
+  for (const n of firstPinned) spots[n.id] = { row: 1, col: n.col as number }
+  let slot = Math.floor((cols - first.length) / 2)   // 半格往左靠，跟下面幾排一致
+  for (const n of first) {
+    if (n.col != null) continue
+    while (firstPinned.some(f => f.col === slot)) slot += 1
+    spots[n.id] = { row: 1, col: slot }
+    slot += 1
+  }
 
   for (let r = 2; r <= rows; r++) {
     const row = byRow[r]
@@ -103,16 +117,26 @@ export function placeLevel(nodes: TreeInput[]): {
     const linked = (n: TreeInput) =>
       n.needs.some(q => spots[q] || row.some(m => m.id === q)) ||
       nodes.some(m => m.needs.includes(n.id) && m.stage !== undefined)
-    const marks = row.map((n, i) => ({ n, i, w: want(n), free: !linked(n) }))
-    for (const x of marks) if (x.free) spots[x.n.id] = { row: r, col: x.i }
+    const marks = row.map((n, i) => ({ n, i, w: want(n), free: !linked(n), pin: n.col != null }))
+    for (const x of marks) {
+      if (x.pin) spots[x.n.id] = { row: r, col: x.n.col as number }
+      else if (x.free) spots[x.n.id] = { row: r, col: x.i }
+    }
 
-    const anchored = marks.filter(x => !x.free && x.w !== null) as
-      { n: TreeInput; i: number; w: number; free: boolean }[]
-    const floating = marks.filter(x => !x.free && x.w === null)
+    const anchored = marks.filter(x => !x.pin && !x.free && x.w !== null) as
+      { n: TreeInput; i: number; w: number; free: boolean; pin: boolean }[]
+    const floating = marks.filter(x => !x.pin && !x.free && x.w === null)
 
+    if (!anchored.length && !floating.length) continue
     if (!anchored.length) {
       const off = Math.floor((cols - row.length) / 2)
-      row.forEach((n, i) => { spots[n.id] = { row: r, col: off + i } })
+      let c = off
+      for (const n of row) {
+        if (n.col != null) continue
+        while (marks.some(m => m.pin && m.n.col === c)) c += 1
+        spots[n.id] = { row: r, col: c }
+        c += 1
+      }
       continue
     }
 
@@ -120,7 +144,8 @@ export function placeLevel(nodes: TreeInput[]): {
        column apart; if that pushes the last one off the right edge the whole run
        slides back left by however much it overflowed. */
     anchored.sort((a, b) => a.w - b.w || a.i - b.i)
-    const fixed = marks.filter(x => x.free).map(x => x.i)
+    const fixed = [...marks.filter(x => x.free).map(x => x.i),
+                   ...marks.filter(x => x.pin).map(x => x.n.col as number)]
     const clear = (c: number) => { while (fixed.some(f => Math.abs(f - c) < 0.999)) c += 1; return c }
     const at: number[] = []
     anchored.forEach((x, k) => { at.push(clear(k ? Math.max(x.w, at[k - 1] + 1) : x.w)) })
@@ -168,6 +193,15 @@ export function placeLevel(nodes: TreeInput[]): {
       if (best === null) { best = Math.max(...taken(), -1) + 1; cols = Math.max(cols, best + 1) }
       spots[x.n.id] = { row: r, col: best }
     }
+  }
+  /* A pinned column may be negative -- that is how a row is asked to hang one
+     column further left than anything above it. The board cannot have a column
+     -1, so the whole picture slides right instead and grows by that much. */
+  const placed = Object.values(spots)
+  if (placed.length) {
+    const lo = Math.min(...placed.map(p => p.col))
+    if (lo < 0) for (const p of placed) p.col -= lo
+    cols = Math.max(cols, Math.max(...placed.map(p => p.col)) + 1)
   }
   return { rows, cols, spots }
 }

@@ -444,6 +444,7 @@
       "level": 4,
       "stage": 3,
       "sort": 4,
+      "col": 3,
       "teach": {
         "zh-Hant": "25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。",
         "en": "Twenty-five yards of dolphin kick is the physical base for butterfly. The up and the down should be even, not all down."
@@ -1315,6 +1316,7 @@
       "level": 4,
       "stage": 3,
       "sort": 3,
+      "col": 1,
       "teach": {
         "zh-Hant": "距離拉長之後，考的是後半段動作會不會垮，還有能不能游直。教他用天花板的一個定點或水道線當參考，每五碼確認一次。",
         "en": "At this distance the question is whether the stroke survives the second half, and whether he can hold a line. Give him one point on the ceiling or the lane line and check it every five yards."
@@ -1341,6 +1343,7 @@
       "level": 4,
       "stage": 3,
       "sort": 1,
+      "col": -1,
       "teach": {
         "zh-Hant": "右手連續划兩下、左手連續划兩下，交替。另一隻手伸直在前面等。一邊連做兩下，他才來得及感覺到那隻手在做什麼——正常交替划太快，來不及修。要求兩下的動作一模一樣。",
         "en": "Two strokes with the right arm, two with the left, alternating, the other arm waiting out front. Two in a row on one side gives him time to feel what that arm is doing; normal alternating is too fast to correct. The two should look identical."
@@ -1354,6 +1357,7 @@
       "level": 4,
       "stage": 3,
       "sort": 2,
+      "col": 0,
       "teach": {
         "zh-Hant": "一隻手全程伸直在前面不動，只用另一隻手游，重點在肩膀——划手的那一邊肩膀要轉出水面，身體跟著側過去。換氣跟著那隻手。左右兩邊各一趟。",
         "en": "One arm stays extended out front the whole way and only the other swims; the point is the shoulder -- the working side rolls clear of the water and the body turns with it. He breathes to the working arm. One length each side."
