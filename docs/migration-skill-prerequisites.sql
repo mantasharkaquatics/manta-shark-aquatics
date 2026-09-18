@@ -108,6 +108,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
   ('327265d2-e212-4917-90d9-21daa2a5520e', '5aa1716e-8d05-41b0-a660-7fce60b69390'),   -- 蝶式打水 25 碼 ← 海豚腿 10 碼
   ('ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb', '91e61121-5528-456b-9e7d-b97953ed0c39'),   -- 自由式技術游（右二左二） ← 自由式 25 碼
   ('6b94b35a-4890-4ffb-ad7e-f8b630415c8b', '91e61121-5528-456b-9e7d-b97953ed0c39'),   -- 自由式技術游（單手轉肩游） ← 自由式 25 碼
+  ('de640a60-96c1-4616-bcd2-f29f1aa61ed8', '91e61121-5528-456b-9e7d-b97953ed0c39'),   -- 25 碼自由式衝刺 ← 自由式 25 碼
   ('be760433-09d7-4cac-9863-fa758abc9009', '91e61121-5528-456b-9e7d-b97953ed0c39'),   -- 自由式 50 碼 ← 自由式 25 碼
   ('18a6462c-4c67-4e93-8838-8bc03717b463', 'be760433-09d7-4cac-9863-fa758abc9009'),   -- 自由式 100 碼 ← 自由式 50 碼
   ('97804fbb-13d4-4367-ab9d-0276b25591d6', '6bf527f0-5e39-48bb-b975-6e29829b5d7c'),   -- 仰式 50 碼 ← 仰式 25 碼
@@ -167,7 +168,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
 COMMIT;
 
 -- ---------- 跑完的驗證 ----------
--- 應該是 113 列：
+-- 應該是 114 列：
 -- select count(*) from skill_prerequisites;
 --
 -- 第一天就能開始的技能（沒有任何前置）：

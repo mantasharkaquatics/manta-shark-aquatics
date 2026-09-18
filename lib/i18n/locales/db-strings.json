@@ -464,6 +464,11 @@
       "en": "Freestyle Drill: Single-Arm with Rotation",
       "zh-Hant": "自由式技術游（單手轉肩游）",
       "zh-Hans": "自由泳技术游（单手转肩游）"
+    },
+    "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
+      "en": "Freestyle 25 yd for Speed",
+      "zh-Hant": "25 碼自由式衝刺",
+      "zh-Hans": "25 码自由泳冲刺"
     }
   },
   "course_types": {
@@ -717,9 +722,9 @@
       "zh-Hans": "一手抱浮板、另一手做完整的仰泳划手 15 码，左右各一趟：手臂伸直过头、小指先入水，推水推到大腿旁边。"
     },
     "9722f505-b208-43dc-868d-495ba0f3c10e": {
-      "en": "Kicks 10 yd fully underwater in streamline on one breath.",
-      "zh-Hant": "一口氣在水面下以流線型打水 10 碼。",
-      "zh-Hans": "一口气在水面下以流线型打水 10 码。"
+      "en": "Kicks 5 yd fully underwater in streamline on one breath.",
+      "zh-Hant": "一口氣在水面下以流線型打水 5 碼。",
+      "zh-Hans": "一口气在水面下以流线型打水 5 码。"
     },
     "97804fbb-13d4-4367-ab9d-0276b25591d6": {
       "en": "Swims 50 yd backstroke with one turn, staying in the lane.",
@@ -970,6 +975,11 @@
       "en": "25 yards each side with one arm extended out front and only the other swimming, the working shoulder rolling clear of the water and the breath taken to that side.",
       "zh-Hant": "一手伸直在前面不動、只用另一手游 25 碼，左右各一趟；划手那一邊的肩膀要轉出水面，換氣跟著那隻手。",
       "zh-Hans": "一手伸直在前面不动、只用另一手游 25 码，左右各一趟；划手那一边的肩膀要转出水面，换气跟着那只手。"
+    },
+    "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
+      "en": "Swims 25 yards freestyle as fast as he can with the stroke holding together and no more breaths than an easy 25.",
+      "zh-Hant": "自由式 25 碼盡全力游，全程動作不散，換氣次數不比平常那一趟多。",
+      "zh-Hans": "自由泳 25 码尽全力游，全程动作不散，换气次数不比平常那一趟多。"
     }
   }
 }

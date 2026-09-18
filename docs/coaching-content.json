@@ -771,8 +771,8 @@
       "stage": 2,
       "sort": 3,
       "teach": {
-        "zh-Hant": "水下打水一口氣 10 碼，同時練憋氣與流線型。",
-        "en": "Ten yards of kicking underwater on one breath, training the breath hold and the streamline at the same time."
+        "zh-Hant": "水下打水一口氣 5 碼，同時練憋氣與流線型。",
+        "en": "Five yards underwater on one breath, training the breath hold and the streamline at the same time."
       },
       "err": {
         "zh-Hant": "中途抬頭偷看。",
@@ -1365,6 +1365,20 @@
       "err": {
         "zh-Hant": "只有手臂在動、肩膀和身體是平的。那就變成手臂練習，不是轉肩練習。",
         "en": "Only the arm moving while the shoulders and body stay flat -- that is an arm drill, not a rotation drill."
+      }
+    },
+    "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
+      "level": 4,
+      "stage": 3,
+      "sort": 5,
+      "col": 2,
+      "teach": {
+        "zh-Hant": "第一次要求速度。重點不是游多快，是「快起來的時候動作還在不在」。跟他平常那一趟比划手次數，多很多就是散掉了，寧可慢一點。最後 5 碼不換氣那種是 L7 的事，這裡不要。",
+        "en": "The first time speed is asked for. The question is not how fast but whether the stroke survives going fast. Count his strokes against an easy 25 -- a lot more means it fell apart, and slower is better than that. Holding the breath for the last five yards belongs to Level 7, not here."
+      },
+      "err": {
+        "zh-Hant": "一快就變成手在水面拍、腳亂踢，換氣次數暴增。要求「用同樣的划手次數游快一點」。",
+        "en": "Speed turning into slapping at the surface and thrashing legs, with the breath count shooting up. Ask for the same stroke count, faster."
       }
     }
   },
