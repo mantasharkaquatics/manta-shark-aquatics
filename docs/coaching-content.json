@@ -443,7 +443,7 @@
     "327265d2-e212-4917-90d9-21daa2a5520e": {
       "level": 4,
       "stage": 3,
-      "sort": 4,
+      "sort": 5,
       "col": 3,
       "teach": {
         "zh-Hant": "25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。",
@@ -665,7 +665,7 @@
     "818b6b3b-63b9-4e13-9a52-f3f466f57cc7": {
       "level": 4,
       "stage": 1,
-      "sort": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "把流線型和打水結合，這是之後所有出發後動作的基礎。",
         "en": "Joins the streamline to the kick. Everything that happens after a start is built on this."
@@ -756,7 +756,7 @@
     "96c47b53-df33-4b4a-9a8e-a84eed10c7b8": {
       "level": 4,
       "stage": 1,
-      "sort": 2,
+      "sort": 3,
       "teach": {
         "zh-Hant": "分解游是把仰式拆成「回手」和「推水」兩件事分開練。一手抱浮板，他就不用擔心浮不浮得起來，只要專心在動的那一隻手。手臂伸直過頭、小指先入水，推水一路推到大腿旁邊才出水。左右兩邊都要練。",
         "en": "The drill splits backstroke into the recovery and the push, one at a time. One arm on a board so he is not worrying about floating, all the attention on the working arm: straight overhead, little finger in first, push all the way past the thigh before it leaves the water. Both sides."
@@ -769,7 +769,7 @@
     "9722f505-b208-43dc-868d-495ba0f3c10e": {
       "level": 4,
       "stage": 2,
-      "sort": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "水下打水一口氣 5 碼，同時練憋氣與流線型。",
         "en": "Five yards underwater on one breath, training the breath hold and the streamline at the same time."
@@ -977,7 +977,7 @@
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
       "level": 4,
       "stage": 2,
-      "sort": 2,
+      "sort": 3,
       "teach": {
         "zh-Hant": "把分解游的兩隻手接起來。仰式要有肩膀轉動——身體像烤肉架一樣左右滾，頭不動、眼睛看同一個點。手臂入水時小指先進，推水推到大腿。",
         "en": "Joining the two arms from the drill. Backstroke needs shoulder roll: the body turns side to side while the head stays still and the eyes hold one point. Little finger enters first, and the push finishes past the thigh."
@@ -1315,8 +1315,8 @@
     "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
       "level": 4,
       "stage": 3,
-      "sort": 3,
-      "col": 1,
+      "sort": 4,
+      "col": 2,
       "teach": {
         "zh-Hant": "距離拉長之後，考的是後半段動作會不會垮，還有能不能游直。教他用天花板的一個定點或水道線當參考，每五碼確認一次。",
         "en": "At this distance the question is whether the stroke survives the second half, and whether he can hold a line. Give him one point on the ceiling or the lane line and check it every five yards."
@@ -1370,8 +1370,8 @@
     "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
       "level": 4,
       "stage": 3,
-      "sort": 5,
-      "col": 2,
+      "sort": 3,
+      "col": 1,
       "teach": {
         "zh-Hant": "第一次要求速度。重點不是游多快，是「快起來的時候動作還在不在」。跟他平常那一趟比划手次數，多很多就是散掉了，寧可慢一點。最後 5 碼不換氣那種是 L7 的事，這裡不要。",
         "en": "The first time speed is asked for. The question is not how fast but whether the stroke survives going fast. Count his strokes against an easy 25 -- a lot more means it fell apart, and slower is better than that. Holding the breath for the last five yards belongs to Level 7, not here."
