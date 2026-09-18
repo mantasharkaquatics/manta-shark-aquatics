@@ -118,6 +118,10 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
   ('ee7b11f4-bb68-4868-95c9-62270c9ae576', 'e858562b-a3aa-4875-84ef-e1f6875770e5'),   -- 蛙式 10 碼 ← 蛙腿 25 碼
   ('8aadc967-9b3f-430b-b161-273001ffa21a', '327265d2-e212-4917-90d9-21daa2a5520e'),   -- 自手蝶腳 ← 蝶式打水 25 碼
   ('6d6b06d9-7b44-4980-a1a6-a4ab887d5ede', '8aadc967-9b3f-430b-b161-273001ffa21a'),   -- 單手蝶式 ← 自手蝶腳
+  ('2cd9fcb7-cb6d-4853-95c0-97f3acc443d7', '97804fbb-13d4-4367-ab9d-0276b25591d6'),   -- 仰式蝶腳 ← 仰式 50 碼
+  ('4093e9eb-c077-4efa-9dc7-2a8378163b2b', '2cd9fcb7-cb6d-4853-95c0-97f3acc443d7'),   -- 單手仰式 ← 仰式蝶腳
+  ('59628c84-eead-4393-9e2e-5774670383ca', '2cd9fcb7-cb6d-4853-95c0-97f3acc443d7'),   -- 雙手仰式 ← 仰式蝶腳
+  ('d6b2ba7b-5a81-4247-8532-d9eb078f71bd', '2cd9fcb7-cb6d-4853-95c0-97f3acc443d7'),   -- 側身六踢轉換 ← 仰式蝶腳
   ('31dc4fc7-ef0b-4e4c-a80c-419ceebc7360', '327265d2-e212-4917-90d9-21daa2a5520e'),   -- 蝶式 10 碼 ← 蝶式打水 25 碼
   ('31dc4fc7-ef0b-4e4c-a80c-419ceebc7360', '818b6b3b-63b9-4e13-9a52-f3f466f57cc7'),   -- 蝶式 10 碼 ← 流線自由式打水
   ('9f37e0f9-68d5-4bae-8349-c9d2d99d8225', 'ee7b11f4-bb68-4868-95c9-62270c9ae576'),   -- 蛙式 15 碼 ← 蛙式 10 碼
@@ -164,7 +168,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
 COMMIT;
 
 -- ---------- 跑完的驗證 ----------
--- 應該是 110 列：
+-- 應該是 114 列：
 -- select count(*) from skill_prerequisites;
 --
 -- 第一天就能開始的技能（沒有任何前置）：

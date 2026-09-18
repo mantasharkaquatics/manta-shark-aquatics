@@ -313,7 +313,7 @@
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "level": 5,
       "stage": 3,
-      "sort": 2,
+      "sort": 5,
       "teach": {
         "zh-Hant": "平轉身四式都用得到，蛙式和蝶式比賽只准這種轉身，翻滾失敗時它也是退路。先教觸壁的兩隻手，再教轉的身體。排在 蛙式 10 碼 後面：要先游得出蛙式，才有東西可以轉。",
         "en": "The open turn is used in all four strokes, it is the only legal turn in breaststroke and butterfly, and it is the fallback when a flip goes wrong. Teach the two hands on the wall first, then the body. It sits after the 10-yard breaststroke because there has to be a stroke before there is a turn."
@@ -321,7 +321,8 @@
       "err": {
         "zh-Hant": "轉身時站起來調整。要求腳只碰牆、不碰池底。",
         "en": "Standing up mid-turn to reset. Ask for feet that touch the wall and never the floor."
-      }
+      },
+      "col": 4
     },
     "11f3d107-8ea1-43f9-9301-3875cd71dad0": {
       "level": 7,
@@ -347,7 +348,8 @@
       "err": {
         "zh-Hant": "換氣次數越游越多。那是配速太快的訊號。",
         "en": "Breathing more often as the swim goes on. That is the signal the pace was too fast."
-      }
+      },
+      "col": 0
     },
     "1b7d1a52-bac5-44a5-9bc4-18a7ab70903f": {
       "level": 6,
@@ -399,7 +401,8 @@
       "err": {
         "zh-Hant": "翻完才找牆。要在接近牆之前就決定好距離。",
         "en": "Looking for the wall after the flip. The distance has to be settled before they get there."
-      }
+      },
+      "col": 0
     },
     "2eb2c769-054f-4e44-9769-779c7972318b": {
       "level": 1,
@@ -777,7 +780,8 @@
       "err": {
         "zh-Hant": "仰式撞牆。這是沒有數划手的必然結果，一定要教。",
         "en": "Hitting the wall on backstroke. That is what happens without counting strokes, every time, so it has to be taught."
-      }
+      },
+      "col": 2
     },
     "997642b0-c290-48cf-a53f-ccb46d52d539": {
       "level": 3,
@@ -933,7 +937,8 @@
       "err": {
         "zh-Hant": "第一趟拚快，第二趟散掉。要求前後兩趟划手次數相同。",
         "en": "Sprinting the first length and falling apart on the second. Ask for the same stroke count both ways."
-      }
+      },
+      "col": 0
     },
     "c1a0c2d4-5e6f-4a81-8b92-0c1d2e3f4a61": {
       "level": 4,
@@ -1050,7 +1055,8 @@
       "err": {
         "zh-Hant": "連續蹬腿不滑行。要求「蹬完數一下再收」。",
         "en": "Kicking continuously with no glide. Ask them to count one after the drive before drawing up."
-      }
+      },
+      "col": 4
     },
     "e8fd87dc-4e41-4ea5-adda-d8038881f573": {
       "level": 3,
@@ -1345,7 +1351,7 @@
     "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
       "level": 5,
       "stage": 2,
-      "sort": 2,
+      "sort": 3,
       "teach": {
         "zh-Hant": "蛙腿會了之後才加手。抱水是往外往下往內畫一個小圈，手肘不要拉到肩膀後面——蛙式的手只負責把頭抬起來換氣，前進靠腿。順序是「划、吸、蹬、滑」，一拍一拍喊。",
         "en": "Arms go on only once the kick is there. The pull is a small circle out, down and in, elbows never dragging behind the shoulders -- in breaststroke the arms only lift the head for the breath, the legs do the moving. Pull, breathe, kick, glide, called one count at a time."
@@ -1353,7 +1359,8 @@
       "err": {
         "zh-Hant": "手划太大、拉到身體後面，整個人往下沉；或是先蹬再划，順序反了。",
         "en": "A pull that sweeps too far back and sinks him; or kicking before pulling, which is the order reversed."
-      }
+      },
+      "col": 4
     },
     "8aadc967-9b3f-430b-b161-273001ffa21a": {
       "level": 5,
@@ -1366,12 +1373,13 @@
       "err": {
         "zh-Hant": "兩次打水變成一次，或是打水跟推水各做各的。放慢，讓他用嘴巴數拍子。",
         "en": "Two kicks collapsing into one, or the kick and the pull running on separate clocks. Slow it down and have him count out loud."
-      }
+      },
+      "col": 5
     },
     "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
       "level": 5,
       "stage": 2,
-      "sort": 3,
+      "sort": 4,
       "teach": {
         "zh-Hant": "一隻手伸直在前面不動，只用另一隻手做蝶式，一划兩踢。單邊比雙邊輕鬆很多，他才有餘力顧節奏和換氣。左右兩邊都要練。",
         "en": "One arm stays extended out front and only the other does the butterfly, two kicks to the pull. One arm is far less work than two, which leaves him something to spend on rhythm and the breath. Both sides."
@@ -1379,6 +1387,63 @@
       "err": {
         "zh-Hant": "沒在動的那隻手沉下去，身體就歪掉；或是為了把手拉出水面而抬頭。",
         "en": "The resting arm sinking so the body twists; or lifting the head to get the arm out of the water."
+      },
+      "col": 5
+    },
+    "2cd9fcb7-cb6d-4853-95c0-97f3acc443d7": {
+      "level": 5,
+      "stage": 2,
+      "sort": 2,
+      "col": 2,
+      "teach": {
+        "zh-Hant": "仰躺做蝶式打水，波浪是從胸口和肚子帶起來的，不是折膝亂踢。膝蓋不可以破水面——那是在騎腳踏車。這一項也是之後仰式出發和轉身之後水下那一段的基礎。",
+        "en": "Dolphin kick on the back: the wave comes from the chest and stomach, not from bending the knees. The knees must not break the surface -- that is cycling. This is also the base for the underwater off a backstroke start or turn."
+      },
+      "err": {
+        "zh-Hant": "折膝踢，膝蓋一直露出水面；或是臀部沉下去變成坐著踢。",
+        "en": "Knee-driven kicking with the knees coming out of the water; or the hips dropping until he is sitting and kicking."
+      }
+    },
+    "4093e9eb-c077-4efa-9dc7-2a8378163b2b": {
+      "level": 5,
+      "stage": 3,
+      "sort": 2,
+      "col": 1,
+      "teach": {
+        "zh-Hant": "一隻手貼著大腿完全不動，只用另一隻手游。重點還是肩膀——划的那一邊要轉出水面，身體跟著滾。L4 的分解游是抱著浮板做的，這裡拿掉浮板，他要自己撐住那條線。左右都要練。",
+        "en": "One arm stays pinned at the thigh and only the other swims. The point is still the shoulder: the working side rolls clear and the body turns with it. The Level 4 drill had a board; here the board is gone and he holds the line himself. Both sides."
+      },
+      "err": {
+        "zh-Hant": "只有手臂在動、身體是平的；或是貼大腿那隻手偷偷幫忙划水。",
+        "en": "Only the arm moving while the body stays flat; or the resting arm quietly sculling to help."
+      }
+    },
+    "59628c84-eead-4393-9e2e-5774670383ca": {
+      "level": 5,
+      "stage": 3,
+      "sort": 3,
+      "col": 2,
+      "teach": {
+        "zh-Hant": "兩手同時從頭頂入水、同時推到大腿，完全不轉肩，把「抓水」和「屁股不掉」單獨拿出來練。配蝶式打水做，合起來就是完整的反蝶。很累，短距離就好。",
+        "en": "Both arms entering overhead together and finishing at the thighs together, with no roll at all -- it isolates the catch and the hip position. Done with the dolphin kick it is a full reverse butterfly. It is hard work; keep it short."
+      },
+      "err": {
+        "zh-Hant": "手入水太寬變成拍水；或是臀部沉下去，變成坐著划。",
+        "en": "Hands entering too wide so it becomes slapping; or the hips dropping until he is sitting and pulling."
+      }
+    },
+    "d6b2ba7b-5a81-4247-8532-d9eb078f71bd": {
+      "level": 5,
+      "stage": 3,
+      "sort": 4,
+      "col": 3,
+      "teach": {
+        "zh-Hant": "仰式最大的問題是身體平板不轉。側躺打水六下、划一下換到另一邊，強迫他每一次划手都轉到底。頭不動、眼睛盯天花板同一個點，只有身體在滾。",
+        "en": "The biggest fault in backstroke is a flat body. Six kicks on the side, one stroke to switch: it forces the rotation to go all the way every time. Head still, eyes on one point on the ceiling, only the body rolling."
+      },
+      "err": {
+        "zh-Hant": "只轉一半就換邊；或是頭跟著身體一起轉。",
+        "en": "Switching after only half a turn; or the head rolling with the body."
       }
     }
   },
