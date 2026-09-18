@@ -194,6 +194,24 @@ export function routeWires(
      Three lanes in it, so one horizontal run never sits on another. */
   const lane = (r: number, k: 0 | 1 | 2) => top(r) - [8, 17, 26][k]
 
+  /* Two brackets that meet end to end at the same height read as ONE long
+     horizontal bar, and a bar says the skill at one end leads to the skill at
+     the other. That is a lie the picture tells all by itself: on Level 4,
+     自由式 25 碼 and 仰式 15 碼 both bracketed into the row below, touched at
+     the middle column, and the result looked like 自由式 25 碼 connected to
+     仰式 25 碼. So a horizontal run books the span it occupies, and the next
+     one that would overlap it drops to the lane underneath. */
+  const booked: Record<number, Array<Array<[number, number]>>> = {}
+  const pickLane = (r: number, xa: number, xb: number, order: Array<0 | 1 | 2>): 0 | 1 | 2 => {
+    const lo = Math.min(xa, xb) - 3, hi = Math.max(xa, xb) + 3
+    const rows = (booked[r] ||= [[], [], []])
+    for (const k of order) {
+      if (rows[k].every(([a, b]) => b <= lo || a >= hi)) { rows[k].push([lo, hi]); return k }
+    }
+    rows[order[order.length - 1]].push([lo, hi])
+    return order[order.length - 1]
+  }
+
   /* A vertical corridor a line can drop through: free on every row it has to
      get past. The outer margin is always free, so there is always a fallback. */
   const corridor = (from: number, to: number, desired: number): number => {
@@ -251,12 +269,12 @@ export function routeWires(
     const drop = e.b.row - e.a.row
 
     if (drop === 1) {
-      const y1 = bottom(e.a.row) + 2, y2 = top(e.b.row) - 4, ly = lane(e.b.row, 0)
-      out[key] = Math.abs(x1 - x2) < 2
-        ? `M${x1} ${y1} L${x2} ${y2}`
-        : `M${x1} ${y1} L${x1} ${ly} L${x2} ${ly} L${x2} ${y2}`
+      const y1 = bottom(e.a.row) + 2, y2 = top(e.b.row) - 4
+      if (Math.abs(x1 - x2) < 2) { out[key] = `M${x1} ${y1} L${x2} ${y2}`; continue }
+      const ly = lane(e.b.row, pickLane(e.b.row, x1, x2, [0, 1, 2]))
+      out[key] = `M${x1} ${y1} L${x1} ${ly} L${x2} ${ly} L${x2} ${y2}`
     } else if (drop === 0) {
-      const y = top(e.a.row) - 4, ly = lane(e.a.row, 1)
+      const y = top(e.a.row) - 4, ly = lane(e.a.row, pickLane(e.a.row, x1, x2, [1, 2, 0]))
       out[key] = `M${x1} ${y} L${x1} ${ly} L${x2} ${ly} L${x2} ${y}`
     } else {
       let lane0 = gutter.get(e.from)
