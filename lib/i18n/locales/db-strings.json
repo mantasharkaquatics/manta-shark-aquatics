@@ -469,6 +469,21 @@
       "en": "Freestyle 25 yd for Speed",
       "zh-Hant": "25 碼自由式衝刺",
       "zh-Hans": "25 码自由泳冲刺"
+    },
+    "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
+      "en": "Breaststroke 10 yd",
+      "zh-Hant": "蛙式 10 碼",
+      "zh-Hans": "蛙泳 10 码"
+    },
+    "8aadc967-9b3f-430b-b161-273001ffa21a": {
+      "en": "Freestyle Arms, Dolphin Kick",
+      "zh-Hant": "自手蝶腳",
+      "zh-Hans": "自手蝶脚"
+    },
+    "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
+      "en": "Single-Arm Butterfly",
+      "zh-Hant": "單手蝶式",
+      "zh-Hans": "单手蝶泳"
     }
   },
   "course_types": {
@@ -980,6 +995,21 @@
       "en": "Swims 25 yards freestyle as fast as he can with the stroke holding together and no more breaths than an easy 25.",
       "zh-Hant": "自由式 25 碼盡全力游，全程動作不散，換氣次數不比平常那一趟多。",
       "zh-Hans": "自由泳 25 码尽全力游，全程动作不散，换气次数不比平常那一趟多。"
+    },
+    "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
+      "en": "Breaststroke 10 yards keeping the order pull, breathe, kick, glide, the pull staying in front of the shoulders.",
+      "zh-Hant": "蛙式 10 碼，保持「划、吸、蹬、滑」的順序，抱水不拉到肩膀後面。",
+      "zh-Hans": "蛙泳 10 码，保持「划、吸、蹬、滑」的顺序，抱水不拉到肩膀后面。"
+    },
+    "8aadc967-9b3f-430b-b161-273001ffa21a": {
+      "en": "25 yards with freestyle arms and a butterfly kick, two kicks to every pull, the rhythm holding the whole way.",
+      "zh-Hant": "自由式划手配蝶式打水 25 碼，一次推水配兩次打水，節奏全程不亂。",
+      "zh-Hans": "自由泳划手配蝶泳打水 25 码，一次推水配两次打水，节奏全程不乱。"
+    },
+    "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
+      "en": "Single-arm butterfly 15 yards each side, the other arm extended out front, two kicks to the pull and the chin leading out for the breath.",
+      "zh-Hant": "單手蝶式 15 碼，左右各一趟；另一隻手伸直在前面，一划兩踢，換氣時下巴先出水。",
+      "zh-Hans": "单手蝶泳 15 码，左右各一趟；另一只手伸直在前面，一划两踢，换气时下巴先出水。"
     }
   }
 }

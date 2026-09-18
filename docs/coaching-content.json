@@ -297,19 +297,6 @@
         "en": "Pinching the nose with the fingers. They need to learn to keep water out with a gentle breath out through the nose."
       }
     },
-    "0b50339e-3764-40f3-8d12-fa53502831ec": {
-      "level": 5,
-      "stage": 3,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "15 秒憋氣是為了水下動作做準備，不是比賽。任何不適就停。",
-        "en": "Fifteen seconds prepares them for underwater work. It is not a contest. Any discomfort and it stops."
-      },
-      "err": {
-        "zh-Hant": "把它變成比賽。絕對不要讓學員互相比憋氣。",
-        "en": "Turning it into a contest. Never let swimmers hold their breath against each other."
-      }
-    },
     "0d151d1b-8492-49bc-824e-c4e26a657046": {
       "level": 1,
       "stage": 2,
@@ -325,11 +312,11 @@
     },
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "level": 5,
-      "stage": 2,
+      "stage": 3,
       "sort": 2,
       "teach": {
-        "zh-Hant": "平轉身四式都用得到，蛙式和蝶式比賽只准這種轉身，翻滾失敗時它也是退路。先教觸壁的兩隻手，再教轉的身體。排在 蛙腿 25 碼 後面，是因為它要用到蛙腿蹬牆。",
-        "en": "The open turn is used in all four strokes, it is the only legal turn in breaststroke and butterfly, and it is the fallback when a flip goes wrong. Teach the two hands on the wall first, then the body. It sits after the breaststroke kick because the push-off uses it."
+        "zh-Hant": "平轉身四式都用得到，蛙式和蝶式比賽只准這種轉身，翻滾失敗時它也是退路。先教觸壁的兩隻手，再教轉的身體。排在 蛙式 10 碼 後面：要先游得出蛙式，才有東西可以轉。",
+        "en": "The open turn is used in all four strokes, it is the only legal turn in breaststroke and butterfly, and it is the fallback when a flip goes wrong. Teach the two hands on the wall first, then the body. It sits after the 10-yard breaststroke because there has to be a stroke before there is a turn."
       },
       "err": {
         "zh-Hant": "轉身時站起來調整。要求腳只碰牆、不碰池底。",
@@ -1353,6 +1340,45 @@
       "err": {
         "zh-Hant": "一快就變成手在水面拍、腳亂踢，換氣次數暴增。要求「用同樣的划手次數游快一點」。",
         "en": "Speed turning into slapping at the surface and thrashing legs, with the breath count shooting up. Ask for the same stroke count, faster."
+      }
+    },
+    "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
+      "level": 5,
+      "stage": 2,
+      "sort": 2,
+      "teach": {
+        "zh-Hant": "蛙腿會了之後才加手。抱水是往外往下往內畫一個小圈，手肘不要拉到肩膀後面——蛙式的手只負責把頭抬起來換氣，前進靠腿。順序是「划、吸、蹬、滑」，一拍一拍喊。",
+        "en": "Arms go on only once the kick is there. The pull is a small circle out, down and in, elbows never dragging behind the shoulders -- in breaststroke the arms only lift the head for the breath, the legs do the moving. Pull, breathe, kick, glide, called one count at a time."
+      },
+      "err": {
+        "zh-Hant": "手划太大、拉到身體後面，整個人往下沉；或是先蹬再划，順序反了。",
+        "en": "A pull that sweeps too far back and sinks him; or kicking before pulling, which is the order reversed."
+      }
+    },
+    "8aadc967-9b3f-430b-b161-273001ffa21a": {
+      "level": 5,
+      "stage": 1,
+      "sort": 4,
+      "teach": {
+        "zh-Hant": "手照自由式划，腿改成蝶式打水，一次推水配兩次打水。這是把蝶式的節奏放進一個他已經會的動作裡——腿先學會兩拍，之後換成蝶式的手就容易多了。數「推、一、二」。",
+        "en": "Freestyle arms, butterfly legs: two kicks to every pull. It puts the butterfly rhythm inside a stroke he already owns -- once the legs know the two beats, swapping the arms over is a much smaller step. Count \"pull, one, two\"."
+      },
+      "err": {
+        "zh-Hant": "兩次打水變成一次，或是打水跟推水各做各的。放慢，讓他用嘴巴數拍子。",
+        "en": "Two kicks collapsing into one, or the kick and the pull running on separate clocks. Slow it down and have him count out loud."
+      }
+    },
+    "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
+      "level": 5,
+      "stage": 2,
+      "sort": 3,
+      "teach": {
+        "zh-Hant": "一隻手伸直在前面不動，只用另一隻手做蝶式，一划兩踢。單邊比雙邊輕鬆很多，他才有餘力顧節奏和換氣。左右兩邊都要練。",
+        "en": "One arm stays extended out front and only the other does the butterfly, two kicks to the pull. One arm is far less work than two, which leaves him something to spend on rhythm and the breath. Both sides."
+      },
+      "err": {
+        "zh-Hant": "沒在動的那隻手沉下去，身體就歪掉；或是為了把手拉出水面而抬頭。",
+        "en": "The resting arm sinking so the body twists; or lifting the head to get the arm out of the water."
       }
     }
   },
