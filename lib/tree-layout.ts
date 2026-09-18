@@ -234,15 +234,23 @@ export function routeWires(
      自由式 25 碼 and 仰式 15 碼 both bracketed into the row below, touched at
      the middle column, and the result looked like 自由式 25 碼 connected to
      仰式 25 碼. So a horizontal run books the span it occupies, and the next
-     one that would overlap it drops to the lane underneath. */
-  const booked: Record<number, Array<Array<[number, number]>>> = {}
-  const pickLane = (r: number, xa: number, xb: number, order: Array<0 | 1 | 2>): 0 | 1 | 2 => {
+     one that would overlap it drops to the lane underneath.
+     Runs that come from the SAME skill are the exception: three dependants of
+     one prerequisite SHOULD share a height, because then the fork reads as one
+     skill leading to three, which is exactly what it is. Only runs from
+     different skills are pushed apart. */
+  const booked: Record<number, Array<Array<[number, number, string]>>> = {}
+  const pickLane = (
+    r: number, xa: number, xb: number, from: string, order: Array<0 | 1 | 2>,
+  ): 0 | 1 | 2 => {
     const lo = Math.min(xa, xb) - 3, hi = Math.max(xa, xb) + 3
     const rows = (booked[r] ||= [[], [], []])
     for (const k of order) {
-      if (rows[k].every(([a, b]) => b <= lo || a >= hi)) { rows[k].push([lo, hi]); return k }
+      if (rows[k].every(([a, b, o]) => o === from || b <= lo || a >= hi)) {
+        rows[k].push([lo, hi, from]); return k
+      }
     }
-    rows[order[order.length - 1]].push([lo, hi])
+    rows[order[order.length - 1]].push([lo, hi, from])
     return order[order.length - 1]
   }
 
@@ -305,10 +313,10 @@ export function routeWires(
     if (drop === 1) {
       const y1 = bottom(e.a.row) + 2, y2 = top(e.b.row) - 4
       if (Math.abs(x1 - x2) < 2) { out[key] = `M${x1} ${y1} L${x2} ${y2}`; continue }
-      const ly = lane(e.b.row, pickLane(e.b.row, x1, x2, [0, 1, 2]))
+      const ly = lane(e.b.row, pickLane(e.b.row, x1, x2, e.from, [0, 1, 2]))
       out[key] = `M${x1} ${y1} L${x1} ${ly} L${x2} ${ly} L${x2} ${y2}`
     } else if (drop === 0) {
-      const y = top(e.a.row) - 4, ly = lane(e.a.row, pickLane(e.a.row, x1, x2, [1, 2, 0]))
+      const y = top(e.a.row) - 4, ly = lane(e.a.row, pickLane(e.a.row, x1, x2, e.from, [1, 2, 0]))
       out[key] = `M${x1} ${y} L${x1} ${ly} L${x2} ${ly} L${x2} ${y}`
     } else {
       let lane0 = gutter.get(e.from)
