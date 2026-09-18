@@ -300,7 +300,7 @@
     "0b50339e-3764-40f3-8d12-fa53502831ec": {
       "level": 5,
       "stage": 3,
-      "sort": 4,
+      "sort": 2,
       "teach": {
         "zh-Hant": "15 秒憋氣是為了水下動作做準備，不是比賽。任何不適就停。",
         "en": "Fifteen seconds prepares them for underwater work. It is not a contest. Any discomfort and it stops."
@@ -326,10 +326,10 @@
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "level": 5,
       "stage": 2,
-      "sort": 3,
+      "sort": 2,
       "teach": {
-        "zh-Hant": "平轉身四式都用得到，也是翻滾失敗時的退路，所以排在翻滾轉身之前。先教觸壁的手，再教轉的身體。",
-        "en": "The open turn is used in all four strokes and is the fallback when a flip goes wrong, so it comes before the flip turn. Teach the touching hand first, then the turning body."
+        "zh-Hant": "平轉身四式都用得到，蛙式和蝶式比賽只准這種轉身，翻滾失敗時它也是退路。先教觸壁的兩隻手，再教轉的身體。排在 蛙腿 25 碼 後面，是因為它要用到蛙腿蹬牆。",
+        "en": "The open turn is used in all four strokes, it is the only legal turn in breaststroke and butterfly, and it is the fallback when a flip goes wrong. Teach the two hands on the wall first, then the body. It sits after the breaststroke kick because the push-off uses it."
       },
       "err": {
         "zh-Hant": "轉身時站起來調整。要求腳只碰牆、不碰池底。",
@@ -351,8 +351,8 @@
     },
     "18a6462c-4c67-4e93-8838-8bc03717b463": {
       "level": 5,
-      "stage": 1,
-      "sort": 2,
+      "stage": 2,
+      "sort": 1,
       "teach": {
         "zh-Hant": "100 碼開始需要配速概念。教他用划手次數而不是感覺來控制。",
         "en": "A hundred yards is where pacing starts to matter. Teach them to control it by stroke count, not by feel."
@@ -403,11 +403,11 @@
     },
     "22e00423-edc5-4626-8e7f-8bc4e846203f": {
       "level": 5,
-      "stage": 2,
-      "sort": 4,
+      "stage": 3,
+      "sort": 1,
       "teach": {
-        "zh-Hant": "翻轉不是重點，蹬牆才是。要求雙腳同時踏牆、蹬出後是流線型。",
-        "en": "The somersault is not the point; the push-off is. Both feet planted together, and a streamline off the wall."
+        "zh-Hant": "翻轉不是重點，蹬牆才是。要求雙腳同時踏牆、蹬出後是流線型。排在 自由式 100 碼 後面：要先能連續游，才有東西可以「不中斷地轉」。",
+        "en": "The somersault is not the point, the push-off is: both feet on the wall together and a streamline off it. It sits after the 100 because there has to be a continuous swim before there is anything to turn without breaking."
       },
       "err": {
         "zh-Hant": "翻完才找牆。要在接近牆之前就決定好距離。",
@@ -781,7 +781,7 @@
     },
     "97804fbb-13d4-4367-ab9d-0276b25591d6": {
       "level": 5,
-      "stage": 2,
+      "stage": 1,
       "sort": 2,
       "teach": {
         "zh-Hant": "加入轉身後要能維持直線。教他數划手次數判斷離牆距離。",
@@ -881,32 +881,6 @@
       "err": {
         "zh-Hant": "蹬完馬上開始掙扎。要求「先什麼都不做，數到五」。",
         "en": "Struggling the moment they leave the wall. Ask for nothing at all until they have counted to five."
-      }
-    },
-    "b4a0c2d4-5e6f-4a74-8b92-0c1d2e3f4a54": {
-      "level": 5,
-      "stage": 2,
-      "sort": 5,
-      "teach": {
-        "zh-Hant": "頭下腳上下潛，靠的是抬腿的重量而不是划手。",
-        "en": "Head down, feet up: the dive is driven by the weight of the lifted legs, not by pulling with the arms."
-      },
-      "err": {
-        "zh-Hant": "用手拚命划想往下。教他「把腿舉出水面」。",
-        "en": "Clawing downwards with the hands. Teach them to lift the legs clear of the water."
-      }
-    },
-    "b5a0c2d4-5e6f-4a75-8b92-0c1d2e3f4a55": {
-      "level": 5,
-      "stage": 3,
-      "sort": 5,
-      "teach": {
-        "zh-Hant": "自己不下水是這個技能的全部重點。反覆強調「先伸、再丟、絕不跳」。",
-        "en": "Not going in yourself is the entire point of this skill. Say it over and over: reach first, throw second, never jump."
-      },
-      "err": {
-        "zh-Hant": "示範時教練自己下水去救。示範錯了比不教還糟。",
-        "en": "The coach going in to demonstrate the rescue. A wrong demonstration is worse than none."
       }
     },
     "b617a73c-8da4-4526-9420-58ed4c682a94": {
@@ -1080,8 +1054,8 @@
     },
     "e858562b-a3aa-4875-84ef-e1f6875770e5": {
       "level": 5,
-      "stage": 3,
-      "sort": 2,
+      "stage": 1,
+      "sort": 3,
       "teach": {
         "zh-Hant": "每一蹬之後要有滑行，這是蛙式效率的全部。",
         "en": "There is a glide after every drive, and that glide is the whole of breaststroke efficiency."
