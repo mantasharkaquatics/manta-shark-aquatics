@@ -880,24 +880,10 @@
         "en": "One hand reaching the wall first when they are tired."
       }
     },
-    "b6a0c2d4-5e6f-4a76-8b92-0c1d2e3f4a56": {
-      "level": 6,
-      "stage": 1,
-      "sort": 5,
-      "teach": {
-        "zh-Hant": "站姿跳水前務必確認水深。手先入、身體從同一個洞進去。",
-        "en": "Check the water depth before any standing dive. Hands in first, and the body follows through the same hole."
-      },
-      "err": {
-        "zh-Hant": "腳先蹬起來太高導致過度翻轉。",
-        "en": "Driving the feet up too hard, so they over-rotate."
-      },
-      "col": 4
-    },
     "b7525cfb-5d9b-43b2-9868-393578adf991": {
       "level": 6,
       "stage": 3,
-      "sort": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "混合式打水是四式順序的記憶練習，同時檢查四種腿都能用。",
         "en": "Medley kicking drills the order of the four strokes and checks all four sets of legs still work."
@@ -906,7 +892,7 @@
         "zh-Hant": "四式之間停下來休息。要求連著做。",
         "en": "Stopping for a rest between strokes. Ask for it unbroken."
       },
-      "col": 4
+      "col": 3
     },
     "b7a0c2d4-5e6f-4a77-8b92-0c1d2e3f4a57": {
       "level": 7,
@@ -947,20 +933,6 @@
         "zh-Hant": "身體平板沒有轉動，手臂用甩的；或是臀部下沉變成坐著游。",
         "en": "A flat body with no roll and arms thrown round; or the hips dropping until he is sitting rather than swimming."
       }
-    },
-    "c3a0c2d4-5e6f-4a83-8b92-0c1d2e3f4a63": {
-      "level": 6,
-      "stage": 3,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "蛙式與蝶式的轉身規則和自由式不同：雙手必須同時碰到牆。比賽單手觸壁就是直接失格。",
-        "en": "Breaststroke and butterfly turn under different rules from freestyle: both hands must touch the wall together. In a race, one hand is an immediate disqualification."
-      },
-      "err": {
-        "zh-Hant": "疲勞時單手先觸壁。從一開始就要求雙手，不要等到 L7 才改。",
-        "en": "One hand reaching first when they are tired. Ask for two hands from the very first lesson, not from L7."
-      },
-      "col": 3
     },
     "c4b854b3-f337-4799-9631-33c6459951c6": {
       "level": 7,
