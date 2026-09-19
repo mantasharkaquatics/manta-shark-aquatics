@@ -1,9 +1,9 @@
 {
   "skills": {
     "0280911e-9a79-4eed-8916-883e64dee3de": {
-      "en": "Freestyle 25 yd Sprint",
-      "zh-Hant": "自由式 25 碼衝刺",
-      "zh-Hans": "自由泳 25 码冲刺"
+      "en": "Freestyle Sprint 50 yd",
+      "zh-Hant": "自由式衝刺 50 碼",
+      "zh-Hans": "自由泳冲刺 50 码"
     },
     "084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7": {
       "en": "Breath Holding 5 sec",
@@ -466,9 +466,9 @@
       "zh-Hans": "自由泳技术游（单手转肩游）"
     },
     "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
-      "en": "Freestyle 25 yd for Speed",
-      "zh-Hant": "25 碼自由式衝刺",
-      "zh-Hans": "25 码自由泳冲刺"
+      "en": "Freestyle Sprint 25 yd",
+      "zh-Hant": "自由式衝刺 25 碼",
+      "zh-Hans": "自由泳冲刺 25 码"
     },
     "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
       "en": "Breaststroke 10 yd",
@@ -557,9 +557,9 @@
   },
   "skill_criteria": {
     "0280911e-9a79-4eed-8916-883e64dee3de": {
-      "en": "All-out 25 yd freestyle with no breath in the last 5 yd.",
-      "zh-Hant": "自由式 25 碼全力衝刺，最後 5 碼不換氣。",
-      "zh-Hans": "自由泳 25 码全力冲刺，最后 5 码不换气。"
+      "en": "All-out 50 yd freestyle, the stroke still there on the second length, with no breath in the last 5 yd.",
+      "zh-Hant": "自由式 50 碼全力衝刺，第二趟動作不垮，最後 5 碼不換氣。",
+      "zh-Hans": "自由泳 50 码全力冲刺，第二趟动作不垮，最后 5 码不换气。"
     },
     "084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7": {
       "en": "Fully submerged, eyes open, holds 5 seconds and surfaces calmly.",
