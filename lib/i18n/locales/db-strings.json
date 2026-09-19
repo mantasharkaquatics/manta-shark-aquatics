@@ -504,6 +504,16 @@
       "en": "Backstroke Six-Kick Switch",
       "zh-Hant": "側身六踢轉換",
       "zh-Hans": "侧身六踢转换"
+    },
+    "f23977ee-2739-493a-b1f1-2547e29b5011": {
+      "en": "Breaststroke Drill: One Pull, Two Kicks",
+      "zh-Hant": "蛙式技術游（一手兩腳）",
+      "zh-Hans": "蛙泳技术游（一手两脚）"
+    },
+    "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
+      "en": "Breaststroke Drill: Breast and Dolphin Kick",
+      "zh-Hant": "蛙式技術游（一蛙腳一蝶腳）",
+      "zh-Hans": "蛙泳技术游（一蛙脚一蝶脚）"
     }
   },
   "course_types": {
@@ -1050,6 +1060,16 @@
       "en": "Six kicks on the side then one stroke to switch, 25 yards, one arm extended overhead throughout and the eyes holding one point.",
       "zh-Hant": "側躺打水六下、划一下換邊，游 25 碼；全程一隻手伸直在頭頂，眼睛盯著同一個點。",
       "zh-Hans": "侧躺打水六下、划一下换边，游 25 码；全程一只手伸直在头顶，眼睛盯着同一个点。"
+    },
+    "f23977ee-2739-493a-b1f1-2547e29b5011": {
+      "en": "25 yards with one pull to every two kicks, a visible glide after each kick and the order never breaking down.",
+      "zh-Hant": "一次划手配兩次蛙腿，游 25 碼；每一蹬之後都看得到滑行，順序不亂。",
+      "zh-Hans": "一次划手配两次蛙腿，游 25 码；每一蹬之后都看得到滑行，顺序不乱。"
+    },
+    "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
+      "en": "25 yards alternating one breaststroke kick with one dolphin kick, the two clearly distinct and the feet turning out on the breaststroke kick.",
+      "zh-Hant": "一次蛙腿、一次海豚腿交替，游 25 碼；兩種腿分得清清楚楚，蛙腿時腳掌有翻出去。",
+      "zh-Hans": "一次蛙腿、一次海豚腿交替，游 25 码；两种腿分得清清楚楚，蛙腿时脚掌有翻出去。"
     }
   }
 }

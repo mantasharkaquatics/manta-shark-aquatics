@@ -135,6 +135,8 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
   ('eb420091-b357-41af-892a-73a1059ecfda', '31dc4fc7-ef0b-4e4c-a80c-419ceebc7360'),   -- 蝶式 25 碼 ← 蝶式 10 碼
   ('1b7d1a52-bac5-44a5-9bc4-18a7ab70903f', '9f37e0f9-68d5-4bae-8349-c9d2d99d8225'),   -- 蛙式 25 碼 ← 蛙式 15 碼
   ('61765b4c-fd81-458d-acb9-1f4c19201994', 'eb420091-b357-41af-892a-73a1059ecfda'),   -- 水下海豚腿 ← 蝶式 25 碼
+  ('f23977ee-2739-493a-b1f1-2547e29b5011', '1b7d1a52-bac5-44a5-9bc4-18a7ab70903f'),   -- 蛙式技術游（一手兩腳） ← 蛙式 25 碼
+  ('01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36', '1b7d1a52-bac5-44a5-9bc4-18a7ab70903f'),   -- 蛙式技術游（一蛙腳一蝶腳） ← 蛙式 25 碼
   ('c4b854b3-f337-4799-9631-33c6459951c6', '456f3041-33b2-4583-9f0a-4543ca2464c0'),   -- 自由式 50 碼計時 ← 自由式 200 碼
   ('c4b854b3-f337-4799-9631-33c6459951c6', '22e00423-edc5-4626-8e7f-8bc4e846203f'),   -- 自由式 50 碼計時 ← 自由式翻滾轉身
   ('0280911e-9a79-4eed-8916-883e64dee3de', 'c4b854b3-f337-4799-9631-33c6459951c6'),   -- 自由式 25 碼衝刺 ← 自由式 50 碼計時
@@ -160,7 +162,7 @@ INSERT INTO public.skill_prerequisites (skill_id, requires_id) VALUES
 COMMIT;
 
 -- ---------- 跑完的驗證 ----------
--- 應該是 106 列：
+-- 應該是 108 列：
 -- select count(*) from skill_prerequisites;
 --
 -- 第一天就能開始的技能（沒有任何前置）：

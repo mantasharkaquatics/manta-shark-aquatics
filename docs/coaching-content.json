@@ -882,8 +882,8 @@
     },
     "b7525cfb-5d9b-43b2-9868-393578adf991": {
       "level": 6,
-      "stage": 3,
-      "sort": 2,
+      "stage": 2,
+      "sort": 4,
       "teach": {
         "zh-Hant": "混合式打水是四式順序的記憶練習，同時檢查四種腿都能用。",
         "en": "Medley kicking drills the order of the four strokes and checks all four sets of legs still work."
@@ -892,7 +892,7 @@
         "zh-Hant": "四式之間停下來休息。要求連著做。",
         "en": "Stopping for a rest between strokes. Ask for it unbroken."
       },
-      "col": 3
+      "col": 0
     },
     "b7a0c2d4-5e6f-4a77-8b92-0c1d2e3f4a57": {
       "level": 7,
@@ -1401,6 +1401,34 @@
       "err": {
         "zh-Hant": "只轉一半就換邊；或是頭跟著身體一起轉。",
         "en": "Switching after only half a turn; or the head rolling with the body."
+      }
+    },
+    "f23977ee-2739-493a-b1f1-2547e29b5011": {
+      "level": 6,
+      "stage": 3,
+      "sort": 2,
+      "col": 3,
+      "teach": {
+        "zh-Hant": "一次划手配兩次蛙腿。手的次數減半，他就沒辦法靠手前進，只能用腿和滑行——這是治「划太多、滑行消失」最快的方法。第二蹬要在完全伸直的姿勢做。",
+        "en": "One pull to two kicks. Halving the arms takes away the option of pulling himself along, so the legs and the glide have to do it -- the fastest cure for over-pulling and a vanished glide. The second kick happens fully extended."
+      },
+      "err": {
+        "zh-Hant": "兩次蹬腿中間偷偷划手；或是第二蹬變得隨便、沒有收腿。",
+        "en": "Sneaking a pull in between the two kicks; or a lazy second kick with no recovery of the heels."
+      }
+    },
+    "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
+      "level": 6,
+      "stage": 3,
+      "sort": 3,
+      "col": 4,
+      "teach": {
+        "zh-Hant": "一次蛙腿、一次海豚腿交替。一方面讓他感覺到蛙式也有身體的起伏，一方面把兩種腿分開——比賽的蛙式裡多踢一下海豚腿就是失格，只有出發和轉身後的水下划手准一次。分得開，游的時候才不會混進去。",
+        "en": "Alternating one breaststroke kick with one dolphin kick. It gives him the body undulation breaststroke needs, and it keeps the two kicks separate -- an extra dolphin kick in a breaststroke race is a disqualification, and only the one in the pullout is legal. Separating them here is what stops them blending later."
+      },
+      "err": {
+        "zh-Hant": "兩種腿糊在一起，蛙腿踢成剪刀腳或半個海豚腿。",
+        "en": "The two kicks blending, with the breaststroke kick turning into a scissor or half a dolphin."
       }
     }
   },
