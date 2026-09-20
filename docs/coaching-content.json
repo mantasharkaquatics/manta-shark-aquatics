@@ -37,24 +37,24 @@
           "stage": 1,
           "lessons": "3–4",
           "what": {
-            "zh-Hant": "建立池邊規矩與自行上岸",
-            "en": "Pool-deck rules and getting out unaided"
+            "zh-Hant": "池邊規矩、自己上岸、岸上打水",
+            "en": "Pool-deck rules, getting out unaided, kicking on the side"
           }
         },
         {
           "stage": 2,
           "lessons": "4–5",
           "what": {
-            "zh-Hant": "敢把臉放進水裡吐泡泡",
-            "en": "Face in the water, blowing bubbles"
+            "zh-Hant": "臉敢入水、吐泡泡、扶著漂",
+            "en": "Face in the water, bubbles, floating with support"
           }
         },
         {
           "stage": 3,
           "lessons": "4–5",
           "what": {
-            "zh-Hant": "能漂、能自己站起來",
-            "en": "Floating, and standing up from a float"
+            "zh-Hant": "鼻子吐氣、俯漂、蹬牆滑行",
+            "en": "Nose bubbles, front float, push-off and glide"
           }
         }
       ]
@@ -63,8 +63,8 @@
       "en_name": "Water Confidence",
       "zh_name": "水中自在",
       "intro": {
-        "zh-Hant": "有了漂浮之後開始移動。打水、翻轉、深水過渡。這一級的關鍵字是「放鬆」——越用力越沉。",
-        "en": "Floating comes first, then moving. Kicking, rolling, the first crossings of deep water. The word for this level is relax &mdash; the harder they try, the more they sink."
+        "zh-Hant": "有了漂浮之後開始移動。打水、吐泡跳、深水過渡。這一級的關鍵字是「放鬆」——越用力越沉。結束時，孩子敢從池邊跳進深水，並且自己回到池壁。",
+        "en": "Floating comes first, then moving: kicking, bobbing, the first crossings into deep water. The word for this level is relax — the harder they try, the more they sink. By the end they jump into deep water and come back to the wall themselves."
       },
       "hours": "13–15",
       "plan": [
@@ -72,24 +72,24 @@
           "stage": 1,
           "lessons": "4",
           "what": {
-            "zh-Hant": "俯臥與仰躺都能打水前進",
-            "en": "Kicking forward on the front and on the back"
+            "zh-Hant": "蹬牆漂浮、憋氣、自己海星漂 10 秒",
+            "en": "Push-off float, breath hold, an unaided ten-second starfish"
           }
         },
         {
           "stage": 2,
           "lessons": "4–5",
           "what": {
-            "zh-Hant": "身體能翻轉、有換氣節奏",
-            "en": "Rolling the body, finding a breathing rhythm"
+            "zh-Hant": "俯臥與仰躺都能打水 10 碼",
+            "en": "Ten yards of kicking, on the front and on the back"
           }
         },
         {
           "stage": 3,
           "lessons": "5–6",
           "what": {
-            "zh-Hant": "深水不慌、能漂能划",
-            "en": "Calm in deep water: floating and sculling"
+            "zh-Hant": "深水過渡：過頭深吐泡跳、跳進深水",
+            "en": "Into deep water: bobbing over-head, then jumping in"
           }
         }
       ]
@@ -98,8 +98,8 @@
       "en_name": "Independent Movement",
       "zh_name": "獨立前進",
       "intro": {
-        "zh-Hant": "第一次「自己一個人游得動」。加入換氣、踩水與落水求生。這一級結束時，孩子掉進深水能自己回到池邊。",
-        "en": "The first time they move through the water on their own. Breathing, treading and fall-in survival come in here. By the end of this level a child who falls into deep water can get themselves back to the wall."
+        "zh-Hant": "第一次「自己一個人游得動」。浮板拿掉、換氣加進來、深水不再是要避開的地方。這一級以一次完整的水域安全測驗收尾——跳進深水到爬上岸，七個動作一次做完。",
+        "en": "The first time they get anywhere on their own. The board comes away, the breath goes in, and deep water stops being the part to avoid. The level closes with one complete water safety test — seven moves from the jump to the climb out, in a single run."
       },
       "hours": "15–18",
       "plan": [
@@ -107,24 +107,24 @@
           "stage": 1,
           "lessons": "4–5",
           "what": {
-            "zh-Hant": "25 碼打水加換氣",
-            "en": "25 yd of kicking with breathing"
+            "zh-Hant": "打水 25 碼加抬頭換氣、流線蹬牆",
+            "en": "25 yards of kicking with a head-up breath, and the streamline push-off"
           }
         },
         {
           "stage": 2,
           "lessons": "5–6",
           "what": {
-            "zh-Hant": "踩水、深水撿物、求生漂",
-            "en": "Treading, deep-water retrieval, survival float"
+            "zh-Hant": "拿掉浮板、側邊打水、深水海星漂 30 秒",
+            "en": "The board comes away; side kick; 30 seconds of deep-water starfish"
           }
         },
         {
           "stage": 3,
           "lessons": "6–7",
           "what": {
-            "zh-Hant": "側轉換氣游、水中轉身，最後綜合驗收",
-            "en": "Roll-and-breathe swimming, in-water turns, then the level test"
+            "zh-Hant": "側轉換氣游、深水撿物，最後水域安全測驗",
+            "en": "Roll-and-breathe, deep-water retrieval, then the water safety test"
           }
         }
       ]
@@ -133,8 +133,8 @@
       "en_name": "Stroke Foundations",
       "zh_name": "泳姿基礎",
       "intro": {
-        "zh-Hant": "正式泳姿從這裡開始。自由式與仰式各自成形，加入省力泳姿，最後以紅十字會的全美水中自保基準驗收。這一級結束時，孩子在深水中掉下去能自己回到岸上。",
-        "en": "Real strokes start here. Freestyle and backstroke each take shape, an energy-saving stroke is added, and the level finishes against the Red Cross water-competency benchmark. By the end of it a child who falls into deep water can get themselves out."
+        "zh-Hant": "正式泳姿從這裡開始。自由式和仰式各自長成完整的動作，蛙腿和蝶式打水開始鋪路。技術游第一次出現——從這一級起，練的不只是游得完，是游得對。",
+        "en": "Real strokes begin here. Freestyle and backstroke each grow into a whole movement, and the breaststroke and butterfly kicks start laying track. Drills appear for the first time — from this level the question is not whether they finish, but whether it is right."
       },
       "hours": "20–24",
       "plan": [
@@ -142,24 +142,24 @@
           "stage": 1,
           "lessons": "6–7",
           "what": {
-            "zh-Hant": "自由式 15→25 碼",
-            "en": "Freestyle 15 → 25 yd"
+            "zh-Hant": "四式起步：自由式 15 碼、仰式分解游、蛙腿分解",
+            "en": "All four begin: freestyle 15 yd, the backstroke drill, the breaststroke-kick counts"
           }
         },
         {
           "stage": 2,
           "lessons": "7–8",
           "what": {
-            "zh-Hant": "仰式、初級仰泳、流線型打水",
-            "en": "Backstroke, elementary backstroke, streamlined kicking"
+            "zh-Hant": "自由式 25 碼、仰式 15 碼、蛙腿 10 碼",
+            "en": "Freestyle 25 yd, backstroke 15 yd, breaststroke kick 10 yd"
           }
         },
         {
           "stage": 3,
           "lessons": "7–9",
           "what": {
-            "zh-Hant": "深水求生，最後 25 碼自保驗收",
-            "en": "Deep-water survival, finishing with the 25 yd competency test"
+            "zh-Hant": "自由式技術游與衝刺、仰式 25 碼、蝶式打水",
+            "en": "Freestyle drills and a sprint, backstroke 25 yd, butterfly kick"
           }
         }
       ]
@@ -168,8 +168,8 @@
       "en_name": "Stroke Development",
       "zh_name": "泳姿發展",
       "intro": {
-        "zh-Hant": "距離拉長、轉身出現、蛙腿與海豚腿開始鋪路。轉身先學通用的平轉身再學翻滾。這一級最長也最容易卡住——蛙腿是四式裡最難教的動作。",
-        "en": "Distance grows, turns appear, and the whip kick and dolphin kick start being laid down. Turns are taught open first, then flip. This is the longest level and the easiest to stall in &mdash; the whip kick is the hardest movement in the four strokes to teach."
+        "zh-Hant": "距離拉長、第一次翻滾轉身、蛙式和蝶式的第一個完整動作。四種泳姿在這一級各自走成一條線，技術游也最密集——光仰式就有三個。",
+        "en": "Distances lengthen, the first flip turn arrives, and breaststroke and butterfly get their first whole movement. Each of the four strokes runs as its own line through this level, and this is where the drills are thickest — backstroke alone has three."
       },
       "hours": "21–26",
       "plan": [
@@ -177,24 +177,24 @@
           "stage": 1,
           "lessons": "5–6",
           "what": {
-            "zh-Hant": "自由式 50→100 碼",
-            "en": "Freestyle 50 → 100 yd"
+            "zh-Hant": "自由式與仰式 50 碼、蛙腿 25 碼、蝶式起步",
+            "en": "Freestyle and backstroke 50 yd, breaststroke kick 25 yd, butterfly begins"
           }
         },
         {
           "stage": 2,
           "lessons": "8–10",
           "what": {
-            "zh-Hant": "仰式加長、平轉身與翻滾轉身、水面下潛",
-            "en": "Longer backstroke, open and flip turns, surface dive"
+            "zh-Hant": "自由式 100 碼、單手蝶式、第一次游出蛙式",
+            "en": "Freestyle 100 yd, single-arm butterfly, the first real breaststroke"
           }
         },
         {
           "stage": 3,
           "lessons": "8–10",
           "what": {
-            "zh-Hant": "蛙腿與海豚腿、救援與憋氣",
-            "en": "Whip kick and dolphin kick, rescue and breath holding"
+            "zh-Hant": "兩種轉身，加上三個仰式技術游",
+            "en": "Both turns, plus three backstroke drills"
           }
         }
       ]
@@ -203,8 +203,8 @@
       "en_name": "Four Strokes",
       "zh_name": "四式完成",
       "intro": {
-        "zh-Hant": "蝶式與蛙式加入，四式到齊。這一級同時教兩種新泳姿，負擔最重，不要趕。耐力與轉身也在這裡成形。",
-        "en": "Butterfly and breaststroke arrive and the four strokes are complete. Two new strokes are being taught at once, which makes this the heaviest level &mdash; do not rush it. Endurance and turns take shape here too."
+        "zh-Hant": "蝶式與蛙式完整加入，四式到齊。這一級同時把兩種新泳姿帶上來，負擔最重，不要趕。耐力與轉身也在這裡成形。",
+        "en": "Butterfly and breaststroke arrive in full and all four strokes are on the board. Two new strokes at once makes this the heaviest level — do not rush it. Endurance and turns take shape here too."
       },
       "hours": "24–29",
       "plan": [
@@ -212,24 +212,24 @@
           "stage": 1,
           "lessons": "8–10",
           "what": {
-            "zh-Hant": "蝶式與蛙式起步、混合式打水",
-            "en": "Butterfly and breaststroke begin, medley kicking"
+            "zh-Hant": "水下海豚腿、蝶式與蛙式起步、仰式 100 碼",
+            "en": "The underwater dolphin kick, butterfly and breaststroke begin, backstroke 100 yd"
           }
         },
         {
           "stage": 2,
           "lessons": "7–8",
           "what": {
-            "zh-Hant": "耐力 200 碼、仰式轉身、站姿跳水",
-            "en": "Endurance to 200 yd, backstroke turn, standing dive"
+            "zh-Hant": "自由式 200 碼、四式加長、仰式翻滾轉身",
+            "en": "Freestyle 200 yd, the strokes lengthen, the backstroke flip turn"
           }
         },
         {
           "stage": 3,
           "lessons": "9–11",
           "what": {
-            "zh-Hant": "蝶蛙加長、水下海豚腿、雙手觸壁轉身",
-            "en": "Longer butterfly and breaststroke, underwater dolphin, two-hand touch turn"
+            "zh-Hant": "混合式打水與兩個蛙式技術游",
+            "en": "Medley kick, and two breaststroke drills"
           }
         }
       ]
@@ -238,8 +238,8 @@
       "en_name": "Competitive Swimming",
       "zh_name": "競技規格",
       "intro": {
-        "zh-Hant": "從「會游」到「不會被判失格」。配速、出發、轉身規則、個人混合式。這一級沒有真正的終點——最後一個階段有六個技能並排，會走很久，那是正常的。",
-        "en": "From swimming well to not being disqualified. Pacing, starts, the rules of turns, the individual medley. This level has no real finish line &mdash; the last stage has six skills side by side and takes a long time. That is normal."
+        "zh-Hant": "從「會游」到「不會被判失格」。配速、計時、轉身規則、個人混合式。這一級沒有真正的終點——最後一個階段五個合規項目並排，會走很久，那是正常的。",
+        "en": "From swimming to not being disqualified. Pacing, timing, the turn rules, the individual medley. This level has no real end — five legality checks sit side by side in the last stage and it takes a while. That is normal."
       },
       "hours": "29–36",
       "plan": [
@@ -247,24 +247,24 @@
           "stage": 1,
           "lessons": "8–10",
           "what": {
-            "zh-Hant": "計時、衝刺、400 碼配速",
-            "en": "Timed swims, sprint, 400 yd pacing"
+            "zh-Hant": "400 碼配速、50 碼計時、蛙式水下划手",
+            "en": "400 yd pacing, the timed 50, the breaststroke pullout"
           }
         },
         {
           "stage": 2,
           "lessons": "9–11",
           "what": {
-            "zh-Hant": "蛙蝶加長、水下划手、出發",
-            "en": "Longer breaststroke and butterfly, underwater pullout, starts"
+            "zh-Hant": "四式加長與衝刺，四式銜接與轉身",
+            "en": "The strokes go longer, the sprint, and the medley transitions"
           }
         },
         {
           "stage": 3,
           "lessons": "12–15",
           "what": {
-            "zh-Hant": "四式合規、個人混合式",
-            "en": "Four race-legal strokes, individual medley"
+            "zh-Hant": "四式合規，最後 100 碼個人混合式",
+            "en": "Legality in all four strokes, then the 100 yd IM"
           }
         }
       ]

@@ -7,14 +7,19 @@ import { localePath } from '@/lib/i18n/paths'
 
 import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
 
+/* goalCount must match the number of levels.N.goal.M keys in the locale files.
+   Those goals are written by hand -- they are the promise the page makes to a
+   parent -- so whenever the curriculum changes, they have to be rewritten and
+   this count checked. They went stale once already: the page was still offering
+   treading water and a clothed swim months after both were taken out. */
 const levels = [
   { num: 1, color: LEVEL_COLORS['1'], goalCount: 5 },
-  { num: 2, color: LEVEL_COLORS['2'], goalCount: 8 },
+  { num: 2, color: LEVEL_COLORS['2'], goalCount: 6 },
   { num: 3, color: LEVEL_COLORS['3'], goalCount: 6 },
   { num: 4, color: LEVEL_COLORS['4'], goalCount: 6 },
   { num: 5, color: LEVEL_COLORS['5'], goalCount: 6 },
-  { num: 6, color: LEVEL_COLORS['6'], goalCount: 7 },
-  { num: 7, color: LEVEL_COLORS['7'], goalCount: 8 },
+  { num: 6, color: LEVEL_COLORS['6'], goalCount: 6 },
+  { num: 7, color: LEVEL_COLORS['7'], goalCount: 7 },
 ]
 
 // Every level is taught in three stages. A family sees which one their swimmer
