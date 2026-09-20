@@ -356,7 +356,7 @@
     "1b7d1a52-bac5-44a5-9bc4-18a7ab70903f": {
       "level": 6,
       "stage": 2,
-      "sort": 3,
+      "sort": 4,
       "teach": {
         "zh-Hant": "25 碼蛙式每一循環都要看得到滑行。",
         "en": "Every cycle of a 25 yd breaststroke should have a visible glide in it."
@@ -478,7 +478,7 @@
     "3e66c970-61b6-4189-9fa8-353809086556": {
       "level": 6,
       "stage": 2,
-      "sort": 2,
+      "sort": 3,
       "teach": {
         "zh-Hant": "仰式轉身的規則細節多。轉為俯臥後只能划一次就要翻。",
         "en": "The backstroke turn has a lot of rule detail. Once they roll to the front, one arm pull only before the somersault."
@@ -491,7 +491,7 @@
     },
     "456f3041-33b2-4583-9f0a-4543ca2464c0": {
       "level": 6,
-      "stage": 1,
+      "stage": 2,
       "sort": 1,
       "teach": {
         "zh-Hant": "200 碼開始是耐力課題。教配速：每 50 碼的時間差不超過 5 秒。",
@@ -584,17 +584,17 @@
     },
     "61765b4c-fd81-458d-acb9-1f4c19201994": {
       "level": 6,
-      "stage": 3,
+      "stage": 1,
       "sort": 1,
       "teach": {
-        "zh-Hant": "水下海豚腿 15 碼是競技游泳的關鍵武器。注意規則上限。",
-        "en": "Fifteen yards of underwater dolphin is a real competitive weapon. Mind the distance the rules allow."
+        "zh-Hant": "蹬牆後的水下海豚腿是競技游泳的關鍵武器：牆邊那幾碼不用換氣、阻力最小，所以每一次轉身都在這裡分勝負。放在階段 1，是因為後面的 200 碼含轉身要用它。規則上限 15 碼，超過就失格。",
+        "en": "The underwater off the wall is where races are won: those few yards cost no breath and meet the least resistance, so every turn is decided there. It sits in stage 1 because the 200 with turns later in the level uses it. The rule caps it at 15 yards; past that is a disqualification."
       },
       "err": {
         "zh-Hant": "為了距離而缺氧。任何不適立刻停。",
         "en": "Going short of air chasing distance. Any discomfort and it stops immediately."
       },
-      "col": 1
+      "col": 0
     },
     "6d6b6afb-ed92-47b1-b557-52904c7931ab": {
       "level": 7,
@@ -877,8 +877,8 @@
     },
     "b7525cfb-5d9b-43b2-9868-393578adf991": {
       "level": 6,
-      "stage": 2,
-      "sort": 4,
+      "stage": 3,
+      "sort": 1,
       "teach": {
         "zh-Hant": "混合式打水是四式順序的記憶練習，同時檢查四種腿都能用。",
         "en": "Medley kicking drills the order of the four strokes and checks all four sets of legs still work."
@@ -1055,7 +1055,7 @@
     "eb420091-b357-41af-892a-73a1059ecfda": {
       "level": 6,
       "stage": 2,
-      "sort": 1,
+      "sort": 2,
       "teach": {
         "zh-Hant": "25 碼蝶式考的是節奏能不能撐到觸壁。後半段最容易垮。",
         "en": "Twenty-five yards of butterfly asks whether the rhythm survives to the wall. The back half is where it goes."
