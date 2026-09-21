@@ -41,6 +41,19 @@ const UI = {
   },
 };
 
+/* The whole-programme lesson span is added up from the levels, never typed.
+   It used to be a literal in this file and a count in the standing paragraph,
+   and both went stale the moment a level's estimate changed. */
+function spanLessons() {
+  let lo = 0, hi = 0;
+  for (const L of Object.values(C.levels)) {
+    const [a, b] = String(L.hours || '').split(/[\u2013-]/).map(n => Number(n.trim()));
+    if (!Number.isFinite(a)) continue;
+    lo += a; hi += Number.isFinite(b) ? b : a;
+  }
+  return `${lo}\u2013${hi}`;
+}
+
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -110,7 +123,7 @@ ${stages}
   <div class="meta">
     <span><b>${u.version}</b> ${new Date().toISOString().slice(0, 10)}</span>
     <span><b>${u.skillCount}</b> ${total}</span>
-    <span><b>${u.span}</b> ${esc(C.head.span_lessons ?? '133–162')}</span>
+    <span><b>${u.span}</b> ${spanLessons()}</span>
     <span><b>${u.unit}</b> ${u.unitVal}</span>
   </div>
 </header>`;
