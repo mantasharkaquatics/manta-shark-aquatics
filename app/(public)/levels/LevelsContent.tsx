@@ -19,7 +19,7 @@ const levels = [
   { num: 4, color: LEVEL_COLORS['4'], goalCount: 6 },
   { num: 5, color: LEVEL_COLORS['5'], goalCount: 6 },
   { num: 6, color: LEVEL_COLORS['6'], goalCount: 6 },
-  { num: 7, color: LEVEL_COLORS['7'], goalCount: 7 },
+  { num: 7, color: LEVEL_COLORS['7'], goalCount: 6 },
 ]
 
 // Every level is taught in three stages. A family sees which one their swimmer

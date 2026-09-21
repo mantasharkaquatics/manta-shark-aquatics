@@ -1,5 +1,10 @@
 {
   "skills": {
+    "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
+      "en": "Breaststroke Drill: Breast and Dolphin Kick",
+      "zh-Hant": "蛙式技術游（一蛙腳一蝶腳）",
+      "zh-Hans": "蛙泳技术游（一蛙脚一蝶脚）"
+    },
     "0280911e-9a79-4eed-8916-883e64dee3de": {
       "en": "Freestyle Sprint 50 yd",
       "zh-Hant": "自由式衝刺 50 碼",
@@ -55,6 +60,16 @@
       "zh-Hant": "自由式翻滾轉身",
       "zh-Hans": "自由泳翻滚转身"
     },
+    "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
+      "en": "Jellyfish Float",
+      "zh-Hant": "水母漂",
+      "zh-Hans": "水母漂"
+    },
+    "2cd9fcb7-cb6d-4853-95c0-97f3acc443d7": {
+      "en": "Backstroke Dolphin Kick",
+      "zh-Hant": "仰式蝶腳",
+      "zh-Hans": "仰泳蝶脚"
+    },
     "2eb2c769-054f-4e44-9769-779c7972318b": {
       "en": "Flutter Kick on Deck",
       "zh-Hant": "岸上打水",
@@ -90,10 +105,20 @@
       "zh-Hant": "仰式翻滾轉身",
       "zh-Hans": "仰泳翻滚转身"
     },
+    "4093e9eb-c077-4efa-9dc7-2a8378163b2b": {
+      "en": "Single-Arm Backstroke",
+      "zh-Hant": "單手仰式",
+      "zh-Hans": "单手仰泳"
+    },
     "456f3041-33b2-4583-9f0a-4543ca2464c0": {
       "en": "Freestyle 200 yd",
       "zh-Hant": "自由式 200 碼",
       "zh-Hans": "自由泳 200 码"
+    },
+    "49f02c5d-009c-459c-8ef0-de2dad48c25d": {
+      "en": "Face in Water",
+      "zh-Hant": "面部入水",
+      "zh-Hans": "面部入水"
     },
     "4a0a72ff-a39f-404c-a40f-49b83b5ea4ff": {
       "en": "Backstroke Kick 25 yd",
@@ -130,20 +155,65 @@
       "zh-Hant": "泳式轉換與轉身",
       "zh-Hans": "泳式转换与转身"
     },
+    "59628c84-eead-4393-9e2e-5774670383ca": {
+      "en": "Double-Arm Backstroke",
+      "zh-Hant": "雙手仰式",
+      "zh-Hans": "双手仰泳"
+    },
     "5aa1716e-8d05-41b0-a660-7fce60b69390": {
       "en": "Dolphin Kick 10 yd",
       "zh-Hant": "海豚腿 10 碼",
       "zh-Hans": "海豚腿 10 码"
+    },
+    "5e7e292d-e1b7-48de-a32d-24f698dcaae5": {
+      "en": "Butterfly 100 yd (B Standard)",
+      "zh-Hant": "蝶式 100 碼（B 標）",
+      "zh-Hans": "蝶泳 100 码（B 标）"
     },
     "61765b4c-fd81-458d-acb9-1f4c19201994": {
       "en": "Underwater Dolphin Kick",
       "zh-Hant": "水下海豚腿",
       "zh-Hans": "水下海豚腿"
     },
+    "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
+      "en": "Jump into Deep Water",
+      "zh-Hant": "跳入深水",
+      "zh-Hans": "跳入深水"
+    },
+    "6b94b35a-4890-4ffb-ad7e-f8b630415c8b": {
+      "en": "Freestyle Drill: Single-Arm with Rotation",
+      "zh-Hant": "自由式技術游（單手轉肩游）",
+      "zh-Hans": "自由泳技术游（单手转肩游）"
+    },
+    "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
+      "en": "Backstroke 25 yd",
+      "zh-Hant": "仰式 25 碼",
+      "zh-Hans": "仰泳 25 码"
+    },
+    "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
+      "en": "Single-Arm Butterfly",
+      "zh-Hant": "單手蝶式",
+      "zh-Hans": "单手蝶泳"
+    },
     "6d6b6afb-ed92-47b1-b557-52904c7931ab": {
       "en": "Freestyle (Race Legal)",
       "zh-Hant": "自由式（合規）",
       "zh-Hans": "自由泳（合规）"
+    },
+    "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
+      "en": "Side Kick",
+      "zh-Hant": "側邊打水",
+      "zh-Hans": "侧边打水"
+    },
+    "73baf35a-1541-4d95-ade3-85cacd6dbf34": {
+      "en": "Backstroke 50 yd (B Standard)",
+      "zh-Hant": "仰式 50 碼（B 標）",
+      "zh-Hans": "仰泳 50 码（B 标）"
+    },
+    "7665ebd2-eb5b-4b00-8ef2-d0ec1039be51": {
+      "en": "Breaststroke 100 yd (B Standard)",
+      "zh-Hant": "蛙式 100 碼（B 標）",
+      "zh-Hans": "蛙泳 100 码（B 标）"
     },
     "77dcafb5-fee7-4fde-8020-9691b99f5064": {
       "en": "Backstroke Kick 10 yd",
@@ -175,10 +245,20 @@
       "zh-Hant": "仰式 200 碼",
       "zh-Hans": "仰泳 200 码"
     },
+    "84716c30-a569-4905-9970-855a998068e1": {
+      "en": "Assisted Back Float",
+      "zh-Hant": "輔助仰面漂浮",
+      "zh-Hans": "辅助仰面漂浮"
+    },
     "89ca69a6-6f96-4c1d-a52d-6ba16edab33b": {
       "en": "Streamline Push-Off",
       "zh-Hant": "流線蹬牆",
       "zh-Hans": "流线蹬墙"
+    },
+    "8aadc967-9b3f-430b-b161-273001ffa21a": {
+      "en": "Freestyle Arms, Dolphin Kick",
+      "zh-Hant": "自手蝶腳",
+      "zh-Hans": "自手蝶脚"
     },
     "9194c9af-7e03-4d13-969b-4284d49b3a84": {
       "en": "Deep Water Object Retrieval",
@@ -224,6 +304,11 @@
       "en": "Water Safety Test",
       "zh-Hant": "水域安全測驗",
       "zh-Hans": "水域安全测验"
+    },
+    "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
+      "en": "Freestyle Kick 10 yd, No Board",
+      "zh-Hant": "自由式打水 10 碼（無浮板抬頭換氣）",
+      "zh-Hans": "自由泳打水 10 码（无浮板抬头换气）"
     },
     "9f37e0f9-68d5-4bae-8349-c9d2d99d8225": {
       "en": "Breaststroke 15 yd",
@@ -321,34 +406,64 @@
       "zh-Hans": "双手触壁转身"
     },
     "c4b854b3-f337-4799-9631-33c6459951c6": {
-      "en": "Freestyle 50 yd Timed",
-      "zh-Hant": "自由式 50 碼計時",
-      "zh-Hans": "自由泳 50 码计时"
+      "en": "Freestyle 50 yd (B Standard)",
+      "zh-Hant": "自由式 50 碼（B 標）",
+      "zh-Hans": "自由泳 50 码（B 标）"
+    },
+    "c6c39234-8af8-47bb-b1d2-b33537efcf2b": {
+      "en": "Freestyle 100 yd (B Standard)",
+      "zh-Hant": "自由式 100 碼（B 標）",
+      "zh-Hans": "自由泳 100 码（B 标）"
     },
     "c7022acb-3075-471f-8c45-4d5330139369": {
       "en": "Bubble Jumps (Over Head)",
       "zh-Hant": "吐泡跳（過頭深）",
       "zh-Hans": "吐泡跳（过头深）"
     },
+    "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
+      "en": "Breaststroke Kick Drill",
+      "zh-Hant": "蛙腿分解練習",
+      "zh-Hans": "蛙腿分解练习"
+    },
     "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
-      "en": "Butterfly 50 yd",
-      "zh-Hant": "蝶式 50 碼",
-      "zh-Hans": "蝶泳 50 码"
+      "en": "Butterfly 50 yd (B Standard)",
+      "zh-Hant": "蝶式 50 碼（B 標）",
+      "zh-Hans": "蝶泳 50 码（B 标）"
+    },
+    "caf1da5f-3ff5-4d73-b479-6f0336dfdc36": {
+      "en": "Backstroke 100 yd (B Standard)",
+      "zh-Hant": "仰式 100 碼（B 標）",
+      "zh-Hans": "仰泳 100 码（B 标）"
+    },
+    "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
+      "en": "Nose Bubbles",
+      "zh-Hant": "水中鼻子吐泡泡",
+      "zh-Hans": "水中鼻子吐泡泡"
     },
     "d6915327-5d9d-4907-be40-b59ad3536c8d": {
       "en": "Superman Glide",
       "zh-Hant": "超人滑行",
       "zh-Hans": "超人滑行"
     },
+    "d6b2ba7b-5a81-4247-8532-d9eb078f71bd": {
+      "en": "Backstroke Six-Kick Switch",
+      "zh-Hant": "側身六踢轉換",
+      "zh-Hans": "侧身六踢转换"
+    },
     "daefdc4c-aa3f-4df6-b001-4e95569c4d78": {
       "en": "Backstroke 25 yd",
       "zh-Hant": "仰式 25 碼",
       "zh-Hans": "仰泳 25 码"
     },
+    "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
+      "en": "Freestyle Sprint 25 yd",
+      "zh-Hant": "自由式衝刺 25 碼",
+      "zh-Hans": "自由泳冲刺 25 码"
+    },
     "de916eb5-53b3-4ab3-b451-53f793a1666f": {
-      "en": "Breaststroke 50 yd",
-      "zh-Hant": "蛙式 50 碼",
-      "zh-Hans": "蛙泳 50 码"
+      "en": "Breaststroke 50 yd (B Standard)",
+      "zh-Hant": "蛙式 50 碼（B 標）",
+      "zh-Hans": "蛙泳 50 码（B 标）"
     },
     "dff814b2-90df-4043-aeb3-dd4e4df64fbe": {
       "en": "Freestyle 15 yd",
@@ -385,6 +500,11 @@
       "zh-Hant": "蝶式 25 碼",
       "zh-Hans": "蝶泳 25 码"
     },
+    "ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb": {
+      "en": "Freestyle Drill: Two Right, Two Left",
+      "zh-Hant": "自由式技術游（右二左二）",
+      "zh-Hans": "自由泳技术游（右二左二）"
+    },
     "ed0e69e4-3edb-4668-84d8-a39064fe2425": {
       "en": "Object Retrieval",
       "zh-Hant": "水中撿物",
@@ -395,10 +515,20 @@
       "zh-Hant": "BBQ打水",
       "zh-Hans": "BBQ打水"
     },
+    "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
+      "en": "Breaststroke 10 yd",
+      "zh-Hant": "蛙式 10 碼",
+      "zh-Hans": "蛙泳 10 码"
+    },
     "f0b828a0-63a5-4aea-8000-13e1b05b1682": {
       "en": "Safe Entry and Exit",
       "zh-Hant": "安全進出泳池",
       "zh-Hans": "安全进出泳池"
+    },
+    "f23977ee-2739-493a-b1f1-2547e29b5011": {
+      "en": "Breaststroke Drill: One Pull, Two Kicks",
+      "zh-Hant": "蛙式技術游（一手兩腳）",
+      "zh-Hans": "蛙泳技术游（一手两脚）"
     },
     "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
       "en": "Breaststroke Underwater Pullout",
@@ -409,111 +539,6 @@
       "en": "Backstroke 100 yd",
       "zh-Hant": "仰式 100 碼",
       "zh-Hans": "仰泳 100 码"
-    },
-    "49f02c5d-009c-459c-8ef0-de2dad48c25d": {
-      "en": "Face in Water",
-      "zh-Hant": "面部入水",
-      "zh-Hans": "面部入水"
-    },
-    "84716c30-a569-4905-9970-855a998068e1": {
-      "en": "Assisted Back Float",
-      "zh-Hant": "輔助仰面漂浮",
-      "zh-Hans": "辅助仰面漂浮"
-    },
-    "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
-      "en": "Nose Bubbles",
-      "zh-Hant": "水中鼻子吐泡泡",
-      "zh-Hans": "水中鼻子吐泡泡"
-    },
-    "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
-      "en": "Jellyfish Float",
-      "zh-Hant": "水母漂",
-      "zh-Hans": "水母漂"
-    },
-    "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
-      "en": "Jump into Deep Water",
-      "zh-Hant": "跳入深水",
-      "zh-Hans": "跳入深水"
-    },
-    "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
-      "en": "Freestyle Kick 10 yd, No Board",
-      "zh-Hant": "自由式打水 10 碼（無浮板抬頭換氣）",
-      "zh-Hans": "自由泳打水 10 码（无浮板抬头换气）"
-    },
-    "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
-      "en": "Side Kick",
-      "zh-Hant": "側邊打水",
-      "zh-Hans": "侧边打水"
-    },
-    "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
-      "en": "Backstroke 25 yd",
-      "zh-Hant": "仰式 25 碼",
-      "zh-Hans": "仰泳 25 码"
-    },
-    "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
-      "en": "Breaststroke Kick Drill",
-      "zh-Hant": "蛙腿分解練習",
-      "zh-Hans": "蛙腿分解练习"
-    },
-    "ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb": {
-      "en": "Freestyle Drill: Two Right, Two Left",
-      "zh-Hant": "自由式技術游（右二左二）",
-      "zh-Hans": "自由泳技术游（右二左二）"
-    },
-    "6b94b35a-4890-4ffb-ad7e-f8b630415c8b": {
-      "en": "Freestyle Drill: Single-Arm with Rotation",
-      "zh-Hant": "自由式技術游（單手轉肩游）",
-      "zh-Hans": "自由泳技术游（单手转肩游）"
-    },
-    "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
-      "en": "Freestyle Sprint 25 yd",
-      "zh-Hant": "自由式衝刺 25 碼",
-      "zh-Hans": "自由泳冲刺 25 码"
-    },
-    "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
-      "en": "Breaststroke 10 yd",
-      "zh-Hant": "蛙式 10 碼",
-      "zh-Hans": "蛙泳 10 码"
-    },
-    "8aadc967-9b3f-430b-b161-273001ffa21a": {
-      "en": "Freestyle Arms, Dolphin Kick",
-      "zh-Hant": "自手蝶腳",
-      "zh-Hans": "自手蝶脚"
-    },
-    "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
-      "en": "Single-Arm Butterfly",
-      "zh-Hant": "單手蝶式",
-      "zh-Hans": "单手蝶泳"
-    },
-    "2cd9fcb7-cb6d-4853-95c0-97f3acc443d7": {
-      "en": "Backstroke Dolphin Kick",
-      "zh-Hant": "仰式蝶腳",
-      "zh-Hans": "仰泳蝶脚"
-    },
-    "4093e9eb-c077-4efa-9dc7-2a8378163b2b": {
-      "en": "Single-Arm Backstroke",
-      "zh-Hant": "單手仰式",
-      "zh-Hans": "单手仰泳"
-    },
-    "59628c84-eead-4393-9e2e-5774670383ca": {
-      "en": "Double-Arm Backstroke",
-      "zh-Hant": "雙手仰式",
-      "zh-Hans": "双手仰泳"
-    },
-    "d6b2ba7b-5a81-4247-8532-d9eb078f71bd": {
-      "en": "Backstroke Six-Kick Switch",
-      "zh-Hant": "側身六踢轉換",
-      "zh-Hans": "侧身六踢转换"
-    },
-    "f23977ee-2739-493a-b1f1-2547e29b5011": {
-      "en": "Breaststroke Drill: One Pull, Two Kicks",
-      "zh-Hant": "蛙式技術游（一手兩腳）",
-      "zh-Hans": "蛙泳技术游（一手两脚）"
-    },
-    "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
-      "en": "Breaststroke Drill: Breast and Dolphin Kick",
-      "zh-Hant": "蛙式技術游（一蛙腳一蝶腳）",
-      "zh-Hans": "蛙泳技术游（一蛙脚一蝶脚）"
     }
   },
   "course_types": {
@@ -556,6 +581,11 @@
     }
   },
   "skill_criteria": {
+    "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
+      "en": "25 yards alternating one breaststroke kick with one dolphin kick, the two clearly distinct and the feet turning out on the breaststroke kick.",
+      "zh-Hant": "一次蛙腿、一次海豚腿交替，游 25 碼；兩種腿分得清清楚楚，蛙腿時腳掌有翻出去。",
+      "zh-Hans": "一次蛙腿、一次海豚腿交替，游 25 码；两种腿分得清清楚楚，蛙腿时脚掌有翻出去。"
+    },
     "0280911e-9a79-4eed-8916-883e64dee3de": {
       "en": "All-out 50 yd freestyle, the stroke still there on the second length, with no breath in the last 5 yd.",
       "zh-Hant": "自由式 50 碼全力衝刺，第二趟動作不垮，最後 5 碼不換氣。",
@@ -611,6 +641,16 @@
       "zh-Hant": "接近池壁前滾翻，雙腳踏牆，以仰姿流線型蹬出。",
       "zh-Hans": "接近池壁前滚翻，双脚踏墙，以仰姿流线型蹬出。"
     },
+    "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
+      "en": "Face in, arms and legs hanging loose, floats for ten seconds and stands up unaided.",
+      "zh-Hant": "臉入水、手腳自然垂下漂 10 秒，自己抬頭站起來。",
+      "zh-Hans": "脸入水、手脚自然垂下漂 10 秒，自己抬头站起来。"
+    },
+    "2cd9fcb7-cb6d-4853-95c0-97f3acc443d7": {
+      "en": "25 yards of dolphin kick on the back, arms overhead, the wave driven from the chest, hips at the surface and the knees never breaking it.",
+      "zh-Hant": "仰躺雙手過頭夾緊、蝶式打水 25 碼，波浪由胸口帶動，臀部貼近水面、膝蓋不出水面。",
+      "zh-Hans": "仰躺双手过头夹紧、蝶泳打水 25 码，波浪由胸口带动，臀部贴近水面、膝盖不出水面。"
+    },
     "2eb2c769-054f-4e44-9769-779c7972318b": {
       "en": "Sitting on the edge, kicks from the hip with straight legs and pointed toes for 20 seconds.",
       "zh-Hant": "坐池邊直腿繃腳尖、由髖部發力打水 20 秒。",
@@ -646,10 +686,20 @@
       "zh-Hant": "轉為俯臥後前滾翻，以仰姿蹬牆，動作在規則允許的一划內完成。",
       "zh-Hans": "转为俯卧后前滚翻，以仰姿蹬墙，动作在规则允许的一划内完成。"
     },
+    "4093e9eb-c077-4efa-9dc7-2a8378163b2b": {
+      "en": "Single-arm backstroke 25 yards each side, the resting arm still at the thigh, the working shoulder rolling clear of the water.",
+      "zh-Hant": "單手仰式 25 碼，左右各一趟；沒在划的那隻手貼大腿不動，划手那邊的肩膀轉出水面。",
+      "zh-Hans": "单手仰泳 25 码，左右各一趟；没在划的那只手贴大腿不动，划手那边的肩膀转出水面。"
+    },
     "456f3041-33b2-4583-9f0a-4543ca2464c0": {
       "en": "Swims 200 yd freestyle continuous with even pacing, turns included.",
       "zh-Hant": "連續自由式 200 碼含轉身，配速平均不前快後崩。",
       "zh-Hans": "连续自由泳 200 码含转身，配速平均不前快后崩。"
+    },
+    "49f02c5d-009c-459c-8ef0-de2dad48c25d": {
+      "en": "Puts the whole face in the water for three seconds and comes up unaided, without wiping the face.",
+      "zh-Hant": "臉整個入水 3 秒，自己抬頭起來，不抹臉也不慌。",
+      "zh-Hans": "脸整个入水 3 秒，自己抬头起来，不抹脸也不慌。"
     },
     "4a0a72ff-a39f-404c-a40f-49b83b5ea4ff": {
       "en": "Kicks 25 yd on the back, arms at the sides, staying in a straight line.",
@@ -686,20 +736,65 @@
       "zh-Hant": "四式之間的合規銜接，以及混合式中的每一種轉身。",
       "zh-Hans": "四式之间的合规衔接，以及混合泳中的每一种转身。"
     },
+    "59628c84-eead-4393-9e2e-5774670383ca": {
+      "en": "Double-arm backstroke 15 yards, both arms entering overhead and finishing at the thighs together, no roll, hips at the surface.",
+      "zh-Hant": "雙手仰式 15 碼，兩手同時從頭頂入水、同時推到大腿，全程不轉肩，臀部貼近水面。",
+      "zh-Hans": "双手仰泳 15 码，两手同时从头顶入水、同时推到大腿，全程不转肩，臀部贴近水面。"
+    },
     "5aa1716e-8d05-41b0-a660-7fce60b69390": {
       "en": "Dolphin kicks 10 yd on the front, the wave starting at the chest not the knees.",
       "zh-Hant": "俯身海豚腿 10 碼，波浪從胸口帶動而不是折膝。",
       "zh-Hans": "俯身海豚腿 10 码，波浪从胸口带动而不是折膝。"
+    },
+    "5e7e292d-e1b7-48de-a32d-24f698dcaae5": {
+      "en": "Swims a legal 100 yd butterfly at or under the age-10 B standard: 1:56.69 girls, 1:53.89 boys.",
+      "zh-Hant": "蝶式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 1:56.69、男生 1:53.89。",
+      "zh-Hans": "蝶泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 1:56.69、男生 1:53.89。"
     },
     "61765b4c-fd81-458d-acb9-1f4c19201994": {
       "en": "Dolphin kicks 15 yd underwater off the wall on one breath.",
       "zh-Hant": "蹬牆後一口氣在水面下海豚腿 15 碼。",
       "zh-Hans": "蹬墙后一口气在水面下海豚腿 15 码。"
     },
+    "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
+      "en": "Jumps feet-first from the deck into deep water, surfaces and returns to the wall unaided, with nobody catching him.",
+      "zh-Hant": "從池邊雙腳跳進深水，自己浮起來回到池壁，不需要人接。",
+      "zh-Hans": "从池边双脚跳进深水，自己浮起来回到池壁，不需要人接。"
+    },
+    "6b94b35a-4890-4ffb-ad7e-f8b630415c8b": {
+      "en": "25 yards each side with one arm extended out front and only the other swimming, the working shoulder rolling clear of the water and the breath taken to that side.",
+      "zh-Hant": "一手伸直在前面不動、只用另一手游 25 碼，左右各一趟；划手那一邊的肩膀要轉出水面，換氣跟著那隻手。",
+      "zh-Hans": "一手伸直在前面不动、只用另一手游 25 码，左右各一趟；划手那一边的肩膀要转出水面，换气跟着那只手。"
+    },
+    "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
+      "en": "Backstroke 25 yards without stopping, holding a straight line, the stroke as good on the second half as the first.",
+      "zh-Hant": "仰式 25 碼不停，能維持直線，後半段的動作跟前半段一樣。",
+      "zh-Hans": "仰泳 25 码不停，能维持直线，后半段的动作跟前半段一样。"
+    },
+    "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
+      "en": "Single-arm butterfly 15 yards each side, the other arm extended out front, two kicks to the pull and the chin leading out for the breath.",
+      "zh-Hant": "單手蝶式 15 碼，左右各一趟；另一隻手伸直在前面，一划兩踢，換氣時下巴先出水。",
+      "zh-Hans": "单手蝶泳 15 码，左右各一趟；另一只手伸直在前面，一划两踢，换气时下巴先出水。"
+    },
     "6d6b6afb-ed92-47b1-b557-52904c7931ab": {
       "en": "Freestyle that would not be disqualified: legal turn, legal finish, no walking.",
       "zh-Hant": "自由式的動作、轉身與終點都不會被判失格。",
       "zh-Hans": "自由泳的动作、转身与终点都不会被判失格。"
+    },
+    "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
+      "en": "Kicks 10 yards on the side, bottom arm extended, top arm on the thigh, shoulders stacked and the head still. Both sides.",
+      "zh-Hant": "側躺打水 10 碼，下面的手往前伸直、上面的手貼大腿，兩邊肩膀疊在一起、頭不動。左右兩邊都要做。",
+      "zh-Hans": "侧躺打水 10 码，下面的手往前伸直、上面的手贴大腿，两边肩膀叠在一起、头不动。左右两边都要做。"
+    },
+    "73baf35a-1541-4d95-ade3-85cacd6dbf34": {
+      "en": "Swims a legal 50 yd backstroke at or under the age-10 B standard: 48.59 girls, 48.49 boys.",
+      "zh-Hant": "仰式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 48.59、男生 48.49。",
+      "zh-Hans": "仰泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 48.59、男生 48.49。"
+    },
+    "7665ebd2-eb5b-4b00-8ef2-d0ec1039be51": {
+      "en": "Swims a legal 100 yd breaststroke at or under the age-10 B standard: 2:00.29 girls, 1:55.49 boys.",
+      "zh-Hant": "蛙式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 2:00.29、男生 1:55.49。",
+      "zh-Hans": "蛙泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 2:00.29、男生 1:55.49。"
     },
     "77dcafb5-fee7-4fde-8020-9691b99f5064": {
       "en": "Kicks 10 yd on the back, ears in the water, hips at the surface.",
@@ -731,10 +826,20 @@
       "zh-Hant": "連續仰式 200 碼，轉身合乎規則。",
       "zh-Hans": "连续仰泳 200 码，转身合乎规则。"
     },
+    "84716c30-a569-4905-9970-855a998068e1": {
+      "en": "Back float for five seconds with one hand under the back, ears in the water and hips at the surface.",
+      "zh-Hant": "教練單手托背，仰面漂 5 秒，耳朵入水、肚子朝上。",
+      "zh-Hans": "教练单手托背，仰面漂 5 秒，耳朵入水、肚子朝上。"
+    },
     "89ca69a6-6f96-4c1d-a52d-6ba16edab33b": {
       "en": "Push-off in a tight streamline and glides 7 yd before the first kick.",
       "zh-Hant": "蹬牆做出緊實的流線型，滑行 7 碼才開始打水。",
       "zh-Hans": "蹬墙做出紧实的流线型，滑行 7 码才开始打水。"
+    },
+    "8aadc967-9b3f-430b-b161-273001ffa21a": {
+      "en": "25 yards with freestyle arms and a butterfly kick, two kicks to every pull, the rhythm holding the whole way.",
+      "zh-Hant": "自由式划手配蝶式打水 25 碼，一次推水配兩次打水，節奏全程不亂。",
+      "zh-Hans": "自由泳划手配蝶泳打水 25 码，一次推水配两次打水，节奏全程不乱。"
     },
     "9194c9af-7e03-4d13-969b-4284d49b3a84": {
       "en": "Retrieves an object from the bottom of deep water and returns to the wall.",
@@ -780,6 +885,11 @@
       "en": "One unbroken run, never holding the wall: jump into deep water from the deck, submerge and retrieve the toy, five bobs off the wall, hand the toy to the coach, starfish float 30 seconds, freestyle kick 10 yards to the mark, and climb out unaided.",
       "zh-Hant": "一次做完不中斷、全程不扶牆：從池邊跳進深水、下潛撿起玩具、不扶牆做五個吐泡跳、把玩具交給教練、海星漂 30 秒、自由式打水 10 碼到指定位置，最後自己爬上岸。",
       "zh-Hans": "一次做完不中断、全程不扶墙：从池边跳进深水、下潜捡起玩具、不扶墙做五个吐泡跳、把玩具交给教练、海星漂 30 秒、自由泳打水 10 码到指定位置，最后自己爬上岸。"
+    },
+    "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
+      "en": "Kicks 10 yards with no board, arms extended in front, lifting the head to breathe and putting the face straight back in, kick never stopping.",
+      "zh-Hant": "不拿浮板、雙手往前伸直打水 10 碼；換氣時抬頭吸一口就把臉放回水裡，腳全程不停。",
+      "zh-Hans": "不拿浮板、双手往前伸直打水 10 码；换气时抬头吸一口就把脸放回水里，脚全程不停。"
     },
     "9f37e0f9-68d5-4bae-8349-c9d2d99d8225": {
       "en": "Swims 15 yd breaststroke in pull-breathe-kick-glide order.",
@@ -877,34 +987,64 @@
       "zh-Hans": "蛙泳与蝶泳在池边转身时双手同时触壁。"
     },
     "c4b854b3-f337-4799-9631-33c6459951c6": {
-      "en": "Swims 50 yd freestyle on the clock and improves the time over three attempts.",
-      "zh-Hant": "自由式 50 碼計時，三次測驗內成績有進步。",
-      "zh-Hans": "自由泳 50 码计时，三次测验内成绩有进步。"
+      "en": "Swims a legal 50 yd freestyle at or under the age-10 B standard: 39.89 girls, 38.29 boys.",
+      "zh-Hant": "自由式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 39.89、男生 38.29。",
+      "zh-Hans": "自由泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 39.89、男生 38.29。"
+    },
+    "c6c39234-8af8-47bb-b1d2-b33537efcf2b": {
+      "en": "Swims a legal 100 yd freestyle at or under the age-10 B standard: 1:30.89 girls, 1:28.49 boys.",
+      "zh-Hant": "自由式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 1:30.89、男生 1:28.49。",
+      "zh-Hans": "自由泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 1:30.89、男生 1:28.49。"
     },
     "c7022acb-3075-471f-8c45-4d5330139369": {
       "en": "Ten in a row in water over their head, holding the wall: down, breathe out, up, in rhythm.",
       "zh-Hant": "過頭深的水中扶牆連續十次：下沉、吐氣、浮起，有節奏不中斷。",
       "zh-Hans": "过头深的水中扶墙连续十次：下沉、吐气、浮起，有节奏不中断。"
     },
+    "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
+      "en": "Ten breaststroke kicks at the wall or on a board, the four counts -- heels up, feet out, drive, together -- clearly separated.",
+      "zh-Hant": "扶牆或扶板做蛙腿 10 次：收腿到臀、腳掌翻出去、蹬開、併攏，四拍分得清楚。",
+      "zh-Hans": "扶墙或扶板做蛙腿 10 次：收腿到臀、脚掌翻出去、蹬开、并拢，四拍分得清楚。"
+    },
     "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
-      "en": "Swims 50 yd butterfly with a legal turn, rhythm intact on the second length.",
-      "zh-Hant": "蝶式 50 碼含合規轉身，第二趟節奏沒有垮掉。",
-      "zh-Hans": "蝶泳 50 码含合规转身，第二趟节奏没有垮掉。"
+      "en": "Swims a legal 50 yd butterfly at or under the age-10 B standard: 48.39 girls, 46.49 boys.",
+      "zh-Hant": "蝶式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 48.39、男生 46.49。",
+      "zh-Hans": "蝶泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 48.39、男生 46.49。"
+    },
+    "caf1da5f-3ff5-4d73-b479-6f0336dfdc36": {
+      "en": "Swims a legal 100 yd backstroke at or under the age-10 B standard: 1:45.79 girls, 1:41.09 boys.",
+      "zh-Hant": "仰式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 1:45.79、男生 1:41.09。",
+      "zh-Hans": "仰泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 1:45.79、男生 1:41.09。"
+    },
+    "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
+      "en": "Blows bubbles through the nose for five seconds with the face in, without lifting the head.",
+      "zh-Hant": "臉入水用鼻子吐泡泡 5 秒，中途不抬頭、不嗆到。",
+      "zh-Hans": "脸入水用鼻子吐泡泡 5 秒，中途不抬头、不呛到。"
     },
     "d6915327-5d9d-4907-be40-b59ad3536c8d": {
       "en": "Pushes off the wall and glides face-down 5 yd, arms extended, no kicking.",
       "zh-Hant": "蹬牆俯身滑行 5 碼，雙手伸直，不打水。",
       "zh-Hans": "蹬墙俯身滑行 5 码，双手伸直，不打水。"
     },
+    "d6b2ba7b-5a81-4247-8532-d9eb078f71bd": {
+      "en": "Six kicks on the side then one stroke to switch, 25 yards, one arm extended overhead throughout and the eyes holding one point.",
+      "zh-Hant": "側躺打水六下、划一下換邊，游 25 碼；全程一隻手伸直在頭頂，眼睛盯著同一個點。",
+      "zh-Hans": "侧躺打水六下、划一下换边，游 25 码；全程一只手伸直在头顶，眼睛盯着同一个点。"
+    },
     "daefdc4c-aa3f-4df6-b001-4e95569c4d78": {
       "en": "Swims 25 yd backstroke without stopping, shoulders rolling, head still.",
       "zh-Hant": "仰式 25 碼不停，肩膀有轉動、頭部穩定。",
       "zh-Hans": "仰泳 25 码不停，肩膀有转动、头部稳定。"
     },
+    "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
+      "en": "Swims 25 yards freestyle as fast as he can with the stroke holding together and no more breaths than an easy 25.",
+      "zh-Hant": "自由式 25 碼盡全力游，全程動作不散，換氣次數不比平常那一趟多。",
+      "zh-Hans": "自由泳 25 码尽全力游，全程动作不散，换气次数不比平常那一趟多。"
+    },
     "de916eb5-53b3-4ab3-b451-53f793a1666f": {
-      "en": "Swims 50 yd breaststroke with a legal turn and a legal finish.",
-      "zh-Hant": "蛙式 50 碼，轉身與終點觸壁都合乎規則。",
-      "zh-Hans": "蛙泳 50 码，转身与终点触壁都合乎规则。"
+      "en": "Swims a legal 50 yd breaststroke at or under the age-10 B standard: 54.59 girls, 53.49 boys.",
+      "zh-Hant": "蛙式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 54.59、男生 53.49。",
+      "zh-Hans": "蛙泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 54.59、男生 53.49。"
     },
     "dff814b2-90df-4043-aeb3-dd4e4df64fbe": {
       "en": "Swims 15 yd freestyle, side breathing, arms recovering over the water.",
@@ -941,6 +1081,11 @@
       "zh-Hant": "蝶式 25 碼不停，節奏維持到觸壁。",
       "zh-Hans": "蝶泳 25 码不停，节奏维持到触壁。"
     },
+    "ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb": {
+      "en": "25 yards alternating two strokes with the right arm and two with the left, the other arm extended out front and waiting, both strokes on a side looking the same.",
+      "zh-Hant": "右手連續划兩下、左手連續划兩下交替，游 25 碼；沒在划的那隻手伸直在前面等，同一邊的兩下動作一樣。",
+      "zh-Hans": "右手连续划两下、左手连续划两下交替，游 25 码；没在划的那只手伸直在前面等，同一边的两下动作一样。"
+    },
     "ed0e69e4-3edb-4668-84d8-a39064fe2425": {
       "en": "Retrieves an object from the bottom in chest-deep water, first try.",
       "zh-Hant": "胸深水中一次就把池底的物品撿起來。",
@@ -951,10 +1096,20 @@
       "zh-Hant": "打水中由俯臥轉側身轉仰臥再轉回，中途不停。",
       "zh-Hans": "打水中由俯卧转侧身转仰卧再转回，中途不停。"
     },
+    "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
+      "en": "Breaststroke 10 yards keeping the order pull, breathe, kick, glide, the pull staying in front of the shoulders.",
+      "zh-Hant": "蛙式 10 碼，保持「划、吸、蹬、滑」的順序，抱水不拉到肩膀後面。",
+      "zh-Hans": "蛙泳 10 码，保持「划、吸、蹬、滑」的顺序，抱水不拉到肩膀后面。"
+    },
     "f0b828a0-63a5-4aea-8000-13e1b05b1682": {
       "en": "Enters feet-first on the coach’s word, and climbs out unaided by the ladder or the wall.",
       "zh-Hant": "聽指令雙腳先入水；自己用扶梯或撐池邊上岸，不用人扶。",
       "zh-Hans": "听指令双脚先入水；自己用扶梯或撑池边上岸，不用人扶。"
+    },
+    "f23977ee-2739-493a-b1f1-2547e29b5011": {
+      "en": "25 yards with one pull to every two kicks, a visible glide after each kick and the order never breaking down.",
+      "zh-Hant": "一次划手配兩次蛙腿，游 25 碼；每一蹬之後都看得到滑行，順序不亂。",
+      "zh-Hans": "一次划手配两次蛙腿，游 25 码；每一蹬之后都看得到滑行，顺序不乱。"
     },
     "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
       "en": "One pull-down: full pull to the thighs, one dolphin kick, recovery, break out.",
@@ -965,111 +1120,6 @@
       "en": "Swims 100 yd backstroke continuous, straight, with turns.",
       "zh-Hant": "連續仰式 100 碼含轉身，能維持直線。",
       "zh-Hans": "连续仰泳 100 码含转身，能维持直线。"
-    },
-    "49f02c5d-009c-459c-8ef0-de2dad48c25d": {
-      "en": "Puts the whole face in the water for three seconds and comes up unaided, without wiping the face.",
-      "zh-Hant": "臉整個入水 3 秒，自己抬頭起來，不抹臉也不慌。",
-      "zh-Hans": "脸整个入水 3 秒，自己抬头起来，不抹脸也不慌。"
-    },
-    "84716c30-a569-4905-9970-855a998068e1": {
-      "en": "Back float for five seconds with one hand under the back, ears in the water and hips at the surface.",
-      "zh-Hant": "教練單手托背，仰面漂 5 秒，耳朵入水、肚子朝上。",
-      "zh-Hans": "教练单手托背，仰面漂 5 秒，耳朵入水、肚子朝上。"
-    },
-    "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
-      "en": "Blows bubbles through the nose for five seconds with the face in, without lifting the head.",
-      "zh-Hant": "臉入水用鼻子吐泡泡 5 秒，中途不抬頭、不嗆到。",
-      "zh-Hans": "脸入水用鼻子吐泡泡 5 秒，中途不抬头、不呛到。"
-    },
-    "268cc43e-0038-4fa9-9f28-18fff4aedcca": {
-      "en": "Face in, arms and legs hanging loose, floats for ten seconds and stands up unaided.",
-      "zh-Hant": "臉入水、手腳自然垂下漂 10 秒，自己抬頭站起來。",
-      "zh-Hans": "脸入水、手脚自然垂下漂 10 秒，自己抬头站起来。"
-    },
-    "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
-      "en": "Jumps feet-first from the deck into deep water, surfaces and returns to the wall unaided, with nobody catching him.",
-      "zh-Hant": "從池邊雙腳跳進深水，自己浮起來回到池壁，不需要人接。",
-      "zh-Hans": "从池边双脚跳进深水，自己浮起来回到池壁，不需要人接。"
-    },
-    "9ac7c46d-2f0f-495b-a0cc-95a13e6684fc": {
-      "en": "Kicks 10 yards with no board, arms extended in front, lifting the head to breathe and putting the face straight back in, kick never stopping.",
-      "zh-Hant": "不拿浮板、雙手往前伸直打水 10 碼；換氣時抬頭吸一口就把臉放回水裡，腳全程不停。",
-      "zh-Hans": "不拿浮板、双手往前伸直打水 10 码；换气时抬头吸一口就把脸放回水里，脚全程不停。"
-    },
-    "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
-      "en": "Kicks 10 yards on the side, bottom arm extended, top arm on the thigh, shoulders stacked and the head still. Both sides.",
-      "zh-Hant": "側躺打水 10 碼，下面的手往前伸直、上面的手貼大腿，兩邊肩膀疊在一起、頭不動。左右兩邊都要做。",
-      "zh-Hans": "侧躺打水 10 码，下面的手往前伸直、上面的手贴大腿，两边肩膀叠在一起、头不动。左右两边都要做。"
-    },
-    "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
-      "en": "Backstroke 25 yards without stopping, holding a straight line, the stroke as good on the second half as the first.",
-      "zh-Hant": "仰式 25 碼不停，能維持直線，後半段的動作跟前半段一樣。",
-      "zh-Hans": "仰泳 25 码不停，能维持直线，后半段的动作跟前半段一样。"
-    },
-    "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
-      "en": "Ten breaststroke kicks at the wall or on a board, the four counts -- heels up, feet out, drive, together -- clearly separated.",
-      "zh-Hant": "扶牆或扶板做蛙腿 10 次：收腿到臀、腳掌翻出去、蹬開、併攏，四拍分得清楚。",
-      "zh-Hans": "扶墙或扶板做蛙腿 10 次：收腿到臀、脚掌翻出去、蹬开、并拢，四拍分得清楚。"
-    },
-    "ecbcc8c6-dedd-4ebf-8e48-b6eb53e17aeb": {
-      "en": "25 yards alternating two strokes with the right arm and two with the left, the other arm extended out front and waiting, both strokes on a side looking the same.",
-      "zh-Hant": "右手連續划兩下、左手連續划兩下交替，游 25 碼；沒在划的那隻手伸直在前面等，同一邊的兩下動作一樣。",
-      "zh-Hans": "右手连续划两下、左手连续划两下交替，游 25 码；没在划的那只手伸直在前面等，同一边的两下动作一样。"
-    },
-    "6b94b35a-4890-4ffb-ad7e-f8b630415c8b": {
-      "en": "25 yards each side with one arm extended out front and only the other swimming, the working shoulder rolling clear of the water and the breath taken to that side.",
-      "zh-Hant": "一手伸直在前面不動、只用另一手游 25 碼，左右各一趟；划手那一邊的肩膀要轉出水面，換氣跟著那隻手。",
-      "zh-Hans": "一手伸直在前面不动、只用另一手游 25 码，左右各一趟；划手那一边的肩膀要转出水面，换气跟着那只手。"
-    },
-    "de640a60-96c1-4616-bcd2-f29f1aa61ed8": {
-      "en": "Swims 25 yards freestyle as fast as he can with the stroke holding together and no more breaths than an easy 25.",
-      "zh-Hant": "自由式 25 碼盡全力游，全程動作不散，換氣次數不比平常那一趟多。",
-      "zh-Hans": "自由泳 25 码尽全力游，全程动作不散，换气次数不比平常那一趟多。"
-    },
-    "ee7b11f4-bb68-4868-95c9-62270c9ae576": {
-      "en": "Breaststroke 10 yards keeping the order pull, breathe, kick, glide, the pull staying in front of the shoulders.",
-      "zh-Hant": "蛙式 10 碼，保持「划、吸、蹬、滑」的順序，抱水不拉到肩膀後面。",
-      "zh-Hans": "蛙泳 10 码，保持「划、吸、蹬、滑」的顺序，抱水不拉到肩膀后面。"
-    },
-    "8aadc967-9b3f-430b-b161-273001ffa21a": {
-      "en": "25 yards with freestyle arms and a butterfly kick, two kicks to every pull, the rhythm holding the whole way.",
-      "zh-Hant": "自由式划手配蝶式打水 25 碼，一次推水配兩次打水，節奏全程不亂。",
-      "zh-Hans": "自由泳划手配蝶泳打水 25 码，一次推水配两次打水，节奏全程不乱。"
-    },
-    "6d6b06d9-7b44-4980-a1a6-a4ab887d5ede": {
-      "en": "Single-arm butterfly 15 yards each side, the other arm extended out front, two kicks to the pull and the chin leading out for the breath.",
-      "zh-Hant": "單手蝶式 15 碼，左右各一趟；另一隻手伸直在前面，一划兩踢，換氣時下巴先出水。",
-      "zh-Hans": "单手蝶泳 15 码，左右各一趟；另一只手伸直在前面，一划两踢，换气时下巴先出水。"
-    },
-    "2cd9fcb7-cb6d-4853-95c0-97f3acc443d7": {
-      "en": "25 yards of dolphin kick on the back, arms overhead, the wave driven from the chest, hips at the surface and the knees never breaking it.",
-      "zh-Hant": "仰躺雙手過頭夾緊、蝶式打水 25 碼，波浪由胸口帶動，臀部貼近水面、膝蓋不出水面。",
-      "zh-Hans": "仰躺双手过头夹紧、蝶泳打水 25 码，波浪由胸口带动，臀部贴近水面、膝盖不出水面。"
-    },
-    "4093e9eb-c077-4efa-9dc7-2a8378163b2b": {
-      "en": "Single-arm backstroke 25 yards each side, the resting arm still at the thigh, the working shoulder rolling clear of the water.",
-      "zh-Hant": "單手仰式 25 碼，左右各一趟；沒在划的那隻手貼大腿不動，划手那邊的肩膀轉出水面。",
-      "zh-Hans": "单手仰泳 25 码，左右各一趟；没在划的那只手贴大腿不动，划手那边的肩膀转出水面。"
-    },
-    "59628c84-eead-4393-9e2e-5774670383ca": {
-      "en": "Double-arm backstroke 15 yards, both arms entering overhead and finishing at the thighs together, no roll, hips at the surface.",
-      "zh-Hant": "雙手仰式 15 碼，兩手同時從頭頂入水、同時推到大腿，全程不轉肩，臀部貼近水面。",
-      "zh-Hans": "双手仰泳 15 码，两手同时从头顶入水、同时推到大腿，全程不转肩，臀部贴近水面。"
-    },
-    "d6b2ba7b-5a81-4247-8532-d9eb078f71bd": {
-      "en": "Six kicks on the side then one stroke to switch, 25 yards, one arm extended overhead throughout and the eyes holding one point.",
-      "zh-Hant": "側躺打水六下、划一下換邊，游 25 碼；全程一隻手伸直在頭頂，眼睛盯著同一個點。",
-      "zh-Hans": "侧躺打水六下、划一下换边，游 25 码；全程一只手伸直在头顶，眼睛盯着同一个点。"
-    },
-    "f23977ee-2739-493a-b1f1-2547e29b5011": {
-      "en": "25 yards with one pull to every two kicks, a visible glide after each kick and the order never breaking down.",
-      "zh-Hant": "一次划手配兩次蛙腿，游 25 碼；每一蹬之後都看得到滑行，順序不亂。",
-      "zh-Hans": "一次划手配两次蛙腿，游 25 码；每一蹬之后都看得到滑行，顺序不乱。"
-    },
-    "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
-      "en": "25 yards alternating one breaststroke kick with one dolphin kick, the two clearly distinct and the feet turning out on the breaststroke kick.",
-      "zh-Hant": "一次蛙腿、一次海豚腿交替，游 25 碼；兩種腿分得清清楚楚，蛙腿時腳掌有翻出去。",
-      "zh-Hans": "一次蛙腿、一次海豚腿交替，游 25 码；两种腿分得清清楚楚，蛙腿时脚掌有翻出去。"
     }
   }
 }

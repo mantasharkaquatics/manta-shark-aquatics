@@ -238,53 +238,39 @@
       "en_name": "Competitive Swimming",
       "zh_name": "競技規格",
       "intro": {
-        "zh-Hant": "從「會游」到「不會被判失格」。配速、計時、轉身規則、個人混合式。這一級沒有真正的終點——最後一個階段五個合規項目並排，會走很久，那是正常的。",
-        "en": "From swimming to not being disqualified. Pacing, timing, the turn rules, the individual medley. This level has no real end — five legality checks sit side by side in the last stage and it takes a while. That is normal."
+        "zh-Hant": "這一級用美國游泳協會 2025–2028 單齡動機標準來看成績：10 歲組的 B 標。階段一四種泳姿各 50 碼，階段二各 100 碼，都要動作合規、而且游進秒數才算過。秒數寫的是「女生／男生」，時間是拿來看自己有沒有往前，不是拿來排名次。",
+        "en": "This level measures against USA Swimming's 2025-2028 single-age motivational standards, the age-10 B column. Stage one is 50 yards in each of the four strokes, stage two is 100 yards in each, and every one has to be legal as well as inside the time. Times are listed girls first, then boys. The clock is there to show progress, not to rank anyone."
       },
       "hours": "29–36",
       "plan": [
         {
           "stage": 1,
-          "lessons": "8–10",
+          "lessons": "10–12",
           "what": {
-            "zh-Hant": "400 碼配速、50 碼計時、蛙式水下划手",
-            "en": "400 yd pacing, the timed 50, the breaststroke pullout"
+            "zh-Hant": "四種泳姿各 50 碼，合規且游進 10 歲 B 標",
+            "en": "50 yards in each of the four strokes, legal and inside the age-10 B time"
           }
         },
         {
           "stage": 2,
-          "lessons": "9–11",
+          "lessons": "12–15",
           "what": {
-            "zh-Hant": "四式加長與衝刺，四式銜接與轉身",
-            "en": "The strokes go longer, the sprint, and the medley transitions"
+            "zh-Hant": "四種泳姿各 100 碼進 B 標，加上四式銜接與轉身",
+            "en": "100 yards in each stroke inside the B time, plus the medley transitions and turns"
           }
         },
         {
           "stage": 3,
-          "lessons": "12–15",
+          "lessons": "10–12",
           "what": {
-            "zh-Hant": "四式合規，最後 100 碼個人混合式",
-            "en": "Legality in all four strokes, then the 100 yd IM"
+            "zh-Hant": "距離與技術收尾：自由式 500 碼、仰式 200 碼、蛙式水下划手、100 碼個人混合式",
+            "en": "Distance and finishing technique: the 500 free, the 200 back, the breaststroke pullout, and the 100 IM"
           }
         }
       ]
     }
   },
   "skills": {
-    "0280911e-9a79-4eed-8916-883e64dee3de": {
-      "level": 7,
-      "stage": 2,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "50 碼全力衝刺考的是後半趟。前 25 碼誰都快，差別在第二趟動作還在不在。轉身之後不要偷喘，最後 5 碼不換氣。",
-        "en": "A 50 is decided in the second length. Anyone is fast for the first 25; the question is whether the stroke is still there after the turn. No easy breath off the wall, and none in the last five yards."
-      },
-      "err": {
-        "zh-Hant": "前 25 碼拚太凶，轉身之後整個垮掉，划手次數暴增。",
-        "en": "Going too hard on the first length so the second falls apart and the stroke count jumps."
-      },
-      "col": 1
-    },
     "084fe3dd-cbe3-485c-82d6-dcdd2cd56ae7": {
       "level": 2,
       "stage": 1,
@@ -324,20 +310,6 @@
         "en": "Standing up mid-turn to reset. Ask for feet that touch the wall and never the floor."
       },
       "col": 4
-    },
-    "11f3d107-8ea1-43f9-9301-3875cd71dad0": {
-      "level": 7,
-      "stage": 3,
-      "sort": 3,
-      "teach": {
-        "zh-Hant": "合規仰式：除了轉身允許的部分，全程必須保持仰姿。",
-        "en": "Race-legal backstroke: on the back the whole way, apart from the part of the turn the rules allow."
-      },
-      "err": {
-        "zh-Hant": "終點時翻身。",
-        "en": "Rolling over at the finish."
-      },
-      "col": 3
     },
     "18a6462c-4c67-4e93-8838-8bc03717b463": {
       "level": 5,
@@ -379,20 +351,6 @@
         "zh-Hant": "腰用力弓起來。輕輕壓他的肚子讓他放鬆。",
         "en": "Arching the back with effort. A light press on the stomach lets them relax."
       }
-    },
-    "1ed417e9-431d-46db-837b-adabbdde74f3": {
-      "level": 7,
-      "stage": 3,
-      "sort": 4,
-      "teach": {
-        "zh-Hant": "合規蛙式：左右對稱、一划一蹬、雙手同時觸壁。",
-        "en": "Race-legal breaststroke: symmetric left and right, one pull to one kick, both hands touching together."
-      },
-      "err": {
-        "zh-Hant": "出現剪刀腳或不對稱划手。",
-        "en": "A scissor kick appearing, or an uneven pull."
-      },
-      "col": 4
     },
     "22e00423-edc5-4626-8e7f-8bc4e846203f": {
       "level": 5,
@@ -558,7 +516,7 @@
     "58b20bb7-23a5-4ee2-affb-5f16284a7563": {
       "level": 7,
       "stage": 2,
-      "sort": 6,
+      "sort": 5,
       "teach": {
         "zh-Hant": "四式銜接的每一個轉身規則都不一樣。逐一拆開練，再串起來。",
         "en": "Every turn between two strokes has its own rule. Break them out one at a time, then join them up."
@@ -567,7 +525,7 @@
         "zh-Hant": "把四種轉身混在一起做。",
         "en": "Practising all four turns jumbled together."
       },
-      "col": 5
+      "col": 4
     },
     "5aa1716e-8d05-41b0-a660-7fce60b69390": {
       "level": 3,
@@ -593,20 +551,6 @@
       "err": {
         "zh-Hant": "為了距離而缺氧。任何不適立刻停。",
         "en": "Going short of air chasing distance. Any discomfort and it stops immediately."
-      },
-      "col": 0
-    },
-    "6d6b6afb-ed92-47b1-b557-52904c7931ab": {
-      "level": 7,
-      "stage": 3,
-      "sort": 1,
-      "teach": {
-        "zh-Hant": "合規自由式：轉身觸壁、終點觸壁、全程不踩底。",
-        "en": "Race-legal freestyle: touch at the turn, touch at the finish, and never stand on the bottom."
-      },
-      "err": {
-        "zh-Hant": "轉身時站起來調整。",
-        "en": "Standing up mid-turn to reset."
       },
       "col": 0
     },
@@ -664,8 +608,8 @@
     },
     "840dbdc7-1774-46ce-95ca-fe2f87d23475": {
       "level": 7,
-      "stage": 2,
-      "sort": 4,
+      "stage": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "200 碼仰式含合規轉身。體能與規則同時考。",
         "en": "Two hundred yards of backstroke with legal turns — fitness and rules tested at the same time."
@@ -674,7 +618,7 @@
         "zh-Hant": "疲勞之後轉身變得不合規。",
         "en": "Turns stop being legal once they are tired."
       },
-      "col": 3
+      "col": 1
     },
     "89ca69a6-6f96-4c1d-a52d-6ba16edab33b": {
       "level": 3,
@@ -810,7 +754,7 @@
     },
     "a8d00e21-01af-4ad5-a90d-a7e8bd59e6a8": {
       "level": 7,
-      "stage": 2,
+      "stage": 3,
       "sort": 1,
       "teach": {
         "zh-Hant": "500 碼要自己數趟。這是比賽的實際要求。",
@@ -861,20 +805,6 @@
         "en": "Struggling the moment they leave the wall. Ask for nothing at all until they have counted to five."
       }
     },
-    "b617a73c-8da4-4526-9420-58ed4c682a94": {
-      "level": 7,
-      "stage": 3,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "合規蝶式：雙臂同時前進、不可自由式打水、雙手同時觸壁。",
-        "en": "Race-legal butterfly: both arms recovering together, no flutter kick, both hands touching together."
-      },
-      "err": {
-        "zh-Hant": "疲勞時單手先觸壁。",
-        "en": "One hand reaching the wall first when they are tired."
-      },
-      "col": 2
-    },
     "b7525cfb-5d9b-43b2-9868-393578adf991": {
       "level": 6,
       "stage": 3,
@@ -919,16 +849,16 @@
     "c4b854b3-f337-4799-9631-33c6459951c6": {
       "level": 7,
       "stage": 1,
-      "sort": 2,
+      "sort": 1,
       "teach": {
-        "zh-Hant": "計時的重點是「有沒有進步」，不是絕對成績。三次測驗取趨勢。",
-        "en": "A timed swim is about whether they are improving, not about the number. Take the trend across three attempts."
+        "zh-Hant": "B 標是門檻，不是天花板。先把出發、轉身、最後 5 碼不換氣這三塊練起來，秒數自己會掉。每次計時規矩要一樣：同樣的出發方式、同樣的池道。",
+        "en": "A moving target when the swim keeps changing shape. The B time is a threshold, not a ceiling: work the start, the turn, and no breath in the last five yards, and the seconds come off by themselves. Time every attempt the same way — same start, same lane."
       },
       "err": {
-        "zh-Hant": "把成績拿來跟別人比。只跟自己的上一次比。",
-        "en": "Comparing the time with another swimmer. Compare it only with their own last one."
+        "zh-Hant": "為了搶秒數把動作弄垮，划手變短、打水亂踢。寧可慢半秒，動作要留著。",
+        "en": "Chasing the clock until the stroke falls apart, the pull shortening and the kick scattering. Half a second slower with the stroke intact is the better swim."
       },
-      "col": 1
+      "col": 0
     },
     "c7022acb-3075-471f-8c45-4d5330139369": {
       "level": 2,
@@ -945,17 +875,17 @@
     },
     "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
       "level": 7,
-      "stage": 2,
-      "sort": 3,
+      "stage": 1,
+      "sort": 4,
       "teach": {
-        "zh-Hant": "50 碼蝶式，第二趟節奏維持是重點。",
-        "en": "Fifty yards of butterfly, where the point is holding the rhythm through the second length."
+        "zh-Hant": "50 蝶靠節奏不是靠力氣。一划兩踢，第二踢落在手出水的時候。換氣壓低，下巴貼著水面往前送。",
+        "en": "A 50 fly is rhythm, not strength. Two kicks to a pull, the second as the hands leave the water. Breathe low, the chin skimming forward instead of lifting."
       },
       "err": {
-        "zh-Hant": "第二趟變成一划一踢。",
-        "en": "The second length collapsing into one pull, one kick."
+        "zh-Hant": "換氣抬太高，臀部沉下去，第二趟完全走不動。",
+        "en": "Lifting the head high to breathe so the hips drop, and the second length stops going anywhere."
       },
-      "col": 2
+      "col": 3
     },
     "d6915327-5d9d-4907-be40-b59ad3536c8d": {
       "level": 1,
@@ -972,17 +902,17 @@
     },
     "de916eb5-53b3-4ab3-b451-53f793a1666f": {
       "level": 7,
-      "stage": 2,
-      "sort": 5,
+      "stage": 1,
+      "sort": 3,
       "teach": {
-        "zh-Hant": "50 碼蛙式，轉身與終點都是雙手同時觸壁。",
-        "en": "Fifty yards of breaststroke: both hands together on the wall at the turn and at the finish."
+        "zh-Hant": "四式裡面蛙式的 B 標最好拿，難的是合規：出發和每次轉身各一次水下划手，雙手同時觸牆。先把規則練成反射，再談秒數。",
+        "en": "The breaststroke B time is the most reachable of the four; the hard part is legality — one pullout off the start and each turn, two hands touching together. Make the rules reflex before chasing the clock."
       },
       "err": {
-        "zh-Hant": "終點單手觸壁。",
-        "en": "One hand at the finish."
+        "zh-Hant": "腳變成剪刀腳或蝶腳，一次就失格。先慢慢游到左右對稱，再加速度。",
+        "en": "A scissor or dolphin kick — one of either is a disqualification. Swim it slow and symmetrical first, then add speed."
       },
-      "col": 4
+      "col": 2
     },
     "dff814b2-90df-4043-aeb3-dd4e4df64fbe": {
       "level": 4,
@@ -1027,7 +957,7 @@
     "e9f7b834-3e50-446f-a775-33d547ba776b": {
       "level": 7,
       "stage": 3,
-      "sort": 5,
+      "sort": 4,
       "teach": {
         "zh-Hant": "100 碼個人混合式是全課程的集大成。順序：蝶、仰、蛙、自。",
         "en": "The 100 yd IM is where the whole programme comes together. The order is butterfly, backstroke, breaststroke, freestyle."
@@ -1036,21 +966,7 @@
         "zh-Hant": "順序記錯。上場前一定要複誦。",
         "en": "Getting the order wrong. Have them say it back before they step up."
       },
-      "col": 5
-    },
-    "eaa47012-b0e4-4e77-ba05-f87b6acc80db": {
-      "level": 7,
-      "stage": 1,
-      "sort": 1,
-      "teach": {
-        "zh-Hant": "400 碼配速課。每 50 碼差距在 5 秒內才算過。",
-        "en": "Four hundred yards is a pacing lesson. Every 50 within five seconds of the others to pass."
-      },
-      "err": {
-        "zh-Hant": "前 200 快、後 200 崩。",
-        "en": "Fast for the first 200 and falling apart over the second."
-      },
-      "col": 0
+      "col": 4
     },
     "eb420091-b357-41af-892a-73a1059ecfda": {
       "level": 6,
@@ -1107,7 +1023,7 @@
     },
     "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
       "level": 7,
-      "stage": 1,
+      "stage": 3,
       "sort": 3,
       "teach": {
         "zh-Hant": "蛙式水下划手是規則允許的一次長划加一次海豚腿。順序錯就失格。",
@@ -1117,7 +1033,7 @@
         "zh-Hant": "划兩次，或海豚腿踢在划手之前。",
         "en": "Two pulls, or the dolphin kick before the pull."
       },
-      "col": 4
+      "col": 2
     },
     "fe6b4f6e-cfa9-4cfe-979a-6cd3cf6d5af9": {
       "level": 6,
@@ -1418,6 +1334,76 @@
         "zh-Hant": "兩種腿糊在一起，蛙腿踢成剪刀腳或半個海豚腿。",
         "en": "The two kicks blending, with the breaststroke kick turning into a scissor or half a dolphin."
       }
+    },
+    "73baf35a-1541-4d95-ade3-85cacd6dbf34": {
+      "level": 7,
+      "stage": 1,
+      "sort": 2,
+      "teach": {
+        "zh-Hant": "仰式的秒數多半掉在出發和轉身，不是在划手。頭位固定、下巴不收，靠身體滾轉把手帶過去。終點前用旗標和划手數抓距離。",
+        "en": "Most of the time in a 50 back is lost at the start and the turn, not in the arms. Head still, chin off the chest, the body roll carrying the arm over. Use the flags and a stroke count to find the wall."
+      },
+      "err": {
+        "zh-Hant": "為了快而亂打水，臀部沉下去。腰一垮，阻力就把打水賺到的全部吃回去。",
+        "en": "Kicking harder until the hips sink. Once the body line goes, the drag takes back everything the kick gained."
+      },
+      "col": 1
+    },
+    "c6c39234-8af8-47bb-b1d2-b33537efcf2b": {
+      "level": 7,
+      "stage": 2,
+      "sort": 1,
+      "teach": {
+        "zh-Hant": "100 碼是配速課。前 50 碼比 B 標的一半慢一到兩秒，後 50 碼才有東西可以用。用划手次數控速度，不要用感覺。",
+        "en": "The 100 is a pacing lesson. Go out one to two seconds slower than half the B time and there is something left for the back half. Control the pace with a stroke count, not by feel."
+      },
+      "err": {
+        "zh-Hant": "前 50 碼衝太快，第二趟掉到比 B 標還慢。前後半差 3 秒以內才算配得住。",
+        "en": "Going out too fast and dying on the second 50. Inside a three-second split difference is the target."
+      },
+      "col": 0
+    },
+    "caf1da5f-3ff5-4d73-b479-6f0336dfdc36": {
+      "level": 7,
+      "stage": 2,
+      "sort": 2,
+      "teach": {
+        "zh-Hant": "兩趟仰式贏在轉身。翻滾進牆的距離要固定，蹬牆後水下海豚腿至少三下再開始划第一下。",
+        "en": "A 100 back is won at the turn. Fix the distance into the wall and take at least three dolphin kicks off it before the first stroke."
+      },
+      "err": {
+        "zh-Hant": "轉身前抬頭偷看牆壁，整個身體線翻掉。用旗標和划手數判斷，眼睛不要動。",
+        "en": "Looking back for the wall and losing the whole body line. Use the flags and a stroke count instead of the eyes."
+      },
+      "col": 1
+    },
+    "7665ebd2-eb5b-4b00-8ef2-d0ec1039be51": {
+      "level": 7,
+      "stage": 2,
+      "sort": 3,
+      "teach": {
+        "zh-Hant": "100 蛙最容易在第二趟散掉。教他們把滑行留住，寧可少划幾下。每一趟算划手次數，第二趟最多多兩下。",
+        "en": "The second 50 is where a 100 breast falls apart. Keep the glide and take fewer strokes rather than more. Count strokes each length; the back half should be at most two more."
+      },
+      "err": {
+        "zh-Hant": "累了就把滑行吃掉，划手次數暴增，速度反而更慢。",
+        "en": "Eating the glide when tired, so the stroke count jumps and the swim actually slows down."
+      },
+      "col": 2
+    },
+    "5e7e292d-e1b7-48de-a32d-24f698dcaae5": {
+      "level": 7,
+      "stage": 2,
+      "sort": 4,
+      "teach": {
+        "zh-Hant": "100 蝶是這一級最硬的一關。前 50 碼要留力，換氣改成一划一次也沒關係，游完而且合規比好看重要。",
+        "en": "The 100 fly is the hardest gate on this level. Hold back on the first 50; breathing every stroke is fine if it gets them home. Finishing legally beats looking pretty."
+      },
+      "err": {
+        "zh-Hant": "前 50 碼用衝的，第二趟變成只划水不打水。分段計時一看就知道。",
+        "en": "Sprinting the first 50 and arriving at the second with no kick left. The splits show it plainly."
+      },
+      "col": 3
     }
   },
   "closing": {
