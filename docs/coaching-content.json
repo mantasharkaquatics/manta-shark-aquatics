@@ -263,8 +263,8 @@
           "stage": 3,
           "lessons": "10–12",
           "what": {
-            "zh-Hant": "距離與技術收尾：自由式 500 碼、仰式 200 碼、蛙式水下划手、100 碼個人混合式",
-            "en": "Distance and finishing technique: the 500 free, the 200 back, the breaststroke pullout, and the 100 IM"
+            "zh-Hant": "距離與收尾：自由式 500 碼、100 碼個人混合式",
+            "en": "Distance and the finish: the 500 free and the 100 IM"
           }
         }
       ]
@@ -606,20 +606,6 @@
         "en": "Arms coming apart. Ask for hands stacked and squeezed."
       }
     },
-    "840dbdc7-1774-46ce-95ca-fe2f87d23475": {
-      "level": 7,
-      "stage": 3,
-      "sort": 2,
-      "teach": {
-        "zh-Hant": "200 碼仰式含合規轉身。體能與規則同時考。",
-        "en": "Two hundred yards of backstroke with legal turns — fitness and rules tested at the same time."
-      },
-      "err": {
-        "zh-Hant": "疲勞之後轉身變得不合規。",
-        "en": "Turns stop being legal once they are tired."
-      },
-      "col": 1
-    },
     "89ca69a6-6f96-4c1d-a52d-6ba16edab33b": {
       "level": 3,
       "stage": 1,
@@ -957,7 +943,7 @@
     "e9f7b834-3e50-446f-a775-33d547ba776b": {
       "level": 7,
       "stage": 3,
-      "sort": 3,
+      "sort": 2,
       "teach": {
         "zh-Hant": "100 碼個人混合式是全課程的集大成。順序：蝶、仰、蛙、自。",
         "en": "The 100 yd IM is where the whole programme comes together. The order is butterfly, backstroke, breaststroke, freestyle."
