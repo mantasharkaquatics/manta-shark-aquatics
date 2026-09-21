@@ -957,7 +957,7 @@
     "e9f7b834-3e50-446f-a775-33d547ba776b": {
       "level": 7,
       "stage": 3,
-      "sort": 4,
+      "sort": 3,
       "teach": {
         "zh-Hant": "100 碼個人混合式是全課程的集大成。順序：蝶、仰、蛙、自。",
         "en": "The 100 yd IM is where the whole programme comes together. The order is butterfly, backstroke, breaststroke, freestyle."
@@ -1023,17 +1023,17 @@
     },
     "fb34523b-58c7-4e1f-9cef-a56ebea37757": {
       "level": 7,
-      "stage": 3,
-      "sort": 3,
+      "stage": 1,
+      "sort": 5,
       "teach": {
-        "zh-Hant": "蛙式水下划手是規則允許的一次長划加一次海豚腿。順序錯就失格。",
-        "en": "The pullout is one long pull and one dolphin kick, in the order the rules allow. Out of order is a disqualification."
+        "zh-Hant": "這是蛙式的出發，不是游的一部分：入水之後整套水下划手要做完才破水，破水之後才開始蛙式。順序是長划到大腿→一次海豚腿→收手，規則只准這樣。同一套動作每一次轉身也用得到，所以先學會它，後面四式銜接才有東西可以接。",
+        "en": "This is the breaststroke start, not part of the swim: the whole pull-down is finished before the breakout, and breaststroke only begins after it. The order is a full pull to the thighs, one dolphin kick, then the recovery — the rules allow no other. The same sequence comes off every turn, so learning it here is what the medley transitions later build on."
       },
       "err": {
-        "zh-Hant": "划兩次，或海豚腿踢在划手之前。",
-        "en": "Two pulls, or the dolphin kick before the pull."
+        "zh-Hant": "划兩次，或海豚腿踢在划手之前 —— 兩個都是失格。還有一個最常見的：水下划手還沒做完就急著抬頭破水，等於把出發最快的那一段丟掉。",
+        "en": "Two pulls, or the dolphin kick before the pull — either is a disqualification. And the most common one: lifting the head before the pull-down is finished, throwing away the fastest part of the start."
       },
-      "col": 2
+      "col": 4
     },
     "fe6b4f6e-cfa9-4cfe-979a-6cd3cf6d5af9": {
       "level": 6,
