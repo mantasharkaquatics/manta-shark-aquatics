@@ -69,6 +69,13 @@ type Props = {
   /** Teaching notes, keyed by skill id, from docs/coaching-content.json. Only
       the admin curriculum page passes these; nobody else sees them. */
   notes?: Record<string, { teach: Record<string, string>; err: Record<string, string> }>
+  /** The programme, not a person: every skill draws as passed and
+      percentBySkillId is ignored. The admin curriculum page used to do this by
+      handing in a map of 100s it had built from its own copy of the skill list,
+      which drifted the moment a skill was added -- the new ones came back
+      unpassed on a page whose whole point is that everything is passed. The
+      count now comes from the same query that draws the tiles. */
+  allPassed?: boolean
 }
 
 /* The five state marks, drawn rather than typed. They used to be characters --
@@ -266,7 +273,7 @@ const CSS = `
 
 export default function SkillTree({
   studentName, currentLevel, currentStage, percentBySkillId, onClose, forCoach = false,
-  notes,
+  notes, allPassed = false,
 }: Props) {
   const supabase = createClient()
   const locale = useLocale()
@@ -300,15 +307,16 @@ export default function SkillTree({
       for (const r of (preRows || []) as any[]) {
         (need[String(r.skill_id)] ||= []).push(String(r.requires_id))
       }
+      const pctOf = (id: string) => (allPassed ? 100 : percentBySkillId[id] ?? 0)
       const ready = (id: string) =>
-        (need[id] || []).every(q => masteryOf(percentBySkillId[q] ?? 0) >= UNLOCK_LEVEL)
+        (need[id] || []).every(q => masteryOf(pctOf(q)) >= UNLOCK_LEVEL)
 
       const built: TreeSkill[] = []
       for (const s of skRows as any[]) {
         const level = levelOf[String(s.level_id)]
         if (!level) continue
         const id = String(s.id)
-        const rec = percentBySkillId[id]
+        const rec = allPassed ? 100 : percentBySkillId[id]
         /* Two separate questions the stage model could only ask as one.
            CAN he start it -- are the prerequisites done?
            IS it scheduled -- has the school reached this level and stage? */
@@ -363,7 +371,7 @@ export default function SkillTree({
       setSkills(built); setNeeds(need)
     })()
     return () => { alive = false }
-  }, [supabase, currentLevel, currentStage, percentBySkillId, forCoach])
+  }, [supabase, currentLevel, currentStage, percentBySkillId, forCoach, allPassed])
 
   const inLv = useMemo(() => (skills || []).filter(s => s.level === lv), [skills, lv])
   /* Columns come from the widest stage, not from the highest column index:

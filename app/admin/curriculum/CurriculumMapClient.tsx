@@ -1,37 +1,27 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
 import { LocaleProvider } from '@/lib/i18n/provider'
 import SkillTree from '@/app/(public)/dashboard/SkillTree'
 import { MAX_LEVEL } from '@/lib/levels'
+
+/* A stable empty map: percentBySkillId sits in the tree's effect dependencies,
+   so an inline {} would be a new object on every render and refetch forever. */
+const NO_RECORDS: Record<string, number> = {}
 
 export type SkillNotes = Record<string, {
   teach: Record<string, string>
   err: Record<string, string>
 }>
 
-/** Every skill shown as passed: this is the programme, not a person. */
+/** Every skill shown as passed: this is the programme, not a person.
+ *  The map asks the database for the skill list itself (allPassed), so this
+ *  page no longer keeps a second copy of it. It used to, and the two drifted:
+ *  a skill added after the page had loaded was missing from this page's list
+ *  and came back unpassed on a page where everything is meant to be passed. */
 export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
-  const supabase = useMemo(() => createClient(), [])
-  const [ids, setIds] = useState<string[] | null>(null)
   const [loc, setLoc] = useState<'zh-Hant' | 'en'>('zh-Hant')
   const [open, setOpen] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      const { data } = await supabase.from('skills').select('id').eq('is_active', true)
-      if (alive) setIds((data || []).map(r => String(r.id)))
-    })()
-    return () => { alive = false }
-  }, [supabase])
-
-  const percents = useMemo(() => {
-    const out: Record<string, number> = {}
-    for (const id of ids || []) out[id] = 100
-    return out
-  }, [ids])
 
   return (
     <div className="p-6 max-w-3xl">
@@ -46,10 +36,9 @@ export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
       <div className="mt-5 flex items-center gap-3">
         <button
           onClick={() => setOpen(true)}
-          disabled={!ids}
-          className="rounded-lg bg-[#c9a84c] px-4 py-2.5 text-sm font-semibold text-[#0b1428] disabled:opacity-50"
+          className="rounded-lg bg-[#c9a84c] px-4 py-2.5 text-sm font-semibold text-[#0b1428]"
         >
-          {ids ? `打開課程地圖（${ids.length} 個技能 · ${MAX_LEVEL} 個級別）` : '載入中…'}
+          {`打開課程地圖（${MAX_LEVEL} 個級別）`}
         </button>
         <div className="flex overflow-hidden rounded-lg border border-[#1e3a6e]">
           {(['zh-Hant', 'en'] as const).map(l => (
@@ -62,13 +51,14 @@ export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
         </div>
       </div>
 
-      {open && ids && (
+      {open && (
         <LocaleProvider locale={loc} persist={false}>
           <SkillTree
             studentName={loc === 'en' ? 'The whole programme' : '全部課程'}
             currentLevel={MAX_LEVEL}
             currentStage={3}
-            percentBySkillId={percents}
+            percentBySkillId={NO_RECORDS}
+            allPassed
             notes={notes}
             forCoach
             onClose={() => setOpen(false)}
