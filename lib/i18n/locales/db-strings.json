@@ -255,6 +255,11 @@
       "zh-Hant": "流線蹬牆",
       "zh-Hans": "流线蹬墙"
     },
+    "8a650e1c-278e-4ddb-8069-f7495a620dde": {
+      "en": "Breaststroke 50 yd",
+      "zh-Hant": "蛙式 50 碼",
+      "zh-Hans": "蛙泳 50 码"
+    },
     "8aadc967-9b3f-430b-b161-273001ffa21a": {
       "en": "Freestyle Arms, Dolphin Kick",
       "zh-Hant": "自手蝶腳",
@@ -331,7 +336,7 @@
       "zh-Hans": "蛙腿 10 码"
     },
     "b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51": {
-      "en": "Sculling 5 yd",
+      "en": "Freestyle Pull 5 yd",
       "zh-Hant": "划手前進 5 碼",
       "zh-Hans": "划手前进 5 码"
     },
@@ -470,6 +475,11 @@
       "zh-Hant": "自由式 15 碼",
       "zh-Hans": "自由泳 15 码"
     },
+    "e1283362-5c0d-475b-a9ae-9ea777f9ddba": {
+      "en": "Butterfly 50 yd",
+      "zh-Hant": "蝶式 50 碼",
+      "zh-Hans": "蝶泳 50 码"
+    },
     "e858562b-a3aa-4875-84ef-e1f6875770e5": {
       "en": "Breaststroke Kick 25 yd",
       "zh-Hant": "蛙腿 25 碼",
@@ -607,9 +617,9 @@
       "zh-Hans": "嘴巴贴着水面吹泡泡 5 秒，吹得出泡泡、不喝到水。"
     },
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
-      "en": "Two-hand touch, open turn and push-off for breaststroke and butterfly.",
-      "zh-Hant": "蛙式與蝶式的雙手觸壁、平轉身並蹬牆。",
-      "zh-Hans": "蛙泳与蝶泳的双手触壁、平转身并蹬墙。"
+      "en": "Two-hand touch, open turn and push-off in breaststroke.",
+      "zh-Hant": "蛙式的雙手同時觸壁、平轉身並蹬牆。",
+      "zh-Hans": "蛙泳的双手同时触壁、平转身并蹬墙。"
     },
     "11f3d107-8ea1-43f9-9301-3875cd71dad0": {
       "en": "Backstroke that would not be disqualified: stays on the back, legal turn and finish.",
@@ -732,9 +742,9 @@
       "zh-Hans": "胸深水中站直走 10 码，全程不扶任何东西。"
     },
     "58b20bb7-23a5-4ee2-affb-5f16284a7563": {
-      "en": "Legal transitions between all four strokes plus every turn in an IM.",
-      "zh-Hant": "四式之間的合規銜接，以及混合式中的每一種轉身。",
-      "zh-Hans": "四式之间的合规衔接，以及混合泳中的每一种转身。"
+      "en": "One of each medley transition — fly to back, back to breast, breast to free — in the right order, every touch and turn legal.",
+      "zh-Hant": "蝶轉仰、仰轉蛙、蛙轉自 三個銜接各做一次，順序不錯，每一次觸壁與轉身都合規不失格。",
+      "zh-Hans": "蝶转仰、仰转蛙、蛙转自 三个衔接各做一次，顺序不错，每一次触壁与转身都合规不失格。"
     },
     "59628c84-eead-4393-9e2e-5774670383ca": {
       "en": "Double-arm backstroke 15 yards, both arms entering overhead and finishing at the thighs together, no roll, hips at the surface.",
@@ -747,9 +757,9 @@
       "zh-Hans": "俯身海豚腿 10 码，波浪从胸口带动而不是折膝。"
     },
     "5e7e292d-e1b7-48de-a32d-24f698dcaae5": {
-      "en": "Swims a legal 100 yd butterfly at or under the age-10 B standard: 1:56.69 girls, 1:53.89 boys.",
-      "zh-Hant": "蝶式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 1:56.69、男生 1:53.89。",
-      "zh-Hans": "蝶泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 1:56.69、男生 1:53.89。"
+      "en": "Swims a legal 100 yd butterfly from a push start, at or under the age-10 B standard: 1:56.69 girls, 1:53.89 boys.",
+      "zh-Hant": "蝶式 100 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 1:56.69、男生 1:53.89。",
+      "zh-Hans": "蝶泳 100 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 1:56.69、男生 1:53.89。"
     },
     "61765b4c-fd81-458d-acb9-1f4c19201994": {
       "en": "Dolphin kicks 15 yd underwater off the wall on one breath.",
@@ -787,14 +797,14 @@
       "zh-Hans": "侧躺打水 10 码，下面的手往前伸直、上面的手贴大腿，两边肩膀叠在一起、头不动。左右两边都要做。"
     },
     "73baf35a-1541-4d95-ade3-85cacd6dbf34": {
-      "en": "Swims a legal 50 yd backstroke at or under the age-10 B standard: 48.59 girls, 48.49 boys.",
-      "zh-Hant": "仰式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 48.59、男生 48.49。",
-      "zh-Hans": "仰泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 48.59、男生 48.49。"
+      "en": "Swims a legal 50 yd backstroke from a push start, at or under the age-10 B standard: 48.59 girls, 48.49 boys.",
+      "zh-Hant": "仰式 50 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 48.59、男生 48.49。",
+      "zh-Hans": "仰泳 50 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 48.59、男生 48.49。"
     },
     "7665ebd2-eb5b-4b00-8ef2-d0ec1039be51": {
-      "en": "Swims a legal 100 yd breaststroke at or under the age-10 B standard: 2:00.29 girls, 1:55.49 boys.",
-      "zh-Hant": "蛙式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 2:00.29、男生 1:55.49。",
-      "zh-Hans": "蛙泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 2:00.29、男生 1:55.49。"
+      "en": "Swims a legal 100 yd breaststroke from a push start, at or under the age-10 B standard: 2:00.29 girls, 1:55.49 boys.",
+      "zh-Hant": "蛙式 100 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 2:00.29、男生 1:55.49。",
+      "zh-Hans": "蛙泳 100 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 2:00.29、男生 1:55.49。"
     },
     "77dcafb5-fee7-4fde-8020-9691b99f5064": {
       "en": "Kicks 10 yd on the back, ears in the water, hips at the surface.",
@@ -835,6 +845,11 @@
       "en": "Push-off in a tight streamline and glides 7 yd before the first kick.",
       "zh-Hant": "蹬牆做出緊實的流線型，滑行 7 碼才開始打水。",
       "zh-Hans": "蹬墙做出紧实的流线型，滑行 7 码才开始打水。"
+    },
+    "8a650e1c-278e-4ddb-8069-f7495a620dde": {
+      "en": "50 yards of breaststroke with a legal open turn, a visible glide in every cycle.",
+      "zh-Hant": "蛙式 50 碼含一次合規的平轉身，每一循環都看得到滑行。",
+      "zh-Hans": "蛙泳 50 码含一次合规的平转身，每一循环都看得到滑行。"
     },
     "8aadc967-9b3f-430b-b161-273001ffa21a": {
       "en": "25 yards with freestyle arms and a butterfly kick, two kicks to every pull, the rhythm holding the whole way.",
@@ -902,9 +917,9 @@
       "zh-Hans": "自己抓牢池边，沿着池壁换手移动 5 码。"
     },
     "a8d00e21-01af-4ad5-a90d-a7e8bd59e6a8": {
-      "en": "Swims 500 yd freestyle continuous, counting their own laps.",
-      "zh-Hant": "連續自由式 500 碼，能自己數趟數。",
-      "zh-Hans": "连续自由泳 500 码，能自己数趟数。"
+      "en": "500 yards of freestyle, counting their own laps, every 50 within five seconds of the one before.",
+      "zh-Hant": "連續自由式 500 碼，自己數趟數，每 50 碼的配速差距在 5 秒內。",
+      "zh-Hans": "连续自由泳 500 码，自己数趟数，每 50 码的配速差距在 5 秒内。"
     },
     "b02f51e3-1e69-487e-86b1-18e21ddb6812": {
       "en": "Kicks 10 yd on a board: heels to seat, feet turned out, whip together.",
@@ -912,9 +927,9 @@
       "zh-Hans": "扶板蛙腿 10 码：收腿到臀、翻脚掌、夹水并拢。"
     },
     "b1a0c2d4-5e6f-4a71-8b92-0c1d2e3f4a51": {
-      "en": "Sculls the hands figure-of-eight and travels 5 yd on the back without kicking.",
-      "zh-Hant": "仰躺以八字划手前進 5 碼，完全不打水。",
-      "zh-Hans": "仰躺以八字划手前进 5 码，完全不打水。"
+      "en": "Face in and holding one breath, travels 5 yd on freestyle arms alone — no breathing, and form is not the point: moving forward on their own is.",
+      "zh-Hant": "臉入水憋一口氣，只用自由式划手前進 5 碼，全程不換氣；這一條不看動作標準，能自己往前移動就算過。",
+      "zh-Hans": "脸入水憋一口气，只用自由泳划手前进 5 码，全程不换气；这一条不看动作标准，能自己往前移动就算过。"
     },
     "b2a0c2d4-5e6f-4a72-8b92-0c1d2e3f4a52": {
       "en": "Survival float face-down for 1 minute, lifting the head only to breathe.",
@@ -987,19 +1002,19 @@
       "zh-Hans": "蛙泳与蝶泳在池边转身时双手同时触壁。"
     },
     "c4b854b3-f337-4799-9631-33c6459951c6": {
-      "en": "Swims a legal 50 yd freestyle at or under the age-10 B standard: 39.89 girls, 38.29 boys.",
-      "zh-Hant": "自由式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 39.89、男生 38.29。",
-      "zh-Hans": "自由泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 39.89、男生 38.29。"
+      "en": "Swims a legal 50 yd freestyle from a push start, at or under the age-10 B standard: 39.89 girls, 38.29 boys.",
+      "zh-Hant": "自由式 50 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 39.89、男生 38.29。",
+      "zh-Hans": "自由泳 50 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 39.89、男生 38.29。"
     },
     "c6c39234-8af8-47bb-b1d2-b33537efcf2b": {
-      "en": "Swims a legal 100 yd freestyle at or under the age-10 B standard: 1:30.89 girls, 1:28.49 boys.",
-      "zh-Hant": "自由式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 1:30.89、男生 1:28.49。",
-      "zh-Hans": "自由泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 1:30.89、男生 1:28.49。"
+      "en": "Swims a legal 100 yd freestyle from a push start, at or under the age-10 B standard: 1:30.89 girls, 1:28.49 boys.",
+      "zh-Hant": "自由式 100 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 1:30.89、男生 1:28.49。",
+      "zh-Hans": "自由泳 100 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 1:30.89、男生 1:28.49。"
     },
     "c7022acb-3075-471f-8c45-4d5330139369": {
-      "en": "Ten in a row in water over their head, holding the wall: down, breathe out, up, in rhythm.",
-      "zh-Hant": "過頭深的水中扶牆連續十次：下沉、吐氣、浮起，有節奏不中斷。",
-      "zh-Hans": "过头深的水中扶墙连续十次：下沉、吐气、浮起，有节奏不中断。"
+      "en": "Ten in a row in water over their head: down, breathe out, up, in rhythm — the wall is allowed for the first seven, the last three without it.",
+      "zh-Hant": "過頭深的水中連續十次：下沉、吐氣、浮起，有節奏不中斷；前七次可以扶牆，最後三次放開牆壁自己做。",
+      "zh-Hans": "过头深的水中连续十次：下沉、吐气、浮起，有节奏不中断；前七次可以扶墙，最后三次放开墙壁自己做。"
     },
     "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
       "en": "Ten breaststroke kicks at the wall or on a board, the four counts -- heels up, feet out, drive, together -- clearly separated.",
@@ -1007,14 +1022,14 @@
       "zh-Hans": "扶墙或扶板做蛙腿 10 次：收腿到臀、脚掌翻出去、蹬开、并拢，四拍分得清楚。"
     },
     "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
-      "en": "Swims a legal 50 yd butterfly at or under the age-10 B standard: 48.39 girls, 46.49 boys.",
-      "zh-Hant": "蝶式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 48.39、男生 46.49。",
-      "zh-Hans": "蝶泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 48.39、男生 46.49。"
+      "en": "Swims a legal 50 yd butterfly from a push start, at or under the age-10 B standard: 48.39 girls, 46.49 boys.",
+      "zh-Hant": "蝶式 50 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 48.39、男生 46.49。",
+      "zh-Hans": "蝶泳 50 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 48.39、男生 46.49。"
     },
     "caf1da5f-3ff5-4d73-b479-6f0336dfdc36": {
-      "en": "Swims a legal 100 yd backstroke at or under the age-10 B standard: 1:45.79 girls, 1:41.09 boys.",
-      "zh-Hant": "仰式 100 碼動作合規不失格，計時游進 10 歲 B 標：女生 1:45.79、男生 1:41.09。",
-      "zh-Hans": "仰泳 100 码动作合规不失格，计时游进 10 岁 B 标：女生 1:45.79、男生 1:41.09。"
+      "en": "Swims a legal 100 yd backstroke from a push start, at or under the age-10 B standard: 1:45.79 girls, 1:41.09 boys.",
+      "zh-Hant": "仰式 100 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 1:45.79、男生 1:41.09。",
+      "zh-Hans": "仰泳 100 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 1:45.79、男生 1:41.09。"
     },
     "cdf91a82-3f78-4c32-9f11-7f73b5d3754a": {
       "en": "Blows bubbles through the nose for five seconds with the face in, without lifting the head.",
@@ -1042,14 +1057,19 @@
       "zh-Hans": "自由泳 25 码尽全力游，全程动作不散，换气次数不比平常那一趟多。"
     },
     "de916eb5-53b3-4ab3-b451-53f793a1666f": {
-      "en": "Swims a legal 50 yd breaststroke at or under the age-10 B standard: 54.59 girls, 53.49 boys.",
-      "zh-Hant": "蛙式 50 碼動作合規不失格，計時游進 10 歲 B 標：女生 54.59、男生 53.49。",
-      "zh-Hans": "蛙泳 50 码动作合规不失格，计时游进 10 岁 B 标：女生 54.59、男生 53.49。"
+      "en": "Swims a legal 50 yd breaststroke from a push start, at or under the age-10 B standard: 54.59 girls, 53.49 boys.",
+      "zh-Hant": "蛙式 50 碼動作合規不失格，水中出發計時游進 10 歲 B 標：女生 54.59、男生 53.49。",
+      "zh-Hans": "蛙泳 50 码动作合规不失格，水中出发计时游进 10 岁 B 标：女生 54.59、男生 53.49。"
     },
     "dff814b2-90df-4043-aeb3-dd4e4df64fbe": {
       "en": "Swims 15 yd freestyle, side breathing, arms recovering over the water.",
       "zh-Hant": "自由式 15 碼，側轉換氣，手臂從水面上方回復。",
       "zh-Hans": "自由泳 15 码，侧转换气，手臂从水面上方回复。"
+    },
+    "e1283362-5c0d-475b-a9ae-9ea777f9ddba": {
+      "en": "50 yards of butterfly with a legal open turn, two kicks to a pull all the way to the wall.",
+      "zh-Hant": "蝶式 50 碼含一次合規的平轉身，一划兩踢的節奏維持到觸壁。",
+      "zh-Hans": "蝶泳 50 码含一次合规的平转身，一划两踢的节奏维持到触壁。"
     },
     "e858562b-a3aa-4875-84ef-e1f6875770e5": {
       "en": "Kicks 25 yd breaststroke with a glide after every kick, no scissor kick.",

@@ -203,10 +203,10 @@
       "en_name": "Four Strokes",
       "zh_name": "四式完成",
       "intro": {
-        "zh-Hant": "蝶式與蛙式完整加入，四式到齊。這一級同時把兩種新泳姿帶上來，負擔最重，不要趕。耐力與轉身也在這裡成形。",
-        "en": "Butterfly and breaststroke arrive in full and all four strokes are on the board. Two new strokes at once makes this the heaviest level — do not rush it. Endurance and turns take shape here too."
+        "zh-Hant": "蝶式與蛙式完整加入，四式到齊。這一級同時把兩種新泳姿帶上來，負擔最重，不要趕。耐力與轉身也在這裡成形。階段3 把蝶式和蛙式都推到 50 碼 —— 這兩式進 L7 之前一定要游過 50 碼，否則下一級第一關就是計時的合規 50 碼，跳太大。",
+        "en": "Butterfly and breaststroke arrive in full and all four strokes are on the board. Two new strokes in one level is the heaviest load in the programme; do not rush it. Endurance and the turns take shape here too, and stage 3 pushes butterfly and breaststroke out to 50 yards — both have to have swum a 50 before L7, whose first gate is a timed legal 50."
       },
-      "hours": "24–29",
+      "hours": "26–31",
       "plan": [
         {
           "stage": 1,
@@ -226,10 +226,10 @@
         },
         {
           "stage": 3,
-          "lessons": "9–11",
+          "lessons": "11–13",
           "what": {
-            "zh-Hant": "混合式打水與兩個蛙式技術游",
-            "en": "Medley kick, and two breaststroke drills"
+            "zh-Hant": "混合式打水、兩個蛙式技術游，蝶式與蛙式各推到 50 碼",
+            "en": "The medley kick set, two breaststroke drills, and butterfly and breaststroke out to 50 yards"
           }
         }
       ]
@@ -238,22 +238,22 @@
       "en_name": "Competitive Swimming",
       "zh_name": "競技規格",
       "intro": {
-        "zh-Hant": "這一級用美國游泳協會 2025–2028 單齡動機標準來看成績：10 歲組的 B 標。階段一四種泳姿各 50 碼，階段二各 100 碼，都要動作合規、而且游進秒數才算過。秒數寫的是「女生／男生」，時間是拿來看自己有沒有往前，不是拿來排名次。",
-        "en": "This level measures against USA Swimming's 2025-2028 single-age motivational standards, the age-10 B column. Stage one is 50 yards in each of the four strokes, stage two is 100 yards in each, and every one has to be legal as well as inside the time. Times are listed girls first, then boys. The clock is there to show progress, not to rank anyone."
+        "zh-Hant": "這一級用美國游泳協會 2025–2028 單齡動機標準來看成績：10 歲組的 B 標。階段一四種泳姿各 50 碼，階段二各 100 碼，都要動作合規、秒數進標。我們的池子太淺，不做跳水出發，所以全部用水中出發計時 —— 官方秒數是跳水計的，水中出發大約慢 0.8 到 1 秒，換句話說我們的量法比官方嚴。還有一件事要先跟家長講清楚：秒數不是在課堂裡練出來的。課堂負責技術和合規，速度要靠課堂以外累積；很多孩子在這一級開始加入泳隊，那是正常的，也是我們希望的。",
+        "en": "This level measures against USA Swimming's 2025-2028 single-age motivational standards, the age-10 B column. Stage one is 50 yards in each of the four strokes, stage two is 100 yards in each, and every one has to be legal as well as inside the time. Our pool is too shallow for dive starts, so every swim is timed from a push start — the official times assume a dive, which is worth about eight tenths to a second, so our yardstick is the stricter one. And one thing to say to families before they start: the seconds are not won in the lesson. The lesson buys technique and legality; speed is built by the swimming that happens between lessons, which is why many swimmers join a squad at this level. That is normal, and it is what we want."
       },
-      "hours": "29–36",
+      "hours": "24–30",
       "plan": [
         {
           "stage": 1,
-          "lessons": "10–12",
+          "lessons": "8–10",
           "what": {
-            "zh-Hant": "四種泳姿各 50 碼，合規且游進 10 歲 B 標",
-            "en": "50 yards in each of the four strokes, legal and inside the age-10 B time"
+            "zh-Hant": "四種泳姿各 50 碼，合規且水中出發游進 10 歲 B 標；加上蛙式出發的水下划手",
+            "en": "The four strokes at 50 yards, legal and inside the age-10 B time from a push start, plus the breaststroke pullout"
           }
         },
         {
           "stage": 2,
-          "lessons": "12–15",
+          "lessons": "10–12",
           "what": {
             "zh-Hant": "四種泳姿各 100 碼進 B 標，加上四式銜接與轉身",
             "en": "100 yards in each stroke inside the B time, plus the medley transitions and turns"
@@ -261,7 +261,7 @@
         },
         {
           "stage": 3,
-          "lessons": "10–12",
+          "lessons": "6–8",
           "what": {
             "zh-Hant": "距離與收尾：自由式 500 碼、100 碼個人混合式",
             "en": "Distance and the finish: the 500 free and the 100 IM"
@@ -302,8 +302,8 @@
       "stage": 3,
       "sort": 5,
       "teach": {
-        "zh-Hant": "平轉身四式都用得到，蛙式和蝶式比賽只准這種轉身，翻滾失敗時它也是退路。先教觸壁的兩隻手，再教轉的身體。排在 蛙式 10 碼 後面：要先游得出蛙式，才有東西可以轉。",
-        "en": "The open turn is used in all four strokes, it is the only legal turn in breaststroke and butterfly, and it is the fallback when a flip goes wrong. Teach the two hands on the wall first, then the body. It sits after the 10-yard breaststroke because there has to be a stroke before there is a turn."
+        "zh-Hant": "平轉身四式都用得到，蛙式和蝶式比賽只准這種轉身，翻滾失敗時它也是退路。先教觸壁的兩隻手，再教轉的身體。排在 蛙式 10 碼 後面：要先游得出蛙式，才有東西可以轉。蝶式要到 L6 才游得出來，轉身現在先學起來，到時候直接用，不必重教。",
+        "en": "The open turn is used in all four strokes, it is the only legal turn in breaststroke and butterfly, and it is the fallback when a flip goes wrong. Teach the two hands on the wall first, then the body. It sits after the 10-yard breaststroke because there has to be a stroke before there is a turn. Butterfly does not arrive until L6 — the turn is learned here so that it is ready and needs no reteaching."
       },
       "err": {
         "zh-Hant": "轉身時站起來調整。要求腳只碰牆、不碰池底。",
@@ -770,12 +770,12 @@
       "stage": 3,
       "sort": 1,
       "teach": {
-        "zh-Hant": "划手是「感覺水」的第一課，之後所有泳姿的抓水都從這裡來。八字形，手掌像抹果醬。",
-        "en": "Sculling is the first lesson in feeling the water; every catch in every stroke comes from here. Figure of eight, palms spreading jam."
+        "zh-Hant": "這一條只要一件事：讓他知道手可以推著身體往前。臉放進水裡、憋一口氣、腿不用管，划五碼就好。不要求手型、不要求高手肘、也不要求換氣 —— 那些到 L4 才教。目的是第一次感覺到「手抓得到水」。",
+        "en": "One thing only: that the hands can move the body forward. Face in, one breath, never mind the legs, five yards. No hand shape, no high elbow, no breathing — those come in L4. The point is the first time they feel a hand hold water."
       },
       "err": {
-        "zh-Hant": "划成上下拍水。放慢，讓他找到「手掌壓住水」的感覺。",
-        "en": "Slapping up and down instead of sculling. Slow it down until they find the palm pressing on the water."
+        "zh-Hant": "手在水面上亂拍，身體立起來。提醒他手要在水面下推到大腿邊，身體保持趴平。另一個是想換氣 —— 這一條就是不換氣，五碼在一口氣裡游得完。",
+        "en": "Slapping at the surface and standing the body up. Ask for the hand to press back to the thigh under the water, the body staying flat. The other one is trying to breathe — this one is a single breath, and five yards fits inside it."
       }
     },
     "b46c9773-7e09-4da4-8beb-d79050075710": {
@@ -851,12 +851,12 @@
       "stage": 3,
       "sort": 3,
       "teach": {
-        "zh-Hant": "過頭深時扶牆做，安全感來自牆。這是深水恐懼的過渡練習。",
-        "en": "Over head-deep, done holding the wall — the wall is where the courage comes from. This is the bridge into deep water."
+        "zh-Hant": "過頭深時先扶牆做，安全感來自牆。這是深水恐懼的過渡練習。最後三次一定要放手，因為 L3 的水域安全測驗那五個吐泡跳不能扶牆 —— 不要讓孩子在測驗當天第一次放手。",
+        "en": "Over head-deep, start holding the wall — the wall is where the courage comes from. This is the bridge into deep water. The last three must let go, because the five bobs in the L3 water-safety test are done without the wall — test day should not be the first time they let go."
       },
       "err": {
-        "zh-Hant": "直接放到深水中央。他會抓你，然後怕更久。",
-        "en": "Straight into the middle of the deep end. They grab you, and the fear lasts longer."
+        "zh-Hant": "直接放到深水中央。他會抓你，然後怕更久。放手的那三次要在伸手就摸得到牆的地方做。",
+        "en": "Straight into the middle of the deep end. They grab you, and the fear lasts longer. The three without the wall are done within arm’s reach of it."
       }
     },
     "c9047d9f-1b91-4902-a4ce-33e303b4674b": {
@@ -1296,8 +1296,8 @@
     "f23977ee-2739-493a-b1f1-2547e29b5011": {
       "level": 6,
       "stage": 3,
-      "sort": 2,
-      "col": 3,
+      "sort": 4,
+      "col": 4,
       "teach": {
         "zh-Hant": "一次划手配兩次蛙腿。手的次數減半，他就沒辦法靠手前進，只能用腿和滑行——這是治「划太多、滑行消失」最快的方法。第二蹬要在完全伸直的姿勢做。",
         "en": "One pull to two kicks. Halving the arms takes away the option of pulling himself along, so the legs and the glide have to do it -- the fastest cure for over-pulling and a vanished glide. The second kick happens fully extended."
@@ -1310,8 +1310,8 @@
     "01b6ee5e-44fc-40f5-a4ac-ebdc0cd6df36": {
       "level": 6,
       "stage": 3,
-      "sort": 3,
-      "col": 4,
+      "sort": 5,
+      "col": 5,
       "teach": {
         "zh-Hant": "一次蛙腿、一次海豚腿交替。一方面讓他感覺到蛙式也有身體的起伏，一方面把兩種腿分開——比賽的蛙式裡多踢一下海豚腿就是失格，只有出發和轉身後的水下划手准一次。分得開，游的時候才不會混進去。",
         "en": "Alternating one breaststroke kick with one dolphin kick. It gives him the body undulation breaststroke needs, and it keeps the two kicks separate -- an extra dolphin kick in a breaststroke race is a disqualification, and only the one in the pullout is legal. Separating them here is what stops them blending later."
@@ -1390,6 +1390,34 @@
         "en": "Sprinting the first 50 and arriving at the second with no kick left. The splits show it plainly."
       },
       "col": 3
+    },
+    "e1283362-5c0d-475b-a9ae-9ea777f9ddba": {
+      "level": 6,
+      "stage": 3,
+      "sort": 2,
+      "col": 1,
+      "teach": {
+        "zh-Hant": "從 25 碼到 50 碼中間多的是一個轉身和第二趟。第二趟一定會慢，重點是節奏不能斷 —— 寧可划慢一點，也不要變成只划手不打水。換氣可以一划一次，游得完比好看重要。",
+        "en": "Between 25 and 50 there is a turn and a second length. The second length will be slower; what matters is that the rhythm does not break — slower is fine, arms-without-kick is not. Breathing every stroke is allowed; finishing beats looking pretty."
+      },
+      "err": {
+        "zh-Hant": "第一趟用衝的，轉身之後手抬不起來。教他第一趟留三成力。",
+        "en": "Sprinting the first length and having no arms left after the turn. Teach them to keep something back on the way down."
+      }
+    },
+    "8a650e1c-278e-4ddb-8069-f7495a620dde": {
+      "level": 6,
+      "stage": 3,
+      "sort": 3,
+      "col": 3,
+      "teach": {
+        "zh-Hant": "蛙式最怕的是累了就把滑行吃掉，划手次數暴增、速度反而更慢。每一趟算划手次數，第二趟最多多兩下。轉身是雙手同時觸壁的平轉身，L5 已經學過，這裡是第一次真的用在游程裡。",
+        "en": "In breaststroke the danger is eating the glide when tired: the stroke count jumps and the swim actually slows. Count strokes each length; the second should be at most two more. The turn is the two-hand open turn from L5 — this is the first time it is used inside a real swim."
+      },
+      "err": {
+        "zh-Hant": "累了變成剪刀腳或多踢一下海豚腿。一累就慢下來，把動作找回來再繼續。",
+        "en": "Tiredness turning the kick into a scissor, or an extra dolphin kick sneaking in. Slow down the moment it happens and put the stroke back together."
+      }
     }
   },
   "closing": {
