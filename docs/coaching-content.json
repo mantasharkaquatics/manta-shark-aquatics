@@ -238,8 +238,8 @@
       "en_name": "Competitive Swimming",
       "zh_name": "競技規格",
       "intro": {
-        "zh-Hant": "這一級用美國游泳協會 2025–2028 單齡動機標準來看成績：10 歲組的 B 標。階段一四種泳姿各 50 碼，階段二各 100 碼，都要動作合規、秒數進標。我們的池子太淺，不做跳水出發，所以全部用水中出發計時 —— 官方秒數是跳水計的，水中出發大約慢 0.8 到 1 秒，換句話說我們的量法比官方嚴。還有一件事要先跟家長講清楚：秒數不是在課堂裡練出來的。課堂負責技術和合規，速度要靠課堂以外累積；很多孩子在這一級開始加入泳隊，那是正常的，也是我們希望的。",
-        "en": "This level measures against USA Swimming's 2025-2028 single-age motivational standards, the age-10 B column. Stage one is 50 yards in each of the four strokes, stage two is 100 yards in each, and every one has to be legal as well as inside the time. Our pool is too shallow for dive starts, so every swim is timed from a push start — the official times assume a dive, which is worth about eight tenths to a second, so our yardstick is the stricter one. And one thing to say to families before they start: the seconds are not won in the lesson. The lesson buys technique and legality; speed is built by the swimming that happens between lessons, which is why many swimmers join a squad at this level. That is normal, and it is what we want."
+        "zh-Hant": "四式先各游 50 碼，再各游 100 碼，動作要合規、計時要落在時間範圍內。時間範圍是從美國游泳協會 2025–2028 單齡動機標準 10 歲組的 B 標換算來的，再放寬約四分之一，所以每個距離只有一個範圍，不分男女、不分年齡 —— 對外和對主管都只講範圍，不講出處。我們的池子太淺，不做跳水出發，全部用水中出發計時，而官方秒數是跳水計的，所以這個量法本來就比官方嚴。還有一件事要先跟家長講清楚：秒數不是在課堂裡練出來的。課堂負責技術和合規，速度要靠課堂以外累積；很多孩子在這一級開始加入泳隊，那是正常的，也是我們希望的。",
+        "en": "The four strokes at 50 yards first, then at 100, legal and inside the time band. The bands come from USA Swimming's 2025-2028 single-age motivational standards, age-10 B column, loosened by about a quarter, then collapsed into one band per distance — no split by sex or age. Only the band is shown to families and to the office; the derivation stays here. Our pool is too shallow for dive starts, so every swim is timed from a push start, and the official times assume a dive, which makes this yardstick the stricter one anyway. And one thing to say to families before they start: the seconds are not won in the lesson. The lesson buys technique and legality; speed is built by the swimming that happens between lessons, which is why many swimmers join a squad at this level. That is normal, and it is what we want."
       },
       "hours": "24–30",
       "plan": [
@@ -247,16 +247,16 @@
           "stage": 1,
           "lessons": "8–10",
           "what": {
-            "zh-Hant": "四種泳姿各 50 碼，合規且水中出發游進 10 歲 B 標；加上蛙式出發的水下划手",
-            "en": "The four strokes at 50 yards, legal and inside the age-10 B time from a push start, plus the breaststroke pullout"
+            "zh-Hant": "四種泳姿各 50 碼，合規且水中出發游在時間範圍內；加上蛙式出發的水下划手",
+            "en": "The four strokes at 50 yards, legal and inside the band from a push start, plus the breaststroke pullout"
           }
         },
         {
           "stage": 2,
           "lessons": "10–12",
           "what": {
-            "zh-Hant": "四種泳姿各 100 碼進 B 標，加上四式銜接與轉身",
-            "en": "100 yards in each stroke inside the B time, plus the medley transitions and turns"
+            "zh-Hant": "四種泳姿各 100 碼游在時間範圍內，加上四式銜接與轉身",
+            "en": "100 yards in each stroke inside the band, plus the medley transitions and turns"
           }
         },
         {
@@ -837,8 +837,8 @@
       "stage": 1,
       "sort": 1,
       "teach": {
-        "zh-Hant": "B 標是門檻，不是天花板。先把出發、轉身、最後 5 碼不換氣這三塊練起來，秒數自己會掉。每次計時規矩要一樣：同樣的出發方式、同樣的池道。",
-        "en": "A moving target when the swim keeps changing shape. The B time is a threshold, not a ceiling: work the start, the turn, and no breath in the last five yards, and the seconds come off by themselves. Time every attempt the same way — same start, same lane."
+        "zh-Hant": "時間範圍是門檻，不是天花板。先把出發、轉身、最後 5 碼不換氣這三塊練起來，秒數自己會掉。每次計時規矩要一樣：同樣的出發方式、同樣的池道。",
+        "en": "The band is a threshold, not a ceiling: work the start, the turn, and no breath in the last five yards, and the seconds come off by themselves. Time every attempt the same way — same start, same lane."
       },
       "err": {
         "zh-Hant": "為了搶秒數把動作弄垮，划手變短、打水亂踢。寧可慢半秒，動作要留著。",
@@ -891,8 +891,8 @@
       "stage": 1,
       "sort": 3,
       "teach": {
-        "zh-Hant": "四式裡面蛙式的 B 標最好拿，難的是合規：出發和每次轉身各一次水下划手，雙手同時觸牆。先把規則練成反射，再談秒數。",
-        "en": "The breaststroke B time is the most reachable of the four; the hard part is legality — one pullout off the start and each turn, two hands touching together. Make the rules reflex before chasing the clock."
+        "zh-Hant": "四式裡面蛙式的時間最好拿，難的是合規：出發和每次轉身各一次水下划手，雙手同時觸牆。先把規則練成反射，再談秒數。",
+        "en": "Of the four, the breaststroke time is the most reachable; the hard part is legality — one pullout off the start and each turn, two hands touching together. Make the rules reflex before chasing the clock."
       },
       "err": {
         "zh-Hant": "腳變成剪刀腳或蝶腳，一次就失格。先慢慢游到左右對稱，再加速度。",
@@ -1340,11 +1340,11 @@
       "stage": 2,
       "sort": 1,
       "teach": {
-        "zh-Hant": "100 碼是配速課。前 50 碼比 B 標的一半慢一到兩秒，後 50 碼才有東西可以用。用划手次數控速度，不要用感覺。",
-        "en": "The 100 is a pacing lesson. Go out one to two seconds slower than half the B time and there is something left for the back half. Control the pace with a stroke count, not by feel."
+        "zh-Hant": "100 碼是配速課。前 50 碼比目標時間的一半慢一到兩秒，後 50 碼才有東西可以用。用划手次數控速度，不要用感覺。",
+        "en": "The 100 is a pacing lesson. Go out one to two seconds slower than half the target and there is something left for the back half. Control the pace with a stroke count, not by feel."
       },
       "err": {
-        "zh-Hant": "前 50 碼衝太快，第二趟掉到比 B 標還慢。前後半差 3 秒以內才算配得住。",
+        "zh-Hant": "前 50 碼衝太快，第二趟整個垮掉。前後半差 3 秒以內才算配得住。",
         "en": "Going out too fast and dying on the second 50. Inside a three-second split difference is the target."
       },
       "col": 0
