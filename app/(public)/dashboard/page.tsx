@@ -17,8 +17,6 @@ import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import SkillTree from './SkillTree'
-import StageRibbon from '@/components/StageRibbon'
-import { ribbonEarned } from '@/lib/ribbons'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -1609,37 +1607,6 @@ export default function DashboardPage() {
                             )
                           })}
                         </div>
-
-                        {/* The 21 ribbons, seven levels of three. Which ones
-                            are lit comes from the promotion rules, not from a
-                            second pass over the records, so this row can never
-                            disagree with the 🎊 on the buttons above it. */}
-                        {(() => {
-                          const got = (L: number, S: number) => ribbonEarned(
-                            L, S, lvl, curStage,
-                            st => stages[st - 1]?.complete ?? false)
-                          const n = [1, 2, 3, 4, 5, 6, 7]
-                            .reduce((a, L) => a + [1, 2, 3].filter(S => got(L, S)).length, 0)
-                          return (
-                            <div style={{ marginTop: '14px' }}>
-                              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>{t('dash.ribbons')}</span>
-                                <b style={{ fontSize: '12px', color: GOLD }}>{n}<span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>/21</span></b>
-                              </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                {[1, 2, 3, 4, 5, 6, 7].map(L => (
-                                  <span key={L} style={{ display: 'flex', gap: '1px' }}>
-                                    {[1, 2, 3].map(S => (
-                                      <StageRibbon key={S} level={L} stage={S} size={24}
-                                        earned={got(L, S)}
-                                        label={t(stageNameKey(L, S))} />
-                                    ))}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )
-                        })()}
 
                         {/* the opened stage, skill by skill */}
                         {(() => {
