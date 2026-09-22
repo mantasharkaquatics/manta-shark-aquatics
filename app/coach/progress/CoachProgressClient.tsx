@@ -10,6 +10,7 @@ import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
 import SkillTree from '@/app/(public)/dashboard/SkillTree'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
+import StageRibbon from '@/components/StageRibbon'
 
 type Skill = { id: string; name: string; sort_order: number; stage: number | null; pass_criteria?: string | null }
 type StudentProgress = {
@@ -438,6 +439,13 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   aria-expanded={expanded}
                                   className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${stageAhead ? 'opacity-60' : ''}`}
                                 >
+                                  {/* The stage's ribbon, lit on the same test the
+                                      coach is marking against: every skill in the
+                                      stage at 100. It tells them what the swimmer
+                                      is one or two boxes away from collecting. */}
+                                  <StageRibbon
+                                    level={Number(data.student.current_level) || data.student.level?.level_number || 1}
+                                    stage={st} size={26} earned={allDone} />
                                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>
                                     {t('coach.stage', { n: st })}
                                   </span>

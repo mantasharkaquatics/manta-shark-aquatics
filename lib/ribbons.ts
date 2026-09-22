@@ -61,3 +61,24 @@ export function isMetalLevel(level: number | string): boolean {
 export function stageEarned(percents: number[]): boolean {
   return percents.length > 0 && percents.every(p => p >= 100)
 }
+
+/** Whether a swimmer has the ribbon for one level and stage.
+ *
+ * Read from the promotion rules rather than from records: a level below the
+ * one they are in was cleared -- that is the only way to leave it -- and so
+ * was every stage below the one they are in. Only the stage they are standing
+ * in has to be looked up. This is the same rule the stage buttons already draw
+ * the 🎊 from, so the ribbon row and the buttons cannot disagree. */
+export function ribbonEarned(
+  level: number,
+  stage: number,
+  currentLevel: number,
+  currentStage: number,
+  currentStageComplete?: (stage: number) => boolean,
+): boolean {
+  if (!currentLevel) return false
+  if (level < currentLevel) return true
+  if (level > currentLevel) return false
+  if (stage < currentStage) return true
+  return currentStageComplete ? currentStageComplete(stage) : false
+}
