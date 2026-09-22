@@ -6,6 +6,8 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 
 import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
+import { stageColor, mixHex, onColor } from '@/lib/ribbons'
+import StageRibbon from '@/components/StageRibbon'
 
 /* goalCount must match the number of levels.N.goal.M keys in the locale files.
    Those goals are written by hand -- they are the promise the page makes to a
@@ -217,7 +219,11 @@ export default function LevelsContent() {
                   justifyContent: 'center',
                   fontSize: '13px',
                   fontWeight: 700,
-                  color: '#fff',
+                  /* Not always white: on the yellows white scored 1.7:1, which
+                     is unreadable. The ink is picked from the disc's own
+                     luminance, so L6's purple keeps white and L3's yellow
+                     takes dark. */
+                  color: onColor(lv.color),
                   flexShrink: 0,
                   background: lv.color,
                   border: `2px solid ${activeLevel === i ? '#fff' : 'rgba(255,255,255,0.25)'}`,
@@ -273,7 +279,7 @@ export default function LevelsContent() {
                 pointerEvents: 'none',
               }}
             />
-            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color: onColor(current.color), opacity: 0.66, marginBottom: '6px' }}>
               {t('levels.levelN', { n: current.num })}
             </div>
             <div
@@ -281,7 +287,7 @@ export default function LevelsContent() {
                 fontFamily: "'Playfair Display', serif",
                 fontSize: 'clamp(24px, 2.8vw, 34px)',
                 fontWeight: 900,
-                color: '#fff',
+                color: onColor(current.color),
               }}
             >
               {t('level.' + current.num + '.name')}
@@ -314,19 +320,31 @@ export default function LevelsContent() {
             </p>
             {/* the three stages this level is taught in */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '22px' }}>
-              {STAGES.map(st => (
-                <div key={st} style={{
-                  background: '#fff', border: '1px solid rgba(0,0,0,0.08)',
-                  borderTop: `3px solid ${current.color}`, borderRadius: '6px', padding: '11px 12px',
-                }}>
-                  <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: current.color, marginBottom: '4px' }}>
-                    {t('dash.stageN', { n: st })}
+              {STAGES.map(st => {
+                /* Each stage wears its own ribbon's colour, so the three cards
+                   read as three different prizes rather than three slices of
+                   the same level. The tint is the ribbon mixed far into white;
+                   the eyebrow and the top rule are the ribbon itself. */
+                const rc = stageColor(current.num, st)
+                return (
+                  <div key={st} style={{
+                    background: mixHex(rc, '#ffffff', 0.9), border: '1px solid rgba(0,0,0,0.06)',
+                    borderTop: `3px solid ${rc}`, borderRadius: '6px', padding: '11px 12px',
+                    position: 'relative', overflow: 'hidden', minHeight: '68px',
+                  }}>
+                    <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: mixHex(rc, '#000000', 0.34), marginBottom: '4px' }}>
+                      {t('dash.stageN', { n: st })}
+                    </div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1a2744', lineHeight: 1.35, paddingRight: '34px' }}>
+                      {t(stageNameKey(current.num, st))}
+                    </div>
+                    <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)' }}>
+                      <StageRibbon level={current.num} stage={st} size={38}
+                        label={t(stageNameKey(current.num, st))} />
+                    </div>
                   </div>
-                  <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1a2744', lineHeight: 1.35 }}>
-                    {t(stageNameKey(current.num, st))}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
             <div style={{ fontSize: '13px', fontWeight: 700, color: '#1a2744', marginBottom: '14px' }}>
               {t('levels.goalsHeading')}
@@ -398,7 +416,7 @@ export default function LevelsContent() {
                   justifyContent: 'center',
                   fontSize: '12px',
                   fontWeight: 700,
-                  color: '#fff',
+                  color: onColor(lv.color),
                   flexShrink: 0,
                   background: lv.color,
                 }}
@@ -448,8 +466,8 @@ export default function LevelsContent() {
                 {/* the three stages this level is taught in */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px', marginBottom: '14px' }}>
                   {STAGES.map(st => (
-                    <div key={st} style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderTop: `3px solid ${lv.color}`, borderRadius: '6px', padding: '8px 9px' }}>
-                      <div style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: lv.color, marginBottom: '3px' }}>
+                    <div key={st} style={{ background: mixHex(stageColor(lv.num, st), '#ffffff', 0.9), border: '1px solid rgba(0,0,0,0.06)', borderTop: `3px solid ${stageColor(lv.num, st)}`, borderRadius: '6px', padding: '8px 9px' }}>
+                      <div style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: mixHex(stageColor(lv.num, st), '#000000', 0.34), marginBottom: '3px' }}>
                         {t('dash.stageN', { n: st })}
                       </div>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#1a2744', lineHeight: 1.3 }}>

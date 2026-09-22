@@ -1119,6 +1119,7 @@
   "tree.criteria": "怎樣算「穩定做」",
   "tree.err": "最常見的錯",
   "tree.levelMeta": "{n} 個技能",
+  "tree.stageN": "階段 {n}",
   "tree.loadFailed": "課程內容載入失敗，請再試一次。",
   "tree.needs": "要先完成",
   "tree.noCriteria": "這個技能還沒有登錄通過標準。",

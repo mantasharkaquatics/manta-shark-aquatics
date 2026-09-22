@@ -26,7 +26,7 @@ export const LEVEL_NAMES: Record<string, string> = {
 export const LEVEL_COLORS: Record<string, string> = {
   '1': '#e05a4a',
   '2': '#e8883a',
-  '3': '#d4a825',
+  '3': '#f0c419',   // was #d4a825 -- one notch from L7's gold, and the two ribbons came out identical
   '4': '#4caf72',
   '5': '#4a90c4',
   '6': '#7b5ea7',

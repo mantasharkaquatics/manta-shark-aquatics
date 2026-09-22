@@ -1119,6 +1119,7 @@
   "tree.criteria": "怎样算「稳定做」",
   "tree.err": "最常见的错",
   "tree.levelMeta": "{n} 个技能",
+  "tree.stageN": "阶段 {n}",
   "tree.loadFailed": "课程内容载入失败，请再试一次。",
   "tree.needs": "要先完成",
   "tree.noCriteria": "这个技能还没有登录通过标准。",

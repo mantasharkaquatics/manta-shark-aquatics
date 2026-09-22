@@ -27,6 +27,8 @@ import { tDb } from '@/lib/i18n'
 import { LEVEL_COLORS, MAX_LEVEL, levelNameKey, stageNameKey } from '@/lib/levels'
 import { masteryOf, masteryKey, MASTERY_COLOR, MASTERY_VALUE, PASS_LEVEL, UNLOCK_LEVEL } from '@/lib/mastery'
 import { placeLevel, routeWires } from '@/lib/tree-layout'
+import { stageColor, mixHex, stageEarned } from '@/lib/ribbons'
+import StageRibbon from '@/components/StageRibbon'
 
 const GOLD = '#c9a84c'
 
@@ -163,9 +165,9 @@ const CSS = `
 .mst-tab:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 2px }
 
 .mst-meta { font-size: 11.5px; color: rgba(255,255,255,0.35); margin: 0; padding: 8px 20px 0 }
-.mst-scroll { overflow-x: auto; margin: 8px 20px 0; background: #111d38;
+.mst-scroll { position: relative; overflow-x: auto; margin: 8px 20px 0; background: #111d38;
   border: 1px solid #1e3a6e; border-radius: 13px; padding: 16px 14px 12px }
-.mst-board { position: relative; margin: 0 auto;
+.mst-board { position: relative; z-index: 1; margin: 0 auto;
   width: calc(var(--cols) * var(--cw) + 2 * var(--lane));
   height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
 .mst-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
@@ -196,6 +198,28 @@ const CSS = `
 .mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
   left: calc((var(--sz) - var(--cw)) / 2); font-size: 10.5px; line-height: 1.3;
   text-align: center; color: rgba(255,255,255,0.35); font-weight: 500 }
+ /* The three stages, as three bands behind the board. The rows already ARE
+   the stages; until now they sat on one flat sheet of navy and you had to
+   count rows to know which stage you were looking at. Each band carries that
+   stage's own ribbon colour, mixed far enough down into the panel's navy that
+   it tints the ground without competing with a tile. */
+.mst-stripe { position: absolute; left: -14px; z-index: 0;
+  /* The band has to reach both edges whether the board is narrower than the
+     panel (wide screen, few columns) or wider than it (phone, scrolled), so
+     it takes whichever is larger: the visible width or the board's own. */
+  width: max(calc(100% + 28px), calc(var(--cols) * var(--cw) + 2 * var(--lane) + 28px));
+  top: var(--bt); height: var(--bh) }
+.mst-stripe + .mst-stripe { border-top: 1px solid rgba(255,255,255,.055) }
+
+.mst-ribbons { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 6px 20px 0 }
+.mst-rib { display: flex; align-items: center; gap: 8px; font-size: 10.5px;
+  color: rgba(255,255,255,0.32); line-height: 1.35 }
+.mst-rib b { display: block; font-size: 11.5px; font-weight: 700;
+  color: rgba(255,255,255,0.55) }
+.mst-rib.got b { color: #fff }
+.mst-rib svg { display: block }
+
 .mst-apart { position: absolute; left: 0; right: 0; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10) 20%,
     rgba(255,255,255,0.10) 80%, transparent);
@@ -489,7 +513,44 @@ export default function SkillTree({
               {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
             </p>
 
-            <div className="mst-scroll">
+            {/* The three ribbons for this level. A stage is earned when every
+                skill in it reads 100 -- the same rule the coach marks against,
+                so nothing here can drift from the board underneath it. */}
+            <div className="mst-ribbons">
+              {([1, 2, 3] as const).map(st => {
+                const got = stageEarned(
+                  inLv.filter(x => x.stage === st && !x.apart).map(x => x.percent))
+                return (
+                  <span key={st} className={'mst-rib' + (got ? ' got' : '')}>
+                    <StageRibbon level={lv} stage={st} size={30} earned={got}
+                      label={t(stageNameKey(lv, st))} />
+                    <span>
+                      <b>{t(stageNameKey(lv, st))}</b>
+                      {t('tree.stageN', { n: st })}
+                    </span>
+                  </span>
+                )
+              })}
+            </div>
+
+            <div className="mst-scroll" style={{ ['--cols' as any]: cols }}>
+              {([1, 2, 3] as const).filter(st => st <= rows).map(st => {
+                const c = stageColor(lv, st)
+                return (
+                  <div key={st} className="mst-stripe"
+                    style={{
+                      /* The first band runs up to the panel's own edge and the
+                         last one down to it, so the three layers fill the box
+                         with no navy showing above or below them. */
+                      ['--bt' as any]: st === 1 ? '0px'
+                        : `calc(16px + var(--pad) - 18px + ${st - 1} * var(--rh))`,
+                      ['--bh' as any]: st === 1 ? 'calc(var(--pad) - 2px + var(--rh))'
+                        : st === rows ? 'calc(var(--sz) + 70px)' : 'var(--rh)',
+                      background: 'linear-gradient(90deg, '
+                        + mixHex(c, '#0b1428', 0.74) + ', ' + mixHex(c, '#0b1428', 0.88) + ')',
+                    }} />
+                )
+              })}
               <div className="mst-board" ref={boardRef}
                 style={{ ['--cols' as any]: cols, ['--rows' as any]: rows }}>
                 <svg className="mst-wires" preserveAspectRatio="none">

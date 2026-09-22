@@ -1119,6 +1119,7 @@
   "tree.criteria": "What counts as Solid",
   "tree.err": "What goes wrong most",
   "tree.levelMeta": "{n} skills",
+  "tree.stageN": "Stage {n}",
   "tree.loadFailed": "The curriculum could not be loaded. Please try again.",
   "tree.needs": "Needs first",
   "tree.noCriteria": "No pass standard recorded for this skill yet.",
