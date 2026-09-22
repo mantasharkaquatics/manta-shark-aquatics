@@ -137,7 +137,8 @@ const CSS = `
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
 .mst-panel { position: relative; width: 100%; max-width: 1180px; background: #0b1428;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
-  --cw: 112px; --rh: 116px; --sz: 52px; --rkb: 4px; --lane: 26px; --pad: 30px }
+  --cw: 112px; --rh: 116px; --sz: 52px; --rkb: 4px; --lane: 26px; --pad: 30px;
+  --rail: 146px; --sp: 16px }
 @media (min-width: 900px) { .mst-panel { margin: 24px; border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.1) } }
 
@@ -166,7 +167,10 @@ const CSS = `
 
 .mst-meta { font-size: 11.5px; color: rgba(255,255,255,0.35); margin: 0; padding: 8px 20px 0 }
 .mst-scroll { position: relative; overflow-x: auto; margin: 8px 20px 0; background: #111d38;
-  border: 1px solid #1e3a6e; border-radius: 13px; padding: 16px 14px 12px }
+  border: 1px solid #1e3a6e; border-radius: 13px;
+  /* --sp is the top padding, named because the bands and the ribbons are
+     positioned from it; on the phone it is 14px, not 16. */
+  padding: var(--sp) 14px 12px calc(14px + var(--rail)) }
 .mst-board { position: relative; z-index: 1; margin: 0 auto;
   width: calc(var(--cols) * var(--cw) + 2 * var(--lane));
   height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
@@ -207,18 +211,31 @@ const CSS = `
   /* The band has to reach both edges whether the board is narrower than the
      panel (wide screen, few columns) or wider than it (phone, scrolled), so
      it takes whichever is larger: the visible width or the board's own. */
-  width: max(calc(100% + 28px), calc(var(--cols) * var(--cw) + 2 * var(--lane) + 28px));
+  width: max(calc(100% + 28px),
+    calc(var(--rail) + var(--cols) * var(--cw) + 2 * var(--lane) + 28px));
   top: var(--bt); height: var(--bh) }
 .mst-stripe + .mst-stripe { border-top: 1px solid rgba(255,255,255,.055) }
 
-.mst-ribbons { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 6px 20px 0 }
-.mst-rib { display: flex; align-items: center; gap: 8px; font-size: 10.5px;
-  color: rgba(255,255,255,0.32); line-height: 1.35 }
-.mst-rib b { display: block; font-size: 11.5px; font-weight: 700;
-  color: rgba(255,255,255,0.55) }
-.mst-rib.got b { color: #fff }
-.mst-rib svg { display: block }
+/* Each stage's ribbon, name and number sit at the left end of its own band,
+   level with the first row of tiles, so the band, the ribbon and the skills
+   in it read as one row. They used to sit in a strip above the board, which
+   meant matching a ribbon to its row by counting. The scroll area keeps a
+   --rail-wide gutter on the left for them, so a tile can never land under one. */
+.mst-rail { position: absolute; z-index: 1; width: calc(var(--rail) - 6px);
+  /* Hugs the board's left edge rather than the panel's: the board is centred,
+     so on a wide screen the panel edge is half a screen away from the first
+     tile. This is the board's own left minus the rail, floored at the gutter
+     for when the board is wider than the panel and nothing is centred. */
+  left: max(12px, calc(14px + (100% - 28px - var(--rail)
+    - var(--cols) * var(--cw) - 2 * var(--lane)) / 2));
+  top: calc(var(--sp) + var(--pad) + (var(--r) - 1) * var(--rh) + var(--sz) / 2);
+  transform: translateY(-50%);
+  display: flex; align-items: center; gap: 8px; font-size: 10px;
+  color: rgba(255,255,255,0.35); line-height: 1.35 }
+.mst-rail b { display: block; font-size: 11.5px; font-weight: 700; max-width: 98px;
+  color: rgba(255,255,255,0.6) }
+.mst-rail.got b { color: #fff }
+.mst-rail svg { display: block; flex-shrink: 0 }
 
 .mst-apart { position: absolute; left: 0; right: 0; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10) 20%,
@@ -286,9 +303,13 @@ const CSS = `
 .mst-pre span b { font-weight: 700; opacity: .65; margin-left: 4px; font-size: 10px }
 
 @media (max-width: 640px) {
-  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkb: 2px; --lane: 22px; --pad: 30px }
+  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkb: 2px; --lane: 22px; --pad: 30px;
+    --rail: 106px; --sp: 14px }
+  .mst-rail { gap: 6px }
+  .mst-rail b { font-size: 10.5px; max-width: 70px }
+  .mst-rail span span { font-size: 9.5px }
   .mst-rk { font-size: 9px }
-  .mst-scroll { margin: 8px 14px 0; padding: 14px 10px 10px }
+  .mst-scroll { margin: 8px 14px 0; padding: var(--sp) 10px 10px calc(10px + var(--rail)) }
   .mst-tabs, .mst-meta, .mst-key { padding-left: 14px; padding-right: 14px }
   .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0 }
   .mst-nm { font-size: 9.5px }
@@ -513,26 +534,6 @@ export default function SkillTree({
               {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
             </p>
 
-            {/* The three ribbons for this level. A stage is earned when every
-                skill in it reads 100 -- the same rule the coach marks against,
-                so nothing here can drift from the board underneath it. */}
-            <div className="mst-ribbons">
-              {([1, 2, 3] as const).map(st => {
-                const got = stageEarned(
-                  inLv.filter(x => x.stage === st && !x.apart).map(x => x.percent))
-                return (
-                  <span key={st} className={'mst-rib' + (got ? ' got' : '')}>
-                    <StageRibbon level={lv} stage={st} size={30} earned={got}
-                      label={t(stageNameKey(lv, st))} />
-                    <span>
-                      <b>{t(stageNameKey(lv, st))}</b>
-                      {t('tree.stageN', { n: st })}
-                    </span>
-                  </span>
-                )
-              })}
-            </div>
-
             <div className="mst-scroll" style={{ ['--cols' as any]: cols }}>
               {([1, 2, 3] as const).filter(st => st <= rows).map(st => {
                 const c = stageColor(lv, st)
@@ -543,12 +544,30 @@ export default function SkillTree({
                          last one down to it, so the three layers fill the box
                          with no navy showing above or below them. */
                       ['--bt' as any]: st === 1 ? '0px'
-                        : `calc(16px + var(--pad) - 18px + ${st - 1} * var(--rh))`,
-                      ['--bh' as any]: st === 1 ? 'calc(var(--pad) - 2px + var(--rh))'
+                        : `calc(var(--sp) + var(--pad) - 18px + ${st - 1} * var(--rh))`,
+                      ['--bh' as any]: st === 1 ? 'calc(var(--sp) + var(--pad) - 18px + var(--rh))'
                         : st === rows ? 'calc(var(--sz) + 70px)' : 'var(--rh)',
                       background: 'linear-gradient(90deg, '
                         + mixHex(c, '#0b1428', 0.74) + ', ' + mixHex(c, '#0b1428', 0.88) + ')',
                     }} />
+                )
+              })}
+              {/* A stage is earned when every skill in it reads 100 -- the same
+                  rule the coach marks against, so the ribbon cannot drift from
+                  the tiles beside it. */}
+              {([1, 2, 3] as const).filter(st => st <= rows).map(st => {
+                const got = stageEarned(
+                  inLv.filter(x => x.stage === st && !x.apart).map(x => x.percent))
+                return (
+                  <div key={'rail' + st} className={'mst-rail' + (got ? ' got' : '')}
+                    style={{ ['--r' as any]: st }}>
+                    <StageRibbon level={lv} stage={st} size={30} earned={got}
+                      label={t(stageNameKey(lv, st))} />
+                    <span>
+                      <b>{t(stageNameKey(lv, st))}</b>
+                      <span>{t('tree.stageN', { n: st })}</span>
+                    </span>
+                  </div>
                 )
               })}
               <div className="mst-board" ref={boardRef}
