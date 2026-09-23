@@ -1142,5 +1142,6 @@
   "dash.recordsOf": "{name} 的上课记录",
   "dash.pointsUnit": "点",
   "dash.topUp": "储值",
-  "dash.moreLinks": "更多"
+  "nav.myPage": "我的页面",
+  "dash.partnerPrompt": "和另一个家庭一起上课？"
 }

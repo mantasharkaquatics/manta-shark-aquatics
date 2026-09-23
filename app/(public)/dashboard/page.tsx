@@ -25,6 +25,15 @@ import SkillTree from './SkillTree'
 const MOBILE_CSS = `
 
 .msa-rail { display: grid; gap: 16px }
+.msa-addkid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  min-height: 180px; border-radius: 16px; border: 1.5px dashed rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.55); font-size: 13px; font-weight: 700; text-decoration: none;
+  transition: border-color .15s, color .15s }
+.msa-addkid:hover { border-color: rgba(201,168,76,0.6); color: #c9a84c }
+.msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 22px; font-weight: 400; background: rgba(255,255,255,0.06) }
+.msa-partner { margin: 12px 0 0; text-align: center; font-size: 12.5px; color: rgba(255,255,255,0.45) }
+.msa-partner a { color: #c9a84c; font-weight: 700; text-decoration: none; white-space: nowrap }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
 .msa-act-book { background: #c9a84c; color: #0f1a33; border: none; border-radius: 12px; padding: 15px;
   font-size: 15px; font-weight: 800; cursor: pointer }
@@ -34,9 +43,6 @@ const MOBILE_CSS = `
 .msa-act-pts em { font-style: normal; font-weight: 700; color: #c9a84c }
 .msa-act-pts.owe { border-color: rgba(220,90,80,0.6) }
 .msa-act-pts.owe b, .msa-act-pts.owe em { color: #f2a09a }
-.msa-foot { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 22px; margin: 8px 0 28px }
-.msa-foot a { font-size: 12px; color: rgba(255,255,255,0.45); text-decoration: none;
-  border-bottom: 1px dotted rgba(255,255,255,0.25); padding: 6px 0 }
 .msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.72);
   display: flex; align-items: center; justify-content: center; padding: 20px }
 .msa-sheet { background: #152036; border: 1px solid rgba(255,255,255,0.12); border-radius: 18px;
@@ -267,6 +273,10 @@ function Rail({ variant, count, children }: { variant: 'students' | 'credits'; c
 // A calendar cell is about 46px wide on a phone -- room for a time, not a name.
 // Each swimmer gets a colour instead, keyed to the order they appear on the
 // page, with a legend above the grid. One swimmer needs neither.
+/* The most swimmers one family can hold. The account page enforces the same
+   number; the home page hides its "add" card once it is reached. */
+const MAX_SWIMMERS = 3
+
 const SWIMMER_COLORS = ['#c9a84c', '#4a90c4', '#4caf72', '#7b5ea7', '#e8883a']
 
 // QR payload: base64 encode of student_id so it's not raw UUID
@@ -1666,7 +1676,7 @@ export default function DashboardPage() {
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '28px 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.mySwimmers')}</h2>
-          <Rail variant="students" count={students.length}>
+          <Rail variant="students" count={students.length + (students.length < MAX_SWIMMERS ? 1 : 0)}>
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
               const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
@@ -1768,6 +1778,16 @@ export default function DashboardPage() {
                 </div>
               )
             })}
+            {/* Adding a child used to live only on the account page, behind a
+                footer link. A parent looking to add one looks next to the
+                children they already have. Gone at the limit the account page
+                enforces. */}
+            {students.length < MAX_SWIMMERS && (
+              <Link href="/dashboard/account?add=1" className="msa-addkid">
+                <span className="msa-addkid-plus">+</span>
+                <span>{t('account.addSwimmer')}</span>
+              </Link>
+            )}
           </Rail>
 
           {/* The two things a family comes here to do most, under the
@@ -1786,6 +1806,13 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
+          {/* Booking with another family is a way of booking, so it sits under
+              the booking button. An invitation already surfaces at the top of
+              the page when there is one. */}
+          <p className="msa-partner">
+            {t('dash.partnerPrompt')}{' '}
+            <Link href="/dashboard/partnerships">{t('quick.partnerships')} ›</Link>
+          </p>
         </section>
 
         {/* Pending partner bookings notice */}
@@ -2449,15 +2476,6 @@ export default function DashboardPage() {
             )
           })()}
         </section>
-
-        {/* The three links that are not in the top bar. The quick-link grid
-            above the children held six; the other three were already in the
-            navigation, and the grid pushed the children off the first screen. */}
-        <nav className="msa-foot" aria-label={t('dash.moreLinks')}>
-          <Link href="/dashboard/account">{t('quick.account')}</Link>
-          <Link href="/dashboard/partnerships">{t('quick.partnerships')}</Link>
-          <Link href="/policies">{t('page.policies')}</Link>
-        </nav>
 
         {/* PARTNER ACCOUNTS */}
 

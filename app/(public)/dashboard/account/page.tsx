@@ -31,6 +31,12 @@ export default function AccountPage() {
   const [addError, setAddError] = useState<string | null>(null)
 
   useEffect(() => { fetchAll() }, [])
+  /* The "add a swimmer" card on the home page lands here with ?add=1, and the
+     form should already be open -- a parent who came to add a child should not
+     have to find the button a second time. */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('add') === '1') setShowAddForm(true)
+  }, [])
 
   async function fetchAll() {
     const { data: { user } } = await supabase.auth.getUser()

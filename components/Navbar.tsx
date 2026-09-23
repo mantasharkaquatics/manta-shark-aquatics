@@ -201,7 +201,11 @@ export default function Navbar() {
             {localeSelect('hidden md:inline-flex')}
             {authLoading ? <div className="w-24 h-8" /> : isLoggedIn ? (
               <>
-                <Link href="/dashboard"
+                {/* The greeting is the way into the account page. It used to link
+                    to /dashboard, which is where a parent already is -- a click
+                    that did nothing -- while the account page, the only place a
+                    second child can be added, sat behind a footer link. */}
+                <Link href="/dashboard/account"
                   className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
                   {t('nav.greeting', { name: firstName })}
                 </Link>
@@ -252,7 +256,14 @@ export default function Navbar() {
           ))}
           {isLoggedIn ? (
             <>
+              {/* The phone has no greeting to tap, so the drawer carries both:
+                  the parent's home page, and the account page. The one row that
+                  was here said "my account" and went to the home page. */}
               <Link href="/dashboard" onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base text-gray-200 hover:text-white">
+                <span>{t('nav.myPage')}</span><Chevron />
+              </Link>
+              <Link href="/dashboard/account" onClick={() => setMenuOpen(false)}
                 className="flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base text-gray-200 hover:text-white">
                 <span>{t('nav.dashboard')}</span><Chevron />
               </Link>

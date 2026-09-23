@@ -1142,5 +1142,6 @@
   "dash.recordsOf": "{name}'s lessons",
   "dash.pointsUnit": "pts",
   "dash.topUp": "Top up",
-  "dash.moreLinks": "More"
+  "nav.myPage": "My page",
+  "dash.partnerPrompt": "Taking a lesson with another family?"
 }

@@ -1142,5 +1142,6 @@
   "dash.recordsOf": "{name} 的上課紀錄",
   "dash.pointsUnit": "點",
   "dash.topUp": "儲值",
-  "dash.moreLinks": "更多"
+  "nav.myPage": "我的頁面",
+  "dash.partnerPrompt": "和另一個家庭一起上課？"
 }
