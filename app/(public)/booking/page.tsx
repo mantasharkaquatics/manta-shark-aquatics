@@ -84,58 +84,54 @@ function formatTimeCompact(t: string): string {
   return `${h % 12 || 12}:${String(m).padStart(2,'0')}${h >= 12 ? 'p' : 'a'}`
 }
 
-function Steps({ current, labelKeys }: { current: number; labelKeys?: string[] }) {
-  const t = useT()
-  const steps = labelKeys || ['booking.step.student', 'booking.step.course', 'booking.step.coach', 'booking.step.datetime', 'booking.step.confirm']
-  return (
-    <div className="booking-steps" style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '36px', overflowX: 'auto' }}>
-      {steps.map((s, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-            <div style={{
-              width: '32px', height: '32px', borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '13px', fontWeight: 700,
-              background: i < current ? GOLD : i === current ? '#fff' : 'rgba(255,255,255,0.1)',
-              color: i <= current ? NAVY : 'rgba(255,255,255,0.3)',
-              border: `2px solid ${i === current ? '#fff' : i < current ? GOLD : 'rgba(255,255,255,0.15)'}`,
-            }}>
-              {i < current ? '✓' : i + 1}
-            </div>
-            <span className="booking-step-label" style={{
-              fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px',
-              color: i === current ? '#fff' : i < current ? GOLD : 'rgba(255,255,255,0.3)',
-              whiteSpace: 'nowrap',
-            }}>{t(s)}</span>
-          </div>
-          {i < steps.length - 1 && (
-            <div className="booking-step-line" style={{
-              width: '40px', height: '2px', margin: '0 4px', marginBottom: '20px',
-              background: i < current ? GOLD : 'rgba(255,255,255,0.1)',
-            }} />
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
+function SectionTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
   return (
     <div style={{ marginBottom: '24px' }}>
-      <div style={{
+      {eyebrow && <div style={{
         display: 'inline-flex', alignItems: 'center', gap: '8px',
         fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
         textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px',
       }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
         {eyebrow}
-      </div>
+      </div>}
       <h2 style={{
         fontFamily: "'Playfair Display', serif",
         fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 900,
         color: '#fff', margin: 0,
       }}>{title}</h2>
+    </div>
+  )
+}
+
+/* One finished step, folded down to a line. The booking used to be five
+   screens joined by Continue / Back buttons and a row of numbered circles; now
+   each choice folds up the moment it is made and the next one opens under it,
+   so these lines are both the progress bar and the way back. */
+function DoneRow({ label, value, sub, onChange, changeLabel }: {
+  label: string; value: React.ReactNode; sub?: string; onChange?: () => void; changeLabel: string
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '12px', background: NAVY,
+      border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px',
+      padding: '4px 12px 4px 16px', minHeight: '52px', marginBottom: '8px',
+    }}>
+      <span style={{
+        width: '20px', height: '20px', borderRadius: '50%', background: GOLD, color: NAVY, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900,
+      }}>✓</span>
+      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', width: '40px', flexShrink: 0 }}>{label}</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+        {value}
+        {sub && <span style={{ fontSize: '12px', fontWeight: 500, color: 'rgba(255,255,255,0.45)', marginLeft: '6px' }}>{sub}</span>}
+      </span>
+      {onChange && (
+        <button onClick={onChange} style={{
+          background: 'none', border: 'none', color: GOLD, fontSize: '13px', fontWeight: 700,
+          cursor: 'pointer', padding: '0 6px', minHeight: '44px', flexShrink: 0,
+        }}>{changeLabel}</button>
+      )}
     </div>
   )
 }
@@ -166,6 +162,9 @@ function SelectCard({ selected, onClick, color = GOLD, children }: {
 export default function BookingPage() {
   const t = useT()
   const locale = useLocale()
+  // Dates were printed with a hard-coded 'en-US', so the Chinese page read
+  // "Thursday, Sep 24 的可預約時段".
+  const dateLoc = locale === 'en' ? 'en-US' : locale
   const tErr = (raw: string | null | undefined, fallbackKey: string): string => {
     const k = errorKey(raw)
     return k ? t(k) : (raw || t(fallbackKey))
@@ -225,14 +224,13 @@ export default function BookingPage() {
   const [cartRefresh, setCartRefresh] = useState(0)
   const [addingToCart, setAddingToCart] = useState(false)
   const [cartMsg, setCartMsg] = useState('')
+  // Set by a tap on the course step; the step moves on as soon as that tap
+  // leaves the step complete (a 1-on-2 still waits for its second swimmer,
+  // and a family short of points stays to see the warning).
+  const advanceRef = useRef(false)
 
   // ── 1on4 class-based flow (cross-coach, band-matched) ──
   const groupFlow = !isTrial && selectedCourse?.slug === '1on4'
-  /* A group booking has no coach step -- the class already has one -- so from
-     the date screen on, the number in the heading is one lower than the block
-     it lives in. The stepper below already applies that shift; the heading was
-     printing a hardcoded number and so read "Step 4" above a lit circle 3. */
-  const stepNumber = groupFlow && step >= 3 ? step : step + 1
   const myLevel = selectedStudent?.current_level != null ? Number(selectedStudent.current_level) : null
   const myGroupBand = myLevel != null ? studentBandOf(myLevel) : null
   const myBandColor = myGroupBand ? (BAND_COLORS[`${myGroupBand.min}-${myGroupBand.max}`] || ZONE_COLORS.group) : ZONE_COLORS.group
@@ -346,6 +344,8 @@ export default function BookingPage() {
     const mq = window.matchMedia('(max-width: 640px)')
     const sync = () => setIsPhone(mq.matches)
     sync()
+    // One month at a time on a phone; "load one more month" still adds the next.
+    if (mq.matches) setMonthsShown(1)
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [])
@@ -631,6 +631,28 @@ export default function BookingPage() {
         || isReschedule
         || balance >= cheapestFor('1on2', 2, isHourLesson ? 60 : 30))
   )
+
+  useEffect(() => {
+    if (step !== 1 || !advanceRef.current || !courseStepReady) return
+    advanceRef.current = false
+    setStep(selectedCourse!.slug === '1on4' && !isTrial ? 3 : 2)
+  }, [step, courseStepReady, selectedCourse, isTrial])
+  useEffect(() => { if (step !== 1) advanceRef.current = false }, [step])
+
+  // A family with one swimmer has nothing to choose on the first step.
+  useEffect(() => {
+    if (loading || isReschedule || selectedStudent || step !== 0 || students.length !== 1) return
+    setSelectedStudent(students[0])
+    setStep(1)
+  }, [loading, isReschedule, selectedStudent, step, students])
+
+  function clearTime() {
+    setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map())
+  }
+  function changeStudent() {
+    setLockedStudent(false); setSelectedStudent(null); setSelectedStudent2(null)
+    setIsTrial(false); setSelectedCourse(null); setSelectedCoach(null); clearTime(); setStep(0)
+  }
 
   // What this booking will actually cost, once a slot is picked. A reschedule
   // keeps its original charge, so it costs nothing here.
@@ -1007,7 +1029,7 @@ export default function BookingPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '20px' }}>
               {recurPlan.map(x => (
                 <span key={x.date + x.time} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
-                  {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                   {planTimes.size > 1 ? ` · ${x.label}` : ''}
                 </span>
               ))}
@@ -1039,7 +1061,7 @@ export default function BookingPage() {
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
-              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
+              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -1071,7 +1093,7 @@ export default function BookingPage() {
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
-              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
+              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -1139,14 +1161,30 @@ export default function BookingPage() {
           </div>
         )}
 
-        <Steps current={groupFlow && step >= 3 ? step - 1 : step} labelKeys={groupFlow ? ['booking.step.student', 'booking.step.course', 'booking.step.datetime', 'booking.step.confirm'] : undefined} />
+        {step > 0 && selectedStudent && (
+          <div style={{ marginBottom: '28px' }}>
+            <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
+              value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && selectedStudent2 ? ` ＋ ${selectedStudent2.full_name}` : '')}
+              onChange={isReschedule || students.length <= 1 ? undefined : changeStudent} />
+            {step > 1 && selectedCourse && (
+              <DoneRow label={t('booking.sum.course')} changeLabel={t('booking.change')}
+                value={isTrial ? t('common.assessment') : tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name)}
+                onChange={isReschedule ? undefined : () => { clearTime(); setStep(1) }} />
+            )}
+            {step > 2 && !groupFlow && selectedCoach && (
+              <DoneRow label={t('booking.sum.coach')} changeLabel={t('booking.change')}
+                value={selectedCoach.first_name}
+                onChange={() => { clearTime(); setStep(2) }} />
+            )}
+          </div>
+        )}
 
         {step === 0 && (
           <div>
-            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s1.title')} />
+            <SectionTitle title={t('booking.s1.title')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {students.map(s => (
-                <SelectCard key={s.id} selected={selectedStudent?.id === s.id} onClick={() => setSelectedStudent(s)}>
+                <SelectCard key={s.id} selected={selectedStudent?.id === s.id} onClick={() => { if (selectedStudent?.id !== s.id) setSelectedStudent2(null); setSelectedStudent(s); setStep(1) }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{
                       width: '44px', height: '44px', borderRadius: '50%',
@@ -1165,24 +1203,12 @@ export default function BookingPage() {
                 </SelectCard>
               ))}
             </div>
-            <button
-              onClick={() => { if (selectedStudent) setStep(1) }}
-              disabled={!selectedStudent}
-              style={{
-                marginTop: '24px', width: '100%', padding: '14px',
-                background: selectedStudent ? GOLD : 'rgba(255,255,255,0.1)',
-                color: selectedStudent ? NAVY : 'rgba(255,255,255,0.3)',
-                border: 'none', borderRadius: '10px',
-                fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                textTransform: 'uppercase', cursor: selectedStudent ? 'pointer' : 'not-allowed',
-              }}
-            >{t('booking.continue')}</button>
           </div>
         )}
 
         {step === 1 && (
           <div>
-            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s2.title')} />
+            <SectionTitle title={t('booking.s2.title')} />
             {needsAssessment && (
               <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: GOLD, lineHeight: 1.5 }}>
                 {trialHasCredit
@@ -1194,7 +1220,7 @@ export default function BookingPage() {
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {(trialEligible || trialHasCredit) && !isReschedule && (
-                <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
+                <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { advanceRef.current = true; setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <span style={{ fontSize: '28px' }}>⭐</span>
@@ -1212,7 +1238,7 @@ export default function BookingPage() {
                 const listed = listPrice(ct.slug)
                 const full = BASE_POINTS[ct.slug] ?? 0
                 return (
-                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; setSelectedCourse(ct); setIsTrial(false) }} color={color}>
+                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; advanceRef.current = true; setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
@@ -1275,7 +1301,7 @@ export default function BookingPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {students.filter(s => s.id !== selectedStudent?.id).map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; setSelectedStudent2(s) }} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; advanceRef.current = true; setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4a90c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
@@ -1288,7 +1314,7 @@ export default function BookingPage() {
                     </SelectCard>
                   ))}
                   {partnerStudents.map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; setSelectedStudent2(s) }} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; advanceRef.current = true; setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#7b61c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
@@ -1323,37 +1349,18 @@ export default function BookingPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => { if (lockedStudent) { setLockedStudent(false); setSelectedStudent(null); setIsTrial(false); setSelectedCourse(null) } setStep(0) }} style={{
-                flex: 1, padding: '14px', background: 'transparent',
-                color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>{t('booking.back')}</button>
-              <button
-                onClick={() => { if (courseStepReady) setStep(selectedCourse!.slug === '1on4' && !isTrial ? 3 : 2) }}
-                disabled={!courseStepReady}
-                style={{
-                  flex: 2, padding: '14px',
-                  background: courseStepReady ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: courseStepReady ? NAVY : 'rgba(255,255,255,0.3)',
-                  border: 'none', borderRadius: '10px',
-                  fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: courseStepReady ? 'pointer' : 'not-allowed',
-                }}
-              >{t('booking.continue')}</button>
-            </div>
           </div>
         )}
 
         {step === 2 && (
           <div>
-            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s3.title')} />
+            <SectionTitle title={t('booking.s3.title')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {coaches.map((coach, i) => {
                 const colors = [GOLD, '#4a90c4', '#e05a4a']
                 const color = colors[i % colors.length]
                 return (
-                  <SelectCard key={coach.id} selected={selectedCoach?.id === coach.id} onClick={() => setSelectedCoach(coach)} color={color}>
+                  <SelectCard key={coach.id} selected={selectedCoach?.id === coach.id} onClick={() => { setSelectedCoach(coach); setStep(3) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <div style={{
                         width: '48px', height: '48px', borderRadius: '50%',
@@ -1371,31 +1378,12 @@ export default function BookingPage() {
                 )
               })}
             </div>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => isReschedule ? window.location.href = '/dashboard' : setStep(1)} style={{
-                flex: 1, padding: '14px', background: 'transparent',
-                color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              }}>{isReschedule ? t('booking.cancelBack') : t('booking.back')}</button>
-              <button
-                onClick={() => { if (selectedCoach) setStep(3) }}
-                disabled={!selectedCoach}
-                style={{
-                  flex: 2, padding: '14px',
-                  background: selectedCoach ? GOLD : 'rgba(255,255,255,0.1)',
-                  color: selectedCoach ? NAVY : 'rgba(255,255,255,0.3)',
-                  border: 'none', borderRadius: '10px',
-                  fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: selectedCoach ? 'pointer' : 'not-allowed',
-                }}
-              >{t('booking.continue')}</button>
-            </div>
           </div>
         )}
 
         {step === 3 && (
           <div>
-            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s4.title')} />
+            <SectionTitle title={t('booking.s4.title')} />
             {!groupFlow && <div style={{ background: NAVY, borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <button onClick={() => {
@@ -1453,7 +1441,7 @@ export default function BookingPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
-                    {t('booking.availableTimes', { date: selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) })}
+                    {t('booking.availableTimes', { date: selectedDate.toLocaleDateString(dateLoc, { weekday: 'long', month: 'short', day: 'numeric' }) })}
                   </div>
                   {(selectedCourse?.slug === '1on1'
                     || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
@@ -1811,7 +1799,7 @@ export default function BookingPage() {
                                 <div style={{ gridColumn: '1 / -1', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '12px 13px', margin: '2px 0 4px' }}>
                                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '10px', gap: '8px' }}>
                                     <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                                      {new Date(openDay! + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                                      {new Date(openDay! + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
                                     </span>
                                     <button onClick={() => setOpenDay(null)} style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer' }}>{t('common.close')}</button>
                                   </div>
@@ -1870,7 +1858,7 @@ export default function BookingPage() {
                   {selectedSlot && selectedDate && selectedCoach && (
                     <div style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>
-                        {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {selectedSlot.label}
+                        {selectedDate.toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })} · {selectedSlot.label}
                         <span style={{ fontSize: '12px', fontWeight: 400, color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>{t('booking.group.withCoach', { name: selectedCoach.first_name })}</span>
                       </span>
                       <span style={{ fontSize: '12px', fontWeight: 700, color: GOLD }}>{t('booking.group.ready')}</span>
@@ -2123,7 +2111,7 @@ export default function BookingPage() {
 
         {step === 4 && (
           <div>
-            <SectionTitle eyebrow={t('booking.stepN', { n: stepNumber })} title={t('booking.s5.title')} />
+            <SectionTitle title={t('booking.s5.title')} />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
               {(recurPlan.length > 0 ? [
                 { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
@@ -2147,7 +2135,7 @@ export default function BookingPage() {
                 // before payment describes something the parent did not choose.
                 { label: t('booking.sum.course'), value: isTrial ? t('common.assessment') : (selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '') },
                 { label: t('booking.sum.coach'), value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
-                { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
+                { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: t('booking.sum.time'), value: selectedSlot?.label },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0 }) },
                 ...(isTrial || isReschedule
@@ -2173,7 +2161,7 @@ export default function BookingPage() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {recurPlan.map(x => (
                       <span key={x.date + x.time} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
-                        {new Date(x.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                         {planTimes.size > 1 ? ` · ${x.label}` : ''}
                       </span>
                     ))}
