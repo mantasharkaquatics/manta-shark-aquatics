@@ -1136,5 +1136,11 @@
   "tree.state.open": "可以開始了",
   "tree.state.ready": "條件到了，還沒排到",
   "tree.teach": "教學重點",
-  "tree.title": "學習地圖"
+  "tree.title": "學習地圖",
+  "dash.checkIn": "報到",
+  "dash.records": "上課紀錄",
+  "dash.recordsOf": "{name} 的上課紀錄",
+  "dash.pointsUnit": "點",
+  "dash.topUp": "儲值",
+  "dash.moreLinks": "更多"
 }

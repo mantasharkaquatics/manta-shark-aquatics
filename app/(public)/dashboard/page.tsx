@@ -23,13 +23,28 @@ import SkillTree from './SkillTree'
    differently on a phone than on a desktop. Anything that stays inline is a
    colour the component computes; anything that changes with width is a class. */
 const MOBILE_CSS = `
-.msa-ql { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px }
-.msa-ql-item { display: flex; align-items: center; gap: 14px; border-radius: 14px; padding: 18px 20px; text-decoration: none }
-.msa-ql-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0 }
-.msa-ql-label { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px }
-.msa-ql-desc { font-size: 11px; color: rgba(255,255,255,0.4) }
 
 .msa-rail { display: grid; gap: 16px }
+.msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
+.msa-act-book { background: #c9a84c; color: #0f1a33; border: none; border-radius: 12px; padding: 15px;
+  font-size: 15px; font-weight: 800; cursor: pointer }
+.msa-act-pts { display: flex; align-items: center; gap: 14px; background: #1a2744; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1); padding: 10px 16px; cursor: pointer; color: rgba(255,255,255,0.5); font-size: 12px }
+.msa-act-pts b { font-size: 19px; color: #c9a84c; font-variant-numeric: tabular-nums }
+.msa-act-pts em { font-style: normal; font-weight: 700; color: #c9a84c }
+.msa-act-pts.owe { border-color: rgba(220,90,80,0.6) }
+.msa-act-pts.owe b, .msa-act-pts.owe em { color: #f2a09a }
+.msa-foot { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 22px; margin: 8px 0 28px }
+.msa-foot a { font-size: 12px; color: rgba(255,255,255,0.45); text-decoration: none;
+  border-bottom: 1px dotted rgba(255,255,255,0.25); padding: 6px 0 }
+.msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center; padding: 20px }
+.msa-sheet { background: #152036; border: 1px solid rgba(255,255,255,0.12); border-radius: 18px;
+  width: 100%; max-width: 520px; max-height: 86vh; overflow-y: auto; padding: 20px }
+.msa-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px }
+.msa-sheet-head b { font-size: 16px; color: #fff }
+.msa-sheet-x { width: 34px; height: 34px; border-radius: 9px; border: none; background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.75); font-size: 16px; cursor: pointer }
 .msa-rail-students { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
 .msa-dots { display: none }
@@ -76,14 +91,13 @@ const MOBILE_CSS = `
 @media (max-width: 640px) {
   /* Six full-width rows cost about 1140px of scrolling before the first
      swimmer. Three columns of icon-and-label cost about 200px. */
-  .msa-ql { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
-  .msa-ql-item { flex-direction: column; justify-content: center; gap: 8px; padding: 14px 6px; min-height: 88px; text-align: center }
-  .msa-ql-icon { width: 36px; height: 36px; font-size: 18px }
-  .msa-ql-label { font-size: 11px; margin-bottom: 0; line-height: 1.25 }
-  .msa-ql-desc { display: none }
 
   /* One card at a time, with the next one's edge showing so it is obvious
      the row moves. The negative margin lets it run to the screen edge. */
+  .msa-act { grid-template-columns: 1fr }
+  .msa-act-pts { justify-content: space-between }
+  .msa-sheet-back { align-items: flex-end; padding: 0 }
+  .msa-sheet { border-radius: 18px 18px 0 0; max-height: 88vh; padding-bottom: calc(20px + env(safe-area-inset-bottom)) }
   .msa-rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
               padding: 2px clamp(20px,5vw,48px) 10px; margin: 0 calc(-1 * clamp(20px,5vw,48px));
               scrollbar-width: none }
@@ -260,15 +274,6 @@ function makeQRPayload(studentId: string): string {
   return `MSA:${btoa(studentId)}`
 }
 
-const QUICK_LINKS = [
-  { labelKey: 'quick.account', icon: '👤', href: '/dashboard/account', color: '#4a90c4', descKey: 'quick.account.desc' },
-  { labelKey: 'quick.book', icon: '📅', href: '/booking', color: GOLD, descKey: 'quick.book.desc' },
-  { labelKey: 'page.levels', icon: '🏊', href: '/levels', color: '#4a90c4', descKey: 'quick.levels.desc' },
-  { labelKey: 'page.plans', icon: '📦', href: '/plans', color: '#4caf72', descKey: 'quick.plans.desc' },
-  { labelKey: 'page.policies', icon: '📋', href: '/policies', color: '#9c7a3c', descKey: 'quick.policies.desc' },
-  { labelKey: 'quick.partnerships', icon: '🤝', href: '/dashboard/partnerships', color: '#7b5ea7', descKey: 'quick.partnerships.desc' },
-]
-
 const STATUS_COLORS: Record<string, string> = {
   confirmed: '#4caf72',
   cancelled: '#e05a4a',
@@ -277,6 +282,148 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 // QR Modal Component
+/* One swimmer's lessons, in one list.
+ *
+ * There used to be two: a "lesson records" drawer inside each card, which only
+ * listed lessons a coach had written up, and a "lesson history" section at the
+ * foot of the page listing every past booking for the whole family. A parent
+ * looking for last Tuesday had to know which list it would be in. This is both,
+ * for one swimmer: every past lesson, and where the coach wrote something, the
+ * note and the skills open underneath it.
+ *
+ * Records are matched to bookings on date and start time; a record whose time
+ * does not line up takes the only unmatched lesson on its date. Anything still
+ * left over is listed on its own rather than dropped -- losing a coach's note
+ * would be worse than showing a lesson twice. */
+function RecordsSheet({ student, past, records, page, setPage, onClose }: {
+  student: Student
+  past: Booking[]
+  records: ProgressRecord[]
+  page: number
+  setPage: (n: number) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const locale = useLocale()
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+
+  type Row = { key: string; date: string; start?: string; end?: string; course?: string; courseId?: string; coach?: string; b?: Booking; rec?: ProgressRecord }
+  const hm = (x?: string) => (x || '').slice(0, 5)
+  const rows: Row[] = past.map(b => ({
+    key: b.id, date: b.session_date, start: b.start_time, end: b.end_time,
+    course: b.is_trial ? t('common.assessment') : b.course_name, courseId: b.is_trial ? undefined : b.course_type_id,
+    coach: b.coach_name, b,
+  }))
+  const leftover: ProgressRecord[] = []
+  for (const r of records) {
+    const exact = rows.find(x => !x.rec && x.date === r.session_date && r.start_time && hm(x.start) === hm(r.start_time))
+    const sameDay = rows.filter(x => !x.rec && x.date === r.session_date)
+    const hit = exact || (sameDay.length === 1 ? sameDay[0] : undefined)
+    if (hit) hit.rec = r
+    else leftover.push(r)
+  }
+  for (const r of leftover) rows.push({
+    key: 'rec_' + r.session_date + '_' + (r.lesson_key || r.start_time || ''), date: r.session_date,
+    start: r.start_time, course: r.course_name, courseId: r.course_type_id, rec: r,
+  })
+  rows.sort((a, b) => b.date.localeCompare(a.date) || (b.start || '').localeCompare(a.start || ''))
+
+  const PER = 10
+  const pages = Math.max(1, Math.ceil(rows.length / PER))
+  const pg = Math.min(page, pages - 1)
+  const shown = rows.slice(pg * PER, pg * PER + PER)
+  const dateFmt = locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW'
+
+  return (
+    <div className="msa-sheet-back" onClick={onClose}>
+      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
+        aria-label={t('dash.recordsOf', { name: student.full_name })}>
+        <div className="msa-sheet-head">
+          <b>{t('dash.recordsOf', { name: student.full_name })}</b>
+          <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
+        </div>
+        {rows.length === 0 && (
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', textAlign: 'center', padding: '24px 0', margin: 0 }}>
+            {t('dash.noRecordsYet')}
+          </p>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {shown.map(r => {
+            const b = r.b
+            const attended = !!b && b.status === 'confirmed' && !!b.checked_in
+            const absent = !!b && b.status === 'confirmed' && !b.checked_in
+            const badgeColor = absent ? '#e05a4a' : attended ? '#7fd8a0' : b ? (STATUS_COLORS[b.status] || 'rgba(255,255,255,0.3)') : ''
+            const badge = !b ? '' : absent ? t('status.absent') : attended ? t('status.attended') : b.status
+            const hasDetail = !!r.rec && (!!r.rec.note || r.rec.skills.length > 0)
+            const isOpen = !!open[r.key]
+            return (
+              <div key={r.key} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.02)' }}>
+                <button className="tap-auto" disabled={!hasDetail} aria-expanded={hasDetail ? isOpen : undefined}
+                  onClick={() => hasDetail && setOpen(o => ({ ...o, [r.key]: !o[r.key] }))}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '11px 12px',
+                    background: 'transparent', border: 'none', textAlign: 'left', cursor: hasDetail ? 'pointer' : 'default' }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
+                      {new Date(r.date + 'T00:00:00').toLocaleDateString(dateFmt, { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' })}
+                      {r.start ? ` · ${formatTime(r.start)}` : ''}
+                    </span>
+                    <span style={{ display: 'block', fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>
+                      {r.course ? (r.courseId ? tDb(locale, 'course_types', r.courseId, r.course) : r.course) : ''}
+                      {r.coach ? ` · ${t('dash.withCoach', { name: r.coach })}` : ''}
+                    </span>
+                  </span>
+                  {r.rec?.note && <span style={{ fontSize: '10px', fontWeight: 700, color: GOLD, flexShrink: 0 }}>{t('dash.coachNote')}</span>}
+                  {badge && (
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: badgeColor, background: `${badgeColor}18`,
+                      borderRadius: '10px', padding: '2px 8px', flexShrink: 0, whiteSpace: 'nowrap' }}>{badge}</span>
+                  )}
+                  {hasDetail && <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>}
+                </button>
+                {hasDetail && isOpen && r.rec && (
+                  <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                    {r.rec.note && (
+                      <div style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '9px 11px' }}>
+                        <div style={{ fontSize: '10px', color: GOLD, fontWeight: 700, letterSpacing: '0.5px', marginBottom: '3px' }}>{t('dash.coachNote')}</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.78)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{r.rec.note}</div>
+                      </div>
+                    )}
+                    {r.rec.skills.map(sk => (
+                      <div key={sk.skill_id}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '3px' }}>
+                          <span style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.65)' }}>{sk.skill_id ? tDb(locale, 'skills', sk.skill_id, sk.skill_name) : sk.skill_name}</span>
+                          <span style={{ fontSize: '11.5px', fontWeight: 700, flexShrink: 0, color: MASTERY_COLOR[masteryOf(sk.progress_percent)] }}>{t(masteryKey(masteryOf(sk.progress_percent)))}</span>
+                        </div>
+                        <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+                          <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : GOLD, borderRadius: '2px' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {pages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '14px' }}>
+            <button className="tap-auto" disabled={pg === 0} onClick={() => setPage(pg - 1)}
+              style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent',
+                color: pg === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.65)', fontSize: '12px', cursor: pg === 0 ? 'default' : 'pointer' }}>
+              ← {t('dash.prev')}
+            </button>
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>{pg + 1} / {pages}</span>
+            <button className="tap-auto" disabled={pg === pages - 1} onClick={() => setPage(pg + 1)}
+              style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent',
+                color: pg === pages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.65)', fontSize: '12px', cursor: pg === pages - 1 ? 'default' : 'pointer' }}>
+              {t('dash.next')} →
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function QRModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -752,13 +899,18 @@ export default function DashboardPage() {
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
   // Which stage a family has opened on a student's card, keyed by student id.
-  const [openStageMap, setOpenStageMap] = useState<Record<string, number>>({})
-  const [expandedProgress, setExpandedProgress] = useState<Set<string>>(new Set())
+  const [recordsFor, setRecordsFor] = useState<Student | null>(null)
+  const [recordsPage, setRecordsPage] = useState(0)
+  const [pointsOpen, setPointsOpen] = useState(false)
+  useEffect(() => {
+    if (!recordsFor && !pointsOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setRecordsFor(null); setPointsOpen(false) } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [recordsFor, pointsOpen])
   /* The tree is a whole-curriculum view, so it opens over the page rather than
      inside a 280px card. One at a time: it is a reading surface, not a panel. */
   const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
-  const [progressPage, setProgressPage] = useState<Record<string, number>>({})
-  const [expandedRecord, setExpandedRecord] = useState<Record<string, string | null>>({})
   // An hour invitation arrives as two rows (one per half). Show ONE card
   // spanning both, priced at the number of rows this family actually owes.
   // Confirming from it sends the first row's id; the server resolves the group.
@@ -809,8 +961,6 @@ export default function DashboardPage() {
   const [pendingPayBusy, setPendingPayBusy] = useState<string | null>(null)
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
   const [pendingPayMsg, setPendingPayMsg] = useState('')
-  const [showAllHistory, setShowAllHistory] = useState(false)
-  const [historyPage, setHistoryPage] = useState(0)
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
@@ -1399,6 +1549,32 @@ export default function DashboardPage() {
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
+      {recordsFor && (
+        <RecordsSheet
+          student={recordsFor}
+          past={pastBookings.filter(b => b.student_id === recordsFor.id)}
+          records={studentProgressMap[recordsFor.id]?.records || []}
+          page={recordsPage}
+          setPage={setRecordsPage}
+          onClose={() => setRecordsFor(null)}
+        />
+      )}
+
+      {pointsOpen && wallet && (
+        <div className="msa-sheet-back" onClick={() => setPointsOpen(false)}>
+          <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('points.card.title')}>
+            <div className="msa-sheet-head">
+              <b>{t('points.card.title')}</b>
+              <button className="msa-sheet-x" onClick={() => setPointsOpen(false)} aria-label={t('common.close')}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <PointsCard w={wallet} onBuy={() => { window.location.href = '/plans#buy' }} />
+              {teamMemberships.length > 0 && <TeamCard memberships={teamMemberships} />}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Info Modal */}
       {infoModal && (
         <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
@@ -1487,24 +1663,6 @@ export default function DashboardPage() {
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginTop: '6px' }}>{t('dash.summary')}</p>
         </div>
 
-        {/* QUICK LINKS */}
-        <section>
-          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.quickLinks')}</h2>
-          <div className="msa-ql">
-            {QUICK_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="msa-ql-item" style={{ background: NAVY, border: '1px solid rgba(255,255,255,0.08)' }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = link.color + '60'; el.style.transform = 'translateY(-2px)' }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(255,255,255,0.08)'; el.style.transform = 'translateY(0)' }}>
-                <span className="msa-ql-icon" style={{ background: `${link.color}18`, border: `1px solid ${link.color}30` }}>{link.icon}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div className="msa-ql-label">{t(link.labelKey)}</div>
-                  <div className="msa-ql-desc">{t(link.descKey)}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '28px 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.mySwimmers')}</h2>
@@ -1519,7 +1677,7 @@ export default function DashboardPage() {
               return (
                 <div key={student.id} style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: levelColor }} />
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: '18px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>
                       {getInitials(student.full_name)}
                     </div>
@@ -1530,6 +1688,19 @@ export default function DashboardPage() {
                         {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
                       </div>
                     </div>
+                    {/* Check-in sits beside the name it belongs to: a family
+                        with two swimmers used to scroll to the bottom of each
+                        card to find the right one, on the pool deck, holding
+                        a towel. Outlined rather than filled, so it does not
+                        compete with the card's main button. */}
+                    <button className="tap-auto" onClick={() => setQrStudent(student)}
+                      aria-label={t('dash.viewQr')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
+                        borderRadius: '10px', border: `1px solid ${GOLD}75`, background: `${GOLD}14`, color: GOLD,
+                        fontSize: '12px', fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      <svg width="15" height="15" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h5v5H3zM12 3h5v5h-5zM3 12h5v5H3z" fill="none" stroke="currentColor" strokeWidth="1.7" /><path d="M12 12h2v2h-2zM15 15h2v2h-2zM15 12h2v2h-2zM12 15h2v2h-2z" fill="currentColor" /></svg>
+                      {t('dash.checkIn')}
+                    </button>
                   </div>
                   {!hasLevel && (
                     <div style={{ marginTop: '16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1541,6 +1712,15 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {!hasLevel && pastBookings.some(b => b.student_id === student.id) && (
+                    <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}
+                      style={{ width: '100%', marginTop: '14px', padding: '11px', borderRadius: '10px',
+                        border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)',
+                        color: 'rgba(255,255,255,0.8)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                      {t('dash.records')}
+                    </button>
+                  )}
+
                   {hasLevel && (() => {
                     const prog: StudentProgress = studentProgressMap[student.id] || { student_id: student.id, records: [], stages: [], stageSkills: [], allPercents: {} }
                     const lvl = Number(student.current_level)
@@ -1549,237 +1729,63 @@ export default function DashboardPage() {
                       : [1, 2, 3].map(n => ({ stage: n as 1 | 2 | 3, percent: 0, complete: false, skillCount: 0 }))
                     const curStage = resolveStage(student.current_stage, stages)
                     const curPct = stages[curStage - 1]?.percent ?? 0
-                    const hasRecords = prog.records.length > 0
-                    const isOpen = expandedProgress.has(student.id)
-                    const page = progressPage[student.id] || 0
-                    const PAGE_SIZE = 10
-                    const totalPages = Math.ceil(prog.records.length / PAGE_SIZE)
-                    const pageRecords = prog.records.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+                    /* One level line, one stage line, one bar, two buttons. The
+                       three stage buttons and the skill list they opened said the
+                       same thing the learning map says, a second time and smaller;
+                       the map is one tap away and says it properly. */
                     return (
-                      <div style={{ marginTop: '12px', borderRadius: '12px', border: `1px solid ${levelColor}40`, background: `${levelColor}14`, padding: '14px' }}>
-                        {/* which level, and which stage of it */}
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '3px' }}>{t('dash.currentLevel')}</div>
-                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}</div>
-                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginTop: '2px' }}>
-                              {t('dash.stageN', { n: curStage })} · {t(stageNameKey(lvl, curStage))}
-                            </div>
-                          </div>
-                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                            {student.current_level}
-                          </div>
+                      <div style={{ marginTop: '18px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+                          {t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}
                         </div>
-
-                        {/* Three stages, each one openable. A stage below the one
-                            the swimmer is in has been passed by definition -- that
-                            is the only way to leave it -- so it reads as finished
-                            even before an admin has approved the lesson that did
-                            it. */}
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '14px' }}>
-                          {/* Three states, three different colours -- done is
-                              green, here-now is solid gold, not-yet is grey.
-                              Tinting one hue could not separate "passed" from
-                              "current" at a glance, which is the one distinction
-                              a parent actually looks for. */}
-                          {stages.map(sp => {
-                            const isNow = sp.stage === curStage
-                            const passed = sp.stage < curStage || sp.complete
-                            const isOpenStage = openStageMap[student.id] === sp.stage
-                            const skin = isNow
-                              ? { background: GOLD, border: `1px solid ${GOLD}`, color: '#152036', weight: 800 }
-                              : passed
-                                ? { background: 'rgba(76,175,114,0.16)', border: '1px solid #4caf72', color: '#7fd6a2', weight: 700 }
-                                : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.3)', weight: 700 }
-                            return (
-                              <button key={sp.stage} className="tap-auto"
-                                aria-expanded={isOpenStage}
-                                onClick={() => setOpenStageMap(prev => ({ ...prev, [student.id]: isOpenStage ? 0 : sp.stage }))}
-                                style={{
-                                  flex: 1, textAlign: 'center', padding: '5px 2px', borderRadius: '7px',
-                                  fontSize: '10px', fontWeight: skin.weight, letterSpacing: '0.3px', cursor: 'pointer',
-                                  background: skin.background, border: skin.border, color: skin.color,
-                                  boxShadow: isOpenStage ? '0 0 0 2px rgba(255,255,255,0.45)' : 'none',
-                                  whiteSpace: 'nowrap',
-                                }}>
-                                {t('dash.stageN', { n: sp.stage })}{passed ? ' 🎊' : isNow ? ' ●' : ''}
-                              </button>
-                            )
-                          })}
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '3px' }}>
+                          {t('dash.stageN', { n: curStage })} · {t(stageNameKey(lvl, curStage))}
                         </div>
-
-                        {/* the opened stage, skill by skill */}
-                        {(() => {
-                          const openStage = openStageMap[student.id]
-                          if (!openStage) return null
-                          const rows = prog.stageSkills.filter(k => k.stage === openStage)
-                          if (rows.length === 0) return null
-                          const stagePassed = openStage < curStage
-                          return (
-                            <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '9px', background: 'rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.8px', color: levelColor }}>
-                                {t('dash.stageN', { n: openStage })} · {t(stageNameKey(lvl, openStage))}
-                              </div>
-                              {rows.map(k => {
-                                /* Show what was recorded, including for a stage the
-                                   swimmer has already left. Forcing 100 was right when a
-                                   stage could only be left with every skill finished; a
-                                   stage now advances at "on their own", so the claim
-                                   became false -- this card said "solid" while the
-                                   learning map, reading the same row honestly, said
-                                   "in progress". Moving on is not the same as mastered,
-                                   and the parent is entitled to see which one it is. */
-                                const pct = k.percent
-                                return (
-                                  <div key={k.skill_id}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '3px' }}>
-                                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>{tDb(locale, 'skills', k.skill_id, k.skill_name)}</span>
-                                      <span style={{ fontSize: '11px', fontWeight: 700, flexShrink: 0, color: MASTERY_COLOR[masteryOf(pct)] }}>{t(masteryKey(masteryOf(pct)))}</span>
-                                    </div>
-                                    <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
-                                      <div style={{ height: '100%', width: pct + '%', background: pct >= 100 ? '#4caf72' : GOLD, borderRadius: '2px' }} />
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        })()}
-
-                        {/* how far through the current stage */}
-                        <div style={{ marginTop: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '5px' }}>
-                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>{t('dash.stageCompletion')}</span>
-                            <b style={{ fontSize: '13px', color: GOLD }}>{curPct}%</b>
-                          </div>
-                          <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: curPct + '%', background: GOLD, borderRadius: '3px', transition: 'width .3s ease' }} />
-                          </div>
+                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden', marginTop: '14px' }}>
+                          <div style={{ height: '100%', width: curPct + '%', background: GOLD, borderRadius: '3px', transition: 'width .3s ease' }} />
                         </div>
-
-                        {/* the same progress, but against the whole road ahead */}
-                        <button
-                          className="tap-auto"
-                          onClick={() => setTreeFor({
-                            name: student.full_name,
-                            level: lvl,
-                            stage: curStage,
-                            percents: prog.allPercents,
-                          })}
-                          style={{
-                            width: '100%', marginTop: '12px', padding: '9px 12px', borderRadius: '9px',
-                            border: `1px solid ${GOLD}55`, background: `${GOLD}14`, cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            fontSize: '12px', fontWeight: 700, color: GOLD,
-                          }}
-                        >
-                          <span>{t('dash.skillTree')}</span>
-                          <span style={{ fontSize: '11px' }}>›</span>
-                        </button>
-
-                        {/* the lesson-by-lesson record still lives underneath */}
-                        <button
-                          className="tap-auto"
-                          disabled={!hasRecords}
-                          aria-expanded={isOpen}
-                          onClick={() => { if (!hasRecords) return; setExpandedProgress(prev => {
-                            const next = new Set(prev)
-                            if (next.has(student.id)) next.delete(student.id)
-                            else next.add(student.id)
-                            return next
-                          }) }}
-                          style={{
-                            width: '100%', marginTop: '12px', paddingTop: '10px', border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)',
-                            background: 'transparent', cursor: hasRecords ? 'pointer' : 'default',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            fontSize: '11px', fontWeight: 700, color: hasRecords ? '#4caf72' : 'rgba(255,255,255,0.3)',
-                          }}
-                        >
-                          <span>📋 {hasRecords ? t('dash.lessonRecords', { n: prog.records.length }) : t('dash.noRecordsYet')}</span>
-                          {hasRecords && <span style={{ fontSize: '10px' }}>{isOpen ? '▲' : '▼'}</span>}
-                        </button>
-                        {isOpen && (
-                          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {pageRecords.map(rec => {
-                              const recKey = student.id + '_' + (rec.lesson_key || rec.session_date)
-                              const recOpen = expandedRecord[recKey]
-                              return (
-                                <div key={recKey} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', overflow: 'hidden' }}>
-                                  <button
-                                    onClick={() => setExpandedRecord(prev => ({ ...prev, [recKey]: prev[recKey] ? null : rec.session_date }))}
-                                    style={{ width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                                  >
-                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
-                                      {rec.session_date}
-                                      {rec.start_time ? ` · ${formatTime(rec.start_time)}` : ''}
-                                      {rec.minutes ? ` · ${rec.minutes} min` : ''}
-                                      {rec.course_name ? ` · ${rec.course_type_id ? tDb(locale, 'course_types', rec.course_type_id, rec.course_name) : rec.course_name}` : ''}
-                                    </span>
-                                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>{recOpen ? '▲' : '▼'}</span>
-                                  </button>
-                                  {recOpen && (
-                                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                      {rec.note && (
-                                        <div style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}40`, borderRadius: '6px', padding: '8px 10px', marginBottom: '4px' }}>
-                                          <div style={{ fontSize: '10px', color: GOLD, fontWeight: 700, letterSpacing: '0.5px', marginBottom: '3px' }}>{t('dash.coachNote')}</div>
-                                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{rec.note}</div>
-                                        </div>
-                                      )}
-                                      {rec.skills.map(sk => (
-                                        <div key={sk.skill_id}>
-                                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>{sk.skill_id ? tDb(locale, 'skills', sk.skill_id, sk.skill_name) : sk.skill_name}</span>
-                                            <span style={{ fontSize: '11px', fontWeight: 700, color: MASTERY_COLOR[masteryOf(sk.progress_percent)] }}>{t(masteryKey(masteryOf(sk.progress_percent)))}</span>
-                                          </div>
-                                          <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
-                                            <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : GOLD, borderRadius: '2px' }} />
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                            {totalPages > 1 && (
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '4px' }}>
-                                <button onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: Math.max(0, page - 1) }))} disabled={page === 0}
-                                  style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '11px', cursor: page === 0 ? 'not-allowed' : 'pointer' }}>←</button>
-                                {Array.from({ length: totalPages }, (_, i) => (
-                                  <button key={i} onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: i }))} className="tap-auto"
-                                    style={{ width: '32px', height: '32px', borderRadius: '6px', border: `1px solid ${i === page ? GOLD : 'rgba(255,255,255,0.12)'}`, background: i === page ? `${GOLD}20` : 'transparent', color: i === page ? GOLD : 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                                  >{i + 1}</button>
-                                ))}
-                                <button onClick={() => setProgressPage(prev => ({ ...prev, [student.id]: Math.min(totalPages - 1, page + 1) }))} disabled={page === totalPages - 1}
-                                  style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === totalPages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '11px', cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer' }}>→</button>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{t('dash.stageCompletion')}</span>
+                          <b style={{ fontSize: '12px', color: GOLD }}>{curPct}%</b>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                          <button className="tap-auto"
+                            onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}
+                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: 'none', background: GOLD,
+                              color: NAVY, fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>
+                            {t('dash.skillTree')}
+                          </button>
+                          <button className="tap-auto"
+                            onClick={() => { setRecordsFor(student); setRecordsPage(0) }}
+                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.14)',
+                              background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.8)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                            {t('dash.records')}
+                          </button>
+                        </div>
                       </div>
                     )
                   })()}
-
-                  {/* QR Code Button */}
-                  <button
-                    onClick={() => setQrStudent(student)}
-                    style={{
-                      marginTop: '12px', width: '100%', padding: '10px',
-                      borderRadius: '10px', border: `1px solid ${GOLD}40`,
-                      background: 'transparent', color: GOLD,
-                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                      letterSpacing: '0.5px',
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${GOLD}15` }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <span style={{ fontSize: '14px' }}>⊞</span> {t('dash.viewQr')}
-                  </button>
                 </div>
               )
             })}
           </Rail>
+
+          {/* The two things a family comes here to do most, under the
+              children they are doing them for. Points open a sheet with the
+              whole card -- balance, VIP, history, swim team -- so none of it
+              is lost, it just stops taking a screen of its own. */}
+          <div className="msa-act">
+            <button className="tap-auto msa-act-book" onClick={() => { window.location.href = '/booking' }}>
+              + {t('quick.book')}
+            </button>
+            {wallet && (
+              <button className={'tap-auto msa-act-pts' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : '')}
+                onClick={() => setPointsOpen(true)}>
+                <span><b>{wallet.balance.toLocaleString()}</b> {t('dash.pointsUnit')}</span>
+                <em>{t('dash.topUp')} ›</em>
+              </button>
+            )}
+          </div>
         </section>
 
         {/* Pending partner bookings notice */}
@@ -1889,9 +1895,6 @@ export default function DashboardPage() {
                     {v === 'list' ? t('dash.viewList') : t('dash.viewMonth')}</button>
                 ))}
               </div>
-              <button onClick={() => window.location.href = '/booking'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
-                + {t('quick.book')}
-              </button>
             </div>
           </div>
           {lessonView === 'month' ? (() => {
@@ -2064,8 +2067,7 @@ export default function DashboardPage() {
           })() : upcomingBookings.length === 0 ? (
             <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '32px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 16px' }}>{t('dash.noUpcoming')}</p>
-              <button onClick={() => window.location.href = '/booking'} style={{ display: 'inline-block', padding: '10px 24px', background: GOLD, color: NAVY, borderRadius: '8px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('dash.bookNow')}</button>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{t('dash.noUpcoming')}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -2448,102 +2450,14 @@ export default function DashboardPage() {
           })()}
         </section>
 
-        {/* POINTS */}
-        <section style={{ marginBottom: '36px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('points.card.title')}</h2>
-            <button onClick={() => window.location.href = '/plans#buy'} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: GOLD, textDecoration: 'none', border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '6px 14px', background: 'transparent', cursor: 'pointer' }}>
-              + {t('points.card.buy')}
-            </button>
-          </div>
-          {wallet && wallet.balance === 0 && wallet.lessonsCompleted === 0 && teamMemberships.length === 0 ? (
-            <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '28px', textAlign: 'center' }}>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: '0 0 14px' }}>{t('points.card.empty')}</p>
-              <Link href="/plans#buy" style={{ display: 'inline-block', padding: '9px 20px', background: 'transparent', color: GOLD, border: `1px solid ${GOLD}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('points.card.buy')}</Link>
-            </div>
-          ) : (
-            <Rail variant="credits" count={teamMemberships.length > 0 ? 2 : 1}>
-              <PointsCard w={wallet} onBuy={() => { window.location.href = '/plans#buy' }} />
-              <TeamCard memberships={teamMemberships} />
-            </Rail>
-          )}
-        </section>
-
-        {/* LESSON HISTORY */}
-        {pastBookings.length > 0 && (
-          <section style={{ marginBottom: '36px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.lessonHistory')}</h2>
-            {(() => {
-              const displayed = showAllHistory
-                ? pastBookings.slice(historyPage * 10, historyPage * 10 + 10)
-                : pastBookings.slice(0, 3)
-              const totalPages = Math.ceil(pastBookings.length / 10)
-              return (
-                <>
-                  <div style={{ background: NAVY, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                    {displayed.map((booking, i) => {
-                      const isNoShow = booking.status === 'confirmed' && !booking.checked_in
-                      const isAttended = booking.status === 'confirmed' && booking.checked_in
-                      const noShowColor = '#e05a4a'
-                      const attendedColor = '#7fd8a0'
-                      const badgeColor = isNoShow ? noShowColor : isAttended ? attendedColor : (STATUS_COLORS[booking.status] || 'rgba(255,255,255,0.3)')
-                      const badgeLabel = isNoShow ? t('status.absent') : isAttended ? t('status.attended') : booking.status
-                      return (
-                      /* Every one of the five fields below is flexShrink: 0, so this row
-                         could not narrow: on a phone the coach's name ran past the card,
-                         the card is overflow:hidden, and the status badge landed on top
-                         of the student's name. Wrapping is the fix -- at desktop width
-                         nothing wraps, so that layout is unchanged. */
-                      <div key={booking.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px', borderBottom: i < displayed.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: '10px', rowGap: '2px', flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</div>
-                          {booking.student_name && <div style={{ fontSize: '12px', color: '#7dd3fc', flexShrink: 0 }}>{booking.student_name}</div>}
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{t('dash.withCoach', { name: booking.coach_name })}</div>
-                        </div>
-                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: badgeColor, background: `${badgeColor}18`, borderRadius: '10px', padding: '2px 8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                          {badgeLabel}
-                        </span>
-                      </div>
-                      )
-                    })}
-                  </div>
-                  {/* Expand/collapse button */}
-                  {pastBookings.length > 3 && (
-                    <button
-                      onClick={() => { setShowAllHistory(v => !v); setHistoryPage(0) }}
-                      style={{ marginTop: '10px', width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}
-                    >
-                      {showAllHistory ? '▲ ' + t('dash.collapse') : '▼ ' + t('dash.showAllRecords', { n: pastBookings.length })}
-                    </button>
-                  )}
-                  {/* Pagination (shown when expanded) */}
-                  {showAllHistory && totalPages > 1 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '12px' }}>
-                      <button
-                        onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
-                        disabled={historyPage === 0}
-                        style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === 0 ? 'not-allowed' : 'pointer' }}
-                      >← {t('dash.prev')}</button>
-                      {Array.from({ length: totalPages }, (_, i) => (
-                        <button key={i}
-                          onClick={() => setHistoryPage(i)} className="tap-auto"
-                          style={{ width: '32px', height: '32px', borderRadius: '8px', border: `1px solid ${i === historyPage ? GOLD : 'rgba(255,255,255,0.12)'}`, background: i === historyPage ? `${GOLD}20` : 'transparent', color: i === historyPage ? GOLD : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                        >{i + 1}</button>
-                      ))}
-                      <button
-                        onClick={() => setHistoryPage(p => Math.min(totalPages - 1, p + 1))}
-                        disabled={historyPage === totalPages - 1}
-                        style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: historyPage === totalPages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: historyPage === totalPages - 1 ? 'not-allowed' : 'pointer' }}
-                      >{t('dash.next')} →</button>
-                    </div>
-                  )}
-                </>
-              )
-            })()}
-          </section>
-        )}
+        {/* The three links that are not in the top bar. The quick-link grid
+            above the children held six; the other three were already in the
+            navigation, and the grid pushed the children off the first screen. */}
+        <nav className="msa-foot" aria-label={t('dash.moreLinks')}>
+          <Link href="/dashboard/account">{t('quick.account')}</Link>
+          <Link href="/dashboard/partnerships">{t('quick.partnerships')}</Link>
+          <Link href="/policies">{t('page.policies')}</Link>
+        </nav>
 
         {/* PARTNER ACCOUNTS */}
 

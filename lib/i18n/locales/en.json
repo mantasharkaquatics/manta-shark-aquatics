@@ -1136,5 +1136,11 @@
   "tree.state.open": "Ready to start",
   "tree.state.ready": "Ready — not scheduled yet",
   "tree.teach": "How to teach it",
-  "tree.title": "Learning Map"
+  "tree.title": "Learning Map",
+  "dash.checkIn": "Check in",
+  "dash.records": "Lesson records",
+  "dash.recordsOf": "{name}'s lessons",
+  "dash.pointsUnit": "pts",
+  "dash.topUp": "Top up",
+  "dash.moreLinks": "More"
 }

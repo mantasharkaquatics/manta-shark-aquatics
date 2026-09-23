@@ -1136,5 +1136,11 @@
   "tree.state.open": "可以开始了",
   "tree.state.ready": "条件到了，还没排到",
   "tree.teach": "教学重点",
-  "tree.title": "学习地图"
+  "tree.title": "学习地图",
+  "dash.checkIn": "报到",
+  "dash.records": "上课记录",
+  "dash.recordsOf": "{name} 的上课记录",
+  "dash.pointsUnit": "点",
+  "dash.topUp": "储值",
+  "dash.moreLinks": "更多"
 }
