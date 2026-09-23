@@ -201,11 +201,10 @@ export default function Navbar() {
             {localeSelect('hidden md:inline-flex')}
             {authLoading ? <div className="w-24 h-8" /> : isLoggedIn ? (
               <>
-                {/* The greeting is the way into the account page. It used to link
-                    to /dashboard, which is where a parent already is -- a click
-                    that did nothing -- while the account page, the only place a
-                    second child can be added, sat behind a footer link. */}
-                <Link href="/dashboard/account"
+                {/* The greeting is the way home: a parent who clicks their own
+                    name expects their page, not the account form. The account
+                    page is reached from the dashboard itself. */}
+                <Link href="/dashboard"
                   className="text-gray-300 hover:text-white text-sm font-medium transition-colors px-3 py-1.5 hidden sm:block">
                   {t('nav.greeting', { name: firstName })}
                 </Link>
