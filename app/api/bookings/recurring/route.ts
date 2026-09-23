@@ -11,9 +11,9 @@ import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
 //
-// preview: ?action=preview  student_id, coach_id, start_time, start_date
+// preview: ?action=preview  student_id, coach_id, start_time, start_date, fallback?
 //   → every weekly date from start_date through Dec 31 of the current year with status
-// commit:  ?action=commit   student_id, coach_id, slots[{date, start_time}]
+// commit:  ?action=commit   student_id, coach_id, slots[{date, start_time, coach_id?}]
 //   → re-validates each slot; books the still-ok ones, skips the rest, reports both
 //
 // commit takes a LIST OF SLOTS, not a weekday rule. A family who wants Monday
@@ -22,7 +22,10 @@ import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from 
 // one email. The legacy { dates[], start_time } shape still works and is
 // converted to slots at the door.
 //
-// A batch is one coach and one course type. Times may differ freely within it,
+// A batch is one course type. It used to be one coach as well; each slot may
+// now carry its own coach_id (falling back to the top-level one), because a
+// family who picks times first and does not mind who teaches can end up with
+// Mitzi on most weeks and Mitch on the one she is away. Times may differ freely within it,
 // and so may length -- a 1-on-1 family may want Tuesdays at 30 minutes and
 // Saturdays at 60. What a batch may NOT hold is a cross-family 1-on-2:
 // each of those needs the other family to accept inside fifteen minutes, so
@@ -156,8 +159,8 @@ function priceDates(slug: string, dates: string[], startTime: string, lessonsDon
   return { perDate, total }
 }
 
-type Slot = { date: string; time: string }
-const slotKey = (s: Slot) => `${s.date}|${s.time}`
+type Slot = { date: string; time: string; coach?: string }
+const slotKey = (s: Slot) => `${s.date}|${s.time}${s.coach ? `|${s.coach}` : ''}`
 
 /**
  * The same per-lesson pricing, for a selection whose lessons need not share a
@@ -252,7 +255,28 @@ export async function POST(req: NextRequest) {
     const { start_date } = body
     if (!start_date || !DATE_RE.test(start_date) || start_date < today)
       return NextResponse.json({ error: 'Invalid start date' }, { status: 400 })
-    const candidates = await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats)
+    const candidates: (Cand & { coach_id?: string; coach_name?: string; substitute?: boolean })[] =
+      await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats)
+    for (const c of candidates) c.coach_id = coach_id
+    // "Same coach where possible": a week the chosen coach cannot do is offered
+    // with another coach who can, marked as a substitute, instead of being
+    // dropped. Private lessons only -- a group class belongs to its coach.
+    const SUBSTITUTABLE = new Set(['no_class', 'time_off', 'conflict', 'full'])
+    if (body.fallback === true && ct.slug !== '1on4' && candidates.some(c => SUBSTITUTABLE.has(c.status))) {
+      const { data: others } = await svc.from('coaches').select('id, first_name')
+        .eq('is_active', true).neq('id', coach_id).order('first_name')
+      for (const o of (others || []) as { id: string; first_name: string }[]) {
+        if (!candidates.some(c => SUBSTITUTABLE.has(c.status))) break
+        const alt = await buildCandidates(svc, o.id, ct, studentIds, level, start_time, start_date, minutes, seats)
+        const okAlt = new Set(alt.filter(a => a.status === 'ok').map(a => a.date))
+        for (const c of candidates) {
+          if (SUBSTITUTABLE.has(c.status) && okAlt.has(c.date)) {
+            c.status = 'ok'; c.coach_id = o.id; c.coach_name = o.first_name; c.substitute = true
+            c.spots = alt.find(a => a.date === c.date)?.spots ?? 0
+          }
+        }
+      }
+    }
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
     // the parent ticks dates rather than quoting one figure and charging another.
@@ -277,26 +301,37 @@ export async function POST(req: NextRequest) {
     const wanted: Slot[] = []
     for (const r of raw) {
       const date = r?.date, time = r?.start_time
+      const coach = typeof r?.coach_id === 'string' && r.coach_id ? r.coach_id : coach_id
       if (typeof date !== 'string' || !DATE_RE.test(date) || date < today)
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
       if (typeof time !== 'string' || !TIME_RE.test(time))
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
-      const k = `${date}|${time}`
+      const k = `${date}|${time}|${coach}`
       if (seen.has(k)) continue
       seen.add(k)
-      wanted.push({ date, time })
+      wanted.push({ date, time, coach })
     }
     wanted.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
 
-    // Availability is read per distinct time -- a handful of passes, not one per
-    // lesson -- and every slot is re-checked against what came back, because the
-    // parent may have been choosing for several minutes.
+    const coachIds = [...new Set(wanted.map(w => w.coach!))]
+    const { data: coachRows } = await svc.from('coaches').select('id, first_name, last_name, is_active').in('id', coachIds)
+    const coachById = new Map<string, any>((coachRows || []).map((c: any) => [c.id, c]))
+    if (coachIds.some(id => !coachById.get(id)?.is_active))
+      return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
+
+    // Availability is read per distinct coach and time -- a handful of passes,
+    // not one per lesson -- and every slot is re-checked against what came
+    // back, because the parent may have been choosing for several minutes.
     const times = [...new Set(wanted.map(w => w.time))]
     const statusByKey = new Map<string, string>()
-    for (const t of times) {
-      const first = wanted.filter(w => w.time === t).map(w => w.date).sort()[0]
-      const cands = await buildCandidates(svc, coach_id, ct, studentIds, level, t, first, minutes, seats)
-      for (const c of cands) statusByKey.set(`${c.date}|${t}`, c.status)
+    for (const cid of coachIds) {
+      for (const t of times) {
+        const mine = wanted.filter(w => w.time === t && w.coach === cid)
+        if (mine.length === 0) continue
+        const first = mine.map(w => w.date).sort()[0]
+        const cands = await buildCandidates(svc, cid, ct, studentIds, level, t, first, minutes, seats)
+        for (const c of cands) statusByKey.set(`${c.date}|${t}|${cid}`, c.status)
+      }
     }
 
     const okSlots: Slot[] = []
@@ -327,14 +362,14 @@ export async function POST(req: NextRequest) {
     // the parent watches a spinner for the sum of all of them. The same work in
     // set form is four round trips total.
     const { data: existingRows } = await svc.from('class_sessions')
-      .select('id, session_date, start_time, enrolled_count, max_students')
-      .eq('coach_id', coach_id).eq('course_type_id', ct.id)
+      .select('id, coach_id, session_date, start_time, enrolled_count, max_students')
+      .in('coach_id', coachIds).eq('course_type_id', ct.id)
       .in('start_time', times)
       .in('session_date', [...new Set(okSlots.map(s2 => s2.date))])
       .in('status', ['open', 'full'])
     const existingByKey = new Map<string, SessionRow>()
-    for (const r of (existingRows || []) as SessionRow[]) {
-      existingByKey.set(`${r.session_date}|${String(r.start_time).slice(0, 5)}`, r)
+    for (const r of (existingRows || []) as (SessionRow & { coach_id: string })[]) {
+      existingByKey.set(`${r.session_date}|${String(r.start_time).slice(0, 5)}|${r.coach_id}`, r)
     }
 
     // Capacity is checked here, off that one read. A class that fills between
@@ -352,16 +387,16 @@ export async function POST(req: NextRequest) {
     if (needSession.length > 0) {
       const { data: newSessions, error: sessErr } = await svc.from('class_sessions')
         .insert(needSession.map(s2 => ({
-          coach_id, course_type_id: ct.id, session_date: s2.date,
+          coach_id: s2.coach, course_type_id: ct.id, session_date: s2.date,
           start_time: s2.time, end_time: endOf(s2.time),
           max_students: ct.max_students, enrolled_count: 0, status: 'open',
         })))
-        .select('id, session_date, start_time')
+        .select('id, coach_id, session_date, start_time')
       if (sessErr || !newSessions) {
         return NextResponse.json({ error: `Failed to open the classes: ${sessErr?.message || 'unknown'}` }, { status: 500 })
       }
-      for (const r of newSessions as { id: string; session_date: string; start_time: string }[]) {
-        sessionIdByKey.set(`${r.session_date}|${String(r.start_time).slice(0, 5)}`, r.id)
+      for (const r of newSessions as { id: string; coach_id: string; session_date: string; start_time: string }[]) {
+        sessionIdByKey.set(`${r.session_date}|${String(r.start_time).slice(0, 5)}|${r.coach_id}`, r.id)
       }
     }
 
@@ -424,13 +459,13 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', coach_id).single()
+      const bookedCoaches = [...new Set(booked.map(s2 => s2.coach!))].map(id => coachById.get(id)).filter(Boolean)
       const { data: p2 } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
       if (p2?.email) {
         await sendEmail({
           type: 'booking_series_confirmed', to: p2.email, parentName: p2.first_name,
           studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name, courseName: ct.name,
-          coachName: coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : '',
+          coachName: bookedCoaches.map((c: any) => `${c.first_name} ${c.last_name || ''}`.trim()).join(' / '),
           dates: booked.map(s2 => s2.date),
           // With one time the email keeps its single Time row; with several it
           // has to say the time on every line, or it is telling the family the
@@ -444,7 +479,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       booked: booked.length,
-      booked_slots: booked.map(s2 => ({ date: s2.date, start_time: s2.time, points: charge.perSlot.get(slotKey(s2))! })),
+      booked_slots: booked.map(s2 => ({ date: s2.date, start_time: s2.time, coach_id: s2.coach, points: charge.perSlot.get(slotKey(s2))! })),
       booked_dates: booked.map(s2 => s2.date),
       skipped,
       points_charged: charge.total,

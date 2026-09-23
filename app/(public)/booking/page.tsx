@@ -25,11 +25,15 @@ import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
-type PlanSlot = { date: string; time: string; label: string; points: number }
+type PlanSlot = { date: string; time: string; label: string; points: number; coachId: string; coachName?: string }
 
 const NAVY = '#1a2744'
 const DARK = '#111d38'
 const GOLD = '#c9a84c'
+// One colour per coach, in the order the coaches load, so the dots on a
+// calendar day and the faces on a time slot read as the same person.
+const COACH_COLORS = [GOLD, '#4a90c4', '#e05a4a', '#4caf72', '#a78bfa', '#e0a04a']
+type Openings = { coaches: { id: string; first_name: string }[]; preferred: string | null; days: Record<string, Record<string, string[]>> }
 
 interface Student { id: string; full_name: string; current_level: number; parent_id?: string }
 interface PartnerStudent { id: string; full_name: string; current_level: number; parent_id: string; isPartner: true; partnerParentId: string; partnershipId: string }
@@ -231,6 +235,16 @@ export default function BookingPage() {
 
   // ── 1on4 class-based flow (cross-coach, band-matched) ──
   const groupFlow = !isTrial && selectedCourse?.slug === '1on4'
+  // Private lessons are chosen time-first: every coach's open times at once,
+  // with a row of coach buttons on top ("any coach" or one of them) instead of
+  // a coach step in front of the calendar.
+  const privateFlow = !!selectedCourse && !groupFlow && (selectedCourse.slug === '1on1' || selectedCourse.slug === '1on2')
+  const [coachFilter, setCoachFilter] = useState<string>('any')
+  const [openings, setOpenings] = useState<Openings | null>(null)
+  // Which coach each date of a weekly series would be with (a substitute where
+  // the usual coach is away), as the preview returned it.
+  const [recurCoach, setRecurCoach] = useState<Map<string, string>>(new Map())
+  const pendingPickRef = useRef<{ date: string; time: string } | null>(null)
   const myLevel = selectedStudent?.current_level != null ? Number(selectedStudent.current_level) : null
   const myGroupBand = myLevel != null ? studentBandOf(myLevel) : null
   const myBandColor = myGroupBand ? (BAND_COLORS[`${myGroupBand.min}-${myGroupBand.max}`] || ZONE_COLORS.group) : ZONE_COLORS.group
@@ -261,7 +275,7 @@ export default function BookingPage() {
         if (lockedRef.current) {
           if (j.hasCredit) {
             const ct = courseTypesRef.current.find(c => c.slug === '1on1')
-            if (ct) { setSelectedCourse(ct); setIsTrial(true); setStep(2); return }
+            if (ct) { setSelectedCourse(ct); setIsTrial(true); setStep(3); return }
           }
           setStep(1)
         }
@@ -421,7 +435,7 @@ export default function BookingPage() {
         if (matchCourse) setSelectedCourse(matchCourse as any)
         if (matchStudent) setSelectedStudent(matchStudent as any)
         setLoading(false)
-        setStep(2)
+        setStep(3)
         return
       }
 
@@ -635,7 +649,7 @@ export default function BookingPage() {
   useEffect(() => {
     if (step !== 1 || !advanceRef.current || !courseStepReady) return
     advanceRef.current = false
-    setStep(selectedCourse!.slug === '1on4' && !isTrial ? 3 : 2)
+    setStep(3)
   }, [step, courseStepReady, selectedCourse, isTrial])
   useEffect(() => { if (step !== 1) advanceRef.current = false }, [step])
 
@@ -645,6 +659,96 @@ export default function BookingPage() {
     setSelectedStudent(students[0])
     setStep(1)
   }, [loading, isReschedule, selectedStudent, step, students])
+
+  useEffect(() => {
+    if (step !== 3 || !privateFlow || !selectedStudent || !selectedCourse) return
+    let live = true
+    const qs = new URLSearchParams({ course_slug: selectedCourse.slug, student_id: selectedStudent.id })
+    if (selectedStudent2 && !(selectedStudent2 as any).isPartner) qs.set('student2_id', selectedStudent2.id)
+    fetch(`/api/bookings/openings?${qs}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((j: Openings | null) => {
+        if (!live) return
+        setOpenings(j)
+        // One coach is no choice: behave as if they had been picked.
+        if (j && j.coaches.length === 1) setCoachFilter(j.coaches[0].id)
+      })
+      .catch(() => { if (live) setOpenings(null) })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, cartRefresh])
+
+  // A filtered coach IS the selected coach, so the per-coach slot list below
+  // (the one that knows about join-able sessions and 24h) is theirs.
+  useEffect(() => {
+    if (coachFilter === 'any') return
+    const c = coaches.find(x => x.id === coachFilter)
+    if (c && selectedCoach?.id !== c.id) setSelectedCoach(c)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachFilter, coaches])
+
+  // "Next openings" chips jump to a date; the time is picked once that date's
+  // slots for the coach have loaded.
+  useEffect(() => {
+    const pk = pendingPickRef.current
+    if (!pk || !selectedDate || !selectedCoach || formatDateLA(selectedDate) !== pk.date) return
+    const sl = timeSlots.find(x => x.time === pk.time && x.available)
+    if (!sl) return
+    pendingPickRef.current = null
+    choosePrivate(pk.date, sl, selectedCoach)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeSlots])
+
+  const coachColor = (id: string) => {
+    const i = coaches.findIndex(c => c.id === id)
+    return COACH_COLORS[(i < 0 ? 0 : i) % COACH_COLORS.length]
+  }
+  const coachName = (id: string) => coaches.find(c => c.id === id)?.first_name || ''
+  const Face = ({ id, size = 22 }: { id: string; size?: number }) => (
+    <span title={coachName(id)} style={{ width: size, height: size, borderRadius: '50%', background: coachColor(id), color: '#fff',
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.45), fontWeight: 800, flexShrink: 0 }}>
+      {coachName(id).slice(0, 1)}
+    </span>
+  )
+  /** Coaches with an open time on a date, under the current filter. */
+  function coachesOn(ds: string): string[] {
+    const day = openings?.days[ds]
+    if (!day) return []
+    const ids = new Set<string>()
+    for (const list of Object.values(day)) for (const id of list) if (coachFilter === 'any' || id === coachFilter) ids.add(id)
+    return [...ids]
+  }
+  function pickFilter(id: string) {
+    setCoachFilter(id)
+    setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
+    pendingPickRef.current = null
+    if (selectedDate && id !== 'any') {
+      const ds = formatDateLA(selectedDate)
+      if (!Object.values(openings?.days[ds] || {}).some(l => l.includes(id))) setSelectedDate(null)
+    }
+  }
+  /** Choose (or, in a batch, toggle) one private lesson with one coach. The
+   *  coach grid, the any-coach grid and the "next openings" chips all end here. */
+  function choosePrivate(ds: string, slot: TimeSlot, coach: Coach) {
+    setSelectedCoach(coach)
+    setSelectedSlot(slot)
+    if (!batchFlow) return
+    setRecurOpen(false); setRecurMsg('')
+    const key = `${ds}|${slot.time}`
+    const cost = priceAt(ds, slot.time, 30)?.charged ?? 0
+    setRecurSel(prev => {
+      const n = new Map(prev)
+      const had = n.get(key)
+      if (had && had.coachId === coach.id) { n.delete(key); return n }
+      const sameDay = [...n.entries()].filter(([k]) => k.startsWith(ds + '|'))
+      const freed = sameDay.reduce((acc, [, x]) => acc + x.points, 0)
+      const spent = [...n.values()].reduce((acc, x) => acc + x.points, 0)
+      if (!had && spent - freed + cost > balance) return prev
+      for (const [k] of sameDay) n.delete(k)
+      n.set(key, { date: ds, time: slot.time, label: slot.label, points: cost, coachId: coach.id, coachName: coach.first_name })
+      return n
+    })
+  }
 
   function clearTime() {
     setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map())
@@ -666,6 +770,8 @@ export default function BookingPage() {
   // can print a single Time row, and whether a chip needs to say the hour.
   const basketTimes = new Set(basket.map(x => x.time))
   const planTimes = new Set(recurPlan.map(x => x.time))
+  const planCoaches = [...new Set(recurPlan.map(x => x.coachName || ''))].filter(Boolean)
+  const basketCoaches = new Set(basket.map(x => x.coachId))
   const recurTotal = recurPlan.reduce((a, x) => a + x.points, 0)
   // The undiscounted figure, so the batch can show what the discounts took off.
   const recurBase = recurPlan.reduce((a, x) => {
@@ -724,7 +830,7 @@ export default function BookingPage() {
       if (n.has(key)) { n.delete(key); return n }
       const spent = [...n.values()].reduce((a, x) => a + x.points, 0)
       if (spent + cost > balance) return n
-      n.set(key, { date: ds, time: sl.time, label: formatTime(sl.time), points: cost })
+      n.set(key, { date: ds, time: sl.time, label: formatTime(sl.time), points: cost, coachId: c.id, coachName: c.first_name })
       return n
     })
   }
@@ -764,10 +870,10 @@ export default function BookingPage() {
       const res = await fetch('/api/bookings/recurring', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'commit', student_id: selectedStudent.id, coach_id: selectedCoach.id,
+          action: 'commit', student_id: selectedStudent.id, coach_id: recurPlan[0]?.coachId || selectedCoach.id,
           student2_id: siblingPair ? selectedStudent2!.id : null,
           course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
-          slots: recurPlan.map(x => ({ date: x.date, start_time: x.time })),
+          slots: recurPlan.map(x => ({ date: x.date, start_time: x.time, coach_id: x.coachId })),
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -1171,11 +1277,6 @@ export default function BookingPage() {
                 value={isTrial ? t('common.assessment') : tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name)}
                 onChange={isReschedule ? undefined : () => { clearTime(); setStep(1) }} />
             )}
-            {step > 2 && !groupFlow && selectedCoach && (
-              <DoneRow label={t('booking.sum.coach')} changeLabel={t('booking.change')}
-                value={selectedCoach.first_name}
-                onChange={() => { clearTime(); setStep(2) }} />
-            )}
           </div>
         )}
 
@@ -1352,38 +1453,73 @@ export default function BookingPage() {
           </div>
         )}
 
-        {step === 2 && (
-          <div>
-            <SectionTitle title={t('booking.s3.title')} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {coaches.map((coach, i) => {
-                const colors = [GOLD, '#4a90c4', '#e05a4a']
-                const color = colors[i % colors.length]
-                return (
-                  <SelectCard key={coach.id} selected={selectedCoach?.id === coach.id} onClick={() => { setSelectedCoach(coach); setStep(3) }} color={color}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{
-                        width: '48px', height: '48px', borderRadius: '50%',
-                        background: color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: "'Playfair Display', serif", fontSize: '18px', fontWeight: 900, color: '#fff',
-                      }}>
-                        {coach.first_name[0]}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{coach.first_name}</div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.coachRole')}</div>
-                      </div>
-                    </div>
-                  </SelectCard>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {step === 3 && (
           <div>
             <SectionTitle title={t('booking.s4.title')} />
+            {privateFlow && openings && openings.coaches.length > 1 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  {[{ id: 'any', first_name: t('booking.anyCoach') }, ...openings.coaches].map(c => {
+                    const on = coachFilter === c.id
+                    return (
+                      <button key={c.id} onClick={() => pickFilter(c.id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0, minHeight: '44px',
+                          padding: c.id === 'any' ? '0 18px' : '0 16px 0 8px', borderRadius: '999px', cursor: 'pointer',
+                          border: `1.5px solid ${on ? GOLD : 'rgba(255,255,255,0.12)'}`, background: on ? `${GOLD}24` : NAVY,
+                          color: on ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700 }}>
+                        {c.id !== 'any' && <Face id={c.id} size={28} />}
+                        {c.first_name}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '6px', lineHeight: 1.5 }}>
+                  {coachFilter === 'any' ? t('booking.anyCoachHint') : t('booking.oneCoachHint', { name: coachName(coachFilter) })}
+                </div>
+              </div>
+            )}
+            {privateFlow && openings && coachFilter !== 'any' && lessonLength === 30 && (() => {
+              // The coach's next few open times, soonest first, so a family set
+              // on one busy coach does not have to hunt for them day by day.
+              const soon: { ds: string; tm: string }[] = []
+              for (const ds of Object.keys(openings.days).sort()) {
+                for (const tm of Object.keys(openings.days[ds]).sort()) {
+                  if (openings.days[ds][tm].includes(coachFilter)) soon.push({ ds, tm })
+                  if (soon.length >= 6) break
+                }
+                if (soon.length >= 6) break
+              }
+              return (
+                <div style={{ background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '14px', padding: '14px 16px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: soon.length ? '10px' : 0 }}>
+                    {soon.length ? t('booking.soonFor', { name: coachName(coachFilter) }) : t('booking.soonNone', { name: coachName(coachFilter) })}
+                    {soon.length > 0 && <span style={{ fontSize: '12px', fontWeight: 500, color: 'rgba(255,255,255,0.45)', marginLeft: '6px' }}>· {t('booking.soonHint')}</span>}
+                  </div>
+                  {soon.length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
+                      {soon.map(x => {
+                        const d = new Date(x.ds + 'T00:00:00')
+                        return (
+                          <button key={x.ds + x.tm}
+                            onClick={() => {
+                              setCalMonth(d.getMonth()); setCalYear(d.getFullYear())
+                              setSelectedDate(d); setSelectedSlot(null); setTimeSlots([])
+                              pendingPickRef.current = { date: x.ds, time: x.tm }
+                            }}
+                            style={{ flexShrink: 0, textAlign: 'left', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer',
+                              border: '1.5px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#fff' }}>
+                            <span style={{ display: 'block', fontSize: '13px', fontWeight: 700 }}>{formatTime(x.tm)}</span>
+                            <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                              {d.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric', weekday: 'short' })}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             {!groupFlow && <div style={{ background: NAVY, borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <button onClick={() => {
@@ -1405,7 +1541,9 @@ export default function BookingPage() {
                 {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
                 {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, i) => {
                   const date = new Date(calYear, calMonth, i + 1)
-                  const available = isDateAvailable(date)
+                  const dsC = formatDateLA(date)
+                  const openHere = privateFlow && openings && lessonLength === 30 ? coachesOn(dsC) : null
+                  const available = isDateAvailable(date) && (openHere == null || openHere.length > 0)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isTodayDate = date.toDateString() === today.toDateString()
                   // This calendar has no per-slot cells to mark, so the day itself
@@ -1429,7 +1567,11 @@ export default function BookingPage() {
                         cursor: available ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1px solid ${GOLD}40` : 'none',
                       }}
-                    ><span>{i + 1}</span>{groupFlow && groupDates.includes(formatDateLA(date)) && !isSelected && (
+                    ><span>{i + 1}</span>{openHere && openHere.length > 0 && isDateAvailable(date) && !isSelected && (
+                      <span style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
+                        {openHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
+                      </span>
+                    )}{groupFlow && groupDates.includes(formatDateLA(date)) && !isSelected && (
                       <span style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', margin: '2px auto 0', backgroundColor: myBandColor }} />
                     )}</button>
                   )
@@ -1457,9 +1599,9 @@ export default function BookingPage() {
                 </div>
                 {lessonLength === 60 && (() => {
                   const rows = hourSlots
-                    .map((h: any) => ({ ...h, opts: (h.options || []).filter((o: any) => o.coach1_id === selectedCoach?.id) }))
+                    .map((h: any) => ({ ...h, opts: (h.options || []).filter((o: any) => coachFilter === 'any' || o.coach1_id === coachFilter) }))
                     .filter((h: any) => h.opts.length > 0)
-                    .map((h: any) => ({ ...h, pick: h.opts.find((o: any) => !o.relay) || h.opts[0] }))
+                    .map((h: any) => ({ ...h, pick: h.opts.find((o: any) => !o.relay && o.coach1_id === openings?.preferred) || h.opts.find((o: any) => !o.relay) || h.opts[0] }))
                   // The server prices every hour slot and sends the figure with
                   // it, so nothing here has to guess. The cheapest one on offer
                   // decides whether the family can book an hour at all; when
@@ -1497,6 +1639,8 @@ export default function BookingPage() {
                             return (
                               <button key={h.start_time} disabled={!usable}
                                 onClick={() => {
+                                  const c1 = coaches.find(x => x.id === o.coach1_id)
+                                  if (c1) setSelectedCoach(c1)
                                   setSelectedHour({ ...h, ...o })
                                   setSelectedSlot({ time: h.start_time, label: `${formatTime(h.start_time)} – ${formatTime(h.end_time)}`, available: true, enrolled: 0, max: 1, within24h: w24 })
                                 }}
@@ -1528,6 +1672,9 @@ export default function BookingPage() {
                                 {isReschedule && (
                                   <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px', fontWeight: 700 }}>{t('booking.noExtraCharge')}</div>
                                 )}
+                                {!o.relay && coachFilter === 'any' && (
+                                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', fontWeight: 600 }}>{o.coach1_name}</div>
+                                )}
                                 {o.relay && (
                                   <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', marginTop: '2px', lineHeight: 1.3, fontWeight: 500 }}>
                                     {t('booking.relayCoaches', { a: o.coach1_name, b: o.coach2_name })}
@@ -1541,7 +1688,9 @@ export default function BookingPage() {
                     </div>
                   )
                 })()}
-                {!isTrial && timeSlots.some(sl => sl.available && sl.within24h) && (
+                {!isTrial && (privateFlow && openings && coachFilter === 'any'
+                  ? lessonLength === 30 && Object.keys(openings.days[formatDateLA(selectedDate)] || {}).some(tm => isWithin24Hours(formatDateLA(selectedDate), tm))
+                  : timeSlots.some(sl => sl.available && sl.within24h)) && (
                   <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>⚠️</span>
                     <div>
@@ -1613,7 +1762,97 @@ export default function BookingPage() {
                       </div>
                     )
                   })()
-                ) : timeSlots.length === 0 ? (
+                ) : (privateFlow && openings && coachFilter === 'any') ? (lessonLength === 60 ? null : (() => {
+                  const ds0 = formatDateLA(selectedDate)
+                  const day = openings.days[ds0] || {}
+                  const times = Object.keys(day).sort()
+                  if (times.length === 0) return (
+                    <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
+                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.noSlots')}</p>
+                    </div>
+                  )
+                  const curKey = selectedSlot ? `${ds0}|${selectedSlot.time}` : ''
+                  const curIds = selectedSlot ? (day[selectedSlot.time] || []) : []
+                  const curShown = !!selectedSlot && curIds.length > 0 && (!batchFlow || recurSel.has(curKey))
+                  return (
+                    <>
+                      {batchFlow && (
+                        <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
+                        {times.map(tm => {
+                          const ids = day[tm]
+                          const key0 = `${ds0}|${tm}`
+                          const inBasket = batchFlow && recurSel.has(key0)
+                          const on = inBasket || (!batchFlow && selectedSlot?.time === tm)
+                          const pr = (isReschedule || isTrial) ? null : priceAt(ds0, tm, 30)
+                          const cost0 = pr?.charged ?? 0
+                          const freed = batchFlow ? [...recurSel.values()].filter(x => x.date === ds0).reduce((acc, x) => acc + x.points, 0) : 0
+                          const affordable0 = !batchFlow || inBasket || basketTotal - freed + cost0 <= balance
+                          const w24 = isWithin24Hours(ds0, tm)
+                          const chosenCoach = inBasket ? recurSel.get(key0)!.coachId : null
+                          return (
+                            <button key={tm} disabled={!affordable0}
+                              onClick={() => {
+                                const cid = chosenCoach
+                                  || (openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0])
+                                const c = coaches.find(x => x.id === cid)
+                                if (!c) return
+                                choosePrivate(ds0, { time: tm, label: formatTime(tm), available: true, enrolled: 0, max: selectedCourse?.max_students ?? 1, within24h: w24 }, c)
+                              }}
+                              style={{
+                                padding: '12px 8px', borderRadius: '10px', textAlign: 'center',
+                                border: `2px ${batchFlow && !affordable0 ? 'dashed' : 'solid'} ${on ? GOLD : affordable0 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
+                                background: on ? `${GOLD}20` : affordable0 ? NAVY : 'rgba(255,255,255,0.03)',
+                                color: on ? GOLD : affordable0 ? '#fff' : 'rgba(255,255,255,0.2)',
+                                fontSize: '13px', fontWeight: 600, cursor: affordable0 ? 'pointer' : 'not-allowed',
+                              }}>
+                              {inBasket ? '✓ ' : ''}{formatTime(tm)}
+                              {pr && <PriceTag price={pr} dim={!affordable0} />}
+                              {pr?.offPeak && (
+                                <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
+                              )}
+                              {!isTrial && w24 && <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>}
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', marginTop: '6px' }}>
+                                {(chosenCoach ? [chosenCoach] : ids).map(id => <Face key={id} id={id} size={20} />)}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {curShown && (
+                        <div style={{ marginTop: '12px', background: NAVY, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 14px' }}>
+                          <div style={{ fontSize: '12.5px', color: 'rgba(255,255,255,0.7)', marginBottom: '10px' }}>
+                            {t('booking.coachesAt', { time: selectedSlot!.label })}
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {curIds.map(id => {
+                              const on = selectedCoach?.id === id
+                              return (
+                                <button key={id}
+                                  onClick={() => {
+                                    if (on) return
+                                    const c = coaches.find(x => x.id === id)
+                                    if (c) choosePrivate(ds0, selectedSlot!, c)
+                                  }}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '40px', padding: '0 14px 0 6px', borderRadius: '999px', cursor: on ? 'default' : 'pointer',
+                                    border: `1.5px solid ${on ? GOLD : 'rgba(255,255,255,0.14)'}`, background: on ? `${GOLD}20` : 'transparent',
+                                    color: on ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700 }}>
+                                  <Face id={id} size={26} />{coachName(id)}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          {selectedCoach && (
+                            <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '10px' }}>
+                              {t('booking.coachPicked', { name: selectedCoach.first_name })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()) : timeSlots.length === 0 ? (
                   <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.noSlots')}</p>
                   </div>
@@ -1642,18 +1881,9 @@ export default function BookingPage() {
                       return (
                         <button key={slot.time}
                         onClick={() => {
-                          if (!slot.available) return
-                          setSelectedSlot(slot)
-                          if (!batchFlow || !selectedDate) return
-                          setRecurOpen(false); setRecurMsg('')
-                          setRecurSel(prev => {
-                            const n = new Map(prev)
-                            if (n.has(key0)) { n.delete(key0); return n }
-                            if (!affordable0) return prev
-                            for (const k of [...n.keys()]) if (k.startsWith(ds0 + '|')) n.delete(k)
-                            n.set(key0, { date: ds0, time: slot.time, label: slot.label, points: cost0 })
-                            return n
-                          })
+                          if (!slot.available || !selectedDate || !selectedCoach) return
+                          if (batchFlow && !affordable0) return
+                          choosePrivate(ds0, slot, selectedCoach)
                         }}
                         disabled={!usable0}
                         style={{
@@ -1895,6 +2125,7 @@ export default function BookingPage() {
                           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
                           {new Date(x.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                           {basketTimes.size > 1 ? ` · ${x.label}` : ''}
+                          {basketCoaches.size > 1 ? ` · ${x.coachName || ''}` : ''}
                           <span aria-hidden style={{ color: 'rgba(255,255,255,0.4)' }}>×</span>
                         </button>
                       ))}
@@ -1920,6 +2151,7 @@ export default function BookingPage() {
                             student2_id: siblingPair ? selectedStudent2!.id : null,
                             start_time: selectedSlot.time, start_date: formatDateLA(selectedDate),
                             course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
+                            fallback: privateFlow && coachFilter === 'any',
                           }),
                         })
                         const j = await res.json().catch(() => ({}))
@@ -1930,6 +2162,7 @@ export default function BookingPage() {
                             cands.filter((c: any) => c.points != null).map((c: any) => [c.date, Number(c.points)]))
                           setRecurList(cands)
                           setRecurQuote(quote)
+                          setRecurCoach(new Map(cands.filter((c: any) => c.status === 'ok').map((c: any) => [c.date, c.coach_id || selectedCoach.id])))
                           // Pre-tick the first ten dates the wallet actually
                           // covers: running total, in date order, stopping at
                           // the balance. Everything further out is one tap
@@ -2009,6 +2242,11 @@ export default function BookingPage() {
                             <div style={{ fontSize: '10px', marginTop: '2px', opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
                               {t('points.unit', { n: cost })}
                             </div>
+                            {c.substitute && (
+                              <div style={{ fontSize: '10px', marginTop: '2px', fontWeight: 700, color: coachColor(c.coach_id) }}>
+                                {t('booking.recur.subCoach', { name: c.coach_name })}
+                              </div>
+                            )}
                           </button>
                         )
                       })}
@@ -2016,6 +2254,11 @@ export default function BookingPage() {
                     <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.32)', marginTop: '8px', lineHeight: 1.6 }}>
                       {t('booking.recur.gridHint')}
                     </div>
+                    {recurCandidates.some((c: any) => c.substitute) && (
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginTop: '6px', lineHeight: 1.6 }}>
+                        {t('booking.recur.subNote')}
+                      </div>
+                    )}
 
                     <div style={{ marginTop: '13px', padding: '11px 12px', borderRadius: '9px', background: 'rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
@@ -2046,7 +2289,8 @@ export default function BookingPage() {
                               // One private lesson per day still holds: this
                               // slot's date displaces anything else that day.
                               if (!groupFlow) for (const k of [...n.keys()]) if (k.startsWith(date + '|')) n.delete(k)
-                              n.set(key, { date, time, label: selectedSlot.label, points })
+                              const cid = recurCoach.get(date) || selectedCoach.id
+                              n.set(key, { date, time, label: selectedSlot.label, points, coachId: cid, coachName: coachName(cid) })
                             }
                             return n
                           })
@@ -2087,7 +2331,7 @@ export default function BookingPage() {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => { setStep(groupFlow ? 1 : 2); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()) }} style={{
+                <button onClick={() => { setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()) }} style={{
                   flex: 1, padding: '14px', background: 'transparent',
                   color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                   borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
@@ -2117,7 +2361,7 @@ export default function BookingPage() {
                 { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
                 { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
-                { label: t('booking.sum.coach'), value: selectedCoach?.first_name },
+                { label: t('booking.sum.coach'), value: planCoaches.length > 0 ? planCoaches.join(locale === 'en' ? ', ' : '、') : selectedCoach?.first_name },
                 // Naming one hour above a batch that spans two of them tells the
                 // family the wrong time for half their lessons.
                 { label: t('booking.sum.time'), value: planTimes.size > 1 ? t('booking.sum.timeMultiple', { n: planTimes.size }) : recurPlan[0]?.label },
@@ -2163,6 +2407,7 @@ export default function BookingPage() {
                       <span key={x.date + x.time} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
                         {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                         {planTimes.size > 1 ? ` · ${x.label}` : ''}
+                        {planCoaches.length > 1 ? ` · ${x.coachName || ''}` : ''}
                       </span>
                     ))}
                   </div>
