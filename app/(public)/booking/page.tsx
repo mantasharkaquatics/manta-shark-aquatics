@@ -2018,7 +2018,13 @@ export default function BookingPage() {
                                   </button>
                                 ) : (
                                   <>
-                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                                    {/* The weekday sits beside the date, where the eye already
+                                        is -- the pinned row at the top is for scanning a
+                                        whole column, not for reading one day. */}
+                                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px', marginBottom: '4px' }}>
+                                      <span style={{ fontSize: '13px', fontWeight: 700, color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</span>
+                                      <span style={{ fontSize: '11px', fontWeight: 600, color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.5)' }}>{dt.toLocaleDateString(dateLoc, { weekday: 'short' })}</span>
+                                    </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       {slots.map((sl: any) => {
                                         const w24 = isWithin24Hours(ds, sl.time)
