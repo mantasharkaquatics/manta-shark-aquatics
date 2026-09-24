@@ -1947,7 +1947,8 @@ export default function BookingPage() {
                     const GAP = 4, EXTRA = 14
                     const rowEdge = Array.from({ length: days.length / 7 }, (_, r) =>
                       r > 0 && days.slice(r * 7, r * 7 + 7).some((d, k) => days[(r - 1) * 7 + k].getMonth() !== d.getMonth()))
-                    const lineAt = (r: number) => `${-((rowEdge[r] ? GAP + EXTRA : GAP) / 2) - 1.5}px`
+                    const lineTop = (r: number) => -((rowEdge[r] ? GAP + EXTRA : GAP) / 2) - 1.5
+                    const lineAt = (r: number) => `${lineTop(r)}px`
                     return (
                       <div style={{ marginBottom: '18px' }}>
                         <div style={{ position: 'sticky', top: 0, zIndex: 2, background: DARK, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', padding: '6px 0 4px', marginBottom: '4px' }}>
@@ -1989,6 +1990,13 @@ export default function BookingPage() {
                             return (
                               <React.Fragment key={ds}>
                               <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: isPhone ? '0' : '5px 3px', minHeight: isPhone ? '52px' : '76px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
+                                {!isPhone && (idx === 0 || (edgeTop && idx % 7 === 0)) && (
+                                  // On a wide screen the month sits in the margin, level with
+                                  // the start of its line. A phone has no margin to spare, so
+                                  // there the 1st of the month carries a small tag instead.
+                                  <span style={{ position: 'absolute', right: 'calc(100% + 14px)', top: idx === 0 ? '2px' : `${lineTop(row) + 1.5 - 12}px`,
+                                    lineHeight: '24px', whiteSpace: 'nowrap', fontSize: '19px', fontWeight: 800, color: GOLD }}>{monthLabel}</span>
+                                )}
                                 {edgeTop && <span aria-hidden style={{ position: 'absolute', top: lineAt(row), left: idx % 7 === 0 ? 0 : '-4px', right: idx % 7 === 6 ? 0 : '-4px', height: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
                                 {edgeLeft && <span aria-hidden style={{ position: 'absolute', left: '-4px', top: lineAt(row), bottom: lineAt(row + 1), width: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
                                 {isPhone ? (
@@ -2007,7 +2015,7 @@ export default function BookingPage() {
                                   </button>
                                 ) : (
                                   <>
-                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{monthTag && <span style={{ fontSize: '10px', fontWeight: 800, color: NAVY, background: GOLD, borderRadius: '4px', padding: '1px 5px', marginRight: '5px' }}>{monthLabel}</span>}{i + 1}</div>
+                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       {slots.map((sl: any) => {
                                         const w24 = isWithin24Hours(ds, sl.time)
