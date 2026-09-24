@@ -289,12 +289,23 @@ export async function POST(req: NextRequest) {
     const hourEndTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes * 2)
     const createdBookingIds: string[] = []
     const createdSessionIds: string[] = []
-    const taken: { parentId: string; points: number }[] = []
+    const taken: { parentId: string; points: number; granted: number; expires: string | null }[] = []
+    // Granted points each family's debit used, handed out to its rows in the
+    // order they are written (earliest lesson first).
+    const grantLeft = new Map<string, { left: number; expires: string | null }>()
+    const grantedFor = (parentId: string, points: number) => {
+      const g = grantLeft.get(parentId)
+      if (!g || g.left <= 0) return { points_granted: 0, points_granted_expires_at: null }
+      const k = Math.min(g.left, points)
+      g.left -= k
+      return { points_granted: k, points_granted_expires_at: k > 0 ? g.expires : null }
+    }
 
     async function rollback(why: string) {
       for (const t of taken) {
         await applyPoints(svc, {
           parentId: t.parentId, reason: 'booking_failed', points: t.points,
+          grantedPart: t.granted, grantedExpiresAt: t.expires,
           actor: 'system', note: why,
         }).catch(e => console.error('points rollback failed:', e))
       }
@@ -317,7 +328,7 @@ export async function POST(req: NextRequest) {
     ]
     for (const c of charges) {
       try {
-        await applyPoints(svc, {
+        const paid = await applyPoints(svc, {
           parentId: c.parentId, reason: 'booking', points: -c.quote.total, actor: `admin:${auth.admin?.id ?? 'unknown'}`,
           pricing: {
             kind: 'admin_series', courseSlug: ct.slug, startTime: start_time, hour: !!hour,
@@ -326,7 +337,8 @@ export async function POST(req: NextRequest) {
           },
           note: dates.length === 1 ? null : `Series booked at the desk: ${dates.length} lessons`,
         })
-        taken.push({ parentId: c.parentId, points: c.quote.total })
+        taken.push({ parentId: c.parentId, points: c.quote.total, granted: paid.grantedTaken, expires: paid.grantedExpiresAt })
+        grantLeft.set(c.parentId, { left: paid.grantedTaken, expires: paid.grantedExpiresAt })
       } catch (e: any) {
         await rollback('the other side of the booking could not pay')
         if (e instanceof InsufficientPoints)
@@ -376,6 +388,7 @@ export async function POST(req: NextRequest) {
             .insert({ class_session_id: sid, parent_id: student1.parent_id, student_id: student1.id,
                       lesson_credit_id: null, token_package_id: null,
                       points_charged: quote1.perDate.get(date)!,
+                      ...grantedFor(student1.parent_id, quote1.perDate.get(date)!),
                       status: 'confirmed', lesson_group_id: groupId })
             .select('id').single()
           if (be || !bk) {
@@ -430,7 +443,7 @@ export async function POST(req: NextRequest) {
           .from('bookings')
           .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id,
                     lesson_credit_id: null, token_package_id: null,
-                    points_charged: b.points, status: 'confirmed' })
+                    points_charged: b.points, ...grantedFor(b.parent_id, b.points), status: 'confirmed' })
           .select('id').single()
         if (bookErr || !created) {
           await rollback('a booking row could not be written')

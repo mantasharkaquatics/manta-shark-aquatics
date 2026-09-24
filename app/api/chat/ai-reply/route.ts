@@ -357,6 +357,10 @@ export async function POST(req: NextRequest) {
       return {
         balance_points: w.balance,
         balance_dollars: w.balance,
+        bonus_points: w.balanceGranted,
+        next_bonus_expiry: w.grantedNextExpiry
+          ? `${w.grantedNextExpiry.points} bonus points expire on ${w.grantedNextExpiry.date.slice(0, 10)}`
+          : null,
         lessons_completed: w.lessonsCompleted,
         late_cancellation_allowances: w.forgiveness,
       }

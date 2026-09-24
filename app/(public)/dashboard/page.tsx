@@ -541,6 +541,8 @@ type WalletSummary = {
   balanceGranted: number
   /** Points owed after a bank return or a dispute. Zero for almost everyone. */
   arrears: number
+  /** The next date some granted points expire, and how many. */
+  grantedNextExpiry: { date: string; points: number } | null
   lessonsCompleted: number
   forgiveness: number
   lessonsPerForgiveness: number
@@ -602,6 +604,21 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
             the second thing a parent reads about their own account. */}
         {t('points.card.worth')}
       </div>
+      {/* Granted points expire; purchased ones never do. Said here, before the
+          date arrives, so an expiry is never the first a family hears of it. */}
+      {w.balanceGranted > 0 && (
+        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginTop: '-8px', marginBottom: '14px', lineHeight: 1.5 }}>
+          {w.grantedNextExpiry
+            ? t('points.card.grantedExpiry', {
+                granted: w.balanceGranted.toLocaleString(),
+                n: w.grantedNextExpiry.points.toLocaleString(),
+                date: new Date(w.grantedNextExpiry.date).toLocaleDateString(
+                  locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW',
+                  { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }),
+              })
+            : t('points.card.granted', { granted: w.balanceGranted.toLocaleString() })}
+        </div>
+      )}
 
       {/* A bank return is rare and alarming, so it gets the top of the card and
           plain words: what is paused, how much, and the one button that fixes

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   // Fetch own booking (must be pending reschedule)
   const { data: myBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, status, partner_booking_id, points_charged, pending_new_session_id, pending_action, original_booking_id')
+    .select('id, class_session_id, parent_id, student_id, status, partner_booking_id, points_charged, points_granted, points_granted_expires_at, pending_new_session_id, pending_action, original_booking_id')
     .eq('id', booking_id)
     .in('pending_action', ['reschedule', 'reschedule_initiator'])
     .single()
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   const { data: partnerBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, status, points_charged, pending_new_session_id, original_booking_id')
+    .select('id, class_session_id, parent_id, student_id, status, points_charged, points_granted, points_granted_expires_at, pending_new_session_id, original_booking_id')
     .eq('id', partnerBookingId)
     .single()
 
@@ -151,6 +151,8 @@ export async function POST(req: NextRequest) {
     parent_id: myBooking.parent_id,
     student_id: myBooking.student_id,
     points_charged: myBooking.points_charged,
+    points_granted: myBooking.points_granted ?? 0,
+    points_granted_expires_at: myBooking.points_granted_expires_at ?? null,
     status: 'confirmed',
     pending_action: null,
     original_booking_id: myOriginalId,
@@ -170,6 +172,8 @@ export async function POST(req: NextRequest) {
     parent_id: partnerBooking.parent_id,
     student_id: partnerBooking.student_id,
     points_charged: partnerBooking.points_charged,
+    points_granted: partnerBooking.points_granted ?? 0,
+    points_granted_expires_at: partnerBooking.points_granted_expires_at ?? null,
     status: 'confirmed',
     pending_action: null,
     original_booking_id: partnerOriginalId,

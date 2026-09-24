@@ -6,7 +6,7 @@ import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -265,10 +265,16 @@ export async function POST(req: NextRequest) {
     const createdBookings: string[] = []
     const createdSessions: string[] = []
     let pointsTaken = 0
+    let grantedTaken = 0
+    let grantedExpires: string | null = null
+    // Each half-hour row's share of the granted points, handed out in the
+    // order the rows are written below.
+    let rowGranted: number[] = []
     async function rollback(why: string) {
       if (pointsTaken > 0) {
         await applyPoints(svc, {
           parentId: parent.id, reason: 'booking_failed', points: pointsTaken,
+          grantedPart: grantedTaken, grantedExpiresAt: grantedExpires,
           actor: 'system', note: why,
         }).catch(e => console.error('points rollback failed:', e))
         pointsTaken = 0
@@ -283,11 +289,14 @@ export async function POST(req: NextRequest) {
     // concurrent hour bookings cannot both spend the same points.
     if (!isPartnerBooking) {
       try {
-        await applyPoints(svc, {
+        const paid = await applyPoints(svc, {
           parentId: parent.id, reason: 'booking', points: -price.charged,
           pricing: price, actor: 'parent',
         })
         pointsTaken = price.charged
+        grantedTaken = paid.grantedTaken
+        grantedExpires = paid.grantedExpiresAt
+        rowGranted = splitGranted(paid.grantedTaken, Array(halves.length * students.length).fill(price.perHalfHour))
       } catch (e: any) {
         if (e instanceof WalletInArrears)
           return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
@@ -346,10 +355,12 @@ export async function POST(req: NextRequest) {
       for (const st of students) {
         // Each half-hour row carries its own half of the price, so cancelling
         // adds back up exactly and a half taught is a half counted.
+        const g = rowGranted.shift() ?? 0
         const { data: bk, error: bErr } = await svc.from('bookings')
           .insert({ class_session_id: sessId, parent_id: parent.id, student_id: st.id,
                     lesson_credit_id: null, token_package_id: null,
-                    points_charged: price.perHalfHour, status: 'confirmed', lesson_group_id: groupId })
+                    points_charged: price.perHalfHour, status: 'confirmed', lesson_group_id: groupId,
+                    points_granted: g, points_granted_expires_at: g > 0 ? grantedExpires : null })
           .select('id').single()
         if (bErr || !bk) {
           await rollback('a booking row could not be written')

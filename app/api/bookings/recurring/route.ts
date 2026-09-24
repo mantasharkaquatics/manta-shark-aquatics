@@ -6,7 +6,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
@@ -408,8 +408,9 @@ export async function POST(req: NextRequest) {
     // read "8 lessons booked" on the day they booked them, and each booking row
     // still carries its own points so cancelling one date refunds exactly that
     // date. The per-lesson figures ride along in the ledger entry.
+    let paid
     try {
-      await applyPoints(svc, {
+      paid = await applyPoints(svc, {
         parentId: parent.id, reason: 'booking', points: -charge.total, actor: 'parent',
         pricing: uniformTime
           ? {
@@ -433,18 +434,26 @@ export async function POST(req: NextRequest) {
 
     const refundBatch = (why: string) => applyPoints(svc, {
       parentId: parent.id, reason: 'booking_failed', points: charge.total,
+      grantedPart: paid.grantedTaken, grantedExpiresAt: paid.grantedExpiresAt,
       actor: 'system', note: why,
     }).catch(e => console.error('points rollback failed:', e))
+
+    // The rows, in lesson order, and each one's share of any granted points
+    // the debit used -- the earliest lessons take them first.
+    const rowSpecs = booked.flatMap(s2 => studentIds.map(sid => ({ s2, sid, points: charge.perSeat.get(slotKey(s2))! })))
+    const rowGranted = splitGranted(paid.grantedTaken, rowSpecs.map(r => r.points))
 
     // One row per swimmer per lesson. Both seats were paid in the single debit
     // above, but each row carries its own seat's points so cancelling one
     // sibling's lesson refunds that seat and leaves the other standing.
     const { error: bookErr } = await svc.from('bookings')
-      .insert(booked.flatMap(s2 => studentIds.map(sid => ({
+      .insert(rowSpecs.map(({ s2, sid, points }, i) => ({
         class_session_id: sessionIdByKey.get(slotKey(s2))!, parent_id: parent.id,
         student_id: sid, lesson_credit_id: null,
-        points_charged: charge.perSeat.get(slotKey(s2))!, status: 'confirmed',
-      }))))
+        points_charged: points, status: 'confirmed',
+        points_granted: rowGranted[i],
+        points_granted_expires_at: rowGranted[i] > 0 ? paid.grantedExpiresAt : null,
+      })))
     if (bookErr) {
       await refundBatch('the lessons could not be booked')
       return NextResponse.json({ error: `Failed to book the lessons: ${bookErr.message}` }, { status: 500 })

@@ -232,6 +232,19 @@ export function forgivenessAvailable(lessonsCompleted: number, forgivenessUsed: 
   return Math.max(0, Math.floor(lessonsCompleted / LESSONS_PER_FORGIVENESS) - forgivenessUsed)
 }
 
+// --- Granted points expire ---------------------------------------------------
+// Points we GIVE -- a referral reward, a bonus at the front desk, a goodwill
+// adjustment -- last one year from the day they are added (owner, 2026-09).
+// Points a family PAID for never expire; nothing here touches them.
+export const GRANTED_POINTS_VALID_MONTHS = 12
+
+/** When points granted at `from` stop being spendable. */
+export function grantedExpiry(from: Date = new Date()): string {
+  const d = new Date(from.getTime())
+  d.setUTCMonth(d.getUTCMonth() + GRANTED_POINTS_VALID_MONTHS)
+  return d.toISOString()
+}
+
 // --- Money --------------------------------------------------------------------
 /** 1 point = US$1, fixed forever. Both directions, so nothing can drift. */
 export const CENTS_PER_POINT = 100

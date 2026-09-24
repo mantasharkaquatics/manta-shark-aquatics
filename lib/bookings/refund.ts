@@ -27,6 +27,35 @@ export type RefundableBooking = {
 }
 
 /**
+ * How much of a refund goes back as GRANTED points. A lesson paid partly with
+ * granted points returns that part first (it was spent first), so a gift
+ * cannot be turned into cash-refundable, never-expiring points by booking a
+ * lesson and cancelling it.
+ */
+export function grantedShareOfRefund(
+  b: { points_granted?: number | null; points_refunded?: number | null },
+  owed: number,
+): number {
+  const left = Math.max(0, (b.points_granted ?? 0) - (b.points_refunded ?? 0))
+  return Math.max(0, Math.min(owed, left))
+}
+
+/**
+ * The granted share of a booking, read fresh rather than trusted from the
+ * caller: half a dozen call sites select their own columns, and one that
+ * forgot these two would quietly refund a gift as cash.
+ */
+export async function grantedOf(svc: Svc, bookingId: string): Promise<{ points_granted: number; points_granted_expires_at: string | null }> {
+  const { data, error } = await svc
+    .from('bookings')
+    .select('points_granted, points_granted_expires_at')
+    .eq('id', bookingId)
+    .single()
+  if (error || !data) throw new Error(`Could not read booking ${bookingId}: ${error?.message ?? 'not found'}`)
+  return { points_granted: Number(data.points_granted) || 0, points_granted_expires_at: data.points_granted_expires_at ?? null }
+}
+
+/**
  * Returns the points that actually reached the wallet: 0 when nothing was
  * owed, and 0 when the refund failed. Callers use the figure to decide what
  * to tell the family -- an email saying "your points are back" must not go
@@ -52,10 +81,13 @@ export async function refundBookingPoints(
   if (owed <= 0) return 0
 
   try {
+    const g = await grantedOf(svc, args.booking.id)
     await applyPoints(svc, {
       parentId: args.parentId,
       reason: args.reason,
       points: owed,
+      grantedPart: grantedShareOfRefund({ ...g, points_refunded: already }, owed),
+      grantedExpiresAt: g.points_granted_expires_at,
       bookingId: args.booking.id,
       actor: args.actor,
       note: args.note ?? null,

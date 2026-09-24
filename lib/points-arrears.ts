@@ -13,6 +13,7 @@
 // a human to chase.
 
 import { applyPoints, arrears, getWallet } from '@/lib/points-wallet'
+import { grantedShareOfRefund } from '@/lib/bookings/refund'
 
 type Svc = any
 
@@ -57,7 +58,7 @@ export async function reclaimForArrears(
 
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, class_session_id, points_charged, points_refunded, status')
+    .select('id, class_session_id, points_charged, points_refunded, points_granted, points_granted_expires_at, status')
     .eq('parent_id', parentId)
     .eq('status', 'confirmed')
     .not('points_charged', 'is', null)
@@ -113,11 +114,16 @@ export async function reclaimForArrears(
       .select('id')
     if (!claimed || claimed.length === 0) continue
 
+    // A lesson paid with granted points returns them as granted points --
+    // which do not reduce the debt, so only the purchased share counts below.
+    const grantedBack = grantedShareOfRefund(b, back)
     try {
       await applyPoints(svc, {
         parentId,
         reason: 'school_cancel',
         points: back,
+        grantedPart: grantedBack,
+        grantedExpiresAt: b.points_granted_expires_at ?? null,
         bookingId: b.id,
         actor: 'system',
         note,
@@ -141,7 +147,7 @@ export async function reclaimForArrears(
 
     cancelledBookingIds.push(b.id)
     pointsReturned += back
-    owed -= back
+    owed -= back - grantedBack
   }
 
   const after = await getWallet(svc, parentId)

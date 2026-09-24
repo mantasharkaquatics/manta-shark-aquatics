@@ -43,7 +43,7 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
   // Pricing comes from lib/points.ts, the same module that charges the wallet,
   // so the assistant cannot quote a price the booking page will not honour.
   const priceLines = [
-    'Lessons are paid for out of a points wallet. 1 point = US$1, fixed. Points never expire and unused points can be refunded at any time for what was paid.',
+    'Lessons are paid for out of a points wallet. 1 point = US$1, fixed. Purchased points never expire and unused purchased points can be refunded at any time for what was paid. Bonus points the school adds without payment expire one year after they are added, are used first, and cannot be refunded for cash.',
     `The website sells exactly these amounts and nothing else: ${TOPUP_PRESETS.map(p => {
       const shape = presetLessons(p)
       return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} × ${shape.slug})` : '$' + p.toLocaleString('en-US')

@@ -41,7 +41,8 @@ const pointsUrl = 'data:text/javascript;base64,' + Buffer.from(
 const wallet = await load('../lib/points-wallet.ts', [
   [/from '@\/lib\/points'/, `from '${pointsUrl}'`],
 ])
-const { applyPoints, arrears, DuplicateLedgerEntry, InsufficientPoints, reversePurchase, totalBalance, WalletInArrears } = wallet
+const { applyPoints, arrears, DuplicateLedgerEntry, InsufficientPoints, reversePurchase, totalBalance, WalletInArrears,
+  replayGrantLots, takeFromLots, dueToExpire, expireGrantedPoints, splitGranted, latestExpiry } = wallet
 
 const walletUrl = 'data:text/javascript;base64,' + Buffer.from(
   ts.transpileModule(
@@ -80,6 +81,10 @@ function makeSvc(opts = {}) {
       forgiveness_used: opts.forgivenessUsed ?? 0,
     },
     ledger: [],
+    // Granted rows already on the books before the test starts: the lots the
+    // wallet's granted balance is made of. Visible to the replay, not counted
+    // in state.ledger.
+    seedLedger: opts.seedLedger || (opts.granted ? [{ delta_granted: opts.granted, granted_expires_at: null }] : []),
     // Called before each guarded update. Lets a test move the wallet
     // underneath the code, the way a concurrent request would.
     beforeUpdate: opts.beforeUpdate || null,
@@ -132,6 +137,8 @@ function makeSvc(opts = {}) {
         },
         select() { return this },
         eq() { return this },
+        neq() { return this },
+        order: async () => ({ data: [...state.seedLedger, ...state.ledger].filter(r => (r.delta_granted || 0) !== 0), error: null }),
         limit: async () => ({ data: [] }),
       }
     }
@@ -529,6 +536,86 @@ console.log('\n退款金額必須是整數美元')
   let caught = null
   try { await planRefund(svc, 'p1p', 12345) } catch (e) { caught = e }
   eq('$123.45 被拒絕', caught?.code, 'INVALID_AMOUNT')
+}
+
+// --- 21. granted points expire, lot by lot --------------------------------
+console.log('\n贈點的批次：先到期的先用')
+{
+  const lots = replayGrantLots([
+    { delta_granted: 40, granted_expires_at: '2027-03-01T00:00:00Z' },
+    { delta_granted: 40, granted_expires_at: '2026-12-01T00:00:00Z' },
+    { delta_granted: 10, granted_expires_at: null },
+    { delta_granted: -50 },
+  ])
+  eq('12 月那批先用光', lots.map(l => [l.expiresAt, l.remaining]),
+     [['2027-03-01T00:00:00Z', 30], [null, 10]])
+  eq('沒有日期的最後才用', takeFromLots([{ expiresAt: null, remaining: 5 }, { expiresAt: '2027-01-01T00:00:00Z', remaining: 5 }], 6),
+     [{ expiresAt: '2027-01-01T00:00:00Z', points: 5 }, { expiresAt: null, points: 1 }])
+  eq('到期的只算日期已過的', dueToExpire([
+    { expiresAt: '2026-09-01T00:00:00Z', remaining: 7 },
+    { expiresAt: '2026-10-01T00:00:00Z', remaining: 9 },
+    { expiresAt: null, remaining: 3 },
+  ], new Date('2026-09-15T00:00:00Z')), 7)
+  eq('退回時保留最晚的那個日期', latestExpiry([
+    { expiresAt: '2026-12-01T00:00:00Z', points: 1 }, { expiresAt: '2027-02-01T00:00:00Z', points: 1 }]), '2027-02-01T00:00:00Z')
+  eq('分到每堂課：先上的課先分', splitGranted(70, [40, 40, 40]), [40, 30, 0])
+}
+
+console.log('\n贈點加進來就有一年期限')
+{
+  const { state, svc } = makeSvc({ purchased: 0 })
+  const before = Date.now()
+  await applyPoints(svc, { parentId: 'p1', reason: 'referral_bonus', points: 40, toGranted: true, actor: 'system' })
+  const exp = Date.parse(state.ledger[0].granted_expires_at)
+  const days = (exp - before) / 86400000
+  eq('到期日在 365 天左右', days > 364 && days < 367, true)
+  eq('進到贈點那一邊', [state.wallet.balance_granted, state.wallet.balance_purchased], [40, 0])
+}
+
+console.log('\n用贈點上的課取消：退回贈點，保留原本到期日')
+{
+  const { state, svc } = makeSvc({ purchased: 100, granted: 40,
+    seedLedger: [{ delta_granted: 40, granted_expires_at: '2027-01-15T00:00:00Z' }] })
+  const paid = await applyPoints(svc, { parentId: 'p1', reason: 'booking', points: -65, actor: 'parent' })
+  eq('這堂課用了 40 點贈點', paid.grantedTaken, 40)
+  eq('記下贈點的到期日', paid.grantedExpiresAt, '2027-01-15T00:00:00Z')
+  await applyPoints(svc, { parentId: 'p1', reason: 'cancel_refund', points: 65,
+    grantedPart: paid.grantedTaken, grantedExpiresAt: paid.grantedExpiresAt, actor: 'parent' })
+  eq('贈點回到贈點那一邊', [state.wallet.balance_granted, state.wallet.balance_purchased], [40, 100])
+  eq('退回的贈點保留原本的到期日', state.ledger.at(-1).granted_expires_at, '2027-01-15T00:00:00Z')
+}
+
+console.log('\n每日到期：只收走日期已過的贈點')
+{
+  const { state, svc } = makeSvc({ purchased: 200, granted: 50,
+    seedLedger: [
+      { delta_granted: 30, granted_expires_at: '2026-09-01T00:00:00Z' },
+      { delta_granted: 20, granted_expires_at: '2027-09-01T00:00:00Z' },
+    ] })
+  const n = await expireGrantedPoints(svc, 'p1', new Date('2026-09-24T12:00:00Z'))
+  eq('收走 30 點', n, 30)
+  eq('購買點不動，贈點剩 20', [state.wallet.balance_purchased, state.wallet.balance_granted], [200, 20])
+  eq('帳本理由是 grant_expired', state.ledger.at(-1).reason, 'grant_expired')
+  const again = await expireGrantedPoints(svc, 'p1', new Date('2026-09-24T12:00:00Z'))
+  eq('同一天再跑一次不會重複收', again, 0)
+}
+
+console.log('\n欠款中也照樣到期')
+{
+  const { state, svc } = makeSvc({ purchased: -50, granted: 10,
+    seedLedger: [{ delta_granted: 10, granted_expires_at: '2026-01-01T00:00:00Z' }] })
+  const n = await expireGrantedPoints(svc, 'p1', new Date('2026-09-24T00:00:00Z'))
+  eq('到期不受欠款影響', [n, state.wallet.balance_granted, state.wallet.balance_purchased], [10, 0, -50])
+}
+
+console.log('\n退現金只扣購買點，不動贈點')
+{
+  const { state, svc } = makeSvc({ purchased: 100, granted: 40 })
+  await applyPoints(svc, { parentId: 'p1', reason: 'cash_refund', points: -100, amountCents: 10000, actor: 'admin:a1' })
+  eq('贈點原封不動，購買點歸零', [state.wallet.balance_granted, state.wallet.balance_purchased], [40, 0])
+  let caught = null
+  try { await applyPoints(svc, { parentId: 'p1', reason: 'cash_refund', points: -40, amountCents: 4000, actor: 'admin:a1' }) } catch (e) { caught = e }
+  eq('贈點換不到現金', caught instanceof InsufficientPoints, true)
 }
 
 console.log(fails === 0 ? '\n全部通過\n' : `\n${fails} 項失敗\n`)

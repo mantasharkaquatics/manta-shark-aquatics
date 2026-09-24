@@ -4,7 +4,7 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, WalletInArrears } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       // points_refunded comes along because the refund below subtracts it:
       // without it a lesson refunded in part would be refunded again in full.
-      .select('id, parent_id, status, points_charged, points_refunded, class_session_id, original_booking_id, partner_booking_id, lesson_group_id')
+      .select('id, parent_id, status, points_charged, points_refunded, points_granted, points_granted_expires_at, class_session_id, original_booking_id, partner_booking_id, lesson_group_id')
       .eq('id', reschedule_booking_id).single()
     if (!ob || ob.parent_id !== parent.id)
       return NextResponse.json({ error: 'Booking to reschedule not found' }, { status: 403 })
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     if (course.slug === '1on2' && !isPartnerBooking) {
       const { data: rows } = await svc
         .from('bookings')
-        .select('id, student_id, points_charged, points_refunded')
+        .select('id, student_id, points_charged, points_refunded, points_granted, points_granted_expires_at')
         .eq('parent_id', parent.id)
         .eq('class_session_id', ob.class_session_id)
         .eq('status', 'confirmed')
@@ -297,10 +297,21 @@ export async function POST(req: NextRequest) {
   // cross-account 1-on-2 settles when the other family confirms, not here.
   let chargedTotal = 0
   let perSeatCharged = inheritedPoints ?? price.perSeat
+  // How many of each seat's points were granted ones, and when they expire.
+  // A moved lesson keeps its old rows' figures, seat for seat.
+  const seatCount = student2 && !isPartnerBooking ? 2 : 1
+  let seatGranted: number[] = oldBooking && !isPartnerBooking
+    ? Array.from({ length: seatCount }, (_, i) => Number(oldLessonRows[i]?.points_granted) || 0)
+    : Array(seatCount).fill(0)
+  let grantedExpires: string | null = oldBooking && !isPartnerBooking
+    ? (oldLessonRows.find((r: any) => Number(r.points_granted) > 0)?.points_granted_expires_at ?? null)
+    : null
+  let grantedTaken = 0
   const refundSpent = async (why: string) => {
     if (chargedTotal > 0) {
       await applyPoints(svc, {
         parentId: parent.id, reason: 'booking_failed', points: chargedTotal,
+        grantedPart: grantedTaken, grantedExpiresAt: grantedExpires,
         actor: 'system', note: why,
       }).catch(e => console.error('points rollback failed:', e))
       chargedTotal = 0
@@ -309,7 +320,7 @@ export async function POST(req: NextRequest) {
 
   if (!isPartnerBooking && inheritedPoints === null) {
     try {
-      await applyPoints(svc, {
+      const paid = await applyPoints(svc, {
         parentId: parent.id,
         reason: 'booking',
         points: -price.charged,
@@ -317,6 +328,9 @@ export async function POST(req: NextRequest) {
         actor: 'parent',
       })
       chargedTotal = price.charged
+      grantedTaken = paid.grantedTaken
+      grantedExpires = paid.grantedExpiresAt
+      seatGranted = splitGranted(paid.grantedTaken, Array(seatCount).fill(price.perSeat))
     } catch (e: any) {
       if (e instanceof WalletInArrears)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
@@ -340,6 +354,8 @@ export async function POST(req: NextRequest) {
       lesson_credit_id: null,
       token_package_id: null,
       points_charged: isPartnerBooking ? null : perSeatCharged,
+      points_granted: isPartnerBooking ? 0 : seatGranted[0],
+      points_granted_expires_at: !isPartnerBooking && seatGranted[0] > 0 ? grantedExpires : null,
       student_id: student.id,
       status: isPartnerBooking ? 'pending_partner' : 'confirmed',
       pending_action: null,
@@ -368,6 +384,8 @@ export async function POST(req: NextRequest) {
       lesson_credit_id: null,
       token_package_id: null,
       points_charged: perSeatCharged,
+      points_granted: seatGranted[1] ?? 0,
+      points_granted_expires_at: (seatGranted[1] ?? 0) > 0 ? grantedExpires : null,
       student_id: student2.id,
       status: 'confirmed',
       original_booking_id: rootOriginalId,

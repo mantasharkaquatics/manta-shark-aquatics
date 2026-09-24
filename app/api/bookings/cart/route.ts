@@ -5,7 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil 
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 
 // Parent shopping cart. Items are real `in_cart` bookings so the DB trigger
 // counts them into enrolled_count (slot is reserved the moment it enters the
@@ -261,8 +261,11 @@ export async function POST(req: NextRequest) {
     // One debit for the cart, taken before any row flips, so a family who
     // cannot pay is turned away with the cart intact and nothing confirmed.
     let pointsTaken = 0
+    let grantedTaken = 0
+    let grantedExpires: string | null = null
+    let itemGranted: number[] = []
     try {
-      await applyPoints(svc, {
+      const paid = await applyPoints(svc, {
         parentId: parent.id, reason: 'booking', points: -quote.total, actor: 'parent',
         pricing: {
           kind: 'cart',
@@ -274,6 +277,9 @@ export async function POST(req: NextRequest) {
         note: `Cart: ${cart.items.length} lesson${cart.items.length === 1 ? '' : 's'}`,
       })
       pointsTaken = quote.total
+      grantedTaken = paid.grantedTaken
+      grantedExpires = paid.grantedExpiresAt
+      itemGranted = splitGranted(paid.grantedTaken, cart.items.map((it: any) => pointsOf.get(it.booking_id) ?? 0))
     } catch (e: any) {
       if (e instanceof WalletInArrears)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
@@ -288,23 +294,26 @@ export async function POST(req: NextRequest) {
       if (pointsTaken > 0) {
         await applyPoints(svc, {
           parentId: parent.id, reason: 'booking_failed', points: pointsTaken,
+          grantedPart: grantedTaken, grantedExpiresAt: grantedExpires,
           actor: 'system', note: why,
         }).catch(e => console.error('points rollback failed:', e))
         pointsTaken = 0
       }
       for (const b of confirmed)
         await svc.from('bookings')
-          .update({ status: 'in_cart', pending_expires_at: b.expiry, points_charged: null })
+          .update({ status: 'in_cart', pending_expires_at: b.expiry, points_charged: null, points_granted: 0, points_granted_expires_at: null })
           .eq('id', b.id)
     }
 
-    for (const it of cart.items) {
+    for (const [i, it] of cart.items.entries()) {
       // Conditional update = idempotency lock (only an un-expired in_cart row flips)
+      const g = itemGranted[i] ?? 0
       const { data: locked } = await svc
         .from('bookings')
         .update({
           status: 'confirmed', lesson_credit_id: null,
           points_charged: pointsOf.get(it.booking_id) ?? 0,
+          points_granted: g, points_granted_expires_at: g > 0 ? grantedExpires : null,
           pending_expires_at: null,
         })
         .eq('id', it.booking_id).eq('status', 'in_cart')

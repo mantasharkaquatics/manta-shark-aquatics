@@ -874,6 +874,7 @@ type WalletView = {
   balance: number
   balancePurchased: number
   balanceGranted: number
+  grantedNextExpiry: { date: string; points: number } | null
   lessonsCompleted: number
   forgiveness: number
   ledger: LedgerRow[]
@@ -935,6 +936,8 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
     : r === 'admin_deduct' ? 'border-red-400/50 text-red-300'
     : r === 'cash_refund' ? 'border-red-400/50 text-red-300'
     : r === 'school_cancel' ? 'border-orange-400/50 text-orange-300'
+    : r === 'grant_expired' ? 'border-gray-500/50 text-gray-400'
+    : r === 'referral_bonus' ? 'border-purple-400/50 text-purple-300'
     : 'border-[#c9a84c]/50 text-[#c9a84c]'
 
   return (
@@ -963,6 +966,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                   figure is never worked out in someone's head at the counter. */}
               <p className="text-gray-500 text-xs">
                 Cash refundable today: ${w.balancePurchased.toLocaleString()}. Granted points are not refundable.
+                {w.grantedNextExpiry && ` Next expiry: ${w.grantedNextExpiry.points.toLocaleString()} granted points on ${new Date(w.grantedNextExpiry.date).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric' })}.`}
               </p>
 
               <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -1010,7 +1014,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
             </div>
             <p className="text-gray-500 text-xs mb-4">
               {n > 0
-                ? 'These are granted points: they book lessons like any other point, and are not refundable for cash.'
+                ? 'These are granted points: they book lessons like any other point, are not refundable for cash, and expire one year from today.'
                 : 'Granted points are taken back first, then purchased ones.'}
               {' '}The reason above appears on the parent’s own points history.
             </p>

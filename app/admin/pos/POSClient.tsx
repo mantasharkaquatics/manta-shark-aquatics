@@ -641,7 +641,7 @@ export default function POSClient() {
               </div>
               <p style={{ color: topupValid ? '#6b7280' : '#fbbf24', fontSize: 11, margin: '8px 0 0' }}>
                 {topupValid
-                  ? `Wallet receives ${(topup + bonus).toLocaleString()} points. ${bonus > 0 ? `${bonus.toLocaleString()} of them are a bonus and are not refundable for cash.` : 'Refundable at $1 per point.'}`
+                  ? `Wallet receives ${(topup + bonus).toLocaleString()} points. ${bonus > 0 ? `${bonus.toLocaleString()} of them are a bonus: not refundable for cash, and they expire in one year.` : 'Refundable at $1 per point.'}`
                   : `Amount must be $${MIN_TOPUP_DOLLARS}\u2013$${MAX_TOPUP_DOLLARS.toLocaleString()}, and the bonus cannot exceed it.`}
               </p>
             </div>

@@ -17,7 +17,7 @@ export const POLICIES = `
 - No-show without cancelling: the lesson counts as taken and the points are used. A plain no-show has NO exceptions and NO compensation of any kind - no doctor's note changes this. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
 
 === POINTS (HOW LESSONS ARE PAID FOR) ===
-- Lessons are paid for out of a points balance on the family account. 1 point = US$1.00, fixed. Points NEVER expire, there are no fees of any kind for holding them, and they are shared by every swimmer on the account.
+- Lessons are paid for out of a points balance on the family account. 1 point = US$1.00, fixed. Points the family PAID FOR never expire, there are no fees of any kind for holding them, and they are shared by every swimmer on the account. Points the school ADDS without payment (bonus points) expire ONE YEAR after they are added, are spent before purchased points, and the dashboard shows the next expiry date.
 - A family adds points by choosing a dollar amount (any whole dollar from $50 to $10,000). There is NO bulk discount on the purchase - do not imply that adding more is cheaper per point, because it is not.
 - Unused points that were PAID FOR can be refunded in cash at $1 per point at any time, with no deadline and no fee. See REFUNDS.
 - Points the school ADDS without payment - a promotion, a goodwill adjustment, a negotiated programme rate - book lessons exactly like any other point but cannot be cashed out. Never promise a cash refund on bonus points.

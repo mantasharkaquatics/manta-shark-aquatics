@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, WalletInArrears } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -160,11 +160,12 @@ export async function POST(req: NextRequest) {
   // Settle both families BEFORE the claim. Taking the points first means a lost
   // race is a 409 with nothing claimed, instead of a confirmed lesson nobody
   // paid for. Both debits are reversible, and refundSpent() puts them back.
-  const taken: { parentId: string; points: number }[] = []
+  const taken: { parentId: string; points: number; granted: number; expires: string | null }[] = []
   const refundSpent = async (why: string) => {
     for (const t of taken) {
       await applyPoints(supabase, {
         parentId: t.parentId, reason: 'booking_failed', points: t.points,
+        grantedPart: t.granted, grantedExpiresAt: t.expires,
         actor: 'system', note: why,
       }).catch(e => console.error('points rollback failed:', e))
     }
@@ -172,11 +173,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await applyPoints(supabase, {
+    const paid = await applyPoints(supabase, {
       parentId: confirmingParent.id, reason: 'booking', points: -myQuote.total,
       pricing: myQuote.price, actor: 'parent',
     })
-    taken.push({ parentId: confirmingParent.id, points: myQuote.total })
+    taken.push({ parentId: confirmingParent.id, points: myQuote.total, granted: paid.grantedTaken, expires: paid.grantedExpiresAt })
   } catch (e: any) {
     if (e instanceof WalletInArrears)
       return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
@@ -187,11 +188,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await applyPoints(supabase, {
+    const paid = await applyPoints(supabase, {
       parentId: initiatorBooking.parent_id, reason: 'booking', points: -theirQuote.total,
       pricing: theirQuote.price, actor: 'parent',
     })
-    taken.push({ parentId: initiatorBooking.parent_id, points: theirQuote.total })
+    taken.push({ parentId: initiatorBooking.parent_id, points: theirQuote.total, granted: paid.grantedTaken, expires: paid.grantedExpiresAt })
   } catch (e: any) {
     await refundSpent('the inviting family could not pay')
     if (e instanceof WalletInArrears)
@@ -219,19 +220,23 @@ export async function POST(req: NextRequest) {
 
   // Stamp each row with its own half of what that family paid, so a later
   // cancellation refunds the right family the right number of points.
-  const assign = async (rows: any[], perRow: number) => {
-    for (const row of rows) {
+  // Each row also carries its share of any granted points that family used.
+  const assign = async (rows: any[], perRow: number, t: { granted: number; expires: string | null } | undefined) => {
+    const shares = splitGranted(t?.granted ?? 0, rows.map(() => perRow))
+    for (const [i, row] of rows.entries()) {
       await supabase.from('bookings').update({
         lesson_credit_id: null,
         token_package_id: null,
         points_charged: perRow,
+        points_granted: shares[i],
+        points_granted_expires_at: shares[i] > 0 ? (t?.expires ?? null) : null,
         pending_action: null,
         pending_expires_at: null,
       }).eq('id', row.id)
     }
   }
-  await assign(mine, myQuote.perRow)
-  await assign(theirs, theirQuote.perRow)
+  await assign(mine, myQuote.perRow, taken.find(t => t.parentId === confirmingParent.id))
+  await assign(theirs, theirQuote.perRow, taken.find(t => t.parentId === initiatorBooking.parent_id))
 
   try {
     const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', initiatorBooking.parent_id).single()
