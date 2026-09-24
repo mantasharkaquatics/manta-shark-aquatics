@@ -1941,6 +1941,13 @@ export default function BookingPage() {
                     const lastDay = new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
                     const days: Date[] = []
                     for (const d = new Date(weekStart0); d <= lastDay || days.length % 7 !== 0; d.setDate(d.getDate() + 1)) days.push(new Date(d))
+                    // A row the month line runs above gets extra room, and the
+                    // line sits in the middle of it rather than squeezed into the
+                    // 4px gap between cells.
+                    const GAP = 4, EXTRA = 14
+                    const rowEdge = Array.from({ length: days.length / 7 }, (_, r) =>
+                      r > 0 && days.slice(r * 7, r * 7 + 7).some((d, k) => days[(r - 1) * 7 + k].getMonth() !== d.getMonth()))
+                    const lineAt = (r: number) => `${-((rowEdge[r] ? GAP + EXTRA : GAP) / 2) - 1.5}px`
                     return (
                       <div style={{ marginBottom: '18px' }}>
                         <div style={{ position: 'sticky', top: 0, zIndex: 2, background: DARK, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', padding: '6px 0 4px', marginBottom: '4px' }}>
@@ -1967,6 +1974,7 @@ export default function BookingPage() {
                             const before = idx % 7 !== 0 ? days[idx - 1] : null
                             const edgeTop = !!above && above.getMonth() !== m
                             const edgeLeft = !!before && before.getMonth() !== m
+                            const row = Math.floor(idx / 7)
                             const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
                             const isPast = ds < todayDs
                             const isToday2 = ds === todayDs
@@ -1980,9 +1988,9 @@ export default function BookingPage() {
                             const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)) : []
                             return (
                               <React.Fragment key={ds}>
-                              <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: isPhone ? '0' : '5px 3px', minHeight: isPhone ? '52px' : '76px', minWidth: 0, position: 'relative' }}>
-                                {edgeTop && <span aria-hidden style={{ position: 'absolute', top: '-4px', left: '-4px', right: '-4px', height: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
-                                {edgeLeft && <span aria-hidden style={{ position: 'absolute', left: '-4px', top: '-4px', bottom: '-4px', width: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
+                              <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: isPhone ? '0' : '5px 3px', minHeight: isPhone ? '52px' : '76px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
+                                {edgeTop && <span aria-hidden style={{ position: 'absolute', top: lineAt(row), left: idx % 7 === 0 ? 0 : '-4px', right: idx % 7 === 6 ? 0 : '-4px', height: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
+                                {edgeLeft && <span aria-hidden style={{ position: 'absolute', left: '-4px', top: lineAt(row), bottom: lineAt(row + 1), width: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
                                 {isPhone ? (
                                   <button onClick={() => { if (slots.length === 0) return; setOpenDay(open ? null : ds) }}
                                     disabled={slots.length === 0}
