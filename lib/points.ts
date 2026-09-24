@@ -132,6 +132,13 @@ export function nextVipTier(lessonsCompleted: number): { tier: VipTier; lessonsT
 
 // --- Off-peak ----------------------------------------------------------------
 export const OFF_PEAK_DISCOUNT = 0.05
+/**
+ * Off-peak pricing is switched OFF (owner, 2026-09): no lesson is discounted
+ * for its time of day, and no page mentions it. The hours and the rate are
+ * kept below so it can come back by setting this to true -- the booking page,
+ * the Points page and the terms all read this switch.
+ */
+export const OFF_PEAK_ENABLED = false
 
 // Minutes from midnight, in the school's local time. Weekday 0 = Sunday.
 // The pool opens 6:00 and closes 21:00 daily; on weekdays half of that is
@@ -162,6 +169,11 @@ function toMinutes(time: string): number {
  * a UTC server cannot shift it a day.
  */
 export function isOffPeak(dateStr: string, startTime: string): boolean {
+  return OFF_PEAK_ENABLED && isInOffPeakWindow(dateStr, startTime)
+}
+
+/** Whether a start time falls inside the off-peak hours, switch or no switch. */
+export function isInOffPeakWindow(dateStr: string, startTime: string): boolean {
   const [y, m, d] = dateStr.split('-').map(Number)
   const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
   const mins = toMinutes(startTime)

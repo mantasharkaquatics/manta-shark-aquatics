@@ -17,7 +17,7 @@ const src = readFileSync(new URL('../lib/points.ts', import.meta.url), 'utf8')
   .replace(/export const todayLA = getTodayLA/, '')
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
 const mod = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
-const { priceLesson, vipTier, nextVipTier, isOffPeak, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents, TOPUP_PRESETS, presetLessons, topUpAmount } = mod
+const { priceLesson, vipTier, nextVipTier, isOffPeak, isInOffPeakWindow, OFF_PEAK_ENABLED, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents, TOPUP_PRESETS, presetLessons, topUpAmount } = mod
 
 let fails = 0
 const eq = (label, got, want) => {
@@ -29,24 +29,25 @@ const eq = (label, got, want) => {
 // 2026-09-02 is a Wednesday, 2026-09-05 a Saturday.
 const WED = '2026-09-02', SAT = '2026-09-05'
 
-console.log('\n離峰時段')
-eq('平日 09:10 離峰',            isOffPeak(WED, '09:10'), true)
-eq('平日 11:45 離峰（看開始時間）', isOffPeak(WED, '11:45'), true)
-eq('平日 12:00 尖峰（邊界不含）',   isOffPeak(WED, '12:00'), false)
-eq('平日 06:00 離峰（開門即算）',   isOffPeak(WED, '06:00'), true)
-eq('平日 16:15 尖峰',            isOffPeak(WED, '16:15'), false)
-eq('平日 19:30 離峰',            isOffPeak(WED, '19:30'), true)
-eq('週六 09:00 離峰',            isOffPeak(SAT, '09:00'), true)
-eq('週六 10:00 尖峰（週末較早結束）', isOffPeak(SAT, '10:00'), false)
-eq('平日 21:00 尖峰（打烊，右邊界不含）', isOffPeak(WED, '21:00'), false)
-eq('平日 20:59 離峰',            isOffPeak(WED, '20:59'), true)
-eq('平日 05:59 尖峰（開門前）',   isOffPeak(WED, '05:59'), false)
+console.log('\n離峰時段表（優惠' + (OFF_PEAK_ENABLED ? '開啟' : '關閉') + '中）')
+eq('優惠關閉時，沒有任何時段算離峰', isOffPeak(WED, '09:10'), OFF_PEAK_ENABLED)
+eq('平日 09:10 離峰',            isInOffPeakWindow(WED, '09:10'), true)
+eq('平日 11:45 離峰（看開始時間）', isInOffPeakWindow(WED, '11:45'), true)
+eq('平日 12:00 尖峰（邊界不含）',   isInOffPeakWindow(WED, '12:00'), false)
+eq('平日 06:00 離峰（開門即算）',   isInOffPeakWindow(WED, '06:00'), true)
+eq('平日 16:15 尖峰',            isInOffPeakWindow(WED, '16:15'), false)
+eq('平日 19:30 離峰',            isInOffPeakWindow(WED, '19:30'), true)
+eq('週六 09:00 離峰',            isInOffPeakWindow(SAT, '09:00'), true)
+eq('週六 10:00 尖峰（週末較早結束）', isInOffPeakWindow(SAT, '10:00'), false)
+eq('平日 21:00 尖峰（打烊，右邊界不含）', isInOffPeakWindow(WED, '21:00'), false)
+eq('平日 20:59 離峰',            isInOffPeakWindow(WED, '20:59'), true)
+eq('平日 05:59 尖峰（開門前）',   isInOffPeakWindow(WED, '05:59'), false)
 // 週日在 JS 是 0，最容易被寫錯的一格
-eq('週日 09:00 離峰',            isOffPeak('2026-09-06', '09:00'), true)
-eq('週日 10:00 尖峰',            isOffPeak('2026-09-06', '10:00'), false)
+eq('週日 09:00 離峰',            isInOffPeakWindow('2026-09-06', '09:00'), true)
+eq('週日 10:00 尖峰',            isInOffPeakWindow('2026-09-06', '10:00'), false)
 // 日期字串是「當地日期」，不是 UTC。用 Date 直接 parse 會在 UTC 伺服器上
 // 差一天，離峰判斷就會整批錯開一格。
-eq('週一 09:00 離峰（不被 UTC 位移）', isOffPeak('2026-09-07', '09:00'), true)
+eq('週一 09:00 離峰（不被 UTC 位移）', isInOffPeakWindow('2026-09-07', '09:00'), true)
 
 console.log('\nVIP 級距')
 eq('9 堂 → 一般',   vipTier(9).level,   0)
@@ -66,12 +67,12 @@ eq('游泳評估',             p({ isAssessment: true }).charged, 85)
 eq('1對1 60 分鐘 = ×2',    p({ courseSlug: '1on1', minutes: 60 }).charged, 130)
 eq('1對2 兩個自己的孩子',   p({ courseSlug: '1on2', seats: 2 }).charged, 100)
 eq('VIP2 尖峰 1對1',       p({ courseSlug: '1on1', lessonsCompleted: 20 }).charged, 61)
-eq('VIP2 離峰 1對1',
-   priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 20 }).charged, 58)
-eq('最大折扣：VIP5 離峰 1對1',
-   priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 80 }).charged, 54)
-eq('最大折扣：VIP5 離峰 1對4',
-   priceLesson({ courseSlug: '1on4', sessionDate: WED, startTime: '10:20', lessonsCompleted: 80 }).charged, 33)
+eq('VIP2 早上 10:20 1對1',
+   priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 20 }).charged, OFF_PEAK_ENABLED ? 58 : 61)
+eq('最大折扣：VIP5 早上 1對1',
+   priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 80 }).charged, OFF_PEAK_ENABLED ? 54 : 57)
+eq('最大折扣：VIP5 早上 1對4',
+   priceLesson({ courseSlug: '1on4', sessionDate: WED, startTime: '10:20', lessonsCompleted: 80 }).charged, OFF_PEAK_ENABLED ? 33 : 35)
 
 console.log('\n60 分鐘 = 兩堂 30 分鐘，一分不差')
 // 一小時的課程在資料庫裡是兩筆 30 分鐘的紀錄，各自帶著自己的點數。
@@ -96,7 +97,7 @@ console.log('\n沒有任何折扣組合會超過原價，或低於最大折扣')
   let over = 0, under = 0, n = 0
   for (const slug of Object.keys(BASE_POINTS)) {
     const base = BASE_POINTS[slug]
-    const floorPrice = Math.floor(base * (1 - 0.12) * (1 - OFF_PEAK_DISCOUNT))
+    const floorPrice = Math.floor(base * (1 - 0.12) * (1 - (OFF_PEAK_ENABLED ? OFF_PEAK_DISCOUNT : 0)))
     for (const tier of VIP_TIERS) {
       for (const date of [WED, SAT, '2026-09-06']) {
         for (let mins = 6 * 60; mins < 21 * 60; mins += 30) {
@@ -137,8 +138,13 @@ eq('金額換點數不會出現小數', centsToPoints(12345), 123)
 
 console.log('\n捨去方向永遠對家長有利')
 const b = priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 20 })
-eq('65 × 0.95 × 0.95 = 58.66 → 收 58', b.perSeat, 58)
-eq('同一堂課的每半小時價', b.perHalfHour, 58)
+if (OFF_PEAK_ENABLED) {
+  eq('65 × 0.95 × 0.95 = 58.66 → 收 58', b.perSeat, 58)
+  eq('同一堂課的每半小時價', b.perHalfHour, 58)
+} else {
+  eq('65 × 0.95 = 61.75 → 收 61', b.perSeat, 61)
+  eq('同一堂課的每半小時價', b.perHalfHour, 61)
+}
 
 console.log('\n晚取消豁免')
 eq('完成 9 堂 → 0 次',        forgivenessAvailable(9, 0),   0)

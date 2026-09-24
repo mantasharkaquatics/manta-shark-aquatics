@@ -1,7 +1,7 @@
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
   ASSESSMENT_POINTS, BASE_POINTS, LESSONS_PER_FORGIVENESS,
-  OFF_PEAK_DISCOUNT, VIP_TIERS, TOPUP_PRESETS, presetLessons,
+  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, VIP_TIERS, TOPUP_PRESETS, presetLessons,
 } from '@/lib/points'
 import { FAQ_IDS } from '@/lib/faq'
 import { translate } from '@/lib/i18n'
@@ -57,7 +57,9 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
       VIP_TIERS.filter(t => t.level > 0).sort((a, b) => a.level - b.level)
         .map(t => `VIP ${t.level} at ${t.lessons} lessons = ${Math.round(t.discount * 100)}% off`).join('; ')
     }.`,
-    `Off-peak discount: ${Math.round(OFF_PEAK_DISCOUNT * 100)}% off, judged on the time the lesson starts. Mon-Fri 6:00-12:00 and 19:30-21:00; Sat-Sun 6:00-10:00 and 19:30-21:00. The booking calendar marks these slots.`,
+    OFF_PEAK_ENABLED
+      ? `Off-peak discount: ${Math.round(OFF_PEAK_DISCOUNT * 100)}% off, judged on the time the lesson starts. Mon-Fri 6:00-12:00 and 19:30-21:00; Sat-Sun 6:00-10:00 and 19:30-21:00. The booking calendar marks these slots.`
+      : 'There is no off-peak or time-of-day discount; every time of day costs the same.',
     'Discounts multiply and the result is rounded down, so the remainder always favours the family.',
     `Cancelling more than 24 hours ahead returns the points in full. Within 24 hours the points are not returned, unless the family spends a late-cancellation allowance — they earn one for every ${LESSONS_PER_FORGIVENESS} lessons completed, and they choose whether to use it.`,
   ]

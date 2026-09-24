@@ -618,7 +618,7 @@ export async function POST(req: NextRequest) {
         const shape = presetLessons(p)
         return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} x ${shape.slug} at full price)` : '$' + p.toLocaleString('en-US')
       }).join(', ')}.`,
-      'Lesson counts are at full price -- a VIP or off-peak discount makes the same points go further, so they are a minimum, never a maximum.',
+      'Lesson counts are at full price -- a VIP discount makes the same points go further, so they are a minimum, never a maximum.',
       'A parent who wants a smaller or different amount has to be sent to the front desk; you cannot create a link for one.',
     ].join('\n')
 

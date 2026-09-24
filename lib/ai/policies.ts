@@ -1,6 +1,8 @@
 // Business policies fed to the AI chat assistant.
 // Source: owner questionnaire, July 2026. When a policy changes: edit this
 // file, npm run build, git push.
+import { OFF_PEAK_ENABLED } from '@/lib/points'
+
 export const POLICIES = `
 === BUSINESS HOURS ===
 - Open every day, Monday through Sunday, 6:00 AM - 9:00 PM Pacific Time.
@@ -8,7 +10,7 @@ export const POLICIES = `
 
 === CANCEL / RESCHEDULE ===
 - More than 24 hours before the lesson starts: cancel for a FULL return of the points, or reschedule as often as they like. Either can be done by the parent online or by contacting the team.
-- A rescheduled lesson keeps the points already charged for it. It is NOT re-priced - not up if the new time is peak, not down if it is off-peak. Say so plainly if a parent asks whether moving a lesson to a cheaper time saves them points: it does not.
+- A rescheduled lesson keeps the points already charged for it. It is NOT re-priced.${OFF_PEAK_ENABLED ? ' Not up if the new time is peak, not down if it is off-peak. Say so plainly if a parent asks whether moving a lesson to a cheaper time saves them points: it does not.' : ''}
 - Within 24 hours of the start time, lessons cannot be RESCHEDULED online, and the points are NOT returned, because the coach's time is already reserved. Deliver this politely and with empathy: acknowledge the inconvenience, explain the reserved time, and then explain the late-cancellation allowance below, which is the thing that CAN be done.
 - LATE-CANCELLATION ALLOWANCE: a family earns one for every 10 lessons they COMPLETE (not purchase). Spending one returns the full points for a lesson cancelled inside 24 hours. The parent chooses whether to use one at the moment they cancel; the system never spends one on their behalf. Allowances accumulate and are never reset. The dashboard shows how many they have. When none remain, a lesson inside 24 hours cannot be cancelled online; explain that and offer to escalate.
 - 1-on-2 lessons are EXCLUDED from online late cancellation: a 1-on-2 starting within 24 hours cannot be cancelled online at all, because two families share the slot - the parent must contact the team and staff handle it by hand.
@@ -25,10 +27,9 @@ export const POLICIES = `
 
 === WHAT A LESSON COSTS ===
 - Every lesson has a base price in points, per swimmer, per 30 minutes. A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 booked for two swimmers on the SAME account is charged for both seats; when two different families share a 1-on-2, each family pays for its own swimmer.
-- Two discounts, and both are applied WHEN THE PARENT BOOKS, not when they buy. That is the point worth making to a parent who asks why there is no bulk deal: the discount is earned by attending, and it applies to points already in the account.
+- ${OFF_PEAK_ENABLED ? 'Two discounts, and both are' : 'One discount, the VIP level, and it is'} applied WHEN THE PARENT BOOKS, not when they buy. That is the point worth making to a parent who asks why there is no bulk deal: the discount is earned by attending, and it applies to points already in the account.
 - VIP discount by lessons COMPLETED on the account: 3% from 10, 5% from 20, 7% from 30, 9% from 50, 12% from 80. Counted across every swimmer on the family account.
-- Off-peak discount: 5% off lessons that START inside the quieter hours - Mon-Fri 6:00 AM-12:00 noon and 7:30-9:00 PM; Sat-Sun 6:00-10:00 AM and 7:30-9:00 PM. The booking calendar marks them.
-- Both discounts multiply and the result is rounded DOWN to whole points, so the remainder always favours the family. Never quote a discount as a fixed number of points off; quote the percentage, or the actual price shown on the booking page.
+${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the quieter hours - Mon-Fri 6:00 AM-12:00 noon and 7:30-9:00 PM; Sat-Sun 6:00-10:00 AM and 7:30-9:00 PM. The booking calendar marks them.\n' : '- There is NO off-peak or time-of-day discount: every time of day costs the same. Do not mention one.\n'}- ${OFF_PEAK_ENABLED ? 'Both discounts multiply and the result is' : 'The discounted price is'} rounded DOWN to whole points, so the remainder always favours the family. Never quote a discount as a fixed number of points off; quote the percentage, or the actual price shown on the booking page.
 - Exact prices come from the PRICING section of the knowledge block. Never state a price that is not there.
 
 === 1-ON-4 GROUP CLASSES (LEVEL BANDS) ===
@@ -81,7 +82,7 @@ export const POLICIES = `
 
 === PAYMENTS ===
 - Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.
-- Pricing is uniform: no cash discount, no negotiated discounts, and no better rate for adding more points at once. The only discounts are the VIP level and the off-peak hours, both earned rather than bought.
+- Pricing is uniform: no cash discount, no negotiated discounts, and no better rate for adding more points at once. ${OFF_PEAK_ENABLED ? 'The only discounts are the VIP level and the off-peak hours, both earned rather than bought.' : 'The only discount is the VIP level, earned rather than bought.'}
 - Occasional promotions are announced by email newsletter; parents can subscribe to receive them. The AI never invents or promises promotions or discounts.
 
 === BOOKING & COACHES ===

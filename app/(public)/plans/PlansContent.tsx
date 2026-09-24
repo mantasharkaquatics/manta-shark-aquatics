@@ -10,7 +10,7 @@ import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
   ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
   TOPUP_COURSES, TOPUP_LESSON_COUNTS, topUpAmount, type TopUpCourse,
-  OFF_PEAK_DISCOUNT, TOPUP_PRESETS, VIP_TIERS,
+  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, TOPUP_PRESETS, VIP_TIERS,
 } from '@/lib/points'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/paths'
@@ -442,6 +442,8 @@ export default function PlansContent() {
               <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.retro')}</p>
             </div>
 
+            {/* Off-peak pricing is switched off (lib/points OFF_PEAK_ENABLED). */}
+            {OFF_PEAK_ENABLED && (
             <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e9f0', padding: '28px 26px' }}>
               <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY, marginBottom: '6px' }}>
                 {t('points.disc.offTitle', { pct: Math.round(OFF_PEAK_DISCOUNT * 100) })}
@@ -457,15 +459,21 @@ export default function PlansContent() {
               </div>
               <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.offNote')}</p>
             </div>
+            )}
           </div>
 
           <div style={{ marginTop: '24px', background: NAVY, borderRadius: '16px', padding: '24px 28px' }}>
             <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('points.example.eyebrow')}</div>
             <p style={{ fontSize: '14.5px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.8, margin: 0, maxWidth: '70ch' }}>
-              {t('points.example.body', {
-                base: exBase, vip: exVip, both: exBoth, saved: exBase - exBoth,
-                pct: Math.round(exVipPct * 100),
-              })}
+              {OFF_PEAK_ENABLED
+                ? t('points.example.body', {
+                    base: exBase, vip: exVip, both: exBoth, saved: exBase - exBoth,
+                    pct: Math.round(exVipPct * 100),
+                  })
+                : t('points.example.bodyVip', {
+                    base: exBase, vip: exVip, saved: exBase - exVip, level: 2,
+                    lessons: VIP_TIERS.find(x => x.level === 2)!.lessons,
+                  })}
             </p>
           </div>
         </div>

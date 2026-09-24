@@ -1,4 +1,5 @@
 import { LEGAL_VERSIONS } from '@/lib/legal'
+import { OFF_PEAK_ENABLED } from '@/lib/points'
 
 export const metadata = { title: 'User Agreement — Manta Shark Aquatics' }
 
@@ -29,11 +30,13 @@ export default function Page() {
         <p style={p}>Two things are not paid for with points. The <strong>Swim Assessment</strong> is charged to your card at the price shown when you book it, because a family books it before they have an account balance. <strong>Swim Team</strong> is a monthly membership under Section 8. Neither draws on your points.</p>
 
         <h2 style={h2}>4. What a Lesson Costs</h2>
-        <div style={plain}><strong>In plain terms:</strong> every lesson has a listed price. Two things bring it down &mdash; how many lessons you have completed, and booking at a quieter hour. Both are applied when you book, so they also apply to points you already have.</div>
+        {OFF_PEAK_ENABLED
+          ? <div style={plain}><strong>In plain terms:</strong> every lesson has a listed price. Two things bring it down &mdash; how many lessons you have completed, and booking at a quieter hour. Both are applied when you book, so they also apply to points you already have.</div>
+          : <div style={plain}><strong>In plain terms:</strong> every lesson has a listed price. The more lessons you have completed, the lower it gets. The discount is applied when you book, so it also applies to points you already have.</div>}
         <p style={p}>Each lesson has a base price in points, per swimmer, per 30 minutes, shown on our Points page and on the booking calendar before you confirm. A 60-minute lesson costs exactly twice a 30-minute one. A lesson booked for two swimmers on your own account is charged for both.</p>
         <p style={p}><strong>VIP discount.</strong> As lessons are completed on your account, every future lesson is discounted: 3% from 10 lessons, 5% from 20, 7% from 30, 9% from 50, and 12% from 80. The count is per family account and includes every swimmer on it. Because the discount is applied when you book rather than when you buy, reaching a new level changes the price of every lesson you book from then on, including lessons paid for with points already in your account.</p>
-        <p style={p}><strong>Off-peak discount.</strong> Lessons starting inside our quieter hours are discounted 5%. Those hours are 6:00&nbsp;a.m. to 12:00&nbsp;noon and 7:30&nbsp;p.m. to 9:00&nbsp;p.m. Monday through Friday, and 6:00&nbsp;a.m. to 10:00&nbsp;a.m. and 7:30&nbsp;p.m. to 9:00&nbsp;p.m. on Saturday and Sunday. Whether a lesson is off-peak is decided by the time it starts. The booking calendar marks these times.</p>
-        <p style={p}>Where both discounts apply they are multiplied together and the result is rounded down to a whole number of points, so any remainder is always in your favour. The exact figure, and the balance you will be left with, are shown before you confirm a booking. There is no discount for adding a larger amount of points, and no surcharge of any kind.</p>
+        {OFF_PEAK_ENABLED && <p style={p}><strong>Off-peak discount.</strong> Lessons starting inside our quieter hours are discounted 5%. Those hours are 6:00&nbsp;a.m. to 12:00&nbsp;noon and 7:30&nbsp;p.m. to 9:00&nbsp;p.m. Monday through Friday, and 6:00&nbsp;a.m. to 10:00&nbsp;a.m. and 7:30&nbsp;p.m. to 9:00&nbsp;p.m. on Saturday and Sunday. Whether a lesson is off-peak is decided by the time it starts. The booking calendar marks these times.</p>}
+        <p style={p}>{OFF_PEAK_ENABLED ? 'Where both discounts apply they are multiplied together and the result is rounded down' : 'The discounted price is rounded down'} to a whole number of points, so any remainder is always in your favour. The exact figure, and the balance you will be left with, are shown before you confirm a booking. There is no discount for adding a larger amount of points, and no surcharge of any kind.</p>
 
         <h2 style={h2}>5. Booking, Cancellation &amp; Rescheduling</h2>
         <div style={plain}><strong>In plain terms:</strong> cancel or reschedule freely up to 24 hours before a lesson and the points come straight back. Inside 24 hours the points are not returned &mdash; but for every 10 lessons you complete you earn one late-cancellation allowance, and you choose whether to spend it.</div>
