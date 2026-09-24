@@ -773,6 +773,14 @@ export default function BookingPage() {
   const basketTimes = new Set(basket.map(x => x.time))
   const planTimes = new Set(recurPlan.map(x => x.time))
   const planCoaches = [...new Set(recurPlan.map(x => x.coachName || ''))].filter(Boolean)
+  // One lesson in the basket still books through the batch route, but it is
+  // shown as a single booking: a date row, the time as a range, one price
+  // breakdown -- "Lesson dates (1)" and "Book 1 lesson" read as if there were more.
+  const planOne = recurPlan.length === 1 ? recurPlan[0] : null
+  const planMany = recurPlan.length > 1
+  const onePrice = planOne ? priceAt(planOne.date, planOne.time, 30) : null
+  const bookingPriceSingle = bookingPrice
+  const bookingCostSingle = bookingCost
   const basketCoaches = new Set(basket.map(x => x.coachId))
   const recurTotal = recurPlan.reduce((a, x) => a + x.points, 0)
   // The undiscounted figure, so the batch can show what the discounts took off.
@@ -2415,7 +2423,15 @@ export default function BookingPage() {
           <div>
             <SectionTitle title={t('booking.s5.title')} />
             <div style={{ background: NAVY, borderRadius: '16px', padding: '28px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
-              {(recurPlan.length > 0 ? [
+              {(planOne ? [
+                { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
+                  value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
+                { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
+                { label: t('booking.sum.coach'), value: planOne.coachName || selectedCoach?.first_name },
+                { label: t('booking.sum.date'), value: new Date(planOne.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
+                { label: t('booking.sum.time'), value: (() => { const [h, m] = planOne.time.split(':').map(Number); const e = h * 60 + m + 30; return `${formatTime(planOne.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
+                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: 30 }) },
+              ] : recurPlan.length > 0 ? [
                 { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
                 { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
@@ -2438,7 +2454,7 @@ export default function BookingPage() {
                 { label: t('booking.sum.course'), value: isTrial ? t('common.assessment') : (selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '') },
                 { label: t('booking.sum.coach'), value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
                 { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
-                { label: t('booking.sum.time'), value: selectedSlot?.label },
+                { label: t('booking.sum.time'), value: selectedHour || !selectedSlot ? selectedSlot?.label : (() => { const [h, m] = selectedSlot.time.split(':').map(Number); const e = h * 60 + m + (selectedCourse?.duration_minutes ?? 30); return `${formatTime(selectedSlot.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0 }) },
                 ...(isTrial || isReschedule
                   ? [{ label: t('booking.sum.price'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaid') : `$${TRIAL_PRICE_CENTS / 100}`) : t('booking.noExtraCharge') }]
@@ -2455,7 +2471,7 @@ export default function BookingPage() {
               {/* Every date, spelled out. This is the last screen before the
                   credits are spent, so "3 lessons" is not enough -- a parent has
                   to be able to see that one of them lands on a week they are away. */}
-              {recurPlan.length > 0 && (
+              {planMany && (
                 <div style={{ padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', marginBottom: '10px' }}>
                     {t('booking.recur.sumDates', { n: recurPlan.length })}
@@ -2475,7 +2491,7 @@ export default function BookingPage() {
                   "-4 pts, -3 pts": they are multiplied together and rounded down
                   once, so per-line whole numbers would not add up to the total
                   and a parent subtracting them would find us out. */}
-              {!isTrial && !isReschedule && recurPlan.length === 0 && bookingPrice && (
+              {!isTrial && !isReschedule && (planOne ? onePrice : recurPlan.length === 0 && bookingPrice) && (() => { const bookingPrice = (planOne ? onePrice : bookingPriceSingle)!; const bookingCost = planOne ? planOne.points : bookingCostSingle; const balanceAfter = Math.max(0, balance - bookingCost); return (
                 <div style={{ paddingTop: '12px' }}>
                   {[
                     { k: 'base', label: bookingPrice.seats > 1 ? t('booking.price.baseSeats', { n: bookingPrice.seats }) : t('booking.price.base'), value: String(bookingPrice.base * bookingPrice.seats), dim: true },
@@ -2496,12 +2512,12 @@ export default function BookingPage() {
                     <span style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: balanceAfter })}</span>
                   </div>
                 </div>
-              )}
+              )})()}
               {/* The batch's own breakdown. Every lesson is priced on its own
                   line above; this says what the whole thing costs and what the
                   discounts took off, because one lesson's percentages cannot
                   describe a batch where half the lessons are off-peak. */}
-              {recurPlan.length > 0 && (
+              {planMany && (
                 <div style={{ paddingTop: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
                     <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.batchBase', { n: recurPlan.length })}</span>
@@ -2532,7 +2548,7 @@ export default function BookingPage() {
             )}
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                {t('booking.policy.points', { n: wallet?.forgiveness ?? 0 })}
+                {isTrial ? t('booking.policy.assessment') : t('booking.policy.points', { n: wallet?.forgiveness ?? 0 })}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   {t('booking.viewTerms')}
                 </a>
@@ -2573,7 +2589,7 @@ export default function BookingPage() {
                   fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
-              >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : recurPlan.length > 0 ? t('booking.recur.yesBook', { n: recurPlan.length }) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
+              >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : planMany ? t('booking.recur.yesBook', { n: recurPlan.length }) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
             </div>
           </div>
         )}

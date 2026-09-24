@@ -186,6 +186,7 @@
   "booking.oneCoachHint": "Only {name}'s times. Days {name} isn't teaching are dimmed.",
   "booking.partnerConfirm": "Level {n} · Partner must confirm within 15 min",
   "booking.perSwimmer": "per swimmer · 30 min",
+  "booking.policy.assessment": "A Swim Assessment can be changed or cancelled up to 24 hours before it starts. To change or cancel, please contact us. ",
   "booking.policy.points": "Cancel more than 24 hours before the lesson and the points go straight back to your account. Within 24 hours they are not returned — unless you use one of your late-cancellation allowances, and you have {n}. ",
   "booking.prepaid": "Prepaid",
   "booking.price.after": "Balance after booking",

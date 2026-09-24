@@ -186,6 +186,7 @@
   "booking.oneCoachHint": "只顯示 {name} 教練的時間，沒空的日子會變暗。",
   "booking.partnerConfirm": "等級 {n} · 對方需在 15 分鐘內確認",
   "booking.perSwimmer": "每位學員 · 30 分鐘",
+  "booking.policy.assessment": "游泳評估最晚要在上課 24 小時前才能更改或取消。需要更改或取消，請聯絡我們。",
   "booking.policy.points": "開課前 24 小時以上取消，點數會全額退回您的帳戶。24 小時內取消不退點——除非使用晚取消豁免，您目前有 {n} 次。",
   "booking.prepaid": "已付款",
   "booking.price.after": "預約後餘額",
