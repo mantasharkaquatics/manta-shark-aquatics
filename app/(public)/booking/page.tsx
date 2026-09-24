@@ -1959,6 +1959,14 @@ export default function BookingPage() {
                             // first cell so the top row is never nameless.
                             const monthTag = idx === 0 || i === 0
                             const monthLabel = dt.toLocaleDateString(dateLoc, { month: 'short' })
+                            // A gold line where one month meets the next: along the
+                            // top of any day whose week-above is the old month, and
+                            // down the left of the 1st. Together they step round the
+                            // month like a staircase, so October reads as a block.
+                            const above = idx >= 7 ? days[idx - 7] : null
+                            const before = idx % 7 !== 0 ? days[idx - 1] : null
+                            const edgeTop = !!above && above.getMonth() !== m
+                            const edgeLeft = !!before && before.getMonth() !== m
                             const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
                             const isPast = ds < todayDs
                             const isToday2 = ds === todayDs
@@ -1972,12 +1980,14 @@ export default function BookingPage() {
                             const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)) : []
                             return (
                               <React.Fragment key={ds}>
-                              <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: isPhone ? '0' : '5px 3px', minHeight: isPhone ? '52px' : '76px', minWidth: 0 }}>
+                              <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: isPhone ? '0' : '5px 3px', minHeight: isPhone ? '52px' : '76px', minWidth: 0, position: 'relative' }}>
+                                {edgeTop && <span aria-hidden style={{ position: 'absolute', top: '-4px', left: '-4px', right: '-4px', height: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
+                                {edgeLeft && <span aria-hidden style={{ position: 'absolute', left: '-4px', top: '-4px', bottom: '-4px', width: '3px', borderRadius: '2px', background: GOLD, zIndex: 1 }} />}
                                 {isPhone ? (
                                   <button onClick={() => { if (slots.length === 0) return; setOpenDay(open ? null : ds) }}
                                     disabled={slots.length === 0}
                                     style={{ width: '100%', minHeight: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'transparent', border: 'none', borderRadius: '8px', padding: '4px 0', cursor: slots.length === 0 ? 'default' : 'pointer' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{monthTag && <span style={{ display: 'block', fontSize: '9px', fontWeight: 800, color: GOLD, lineHeight: 1.1 }}>{monthLabel}</span>}{i + 1}</span>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{monthTag && <span style={{ display: 'block', width: 'fit-content', margin: '0 auto 2px', fontSize: '9px', fontWeight: 800, color: NAVY, background: GOLD, borderRadius: '4px', padding: '1px 4px', lineHeight: 1.2 }}>{monthLabel}</span>}{i + 1}</span>
                                     <span style={{ display: 'flex', gap: '3px', height: '6px', alignItems: 'center' }}>
                                       {slots.map((sl: any) => {
                                         const picked = recurSel.has(`${ds}|${sl.time}`)
@@ -1989,7 +1999,7 @@ export default function BookingPage() {
                                   </button>
                                 ) : (
                                   <>
-                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{monthTag && <span style={{ fontSize: '10px', fontWeight: 800, color: GOLD, marginRight: '4px' }}>{monthLabel}</span>}{i + 1}</div>
+                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{monthTag && <span style={{ fontSize: '10px', fontWeight: 800, color: NAVY, background: GOLD, borderRadius: '4px', padding: '1px 5px', marginRight: '5px' }}>{monthLabel}</span>}{i + 1}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       {slots.map((sl: any) => {
                                         const w24 = isWithin24Hours(ds, sl.time)
