@@ -1455,7 +1455,7 @@ export default function BookingPage() {
 
         {step === 3 && (
           <div>
-            <SectionTitle title={t('booking.s4.title')} />
+            {!groupFlow && <SectionTitle title={t('booking.s4.title')} />}
             {privateFlow && openings && openings.coaches.length > 1 && (
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
@@ -1954,10 +1954,18 @@ export default function BookingPage() {
                         {/* Pinned under the site's 64px navbar (top: 0 put it BEHIND the
                             navbar, so it never showed once you scrolled), so the
                             weekdays stay in view all the way down the calendar. */}
-                        <div style={{ position: 'sticky', top: '64px', zIndex: 3, background: DARK, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', padding: '8px 0 6px', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 10px -6px rgba(0,0,0,0.5)' }}>
+                        <div style={{ position: 'sticky', top: '64px', zIndex: 3, background: DARK, padding: '10px 0 6px', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 10px -6px rgba(0,0,0,0.5)' }}>
+                          {/* The page title rides along with the weekdays, like the
+                              month name above the weekday letters in a phone's
+                              calendar. The dark band reaches into the left margin so
+                              the month names there slide under it, not over it. */}
+                          {!isPhone && <div aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, left: '-120px', width: '120px', background: DARK }} />}
+                          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 900, color: '#fff', margin: '0 0 14px' }}>{t('booking.s4.title')}</h2>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
                           {[0, 1, 2, 3, 4, 5, 6].map(d => (
-                            <div key={d} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
+                            <div key={d} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', color: d === 0 || d === 6 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.75)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                           ))}
+                          </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
                           {days.map((dt, idx) => {
@@ -1969,6 +1977,7 @@ export default function BookingPage() {
                             // The month is named where it starts, and on the very
                             // first cell so the top row is never nameless.
                             const monthTag = idx === 0 || i === 0
+                            const weekend = dt.getDay() === 0 || dt.getDay() === 6
                             const monthLabel = dt.toLocaleDateString(dateLoc, { month: 'short' })
                             // A gold line where one month meets the next: along the
                             // top of any day whose week-above is the old month, and
@@ -2006,7 +2015,7 @@ export default function BookingPage() {
                                   <button onClick={() => { if (slots.length === 0) return; setOpenDay(open ? null : ds) }}
                                     disabled={slots.length === 0}
                                     style={{ width: '100%', minHeight: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'transparent', border: 'none', borderRadius: '8px', padding: '4px 0', cursor: slots.length === 0 ? 'default' : 'pointer' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{monthTag && <span style={{ display: 'block', width: 'fit-content', margin: '0 auto 2px', fontSize: '9px', fontWeight: 800, color: NAVY, background: GOLD, borderRadius: '4px', padding: '1px 4px', lineHeight: 1.2 }}>{monthLabel}</span>}{i + 1}</span>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : weekend ? 'rgba(255,255,255,0.42)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{monthTag && <span style={{ display: 'block', width: 'fit-content', margin: '0 auto 2px', fontSize: '9px', fontWeight: 800, color: NAVY, background: GOLD, borderRadius: '4px', padding: '1px 4px', lineHeight: 1.2 }}>{monthLabel}</span>}{i + 1}</span>
                                     <span style={{ display: 'flex', gap: '3px', height: '6px', alignItems: 'center' }}>
                                       {slots.map((sl: any) => {
                                         const picked = recurSel.has(`${ds}|${sl.time}`)
@@ -2018,13 +2027,10 @@ export default function BookingPage() {
                                   </button>
                                 ) : (
                                   <>
-                                    {/* The weekday sits beside the date, where the eye already
-                                        is -- the pinned row at the top is for scanning a
-                                        whole column, not for reading one day. */}
-                                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px', marginBottom: '4px' }}>
-                                      <span style={{ fontSize: '13px', fontWeight: 700, color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</span>
-                                      <span style={{ fontSize: '11px', fontWeight: 600, color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.5)' }}>{dt.toLocaleDateString(dateLoc, { weekday: 'short' })}</span>
-                                    </div>
+                                    {/* Saturdays and Sundays in a lighter shade, weekdays in full
+                                        white, as a phone calendar does -- the column tells you the
+                                        day without a word in every cell. */}
+                                    <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : weekend ? 'rgba(255,255,255,0.42)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       {slots.map((sl: any) => {
                                         const w24 = isWithin24Hours(ds, sl.time)
