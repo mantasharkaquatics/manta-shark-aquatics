@@ -1961,13 +1961,13 @@ export default function BookingPage() {
                               the month names there slide under it, not over it. */}
                           {!isPhone && <div aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, left: '-120px', width: '120px', background: DARK }} />}
                           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 900, color: '#fff', margin: '0 0 14px' }}>{t('booking.s4.title')}</h2>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', position: 'relative' }}>
                           {[0, 1, 2, 3, 4, 5, 6].map(d => (
-                            <div key={d} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', color: d === 0 || d === 6 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.75)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
+                            <div key={d} style={{ textAlign: 'center', fontSize: isPhone ? '13px' : '14px', fontWeight: 700, letterSpacing: '1px', color: d === 0 || d === 6 ? '#fff' : 'rgba(255,255,255,0.32)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                           ))}
                           </div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', position: 'relative' }}>
                           {days.map((dt, idx) => {
                             const y = dt.getFullYear()
                             const m = dt.getMonth()
@@ -2001,7 +2001,7 @@ export default function BookingPage() {
                             const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)) : []
                             return (
                               <React.Fragment key={ds}>
-                              <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: isPhone ? '0' : '5px 3px', minHeight: isPhone ? '52px' : '76px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
+                              <div style={{ backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: isPhone ? '9px' : '10px', padding: isPhone ? '0' : '8px 6px 7px', minHeight: isPhone ? '60px' : '100px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
                                 {!isPhone && (idx === 0 || (edgeTop && idx % 7 === 0)) && (
                                   // On a wide screen the month sits in the margin, level with
                                   // the start of its line. A phone has no margin to spare, so
@@ -2014,14 +2014,14 @@ export default function BookingPage() {
                                 {isPhone ? (
                                   <button onClick={() => { if (slots.length === 0) return; setOpenDay(open ? null : ds) }}
                                     disabled={slots.length === 0}
-                                    style={{ width: '100%', minHeight: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'transparent', border: 'none', borderRadius: '8px', padding: '4px 0', cursor: slots.length === 0 ? 'default' : 'pointer' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : weekend ? 'rgba(255,255,255,0.42)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{monthTag && <span style={{ display: 'block', width: 'fit-content', margin: '0 auto 2px', fontSize: '9px', fontWeight: 800, color: NAVY, background: GOLD, borderRadius: '4px', padding: '1px 4px', lineHeight: 1.2 }}>{monthLabel}</span>}{i + 1}</span>
-                                    <span style={{ display: 'flex', gap: '3px', height: '6px', alignItems: 'center' }}>
+                                    style={{ width: '100%', minHeight: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'transparent', border: 'none', borderRadius: '8px', padding: '4px 0', cursor: slots.length === 0 ? 'default' : 'pointer' }}>
+                                    <span style={{ fontSize: '17px', lineHeight: 1.1, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.18)' : weekend ? '#fff' : 'rgba(255,255,255,0.32)', fontWeight: weekend ? 800 : 600 }}>{monthTag && <span style={{ display: 'block', width: 'fit-content', margin: '0 auto 3px', fontSize: '10px', fontWeight: 800, color: NAVY, background: GOLD, borderRadius: '4px', padding: '1px 5px', lineHeight: 1.25 }}>{monthLabel}</span>}{i + 1}</span>
+                                    <span style={{ display: 'flex', gap: '4px', height: '7px', alignItems: 'center' }}>
                                       {slots.map((sl: any) => {
                                         const picked = recurSel.has(`${ds}|${sl.time}`)
                                         const prop = !picked && ghost.has(`${ds}|${sl.time}`)
                                         const gone = sl.full || sl.already_booked
-                                        return <span key={sl.coach_id + sl.time} style={{ width: '6px', height: '6px', borderRadius: '50%', background: picked ? GOLD : (gone || prop) ? 'transparent' : myBandColor, border: prop ? `1px solid ${GOLD}` : gone ? '1px solid rgba(255,255,255,0.28)' : 'none' }} />
+                                        return <span key={sl.coach_id + sl.time} style={{ width: '7px', height: '7px', borderRadius: '50%', background: picked ? GOLD : (gone || prop) ? 'transparent' : myBandColor, border: prop ? `1px solid ${GOLD}` : gone ? '1px solid rgba(255,255,255,0.28)' : 'none' }} />
                                       })}
                                     </span>
                                   </button>
@@ -2030,8 +2030,8 @@ export default function BookingPage() {
                                     {/* Saturdays and Sundays in a lighter shade, weekdays in full
                                         white, as a phone calendar does -- the column tells you the
                                         day without a word in every cell. */}
-                                    <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : weekend ? 'rgba(255,255,255,0.42)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                    <div style={{ textAlign: 'center', fontSize: '17px', lineHeight: 1.2, fontWeight: weekend ? 800 : 600, marginBottom: '7px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.18)' : weekend ? '#fff' : 'rgba(255,255,255,0.32)' }}>{i + 1}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                       {slots.map((sl: any) => {
                                         const w24 = isWithin24Hours(ds, sl.time)
                                         const key = `${ds}|${sl.time}`
@@ -2046,7 +2046,7 @@ export default function BookingPage() {
                                             onClick={() => toggleSlot(ds, dt, sl)}
                                             disabled={!clickable}
                                             style={{
-                                              padding: '4px 2px', borderRadius: '5px', textAlign: 'center',
+                                              padding: '6px 4px', borderRadius: '7px', textAlign: 'center',
                                               border: `2px ${proposed || (!affordable && !inBasket && !sl.full && !sl.already_booked) ? 'dashed' : 'solid'} ${cellBorder}`,
                                               background: inBasket ? `${GOLD}20` : proposed ? `${GOLD}0d` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
                                               cursor: clickable ? 'pointer' : 'not-allowed',
@@ -2056,12 +2056,12 @@ export default function BookingPage() {
                                                 side with no whitespace between the two spans -- which gives
                                                 the browser nowhere to break, so "4 left" was painted outside
                                                 the cell rather than wrapped inside it. */}
-                                            <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 700, letterSpacing: '-0.2px', color: inBasket ? GOLD : proposed ? `${GOLD}cc` : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
-                                              <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{inBasket ? '✓ ' : ''}{formatTimeCompact(sl.time)}</span>
-                                              <span style={{ display: 'block', fontWeight: 600, marginTop: '1px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : inBasket ? GOLD : !affordable ? 'rgba(255,255,255,0.25)' : myBandColor }}>
+                                            <span style={{ display: 'block', fontSize: '13px', lineHeight: 1.25, fontWeight: 700, color: inBasket ? GOLD : proposed ? `${GOLD}cc` : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                              <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{inBasket ? '✓ ' : ''}{formatTime(sl.time)}</span>
+                                              <span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, marginTop: '2px', whiteSpace: 'nowrap', color: sl.already_booked ? 'rgba(255,255,255,0.4)' : sl.full ? 'rgba(255,255,255,0.3)' : inBasket ? GOLD : !affordable ? 'rgba(255,255,255,0.25)' : myBandColor }}>
                                                 {sl.already_booked ? '✓' : sl.full ? t('booking.full') : !affordable ? t('booking.group.tooDear') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
                                               </span>
-                                              {w24 && clickable ? <span style={{ display: 'block', color: '#c9a84c' }}>24h</span> : null}
+                                              {w24 && clickable ? <span style={{ display: 'block', fontSize: '11px', marginTop: '1px', color: '#c9a84c' }}>24h</span> : null}
                                             </span>
                                           </button>
                                         )
@@ -2071,12 +2071,12 @@ export default function BookingPage() {
                                 )}
                               </div>
                               {isPhone && endsWeek && openInThisWeek && (
-                                <div style={{ gridColumn: '1 / -1', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '12px 13px', margin: '2px 0 4px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '10px', gap: '8px' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
+                                <div style={{ gridColumn: '1 / -1', background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '14px', padding: '14px 14px 12px', margin: '4px 0 6px', position: 'relative', zIndex: 2 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '8px' }}>
+                                    <span style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>
                                       {new Date(openDay! + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
                                     </span>
-                                    <button onClick={() => setOpenDay(null)} style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer' }}>{t('common.close')}</button>
+                                    <button onClick={() => setOpenDay(null)} style={{ background: 'none', border: 'none', padding: '8px 4px', minHeight: '40px', fontSize: '14px', color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>{t('common.close')}</button>
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {openSlots.map((sl: any) => {
@@ -2091,20 +2091,20 @@ export default function BookingPage() {
                                         <button key={sl.coach_id + sl.time}
                                           onClick={() => toggleSlot(openDay!, new Date(openDay! + 'T00:00:00'), sl)}
                                           disabled={!clickable}
-                                          style={{ minHeight: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '10px 12px', borderRadius: '10px', textAlign: 'left',
+                                          style={{ minHeight: '62px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '11px 14px', borderRadius: '12px', textAlign: 'left',
                                             border: `2px solid ${inBasket ? GOLD : clickable ? myBandColor + '55' : 'rgba(255,255,255,0.07)'}`,
                                             background: inBasket ? `${GOLD}20` : clickable ? myBandColor + '14' : 'rgba(255,255,255,0.03)',
                                             cursor: clickable ? 'pointer' : 'not-allowed' }}>
                                           <span>
-                                            <span style={{ display: 'block', fontSize: '14.5px', fontWeight: 700, color: inBasket ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>{formatTime(sl.time)}</span>
-                                            <span style={{ display: 'block', fontSize: '11px', marginTop: '2px', color: clickable ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)' }}>
+                                            <span style={{ display: 'block', fontSize: '17px', fontWeight: 700, color: inBasket ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>{formatTime(sl.time)}</span>
+                                            <span style={{ display: 'block', fontSize: '13px', marginTop: '3px', color: clickable ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)' }}>
                                               {sl.already_booked ? t('booking.booked') : sl.full ? t('booking.full') : !affordable ? t('booking.group.tooDear') : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
                                               {w24 && clickable ? ' · 24h' : ''}
                                             </span>
                                           </span>
                                           <span style={{ display: 'flex', alignItems: 'center', gap: '9px', flexShrink: 0 }}>
                                             {pr && <PriceTag price={pr} dim={!clickable} />}
-                                            <span style={{ width: '26px', height: '26px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700,
+                                            <span style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 700,
                                               border: inBasket ? 'none' : '1.5px solid rgba(255,255,255,0.25)', background: inBasket ? GOLD : 'transparent', color: NAVY }}>{inBasket ? '✓' : ''}</span>
                                           </span>
                                         </button>
