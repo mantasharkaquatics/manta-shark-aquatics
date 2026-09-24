@@ -246,7 +246,6 @@ export default function BookingPage() {
   // Which coach each date of a weekly series would be with (a substitute where
   // the usual coach is away), as the preview returned it.
   const [recurCoach, setRecurCoach] = useState<Map<string, string>>(new Map())
-  const pendingPickRef = useRef<{ date: string; time: string } | null>(null)
   const myLevel = selectedStudent?.current_level != null ? Number(selectedStudent.current_level) : null
   const myGroupBand = myLevel != null ? studentBandOf(myLevel) : null
   const myBandColor = myGroupBand ? (BAND_COLORS[`${myGroupBand.min}-${myGroupBand.max}`] || ZONE_COLORS.group) : ZONE_COLORS.group
@@ -716,17 +715,6 @@ export default function BookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coachFilter, coaches])
 
-  // "Next openings" chips jump to a date; the time is picked once that date's
-  // slots for the coach have loaded.
-  useEffect(() => {
-    const pk = pendingPickRef.current
-    if (!pk || !selectedDate || !selectedCoach || formatDateLA(selectedDate) !== pk.date) return
-    const sl = timeSlots.find(x => x.time === pk.time && x.available)
-    if (!sl) return
-    pendingPickRef.current = null
-    choosePrivate(pk.date, sl, selectedCoach)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeSlots])
 
   const coachColor = (id: string) => {
     const i = coaches.findIndex(c => c.id === id)
@@ -750,7 +738,6 @@ export default function BookingPage() {
   function pickFilter(id: string) {
     setCoachFilter(id)
     setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
-    pendingPickRef.current = null
     if (selectedDate && id !== 'any') {
       const ds = formatDateLA(selectedDate)
       if (!Object.values(openings?.days[ds] || {}).some(l => l.includes(id))) setSelectedDate(null)
@@ -1534,48 +1521,6 @@ export default function BookingPage() {
                 </div>
               </div>
             )}
-            {privateFlow && openings && coachFilter !== 'any' && lessonLength === 30 && (() => {
-              // The coach's next few open times, soonest first, so a family set
-              // on one busy coach does not have to hunt for them day by day.
-              const soon: { ds: string; tm: string }[] = []
-              for (const ds of Object.keys(openings.days).sort()) {
-                for (const tm of Object.keys(openings.days[ds]).sort()) {
-                  if (openings.days[ds][tm].includes(coachFilter)) soon.push({ ds, tm })
-                  if (soon.length >= 6) break
-                }
-                if (soon.length >= 6) break
-              }
-              return (
-                <div style={{ background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '14px', padding: '14px 16px', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: soon.length ? '10px' : 0 }}>
-                    {soon.length ? t('booking.soonFor', { name: coachName(coachFilter) }) : t('booking.soonNone', { name: coachName(coachFilter) })}
-                    {soon.length > 0 && <span style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.45)', marginLeft: '6px' }}>· {t('booking.soonHint')}</span>}
-                  </div>
-                  {soon.length > 0 && (
-                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
-                      {soon.map(x => {
-                        const d = new Date(x.ds + 'T00:00:00')
-                        return (
-                          <button key={x.ds + x.tm}
-                            onClick={() => {
-                              setCalMonth(d.getMonth()); setCalYear(d.getFullYear())
-                              setSelectedDate(d); setSelectedSlot(null); setTimeSlots([])
-                              pendingPickRef.current = { date: x.ds, time: x.tm }
-                            }}
-                            style={{ flexShrink: 0, textAlign: 'left', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer',
-                              border: '1.5px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#fff' }}>
-                            <span style={{ display: 'block', fontSize: '14px', fontWeight: 700 }}>{formatTime(x.tm)}</span>
-                            <span style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
-                              {d.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric', weekday: 'short' })}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
             {!groupFlow && <div ref={calCardRef}
               onTouchStart={e => { const t0 = e.touches[0]; calTouchRef.current = { x: t0.clientX, y: t0.clientY } }}
               onTouchEnd={e => {
