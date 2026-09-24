@@ -2384,11 +2384,16 @@ export default function BookingPage() {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => { setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()) }} style={{
+                <button onClick={() => {
+                  // A reschedule has no course step to go back to (the course is
+                  // fixed), so its way out is back to the family's page.
+                  if (isReschedule) { window.location.href = '/dashboard'; return }
+                  setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map())
+                }} style={{
                   flex: 1, padding: '14px', background: 'transparent',
                   color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
                   borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
-                }}>{t('booking.back')}</button>
+                }}>{isReschedule ? t('booking.cancelBack') : t('booking.back')}</button>
                 <button
                   onClick={goToConfirm}
                   disabled={!canContinue}
