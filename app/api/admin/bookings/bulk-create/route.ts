@@ -128,13 +128,13 @@ async function quoteSeries(
   let total = 0
   for (const date of dates) {
     const unit = priceLesson({
-      courseSlug, minutes: 30, lessonsCompleted: wallet.lessonsCompleted,
+      courseSlug, minutes: 30,
       sessionDate: date, startTime, seats: 1,
     }).perSeat
     perDate.set(date, unit)
     total += unit * unitsPerDate
   }
-  return { perDate, total, balance: wallet.balance, vipLevel: wallet.vipLevel }
+  return { perDate, total, balance: wallet.balance }
 }
 
 export async function POST(req: NextRequest) {
@@ -225,10 +225,9 @@ export async function POST(req: NextRequest) {
       candidates,
       points: {
         parent1_name: nameOf(student1.parent_id),
-        parent1_balance: quote1.balance, parent1_needed: quote1.total, parent1_vip: quote1.vipLevel,
+        parent1_balance: quote1.balance, parent1_needed: quote1.total,
         parent2_name: student2 && !sameParent ? nameOf(student2.parent_id) : null,
         parent2_balance: quote2?.balance ?? null, parent2_needed: quote2?.total ?? null,
-        parent2_vip: quote2?.vipLevel ?? null,
         sufficient: quote1.balance >= quote1.total && (!quote2 || quote2.balance >= quote2.total),
       },
     })
@@ -270,8 +269,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Each family pays its own way, out of its own wallet, at its own VIP
-    // level -- exactly as it would if the parent had booked this themselves.
+    // Each family pays its own way, out of its own wallet -- exactly as it would if the parent had booked this themselves.
     // There is no payment choice left to make: one currency, one price.
     //
     // To comp a lesson, grant the family the points first and then book. That
@@ -323,7 +321,7 @@ export async function POST(req: NextRequest) {
           parentId: c.parentId, reason: 'booking', points: -c.quote.total, actor: `admin:${auth.admin?.id ?? 'unknown'}`,
           pricing: {
             kind: 'admin_series', courseSlug: ct.slug, startTime: start_time, hour: !!hour,
-            vipLevel: c.quote.vipLevel, unitsPerDate: c.units,
+            unitsPerDate: c.units,
             dates: dates.map((d: string) => ({ date: d, points: c.quote.perDate.get(d)! * c.units })),
           },
           note: dates.length === 1 ? null : `Series booked at the desk: ${dates.length} lessons`,

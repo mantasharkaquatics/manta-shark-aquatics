@@ -17,7 +17,7 @@ const src = readFileSync(new URL('../lib/points.ts', import.meta.url), 'utf8')
   .replace(/export const todayLA = getTodayLA/, '')
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
 const mod = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
-const { priceLesson, vipTier, nextVipTier, isOffPeak, isInOffPeakWindow, OFF_PEAK_ENABLED, forgivenessAvailable, refundableCents, BASE_POINTS, VIP_TIERS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents, TOPUP_PRESETS, presetLessons, topUpAmount } = mod
+const { priceLesson, isOffPeak, isInOffPeakWindow, OFF_PEAK_ENABLED, forgivenessAvailable, refundableCents, BASE_POINTS, OFF_PEAK_DISCOUNT, ASSESSMENT_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, centsToPoints, pointsToCents, TOPUP_PRESETS, presetLessons, topUpAmount } = mod
 
 let fails = 0
 const eq = (label, got, want) => {
@@ -49,64 +49,52 @@ eq('週日 10:00 尖峰',            isInOffPeakWindow('2026-09-06', '10:00'), f
 // 差一天，離峰判斷就會整批錯開一格。
 eq('週一 09:00 離峰（不被 UTC 位移）', isInOffPeakWindow('2026-09-07', '09:00'), true)
 
-console.log('\nVIP 級距')
-eq('9 堂 → 一般',   vipTier(9).level,   0)
-eq('10 堂 → VIP1',  vipTier(10).level,  1)
-eq('79 堂 → VIP4',  vipTier(79).level,  4)
-eq('80 堂 → VIP5',  vipTier(80).level,  5)
-eq('999 堂 → VIP5', vipTier(999).level, 5)
-eq('24 堂距下一級', nextVipTier(24).lessonsToGo, 6)
-eq('VIP5 沒有下一級', nextVipTier(100), null)
+console.log('\nVIP 已移除（2026-09）')
+eq('lib/points 不再匯出 VIP', ['VIP_TIERS', 'vipTier', 'nextVipTier'].filter(k => k in mod), [])
+eq('價格明細不再帶 VIP 欄位', 'vipLevel' in priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '16:15' }), false)
 
 console.log('\n定價（設計書裡引用過的數字）')
-const p = (o) => priceLesson({ sessionDate: WED, startTime: '16:15', lessonsCompleted: 0, ...o })
+const p = (o) => priceLesson({ sessionDate: WED, startTime: '16:15', ...o })
 eq('1對1 原價',            p({ courseSlug: '1on1' }).charged, 65)
 eq('1對2 原價',            p({ courseSlug: '1on2' }).charged, 50)
 eq('1對4 原價',            p({ courseSlug: '1on4' }).charged, 40)
 eq('游泳評估',             p({ isAssessment: true }).charged, 85)
 eq('1對1 60 分鐘 = ×2',    p({ courseSlug: '1on1', minutes: 60 }).charged, 130)
 eq('1對2 兩個自己的孩子',   p({ courseSlug: '1on2', seats: 2 }).charged, 100)
-eq('VIP2 尖峰 1對1',       p({ courseSlug: '1on1', lessonsCompleted: 20 }).charged, 61)
-eq('VIP2 早上 10:20 1對1',
-   priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 20 }).charged, OFF_PEAK_ENABLED ? 58 : 61)
-eq('最大折扣：VIP5 早上 1對1',
-   priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 80 }).charged, OFF_PEAK_ENABLED ? 54 : 57)
-eq('最大折扣：VIP5 早上 1對4',
-   priceLesson({ courseSlug: '1on4', sessionDate: WED, startTime: '10:20', lessonsCompleted: 80 }).charged, OFF_PEAK_ENABLED ? 33 : 35)
+eq('早上 10:20 1對1',
+   priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20' }).charged, OFF_PEAK_ENABLED ? 61 : 65)
+eq('早上 10:20 1對4',
+   priceLesson({ courseSlug: '1on4', sessionDate: WED, startTime: '10:20' }).charged, OFF_PEAK_ENABLED ? 38 : 40)
 
 console.log('\n60 分鐘 = 兩堂 30 分鐘，一分不差')
 // 一小時的課程在資料庫裡是兩筆 30 分鐘的紀錄，各自帶著自己的點數。
 // 若整小時單獨捨去一次，兩筆紀錄就永遠加不回總價，差一點在誰身上都說不清。
 for (const slug of ['1on1', '1on2', '1on4']) {
-  for (const done of [0, 10, 20, 30, 50, 80]) {
-    for (const t of ['10:20', '16:15']) {
-      const half = priceLesson({ courseSlug: slug, sessionDate: WED, startTime: t, lessonsCompleted: done })
-      const hour = priceLesson({ courseSlug: slug, sessionDate: WED, startTime: t, lessonsCompleted: done, minutes: 60 })
-      if (hour.charged !== half.charged * 2 || hour.perHalfHour !== half.perSeat) {
-        eq(`${slug} ${done} 堂 ${t} 一小時 = 兩個半小時`, hour.charged, half.charged * 2)
-      }
+  for (const t of ['10:20', '16:15']) {
+    const half = priceLesson({ courseSlug: slug, sessionDate: WED, startTime: t })
+    const hour = priceLesson({ courseSlug: slug, sessionDate: WED, startTime: t, minutes: 60 })
+    if (hour.charged !== half.charged * 2 || hour.perHalfHour !== half.perSeat) {
+      eq(`${slug} ${t} 一小時 = 兩個半小時`, hour.charged, half.charged * 2)
     }
   }
 }
-eq('36 種組合全部成立', true, true)
+eq('6 種組合全部成立', true, true)
 
 console.log('\n沒有任何折扣組合會超過原價，或低於最大折扣')
 {
-  // 每一種課、每一個級距、開門到打烊的每一個半點，都不能比原價貴，
-  // 也不能比「VIP5 + 離峰」還便宜。這兩條線之間就是所有可能的價格。
+  // 每一種課、開門到打烊的每一個半點，都不能比原價貴，
+  // 也不能比「離峰」（有開的話）還便宜。這兩條線之間就是所有可能的價格。
   let over = 0, under = 0, n = 0
   for (const slug of Object.keys(BASE_POINTS)) {
     const base = BASE_POINTS[slug]
-    const floorPrice = Math.floor(base * (1 - 0.12) * (1 - (OFF_PEAK_ENABLED ? OFF_PEAK_DISCOUNT : 0)))
-    for (const tier of VIP_TIERS) {
-      for (const date of [WED, SAT, '2026-09-06']) {
-        for (let mins = 6 * 60; mins < 21 * 60; mins += 30) {
-          const t = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0')
-          const p = priceLesson({ courseSlug: slug, sessionDate: date, startTime: t, lessonsCompleted: tier.lessons })
-          n++
-          if (p.charged > base) over++
-          if (p.charged < floorPrice) under++
-        }
+    const floorPrice = Math.floor(base * (1 - (OFF_PEAK_ENABLED ? OFF_PEAK_DISCOUNT : 0)))
+    for (const date of [WED, SAT, '2026-09-06']) {
+      for (let mins = 6 * 60; mins < 21 * 60; mins += 30) {
+        const t = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0')
+        const p = priceLesson({ courseSlug: slug, sessionDate: date, startTime: t })
+        n++
+        if (p.charged > base) over++
+        if (p.charged < floorPrice) under++
       }
     }
   }
@@ -137,13 +125,13 @@ eq('1 點 = $1', pointsToCents(1), 100)
 eq('金額換點數不會出現小數', centsToPoints(12345), 123)
 
 console.log('\n捨去方向永遠對家長有利')
-const b = priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20', lessonsCompleted: 20 })
+const b = priceLesson({ courseSlug: '1on1', sessionDate: WED, startTime: '10:20' })
 if (OFF_PEAK_ENABLED) {
-  eq('65 × 0.95 × 0.95 = 58.66 → 收 58', b.perSeat, 58)
-  eq('同一堂課的每半小時價', b.perHalfHour, 58)
-} else {
   eq('65 × 0.95 = 61.75 → 收 61', b.perSeat, 61)
   eq('同一堂課的每半小時價', b.perHalfHour, 61)
+} else {
+  eq('沒有折扣就是原價 65', b.perSeat, 65)
+  eq('同一堂課的每半小時價', b.perHalfHour, 65)
 }
 
 console.log('\n晚取消豁免')
@@ -155,7 +143,7 @@ console.log('\n退款')
 eq('1000 購買點 → $1000',     refundableCents(1000), 100000)
 
 console.log('\n泳隊不能用點數')
-try { priceLesson({ courseSlug: 'team', sessionDate: WED, startTime: '18:00', lessonsCompleted: 0 }); fails++; console.log('  FAIL  泳隊應該要擋下來') }
+try { priceLesson({ courseSlug: 'team', sessionDate: WED, startTime: '18:00' }); fails++; console.log('  FAIL  泳隊應該要擋下來') }
 catch { console.log('  ok    泳隊會拋出錯誤') }
 
 console.log(fails === 0 ? '\n全部通過\n' : `\n${fails} 項失敗\n`)

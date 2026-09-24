@@ -875,9 +875,6 @@ type WalletView = {
   balancePurchased: number
   balanceGranted: number
   lessonsCompleted: number
-  vipLevel: number
-  vipDiscount: number
-  nextTier: { level: number; discount: number; lessonsToGo: number } | null
   forgiveness: number
   ledger: LedgerRow[]
 }
@@ -958,8 +955,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                   {w.balancePurchased.toLocaleString()} purchased · {w.balanceGranted.toLocaleString()} granted
                 </span>
                 <span className="text-gray-400 text-xs">
-                  VIP {w.vipLevel} ({Math.round(w.vipDiscount * 100)}% off) · {w.lessonsCompleted} lessons
-                  {w.nextTier ? ` · ${w.nextTier.lessonsToGo} to VIP ${w.nextTier.level}` : ''}
+                  {w.lessonsCompleted} lessons completed
                 </span>
                 <span className="text-gray-400 text-xs">{w.forgiveness} late-cancel allowance{w.forgiveness === 1 ? '' : 's'}</span>
               </div>

@@ -6,7 +6,7 @@ import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, lessonsCompleted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -206,7 +206,6 @@ export async function POST(req: NextRequest) {
     for (const slot of out) {
       const pr = priceLesson({
         courseSlug: ct.slug, minutes: HOUR_MINUTES,
-        lessonsCompleted: wallet.lessonsCompleted,
         sessionDate: session_date, startTime: slot.start_time, seats: seatsToPay,
       })
       slot.points = pr.charged
@@ -218,8 +217,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       slots: out,
       balance: wallet.balance,
-      vip_level: wallet.vipLevel,
-      vip_discount: wallet.vipDiscount,
       seats_paid: seatsToPay,
       roster: (rosterRows || []).map((x: any) => ({ id: x.id, full_name: x.full_name })),
     })
@@ -253,7 +250,6 @@ export async function POST(req: NextRequest) {
     try {
       price = priceLesson({
         courseSlug: ct.slug, minutes: HOUR_MINUTES,
-        lessonsCompleted: await lessonsCompleted(svc, parent.id),
         sessionDate: session_date, startTime: start_time, seats: seatsToPay,
       })
     } catch {

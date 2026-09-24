@@ -23,14 +23,12 @@ export const POLICIES = `
 - Points the school ADDS without payment - a promotion, a goodwill adjustment, a negotiated programme rate - book lessons exactly like any other point but cannot be cashed out. Never promise a cash refund on bonus points.
 - There are no lesson packages any more, and no make-up tokens. If a parent asks about buying 10/20/30/50 lessons, a package, credits, or tokens, explain the points balance instead. Never quote a package price and never say a token can be issued.
 - Two things are NOT paid for with points: the Swim Assessment ($85, charged to the card) and Swim Team (a monthly membership).
-- The parent's dashboard shows the balance, the VIP level, progress to the next level, the late-cancellation allowances, and a full points history with a reason on every line.
+- The parent's dashboard shows the balance, the lessons completed, the late-cancellation allowances, and a full points history with a reason on every line.
 
 === WHAT A LESSON COSTS ===
 - Every lesson has a base price in points, per swimmer, per 30 minutes. A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 booked for two swimmers on the SAME account is charged for both seats; when two different families share a 1-on-2, each family pays for its own swimmer.
-- ${OFF_PEAK_ENABLED ? 'Two discounts, and both are' : 'One discount, the VIP level, and it is'} applied WHEN THE PARENT BOOKS, not when they buy. That is the point worth making to a parent who asks why there is no bulk deal: the discount is earned by attending, and it applies to points already in the account.
-- VIP discount by lessons COMPLETED on the account: 3% from 10, 5% from 20, 7% from 30, 9% from 50, 12% from 80. Counted across every swimmer on the family account.
-${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the quieter hours - Mon-Fri 6:00 AM-12:00 noon and 7:30-9:00 PM; Sat-Sun 6:00-10:00 AM and 7:30-9:00 PM. The booking calendar marks them.\n' : '- There is NO off-peak or time-of-day discount: every time of day costs the same. Do not mention one.\n'}- ${OFF_PEAK_ENABLED ? 'Both discounts multiply and the result is' : 'The discounted price is'} rounded DOWN to whole points, so the remainder always favours the family. Never quote a discount as a fixed number of points off; quote the percentage, or the actual price shown on the booking page.
-- Exact prices come from the PRICING section of the knowledge block. Never state a price that is not there.
+- There is NO VIP, loyalty, member or volume discount. Every family pays the same price for the same lesson.
+${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the quieter hours - Mon-Fri 6:00 AM-12:00 noon and 7:30-9:00 PM; Sat-Sun 6:00-10:00 AM and 7:30-9:00 PM. The booking calendar marks them.\n' : '- There is NO off-peak or time-of-day discount: every time of day costs the same. Do not mention one.\n'}${OFF_PEAK_ENABLED ? '- The off-peak price is rounded DOWN to whole points, so the remainder always favours the family. Never quote a discount as a fixed number of points off; quote the percentage, or the actual price shown on the booking page.\n' : ''}- Exact prices come from the PRICING section of the knowledge block. Never state a price that is not there.
 
 === 1-ON-4 GROUP CLASSES (LEVEL BANDS) ===
 - 1-on-4 group classes are LIVE and organized by level band: Level 1-2, Level 3-4, Level 5-6, Level 7.
@@ -82,7 +80,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 
 === PAYMENTS ===
 - Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.
-- Pricing is uniform: no cash discount, no negotiated discounts, and no better rate for adding more points at once. ${OFF_PEAK_ENABLED ? 'The only discounts are the VIP level and the off-peak hours, both earned rather than bought.' : 'The only discount is the VIP level, earned rather than bought.'}
+- Pricing is uniform: no cash discount, no negotiated discounts, and no better rate for adding more points at once. ${OFF_PEAK_ENABLED ? 'The only discount is the off-peak hours.' : 'There are no discounts.'}
 - Occasional promotions are announced by email newsletter; parents can subscribe to receive them. The AI never invents or promises promotions or discounts.
 
 === BOOKING & COACHES ===

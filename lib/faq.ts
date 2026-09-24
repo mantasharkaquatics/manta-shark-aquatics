@@ -28,7 +28,7 @@ export const FAQ: readonly FaqCategory[] = [
   },
   {
     id: 'money',
-    items: ['buy', 'discounts', 'expiry', 'shared', 'refund', 'teamBilling'],
+    items: ['buy', 'expiry', 'shared', 'refund', 'teamBilling'],
   },
   {
     id: 'team',

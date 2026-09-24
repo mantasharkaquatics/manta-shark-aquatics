@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
-import { priceLesson, vipTier, LESSONS_PER_FORGIVENESS } from '@/lib/points'
+import { priceLesson, LESSONS_PER_FORGIVENESS } from '@/lib/points'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -542,9 +542,6 @@ type WalletSummary = {
   /** Points owed after a bank return or a dispute. Zero for almost everyone. */
   arrears: number
   lessonsCompleted: number
-  vipLevel: number
-  vipDiscount: number
-  nextTier: { level: number; discount: number; lessonsToGo: number } | null
   forgiveness: number
   lessonsPerForgiveness: number
   history?: LedgerRow[]
@@ -560,13 +557,7 @@ type LedgerRow = {
   invoice?: { id: string; number: string } | null
 }
 
-/**
- * The wallet, as one card.
- *
- * The progress bar toward the next VIP level is the most valuable thing on this
- * screen and the cheapest to build: "6 more lessons and every lesson gets 2%
- * cheaper" is a true reason to come back, which no promotional message is.
- */
+/** The wallet, as one card. */
 function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }) {
   const t = useT()
   const locale = useLocale()
@@ -588,15 +579,6 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
   const page = Math.min(histPage, pageCount - 1)
   const pageRows = history.slice(page * HIST_PER_PAGE, (page + 1) * HIST_PER_PAGE)
   const goPage = (n: number) => setHistPage(Math.min(pageCount - 1, Math.max(0, n)))
-
-  const toNext = w.nextTier
-  // Progress across the CURRENT band, not from zero. At 24 lessons with VIP 3
-  // at 30, the bar should read four-fifths full, not four-fifths empty.
-  const bandStart = vipTier(w.lessonsCompleted).lessons
-  const bandEnd = toNext ? w.lessonsCompleted + toNext.lessonsToGo : bandStart
-  const pct = toNext && bandEnd > bandStart
-    ? Math.max(3, Math.round(100 * (w.lessonsCompleted - bandStart) / (bandEnd - bandStart)))
-    : 100
 
   const reasonLabel = (r: string) => {
     const key = 'points.reason.' + r
@@ -623,8 +605,8 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
 
       {/* A bank return is rare and alarming, so it gets the top of the card and
           plain words: what is paused, how much, and the one button that fixes
-          it. Nothing else on this screen changes -- their lessons, their VIP
-          level and their history are all still theirs. */}
+          it. Nothing else on this screen changes -- their lessons and their
+          history are all still theirs. */}
       {w.arrears > 0 && (
         <div style={{ background: 'rgba(220,90,80,0.12)', border: '1px solid rgba(220,90,80,0.45)', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#f2a09a', marginBottom: '4px' }}>
@@ -642,24 +624,9 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '20px', border: '1px solid rgba(201,168,76,0.5)', color: '#c9a84c', background: 'rgba(201,168,76,0.1)' }}>
-          {w.vipLevel > 0 ? t('points.card.vip', { n: w.vipLevel, pct: Math.round(w.vipDiscount * 100) }) : t('points.card.noVip')}
-        </span>
-        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{t('points.card.done', { n: w.lessonsCompleted })}</span>
+      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px', lineHeight: 1.5 }}>
+        {t('points.card.done', { n: w.lessonsCompleted })}
       </div>
-
-      {toNext && (
-        <>
-          <div style={{ height: '6px', background: 'rgba(255,255,255,0.12)', borderRadius: '3px', marginBottom: '7px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: '#c9a84c' }} />
-          </div>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px', lineHeight: 1.5 }}>
-            {t('points.card.next', { n: toNext.lessonsToGo, level: toNext.level, pct: Math.round(toNext.discount * 100) })}
-          </div>
-        </>
-      )}
-
       <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '14px', lineHeight: 1.5 }}>
         {t('points.card.forgiveness', { n: w.forgiveness, per: w.lessonsPerForgiveness })}
       </div>
@@ -1792,7 +1759,7 @@ export default function DashboardPage() {
 
           {/* The two things a family comes here to do most, under the
               children they are doing them for. Points open a sheet with the
-              whole card -- balance, VIP, history, swim team -- so none of it
+              whole card -- balance, history, swim team -- so none of it
               is lost, it just stops taking a screen of its own. */}
           <div className="msa-act">
             <button className="tap-auto msa-act-book" onClick={() => { window.location.href = '/booking' }}>
@@ -1831,15 +1798,13 @@ export default function DashboardPage() {
                 const minsLeft = Math.floor(msLeft / 60000)
                 const secsLeft = Math.floor((msLeft % 60000) / 1000)
                 const countdownStr = msLeft <= 0 ? t('dash.invite.expired') : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
-                // What accepting costs THIS family, at their own VIP level and
-                // this slot's off-peak status. The inviting family's price is
-                // not the same number and must never stand in for it.
+                // What accepting costs THIS family: their own seat, priced from
+                // the live price list.
                 let inviteCost: number | null = null
                 if (wallet && ct?.slug && cs?.session_date && cs?.start_time) {
                   try {
                     inviteCost = priceLesson({
                       courseSlug: ct.slug, minutes: 30,
-                      lessonsCompleted: wallet.lessonsCompleted,
                       sessionDate: cs.session_date,
                       startTime: String(cs.start_time).slice(0, 5),
                       seats: 1,

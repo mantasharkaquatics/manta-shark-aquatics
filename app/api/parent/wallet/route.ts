@@ -4,7 +4,7 @@ import { walletSummary } from '@/lib/points-wallet'
 
 export const runtime = 'nodejs'
 
-// Balance, VIP tier, progress to the next one, and remaining late-cancel
+// Balance, lessons completed, and remaining late-cancel
 // forgiveness -- everything the dashboard card and the booking page need, in
 // one call. Replaces /api/parent/tokens.
 //

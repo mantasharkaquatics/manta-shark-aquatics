@@ -138,17 +138,13 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: s
  * time, so in practice every date lands on the same side of the off-peak line --
  * but pricing each one anyway means a term that straddles a schedule change is
  * still billed for what each lesson actually is.
- *
- * The VIP level is the family's level TODAY, applied to the whole term. Pricing
- * later dates at the tier the family will have reached by then would quote a
- * discount they have not earned yet and cannot be held to.
  */
-function priceDates(slug: string, dates: string[], startTime: string, lessonsDone: number, minutes: number, seats: number) {
+function priceDates(slug: string, dates: string[], startTime: string, minutes: number, seats: number) {
   const perDate = new Map<string, number>()
   let total = 0
   for (const date of dates) {
     const pr = priceLesson({
-      courseSlug: slug, minutes, lessonsCompleted: lessonsDone,
+      courseSlug: slug, minutes,
       sessionDate: date, startTime, seats,
     })
     // What the family pays for that date. Two siblings in one lesson are one
@@ -169,7 +165,7 @@ const slotKey = (s: Slot) => `${s.date}|${s.time}${s.coach ? `|${s.coach}` : ''}
  * priced slot by slot -- averaging or taking the first would quote a figure no
  * single lesson costs.
  */
-function priceSlots(slug: string, slots: Slot[], lessonsDone: number, minutes: number, seats: number) {
+function priceSlots(slug: string, slots: Slot[], minutes: number, seats: number) {
   // perSlot is what the LESSON costs the family (both seats of a sibling
   // 1-on-2); perSeat is what one booking row carries, so cancelling one
   // swimmer refunds exactly that swimmer.
@@ -178,7 +174,7 @@ function priceSlots(slug: string, slots: Slot[], lessonsDone: number, minutes: n
   let total = 0
   for (const s of slots) {
     const pr = priceLesson({
-      courseSlug: slug, minutes, lessonsCompleted: lessonsDone,
+      courseSlug: slug, minutes,
       sessionDate: s.date, startTime: s.time, seats,
     })
     perSlot.set(slotKey(s), pr.charged)
@@ -280,12 +276,10 @@ export async function POST(req: NextRequest) {
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
     // the parent ticks dates rather than quoting one figure and charging another.
-    const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, wallet.lessonsCompleted, minutes, seats)
+    const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, minutes, seats)
     return NextResponse.json({
       candidates: candidates.map(c => ({ ...c, points: perDate.get(c.date) ?? null })),
       balance: wallet.balance,
-      vip_level: wallet.vipLevel,
-      vip_discount: wallet.vipDiscount,
     })
   }
 
@@ -351,7 +345,7 @@ export async function POST(req: NextRequest) {
     // do is settle a payment that came back.
     if (wallet.arrears > 0)
       return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: wallet.arrears }, { status: 402 })
-    const quote = priceSlots(ct.slug, okSlots, wallet.lessonsCompleted, minutes, seats)
+    const quote = priceSlots(ct.slug, okSlots, minutes, seats)
     if (wallet.balance < quote.total)
       return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
 
@@ -407,7 +401,7 @@ export async function POST(req: NextRequest) {
     // Slots can drop out between the quote and here -- a class filling up is the
     // ordinary case -- so the charge is rebuilt from what is actually being
     // booked, never from the earlier total.
-    const charge = priceSlots(ct.slug, booked, wallet.lessonsCompleted, minutes, seats)
+    const charge = priceSlots(ct.slug, booked, minutes, seats)
     const uniformTime = times.length === 1 ? times[0] : null
 
     // One debit for the batch, not one per lesson. A parent's statement should
@@ -420,12 +414,10 @@ export async function POST(req: NextRequest) {
         pricing: uniformTime
           ? {
               kind: 'weekly_term', courseSlug: ct.slug, startTime: uniformTime,
-              vipLevel: wallet.vipLevel, vipPct: wallet.vipDiscount,
               dates: booked.map(s2 => ({ date: s2.date, points: charge.perSlot.get(slotKey(s2))! })),
             }
           : {
               kind: 'multi_slot', courseSlug: ct.slug,
-              vipLevel: wallet.vipLevel, vipPct: wallet.vipDiscount,
               slots: booked.map(s2 => ({ date: s2.date, startTime: s2.time, points: charge.perSlot.get(slotKey(s2))! })),
             },
         note: `${booked.length} lessons booked`,

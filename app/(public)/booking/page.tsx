@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { meetsLeadTime, isWithin24Hours } from '@/lib/booking-time'
-import { BASE_POINTS, OFF_PEAK_DISCOUNT, priceLesson, type PriceBreakdown } from '@/lib/points'
+import { BASE_POINTS, OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, priceLesson, type PriceBreakdown } from '@/lib/points'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { ZONE_COLORS, BAND_COLORS, bandKey } from '@/lib/zone-colors'
 
@@ -43,9 +43,6 @@ interface TimeSlot { time: string; label: string; available: boolean; enrolled: 
 type Wallet = {
   balance: number
   lessonsCompleted: number
-  vipLevel: number
-  vipDiscount: number
-  nextTier: { level: number; discount: number; lessonsToGo: number } | null
   forgiveness: number
 }
 
@@ -626,9 +623,7 @@ export default function BookingPage() {
   const batchFlow = !isTrial && !isReschedule
     && (groupFlow || ((selectedCourse?.slug === '1on1' || siblingPair) && !isHourLesson))
 
-  const lessonsDone = wallet?.lessonsCompleted ?? 0
   const balance = wallet?.balance ?? 0
-  const vipPct = wallet?.vipDiscount ?? 0
 
   /** The price of one lesson at a given date and time, or null if this course
    *  is not paid for with points (Swim Team) or nothing is selected yet. */
@@ -636,27 +631,25 @@ export default function BookingPage() {
     if (!selectedCourse || isTrial) return null
     try {
       return priceLesson({
-        courseSlug: selectedCourse.slug, minutes, lessonsCompleted: lessonsDone,
+        courseSlug: selectedCourse.slug, minutes,
         sessionDate: dateStr, startTime: time, seats: paidSeats,
       })
     } catch { return null }
   }
 
-  /** The cheapest this course can ever be for this family: every discount on.
+  /** The cheapest this course can ever be: off-peak on, if it is switched on.
    *  Used to decide whether to let them go forward at all -- refusing someone
    *  who could afford SOME slot would be worse than letting the server say no. */
   function cheapestFor(slug: string | undefined, seats: number, minutes = 30): number {
     const base = BASE_POINTS[slug ?? '']
     if (base === undefined) return 0
-    return Math.floor(base * (1 - vipPct) * (1 - OFF_PEAK_DISCOUNT)) * (minutes === 60 ? 2 : 1) * seats
+    return Math.floor(base * (1 - (OFF_PEAK_ENABLED ? OFF_PEAK_DISCOUNT : 0))) * (minutes === 60 ? 2 : 1) * seats
   }
 
-  /** The list price of one 30-minute lesson at this family's VIP level, with no
-   *  date chosen yet. What the course cards show. */
+  /** The list price of one 30-minute lesson, with no date chosen yet. What
+   *  the course cards show. */
   function listPrice(slug: string): number {
-    const base = BASE_POINTS[slug]
-    if (base === undefined) return 0
-    return Math.floor(base * (1 - vipPct))
+    return BASE_POINTS[slug] ?? 0
   }
 
   const canAffordCourse = !selectedCourse || isTrial || isReschedule
@@ -1398,7 +1391,7 @@ export default function BookingPage() {
                           )}
                         </div>
                       </div>
-                      {/* The list price at this family's VIP level. Off-peak is
+                      {/* The list price. Off-peak (when switched on) is
                           not in it yet -- no date has been chosen -- so the slot
                           grid can only ever come in lower than this, never
                           higher. A price that goes up after you pick a time is
@@ -2490,7 +2483,6 @@ export default function BookingPage() {
                 <div style={{ paddingTop: '12px' }}>
                   {[
                     { k: 'base', label: bookingPrice.seats > 1 ? t('booking.price.baseSeats', { n: bookingPrice.seats }) : t('booking.price.base'), value: String(bookingPrice.base * bookingPrice.seats), dim: true },
-                    ...(bookingPrice.vipPct > 0 ? [{ k: 'vip', label: t('booking.price.vip', { n: bookingPrice.vipLevel }), value: `−${Math.round(bookingPrice.vipPct * 100)}%`, dim: true }] : []),
                     ...(bookingPrice.offPeak ? [{ k: 'off', label: t('booking.price.offPeak'), value: `−${Math.round(bookingPrice.offPeakPct * 100)}%`, dim: true }] : []),
                   ].map(row => (
                     <div key={row.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>

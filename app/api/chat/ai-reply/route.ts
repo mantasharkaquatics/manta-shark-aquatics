@@ -110,7 +110,7 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
 const TOOLS = [
   {
     name: 'get_my_points',
-    description: "Get the parent's points balance, VIP level, lessons completed, and how many late-cancellation allowances they have.",
+    description: "Get the parent's points balance, lessons completed, and how many late-cancellation allowances they have.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -358,11 +358,6 @@ export async function POST(req: NextRequest) {
         balance_points: w.balance,
         balance_dollars: w.balance,
         lessons_completed: w.lessonsCompleted,
-        vip_level: w.vipLevel,
-        vip_discount: `${Math.round(w.vipDiscount * 100)}% off every lesson`,
-        next_vip: w.nextTier
-          ? `VIP ${w.nextTier.level} (${Math.round(w.nextTier.discount * 100)}% off) after ${w.nextTier.lessonsToGo} more lesson(s)`
-          : 'already at the top level',
         late_cancellation_allowances: w.forgiveness,
       }
     }
@@ -616,9 +611,8 @@ export async function POST(req: NextRequest) {
       '1 dollar buys 1 point. Points never expire and are not tied to a course type.',
       `The website sells exactly these amounts, and nothing else: ${TOPUP_PRESETS.map(p => {
         const shape = presetLessons(p)
-        return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} x ${shape.slug} at full price)` : '$' + p.toLocaleString('en-US')
+        return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} x ${shape.slug})` : '$' + p.toLocaleString('en-US')
       }).join(', ')}.`,
-      'Lesson counts are at full price -- a VIP discount makes the same points go further, so they are a minimum, never a maximum.',
       'A parent who wants a smaller or different amount has to be sent to the front desk; you cannot create a link for one.',
     ].join('\n')
 

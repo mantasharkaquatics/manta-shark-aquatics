@@ -14,8 +14,6 @@ import {
   centsToPoints,
   forgivenessAvailable,
   LESSONS_PER_FORGIVENESS,
-  nextVipTier,
-  vipTier,
   type PriceBreakdown,
 } from '@/lib/points'
 
@@ -104,7 +102,7 @@ export const totalBalance = (w: Wallet) => w.balance_purchased + w.balance_grant
 
 /**
  * Completed lessons, from the database function rather than a stored counter.
- * It drives the VIP tier and the forgiveness count, so it must not be cached
+ * It drives the forgiveness count, so it must not be cached
  * anywhere it could go stale.
  *
  * A lesson counts once its date has passed, it was not cancelled, and its
@@ -122,8 +120,6 @@ export async function lessonsCompleted(svc: Svc, parentId: string): Promise<numb
 export async function walletSummary(svc: Svc, parentId: string) {
   const wallet = await getWallet(svc, parentId)
   const completed = await lessonsCompleted(svc, parentId)
-  const tier = vipTier(completed)
-  const next = nextVipTier(completed)
   return {
     balance: totalBalance(wallet),
     balancePurchased: wallet.balance_purchased,
@@ -131,13 +127,6 @@ export async function walletSummary(svc: Svc, parentId: string) {
     // Non-zero only after a bank return or a dispute clawed points back out.
     arrears: arrears(wallet),
     lessonsCompleted: completed,
-    vipLevel: tier.level,
-    vipDiscount: tier.discount,
-    nextTier: next && {
-      level: next.tier.level,
-      discount: next.tier.discount,
-      lessonsToGo: next.lessonsToGo,
-    },
     forgiveness: forgivenessAvailable(completed, wallet.forgiveness_used),
     lessonsPerForgiveness: LESSONS_PER_FORGIVENESS,
   }

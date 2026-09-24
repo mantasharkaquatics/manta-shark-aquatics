@@ -24,8 +24,6 @@ type CartQuote = {
   total: number
   priceable: boolean
   balance: number
-  vip_level: number
-  vip_discount: number
   sufficient: boolean
 }
 type CartState = {
@@ -88,7 +86,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
       setRemainMs(ms)
       if (ms <= 0) {
         if (timerRef.current) clearInterval(timerRef.current)
-        setCart({ items: [], expiresAt: null, quote: { lines: [], total: 0, priceable: true, balance: 0, vip_level: 0, vip_discount: 0, sufficient: true } })
+        setCart({ items: [], expiresAt: null, quote: { lines: [], total: 0, priceable: true, balance: 0, sufficient: true } })
         onCommitted?.()
       }
     }
@@ -132,7 +130,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
     const j = await act({ action: 'commit' })
     if (j?.ok) {
       setDone(true)
-      setCart({ items: [], expiresAt: null, quote: { lines: [], total: 0, priceable: true, balance: 0, vip_level: 0, vip_discount: 0, sufficient: true } })
+      setCart({ items: [], expiresAt: null, quote: { lines: [], total: 0, priceable: true, balance: 0, sufficient: true } })
       onCommitted?.()
     } else {
       await load()

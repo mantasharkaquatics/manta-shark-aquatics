@@ -364,7 +364,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   // Admin picks how a single-day booking is paid. Tokens are same-day/next-day
   // only and cover one swimmer, so the choice is offered only when it applies;
   // There is no payment choice left to make: one currency, and each family
-  // pays out of its own wallet at its own VIP level.
+  // pays out of its own wallet.
   // Clicking a zone constrains what can be booked there: a 1-on-4 zone only
   // takes 1-on-4, a team block only Swim Team. Private stays free by owner's
   // choice — that zone serves both 1-on-1 and 1-on-2 anyway.

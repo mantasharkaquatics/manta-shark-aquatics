@@ -4,7 +4,7 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, lessonsCompleted, WalletInArrears } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, WalletInArrears } from '@/lib/points-wallet'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
@@ -267,13 +267,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This lesson cannot be moved online. Please contact us and we will move it for you.' }, { status: 409 })
   }
 
-  const completed = await lessonsCompleted(svc, parent.id)
   let price
   try {
     price = priceLesson({
       courseSlug: course.slug,
       minutes: 30,
-      lessonsCompleted: completed,
       sessionDate: session_date,
       startTime: start_time,
       seats: seatsToPay,

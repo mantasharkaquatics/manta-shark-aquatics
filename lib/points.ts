@@ -1,10 +1,13 @@
 // The points pricing engine. Every number a parent is ever charged comes from
 // here, and nothing else computes a price.
 //
-// One currency (1 point = US$1, never expires), two discounts, both applied at
-// booking time rather than at purchase. That is the whole design: a discount
-// that is earned by taking a lesson cannot be refunded back out, so there is no
-// "buy the big bundle, take ten lessons, refund the rest" arbitrage.
+// One currency (1 point = US$1, never expires) and one price list. There is no
+// discount anywhere: no bulk rate on purchase (which could be refunded back
+// out -- "buy the big bundle, take ten lessons, refund the rest"), and since
+// 2026-09 no VIP level and no off-peak rate either. The owner removed both to
+// keep pricing one number a parent can check, and so a future price change is
+// a single edit to BASE_POINTS. Off-peak is parked behind a switch below; VIP
+// was taken out entirely and lives in git history if it is ever wanted back.
 //
 // Design book: the artifact published 2026-09-01. If you change a number here,
 // change the User Agreement too -- parents are told these rules.
@@ -12,8 +15,7 @@
 import { getTodayLA } from '@/lib/date'
 
 // --- Base prices, per swimmer, per 30 minutes -------------------------------
-// This is the ceiling. Everything below is a discount off it; there is no
-// surcharge anywhere in the system, deliberately. "Off-peak saves 3 points"
+// This is the price. There is no surcharge anywhere in the system, deliberately. "Off-peak saves 3 points"
 // and "peak costs 3 points more" are the same arithmetic and land completely
 // differently on a parent.
 export const BASE_POINTS: Record<string, number> = {
@@ -31,9 +33,7 @@ export const TEAM_SLUG = 'team'
 // --- Buying points ------------------------------------------------------------
 // No volume discount, on purpose. A discount given at purchase can be refunded
 // back out -- buy the biggest bundle, take ten lessons, refund the rest, and you
-// have bought lessons at the bulk rate with no commitment. Every discount in
-// this system is earned at the moment of booking instead, where it cannot be
-// handed back.
+// have bought lessons at the bulk rate with no commitment.
 export const MIN_TOPUP_DOLLARS = 50
 export const MAX_TOPUP_DOLLARS = 10_000
 
@@ -73,8 +73,8 @@ export const CASH_REFUND_ENABLED = false
    asserts the nine come out distinct, because two cards at the same price
    would be indistinguishable once bought. */
 export const TOPUP_COURSES = ['1on1', '1on2', '1on4'] as const
-// 50 came out at exactly five times the 10 -- same price per lesson, same VIP
-// accrual, so it offered nothing but a bigger cheque. Two sizes is the honest
+// 50 came out at exactly five times the 10 -- same price per lesson, so it
+// offered nothing but a bigger cheque. Two sizes is the honest
 // number when there is no volume discount to justify a third.
 export const TOPUP_LESSON_COUNTS = [10, 30] as const
 export type TopUpCourse = (typeof TOPUP_COURSES)[number]
@@ -91,9 +91,7 @@ export const TOPUP_PRESETS: readonly number[] = [
 ].sort((a, b) => a - b)
 
 /* What a given amount buys, for labelling it in prose (the chat assistant, the
-   knowledge sheet). The counts are a FLOOR, not an estimate: VIP and off-peak
-   only ever make a lesson cheaper and the rounding always favours the family,
-   so 650 points buys AT LEAST ten private lessons. */
+   knowledge sheet). 650 points buys exactly ten private lessons. */
 export function presetLessons(dollars: number): { slug: TopUpCourse; lessons: number } | null {
   for (const slug of TOPUP_COURSES) {
     for (const lessons of TOPUP_LESSON_COUNTS) {
@@ -101,33 +99,6 @@ export function presetLessons(dollars: number): { slug: TopUpCourse; lessons: nu
     }
   }
   return null
-}
-
-// --- VIP, by lessons completed ----------------------------------------------
-// Earned by attending, not by spending. Retroactive: the moment a family moves
-// up, every point already in their wallet buys more. That is why this is a
-// discount on the lesson and not a better exchange rate on the purchase -- an
-// exchange rate would only help points bought *after* the upgrade, which
-// punishes the families who committed earliest.
-export const VIP_TIERS = [
-  { level: 5, lessons: 80, discount: 0.12 },
-  { level: 4, lessons: 50, discount: 0.09 },
-  { level: 3, lessons: 30, discount: 0.07 },
-  { level: 2, lessons: 20, discount: 0.05 },
-  { level: 1, lessons: 10, discount: 0.03 },
-  { level: 0, lessons: 0,  discount: 0    },
-] as const
-
-export type VipTier = { level: number; lessons: number; discount: number }
-
-export function vipTier(lessonsCompleted: number): VipTier {
-  return VIP_TIERS.find(t => lessonsCompleted >= t.lessons) ?? VIP_TIERS[VIP_TIERS.length - 1]
-}
-
-/** The next tier up, or null at the top. Drives the dashboard progress bar. */
-export function nextVipTier(lessonsCompleted: number): { tier: VipTier; lessonsToGo: number } | null {
-  const higher = [...VIP_TIERS].reverse().find(t => t.lessons > lessonsCompleted)
-  return higher ? { tier: higher, lessonsToGo: higher.lessons - lessonsCompleted } : null
 }
 
 // --- Off-peak ----------------------------------------------------------------
@@ -187,8 +158,6 @@ export type PriceInput = {
   isAssessment?: boolean
   /** 30 or 60. An hour lesson is two consecutive slots and costs twice. */
   minutes?: number
-  /** From points_lessons_completed() -- never a stored counter. */
-  lessonsCompleted: number
   sessionDate: string
   startTime: string
   /** Swimmers this family is paying for in this lesson. 1-on-2 with two of
@@ -202,8 +171,6 @@ export type PriceBreakdown = {
   seats: number
   /** 1 for a 30-minute lesson, 2 for an hour. */
   halfHours: number
-  vipLevel: number
-  vipPct: number
   offPeak: boolean
   offPeakPct: number
   /** Per seat, per half-hour, after discounts. What a booking row records. */
@@ -215,12 +182,8 @@ export type PriceBreakdown = {
 }
 
 /**
- * Discounts multiply and are floored ONCE, per seat.
- *
- * Flooring per line item instead would make the arithmetic depend on the order
- * the discounts were applied, and two parents on the same tier could be charged
- * differently for the same slot. Flooring rather than rounding means the
- * remainder always goes to the parent.
+ * A discount (off-peak, when switched on) is floored, so any remainder goes to
+ * the parent. With it off, the price is simply the base.
  */
 export function priceLesson(input: PriceInput): PriceBreakdown {
   const seats = Math.max(1, input.seats ?? 1)
@@ -238,7 +201,6 @@ export function priceLesson(input: PriceInput): PriceBreakdown {
   }
 
   const base = unit * halfHours
-  const tier = vipTier(input.lessonsCompleted)
   const offPeak = isOffPeak(input.sessionDate, input.startTime)
   const offPeakPct = offPeak ? OFF_PEAK_DISCOUNT : 0
 
@@ -247,15 +209,13 @@ export function priceLesson(input: PriceInput): PriceBreakdown {
   // rows unable to add up to the total -- off by the rounding remainder, in
   // whichever direction the arithmetic happened to fall. This way an hour costs
   // exactly twice a half hour, and every row carries a whole number.
-  const perHalfHour = Math.floor(unit * (1 - tier.discount) * (1 - offPeakPct))
+  const perHalfHour = Math.floor(unit * (1 - offPeakPct))
   const perSeat = perHalfHour * halfHours
 
   return {
     base,
     seats,
     halfHours,
-    vipLevel: tier.level,
-    vipPct: tier.discount,
     offPeak,
     offPeakPct,
     perHalfHour,
@@ -265,7 +225,7 @@ export function priceLesson(input: PriceInput): PriceBreakdown {
 }
 
 // --- Late-cancellation forgiveness -------------------------------------------
-// Same counter as VIP, so there is no second rule to explain or maintain.
+// One allowance per ten lessons completed on the family account.
 export const LESSONS_PER_FORGIVENESS = 10
 
 export function forgivenessAvailable(lessonsCompleted: number, forgivenessUsed: number): number {

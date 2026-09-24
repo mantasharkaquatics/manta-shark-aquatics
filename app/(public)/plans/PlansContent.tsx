@@ -10,7 +10,7 @@ import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
   ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
   TOPUP_COURSES, TOPUP_LESSON_COUNTS, topUpAmount, type TopUpCourse,
-  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, TOPUP_PRESETS, VIP_TIERS,
+  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, TOPUP_PRESETS,
 } from '@/lib/points'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/paths'
@@ -214,10 +214,9 @@ function TopUp() {
           what a deposit looks like; choosing one of five named things is what
           buying looks like.
 
-          This note is a floor, not a hedge: both discounts only ever make a
-          lesson cheaper, so the counts above are the WORST case. It also has to
-          say the points are not tied to a course, or five cards each naming one
-          course type would imply a restriction that does not exist. */}
+          This note has to say the points are not tied to a course, or cards
+          each naming one course type would imply a restriction that does not
+          exist. */}
       <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, margin: '4px 0 0' }}>
         {t('points.buy.countsNote')}
       </p>
@@ -296,14 +295,6 @@ export default function PlansContent() {
     { key: '1on2', points: BASE_POINTS['1on2'] },
     { key: '1on4', points: BASE_POINTS['1on4'] },
   ]
-  const tiers = [...VIP_TIERS].filter(x => x.level > 0).sort((a, b) => a.level - b.level)
-
-  // The worked example is computed, not typed. A sentence with a hand-written
-  // "58" in it is a sentence that goes wrong the first time a discount changes.
-  const exBase = BASE_POINTS['1on1']
-  const exVipPct = VIP_TIERS.find(x => x.level === 2)!.discount
-  const exVip = Math.floor(exBase * (1 - exVipPct))
-  const exBoth = Math.floor(exBase * (1 - exVipPct) * (1 - OFF_PEAK_DISCOUNT))
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh' }}>
@@ -400,90 +391,51 @@ export default function PlansContent() {
         </div>
       </section>
 
-      <div style={{ background: '#f0f4f8', position: 'relative' }}>
-        <svg viewBox="0 0 1440 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', width: '100%', marginTop: '-1px' }}>
-          <path d="M0,20 C480,40 960,0 1440,20 L1440,0 L0,0 Z" fill={DARK} />
-        </svg>
-      </div>
-
-      {/* DISCOUNTS */}
-      <section id="discounts" style={{ scrollMarginTop: '90px', background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <SectionEyebrow dark>{t('points.disc.eyebrow')}</SectionEyebrow>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>{t('points.disc.title')}</h2>
-          <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '620px', marginBottom: '32px' }}>
-            {t('points.disc.desc')}
-          </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
-            <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e9f0', padding: '28px 26px' }}>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY, marginBottom: '6px' }}>{t('points.disc.vipTitle')}</div>
-              <p style={{ fontSize: '13.5px', color: '#5a6a8a', lineHeight: 1.7, marginTop: 0, marginBottom: '18px' }}>{t('points.disc.vipDesc')}</p>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', minWidth: '260px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8a9ab8', padding: '0 0 8px', borderBottom: '1px solid #dfe5ef' }}>{t('points.disc.col.level')}</th>
-                      <th style={{ textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8a9ab8', padding: '0 0 8px', borderBottom: '1px solid #dfe5ef' }}>{t('points.disc.col.lessons')}</th>
-                      <th style={{ textAlign: 'right', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8a9ab8', padding: '0 0 8px', borderBottom: '1px solid #dfe5ef' }}>{t('points.disc.col.off')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tiers.map(tier => (
-                      <tr key={tier.level}>
-                        <td style={{ padding: '9px 0', borderBottom: '1px solid #eef1f7', fontWeight: 700, color: NAVY }}>{t('points.disc.vipLevel', { n: tier.level })}</td>
-                        <td style={{ padding: '9px 0', borderBottom: '1px solid #eef1f7', color: '#5a6a8a', fontVariantNumeric: 'tabular-nums' }}>{t('points.disc.lessonsDone', { n: tier.lessons })}</td>
-                        <td style={{ padding: '9px 0', borderBottom: '1px solid #eef1f7', textAlign: 'right', fontWeight: 700, color: '#3a9a5c', fontVariantNumeric: 'tabular-nums' }}>−{Math.round(tier.discount * 100)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.retro')}</p>
-            </div>
-
-            {/* Off-peak pricing is switched off (lib/points OFF_PEAK_ENABLED). */}
-            {OFF_PEAK_ENABLED && (
-            <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e9f0', padding: '28px 26px' }}>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY, marginBottom: '6px' }}>
-                {t('points.disc.offTitle', { pct: Math.round(OFF_PEAK_DISCOUNT * 100) })}
-              </div>
-              <p style={{ fontSize: '13.5px', color: '#5a6a8a', lineHeight: 1.7, marginTop: 0, marginBottom: '18px' }}>{t('points.disc.offDesc')}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {['weekday', 'weekend'].map(k => (
-                  <div key={k} style={{ background: '#f5f8fc', border: '1px solid #e5e9f0', borderRadius: '10px', padding: '12px 14px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#8a9ab8', marginBottom: '3px' }}>{t('points.disc.off.' + k + '.label')}</div>
-                    <div style={{ fontSize: '14px', color: NAVY, fontWeight: 600 }}>{t('points.disc.off.' + k + '.hours')}</div>
-                  </div>
-                ))}
-              </div>
-              <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.offNote')}</p>
-            </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: '24px', background: NAVY, borderRadius: '16px', padding: '24px 28px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('points.example.eyebrow')}</div>
-            <p style={{ fontSize: '14.5px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.8, margin: 0, maxWidth: '70ch' }}>
-              {OFF_PEAK_ENABLED
-                ? t('points.example.body', {
-                    base: exBase, vip: exVip, both: exBoth, saved: exBase - exBoth,
-                    pct: Math.round(exVipPct * 100),
-                  })
-                : t('points.example.bodyVip', {
-                    base: exBase, vip: exVip, saved: exBase - exVip, level: 2,
-                    lessons: VIP_TIERS.find(x => x.level === 2)!.lessons,
-                  })}
-            </p>
-          </div>
+      {/* DISCOUNTS. There are none today: VIP was removed (2026-09) and
+          off-peak is switched off in lib/points. This band only appears if
+          off-peak is switched back on. */}
+      {OFF_PEAK_ENABLED && (<>
+        <div style={{ background: '#f0f4f8', position: 'relative' }}>
+          <svg viewBox="0 0 1440 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', width: '100%', marginTop: '-1px' }}>
+            <path d="M0,20 C480,40 960,0 1440,20 L1440,0 L0,0 Z" fill={DARK} />
+          </svg>
         </div>
-      </section>
 
-      <div style={{ background: DARK, position: 'relative' }}>
-        <svg viewBox="0 0 1440 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', width: '100%', marginTop: '-1px' }}>
-          <path d="M0,20 C480,0 960,40 1440,20 L1440,0 L0,0 Z" fill="#f0f4f8" />
-        </svg>
-      </div>
+        {/* DISCOUNTS */}
+        <section id="discounts" style={{ scrollMarginTop: '90px', background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
+          <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+            <SectionEyebrow dark>{t('points.disc.eyebrow')}</SectionEyebrow>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>{t('points.disc.title')}</h2>
+            <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '620px', marginBottom: '32px' }}>
+              {t('points.disc.desc')}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+              <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e9f0', padding: '28px 26px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY, marginBottom: '6px' }}>
+                  {t('points.disc.offTitle', { pct: Math.round(OFF_PEAK_DISCOUNT * 100) })}
+                </div>
+                <p style={{ fontSize: '13.5px', color: '#5a6a8a', lineHeight: 1.7, marginTop: 0, marginBottom: '18px' }}>{t('points.disc.offDesc')}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {['weekday', 'weekend'].map(k => (
+                    <div key={k} style={{ background: '#f5f8fc', border: '1px solid #e5e9f0', borderRadius: '10px', padding: '12px 14px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#8a9ab8', marginBottom: '3px' }}>{t('points.disc.off.' + k + '.label')}</div>
+                      <div style={{ fontSize: '14px', color: NAVY, fontWeight: 600 }}>{t('points.disc.off.' + k + '.hours')}</div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.offNote')}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div style={{ background: DARK, position: 'relative' }}>
+          <svg viewBox="0 0 1440 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', width: '100%', marginTop: '-1px' }}>
+            <path d="M0,20 C480,0 960,40 1440,20 L1440,0 L0,0 Z" fill="#f0f4f8" />
+          </svg>
+        </div>
+      </>)}
 
       {/* SWIM TEAM — the one thing points do not buy */}
       <section id="team" style={{ scrollMarginTop: '90px', background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>

@@ -1,7 +1,7 @@
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
   ASSESSMENT_POINTS, BASE_POINTS, LESSONS_PER_FORGIVENESS,
-  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, VIP_TIERS, TOPUP_PRESETS, presetLessons,
+  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, TOPUP_PRESETS, presetLessons,
 } from '@/lib/points'
 import { FAQ_IDS } from '@/lib/faq'
 import { translate } from '@/lib/i18n'
@@ -46,21 +46,18 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
     'Lessons are paid for out of a points wallet. 1 point = US$1, fixed. Points never expire and unused points can be refunded at any time for what was paid.',
     `The website sells exactly these amounts and nothing else: ${TOPUP_PRESETS.map(p => {
       const shape = presetLessons(p)
-      return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} × ${shape.slug} at full price)` : '$' + p.toLocaleString('en-US')
-    }).join(', ')}. Those lesson counts are a MINIMUM — the discounts below are applied at booking, so the same points stretch further. A parent wanting a different amount must be sent to the front desk. There is no volume discount on the purchase itself.`,
+      return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} × ${shape.slug})` : '$' + p.toLocaleString('en-US')
+    }).join(', ')}. A parent wanting a different amount must be sent to the front desk. There is no volume discount on the purchase itself.`,
     `Swim Assessment (one per swimmer, 30 min, 1-on-1): $${(TRIAL_PRICE_CENTS / 100).toFixed(0)} paid by card, not from the wallet. It is required before any lesson can be booked, because the booking calendar needs the swimmer's level. (Internally it is worth ${ASSESSMENT_POINTS} points.)`,
-    'Base price per swimmer per 30 minutes, before discounts:',
+    'Price per swimmer per 30 minutes:',
     ...Object.entries(BASE_POINTS).map(([slug, pts]) => `  ${slug}: ${pts} points ($${pts})`),
     'A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 with two children from the same family pays for two swimmers.',
     'Swim Team is a monthly membership billed to a card and is never paid for with points.',
-    `VIP discount, off every lesson, by lessons completed on the account (this is retroactive — it applies to points already in the wallet): ${
-      VIP_TIERS.filter(t => t.level > 0).sort((a, b) => a.level - b.level)
-        .map(t => `VIP ${t.level} at ${t.lessons} lessons = ${Math.round(t.discount * 100)}% off`).join('; ')
-    }.`,
+    'There is no VIP, loyalty or member discount: every family pays the same price.',
     OFF_PEAK_ENABLED
       ? `Off-peak discount: ${Math.round(OFF_PEAK_DISCOUNT * 100)}% off, judged on the time the lesson starts. Mon-Fri 6:00-12:00 and 19:30-21:00; Sat-Sun 6:00-10:00 and 19:30-21:00. The booking calendar marks these slots.`
       : 'There is no off-peak or time-of-day discount; every time of day costs the same.',
-    'Discounts multiply and the result is rounded down, so the remainder always favours the family.',
+    ...(OFF_PEAK_ENABLED ? ['The discounted price is rounded down, so the remainder always favours the family.'] : []),
     `Cancelling more than 24 hours ahead returns the points in full. Within 24 hours the points are not returned, unless the family spends a late-cancellation allowance — they earn one for every ${LESSONS_PER_FORGIVENESS} lessons completed, and they choose whether to use it.`,
   ]
 

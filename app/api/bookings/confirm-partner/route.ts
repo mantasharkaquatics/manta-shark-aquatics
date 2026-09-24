@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, lessonsCompleted, WalletInArrears } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, WalletInArrears } from '@/lib/points-wallet'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -136,15 +136,12 @@ export async function POST(req: NextRequest) {
   const firstSession = [...sessions].sort((a: any, b: any) =>
     (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
 
-  // Each family pays for its own seat, at its OWN VIP level. That is the whole
-  // point of settling here rather than when the invitation was sent: a family
-  // that reached a new tier in the meantime gets the better price, and neither
-  // family's discount is quietly spent on the other's lesson.
-  const quoteFor = async (parentId: string, halves: number) => {
+  // Each family pays for its own seat, out of its own wallet, settled here
+  // when the second family accepts rather than when the invitation was sent.
+  const quoteFor = (halves: number) => {
     const price = priceLesson({
       courseSlug: courseType.slug,
       minutes: 30,
-      lessonsCompleted: await lessonsCompleted(supabase, parentId),
       sessionDate: firstSession.session_date,
       startTime: String(firstSession.start_time).slice(0, 5),
       seats: 1,
@@ -154,8 +151,8 @@ export async function POST(req: NextRequest) {
 
   let myQuote, theirQuote
   try {
-    myQuote = await quoteFor(confirmingParent.id, mine.length)
-    theirQuote = await quoteFor(initiatorBooking.parent_id, theirs.length)
+    myQuote = quoteFor(mine.length)
+    theirQuote = quoteFor(theirs.length)
   } catch {
     return NextResponse.json({ error: 'This lesson cannot be paid for with points.' }, { status: 400 })
   }

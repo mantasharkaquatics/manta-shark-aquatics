@@ -91,7 +91,6 @@ async function quoteCart(svc: any, parentId: string, items: any[]) {
     try {
       points = priceLesson({
         courseSlug: it.course_slug, minutes: 30,
-        lessonsCompleted: wallet.lessonsCompleted,
         sessionDate: it.session_date, startTime: it.start_time, seats: 1,
       }).perSeat
       total += points
@@ -101,8 +100,6 @@ async function quoteCart(svc: any, parentId: string, items: any[]) {
   return {
     lines, total, priceable,
     balance: wallet.balance,
-    vip_level: wallet.vipLevel,
-    vip_discount: wallet.vipDiscount,
     sufficient: priceable && wallet.balance >= total,
   }
 }
@@ -269,7 +266,6 @@ export async function POST(req: NextRequest) {
         parentId: parent.id, reason: 'booking', points: -quote.total, actor: 'parent',
         pricing: {
           kind: 'cart',
-          vipLevel: quote.vip_level, vipPct: quote.vip_discount,
           items: cart.items.map((it: any) => ({
             course: it.course_slug, date: it.session_date,
             time: it.start_time, points: pointsOf.get(it.booking_id) ?? 0,
