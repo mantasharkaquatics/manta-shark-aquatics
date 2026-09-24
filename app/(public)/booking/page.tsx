@@ -1951,9 +1951,12 @@ export default function BookingPage() {
                     const lineAt = (r: number) => `${lineTop(r)}px`
                     return (
                       <div style={{ marginBottom: '18px' }}>
-                        <div style={{ position: 'sticky', top: 0, zIndex: 2, background: DARK, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', padding: '6px 0 4px', marginBottom: '4px' }}>
+                        {/* Pinned under the site's 64px navbar (top: 0 put it BEHIND the
+                            navbar, so it never showed once you scrolled), so the
+                            weekdays stay in view all the way down the calendar. */}
+                        <div style={{ position: 'sticky', top: '64px', zIndex: 3, background: DARK, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', padding: '8px 0 6px', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 10px -6px rgba(0,0,0,0.5)' }}>
                           {[0, 1, 2, 3, 4, 5, 6].map(d => (
-                            <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
+                            <div key={d} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                           ))}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
