@@ -42,6 +42,9 @@ const MOBILE_CSS = `
 .msa-act-pts b { font-size: 19px; color: #c9a84c; font-variant-numeric: tabular-nums }
 .msa-act-pts em { font-style: normal; font-weight: 700; color: #c9a84c }
 .msa-act-pts.owe { border-color: rgba(220,90,80,0.6) }
+.msa-gift { font-size: 12px; font-weight: 700; color: #8fdcc2; background: rgba(111,201,170,0.1);
+  border: 1px solid rgba(111,201,170,0.35); border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+  font-variant-numeric: tabular-nums }
 .msa-act-pts.owe b, .msa-act-pts.owe em { color: #f2a09a }
 .msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.72);
   display: flex; align-items: center; justify-content: center; padding: 20px }
@@ -593,8 +596,14 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
         {t('points.card.title')}
       </div>
+      {/* Purchased and bonus points are shown apart, never as one total: they
+          follow different rules (bonus points expire, are spent first, and are
+          not refundable), and a family should see which is which at a glance. */}
+      {w.balanceGranted > 0 && (
+        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '4px' }}>{t('points.card.purchasedLabel')}</div>
+      )}
       <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: '#c9a84c', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-        {w.balance.toLocaleString()}
+        {w.balancePurchased.toLocaleString()}
       </div>
       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '14px' }}>
         {/* This line used to read "worth $1,985", which was the single
@@ -602,21 +611,28 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
             rather than lessons already bought. The rate is unchanged and still
             stated on the pricing page and in the FAQ -- it is just no longer
             the second thing a parent reads about their own account. */}
-        {t('points.card.worth')}
+        {t(w.balanceGranted > 0 ? 'points.card.neverExpires' : 'points.card.worth')}
       </div>
-      {/* Granted points expire; purchased ones never do. Said here, before the
-          date arrives, so an expiry is never the first a family hears of it. */}
+      {/* Bonus points: their own box, with the date they stop working, said
+          before it arrives so an expiry is never the first a family hears of it. */}
       {w.balanceGranted > 0 && (
-        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginTop: '-8px', marginBottom: '14px', lineHeight: 1.5 }}>
-          {w.grantedNextExpiry
-            ? t('points.card.grantedExpiry', {
-                granted: w.balanceGranted.toLocaleString(),
-                n: w.grantedNextExpiry.points.toLocaleString(),
-                date: new Date(w.grantedNextExpiry.date).toLocaleDateString(
-                  locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW',
-                  { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }),
-              })
-            : t('points.card.granted', { granted: w.balanceGranted.toLocaleString() })}
+        <div style={{ background: 'rgba(111,201,170,0.08)', border: '1px solid rgba(111,201,170,0.35)', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#8fdcc2' }}>{t('points.card.grantedLabel')}</span>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 900, color: '#8fdcc2', fontVariantNumeric: 'tabular-nums' }}>
+              {w.balanceGranted.toLocaleString()}
+            </span>
+          </div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '6px', lineHeight: 1.5 }}>
+            {w.grantedNextExpiry
+              ? t('points.card.grantedNote', {
+                  n: w.grantedNextExpiry.points.toLocaleString(),
+                  date: new Date(w.grantedNextExpiry.date).toLocaleDateString(
+                    locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW',
+                    { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }),
+                })
+              : t('points.card.grantedNoteNoDate')}
+          </div>
         </div>
       )}
 
@@ -1785,7 +1801,11 @@ export default function DashboardPage() {
             {wallet && (
               <button className={'tap-auto msa-act-pts' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : '')}
                 onClick={() => setPointsOpen(true)}>
-                <span><b>{wallet.balance.toLocaleString()}</b> {t('dash.pointsUnit')}</span>
+                <span><b>{wallet.balancePurchased.toLocaleString()}</b> {t('dash.pointsUnit')}</span>
+                {/* Bonus points apart from purchased ones, in their own colour. */}
+                {wallet.balanceGranted > 0 && (
+                  <span className="msa-gift">{t('dash.pointsGift', { n: wallet.balanceGranted.toLocaleString() })}</span>
+                )}
                 <em>{t('dash.topUp')} ›</em>
               </button>
             )}
