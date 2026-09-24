@@ -1,7 +1,7 @@
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
   ASSESSMENT_POINTS, BASE_POINTS, LESSONS_PER_FORGIVENESS,
-  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, TOPUP_PRESETS, presetLessons,
+  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, REFERRAL_POINTS, TOPUP_PRESETS, presetLessons,
 } from '@/lib/points'
 import { FAQ_IDS } from '@/lib/faq'
 import { translate } from '@/lib/i18n'
@@ -54,6 +54,7 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
     'A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 with two children from the same family pays for two swimmers.',
     'Swim Team is a monthly membership billed to a card and is never paid for with points.',
     'There is no VIP, loyalty or member discount: every family pays the same price.',
+    `Referral: when a new family registers with an existing family's referral code and takes its first lesson paid with purchased points, both families receive ${REFERRAL_POINTS} bonus points (not refundable, valid one year). The code must be entered at registration.`,
     OFF_PEAK_ENABLED
       ? `Off-peak discount: ${Math.round(OFF_PEAK_DISCOUNT * 100)}% off, judged on the time the lesson starts. Mon-Fri 6:00-12:00 and 19:30-21:00; Sat-Sun 6:00-10:00 and 19:30-21:00. The booking calendar marks these slots.`
       : 'There is no off-peak or time-of-day discount; every time of day costs the same.',

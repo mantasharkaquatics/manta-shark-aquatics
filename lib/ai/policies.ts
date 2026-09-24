@@ -1,7 +1,7 @@
 // Business policies fed to the AI chat assistant.
 // Source: owner questionnaire, July 2026. When a policy changes: edit this
 // file, npm run build, git push.
-import { OFF_PEAK_ENABLED } from '@/lib/points'
+import { OFF_PEAK_ENABLED, REFERRAL_POINTS } from '@/lib/points'
 
 export const POLICIES = `
 === BUSINESS HOURS ===
@@ -27,6 +27,7 @@ export const POLICIES = `
 
 === WHAT A LESSON COSTS ===
 - Every lesson has a base price in points, per swimmer, per 30 minutes. A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 booked for two swimmers on the SAME account is charged for both seats; when two different families share a 1-on-2, each family pays for its own swimmer.
+- REFERRALS: a family can share its referral code (shown in the points section of the dashboard). A NEW family that enters the code when registering, and then takes its first lesson paid with purchased points, earns ${REFERRAL_POINTS} bonus points for BOTH families, added automatically the next day. The code cannot be added after registration; the Swim Assessment does not count; a family can be referred only once; a referrer has no limit. The reward is bonus points: used first, not refundable, valid one year.
 - There is NO VIP, loyalty, member or volume discount. Every family pays the same price for the same lesson.
 ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the quieter hours - Mon-Fri 6:00 AM-12:00 noon and 7:30-9:00 PM; Sat-Sun 6:00-10:00 AM and 7:30-9:00 PM. The booking calendar marks them.\n' : '- There is NO off-peak or time-of-day discount: every time of day costs the same. Do not mention one.\n'}${OFF_PEAK_ENABLED ? '- The off-peak price is rounded DOWN to whole points, so the remainder always favours the family. Never quote a discount as a fixed number of points off; quote the percentage, or the actual price shown on the booking page.\n' : ''}- Exact prices come from the PRICING section of the knowledge block. Never state a price that is not there.
 

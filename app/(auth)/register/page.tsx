@@ -108,6 +108,29 @@ export default function RegisterPage() {
   const [waiverAccepted, setWaiverAccepted] = useState(false)
   const [mediaAccepted, setMediaAccepted] = useState(false)
   const [newsletter, setNewsletter] = useState(true)
+  // Referral code: prefilled from ?ref= when the family arrived by a shared
+  // link, checked as it is typed, and bound to the new account by the server
+  // once the account exists. It cannot be added after registration.
+  const [referralCode, setReferralCode] = useState('')
+  const [referral, setReferral] = useState<{ valid: boolean; referrer?: string } | null>(null)
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref')
+    if (ref) setReferralCode(ref.toUpperCase())
+  }, [])
+  useEffect(() => {
+    const code = referralCode.trim()
+    if (!code) { setReferral(null); return }
+    if (code.length < 6) { setReferral(null); return }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/referrals/check', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+        })
+        setReferral(await res.json())
+      } catch { setReferral(null) }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [referralCode])
 
   useEffect(() => {
     if (emailCooldown <= 0) return
@@ -277,6 +300,16 @@ export default function RegisterPage() {
         date_of_birth: s.dateOfBirth || null, current_level: null, is_active: true,
         sort_order: sortOrder++,
       })
+    }
+    // Best effort: a code that fails here must not block the account, which
+    // already exists. The server re-checks everything.
+    if (referralCode.trim() && referral?.valid) {
+      try {
+        await fetch('/api/referrals/claim', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: referralCode.trim() }),
+        })
+      } catch {}
     }
     setLoading(false)
     router.push('/dashboard')
@@ -476,6 +509,18 @@ export default function RegisterPage() {
                 {t('register.addStudent')}
               </button>
             )}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">{t('register.referral')}</label>
+              <input value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                placeholder={t('register.referralPlaceholder')} autoCapitalize="characters" autoComplete="off"
+                className={`w-full bg-[#0d1529] border text-white placeholder-gray-600 focus:outline-none rounded-lg px-3 py-2.5 text-sm tracking-[0.2em] ${referral?.valid ? 'border-[#8fdcc2]' : referral && !referral.valid ? 'border-red-400/60' : 'border-[#1e3a6e] focus:border-[#c9a84c]'}`} />
+              {referral?.valid && (
+                <p className="text-xs text-[#8fdcc2] mt-1.5">{t('register.referralOk', { name: referral.referrer || '' })}</p>
+              )}
+              {referral && !referral.valid && (
+                <p className="text-xs text-red-400 mt-1.5">{t('register.referralBad')}</p>
+              )}
+            </div>
             <div className="space-y-3 pt-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}

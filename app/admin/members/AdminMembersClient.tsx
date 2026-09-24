@@ -875,6 +875,10 @@ type WalletView = {
   balancePurchased: number
   balanceGranted: number
   grantedNextExpiry: { date: string; points: number } | null
+  referral?: {
+    referredBy: { name: string; status: string } | null
+    referred: { name: string; status: string }[]
+  }
   lessonsCompleted: number
   forgiveness: number
   ledger: LedgerRow[]
@@ -962,6 +966,12 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                 </span>
                 <span className="text-gray-400 text-xs">{w.forgiveness} late-cancel allowance{w.forgiveness === 1 ? '' : 's'}</span>
               </div>
+              {w.referral && (w.referral.referredBy || w.referral.referred.length > 0) && (
+                <p className="text-gray-500 text-xs">
+                  {w.referral.referredBy && <>Referred by {w.referral.referredBy.name} ({w.referral.referredBy.status}). </>}
+                  {w.referral.referred.length > 0 && <>Referred {w.referral.referred.map(r => `${r.name} (${r.status})`).join(', ')}.</>}
+                </p>
+              )}
               {/* Refundable is the purchased side only — spelled out here so the
                   figure is never worked out in someone's head at the counter. */}
               <p className="text-gray-500 text-xs">

@@ -245,6 +245,12 @@ export function grantedExpiry(from: Date = new Date()): string {
   return d.toISOString()
 }
 
+// --- Referrals -----------------------------------------------------------------
+// Both families receive this, as granted points, once the new family has taken
+// its first lesson paid with purchased points (lib/referrals.ts). 40 is one
+// 1-on-4 lesson.
+export const REFERRAL_POINTS = 40
+
 // --- Money --------------------------------------------------------------------
 /** 1 point = US$1, fixed forever. Both directions, so nothing can drift. */
 export const CENTS_PER_POINT = 100

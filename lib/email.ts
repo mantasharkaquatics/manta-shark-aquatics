@@ -27,6 +27,7 @@ export type EmailType =
   | 'applicant_password_reset'
   | 'payment_reversed'
   | 'refund_issued'
+  | 'referral_reward'
 
 export interface EmailPayload {
   type: EmailType
@@ -73,6 +74,11 @@ export interface EmailPayload {
   reversalKind?: 'payment_failed' | 'chargeback'
   // refund_issued: the part still to be handed over in person, if any.
   handBackAmount?: number
+  // referral_reward: which side of the referral this family is, the other
+  // family's last name, and the date the reward stops working.
+  referralRole?: 'referrer' | 'referred'
+  otherFamily?: string
+  expiresOn?: string
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -177,6 +183,14 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       : ''
     subject = `Your $${total.toFixed(2)} refund from Manta Shark Aquatics`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Refund issued</h2><p>Hi ${parentName},</p><p>We\u2019ve refunded <strong>$${total.toFixed(2)}</strong> and taken the matching points out of your account.</p>${cardLine}${handLine}<p style="color:#666; font-size: 13px; margin-top: 16px;">Your points statement on the Dashboard shows this alongside everything else on your account. If anything doesn\u2019t look right, reply to this email and we\u2019ll sort it out.</p></div></div>`
+
+  } else if (type === 'referral_reward') {
+    const pts = Number(amount ?? 0)
+    const why = payload.referralRole === 'referrer'
+      ? `The ${payload.otherFamily} family, who joined with your referral code, has taken their first lesson. Thank you for introducing them!`
+      : `Welcome aboard! You joined with the ${payload.otherFamily} family's referral code, and you've now taken your first lesson.`
+    subject = `You've received ${pts} bonus points`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">${pts} bonus points for you</h2><p>Hi ${parentName},</p><p>${why}</p><p><strong>${pts} bonus points</strong> have been added to your account${payload.expiresOn ? ` and can be used until <strong>${payload.expiresOn}</strong>` : ''}. Bonus points are used before your purchased points and are not refundable for cash.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Book a Lesson</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
   } else if (type === 'payment_reversed') {
     // Written to be read by someone who did nothing wrong. The overwhelmingly

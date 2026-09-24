@@ -31,8 +31,23 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(40)
 
+  // Referrals both ways: who brought this family in, and whom they brought.
+  const [{ data: inbound }, { data: outbound }] = await Promise.all([
+    auth.svc.from('referrals').select('referrer_parent_id, status').eq('referred_parent_id', parentId).maybeSingle(),
+    auth.svc.from('referrals').select('referred_parent_id, status').eq('referrer_parent_id', parentId),
+  ])
+  const ids = [inbound?.referrer_parent_id, ...(outbound || []).map((r: any) => r.referred_parent_id)].filter(Boolean)
+  const { data: fams } = ids.length
+    ? await auth.svc.from('parents').select('id, first_name, last_name').in('id', ids)
+    : { data: [] as any[] }
+  const nameOf = new Map((fams || []).map((f: any) => [f.id, `${f.first_name || ''} ${f.last_name || ''}`.trim()]))
+
   return NextResponse.json({
     ...summary,
+    referral: {
+      referredBy: inbound ? { name: nameOf.get(inbound.referrer_parent_id) || '—', status: inbound.status } : null,
+      referred: (outbound || []).map((r: any) => ({ name: nameOf.get(r.referred_parent_id) || '—', status: r.status })),
+    },
     ledger: (rows || []).map((r: any) => ({
       id: r.id,
       at: r.created_at,

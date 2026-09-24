@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
-import { priceLesson, LESSONS_PER_FORGIVENESS } from '@/lib/points'
+import { priceLesson, LESSONS_PER_FORGIVENESS, REFERRAL_POINTS } from '@/lib/points'
 import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -34,6 +34,8 @@ const MOBILE_CSS = `
   font-size: 22px; font-weight: 400; background: rgba(255,255,255,0.06) }
 .msa-partner { margin: 12px 0 0; text-align: center; font-size: 12.5px; color: rgba(255,255,255,0.45) }
 .msa-partner a { color: #c9a84c; font-weight: 700; text-decoration: none; white-space: nowrap }
+.msa-refer { margin-top: 6px }
+.msa-refer a { color: #8fdcc2 }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
 .msa-act-book { background: #c9a84c; color: #0f1a33; border: none; border-radius: 12px; padding: 15px;
   font-size: 15px; font-weight: 800; cursor: pointer }
@@ -744,6 +746,68 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
   )
 }
 
+/**
+ * Refer a friend: this family's code, a link to share, and who has used it.
+ * Loaded when the sheet opens, not with the dashboard -- most visits never
+ * open it. The referred families are shown by last name only (owner's call).
+ */
+function ReferralCard({ focus }: { focus: boolean }) {
+  const t = useT()
+  const [data, setData] = useState<{ code: string; link: string; points: number; referrals: { family: string; status: 'pending' | 'awarded' }[] } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let alive = true
+    fetch('/api/parent/referral').then(r => r.ok ? r.json() : null).then(j => { if (alive && j?.code) setData(j) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
+  useEffect(() => {
+    if (focus && data) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [focus, data])
+  if (!data) return null
+
+  // A phone gets the system share sheet (LINE, Messages, WhatsApp...); a
+  // computer copies the link.
+  const share = async () => {
+    const text = t('ref.shareText', { n: data.points })
+    if (typeof navigator !== 'undefined' && (navigator as any).share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      try { await (navigator as any).share({ title: 'Manta Shark Aquatics', text, url: data.link }); return } catch { /* cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(data.link)
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
+
+  return (
+    <div ref={ref} style={{ background: '#1a2744', borderRadius: '14px', border: '1px solid rgba(111,201,170,0.35)', padding: '18px 20px', scrollMarginTop: '12px' }}>
+      <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>{t('ref.title', { n: data.points })}</div>
+      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, marginBottom: '12px' }}>{t('ref.desc', { n: data.points })}</div>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+        <span style={{ flex: 1, background: '#0d1529', border: '1px dashed rgba(201,168,76,0.6)', borderRadius: '8px', padding: '9px 12px', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '17px', fontWeight: 700, letterSpacing: '3px', color: '#c9a84c', textAlign: 'center' }}>
+          {data.code}
+        </span>
+        <button className="tap-auto" onClick={share}
+          style={{ background: 'none', border: '1px solid rgba(201,168,76,0.6)', color: '#c9a84c', borderRadius: '8px', padding: '0 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          {copied ? t('ref.copied') : t('ref.share')}
+        </button>
+      </div>
+      {data.referrals.length > 0 && (
+        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {data.referrals.map((r, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '12.5px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '8px 10px' }}>
+              <span style={{ color: 'rgba(255,255,255,0.8)' }}>{t('ref.family', { name: r.family })}</span>
+              <span style={{ color: r.status === 'awarded' ? '#8fdcc2' : 'rgba(255,255,255,0.45)', fontWeight: r.status === 'awarded' ? 700 : 400 }}>
+                {r.status === 'awarded' ? t('ref.awarded', { n: data.points }) : t('ref.pending')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; monthly_price_cents?: number; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const locale = useLocale()
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
@@ -912,6 +976,8 @@ export default function DashboardPage() {
   const [recordsFor, setRecordsFor] = useState<Student | null>(null)
   const [recordsPage, setRecordsPage] = useState(0)
   const [pointsOpen, setPointsOpen] = useState(false)
+  // Opened from the "refer a friend" line: scroll the sheet to that card.
+  const [referralFocus, setReferralFocus] = useState(false)
   useEffect(() => {
     if (!recordsFor && !pointsOpen) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setRecordsFor(null); setPointsOpen(false) } }
@@ -1571,14 +1637,15 @@ export default function DashboardPage() {
       )}
 
       {pointsOpen && wallet && (
-        <div className="msa-sheet-back" onClick={() => setPointsOpen(false)}>
+        <div className="msa-sheet-back" onClick={() => { setPointsOpen(false); setReferralFocus(false) }}>
           <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('points.card.title')}>
             <div className="msa-sheet-head">
               <b>{t('points.card.title')}</b>
-              <button className="msa-sheet-x" onClick={() => setPointsOpen(false)} aria-label={t('common.close')}>✕</button>
+              <button className="msa-sheet-x" onClick={() => { setPointsOpen(false); setReferralFocus(false) }} aria-label={t('common.close')}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <PointsCard w={wallet} onBuy={() => { window.location.href = '/plans#buy' }} />
+              <ReferralCard focus={referralFocus} />
               {teamMemberships.length > 0 && <TeamCard memberships={teamMemberships} />}
             </div>
           </div>
@@ -1817,6 +1884,14 @@ export default function DashboardPage() {
             {t('dash.partnerPrompt')}{' '}
             <Link href="/dashboard/partnerships">{t('quick.partnerships')} ›</Link>
           </p>
+          {/* Refer a friend: one quiet line, opening the points sheet at the
+              referral card. Without it almost nobody would find the offer. */}
+          {wallet && (
+            <p className="msa-partner msa-refer">
+              {t('ref.prompt')}{' '}
+              <a href="#" onClick={e => { e.preventDefault(); setReferralFocus(true); setPointsOpen(true) }}>{t('ref.promptLink', { n: REFERRAL_POINTS })} ›</a>
+            </p>
+          )}
         </section>
 
         {/* Pending partner bookings notice */}

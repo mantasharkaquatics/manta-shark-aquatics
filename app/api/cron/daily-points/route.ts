@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { expireGrantedPoints } from '@/lib/points-wallet'
+import { awardDueReferrals } from '@/lib/referrals'
 
 export const runtime = 'nodejs'
 
@@ -11,8 +12,12 @@ export const runtime = 'nodejs'
 // family ("grant_expired"), so the family's statement says where the points
 // went. Purchased points are never touched.
 //
+// It also pays referral rewards (lib/referrals): 40 granted points to both
+// families once the new family has taken its first paid lesson.
+//
 // Safe to run more than once a day, or to miss a day: each run expires only
-// what is due at that moment and what has not already been expired.
+// what is due at that moment and what has not already been expired, and a
+// referral is claimed before it is paid, so it is never paid twice.
 export async function GET(req: NextRequest) {
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -39,5 +44,18 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ checked: (wallets || []).length, expiredFamilies, expiredPoints, failed: failed.length })
+  // Referrals after expiry, so a reward granted today is never looked at by
+  // today's expiry pass.
+  let referrals = { awarded: 0, failed: 0 }
+  try {
+    referrals = await awardDueReferrals(svc)
+  } catch (e) {
+    console.error('daily-points: referral awards failed:', e)
+    referrals.failed = -1
+  }
+
+  return NextResponse.json({
+    checked: (wallets || []).length, expiredFamilies, expiredPoints, failed: failed.length,
+    referralsAwarded: referrals.awarded, referralsFailed: referrals.failed,
+  })
 }

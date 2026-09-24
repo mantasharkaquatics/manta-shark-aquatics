@@ -1,5 +1,5 @@
 import { LEGAL_VERSIONS } from '@/lib/legal'
-import { OFF_PEAK_ENABLED } from '@/lib/points'
+import { OFF_PEAK_ENABLED, REFERRAL_POINTS } from '@/lib/points'
 
 export const metadata = { title: 'User Agreement — Manta Shark Aquatics' }
 
@@ -28,6 +28,7 @@ export default function Page() {
         <p style={p}><strong>Points you buy do not expire.</strong> There is no validity window, no dormancy or service fee, and no deduction of any kind for leaving a balance unused. Points are held against your family account and are shared by every student on it. Points are not transferable to another family account.</p>
         <p style={p}>Points you have paid for are refundable in cash under Section 7. Points added by the School without payment &mdash; a promotional bonus, a goodwill adjustment, or a negotiated programme rate &mdash; book lessons in exactly the same way but are not redeemable for cash, because no payment was received for them.</p>
         <p style={p}><strong>Bonus points expire one year after they are added.</strong> Each addition of points by the School without payment is valid for twelve months from the date it appears in your account; whatever remains of it after that date is removed. Bonus points are always used before points you have paid for, the soonest-expiring first, and your account dashboard shows the date on which your next bonus points expire. If a lesson paid for with bonus points is cancelled, those points are returned as bonus points with their original expiry date. Points you have paid for are never affected by this.</p>
+        <p style={p}><strong>Referrals.</strong> When a new family registers using another family&rsquo;s referral code and completes its first lesson paid for with purchased points, each of the two families receives {REFERRAL_POINTS} bonus points. The code must be entered when the new account is created and cannot be added afterwards. A family can be referred only once; there is no limit on how many families one family may refer. The Swim Assessment does not count as a paid lesson. Referral points are bonus points under the paragraph above. We may change or end the referral programme at any time; points already added are not affected.</p>
         <p style={p}>Your points history, in your account dashboard, shows every addition and deduction with the reason for it.</p>
         <p style={p}>Two things are not paid for with points. The <strong>Swim Assessment</strong> is charged to your card at the price shown when you book it, because a family books it before they have an account balance. <strong>Swim Team</strong> is a monthly membership under Section 8. Neither draws on your points.</p>
 
