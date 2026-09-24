@@ -1930,41 +1930,45 @@ export default function BookingPage() {
               const todayDs = formatDateLA(today)
               return (
                 <div>
-                  {/* Months run on down the page. A ticked lesson in September has
-                      to stay visible while its owner looks at October, or nobody
-                      dares carry on ticking. */}
-                  {Array.from({ length: monthsShown }).map((_, mi) => {
-                    const first = new Date(today.getFullYear(), today.getMonth() + mi, 1)
-                    const y = first.getFullYear()
-                    const m = first.getMonth()
-                    const mm2 = String(m + 1).padStart(2, '0')
+                  {/* One continuous run of weeks, starting with the week we are in.
+                      Past weeks are gone, and a new month does not start a new
+                      grid -- it just carries on in the same rows, with the 1st of
+                      the month labelled -- so there are no blank cells between
+                      September and October. A ticked lesson in September still
+                      stays in view while the family looks at October. */}
+                  {(() => {
+                    const weekStart0 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay())
+                    const lastDay = new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
+                    const days: Date[] = []
+                    for (const d = new Date(weekStart0); d <= lastDay || days.length % 7 !== 0; d.setDate(d.getDate() + 1)) days.push(new Date(d))
                     return (
-                      <div key={`${y}-${mm2}`} style={{ marginBottom: '18px' }}>
-                        <div style={{ position: 'sticky', top: 0, zIndex: 2, background: DARK, display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0 10px' }}>
-                          <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (m + 1)), year: y })}</span>
-                          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
+                      <div style={{ marginBottom: '18px' }}>
+                        <div style={{ position: 'sticky', top: 0, zIndex: 2, background: DARK, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', padding: '6px 0 4px', marginBottom: '4px' }}>
                           {[0, 1, 2, 3, 4, 5, 6].map(d => (
                             <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                           ))}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
-                          {Array.from({ length: getFirstDayOfMonth(y, m) }).map((_, i) => <div key={`e-${i}`} />)}
-                          {Array.from({ length: getDaysInMonth(y, m) }).map((_, i) => {
-                            const dt = new Date(y, m, i + 1)
+                          {days.map((dt, idx) => {
+                            const y = dt.getFullYear()
+                            const m = dt.getMonth()
+                            const i = dt.getDate() - 1
+                            const mm2 = String(m + 1).padStart(2, '0')
                             const ds = `${y}-${mm2}-${String(i + 1).padStart(2, '0')}`
+                            // The month is named where it starts, and on the very
+                            // first cell so the top row is never nameless.
+                            const monthTag = idx === 0 || i === 0
+                            const monthLabel = dt.toLocaleDateString(dateLoc, { month: 'short' })
                             const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
                             const isPast = ds < todayDs
                             const isToday2 = ds === todayDs
                             const open = openDay === ds
                             const anyPicked = slots.some((sl: any) => recurSel.has(`${ds}|${sl.time}`))
-                            // The panel belongs under the week the day is in, so the
-                            // months stay one continuous column.
-                            const endsWeek = (getFirstDayOfMonth(y, m) + i + 1) % 7 === 0 || i + 1 === getDaysInMonth(y, m)
-                            const weekStart = i - ((getFirstDayOfMonth(y, m) + i) % 7)
-                            const openInThisWeek = isPhone && openDay != null && openDay.startsWith(`${y}-${mm2}-`)
-                              && (() => { const od = Number(openDay.slice(-2)) - 1; return od >= weekStart && od <= i })()
+                            // The phone's time panel opens under the week the day is in.
+                            const endsWeek = idx % 7 === 6
+                            const rowStart = idx - (idx % 7)
+                            const openInThisWeek = isPhone && openDay != null
+                              && days.slice(rowStart, idx + 1).some(x => formatDateLA(x) === openDay)
                             const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)) : []
                             return (
                               <React.Fragment key={ds}>
@@ -1973,7 +1977,7 @@ export default function BookingPage() {
                                   <button onClick={() => { if (slots.length === 0) return; setOpenDay(open ? null : ds) }}
                                     disabled={slots.length === 0}
                                     style={{ width: '100%', minHeight: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'transparent', border: 'none', borderRadius: '8px', padding: '4px 0', cursor: slots.length === 0 ? 'default' : 'pointer' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{i + 1}</span>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.35)' }}>{monthTag && <span style={{ display: 'block', fontSize: '9px', fontWeight: 800, color: GOLD, lineHeight: 1.1 }}>{monthLabel}</span>}{i + 1}</span>
                                     <span style={{ display: 'flex', gap: '3px', height: '6px', alignItems: 'center' }}>
                                       {slots.map((sl: any) => {
                                         const picked = recurSel.has(`${ds}|${sl.time}`)
@@ -1985,7 +1989,7 @@ export default function BookingPage() {
                                   </button>
                                 ) : (
                                   <>
-                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isToday2 ? GOLD : isPast ? 'rgba(255,255,255,0.2)' : slots.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{monthTag && <span style={{ fontSize: '10px', fontWeight: 800, color: GOLD, marginRight: '4px' }}>{monthLabel}</span>}{i + 1}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       {slots.map((sl: any) => {
                                         const w24 = isWithin24Hours(ds, sl.time)
@@ -2074,7 +2078,7 @@ export default function BookingPage() {
                         </div>
                       </div>
                     )
-                  })}
+                  })()}
 
                   {monthsShown < 6 && (
                     <button onClick={() => setMonthsShown(n => n + 1)}
