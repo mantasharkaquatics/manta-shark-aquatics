@@ -293,6 +293,30 @@ export default function BookingPage() {
   // choosing several lessons means comparing them, and a pager hides September
   // the moment you look at October -- exactly when the comparison matters.
   const [monthsShown, setMonthsShown] = useState(2)
+  const [calSlide, setCalSlide] = useState<'l' | 'r' | null>(null)
+  const calCardRef = useRef<HTMLDivElement | null>(null)
+  const shiftMonthRef = useRef<(d: 1 | -1) => void>(() => {})
+  const calTouchRef = useRef<{ x: number; y: number } | null>(null)
+  // A trackpad swipe arrives as a stream of wheel events with deltaX. Add them
+  // up, turn the page once the swipe is clearly sideways and long enough, then
+  // ignore the tail of the same gesture (the trackpad's momentum) for a moment.
+  // The listener is not passive so it can cancel the event: otherwise Chrome
+  // reads the same swipe as "go back a page".
+  useEffect(() => {
+    const el = calCardRef.current
+    if (!el) return
+    let acc = 0, lockUntil = 0
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
+      e.preventDefault()
+      const now = Date.now()
+      if (now < lockUntil) return
+      acc += e.deltaX
+      if (Math.abs(acc) > 80) { shiftMonthRef.current(acc > 0 ? 1 : -1); acc = 0; lockUntil = now + 700 }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  })
   // Seven columns across a 390px phone is about 47px a cell -- too narrow for a
   // time and a seat count, let alone two of them. On a phone the cell carries
   // only the day and how its slots stand; the slots themselves open underneath.
@@ -1092,6 +1116,22 @@ export default function BookingPage() {
   function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate() }
   function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay() }
 
+  // Month paging for the private calendar: arrows, a two-finger sideways swipe
+  // on a trackpad, or a finger swipe on a phone all go through shiftMonth.
+  // Months before this one, and past the 60-day booking window, are not offered.
+  const calIndex = calYear * 12 + calMonth
+  const nowIndex = today.getFullYear() * 12 + today.getMonth()
+  const lastBookable = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 60)
+  const canPrevMonth = calIndex > nowIndex
+  const canNextMonth = calIndex < lastBookable.getFullYear() * 12 + lastBookable.getMonth()
+  function shiftMonth(d: 1 | -1) {
+    if (d < 0 ? !canPrevMonth : !canNextMonth) return
+    const n = calIndex + d
+    setCalSlide(d > 0 ? 'l' : 'r')
+    setCalYear(Math.floor(n / 12)); setCalMonth(n % 12)
+  }
+  shiftMonthRef.current = shiftMonth
+
   const calSkip = (calYear === today.getFullYear() && calMonth === today.getMonth())
     ? Math.max(0, today.getDate() - today.getDay() - 1) : 0
 
@@ -1533,24 +1573,31 @@ export default function BookingPage() {
                 </div>
               )
             })()}
-            {!groupFlow && <div style={{ background: NAVY, borderRadius: '16px', padding: isPhone ? '14px 12px' : '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {!groupFlow && <div ref={calCardRef}
+              onTouchStart={e => { const t0 = e.touches[0]; calTouchRef.current = { x: t0.clientX, y: t0.clientY } }}
+              onTouchEnd={e => {
+                const s0 = calTouchRef.current; calTouchRef.current = null
+                if (!s0) return
+                const t1 = e.changedTouches[0]; const dx = t1.clientX - s0.x, dy = t1.clientY - s0.y
+                if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) shiftMonth(dx < 0 ? 1 : -1)
+              }}
+              style={{ background: NAVY, borderRadius: '16px', padding: isPhone ? '14px 12px' : '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden', touchAction: 'pan-y' }}>
+              <style>{`@keyframes msaCalL { from { opacity: 0; transform: translateX(28px) } to { opacity: 1; transform: none } }
+                @keyframes msaCalR { from { opacity: 0; transform: translateX(-28px) } to { opacity: 1; transform: none } }
+                @media (prefers-reduced-motion: reduce) { .msa-cal-anim { animation: none !important } }`}</style>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <button onClick={() => {
-                  if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) }
-                  else setCalMonth(calMonth - 1)
-                }} aria-label={t('booking.cal.prevMonth')} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+                <button onClick={() => shiftMonth(-1)} disabled={!canPrevMonth}
+                  aria-label={t('booking.cal.prevMonth')} style={{ background: 'transparent', border: 'none', color: canPrevMonth ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.15)', fontSize: '22px', cursor: canPrevMonth ? 'pointer' : 'default', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
-                <button onClick={() => {
-                  if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) }
-                  else setCalMonth(calMonth + 1)
-                }} aria-label={t('booking.cal.nextMonth')} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+                <button onClick={() => shiftMonth(1)} disabled={!canNextMonth}
+                  aria-label={t('booking.cal.nextMonth')} style={{ background: 'transparent', border: 'none', color: canNextMonth ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.15)', fontSize: '22px', cursor: canNextMonth ? 'pointer' : 'default', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '8px' }}>
                 {[0, 1, 2, 3, 4, 5, 6].map(d => (
                   <div key={d} style={{ textAlign: 'center', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.45)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
+              <div key={`${calYear}-${calMonth}`} className="msa-cal-anim" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', animation: calSlide ? `${calSlide === 'l' ? 'msaCalL' : 'msaCalR'} .28s ease` : undefined }}>
                 {/* In the current month the weeks already gone are left out: the
                     grid starts on the Sunday of this week, as the group calendar does. */}
                 {Array.from({ length: calSkip ? 0 : getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
