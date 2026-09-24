@@ -102,35 +102,87 @@ export async function GET(req: NextRequest) {
   // ── Range shape (weekly schedule section) ──────────────────────────
   const weeks = q.get('weeks')
   if (weeks) {
-    const n = Math.min(Math.max(Number(weeks) || 4, 1), 6)
+    const n = Math.min(Math.max(Number(weeks) || 4, 1), 27)
     const todayStr = getTodayLA()
     const startParam = q.get('start')
     const startStr = startParam && startParam > todayStr ? startParam : todayStr
     const endD = new Date(startStr + 'T00:00:00')
     endD.setDate(endD.getDate() + n * 7 - 1)
     const endStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`
-    const { data: zrows } = await s.from('coach_availability_zones')
-      .select('coach_id, zone_type, kind, weekday, override_date, group_level_min, group_level_max')
-      .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startStr},override_date.lte.${endStr})`)
-    const byCoach: Record<string, any[]> = {}
-    for (const r of zrows || []) (byCoach[r.coach_id] ||= []).push(r)
-    const candidates: string[] = []
-    const cur = new Date(startStr + 'T00:00:00')
-    while (true) {
+    // Everything for the whole range is read in five queries and the days are
+    // worked out in memory. This used to call dayClasses once per date, and
+    // dayClasses runs two queries per coach plus three more -- about nine round
+    // trips a day, over three hundred for six weeks, which is what made the
+    // group calendar sit empty for seconds.
+    const coachList = (coaches || []) as { id: string }[]
+    const coachIds = coachList.map(c => c.id)
+    const [{ data: zAll }, { data: zAny }, { data: offRows }, { data: sessRows }, { data: myB }] = await Promise.all([
+      s.from('coach_availability_zones')
+        .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
+        .in('coach_id', coachIds)
+        .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startStr},override_date.lte.${endStr})`),
+      s.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds),
+      s.from('coach_time_off').select('coach_id, date, start_time, end_time, block_type')
+        .in('coach_id', coachIds).gte('date', startStr).lte('date', endStr),
+      s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
+        .gte('session_date', startStr).lte('session_date', endStr),
+      s.from('bookings').select('class_session_id').eq('student_id', student_id)
+        .not('status', 'in', '("cancelled","pending_partner")'),
+    ])
+    // A coach with no zone rows at all is on the old availability model and has
+    // no group zones (getEffectiveZones -> legacy); dayClasses skips them too.
+    const zoned = new Set((zAny || []).map((r: any) => r.coach_id))
+    const zonesBy: Record<string, any[]> = {}
+    for (const r of zAll || []) (zonesBy[r.coach_id] ||= []).push(r)
+    const offBy: Record<string, any[]> = {}
+    for (const b of offRows || []) (offBy[b.date] ||= []).push(b)
+    const sessBy: Record<string, any[]> = {}
+    for (const x of sessRows || []) (sessBy[x.session_date] ||= []).push(x)
+    const mine = new Set((myB || []).map((b: any) => b.class_session_id))
+
+    const sStart = (x: any) => toMin(String(x.start_time).slice(0, 5))
+    const sEnd = (x: any) => x.end_time ? toMin(String(x.end_time).slice(0, 5)) : sStart(x) + 30
+    const days: { date: string; classes: any[] }[] = []
+    for (const cur = new Date(startStr + 'T00:00:00'); ; cur.setDate(cur.getDate() + 1)) {
       const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
       if (ds > endStr) break
       const dow = cur.getDay()
-      for (const cid of Object.keys(byCoach)) {
-        const rows = byCoach[cid]
+      const sess = sessBy[ds] || []
+      const myTimes = new Set(sess.filter((x: any) => mine.has(x.id)).map((x: any) => String(x.start_time).slice(0, 5)))
+      const classes: any[] = []
+      for (const cid of coachIds) {
+        if (!zoned.has(cid)) continue
+        // Same resolution as getEffectiveZones: that day's own rows replace the
+        // weekly template, and a 'closed' row closes the day.
+        const rows = zonesBy[cid] || []
         const dateRows = rows.filter(r => r.kind === 'date' && r.override_date === ds)
         const picked = dateRows.length > 0 ? dateRows : rows.filter(r => r.kind === 'weekly' && r.weekday === dow)
         if (picked.some(r => r.zone_type === 'closed')) continue
-        if (picked.some(r => r.zone_type === 'group' && bandMatches(r, level))) { candidates.push(ds); break }
+        const blocked = blockedIntervalsFor((offBy[ds] || []) as any, cid)
+        for (const z of picked) {
+          if (z.zone_type !== 'group' || !bandMatches(z, level)) continue
+          for (let m = toMin(String(z.start_time).slice(0, 5)); m + ct.duration_minutes <= toMin(String(z.end_time).slice(0, 5)); m += SLOT_STEP_MINUTES) {
+            const t = idxTime(m)
+            if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
+            const clash = sess.find((x: any) => x.coach_id === cid && x.course_type_id !== ct.id && x.enrolled_count > 0 && m < sEnd(x) && m + ct.duration_minutes > sStart(x))
+            if (clash) continue
+            const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
+            const enrolled = own ? own.enrolled_count : 0
+            classes.push({
+              time: t, end_time: idxTime(m + ct.duration_minutes),
+              coach_id: cid, coach_name: coachName[cid] || '',
+              enrolled, max: ct.max_students, full: enrolled >= ct.max_students,
+              session_id: own && enrolled < ct.max_students ? own.id : undefined,
+              already_booked: myTimes.has(t),
+              band: bandKey(z.group_level_min, z.group_level_max),
+            })
+          }
+        }
       }
-      cur.setDate(cur.getDate() + 1)
+      classes.sort((a, b) => a.time.localeCompare(b.time) || a.coach_name.localeCompare(b.coach_name))
+      if (classes.length > 0) days.push({ date: ds, classes })
     }
-    const days = await Promise.all(candidates.map(async ds => ({ date: ds, classes: await dayClasses(s, ds, level, student_id, ct, coaches || [], coachName) })))
-    return NextResponse.json({ band: myBand, days: days.filter(d => d.classes.length > 0) })
+    return NextResponse.json({ band: myBand, days })
   }
 
   // ── Month shape (calendar dots) ────────────────────────────────────

@@ -52,41 +52,47 @@ export async function GET(req: NextRequest) {
   const student_id = q.get('student_id')
   if (!student_id) return NextResponse.json({ error: 'Missing student' }, { status: 400 })
 
-  const { data: student } = await svc.from('students').select('id, parent_id').eq('id', student_id).single()
+  // Round trips are what this route costs, so everything that does not depend
+  // on an earlier answer is asked at the same time: two rounds after sign-in.
+  const s2id = q.get('student2_id')
+  const want2 = course_slug === '1on2' && !!s2id && s2id !== student_id
+  const from = getTodayLA()
+  const to = addDays(from, WINDOW_DAYS)
+  const dates: string[] = []
+  for (let ds = from; ds <= to; ds = addDays(ds, 1)) dates.push(ds)
+
+  const [{ data: student }, s2res, { data: ct }, { data: privateTypes }, { data: coachRows }] = await Promise.all([
+    svc.from('students').select('id, parent_id').eq('id', student_id).maybeSingle(),
+    want2 ? svc.from('students').select('id, parent_id').eq('id', s2id!).maybeSingle() : Promise.resolve({ data: null as any }),
+    svc.from('course_types').select('id, max_students').eq('slug', course_slug).single(),
+    svc.from('course_types').select('id').in('slug', ['1on1', '1on2']),
+    svc.from('coaches').select('id, first_name').eq('is_active', true).order('first_name'),
+  ])
   if (!student || student.parent_id !== parent.id)
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+  if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
 
   // A second swimmer on the SAME account takes a second seat in the lesson and
   // has their own calendar to respect. One from a linked family takes a seat
   // of its own when they accept, which is settled on their side.
   const studentIds = [student.id]
   let seats = 1
-  const s2id = q.get('student2_id')
-  if (course_slug === '1on2' && s2id && s2id !== student.id) {
-    const { data: s2 } = await svc.from('students').select('id, parent_id').eq('id', s2id).single()
-    if (s2 && s2.parent_id === parent.id) { studentIds.push(s2.id); seats = 2 }
-  }
-
-  const { data: ct } = await svc.from('course_types').select('id, max_students').eq('slug', course_slug).single()
-  if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
-  const { data: privateTypes } = await svc.from('course_types').select('id').in('slug', ['1on1', '1on2'])
+  const s2 = s2res.data
+  if (s2 && s2.parent_id === parent.id) { studentIds.push(s2.id); seats = 2 }
   const privateTypeIds = new Set((privateTypes || []).map((r: any) => r.id))
 
-  const from = getTodayLA()
-  const to = addDays(from, WINDOW_DAYS)
-  const dates: string[] = []
-  for (let ds = from; ds <= to; ds = addDays(ds, 1)) dates.push(ds)
-
-  const { data: coachRows } = await svc.from('coaches').select('id, first_name').eq('is_active', true).order('first_name')
   const coaches = (coachRows || []) as { id: string; first_name: string }[]
   const coachIds = coaches.map(c => c.id)
   if (coachIds.length === 0) return NextResponse.json({ coaches: [], preferred: null, days: {} })
 
-  const [{ data: zrows }, { data: legacyRows }, { data: offRows }, { data: sessRows }, { data: myBookings }] = await Promise.all([
+  const [{ data: zrows }, { data: zoned }, { data: legacyRows }, { data: offRows }, { data: sessRows }, myRes] = await Promise.all([
     svc.from('coach_availability_zones')
       .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time')
       .in('coach_id', coachIds)
       .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${from},override_date.lte.${to})`),
+    // Whether a coach has ANY zone row decides which model their hours come
+    // from (lib/zones.ts): none at all means the old weekly table.
+    svc.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds),
     svc.from('coach_availability')
       .select('coach_id, day_of_week, start_time, end_time')
       .in('coach_id', coachIds).eq('is_active', true),
@@ -97,22 +103,18 @@ export async function GET(req: NextRequest) {
       .select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students')
       .in('coach_id', coachIds).gte('session_date', from).lte('session_date', to)
       .in('status', ['open', 'full']),
+    // The student's own lessons come with their session in the same read.
     svc.from('bookings')
-      .select('class_session_id, created_at')
+      .select('class_session_id, class_sessions(coach_id, session_date, start_time, end_time, course_type_id)')
       .in('student_id', studentIds)
       .not('status', 'in', '("cancelled","pending_partner")'),
   ])
 
-  // Whether a coach has ANY zone row decides which model their hours come from
-  // (lib/zones.ts): none at all means the old weekly table.
   const zonesByCoach = new Map<string, any[]>()
   for (const r of zrows || []) {
     const list = zonesByCoach.get(r.coach_id) || []
     list.push(r); zonesByCoach.set(r.coach_id, list)
   }
-  // The weekly-only query above cannot tell "no zone rows" from "no rows this
-  // window", so ask once for which coaches have any row at all.
-  const { data: zoned } = await svc.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds)
   const hasZones = new Set((zoned || []).map((r: any) => r.coach_id))
 
   const offKey = (c: string, d: string) => `${c}|${d}`
@@ -129,15 +131,19 @@ export async function GET(req: NextRequest) {
 
   // The student's own lessons, with every coach, as busy intervals by date --
   // and the coach they last had a private lesson with.
-  const myIds = (myBookings || []).map((b: any) => b.class_session_id).filter(Boolean)
+  let mine: any[] = (myRes.data || []).map((b: any) => Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions).filter(Boolean)
+  if (myRes.error) {
+    // No embeddable relation: fall back to two reads.
+    const { data: ids } = await svc.from('bookings').select('class_session_id').in('student_id', studentIds)
+      .not('status', 'in', '("cancelled","pending_partner")')
+    const myIds = (ids || []).map((b: any) => b.class_session_id).filter(Boolean)
+    if (myIds.length) mine = (await svc.from('class_sessions').select('coach_id, session_date, start_time, end_time, course_type_id').in('id', myIds)).data || []
+  }
   const busyBy = new Map<string, { s: number; e: number }[]>()
   let preferred: string | null = null
-  if (myIds.length > 0) {
-    const { data: mine } = await svc.from('class_sessions')
-      .select('coach_id, session_date, start_time, end_time, course_type_id')
-      .in('id', myIds)
+  {
     let latest = ''
-    for (const m of mine || []) {
+    for (const m of mine) {
       if (m.session_date >= from && m.session_date <= to && m.start_time) {
         const s = toMin(m.start_time)
         const e = m.end_time ? toMin(m.end_time) : s + LESSON_MIN
@@ -182,7 +188,9 @@ export async function GET(req: NextRequest) {
           if (seen.has(m)) continue
           seen.add(m)
           const t = toTime(m), end = m + LESSON_MIN
-          if (!meetsLeadTime(ds, t)) continue
+          // Only today can fall inside the lead time; checking every slot of 60
+          // days reformatted the clock thousands of times.
+          if (ds === from && !meetsLeadTime(ds, t)) continue
           if (isBlocked(blocks, c.id, t, toTime(end))) continue
           if (busy.some(iv => m < iv.e && end > iv.s)) continue
           // A lesson of this kind already at this time has room or it does not.

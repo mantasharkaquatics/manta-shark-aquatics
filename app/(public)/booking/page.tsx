@@ -269,6 +269,9 @@ export default function BookingPage() {
     setTrialEligible(false)
     setTrialHasCredit(false)
     if (!selectedStudent) return
+    // An assessment is only ever offered to a swimmer with no level yet, so a
+    // swimmer who has one needs no round trip (it took about two seconds).
+    if (selectedStudent.current_level != null) { if (lockedRef.current) setStep(1); return }
     fetch(`/api/bookings/trial-eligibility?student_id=${selectedStudent.id}`)
       .then(r => r.ok ? r.json() : { eligible: false })
       .then(j => {
@@ -358,22 +361,19 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
-    // The endpoint answers six weeks at a time, so a longer view is several
-    // calls merged by date rather than one big one.
-    const base = new Date(today.getFullYear(), today.getMonth(), 1)
-    const starts = Array.from({ length: monthsShown }, (_, i) => {
-      const d = new Date(base.getFullYear(), base.getMonth() + i, 1)
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-    })
+    // One call for the whole view, from this week's Sunday to the end of the
+    // last month on screen. It used to be one six-week call per month, which
+    // overlapped and doubled the server's work.
+    const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay())
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
+    const weeks = Math.ceil((lastDay.getTime() - from.getTime()) / (7 * 86400000)) + 1
+    const st = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`
     let live = true
-    Promise.all(starts.map(st =>
-      fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=6&start=${st}`)
-        .then(r => r.json()).catch(() => null)))
-      .then(rs => {
+    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=${weeks}&start=${st}`)
+      .then(r => r.json()).catch(() => null)
+      .then(r => {
         if (!live) return
-        const byDay = new Map<string, any>()
-        for (const r of rs) for (const d of (r?.days || [])) byDay.set(d.date, d)
-        setGroupWeeks([...byDay.values()])
+        setGroupWeeks(r?.days || [])
       })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -419,6 +419,22 @@ export default function BookingPage() {
       if (!parent) { router.push('/dashboard'); return }
       setParentId(parent.id)
 
+      // The linked-family list is only needed for a 1-on-2's second swimmer,
+      // so the page no longer waits for it (it was the last half-second of
+      // the loading spinner); it fills in whenever it arrives.
+      fetch('/api/partnerships/list').then(async res => {
+        if (!res.ok) return
+        const { partnerships, partner_students } = await res.json()
+        const pStudents: PartnerStudent[] = (partner_students || []).map((s: any) => {
+          const p = (partnerships || []).find((pp: any) =>
+            pp.initiator_parent_id === s.parent_id || pp.partner_parent_id === s.parent_id
+          )
+          return { id: s.id, full_name: s.full_name, current_level: s.current_level, parent_id: s.parent_id, isPartner: true as const, partnerParentId: s.parent_id, partnershipId: p?.id || null }
+        })
+        setPartnerStudents(pStudents)
+      }).catch(() => {})
+
+
       const [{ data: studs }, { data: cts }, { data: coachs }] = await Promise.all([
         supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true),
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
@@ -429,19 +445,6 @@ export default function BookingPage() {
       setCourseTypes(cts || [])
       setCoaches(coachs || [])
 
-      try {
-        const res = await fetch('/api/partnerships/list')
-        if (res.ok) {
-          const { partnerships, partner_students } = await res.json()
-          const pStudents: PartnerStudent[] = (partner_students || []).map((s: any) => {
-            const p = (partnerships || []).find((pp: any) =>
-              pp.initiator_parent_id === s.parent_id || pp.partner_parent_id === s.parent_id
-            )
-            return { id: s.id, full_name: s.full_name, current_level: s.current_level, parent_id: s.parent_id, isPartner: true as const, partnerParentId: s.parent_id, partnershipId: p?.id || null }
-          })
-          setPartnerStudents(pStudents)
-        }
-      } catch {}
 
       const params = new URLSearchParams(window.location.search)
       const rbId = params.get('reschedule_booking_id')
