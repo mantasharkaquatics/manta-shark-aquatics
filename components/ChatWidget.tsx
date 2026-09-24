@@ -23,7 +23,9 @@ function renderBody(text: string, linkLabel: string) {
 // typed elsewhere -- the FAQ search box. It opens and fills the box but does
 // NOT send: putting words in a parent's mouth and firing them off is not ours
 // to do. seedKey changes on every request so the same text can be seeded twice.
-export default function ChatWidget({ parentId, seedInput, seedKey }: { parentId: string; seedInput?: string; seedKey?: number }) {
+// lift: extra px above the bottom edge, for pages whose own sticky action bar
+// would otherwise sit under the button (the booking page on a phone).
+export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: { parentId: string; seedInput?: string; seedKey?: number; lift?: number }) {
   const t = useT()
   const supabase = createClient()
   const [open, setOpen] = useState(false)
@@ -160,7 +162,7 @@ export default function ChatWidget({ parentId, seedInput, seedKey }: { parentId:
       {/* FAB Button */}
       {!open && (
         <button data-chat-toggle onClick={() => setOpen(true)} style={{
-          position: 'fixed', bottom: '20px', right: '20px', zIndex: 999,
+          position: 'fixed', bottom: `${20 + lift}px`, right: '20px', zIndex: 999,
           width: '56px', height: '56px', borderRadius: '50%',
           background: GOLD, border: 'none', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',

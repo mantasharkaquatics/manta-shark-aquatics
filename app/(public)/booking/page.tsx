@@ -93,7 +93,7 @@ function SectionTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
     <div style={{ marginBottom: '24px' }}>
       {eyebrow && <div style={{
         display: 'inline-flex', alignItems: 'center', gap: '8px',
-        fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
+        fontSize: '11.5px', fontWeight: 600, letterSpacing: '3px',
         textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px',
       }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
@@ -123,16 +123,16 @@ function DoneRow({ label, value, sub, onChange, changeLabel }: {
     }}>
       <span style={{
         width: '20px', height: '20px', borderRadius: '50%', background: GOLD, color: NAVY, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900,
       }}>✓</span>
-      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', width: '40px', flexShrink: 0 }}>{label}</span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', width: '40px', flexShrink: 0 }}>{label}</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: '15px', fontWeight: 700, color: '#fff' }}>
         {value}
-        {sub && <span style={{ fontSize: '12px', fontWeight: 500, color: 'rgba(255,255,255,0.45)', marginLeft: '6px' }}>{sub}</span>}
+        {sub && <span style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.45)', marginLeft: '6px' }}>{sub}</span>}
       </span>
       {onChange && (
         <button onClick={onChange} style={{
-          background: 'none', border: 'none', color: GOLD, fontSize: '13px', fontWeight: 700,
+          background: 'none', border: 'none', color: GOLD, fontSize: '14px', fontWeight: 700,
           cursor: 'pointer', padding: '0 6px', minHeight: '44px', flexShrink: 0,
         }}>{changeLabel}</button>
       )}
@@ -152,10 +152,12 @@ function SelectCard({ selected, onClick, color = GOLD, children }: {
     }}>
       {selected && (
         <div style={{
-          position: 'absolute', top: '12px', right: '12px',
-          width: '20px', height: '20px', borderRadius: '50%',
+          // On the corner, not inside the card: at 12px in it sat on top of
+          // the price badge of the course cards.
+          position: 'absolute', top: '-8px', right: '-8px',
+          width: '22px', height: '22px', borderRadius: '50%', boxShadow: '0 0 0 3px #111d38',
           background: color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '11px', color: '#fff', fontWeight: 700,
+          fontSize: '12px', color: '#fff', fontWeight: 700,
         }}>✓</div>
       )}
       {children}
@@ -839,7 +841,7 @@ export default function BookingPage() {
   // Every "you cannot pay for this" notice offers the same way out.
   const BuyPointsLink = ({ label }: { label: string }) => (
     <a href="/plans#buy"
-      style={{ display: 'inline-block', marginTop: '10px', padding: '9px 18px', borderRadius: '8px', background: GOLD, color: NAVY, fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+      style={{ display: 'inline-block', marginTop: '10px', padding: '9px 18px', borderRadius: '8px', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
       {label}
     </a>
   )
@@ -850,7 +852,7 @@ export default function BookingPage() {
   const PriceTag = ({ price, dim = false }: { price: PriceBreakdown; dim?: boolean }) => {
     const full = price.base * price.seats
     return (
-      <span style={{ display: 'block', fontSize: '11px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: dim ? 'rgba(255,255,255,0.25)' : GOLD }}>
+      <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: dim ? 'rgba(255,255,255,0.25)' : GOLD }}>
         {price.charged < full && (
           <span style={{ textDecoration: 'line-through', color: 'rgba(255,255,255,0.32)', marginRight: '4px' }}>{full}</span>
         )}
@@ -1082,6 +1084,9 @@ export default function BookingPage() {
   function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate() }
   function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay() }
 
+  const calSkip = (calYear === today.getFullYear() && calMonth === today.getMonth())
+    ? Math.max(0, today.getDate() - today.getDay() - 1) : 0
+
   function isDateAvailable(date: Date): boolean {
     const todayMidnight = new Date(today)
     todayMidnight.setHours(0, 0, 0, 0)
@@ -1106,7 +1111,7 @@ export default function BookingPage() {
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
           style={{ display: 'block', margin: '0 auto 16px', borderRadius: '50%', objectFit: 'cover', animation: 'msaPulse 1.6s ease-in-out infinite' }} />
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{t('booking.loading')}</div>
+        <div style={{ fontSize: '15px', color: 'rgba(255,255,255,0.5)' }}>{t('booking.loading')}</div>
       </div>
     </div>
   )
@@ -1124,24 +1129,24 @@ export default function BookingPage() {
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
               {t('booking.recur.successBooked', { n: recurBooked })}
             </h2>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
+            <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
               <strong style={{ color: '#fff' }}>
                 {siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name}
               </strong> {t(siblingPair ? 'booking.recur.areBookedForN' : 'booking.recur.isBookedForN', { n: recurBooked })}
             </p>
-            <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '12px' }}>
+            <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '12px' }}>
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '20px' }}>
               {recurPlan.map(x => (
-                <span key={x.date + x.time} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
                   {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                   {planTimes.size > 1 ? ` · ${x.label}` : ''}
                 </span>
               ))}
             </div>
             {recurSkipped > 0 && (
-              <p style={{ fontSize: '13px', color: '#f0c78a', marginBottom: '16px' }}>{t('booking.recur.someSkipped', { m: recurSkipped })}</p>
+              <p style={{ fontSize: '14px', color: '#f0c78a', marginBottom: '16px' }}>{t('booking.recur.someSkipped', { m: recurSkipped })}</p>
             )}
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -1149,7 +1154,7 @@ export default function BookingPage() {
               borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
                 {t('booking.success.emailSent')}
               </p>
             </div>
@@ -1160,13 +1165,13 @@ export default function BookingPage() {
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
               {t('booking.success.invitationSent')}
             </h2>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
+            <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
               {t('booking.success.invitedDesc')}
             </p>
-            <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
+            <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
+            <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
               {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
@@ -1175,7 +1180,7 @@ export default function BookingPage() {
               borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>🔔</span>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
                 {t('booking.success.window.a')}<strong style={{ color: '#fff' }}>{t('booking.success.window.strong')}</strong>{t('booking.success.window.b')}
               </p>
             </div>
@@ -1186,7 +1191,7 @@ export default function BookingPage() {
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
               {isReschedule ? t('booking.success.rescheduled') : t('booking.success.booked')}
             </h2>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
+            <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '4px' }}>
               <strong style={{ color: '#fff' }}>
                 {hourRoster.length > 1
                   ? hourRoster.map((x: any) => x.full_name).join(' & ')
@@ -1195,10 +1200,10 @@ export default function BookingPage() {
                   : selectedStudent?.full_name}
               </strong> {t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.success.areBookedFor' : 'booking.success.isBookedFor')}
             </p>
-            <p style={{ fontSize: '14px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
+            <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
             </p>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
+            <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
               {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
@@ -1207,7 +1212,7 @@ export default function BookingPage() {
               borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
                 {t('booking.success.emailSent')}
               </p>
             </div>
@@ -1217,12 +1222,12 @@ export default function BookingPage() {
         <Link href="/dashboard" style={{
           display: 'block', padding: '13px 32px',
           background: GOLD, color: NAVY, borderRadius: '8px',
-          fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
+          fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
           textTransform: 'uppercase', textDecoration: 'none', marginBottom: '12px',
         }}>
           {t('common.backToDashboard')}
         </Link>
-        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
+        <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
           {t('booking.success.redirecting', { n: countdown })}
         </p>
       </div>
@@ -1241,10 +1246,10 @@ export default function BookingPage() {
         padding: '12px clamp(16px,5vw,48px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
       }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>
+        <span style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>
           {isReschedule ? t('booking.header.reschedule') : t('booking.header.book')}
         </span>
-        <Link href="/dashboard" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        <Link href="/dashboard" style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
           ← {t('booking.header.dashboard')}
         </Link>
       </div>
@@ -1252,16 +1257,16 @@ export default function BookingPage() {
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
 
         {isReschedule && (
-          <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '14px', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>📅</span> {t('booking.rescheduleBanner')}
           </div>
         )}
 
         {lockedStudent && selectedStudent && (
-          <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '13px', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ marginBottom: '20px', padding: '14px 18px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
             <span>📌 {t('booking.lockedFor')}<strong style={{ color: '#fff' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? t('booking.assessmentPrepaid') : ''}</span>
             <button onClick={() => { setLockedStudent(false); setSelectedStudent(null); setIsTrial(false); setSelectedCourse(null); setStep(0) }}
-              style={{ background: 'none', border: 'none', padding: 0, color: 'rgba(255,255,255,0.5)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+              style={{ background: 'none', border: 'none', padding: 0, color: 'rgba(255,255,255,0.5)', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}>
               {t('booking.changeStudent', { name: selectedStudent.full_name.split(' ')[0] })}
             </button>
           </div>
@@ -1295,8 +1300,8 @@ export default function BookingPage() {
                       {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
+                      <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
                         {s.current_level ? t('levels.levelN', { n: s.current_level }) : t('dash.pendingAssessment')}
                       </div>
                     </div>
@@ -1311,7 +1316,7 @@ export default function BookingPage() {
           <div>
             <SectionTitle title={t('booking.s2.title')} />
             {needsAssessment && (
-              <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: GOLD, lineHeight: 1.5 }}>
+              <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '14px', color: GOLD, lineHeight: 1.5 }}>
                 {trialHasCredit
                   ? t('booking.notice.prepaid')
                   : trialEligible
@@ -1326,11 +1331,11 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <span style={{ fontSize: '28px' }}>⭐</span>
                       <div>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{t('common.assessment')}</div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.assessmentMeta')}</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{t('common.assessment')}</div>
+                        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.assessmentMeta')}</div>
                       </div>
                     </div>
-                    <div style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, color: GOLD }}>{trialHasCredit ? t('booking.prepaid') : '$' + TRIAL_PRICE_CENTS / 100}</div>
+                    <div style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '4px 12px', fontSize: '13px', fontWeight: 700, color: GOLD }}>{trialHasCredit ? t('booking.prepaid') : '$' + TRIAL_PRICE_CENTS / 100}</div>
                   </div>
                 </SelectCard>
               )}
@@ -1344,12 +1349,12 @@ export default function BookingPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
                         <div>
-                          <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{tDb(locale, 'course_types', ct.id, ct.name)}</div>
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{tDb(locale, 'course_types', ct.id, ct.name)}</div>
+                          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
                             {t(ct.max_students > 1 ? 'booking.courseMeta' : 'booking.courseMetaOne', { n: ct.duration_minutes, max: ct.max_students })}
                           </div>
                           {ct.slug === '1on4' && myGroupBand && (
-                            <div style={{ marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
+                            <div style={{ marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
                               {t('booking.yourClass', { min: myGroupBand.min, max: myGroupBand.max })}
                             </div>
                           )}
@@ -1364,7 +1369,7 @@ export default function BookingPage() {
                         <div style={{
                           background: `${color}20`, border: `1px solid ${color}40`,
                           borderRadius: '20px', padding: '4px 12px',
-                          fontSize: '12px', fontWeight: 700, color, whiteSpace: 'nowrap',
+                          fontSize: '13px', fontWeight: 700, color, whiteSpace: 'nowrap',
                           fontVariantNumeric: 'tabular-nums',
                         }}>
                           {listed < full && (
@@ -1372,7 +1377,7 @@ export default function BookingPage() {
                           )}
                           {t('points.unit', { n: listed })}
                         </div>
-                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{t('booking.perSwimmer')}</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>{t('booking.perSwimmer')}</div>
                       </div>
                     </div>
                   </SelectCard>
@@ -1384,7 +1389,7 @@ export default function BookingPage() {
               <div style={{
                 marginTop: '16px', padding: '14px 18px',
                 background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)',
-                borderRadius: '10px', fontSize: '13px', color: '#e05a4a',
+                borderRadius: '10px', fontSize: '14px', color: '#e05a4a',
               }}>
                 ⚠️ {t('booking.short.body', { have: balance, need: cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30) })}
                 <div><BuyPointsLink label={t('booking.short.cta')} /></div>
@@ -1397,19 +1402,19 @@ export default function BookingPage() {
                 dead with nothing on screen to explain why. */}
             {selectedCourse?.slug === '1on2' && (
               <div style={{ marginTop: '20px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
                   👥 {t('booking.select2nd')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {students.filter(s => s.id !== selectedStudent?.id).map(s => (
                     <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; advanceRef.current = true; setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4a90c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4a90c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
-                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? t('booking.sameAccount', { n: s.current_level }) : t('booking.needsAssessmentFirst')}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
+                          <div style={{ fontSize: '12px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? t('booking.sameAccount', { n: s.current_level }) : t('booking.needsAssessmentFirst')}</div>
                         </div>
                       </div>
                     </SelectCard>
@@ -1417,33 +1422,33 @@ export default function BookingPage() {
                   {partnerStudents.map(s => (
                     <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; advanceRef.current = true; setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#7b61c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#7b61c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, color: '#fff', fontFamily: "'Playfair Display', serif", flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
-                            <span style={{ fontSize: '10px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>{t('booking.linked')}</span>
+                            <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{s.full_name}</div>
+                            <span style={{ fontSize: '11.5px', background: 'rgba(123,97,196,0.2)', border: '1px solid rgba(123,97,196,0.4)', borderRadius: '4px', padding: '1px 5px', color: '#a78bfa' }}>{t('booking.linked')}</span>
                           </div>
-                          <div style={{ fontSize: '11px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? t('booking.partnerConfirm', { n: s.current_level }) : t('booking.needsAssessmentFirst')}</div>
+                          <div style={{ fontSize: '12px', color: s.current_level ? 'rgba(255,255,255,0.4)' : '#e0b64a' }}>{s.current_level ? t('booking.partnerConfirm', { n: s.current_level }) : t('booking.needsAssessmentFirst')}</div>
                         </div>
                       </div>
                     </SelectCard>
                   ))}
                   {students.filter(s => s.id !== selectedStudent?.id).length === 0 && partnerStudents.length === 0 && (
-                    <div style={{ padding: '16px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
+                    <div style={{ padding: '16px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', fontSize: '14px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
                       {t('booking.noOtherStudents')}
                     </div>
                   )}
                 </div>
                 {selectedStudent2 && !(selectedStudent2 as any).isPartner && balance < cheapestFor('1on2', 2, isHourLesson ? 60 : 30) && (
-                  <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '12px', color: '#e05a4a' }}>
+                  <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '8px', fontSize: '13px', color: '#e05a4a' }}>
                     ⚠️ {t('booking.short.twoSeats', { have: balance, need: cheapestFor('1on2', 2, isHourLesson ? 60 : 30) })}
                     <div><BuyPointsLink label={t('booking.short.cta')} /></div>
                   </div>
                 )}
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
-                  <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.3)', borderRadius: '8px', fontSize: '12px', color: '#a78bfa' }}>
+                  <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.3)', borderRadius: '8px', fontSize: '13px', color: '#a78bfa' }}>
                     📋 {t('booking.crossAccount')}
                   </div>
                 )}
@@ -1466,14 +1471,14 @@ export default function BookingPage() {
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0, minHeight: '44px',
                           padding: c.id === 'any' ? '0 18px' : '0 16px 0 8px', borderRadius: '999px', cursor: 'pointer',
                           border: `1.5px solid ${on ? GOLD : 'rgba(255,255,255,0.12)'}`, background: on ? `${GOLD}24` : NAVY,
-                          color: on ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700 }}>
+                          color: on ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 700 }}>
                         {c.id !== 'any' && <Face id={c.id} size={28} />}
                         {c.first_name}
                       </button>
                     )
                   })}
                 </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '6px', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginTop: '6px', lineHeight: 1.5 }}>
                   {coachFilter === 'any' ? t('booking.anyCoachHint') : t('booking.oneCoachHint', { name: coachName(coachFilter) })}
                 </div>
               </div>
@@ -1491,9 +1496,9 @@ export default function BookingPage() {
               }
               return (
                 <div style={{ background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '14px', padding: '14px 16px', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: soon.length ? '10px' : 0 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: soon.length ? '10px' : 0 }}>
                     {soon.length ? t('booking.soonFor', { name: coachName(coachFilter) }) : t('booking.soonNone', { name: coachName(coachFilter) })}
-                    {soon.length > 0 && <span style={{ fontSize: '12px', fontWeight: 500, color: 'rgba(255,255,255,0.45)', marginLeft: '6px' }}>· {t('booking.soonHint')}</span>}
+                    {soon.length > 0 && <span style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.45)', marginLeft: '6px' }}>· {t('booking.soonHint')}</span>}
                   </div>
                   {soon.length > 0 && (
                     <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
@@ -1508,8 +1513,8 @@ export default function BookingPage() {
                             }}
                             style={{ flexShrink: 0, textAlign: 'left', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer',
                               border: '1.5px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#fff' }}>
-                            <span style={{ display: 'block', fontSize: '13px', fontWeight: 700 }}>{formatTime(x.tm)}</span>
-                            <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                            <span style={{ display: 'block', fontSize: '14px', fontWeight: 700 }}>{formatTime(x.tm)}</span>
+                            <span style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
                               {d.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric', weekday: 'short' })}
                             </span>
                           </button>
@@ -1520,13 +1525,13 @@ export default function BookingPage() {
                 </div>
               )
             })()}
-            {!groupFlow && <div style={{ background: NAVY, borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {!groupFlow && <div style={{ background: NAVY, borderRadius: '16px', padding: isPhone ? '14px 12px' : '24px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <button onClick={() => {
                   if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) }
                   else setCalMonth(calMonth - 1)
                 }} aria-label={t('booking.cal.prevMonth')} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '18px', cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
-                <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>{t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}</span>
                 <button onClick={() => {
                   if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) }
                   else setCalMonth(calMonth + 1)
@@ -1534,12 +1539,15 @@ export default function BookingPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '8px' }}>
                 {[0, 1, 2, 3, 4, 5, 6].map(d => (
-                  <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
+                  <div key={d} style={{ textAlign: 'center', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.45)', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
-                {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
-                {Array.from({ length: getDaysInMonth(calYear, calMonth) }).map((_, i) => {
+                {/* In the current month the weeks already gone are left out: the
+                    grid starts on the Sunday of this week, as the group calendar does. */}
+                {Array.from({ length: calSkip ? 0 : getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
+                {Array.from({ length: getDaysInMonth(calYear, calMonth) - calSkip }).map((_, j) => {
+                  const i = j + calSkip
                   const date = new Date(calYear, calMonth, i + 1)
                   const dsC = formatDateLA(date)
                   const openHere = privateFlow && openings && lessonLength === 30 ? coachesOn(dsC) : null
@@ -1559,11 +1567,11 @@ export default function BookingPage() {
                     <button key={i}
                       onClick={() => { if (available) { setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]) } }}
                       style={{
-                        padding: '8px 4px', borderRadius: '8px',
+                        padding: '10px 4px', minHeight: '48px', borderRadius: '10px',
                         border: hasPick ? `2px solid ${GOLD}` : hasGhost ? `2px dashed ${GOLD}99` : '2px solid transparent',
                         background: isSelected ? GOLD : hasPick ? `${GOLD}20` : isTodayDate ? 'rgba(255,255,255,0.08)' : 'transparent',
                         color: isSelected ? NAVY : hasPick ? GOLD : available ? '#fff' : 'rgba(255,255,255,0.2)',
-                        fontSize: '13px', fontWeight: isSelected || hasPick ? 700 : 400,
+                        fontSize: '16px', fontWeight: isSelected || hasPick ? 700 : 500,
                         cursor: available ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1px solid ${GOLD}40` : 'none',
                       }}
@@ -1582,7 +1590,7 @@ export default function BookingPage() {
             {!groupFlow && selectedDate && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
                     {t('booking.availableTimes', { date: selectedDate.toLocaleDateString(dateLoc, { weekday: 'long', month: 'short', day: 'numeric' }) })}
                   </div>
                   {(selectedCourse?.slug === '1on1'
@@ -1590,7 +1598,7 @@ export default function BookingPage() {
                     <div style={{ display: 'inline-flex', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (
                         <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
-                          style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
+                          style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? GOLD : 'transparent', color: lessonLength === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
                           {t('booking.lenMin', { n: v })}</button>
                       ))}
@@ -1610,23 +1618,23 @@ export default function BookingPage() {
                   const canAffordHour = isReschedule || (rows.length > 0 && hourBalance >= cheapest)
                   return (
                     <div style={{ marginBottom: '16px' }}>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px' }}>
                         {t('booking.hour.cost')} · {t('booking.balance', { n: hourBalance })}
                       </div>
                       {!hourLoading && rows.length > 0 && !canAffordHour && (
                         <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.short.title')}</div>
-                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.short.title')}</div>
+                          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
                             {t('booking.short.body', { have: hourBalance, need: cheapest })}
                           </div>
                           <BuyPointsLink label={t('booking.short.cta')} />
                         </div>
                       )}
                       {hourLoading ? (
-                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.hourLoading')}</p>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '15px' }}>{t('booking.hourLoading')}</p>
                       ) : rows.length === 0 ? (
                         <div style={{ background: NAVY, borderRadius: '12px', padding: '20px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
-                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>{t('booking.noHourOptions')}</p>
+                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', margin: 0 }}>{t('booking.noHourOptions')}</p>
                         </div>
                       ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
@@ -1649,34 +1657,34 @@ export default function BookingPage() {
                                   border: `2px solid ${sel ? GOLD : usable ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
                                   background: sel ? `${GOLD}20` : usable ? NAVY : 'rgba(255,255,255,0.03)',
                                   color: sel ? GOLD : usable ? '#fff' : 'rgba(255,255,255,0.2)',
-                                  fontSize: '13px', fontWeight: 600, cursor: usable ? 'pointer' : 'not-allowed',
+                                  fontSize: '14px', fontWeight: 600, cursor: usable ? 'pointer' : 'not-allowed',
                                 }}>
                                 {h.is_current && (
-                                  <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>{t('booking.currentTime')}</div>
+                                  <div style={{ fontSize: '11.5px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>{t('booking.currentTime')}</div>
                                 )}
                                 {formatTime(h.start_time)}
-                                <div style={{ fontSize: '10px', fontWeight: 600, color: sel ? GOLD : usable ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)', marginTop: '1px' }}>
+                                <div style={{ fontSize: '11.5px', fontWeight: 600, color: sel ? GOLD : usable ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)', marginTop: '1px' }}>
                                   – {formatTime(h.end_time)}
                                 </div>
                                 {!isReschedule && h.points != null && (
-                                  <span style={{ display: 'block', fontSize: '11px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : 'rgba(255,255,255,0.25)' }}>
+                                  <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : 'rgba(255,255,255,0.25)' }}>
                                     {t('points.unit', { n: h.points })}
                                   </span>
                                 )}
                                 {h.off_peak && (
-                                  <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
+                                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
                                 )}
                                 {!isTrial && usable && w24 && (
-                                  <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
+                                  <div style={{ fontSize: '11.5px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
                                 )}
                                 {isReschedule && (
-                                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px', fontWeight: 700 }}>{t('booking.noExtraCharge')}</div>
+                                  <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginTop: '2px', fontWeight: 700 }}>{t('booking.noExtraCharge')}</div>
                                 )}
                                 {!o.relay && coachFilter === 'any' && (
-                                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', fontWeight: 600 }}>{o.coach1_name}</div>
+                                  <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', fontWeight: 600 }}>{o.coach1_name}</div>
                                 )}
                                 {o.relay && (
-                                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', marginTop: '2px', lineHeight: 1.3, fontWeight: 500 }}>
+                                  <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '2px', lineHeight: 1.3, fontWeight: 500 }}>
                                     {t('booking.relayCoaches', { a: o.coach1_name, b: o.coach2_name })}
                                   </div>
                                 )}
@@ -1694,20 +1702,20 @@ export default function BookingPage() {
                   <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>⚠️</span>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>{t('booking.within24.title')}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.within24.body')}</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>{t('booking.within24.title')}</div>
+                      <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{t('booking.within24.body')}</div>
                     </div>
                   </div>
                 )}
                 {groupFlow ? (
                   groupLoading ? (
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.groupLoading')}</p>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '15px' }}>{t('booking.groupLoading')}</p>
                   ) : (() => {
                     const ds2 = formatDateLA(selectedDate)
                     const visible = groupClasses.filter((gc: any) => meetsLeadTime(ds2, gc.time))
                     if (visible.length === 0) return (
                       <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
-                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '15px' }}>
                           {myGroupBand ? t('booking.group.noneBand', { min: myGroupBand.min, max: myGroupBand.max }) : t('booking.group.none')}
                         </p>
                       </div>
@@ -1735,10 +1743,10 @@ export default function BookingPage() {
                                 background: sel ? `${GOLD}20` : clickable ? myBandColor + '18' : 'rgba(255,255,255,0.03)',
                               }}>
                               <span>
-                                <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                <span style={{ display: 'block', fontSize: '15px', fontWeight: 700, color: sel ? GOLD : clickable ? '#fff' : 'rgba(255,255,255,0.3)' }}>
                                   {formatTime(gc.time)} – {formatTime(gc.end_time)}
                                 </span>
-                                <span style={{ display: 'block', fontSize: '12px', color: clickable ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
+                                <span style={{ display: 'block', fontSize: '13px', color: clickable ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
                                   {t('booking.group.coachBand', { name: gc.coach_name, min: myGroupBand?.min ?? '', max: myGroupBand?.max ?? '' })}
                                 </span>
                               </span>
@@ -1746,11 +1754,11 @@ export default function BookingPage() {
                                 {!isReschedule && (() => { const pr = priceAt(ds2, gc.time, 30); return pr ? (
                                   <span style={{ textAlign: 'right' }}>
                                     <PriceTag price={pr} dim={!clickable} />
-                                    {pr.offPeak && <span style={{ display: 'block', fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)' }}>{t('booking.offPeak')}</span>}
+                                    {pr.offPeak && <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)' }}>{t('booking.offPeak')}</span>}
                                   </span>
                                 ) : null })()}
-                                {w24 && clickable && <span style={{ fontSize: '10px', fontWeight: 700, color: '#c9a84c' }}>24h</span>}
-                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px',
+                                {w24 && clickable && <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#c9a84c' }}>24h</span>}
+                                <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px',
                                   color: gc.already_booked ? 'rgba(255,255,255,0.4)' : gc.full ? 'rgba(255,255,255,0.3)' : myBandColor,
                                   background: gc.already_booked || gc.full ? 'rgba(255,255,255,0.06)' : myBandColor + '22' }}>
                                   {gc.already_booked ? t('booking.booked') : gc.full ? t('booking.full') : t('booking.spotsLeft', { n: gc.max - gc.enrolled })}
@@ -1768,7 +1776,7 @@ export default function BookingPage() {
                   const times = Object.keys(day).sort()
                   if (times.length === 0) return (
                     <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
-                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.noSlots')}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '15px' }}>{t('booking.noSlots')}</p>
                     </div>
                   )
                   const curKey = selectedSlot ? `${ds0}|${selectedSlot.time}` : ''
@@ -1777,7 +1785,7 @@ export default function BookingPage() {
                   return (
                     <>
                       {batchFlow && (
-                        <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
+                        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
                       )}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                         {times.map(tm => {
@@ -1805,16 +1813,16 @@ export default function BookingPage() {
                                 border: `2px ${batchFlow && !affordable0 ? 'dashed' : 'solid'} ${on ? GOLD : affordable0 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
                                 background: on ? `${GOLD}20` : affordable0 ? NAVY : 'rgba(255,255,255,0.03)',
                                 color: on ? GOLD : affordable0 ? '#fff' : 'rgba(255,255,255,0.2)',
-                                fontSize: '13px', fontWeight: 600, cursor: affordable0 ? 'pointer' : 'not-allowed',
+                                fontSize: '14px', fontWeight: 600, cursor: affordable0 ? 'pointer' : 'not-allowed',
                               }}>
                               {inBasket ? '✓ ' : ''}{formatTime(tm)}
                               {pr && <PriceTag price={pr} dim={!affordable0} />}
                               {pr?.offPeak && (
-                                <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
+                                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
                               )}
-                              {!isTrial && w24 && <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>}
+                              {!isTrial && w24 && <div style={{ fontSize: '11.5px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>}
                               <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', marginTop: '6px' }}>
-                                {(chosenCoach ? [chosenCoach] : ids).map(id => <Face key={id} id={id} size={20} />)}
+                                {(chosenCoach ? [chosenCoach] : ids).map(id => <Face key={id} id={id} size={22} />)}
                               </div>
                             </button>
                           )
@@ -1822,7 +1830,7 @@ export default function BookingPage() {
                       </div>
                       {curShown && (
                         <div style={{ marginTop: '12px', background: NAVY, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 14px' }}>
-                          <div style={{ fontSize: '12.5px', color: 'rgba(255,255,255,0.7)', marginBottom: '10px' }}>
+                          <div style={{ fontSize: '13.5px', color: 'rgba(255,255,255,0.7)', marginBottom: '10px' }}>
                             {t('booking.coachesAt', { time: selectedSlot!.label })}
                           </div>
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -1837,14 +1845,14 @@ export default function BookingPage() {
                                   }}
                                   style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '40px', padding: '0 14px 0 6px', borderRadius: '999px', cursor: on ? 'default' : 'pointer',
                                     border: `1.5px solid ${on ? GOLD : 'rgba(255,255,255,0.14)'}`, background: on ? `${GOLD}20` : 'transparent',
-                                    color: on ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700 }}>
+                                    color: on ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 700 }}>
                                   <Face id={id} size={26} />{coachName(id)}
                                 </button>
                               )
                             })}
                           </div>
                           {selectedCoach && (
-                            <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '10px' }}>
+                            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginTop: '10px' }}>
                               {t('booking.coachPicked', { name: selectedCoach.first_name })}
                             </div>
                           )}
@@ -1854,12 +1862,12 @@ export default function BookingPage() {
                   )
                 })()) : timeSlots.length === 0 ? (
                   <div style={{ background: NAVY, borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.12)' }}>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>{t('booking.noSlots')}</p>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '15px' }}>{t('booking.noSlots')}</p>
                   </div>
                 ) : (
                   <>
                   {batchFlow && (
-                    <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
                   )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                     {(lessonLength === 60 ? [] : timeSlots).map(slot => {
@@ -1891,7 +1899,7 @@ export default function BookingPage() {
                           border: `2px ${batchFlow && !affordable0 && !inBasket && slot.available ? 'dashed' : 'solid'} ${on ? GOLD : usable0 ? (slot.fill ? slot.fill + '55' : 'rgba(255,255,255,0.12)') : 'rgba(255,255,255,0.05)'}`,
                           background: on ? `${GOLD}20` : usable0 ? (slot.fill ? slot.fill + '22' : NAVY) : 'rgba(255,255,255,0.03)',
                           color: on ? GOLD : usable0 ? '#fff' : 'rgba(255,255,255,0.2)',
-                          fontSize: '13px', fontWeight: 600, cursor: usable0 ? 'pointer' : 'not-allowed',
+                          fontSize: '14px', fontWeight: 600, cursor: usable0 ? 'pointer' : 'not-allowed',
                           textAlign: 'center',
                         }}
                       >
@@ -1904,16 +1912,16 @@ export default function BookingPage() {
                             <>
                               <PriceTag price={pr} dim={!slot.available} />
                               {pr.offPeak && (
-                                <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: slot.available ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
+                                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: slot.available ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)', marginTop: '3px' }}>{t('booking.offPeak')}</div>
                               )}
                             </>
                           )
                         })()}
                         {!isTrial && slot.available && slot.within24h && (
-                          <div style={{ fontSize: '10px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
+                          <div style={{ fontSize: '11.5px', color: '#c9a84c', marginTop: '2px', fontWeight: 700 }}>24h</div>
                         )}
                         {selectedCourse && (selectedCourse.slug === '1on4' || selectedCourse.slug === 'team') && (
-                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{t('booking.spotsLeft', { n: slot.max - slot.enrolled })}</div>
+                          <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{t('booking.spotsLeft', { n: slot.max - slot.enrolled })}</div>
                         )}
                       </button>
                       )
@@ -2123,20 +2131,20 @@ export default function BookingPage() {
 
                   {monthsShown < 6 && (
                     <button onClick={() => setMonthsShown(n => n + 1)}
-                      style={{ width: '100%', marginBottom: '16px', padding: '11px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: '10px', color: 'rgba(255,255,255,0.55)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ width: '100%', marginBottom: '16px', padding: '11px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: '10px', color: 'rgba(255,255,255,0.55)', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer' }}>
                       {t('booking.group.loadMore')}
                     </button>
                   )}
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '8px' }}>
                     {myGroupBand ? t('booking.group.showingBand', { name: selectedStudent?.full_name || '', min: myGroupBand.min, max: myGroupBand.max }) : t('booking.group.showing', { name: selectedStudent?.full_name || '' })}
                   </div>
                   {selectedSlot && selectedDate && selectedCoach && (
                     <div style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>
                         {selectedDate.toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })} · {selectedSlot.label}
-                        <span style={{ fontSize: '12px', fontWeight: 400, color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>{t('booking.group.withCoach', { name: selectedCoach.first_name })}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 400, color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>{t('booking.group.withCoach', { name: selectedCoach.first_name })}</span>
                       </span>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: GOLD }}>{t('booking.group.ready')}</span>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{t('booking.group.ready')}</span>
                     </div>
                   )}
                 </div>
@@ -2152,14 +2160,14 @@ export default function BookingPage() {
                           the count, because the chips below it are the thing
                           being counted and "8 lessons" is what the parent is
                           deciding about. */}
-                      <span style={{ fontSize: '12px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)' }}>
+                      <span style={{ fontSize: '13px', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)' }}>
                         {t('booking.recur.basketTitle')}
                         <span style={{ marginLeft: '8px', letterSpacing: 0, color: GOLD, fontWeight: 700 }}>
                           {t('booking.recur.basketCount', { n: recurSel.size })}
                         </span>
                       </span>
                       <button onClick={() => setRecurSel(new Map())}
-                        style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', textDecoration: 'underline' }}>
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: '13px', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', textDecoration: 'underline' }}>
                         {t('booking.recur.clearAll')}
                       </button>
                     </div>
@@ -2167,7 +2175,7 @@ export default function BookingPage() {
                       {basket.map(x => (
                         <button key={x.date + x.time}
                           onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(`${x.date}|${x.time}`); return n })}
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
                           {new Date(x.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                           {basketTimes.size > 1 ? ` · ${x.label}` : ''}
                           {basketCoaches.size > 1 ? ` · ${x.coachName || ''}` : ''}
@@ -2175,13 +2183,13 @@ export default function BookingPage() {
                         </button>
                       ))}
                     </div>
-                    <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.4)', marginTop: '10px', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '10px', lineHeight: 1.6 }}>
                       {t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
                     </div>
                   </div>
                 )}
                 {recurMsg && (
-                  <div style={{ marginTop: '10px', background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.35)', borderRadius: '10px', padding: '12px 16px', color: '#7fd8a0', fontSize: '13px', fontWeight: 600 }}>{recurMsg}</div>
+                  <div style={{ marginTop: '10px', background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.35)', borderRadius: '10px', padding: '12px 16px', color: '#7fd8a0', fontSize: '14px', fontWeight: 600 }}>{recurMsg}</div>
                 )}
                 {batchFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && (
                   <button disabled={recurBusy}
@@ -2241,16 +2249,16 @@ export default function BookingPage() {
                       } catch { setRecurMsg(t('cart.err.network')) }
                       setRecurBusy(false)
                     }}
-                    style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
+                    style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
                     {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                   </button>
                 )}
                 {batchFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
                   <div style={{ marginTop: '10px', background: '#16243f', border: `1px solid ${GOLD}73`, borderRadius: '12px', padding: '16px', boxShadow: '0 18px 40px rgba(0,0,0,0.45)' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: GOLD }}>
+                    <div style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
                       {t('booking.recur.everyWeekday', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                     </div>
-                    <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>
                       {t('booking.recur.remaining', { n: okCount })}
                     </div>
 
@@ -2281,14 +2289,14 @@ export default function BookingPage() {
                               background: on ? `${GOLD}29` : 'transparent',
                               color: on ? GOLD : room ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)',
                             }}>
-                            <div style={{ fontSize: '12px', fontWeight: 700 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700 }}>
                               {new Date(c.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                             </div>
-                            <div style={{ fontSize: '10px', marginTop: '2px', opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
+                            <div style={{ fontSize: '11.5px', marginTop: '2px', opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
                               {t('points.unit', { n: cost })}
                             </div>
                             {c.substitute && (
-                              <div style={{ fontSize: '10px', marginTop: '2px', fontWeight: 700, color: coachColor(c.coach_id) }}>
+                              <div style={{ fontSize: '11.5px', marginTop: '2px', fontWeight: 700, color: coachColor(c.coach_id) }}>
                                 {t('booking.recur.subCoach', { name: c.coach_name })}
                               </div>
                             )}
@@ -2296,25 +2304,25 @@ export default function BookingPage() {
                         )
                       })}
                     </div>
-                    <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.32)', marginTop: '8px', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.32)', marginTop: '8px', lineHeight: 1.6 }}>
                       {t('booking.recur.gridHint')}
                     </div>
                     {recurCandidates.some((c: any) => c.substitute) && (
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginTop: '6px', lineHeight: 1.6 }}>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginTop: '6px', lineHeight: 1.6 }}>
                         {t('booking.recur.subNote')}
                       </div>
                     )}
 
                     <div style={{ marginTop: '13px', padding: '11px 12px', borderRadius: '9px', background: 'rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                         <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.wouldAdd')}</span>
                         <span style={{ fontWeight: 700, color: '#fff' }}>{chosen.size}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                         <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.recur.wouldTotal')}</span>
                         <span style={{ fontWeight: 700, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: otherTotal + chosenTotal })}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                         <span style={{ color: 'rgba(255,255,255,0.5)' }}>{t('booking.price.after')}</span>
                         <span style={{ fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - otherTotal - chosenTotal) })}</span>
                       </div>
@@ -2341,11 +2349,11 @@ export default function BookingPage() {
                           })
                           setRecurOpen(false)
                         }}
-                        style={{ minHeight: '44px', borderRadius: '9px', background: chosen.size === 0 ? 'rgba(255,255,255,0.06)' : GOLD, color: chosen.size === 0 ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '13px', fontWeight: 700, border: 'none', cursor: chosen.size === 0 ? 'not-allowed' : 'pointer' }}>
+                        style={{ minHeight: '44px', borderRadius: '9px', background: chosen.size === 0 ? 'rgba(255,255,255,0.06)' : GOLD, color: chosen.size === 0 ? 'rgba(255,255,255,0.3)' : NAVY, fontSize: '14px', fontWeight: 700, border: 'none', cursor: chosen.size === 0 ? 'not-allowed' : 'pointer' }}>
                         {t('booking.recur.takeAll', { n: chosen.size })}
                       </button>
                       <button onClick={() => setRecurOpen(false)}
-                        style={{ minHeight: '40px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.16)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '12.5px', cursor: 'pointer' }}>
+                        style={{ minHeight: '40px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.16)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13.5px', cursor: 'pointer' }}>
                         {t('common.cancel')}
                       </button>
                     </div>
@@ -2367,10 +2375,10 @@ export default function BookingPage() {
             }}>
               {batchFlow && recurSel.size > 0 && (
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: GOLD }}>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
                     {t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
                   </span>
-                  <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>
                     {t('booking.price.after')} {t('points.unit', { n: Math.max(0, balance - basketTotal) })}
                   </span>
                 </div>
@@ -2379,7 +2387,7 @@ export default function BookingPage() {
                 <button onClick={() => { setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()) }} style={{
                   flex: 1, padding: '14px', background: 'transparent',
                   color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                  borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
                 }}>{t('booking.back')}</button>
                 <button
                   onClick={goToConfirm}
@@ -2389,7 +2397,7 @@ export default function BookingPage() {
                     background: canContinue ? GOLD : 'rgba(255,255,255,0.1)',
                     color: canContinue ? NAVY : 'rgba(255,255,255,0.3)',
                     border: 'none', borderRadius: '10px',
-                    fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
+                    fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
                     textTransform: 'uppercase', cursor: canContinue ? 'pointer' : 'not-allowed',
                   }}
                 >{t('booking.continue')}</button>
@@ -2435,8 +2443,8 @@ export default function BookingPage() {
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
                 }}>
-                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{row.label}</span>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{row.value}</span>
+                  <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)' }}>{row.label}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>{row.value}</span>
                 </div>
               ))}
               {/* Every date, spelled out. This is the last screen before the
@@ -2444,12 +2452,12 @@ export default function BookingPage() {
                   to be able to see that one of them lands on a week they are away. */}
               {recurPlan.length > 0 && (
                 <div style={{ padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', marginBottom: '10px' }}>
                     {t('booking.recur.sumDates', { n: recurPlan.length })}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {recurPlan.map(x => (
-                      <span key={x.date + x.time} style={{ fontSize: '12px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                      <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
                         {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                         {planTimes.size > 1 ? ` · ${x.label}` : ''}
                         {planCoaches.length > 1 ? ` · ${x.coachName || ''}` : ''}
@@ -2470,17 +2478,17 @@ export default function BookingPage() {
                     ...(bookingPrice.offPeak ? [{ k: 'off', label: t('booking.price.offPeak'), value: `−${Math.round(bookingPrice.offPeakPct * 100)}%`, dim: true }] : []),
                   ].map(row => (
                     <div key={row.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{row.label}</span>
-                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
+                      <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)' }}>{row.label}</span>
+                      <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '6px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{t('booking.price.total')}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('booking.price.total')}</span>
                     <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: bookingCost })}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: balanceAfter })}</span>
+                    <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: balanceAfter })}</span>
                   </div>
                 </div>
               )}
@@ -2491,34 +2499,34 @@ export default function BookingPage() {
               {recurPlan.length > 0 && (
                 <div style={{ paddingTop: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.batchBase', { n: recurPlan.length })}</span>
-                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{recurBase}</span>
+                    <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.batchBase', { n: recurPlan.length })}</span>
+                    <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{recurBase}</span>
                   </div>
                   {recurBase > recurTotal && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.batchDiscount')}</span>
-                      <span style={{ fontSize: '13px', color: myBandColor, fontVariantNumeric: 'tabular-nums' }}>−{recurBase - recurTotal}</span>
+                      <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.batchDiscount')}</span>
+                      <span style={{ fontSize: '14px', color: myBandColor, fontVariantNumeric: 'tabular-nums' }}>−{recurBase - recurTotal}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '6px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{t('booking.price.total')}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{t('booking.price.total')}</span>
                     <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: recurTotal })}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - recurTotal) })}</span>
+                    <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('booking.price.after')}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - recurTotal) })}</span>
                   </div>
                 </div>
               )}
             </div>
             {!isTrial && !isReschedule && (bookingCost > balance || recurTotal > balance) && (
-              <div style={{ background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px', fontSize: '13px', color: '#e05a4a' }}>
+              <div style={{ background: 'rgba(224,90,74,0.1)', border: '1px solid rgba(224,90,74,0.3)', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px', fontSize: '14px', color: '#e05a4a' }}>
                 ⚠️ {t('booking.short.body', { have: balance, need: recurPlan.length > 0 ? recurTotal : bookingCost })}
                 <div><BuyPointsLink label={t('booking.short.cta')} /></div>
               </div>
             )}
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
                 {t('booking.policy.points', { n: wallet?.forgiveness ?? 0 })}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   {t('booking.viewTerms')}
@@ -2526,7 +2534,7 @@ export default function BookingPage() {
               </span>
             </div>
             {cartMsg && (
-              <div style={{ background: 'rgba(220,80,80,0.12)', border: '1px solid rgba(220,80,80,0.4)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px', color: '#f0a0a0', fontSize: '13px' }}>
+              <div style={{ background: 'rgba(220,80,80,0.12)', border: '1px solid rgba(220,80,80,0.4)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px', color: '#f0a0a0', fontSize: '14px' }}>
                 {cartMsg}
               </div>
             )}
@@ -2534,7 +2542,7 @@ export default function BookingPage() {
               <button onClick={() => { setStep(3); setRecurPlan([]) }} style={{
                 flex: 1, padding: '14px', background: 'transparent',
                 color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
               }}>{t('booking.back')}</button>
               {!isTrial && !isReschedule && recurPlan.length === 0 && selectedCourse?.slug !== '1on2' && (
                 <button
@@ -2544,7 +2552,7 @@ export default function BookingPage() {
                     flex: 1, padding: '14px', background: 'transparent',
                     color: (submitting || addingToCart) ? 'rgba(255,255,255,0.3)' : GOLD,
                     border: `1px solid ${GOLD}`, borderRadius: '10px',
-                    fontSize: '13px', fontWeight: 700, letterSpacing: '1px',
+                    fontSize: '14px', fontWeight: 700, letterSpacing: '1px',
                     textTransform: 'uppercase', cursor: (submitting || addingToCart) ? 'not-allowed' : 'pointer',
                   }}
                 >{addingToCart ? t('booking.addingToCart') : t('booking.addToCart')}</button>
@@ -2557,7 +2565,7 @@ export default function BookingPage() {
                   background: submitting ? 'rgba(255,255,255,0.1)' : GOLD,
                   color: submitting ? 'rgba(255,255,255,0.3)' : NAVY,
                   border: 'none', borderRadius: '10px',
-                  fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px',
+                  fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
                   textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
               >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : recurPlan.length > 0 ? t('booking.recur.yesBook', { n: recurPlan.length }) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
@@ -2567,7 +2575,7 @@ export default function BookingPage() {
       </div>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
-      {parentId && <ChatWidget parentId={parentId} />}
+      {parentId && <ChatWidget parentId={parentId} lift={isPhone ? 104 : 0} />}
       {parentId && <BookingCart refreshSignal={cartRefresh} onCommitted={() => { if (selectedCoach && selectedDate) loadTimeSlots() }} />}
     </div>
   )
