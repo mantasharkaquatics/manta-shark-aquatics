@@ -252,21 +252,30 @@
    background-color declaration win -- the colour is applied by the UA above the
    cascade. The one thing it does honour is an inset box-shadow, so a 1000px
    inset shadow in the field's own colour covers the blue, and -webkit-text-fill-color
-   overrides the black. Without this a returning parent lands on the navy sign-in
-   card and sees two pale blue boxes.
+   sets the text. Since palette B (2026-09) the sign-in and register fields are
+   white on a white card, so the cover is white and the text the site's ink.
 
-   Scoped to .auth-shell on purpose: several admin screens (members, invoices, POS,
-   checkin...) are still light-themed, and a global version of this rule would paint
-   navy blocks over their white inputs. */
+   Scoped to .auth-shell on purpose: other screens style their own inputs. */
 .auth-shell input:-webkit-autofill,
 .auth-shell input:-webkit-autofill:hover,
 .auth-shell input:-webkit-autofill:focus,
 .auth-shell input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #0d1529 inset !important;
-  -webkit-text-fill-color: #ffffff !important;
-  caret-color: #ffffff;
-  border-color: #1e3a6e;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #16294a !important;
+  caret-color: #16294a;
+  border-color: #d5e0ef;
 }
+
+/* Sign-in and register (palette B): the page is the site's dark top -- the
+   navy gradient with the faint white logo, pinned like the page heroes -- and
+   the form is a white card over it. */
+.auth-bg { background: linear-gradient(160deg, #12254a 0%, #1d3f7c 100%); position: relative; overflow: hidden;
+  font-family: var(--font-body), 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif; }
+.auth-bg::before { content: ''; position: fixed; pointer-events: none; width: 1100px; height: 1100px; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); background: url('/logo.png') center / contain no-repeat;
+  filter: brightness(0) invert(1); opacity: 0.03; }
+.auth-card { position: relative; z-index: 1; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35); }
+.auth-title { font-family: var(--font-display), 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', serif; font-weight: 800; }
 
 /* The point-of-sale till is a three-column grid set in an inline style, so this
    rule needs !important to reach it. Below 900px the three columns stopped

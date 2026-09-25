@@ -43,7 +43,7 @@ export default function PasswordField({
         aria-pressed={shown}
         aria-label={t(shown ? 'auth.hidePassword' : 'auth.showPassword')}
         title={t(shown ? 'auth.hidePassword' : 'auth.showPassword')}
-        className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-[#c9a84c] focus:text-[#c9a84c] focus:outline-none transition-colors"
+        className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-[#56647d] hover:text-[#2050a0] focus:text-[#2050a0] focus:outline-none transition-colors"
       >
         {shown ? (
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

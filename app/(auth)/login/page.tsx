@@ -9,9 +9,9 @@ import { errorKey } from '@/lib/i18n/errors'
 import PasswordField from '@/components/ui/PasswordField'
 
 // There is no Navbar over the (auth) pages, so this card is the whole of the
-// brand a parent sees while signing in -- hence the logo. It used to be the
-// Tailwind defaults it was scaffolded with: grey page, white card, blue button.
-// Arriving here from the navy site felt like being handed off to someone else.
+// brand a parent sees while signing in -- hence the logo. Palette B (2026-09):
+// the page is the site's dark top (navy gradient, faint logo, see .auth-bg in
+// globals.css) and the form is a white card on it, amber for the one button.
 export default function LoginPage() {
   const t = useT()
   const tErr = (raw?: string | null): string => {
@@ -46,40 +46,40 @@ export default function LoginPage() {
     }
   }
 
-  const field = "w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c] transition-colors"
+  const field = "w-full bg-white border border-[#d5e0ef] rounded-lg px-4 py-3 text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 transition-colors"
 
   return (
-    <div className="auth-shell min-h-dvh bg-[#0d1529] flex items-center justify-center px-4 py-10">
-      <div className="bg-[#111d38] rounded-2xl border border-[#1e3a6e] p-7 sm:p-8 w-full max-w-md">
+    <div className="auth-shell auth-bg min-h-dvh flex items-center justify-center px-4 py-10">
+      <div className="auth-card bg-white rounded-2xl p-7 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={88} height={88} className="mx-auto mb-4 rounded-full object-cover" priority />
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={120} height={120} className="mx-auto mb-2 object-contain" priority />
           </Link>
-          <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Manta Shark Aquatics</h1>
-          <p className="text-gray-400 mt-2 text-sm">{t('login.subtitle')}</p>
+          <h1 className="text-2xl font-bold text-[#12254a] auth-title">Manta Shark Aquatics</h1>
+          <p className="text-[#56647d] mt-2 text-sm">{t('login.subtitle')}</p>
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('login.email')}</label>
+            <label className="block text-sm font-medium text-[#16294a] mb-1.5">{t('login.email')}</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
               autoComplete="email" inputMode="email"
               className={field}
               placeholder="you@example.com" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('login.password')}</label>
+            <label className="block text-sm font-medium text-[#16294a] mb-1.5">{t('login.password')}</label>
             <PasswordField value={password} onChange={setPassword} onEnter={handleLogin}
               autoComplete="current-password" className={field} placeholder="••••••••" />
           </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           <button onClick={handleLogin} disabled={loading}
-            className="w-full bg-[#c9a84c] hover:opacity-90 text-[#111d38] font-bold py-3 rounded-lg text-sm transition disabled:opacity-50">
+            className="w-full bg-[#f09800] hover:bg-[#d98900] text-[#12254a] font-bold py-3 rounded-lg text-sm transition disabled:opacity-50">
             {loading ? t('login.signingIn') : t('login.signIn')}
           </button>
         </div>
-        <p className="text-center text-sm text-gray-400 mt-6">
+        <p className="text-center text-sm text-[#56647d] mt-6">
           {t('login.noAccount')}{' '}
-          <Link href="/register" className="text-[#c9a84c] hover:underline font-medium">{t('login.signUp')}</Link>
+          <Link href="/register" className="text-[#2050a0] hover:underline font-bold">{t('login.signUp')}</Link>
         </p>
       </div>
     </div>
