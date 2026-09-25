@@ -55,12 +55,12 @@ export default function HomeContent() {
         .h-btn.dark { background: ${INK}; color: #fff; }
 
         /* Hero. One motif: our own logo, turned white and faded right back,
-           whole, centred behind the headline column. (Owner, 2026-09: replaced the lane lines.) The
+           centred in the section, behind both the headline and the steps card. (Owner, 2026-09: replaced the lane lines.) The
            filter turns every opaque pixel of the colour logo white; its
            transparent background stays transparent. */
         .h-hero { background: ${NAVY}; color: #fff; position: relative; overflow: hidden; }
         .h-hero::before { content: ''; position: absolute; pointer-events: none;
-          width: 1400px; height: 1400px; left: max(-360px, calc(50% - 980px)); top: 50%; transform: translateY(-50%);
+          width: 1400px; height: 1400px; left: 50%; top: 50%; transform: translate(-50%, -50%);
           background: url('/logo.png') center / contain no-repeat;
           filter: brightness(0) invert(1); opacity: 0.035; }
         .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
