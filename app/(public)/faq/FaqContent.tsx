@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
@@ -12,30 +12,31 @@ import BrandRoot from '@/components/brand/BrandRoot'
 
 const EMAIL = 'info@mantasharkaquatics.net'
 
-/** Fold case and strip the punctuation that differs between how a parent types
- *  a question and how we wrote it, so "24小時" finds "24 小時". CJK has no word
- *  boundaries, so this is substring matching on purpose. */
-function normalise(s: string) {
-  return s.toLowerCase().replace(/[\s·、，,。.？?！!—–\-()（）「」“”"']/g, '')
-}
-
-// Palette B (2026-09): dark top with the search box, the questions as white
-// cards on the pale blue, a topic list beside them on a computer.
+// Palette B (2026-09): dark top, the questions as white cards on the pale
+// blue, and a topic list that looks like what it is -- a menu you press. On a
+// computer it is the same white card as the level list on /levels, with the
+// topic you are reading in navy; on a phone it is a row of buttons above the
+// questions. (The search box was taken out at the owner's request, 2026-09-25.)
 const css = `
-  .f-search { position: relative; max-width: 520px; margin-top: 26px; }
-  .f-search svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: ${BRAND.mute}; pointer-events: none; }
-  .f-search input { width: 100%; box-sizing: border-box; padding: 15px 16px 15px 46px; border-radius: 12px; border: 0;
-    background: #fff; color: ${BRAND.ink}; font-size: 15px; font-family: inherit; box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
-  .f-search input:focus { outline: 3px solid ${BRAND.yellow}; outline-offset: 2px; }
-  .f-search input.has { padding-right: 72px; }
-  .f-search button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: 0;
-    color: ${BRAND.blue}; font-size: 13px; font-weight: 700; cursor: pointer; padding: 6px 8px; font-family: inherit; }
-  .f-count { font-size: 13px; color: rgba(255,255,255,0.65); margin: 12px 0 0; }
+  .f-grid { display: grid; grid-template-columns: 250px 1fr; gap: 32px; align-items: start; }
+  .f-nav { position: sticky; top: 96px; background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 10px;
+           display: flex; flex-direction: column; gap: 4px; }
+  .f-nav a { display: flex; align-items: center; gap: 10px; padding: 12px 12px; border-radius: 12px; font-size: 14.5px; font-weight: 700;
+             color: ${BRAND.ink}; text-decoration: none; transition: background 0.15s; }
+  .f-nav a:hover { background: ${BRAND.paper}; }
+  .f-nav a span { flex: 1; min-width: 0; }
+  .f-nav a small { font-size: 12px; font-weight: 700; color: ${BRAND.mute}; background: ${BRAND.paper}; border-radius: 999px; padding: 2px 8px; }
+  .f-nav a i { font-style: normal; color: #b8c4d6; font-size: 16px; }
+  .f-nav a[aria-current="true"] { background: ${BRAND.navy}; color: #fff; }
+  .f-nav a[aria-current="true"] small { background: rgba(255,255,255,0.14); color: #fff; }
+  .f-nav a[aria-current="true"] i { color: ${BRAND.yellow}; }
+  .f-nav a:focus-visible, .f-chips a:focus-visible { outline: 3px solid ${BRAND.yellow}; outline-offset: 2px; }
 
-  .f-grid { display: grid; grid-template-columns: 220px 1fr; gap: 40px; align-items: start; }
-  .f-nav { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 2px; }
-  .f-nav a { display: block; padding: 9px 12px; border-radius: 10px; font-size: 14px; font-weight: 700; color: ${BRAND.mute}; text-decoration: none; }
-  .f-nav a:hover { background: #fff; color: ${BRAND.navy}; }
+  .f-chips { display: none; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+  .f-chips a { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #c9d8ee; border-radius: 999px;
+               padding: 9px 14px; font-size: 14px; font-weight: 700; color: ${BRAND.blue}; text-decoration: none; }
+  .f-chips a::after { content: '↓'; font-size: 13px; }
+
   .f-sec { scroll-margin-top: 96px; }
   .f-sec + .f-sec { margin-top: 40px; }
   .f-sec h2 { font-size: 22px; font-weight: 800; color: ${BRAND.navy}; margin-bottom: 14px; }
@@ -51,13 +52,10 @@ const css = `
   .f-item[data-open="true"] .f-plus { transform: rotate(45deg); background: ${BRAND.navy}; color: #fff; }
   .f-item p { font-size: 15px; line-height: 1.8; color: ${BRAND.mute}; margin: 0; padding: 0 20px 20px; max-width: 64ch; }
 
-  .f-none { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 16px; padding: 28px; }
-  .f-none h2 { font-size: 20px; color: ${BRAND.navy}; margin-bottom: 8px; }
-  .f-none p { color: ${BRAND.mute}; font-size: 15px; line-height: 1.7; margin: 0 0 18px; }
-
   @media (max-width: 900px) {
     .f-grid { grid-template-columns: 1fr; gap: 0; }
     .f-nav { display: none; }
+    .f-chips { display: flex; }
     .f-item button { font-size: 15px; padding: 16px; }
     .f-item p { padding: 0 16px 18px; }
   }
@@ -66,8 +64,8 @@ const css = `
 export default function FaqContent() {
   const t = useT()
   const locale = useLocale()
-  const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [current, setCurrent] = useState<string>(FAQ[0].id)
   const [parentId, setParentId] = useState<string | null>(null)
   const [seed, setSeed] = useState<{ text: string; n: number } | null>(null)
 
@@ -82,24 +80,21 @@ export default function FaqContent() {
     })
   }, [])
 
-  const q = normalise(query)
-  const sections = useMemo(() => FAQ.map(cat => ({
-    id: cat.id,
-    items: cat.items.filter(id =>
-      !q || normalise(t('faq.q.' + id)).includes(q) || normalise(t('faq.a.' + id)).includes(q)
-    ),
-  })).filter(s => s.items.length > 0), [q, locale])
+  // Keep the topic list pointing at the section being read, so it is plain
+  // that the list moves you around the page.
+  useEffect(() => {
+    const els = FAQ.map(c => document.getElementById('faq-' + c.id)).filter(Boolean) as HTMLElement[]
+    const io = new IntersectionObserver(entries => {
+      const hit = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+      if (hit) setCurrent(hit.target.id.replace('faq-', ''))
+    }, { rootMargin: '-100px 0px -60% 0px' })
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [])
 
-  const matchCount = sections.reduce((n, s) => n + s.items.length, 0)
-
-  function askUs(text: string) {
-    if (parentId) setSeed({ text, n: (seed?.n ?? 0) + 1 })
-    else window.location.href = `mailto:${EMAIL}?subject=${encodeURIComponent(text || 'Question')}`
-  }
-
-  const askButton = (labelChat: string, labelEmail: string, text: string) => parentId
-    ? <button type="button" className="b-btn gold" onClick={() => askUs(text)}>{labelChat}</button>
-    : <a className="b-btn gold" href={`mailto:${EMAIL}${text ? '?subject=' + encodeURIComponent(text) : ''}`}>{labelEmail}</a>
+  const askButton = parentId
+    ? <button type="button" className="b-btn gold" onClick={() => setSeed({ text: '', n: (seed?.n ?? 0) + 1 })}>{t('faq.stillChat')}</button>
+    : <a className="b-btn gold" href={`mailto:${EMAIL}`}>{t('faq.stillEmail')}</a>
 
   return (
     <BrandRoot>
@@ -110,53 +105,35 @@ export default function FaqContent() {
           <p className="b-eyebrow">{t('faq.hero.eyebrow')}</p>
           <h1>{t('faq.hero.title')}</h1>
           <p className="b-lead">{t('faq.hero.sub')}</p>
-          <div className="f-search">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
-            </svg>
-            <input
-              type="text"
-              inputMode="search"
-              className={query ? 'has' : ''}
-              value={query}
-              onChange={e => { setQuery(e.target.value); setOpen(null) }}
-              placeholder={t('faq.search.placeholder')}
-              aria-label={t('faq.search.placeholder')}
-            />
-            {query && <button type="button" onClick={() => setQuery('')}>{t('faq.search.clear')}</button>}
-          </div>
-          {query && (
-            <p className="f-count" aria-live="polite">
-              {matchCount === 1 ? t('faq.search.countOne') : t('faq.search.count', { n: matchCount })}
-            </p>
-          )}
         </div>
       </header>
 
       <section className="b-sec b-paper" style={{ paddingTop: 56 }}>
         <div className="b-wrap f-grid">
-          {/* Topics, for jumping. Hidden while searching: the list below is
-              then only the matches, and most topics would point at nothing. */}
-          <nav className="f-nav" aria-label={t('faq.hero.eyebrow')} style={query ? { visibility: 'hidden' } : undefined}>
-            {FAQ.map(cat => <a key={cat.id} href={'#faq-' + cat.id}>{t('faq.cat.' + cat.id)}</a>)}
+          <nav className="f-nav" aria-label={t('faq.hero.eyebrow')}>
+            {FAQ.map(cat => (
+              <a key={cat.id} href={'#faq-' + cat.id} aria-current={current === cat.id} onClick={() => setCurrent(cat.id)}>
+                <span>{t('faq.cat.' + cat.id)}</span>
+                <small>{cat.items.length}</small>
+                <i aria-hidden="true">›</i>
+              </a>
+            ))}
           </nav>
 
           <div>
-            {sections.length === 0 ? (
-              <div className="f-none">
-                <h2>{t('faq.none.title')}</h2>
-                <p>{t('faq.none.body')}</p>
-                {askButton(t('faq.none.chat'), t('faq.none.email'), query)}
-              </div>
-            ) : sections.map(sec => (
+            <div className="f-chips">
+              {FAQ.map(cat => <a key={cat.id} href={'#faq-' + cat.id}>{t('faq.cat.' + cat.id)}</a>)}
+            </div>
+
+            {FAQ.map(sec => (
               <div key={sec.id} id={'faq-' + sec.id} className="f-sec">
                 <h2>{t('faq.cat.' + sec.id)}</h2>
                 <div className="f-list">
                   {sec.items.map(id => {
-                    const isOpen = open === id || !!query
+                    const isOpen = open === id
                     return (
                       <div key={id} className="f-item" data-open={isOpen}>
-                        <button type="button" onClick={() => setOpen(isOpen && !query ? null : id)} aria-expanded={isOpen}>
+                        <button type="button" onClick={() => setOpen(isOpen ? null : id)} aria-expanded={isOpen}>
                           <span>{t('faq.q.' + id)}</span>
                           <span className="f-plus" aria-hidden="true">+</span>
                         </button>
@@ -176,7 +153,7 @@ export default function FaqContent() {
           <h2>{t('faq.stillTitle')}</h2>
           <p>{t('faq.stillBody')}</p>
           <div className="b-ctas">
-            {askButton(t('faq.stillChat'), t('faq.stillEmail'), '')}
+            {askButton}
             <Link href={localePath('/assessment', locale)} className="b-btn ghost">{t('assess.hero.cta')} →</Link>
           </div>
         </div>
