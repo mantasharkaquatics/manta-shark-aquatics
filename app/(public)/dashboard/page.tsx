@@ -511,7 +511,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
-            Check-in QR Code
+            {t('dash.qr.eyebrow')}
           </div>
           <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '22px', fontWeight: 900, color: '#16294a' }}>
             {student.full_name}
@@ -535,7 +535,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
 
         {/* Instructions */}
         <p style={{ fontSize: '12px', color: '#56647d', margin: '0 0 20px', lineHeight: 1.6 }}>
-          Show this QR code at the front desk to check in for today's lesson.
+          {t('dash.qr.help')}
         </p>
 
         {/* Download button */}
@@ -548,7 +548,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
             letterSpacing: '0.5px',
           }}
         >
-          Download QR Code
+          {t('dash.qr.download')}
         </button>
       </div>
     </div>
