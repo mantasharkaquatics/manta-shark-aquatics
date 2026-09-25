@@ -60,7 +60,7 @@ export default function HomeContent() {
            transparent background stays transparent. */
         .h-hero { background: ${NAVY}; color: #fff; position: relative; overflow: hidden; }
         .h-hero::before { content: ''; position: absolute; pointer-events: none;
-          width: 620px; height: 620px; left: max(0px, calc(50% - 560px)); top: 50%; transform: translateY(-50%);
+          width: 860px; height: 860px; left: max(-120px, calc(50% - 680px)); top: 50%; transform: translateY(-50%);
           background: url('/logo.png') center / contain no-repeat;
           filter: brightness(0) invert(1); opacity: 0.05; }
         .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
