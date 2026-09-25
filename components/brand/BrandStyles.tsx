@@ -55,7 +55,7 @@ const css = `
 .b-paper { background: ${BRAND.paper}; }
 .b-head { max-width: 660px; margin-bottom: 36px; }
 .b-head h2, .b-h2 { font-size: 36px; line-height: 1.16; margin-top: 10px; font-weight: 800; }
-.b-head p, .b-body { color: ${BRAND.mute}; font-size: 16px; line-height: 1.75; max-width: 62ch; margin: 14px 0 0; }
+.b-head p:not(.b-eyebrow), .b-body { color: ${BRAND.mute}; font-size: 16px; line-height: 1.75; max-width: 62ch; margin: 14px 0 0; }
 .b-card { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 16px; padding: 24px; }
 .b-card h3 { font-size: 17px; line-height: 1.35; }
 .b-card p { color: ${BRAND.mute}; font-size: 14px; line-height: 1.65; margin: 8px 0 0; }
