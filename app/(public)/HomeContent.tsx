@@ -1,219 +1,301 @@
 'use client'
-import TestimonialCarousel from './TestimonialCarousel'
 import Link from 'next/link'
-import Image from 'next/image'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
-import { SITE_STATS } from '@/lib/site-config'
+import { createClient } from '@/lib/supabase/client'
+import { BASE_POINTS } from '@/lib/points'
+import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+
+// The home page has one job: tell a new family how to start, in three steps,
+// and let them take the first one. Everything else on it -- the four ways to
+// swim, what parents see after each lesson, three questions -- exists to make
+// that first step feel safe. (Owner, 2026-09: no stat tiles, no reviews.)
+
+const NAVY = '#0f1a33'
+const INK = '#111d38'
+const GOLD = '#c9a84c'
 
 export default function HomeContent() {
   const t = useT()
-  // Both plan buttons pointed at the bare /plans, so a visitor reading the
-  // page in Chinese was dropped onto the English one. The navbar has always
-  // prefixed its links; these two never did.
   const locale = useLocale()
+  const router = useRouter()
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setSignedIn(!!data.user)).catch(() => setSignedIn(false))
+  }, [])
+
+  // Booking lives behind the login: a signed-out visitor registers first and is
+  // carried on to booking; a signed-in one goes straight there.
+  const bookAssessment = () => router.push(signedIn ? '/booking' : '/register?redirect=/booking')
+  const price = '$' + (TRIAL_PRICE_CENTS / 100).toLocaleString()
+
+  const programs = [
+    { slug: 'private', price: BASE_POINTS['1on1'], unit: 'home.program.per30' },
+    { slug: 'semi', price: BASE_POINTS['1on2'], unit: 'home.program.perSwimmer' },
+    { slug: 'group', price: BASE_POINTS['1on4'], unit: 'home.program.perSwimmer' },
+    { slug: 'team', price: null, unit: 'home.program.membership' },
+  ] as const
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=DM+Sans:wght@400;500;600;700&display=swap');
+        .h-root { font-family: 'DM Sans', sans-serif; color: ${INK}; }
+        .h-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+        .h-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: ${GOLD}; }
+        .h-root h1, .h-root h2 { font-family: 'Playfair Display', Georgia, serif; margin: 0; text-wrap: balance; }
+        .h-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px;
+                 font-weight: 700; font-size: 15px; padding: 15px 26px; border: 1.5px solid transparent; cursor: pointer;
+                 text-decoration: none; font-family: inherit; }
+        .h-btn.gold { background: ${GOLD}; color: ${NAVY}; }
+        .h-btn.ghost { border-color: rgba(255,255,255,0.35); color: #fff; background: transparent; }
+        .h-btn.dark { background: ${INK}; color: #fff; }
 
-        .wave { position: absolute; bottom: 0; left: -100%; width: 300%; height: 100%; }
-        .wave1 { animation: wave-move 8s linear infinite; opacity: 0.15; }
-        .wave2 { animation: wave-move 12s linear infinite reverse; opacity: 0.1; bottom: 10px; }
-        .wave3 { animation: wave-move 6s linear infinite; opacity: 0.08; bottom: 20px; }
-        @keyframes wave-move { 0% { transform: translateX(0); } 100% { transform: translateX(33.33%); } }
+        /* Hero. One motif: pool lane lines, faint, behind everything. */
+        .h-hero { background: ${NAVY}; color: #fff; position: relative; overflow: hidden; }
+        .h-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+          background: repeating-linear-gradient(180deg, transparent 0 118px, rgba(201,168,76,0.10) 118px 120px); }
+        .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
+          background: radial-gradient(closest-side, rgba(63,111,181,0.25), transparent); }
+        .h-hero .h-wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px;
+                          align-items: center; padding-top: 80px; padding-bottom: 88px; }
+        .h-hero h1 { font-size: 54px; line-height: 1.08; font-weight: 900; margin: 14px 0 18px; }
+        .h-hero h1 em { color: ${GOLD}; }
+        .h-lead { font-size: 18px; line-height: 1.65; color: rgba(255,255,255,0.72); max-width: 520px; margin: 0 0 30px; }
+        .h-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+        .h-facts { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 28px; font-size: 13px; color: rgba(255,255,255,0.55); }
+        .h-facts span::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${GOLD};
+                                margin-right: 8px; vertical-align: middle; }
 
-        .bubble { position: absolute; border-radius: 50%; background: rgba(201,168,76,0.25); border: 2px solid rgba(201,168,76,0.5); animation: float-up linear infinite; }
-        @keyframes float-up { 0% { transform: translateY(0) scale(1); opacity: 0.9; } 100% { transform: translateY(-520px) scale(0.2); opacity: 0; } }
+        .h-steps { background: #fff; color: ${INK}; border-radius: 18px; padding: 28px; box-shadow: 0 30px 60px rgba(0,0,0,0.35); }
+        .h-steps h3 { margin: 0 0 4px; font-size: 18px; }
+        .h-steps .sub { font-size: 13px; color: #5d6b86; margin: 0 0 20px; }
+        .h-step { display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid #e3e8f0; }
+        .h-step b { width: 34px; height: 34px; border-radius: 50%; background: ${INK}; color: #fff; display: grid; place-items: center; font-size: 14px; }
+        .h-step:first-of-type b { background: ${GOLD}; color: ${NAVY}; }
+        .h-step h4 { margin: 2px 0 3px; font-size: 15px; }
+        .h-step p { margin: 0; font-size: 13px; color: #5d6b86; line-height: 1.55; }
+        .h-steps .h-btn { width: 100%; margin-top: 14px; }
 
-        .swimmer-dot { position: absolute; width: 24px; height: 14px; border-radius: 7px; top: -6px; background: #c9a84c; animation: swim linear infinite; }
-        @keyframes swim { 0% { left: -5%; } 100% { left: 105%; } }
+        .h-sec { padding: 88px 0; }
+        .h-head { max-width: 640px; margin-bottom: 40px; }
+        .h-head h2 { font-size: 38px; line-height: 1.15; margin-top: 10px; }
+        .h-head p { color: #5d6b86; font-size: 16px; line-height: 1.65; margin: 12px 0 0; }
 
-        .program-card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.25s; }
-        .program-card:hover { border-color: #c9a84c; }
-        .program-card.open { border-color: #c9a84c; box-shadow: 0 8px 24px rgba(201,168,76,0.15); }
-        .program-desc { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease, margin-top 0.35s ease; opacity: 0; margin-top: 0; font-size: 13px; color: #6b7280; line-height: 1.6; }
-        .program-card.open .program-desc { max-height: 100px; opacity: 1; margin-top: 10px; }
-        .program-hint { font-size: 11px; color: #c9a84c; margin-top: 8px; opacity: 0.6; transition: opacity 0.2s; }
-        .program-card.open .program-hint { opacity: 0; }
+        .h-progs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .h-prog { border: 1px solid #e3e8f0; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+        .h-prog .k { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #5d6b86; text-transform: uppercase; }
+        .h-prog h3 { margin: 0; font-size: 20px; }
+        .h-prog p { margin: 0; font-size: 14px; color: #5d6b86; line-height: 1.6; flex: 1; }
+        .h-prog .pr { display: flex; align-items: baseline; gap: 6px; border-top: 1px solid #e3e8f0; padding-top: 14px; }
+        .h-prog .pr b { font-family: 'Playfair Display', serif; font-size: 28px; }
+        .h-prog .pr span { font-size: 12px; color: #5d6b86; }
+        .h-prog.team { background: ${INK}; color: #fff; border-color: ${INK}; }
+        .h-prog.team p, .h-prog.team .k, .h-prog.team .pr span { color: rgba(255,255,255,0.6); }
+        .h-prog.team .pr { border-color: rgba(255,255,255,0.12); }
+        .h-note { font-size: 13px; color: #5d6b86; margin-top: 18px; line-height: 1.6; }
+        .h-note a { color: ${INK}; font-weight: 700; border-bottom: 1.5px solid ${GOLD}; text-decoration: none; }
 
-        .tcard { display: none; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-        .tcard.active { display: grid; }
-        .titem { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; }
-        .ttext { flex: 1; font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.7; }
-        .tauthor { margin-top: 20px; display: flex; align-items: center; gap: 10px; }
-        .tavatar { width: 36px; height: 36px; border-radius: 50%; background: #c9a84c; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #111d38; flex-shrink: 0; }
-        /* The dot is 8px of paint; ::after gives it a 32px invisible hit area so a
-           thumb can land on it without the dot being drawn any bigger. */
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3); cursor: pointer; transition: all 0.2s; border: none; padding: 0; position: relative; flex-shrink: 0; }
-        .dot::after { content: ''; position: absolute; inset: -12px; }
-        .dot.active { background: #c9a84c; width: 24px; border-radius: 4px; }
-        .carousel-btn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: white; cursor: pointer; font-size: 18px; transition: all 0.2s; flex-shrink: 0; }
-        /* Guarded: on a touch screen :hover latches after a tap, so one arrow stayed
-           filled gold until you tapped elsewhere -- it read as a broken toggle. */
-        @media (hover: hover) {
-          .carousel-btn:hover { background: #c9a84c; border-color: #c9a84c; color: #111d38; }
+        .h-why { background: #f4f6fa; }
+        .h-whygrid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+        .h-pts { display: flex; flex-direction: column; gap: 22px; }
+        .h-pt { display: grid; grid-template-columns: 44px 1fr; gap: 16px; }
+        .h-pt i { width: 44px; height: 44px; border-radius: 12px; background: #fff; border: 1px solid #e3e8f0; display: grid; place-items: center;
+                  font-style: normal; font-size: 18px; color: ${GOLD}; font-weight: 900; font-family: 'Playfair Display', serif; }
+        .h-pt h4 { margin: 2px 0 4px; font-size: 16px; }
+        .h-pt p { margin: 0; font-size: 14px; color: #5d6b86; line-height: 1.6; }
+
+        /* What a parent sees after a lesson: a picture of the real student card. */
+        .h-phone { background: ${NAVY}; border-radius: 28px; padding: 18px; max-width: 360px; margin: 0 auto; box-shadow: 0 30px 60px rgba(17,29,56,0.25); }
+        .h-pcard { background: #1a2744; border-radius: 16px; padding: 18px; color: #fff; border-top: 3px solid #e05a4a; }
+        .h-pcard .n { display: flex; gap: 10px; align-items: center; }
+        .h-pcard .av { width: 38px; height: 38px; border-radius: 50%; background: #e05a4a; display: grid; place-items: center; font-weight: 800; }
+        .h-pcard .lv { font-weight: 700; margin-top: 14px; }
+        .h-pcard .st { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+        .h-bar { height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; margin: 12px 0 6px; overflow: hidden; }
+        .h-bar i { display: block; height: 100%; width: 67%; background: ${GOLD}; }
+        .h-pcard .pc { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.5); }
+        .h-skills { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+        .h-skills span { font-size: 11px; padding: 4px 8px; border-radius: 6px; background: rgba(143,220,194,0.12); color: #8fdcc2; }
+        .h-skills span.o { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); }
+        .h-noteb { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-top: 14px; font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.8); }
+        .h-noteb small { display: block; color: ${GOLD}; font-weight: 700; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; }
+        .h-cap { text-align: center; font-size: 12px; color: #5d6b86; margin-top: 14px; }
+
+        .h-qs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .h-q { background: #fff; border: 1px solid #e3e8f0; border-radius: 14px; padding: 22px; }
+        .h-q h4 { margin: 0 0 8px; font-size: 15px; }
+        .h-q p { margin: 0; font-size: 14px; color: #5d6b86; line-height: 1.6; }
+
+        .h-final { background: ${NAVY}; color: #fff; text-align: center; }
+        .h-final h2 { font-size: 44px; line-height: 1.12; font-weight: 900; }
+        .h-final h2 em { color: ${GOLD}; }
+        .h-final p { color: rgba(255,255,255,0.65); margin: 16px auto 30px; max-width: 520px; line-height: 1.6; }
+        .h-final .h-ctas { justify-content: center; }
+
+        @media (max-width: 900px) {
+          .h-hero .h-wrap { grid-template-columns: 1fr; padding-top: 48px; padding-bottom: 56px; gap: 36px; }
+          .h-hero h1 { font-size: 38px; }
+          .h-progs { grid-template-columns: 1fr 1fr; }
+          .h-whygrid { grid-template-columns: 1fr; }
+          .h-qs { grid-template-columns: 1fr; }
+          .h-sec { padding: 60px 0; }
+          .h-head h2 { font-size: 30px; }
+          .h-final h2 { font-size: 32px; }
         }
-
-        @media (max-width: 768px) {
-                    .hero-title { font-size: 32px !important; }
-          .hero-sub { font-size: 14px !important; }
-          .hero-stats { flex-wrap: wrap; gap: 10px !important; }
-          .hero-stat { flex: 1; min-width: 120px; }
-          .program-grid { grid-template-columns: 1fr 1fr !important; }
-          .tcard.active { grid-template-columns: 1fr !important; }
-          .tcard.active .titem:not(:first-child) { display: none; }
-          /* One quote per slide on a phone, and they are different lengths, so the
-             card grew and shrank as you paged and the controls jumped under your
-             thumb. Fixed floor, author pinned to the bottom. */
-          .tcard.active .titem { min-height: 232px; display: flex; flex-direction: column; }
-          .tcard.active .titem .tauthor { margin-top: auto; }
-          .cta-btns { flex-direction: column; align-items: center; }
-          .hero-content { padding: 32px 20px 100px !important; }
-          .section-pad { padding: 48px 20px !important; }
+        @media (max-width: 520px) {
+          .h-progs { grid-template-columns: 1fr; }
+          .h-ctas .h-btn { flex: 1; }
         }
       `}</style>
 
-      {/* HERO */}
-      <section style={{ background: '#111d38', position: 'relative', minHeight: '500px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div className="hero-content" style={{ position: 'relative', zIndex: 5, textAlign: 'center', padding: '56px 48px 130px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '16px' }}>{t('home.hero.eyebrow')}</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '52px', fontWeight: 900, color: 'white', lineHeight: 1.1, marginBottom: '16px' }}>
-            {t('home.hero.title1')}<br /><em style={{ color: '#c9a84c' }}>{t('home.hero.title2')}</em>
-          </h1>
-          <p className="hero-sub" style={{ fontSize: '16px', color: 'rgba(255,255,255,0.6)', maxWidth: '540px', margin: '0 auto 32px', lineHeight: 1.7 }}>
-            {t('home.hero.subtitle')}
-          </p>
-          <div className="hero-stats" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
-            {[[SITE_STATS.googleRating + '★', 'home.stat.rating'], [SITE_STATS.studentsCoached, 'home.stat.students'], [SITE_STATS.progressFocused, 'home.stat.progress']].map(([num, labelKey]) => (
-              <div key={labelKey} className="hero-stat" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '12px 20px', textAlign: 'center' }}>
-                <div style={{ fontSize: '22px', fontWeight: 700, color: '#c9a84c' }}>{num}</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{t(labelKey)}</div>
+      <div className="h-root">
+        {/* HERO: the promise on the left, the three steps on the right. */}
+        <header className="h-hero">
+          <div className="h-wrap">
+            <div>
+              <div className="h-eyebrow">{t('home.hero.eyebrow')}</div>
+              <h1>{t('home.hero.title1')}<br /><em>{t('home.hero.title2')}</em></h1>
+              <p className="h-lead">{t('home.hero.subtitle')}</p>
+              <div className="h-ctas">
+                <button className="h-btn gold tap-auto" onClick={bookAssessment}>{t('home.hero.cta')} →</button>
+                <Link className="h-btn ghost tap-auto" href={localePath('/plans', locale)}>{t('home.hero.prices')}</Link>
               </div>
-            ))}
-          </div>
-          <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '16px 40px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none', display: 'inline-block' }}>{t('home.hero.cta')}</Link>
-          {/* Second line, not a second button: a visitor who is not ready to
-              create an account still needs to be told what the first step is. */}
-          <div style={{ marginTop: '18px' }}>
-            <Link href={localePath('/assessment', locale)} style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.65)', textDecoration: 'underline', textUnderlineOffset: '4px' }}>
-              {t('home.hero.assess')}
-            </Link>
-          </div>
-        </div>
-
-        {/* Waves */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '200px', overflow: 'hidden' }}>
-          <svg className="wave wave1" viewBox="0 0 1200 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"><path d="M0,100 C150,180 350,0 600,100 C850,200 1050,20 1200,100 L1200,200 L0,200 Z" fill="#c9a84c"/></svg>
-          <svg className="wave wave2" viewBox="0 0 1200 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"><path d="M0,80 C200,160 400,20 600,80 C800,140 1000,40 1200,80 L1200,200 L0,200 Z" fill="#1a2744"/></svg>
-          <svg className="wave wave3" viewBox="0 0 1200 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"><path d="M0,120 C100,60 300,180 600,120 C900,60 1100,160 1200,120 L1200,200 L0,200 Z" fill="#0d1529"/></svg>
-        </div>
-
-        {/* Bubbles */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '200px', overflow: 'hidden', pointerEvents: 'none' }}>
-          {[{w:12,l:'5%',d:'6s',del:'0s'},{w:8,l:'12%',d:'8s',del:'1s'},{w:16,l:'22%',d:'7s',del:'2s'},{w:10,l:'32%',d:'9s',del:'0.5s'},{w:6,l:'42%',d:'5s',del:'3s'},{w:14,l:'52%',d:'7.5s',del:'1.5s'},{w:9,l:'62%',d:'6.5s',del:'2.5s'},{w:12,l:'72%',d:'8.5s',del:'0s'},{w:7,l:'82%',d:'6s',del:'3.5s'},{w:11,l:'91%',d:'9s',del:'1s'}].map((b,i) => (
-            <div key={i} className="bubble" style={{ width: b.w, height: b.w, left: b.l, bottom: '20px', animationDuration: b.d, animationDelay: b.del }} />
-          ))}
-        </div>
-      </section>
-
-      {/* PROGRAMS */}
-      <section className="section-pad" style={{ background: 'white', padding: '64px 48px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>{t('home.programs.eyebrow')}</div>
-          <h2 style={{ fontSize: '32px', fontWeight: 700, color: '#111d38', textAlign: 'center', marginBottom: '40px' }}>{t('home.programs.title')}</h2>
-          <div className="program-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }} id="program-grid">
-            {[
-              { icon: '🏊', slug: 'private' },
-              { icon: '👫', slug: 'semi' },
-              { icon: '👥', slug: 'group' },
-              { icon: '🏅', slug: 'team' },
-            ].map((p, i) => (
-              <div key={i} className="program-card" onClick={(e) => e.currentTarget.classList.toggle('open')}>
-                <div style={{ fontSize: '36px', marginBottom: '14px' }}>{p.icon}</div>
-                <div style={{ fontSize: '16px', fontWeight: 700, color: '#111d38' }}>{t('home.program.' + p.slug + '.name')}</div>
-                <div className="program-desc">{t('home.program.' + p.slug + '.desc')}</div>
-                <div className="program-hint">{t('home.programs.hint')}</div>
+              <div className="h-facts">
+                <span>{t('home.hero.fact1')}</span><span>{t('home.hero.fact2')}</span><span>{t('home.hero.fact3')}</span>
               </div>
-            ))}
-          </div>
-          <div style={{ textAlign: 'center', marginTop: '40px' }}>
-            <Link href={localePath('/plans', locale)} style={{ display: 'inline-block', padding: '12px 32px', border: '1px solid #111d38', borderRadius: '10px', color: '#111d38', fontWeight: 600, fontSize: '14px', textDecoration: 'none' }}>{t('home.programs.viewAll')}</Link>
-          </div>
-        </div>
-      </section>
+            </div>
 
-      {/* TESTIMONIALS */}
-      <section className="section-pad" style={{ background: '#1a2744', padding: '64px 48px' }} id="testimonials-section">
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#c9a84c', textAlign: 'center', marginBottom: '8px' }}>{t('home.testimonials.eyebrow')}</div>
-          <h2 style={{ fontSize: '32px', fontWeight: 700, color: 'white', textAlign: 'center', marginBottom: '8px' }}>{t('home.testimonials.title')}</h2>
-          <div style={{ textAlign: 'center', color: '#c9a84c', fontSize: '14px', marginBottom: '40px' }}>{t('home.testimonials.rating', { rating: SITE_STATS.googleRating, n: SITE_STATS.googleReviewCount })}</div>
+            <aside className="h-steps" aria-label={t('home.start.title')}>
+              <h3>{t('home.start.title')}</h3>
+              <p className="sub">{t('home.start.sub')}</p>
+              {[1, 2, 3].map(n => (
+                <div className="h-step" key={n}>
+                  <b>{n}</b>
+                  <div>
+                    <h4>{t(`home.start.s${n}.title`)}</h4>
+                    <p>{t(`home.start.s${n}.body`, { price })}</p>
+                  </div>
+                </div>
+              ))}
+              {signedIn
+                ? <Link className="h-btn dark tap-auto" href="/dashboard">{t('home.start.ctaSignedIn')}</Link>
+                : <Link className="h-btn dark tap-auto" href="/register">{t('home.start.cta')}</Link>}
+            </aside>
+          </div>
+        </header>
 
-          {[
-            [
-              { text: 'The consistency of great quality teaching and positive reinforcement encourages children to perform at their best. My kids have improved so much and are now more comfortable in the water.', name: 'Mercy', sub: 'Verified parent' },
-              { text: 'We love the coaches. They are patient and caring. The swimming lessons are fun, engaging, and creative. My children look forward to every lesson — and wish they lasted longer!', name: 'Parent', sub: 'Mom of two swimmers' },
-              { text: 'Coaches are very professional and know how to teach kids. I also like the fun and friendly learning environment. Teaching lifesaving skills first was something I really appreciated.', name: 'Anonymous', sub: 'Verified parent' },
-            ],
-            [
-              { text: "Coaches' teaching is the best! The effort and love they put in to teach my boys are amazing! My boys look forward to coming back every summer! Patient, knowledgeable, and fun — they make students comfortable in water real quick!", name: 'Shannon', sub: 'Verified parent' },
-              { text: 'Coaches are very patient and gentle with kids. We especially appreciate how they correct each stroke and pay attention to technique — not just mindless lap swim. My kids said they learn the most from Coach Ting and Chou!', name: 'Parent', sub: 'Mom of two swimmers' },
-              { text: 'The teachers are very friendly, and coaching is focused on details and stroke correction. Our kids really like their swim lessons and have improved greatly after six months.', name: 'Wynne', sub: 'Verified parent' },
-            ],
-            [
-              { text: 'Coaches are very professional. My kids love to go to swim lessons, and her swimming speed has obviously improved.', name: 'Jocelyn', sub: 'Verified parent' },
-              { text: 'The coaches are very patient and professional. If your kids want to become professional swimmers, these coaches are the best.', name: 'Parent', sub: 'Mom of swimmer' },
-              { text: `Coaches have the experience and knowledge to teach students how to swim correctly — they attend to each student's needs. Even students afraid at first eventually adjust and have fun in the water.`, name: 'Amy', sub: 'Verified parent' },
-            ],
-            [
-              { text: 'Students are taught with clear and precise technique. Time is used very efficiently throughout the lesson. All coaches are well qualified, professional, and so kind. My daughter looks forward to swim lessons and is excited to see her coach.', name: 'Parent', sub: 'Mom of one swimmer' },
-              { text: 'The coaches are very patient and attend to details with their teaching.', name: 'Parent', sub: 'Mom of one swimmer' },
-              { text: 'Thank you! Our kids improved a lot — they love swimming and look forward to every lesson!', name: 'Anonymous', sub: 'Verified parent' },
-            ],
-          ].map((group, gi) => (
-            <div key={gi} className={`tcard${gi === 0 ? ' active' : ''}`} data-slide={gi}>
-              {group.map((t, ti) => (
-                <div key={ti} className="titem">
-                  <div style={{ fontSize: '28px', color: '#c9a84c', marginBottom: '12px', lineHeight: 1 }}>"</div>
-                  <div className="ttext">{t.text}</div>
-                  <div className="tauthor">
-                    <div className="tavatar">{t.name[0]}</div>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>{t.name}</div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{t.sub}</div>
-                      <div style={{ color: '#c9a84c', fontSize: '11px' }}>★★★★★</div>
-                    </div>
+        {/* PROGRAMS: price on the card, nothing hidden behind a tap. */}
+        <section className="h-sec">
+          <div className="h-wrap">
+            <div className="h-head">
+              <div className="h-eyebrow">{t('home.programs.eyebrow')}</div>
+              <h2>{t('home.programs.title')}</h2>
+              <p>{t('home.programs.sub')}</p>
+            </div>
+            <div className="h-progs">
+              {programs.map(p => (
+                <div key={p.slug} className={'h-prog' + (p.slug === 'team' ? ' team' : '')}>
+                  <div className="k">{t(`home.program.${p.slug}.kind`)}</div>
+                  <h3>{t(`home.program.${p.slug}.name`)}</h3>
+                  <p>{t(`home.program.${p.slug}.desc`)}</p>
+                  <div className="pr">
+                    <b>{p.price === null ? t('home.program.monthly') : '$' + p.price}</b>
+                    <span>{t(p.unit)}</span>
                   </div>
                 </div>
               ))}
             </div>
-          ))}
-
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
-            <button className="tap-auto carousel-btn" id="t-prev" aria-label={t('home.carousel.prev')}>&#8592;</button>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {[0,1,2,3].map(i => <button key={i} className={`tap-auto dot${i===0?' active':''}`} data-dot={i} aria-label={t('home.carousel.goToSlide', { n: i + 1 })} />)}
-            </div>
-            <button className="tap-auto carousel-btn" id="t-next" aria-label={t('home.carousel.next')}>&#8594;</button>
+            <p className="h-note">
+              {t('home.programs.note')}{' '}
+              <Link href={localePath('/plans', locale)}>{t('home.programs.noteLink')}</Link>
+            </p>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA */}
-      <section className="section-pad" style={{ background: '#111d38', padding: '64px 48px', textAlign: 'center' }}>
-        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: 'white', marginBottom: '12px' }}>{t('home.cta.title')}</h2>
-        <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '32px' }}>{t('home.cta.subtitle')}</p>
-        <div className="cta-btns" style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-          <Link href="/register" style={{ background: '#c9a84c', color: '#111d38', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, textDecoration: 'none', fontSize: '15px' }}>{t('home.cta.createAccount')}</Link>
-          <Link href={localePath('/plans', locale)} style={{ background: 'transparent', color: 'white', padding: '14px 32px', borderRadius: '10px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)', textDecoration: 'none', fontSize: '15px' }}>{t('home.cta.viewPlans')}</Link>
-        </div>
-      </section>
+        {/* WHY: what makes us different, shown rather than claimed. */}
+        <section className="h-sec h-why">
+          <div className="h-wrap h-whygrid">
+            <div>
+              <div className="h-head" style={{ marginBottom: '28px' }}>
+                <div className="h-eyebrow">{t('home.why.eyebrow')}</div>
+                <h2>{t('home.why.title')}</h2>
+              </div>
+              <div className="h-pts">
+                {[['7', 1], ['✓', 2], ['✎', 3]].map(([icon, n]) => (
+                  <div className="h-pt" key={n}>
+                    <i aria-hidden>{icon}</i>
+                    <div>
+                      <h4>{t(`home.why.w${n}.title`)}</h4>
+                      <p>{t(`home.why.w${n}.body`)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="h-note">
+                <Link href={localePath('/levels', locale)}>{t('home.why.levelsLink')}</Link>
+              </p>
+            </div>
+            <div>
+              <div className="h-phone" aria-hidden>
+                <div className="h-pcard">
+                  <div className="n">
+                    <div className="av">E</div>
+                    <div><b>Ethan</b><div className="st">{t('home.preview.age')}</div></div>
+                  </div>
+                  <div className="lv">{t('levels.levelN', { n: 3 })} · {t('level.3.name')}</div>
+                  <div className="st">{t('dash.stageN', { n: 2 })} · {t('stage.3.2.name')}</div>
+                  <div className="h-bar"><i /></div>
+                  <div className="pc"><span>{t('dash.stageCompletion')}</span><span>{t('home.preview.count')}</span></div>
+                  <div className="h-skills">
+                    <span>{t('home.preview.skill1')} ✓</span>
+                    <span>{t('home.preview.skill2')} ✓</span>
+                    <span className="o">{t('home.preview.skill3')}</span>
+                  </div>
+                  <div className="h-noteb"><small>{t('home.preview.noteLabel')}</small>{t('home.preview.note')}</div>
+                </div>
+              </div>
+              <p className="h-cap">{t('home.preview.caption')}</p>
+            </div>
+          </div>
+        </section>
 
-      {/* FOOTER */}
+        {/* QUESTIONS: the three a new family asks before booking. */}
+        <section className="h-sec">
+          <div className="h-wrap">
+            <div className="h-head">
+              <div className="h-eyebrow">{t('home.faq.eyebrow')}</div>
+              <h2>{t('home.faq.title')}</h2>
+            </div>
+            <div className="h-qs">
+              {[1, 2, 3].map(n => (
+                <div className="h-q" key={n}>
+                  <h4>{t(`home.faq.q${n}`)}</h4>
+                  <p>{t(`home.faq.a${n}`)}</p>
+                </div>
+              ))}
+            </div>
+            <p className="h-note"><Link href={localePath('/faq', locale)}>{t('home.faq.all')}</Link></p>
+          </div>
+        </section>
 
-      <TestimonialCarousel />
+        {/* CLOSING: the school's own line, kept by the owner's choice. */}
+        <section className="h-sec h-final">
+          <div className="h-wrap">
+            <h2>{t('home.final.title1')}<br /><em>{t('home.final.title2')}</em></h2>
+            <p>{t('home.final.sub')}</p>
+            <div className="h-ctas">
+              {signedIn
+                ? <button className="h-btn gold tap-auto" onClick={bookAssessment}>{t('home.hero.cta')}</button>
+                : <Link className="h-btn gold tap-auto" href="/register">{t('home.final.cta')}</Link>}
+              <Link className="h-btn ghost tap-auto" href={localePath('/plans', locale)}>{t('home.hero.prices')}</Link>
+            </div>
+          </div>
+        </section>
+      </div>
     </>
   )
 }
