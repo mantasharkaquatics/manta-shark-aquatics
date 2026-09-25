@@ -1,6 +1,8 @@
 'use client'
 import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
+import { BRAND } from '@/lib/brand'
+import BrandRoot from '@/components/brand/BrandRoot'
 
 // A real overview page, replacing a five-line redirect to /terms. The nav had a
 // single entry that landed on a document with a different name, and the register
@@ -14,21 +16,45 @@ const DOCS = [
   { href: '/sms-terms', nameKey: 'legal.smsTerms', descKey: 'policies.smsTerms.desc' },
 ]
 
+const css = `
+  .po-list { max-width: 760px; display: flex; flex-direction: column; gap: 10px; }
+  .po-doc { display: flex; align-items: center; gap: 16px; background: #fff; border: 1px solid ${BRAND.line}; border-radius: 14px;
+            padding: 20px 22px; text-decoration: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .po-doc:hover { border-color: #c9d8ee; box-shadow: 0 6px 20px rgba(18,37,74,0.06); }
+  .po-doc:focus-visible { outline: 3px solid ${BRAND.yellow}; outline-offset: 2px; }
+  .po-doc div { flex: 1; min-width: 0; }
+  .po-doc b { display: block; font-size: 17px; color: ${BRAND.navy}; margin-bottom: 4px; }
+  .po-doc span { display: block; font-size: 14.5px; color: ${BRAND.mute}; line-height: 1.6; }
+  .po-doc i { font-style: normal; font-size: 20px; color: ${BRAND.blue}; flex-shrink: 0; }
+`
+
 export default function PoliciesContent() {
   const t = useT()
   return (
-    <div style={{ minHeight: '100vh', background: '#111d38', padding: '60px 20px' }}>
-      <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-        <p style={{ fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>Manta Shark Aquatics</p>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '34px', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>{t('policies.title')}</h1>
-        <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: '0 0 32px' }}>{t('policies.subtitle')}</p>
-        {DOCS.map(doc => (
-          <Link key={doc.href} href={doc.href} style={{ display: 'block', textDecoration: 'none', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '18px 20px', marginBottom: '12px' }}>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#c9a84c', marginBottom: '4px' }}>{t(doc.nameKey)} →</div>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7 }}>{t(doc.descKey)}</div>
-          </Link>
-        ))}
-      </div>
-    </div>
+    <BrandRoot>
+      <style>{css}</style>
+      <header className="b-hero">
+        <div className="b-wrap">
+          <p className="b-eyebrow">Manta Shark Aquatics</p>
+          <h1>{t('policies.title')}</h1>
+          <p className="b-lead">{t('policies.subtitle')}</p>
+        </div>
+      </header>
+      <section className="b-sec b-paper" style={{ paddingTop: 56 }}>
+        <div className="b-wrap">
+          <div className="po-list">
+            {DOCS.map(doc => (
+              <Link key={doc.href} href={doc.href} className="po-doc">
+                <div>
+                  <b>{t(doc.nameKey)}</b>
+                  <span>{t(doc.descKey)}</span>
+                </div>
+                <i aria-hidden="true">›</i>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+    </BrandRoot>
   )
 }
