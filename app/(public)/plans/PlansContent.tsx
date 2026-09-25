@@ -10,49 +10,96 @@ import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
   ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
   TOPUP_COURSES, TOPUP_LESSON_COUNTS, topUpAmount, type TopUpCourse,
-  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, TOPUP_PRESETS,
+  OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED,
 } from '@/lib/points'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/paths'
+import { BRAND } from '@/lib/brand'
+import BrandRoot from '@/components/brand/BrandRoot'
 
 // The pricing page under the points system. Every number here is read from
 // lib/points.ts -- the same module the booking route charges from -- so the
 // page cannot advertise a price the software will not honour. That was the
 // whole failure mode of the old packages page, which spelled its figures out
 // by hand and drifted away from checkout.
-
-const NAVY = '#1a2744'
-const DARK = '#111d38'
-const GOLD = '#c9a84c'
-const GOLD_BORDER = 'rgba(201,168,76,0.3)'
+//
+// Palette B (2026-09): dark top, light content. The buying card is white on
+// the pale-blue band; the one amber button on it is "go to payment".
 
 const money = (n: number) => '$' + n.toLocaleString('en-US')
 const num = (n: number) => n.toLocaleString('en-US')
 
-function SectionEyebrow({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: '8px',
-      fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
-      textTransform: 'uppercase' as const,
-      color: dark ? '#8a9ab8' : 'rgba(255,255,255,0.5)',
-      marginBottom: '10px',
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-      {children}
-    </div>
-  )
-}
+const css = `
+  /* The assessment card sits over the hero's bottom edge: the first thing a
+     new family needs, before any price. */
+  .p-assess { position: relative; z-index: 2; margin-top: -36px; background: #fff; border: 1px solid ${BRAND.line};
+    border-radius: 16px; padding: 22px 26px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 16px; box-shadow: 0 18px 40px rgba(18,37,74,0.12); }
+  .p-assess h3 { font-size: 17px; }
+  .p-assess p { color: ${BRAND.mute}; font-size: 14px; line-height: 1.65; margin: 6px 0 0; max-width: 62ch; }
+  .p-assess > div { flex: 1 1 380px; min-width: 240px; }
 
-function Divider({ center = false }: { center?: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: '10px', margin: '14px 0' }}>
-      <div style={{ width: 36, height: 2, background: GOLD_BORDER, borderRadius: 1 }} />
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD }} />
-      {center && <div style={{ width: 36, height: 2, background: GOLD_BORDER, borderRadius: 1 }} />}
-    </div>
-  )
-}
+  .p-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 24px; align-items: start; }
+  .p-card { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 20px; padding: 30px; }
+  .p-label { font-size: 13px; color: ${BRAND.mute}; margin: 0 0 8px; font-weight: 600; }
+
+  .p-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid ${BRAND.line}; border-radius: 10px; overflow: hidden; margin-bottom: 20px; background: ${BRAND.paper}; }
+  .p-seg button { padding: 10px 18px; font-size: 14px; font-weight: 700; border: 0; cursor: pointer; background: transparent;
+    color: ${BRAND.mute}; font-family: inherit; }
+  .p-seg button[aria-pressed="true"] { background: ${BRAND.navy}; color: #fff; }
+
+  .p-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .p-count { background: #fff; border: 2px solid ${BRAND.line}; border-radius: 14px; padding: 18px 10px; cursor: pointer;
+    text-align: center; font-family: inherit; color: ${BRAND.ink}; }
+  .p-count:hover { border-color: #bcd0ea; }
+  .p-count[aria-pressed="true"] { border-color: ${BRAND.blue}; background: #eef4fc; }
+  .p-count b { display: block; font-family: var(--font-display), serif; font-size: 28px; font-weight: 900; line-height: 1; }
+  .b-root.zh .p-count b { font-family: inherit; font-size: 24px; }
+  .p-count[aria-pressed="true"] b { color: ${BRAND.blue}; }
+  .p-count span { display: block; font-size: 12px; margin-top: 6px; color: ${BRAND.mute}; font-variant-numeric: tabular-nums; }
+  .p-fine { font-size: 12px; color: ${BRAND.mute}; line-height: 1.7; margin: 0; }
+
+  .p-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    border-top: 1px solid ${BRAND.line}; margin-top: 20px; padding-top: 18px; margin-bottom: 16px; }
+  .p-total span { font-size: 14px; color: ${BRAND.mute}; }
+  .p-total strong { font-family: var(--font-display), serif; font-size: 28px; font-weight: 900; color: ${BRAND.navy}; font-variant-numeric: tabular-nums; }
+  .p-buy { width: 100%; }
+  .p-warn { margin-top: 14px; background: #fff8e8; border: 1px solid #f5d9a0; border-radius: 12px; padding: 14px 16px; font-size: 14px; line-height: 1.65; }
+  .p-err { margin-top: 14px; font-size: 14px; color: #b3261e; }
+
+  .p-price h3 { font-size: 18px; }
+  .p-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 0; border-bottom: 1px solid ${BRAND.line}; font-size: 15px; }
+  .p-row strong { font-size: 17px; color: ${BRAND.navy}; font-variant-numeric: tabular-nums; }
+  .p-row small { font-size: 12px; color: ${BRAND.mute}; margin-left: 7px; font-variant-numeric: tabular-nums; }
+
+  .p-off { display: flex; flex-direction: column; gap: 10px; }
+  .p-off div { background: ${BRAND.paper}; border: 1px solid ${BRAND.line}; border-radius: 10px; padding: 12px 14px; }
+
+  /* Swim Team: the one thing points do not buy, so it is set apart in navy. */
+  .p-team { background: ${BRAND.navy}; color: #fff; border-radius: 20px; padding: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+  .p-team .b-eyebrow { color: ${BRAND.yellow}; }
+  .p-team h2 { font-size: 30px; margin-top: 8px; }
+  .p-team .meta { font-size: 13px; color: rgba(255,255,255,0.6); margin: 8px 0; }
+  .p-team .desc { font-size: 15px; color: rgba(255,255,255,0.78); line-height: 1.7; margin: 0 0 18px; }
+  .p-feats { display: flex; flex-direction: column; gap: 8px; }
+  .p-feats div { display: flex; align-items: center; gap: 10px; font-size: 14px; color: rgba(255,255,255,0.82); }
+  .p-feats div::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: ${BRAND.yellow}; flex-shrink: 0; }
+  .p-tiers { display: flex; flex-direction: column; gap: 9px; margin-bottom: 20px; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px 18px; }
+  .p-tiers .r { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13.5px; }
+  .p-tiers .r small { color: rgba(255,255,255,0.5); font-size: 12px; }
+  .p-tiers .full { font-size: 12px; font-weight: 700; color: #ff9d8f; }
+  .p-tiers .left { font-size: 12px; color: rgba(255,255,255,0.6); }
+  .p-tiers .note { font-size: 12px; color: rgba(255,255,255,0.5); }
+  .p-team .fine { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.7; margin: 0 0 16px; }
+
+  @media (max-width: 900px) {
+    .p-grid, .p-team { grid-template-columns: 1fr; }
+    .p-card, .p-team { padding: 24px; }
+    .p-assess { margin-top: -28px; padding: 20px; }
+    .p-assess .b-btn { width: 100%; }
+  }
+`
 
 function TeamTierList() {
   const t = useT()
@@ -63,21 +110,19 @@ function TeamTierList() {
   }, [])
   if (tiers.length === 0) return null
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px 18px' }}>
+    <div className="p-tiers">
       {tiers.map(tier => (
-        <div key={tier.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <div key={tier.id} className="r">
           <div>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{tDb(locale, 'team_tiers', tier.id, tier.name)}</span>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}> · {tierBandLabel(tier, t('plans.team.stageWord'))}</span>
+            <b>{tDb(locale, 'team_tiers', tier.id, tier.name)}</b>
+            <small> · {tierBandLabel(tier, t('plans.team.stageWord'))}</small>
           </div>
-          {tier.spots_left === 0 ? (
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#e05a4a' }}>{t('plans.team.full')}</span>
-          ) : (
-            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{t(tier.spots_left === 1 ? 'plans.team.spotLeft' : 'plans.team.spotsLeft', { n: tier.spots_left })}</span>
-          )}
+          {tier.spots_left === 0
+            ? <span className="full">{t('plans.team.full')}</span>
+            : <span className="left">{t(tier.spots_left === 1 ? 'plans.team.spotLeft' : 'plans.team.spotsLeft', { n: tier.spots_left })}</span>}
         </div>
       ))}
-      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>{t('plans.team.autoPlace')}</div>
+      <div className="note">{t('plans.team.autoPlace')}</div>
     </div>
   )
 }
@@ -90,6 +135,9 @@ function TeamButton() {
   const [loading, setLoading] = useState(false)
   return (
     <button
+      type="button"
+      className="b-btn gold"
+      style={{ width: '100%' }}
       onClick={async () => {
         setLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
@@ -97,12 +145,6 @@ function TeamButton() {
         setLoading(false)
       }}
       disabled={loading}
-      style={{
-        display: 'block', width: '100%', textAlign: 'center', padding: '11px 0', borderRadius: '8px',
-        fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const,
-        cursor: 'pointer', background: '#e05a4a', color: '#fff', border: '2px solid #e05a4a',
-        opacity: loading ? 0.6 : 1,
-      }}
     >
       {loading ? '…' : t('plans.btn.joinTeam')}
     </button>
@@ -163,103 +205,56 @@ function TopUp() {
   }
 
   return (
-    <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(24px,3vw,36px)' }}>
+    <div className="p-card">
       {/* Which class, first. The points are not tied to one -- the note below
           says so -- but a parent thinking about buying is thinking about a
-          class, not about a balance. Asking it separately also keeps nine
-          cards off a screen where hesitating costs a sale. */}
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>
-        {t('points.buy.pickCourse')}
-      </div>
-      <div style={{ display: 'inline-flex', flexWrap: 'wrap', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', overflow: 'hidden', marginBottom: '18px' }}>
+          class, not about a balance. */}
+      <p className="p-label">{t('points.buy.pickCourse')}</p>
+      <div className="p-seg" role="group">
         {TOPUP_COURSES.map(c => (
-          <button key={c} onClick={() => setCourse(c)}
-            style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer',
-              background: course === c ? GOLD : 'transparent', color: course === c ? NAVY : 'rgba(255,255,255,0.55)' }}>
+          <button key={c} type="button" aria-pressed={course === c} onClick={() => setCourse(c)}>
             {t('points.price.row.' + c)}
           </button>
         ))}
       </div>
 
       {/* Then how many. The biggest thing on the card is the number of LESSONS:
-          choosing between $400 and $1,200 is choosing an amount of money;
           choosing between ten and thirty lessons is choosing a course of study.
           The money is right underneath and the rate is unchanged. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+      <div className="p-counts">
         {TOPUP_LESSON_COUNTS.map(n => {
-          const on = lessons === n
           const price = topUpAmount(course, n)
           return (
-            <button
-              key={n}
-              onClick={() => setLessons(n)}
-              style={{
-                background: on ? 'rgba(201,168,76,0.14)' : 'rgba(255,255,255,0.05)',
-                border: `2px solid ${on ? GOLD : 'rgba(255,255,255,0.12)'}`,
-                borderRadius: '14px', padding: '20px 12px', cursor: 'pointer', textAlign: 'center',
-              }}
-            >
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '30px', fontWeight: 900, lineHeight: 1, color: on ? GOLD : '#fff' }}>
-                {t('points.buy.presetCount', { n })}
-              </div>
-              <div style={{ fontSize: '12px', marginTop: '6px', color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>
-                {money(price)} · {t('points.unit', { n: num(price) })}
-              </div>
+            <button key={n} type="button" className="p-count" aria-pressed={lessons === n} onClick={() => setLessons(n)}>
+              <b>{t('points.buy.presetCount', { n })}</b>
+              <span>{money(price)} · {t('points.unit', { n: num(price) })}</span>
             </button>
           )
         })}
       </div>
 
-      {/* The free-text amount box is gone. Typing a number into a field is
-          what a deposit looks like; choosing one of five named things is what
-          buying looks like.
+      {/* Cards each naming one course type would imply a restriction that
+          does not exist, so this has to say the points are shared. */}
+      <p className="p-fine">{t('points.buy.countsNote')}</p>
 
-          This note has to say the points are not tied to a course, or cards
-          each naming one course type would imply a restriction that does not
-          exist. */}
-      <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, margin: '4px 0 0' }}>
-        {t('points.buy.countsNote')}
-      </p>
-
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '20px 0 16px' }} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>{t('points.buy.youGet')}</span>
-        <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '26px', fontWeight: 900, color: GOLD }}>
-          {valid ? t('points.buy.pointsFor', { n: num(chosen), price: money(chosen) }) : '—'}
-        </span>
+      <div className="p-total">
+        <span>{t('points.buy.youGet')}</span>
+        <strong>{valid ? t('points.buy.pointsFor', { n: num(chosen), price: money(chosen) }) : '—'}</strong>
       </div>
 
-      <button
-        onClick={buy}
-        disabled={!valid || busy}
-        style={{
-          display: 'block', width: '100%', padding: '14px 0', borderRadius: '10px',
-          fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const,
-          background: GOLD, color: NAVY, border: 'none',
-          cursor: valid && !busy ? 'pointer' : 'not-allowed', opacity: valid && !busy ? 1 : 0.45,
-        }}
-      >
+      <button type="button" className="b-btn gold p-buy" onClick={buy} disabled={!valid || busy}>
         {busy ? t('points.buy.busy') : t('points.buy.cta')}
       </button>
 
       {needsAssessment && (
-        <div style={{ marginTop: '14px', background: 'rgba(201,168,76,0.1)', border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
-          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', lineHeight: 1.7, marginBottom: '10px' }}>
-            {t('points.buy.err.assessment')}
-          </div>
-          <Link href={localePath('/assessment', locale)} style={{ fontSize: '13px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
-            {t('plans.assessFirst.cta')}
-          </Link>
+        <div className="p-warn">
+          <div style={{ marginBottom: 8 }}>{t('points.buy.err.assessment')}</div>
+          <Link href={localePath('/assessment', locale)} className="b-link">{t('plans.assessFirst.cta')}</Link>
         </div>
       )}
-      {error && (
-        <div style={{ marginTop: '14px', fontSize: '13px', color: '#ff9d8f' }}>{error}</div>
-      )}
+      {error && <div className="p-err">{error}</div>}
 
-      <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>
-        {t('points.buy.fine')}
-      </p>
+      <p className="p-fine" style={{ marginTop: 16 }}>{t('points.buy.fine')}</p>
     </div>
   )
 }
@@ -297,171 +292,119 @@ export default function PlansContent() {
   ]
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh' }}>
-      <div style={{ background: DARK }}>
+    <BrandRoot>
+      <style>{css}</style>
 
       {/* HERO */}
-      <div style={{ background: NAVY, position: 'relative', overflow: 'hidden', padding: 'clamp(80px,10vw,100px) clamp(24px,5vw,72px) clamp(40px,5vw,60px)' }}>
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1.5px, transparent 1.5px)', backgroundSize: '22px 22px' }} />
-        <div style={{ position: 'absolute', right: '-60px', top: '50%', transform: 'translateY(-50%)', width: 380, height: 380, pointerEvents: 'none' }}>
-          {[0, 60, 130].map((inset, i) => (
-            <span key={i} style={{ position: 'absolute', borderRadius: '50%', border: `1px solid ${i === 2 ? 'rgba(201,168,76,0.13)' : 'rgba(255,255,255,0.07)'}`, inset }} />
-          ))}
-        </div>
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <SectionEyebrow>{t('points.hero.eyebrow')}</SectionEyebrow>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,3.2vw,40px)', fontWeight: 900, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.5px', marginBottom: '12px' }}>
-            {t('points.hero.title1')}<br /><em style={{ color: GOLD, fontStyle: 'italic' }}>{t('points.hero.title2')}</em>
-          </h1>
-          <Divider />
-          <p style={{ fontSize: 'clamp(13px,1.3vw,15px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '540px', marginBottom: '20px' }}>
-            {t('points.hero.subtitle')}
-          </p>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {['noExpiry', 'refundable', 'earned'].map(slug => (
-              <span key={slug} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '30px', padding: '6px 14px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-                {t('points.chip.' + slug)}
-              </span>
+      <header className="b-hero">
+        <div className="b-wrap" style={{ paddingBottom: 100 }}>
+          <p className="b-eyebrow">{t('points.hero.eyebrow')}</p>
+          <h1>{t('points.hero.title1')}{locale.startsWith('zh') ? '' : ' '}<em>{t('points.hero.title2')}</em></h1>
+          <p className="b-lead">{t('points.hero.subtitle')}</p>
+          {/* Only promises that hold for purchased points today. ("Discounts
+              you earn" went with VIP; off-peak is switched off.) */}
+          <div className="b-chips">
+            {['oneDollar', 'noExpiry', 'refundable'].map(slug => (
+              <span key={slug}>{t('points.chip.' + slug)}</span>
             ))}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* The assessment is not bought with points -- it is the thing a family
-          buys before they have any. So it sits above the wallet, not beside it. */}
-      <section style={{ background: DARK, padding: '0 clamp(24px,5vw,72px)' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', transform: 'translateY(-28px)' }}>
-          <div style={{ background: NAVY, border: `1px solid ${GOLD}55`, borderRadius: '16px', padding: '24px 28px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-            <div style={{ minWidth: '260px', flex: '1 1 380px' }}>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '6px' }}>{t('plans.assessFirst.title')}</div>
-              <p style={{ fontSize: '13.5px', lineHeight: 1.7, color: 'rgba(255,255,255,0.6)', margin: 0, maxWidth: '60ch' }}>
-                {t('points.assess.body', { price: money(TRIAL_PRICE_CENTS / 100) })}
-              </p>
+      <div className="b-paper">
+        {/* The assessment is not bought with points -- it is the thing a family
+            buys before they have any. So it sits above the wallet. */}
+        <div className="b-wrap">
+          <div className="p-assess">
+            <div>
+              <h3>{t('plans.assessFirst.title')}</h3>
+              <p>{t('points.assess.body', { price: money(TRIAL_PRICE_CENTS / 100) })}</p>
             </div>
-            <Link href={localePath('/assessment', locale)}
-              style={{ flexShrink: 0, padding: '12px 22px', borderRadius: '10px', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              {t('plans.assessFirst.cta')}
-            </Link>
+            <Link href={localePath('/assessment', locale)} className="b-btn line">{t('plans.assessFirst.cta')}</Link>
           </div>
         </div>
-      </section>
 
-      {/* BUY + PRICE LIST, side by side. The list is next to the button on
-          purpose: a parent deciding how much to put in needs to see what a
-          lesson costs without scrolling away from the amount they are typing. */}
-      <section id="buy" style={{ scrollMarginTop: '90px', padding: 'clamp(24px,4vw,48px) clamp(24px,5vw,72px) clamp(48px,6vw,80px)' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <SectionEyebrow>{t('points.buy.eyebrow')}</SectionEyebrow>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>{t('points.buy.title')}</h2>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '560px', marginBottom: '32px' }}>
-            {t('points.buy.desc')}
-          </p>
+        {/* BUY + PRICE LIST, side by side. The list is next to the button on
+            purpose: a parent deciding how much to put in needs to see what a
+            lesson costs without scrolling away. */}
+        <section id="buy" className="b-sec" style={{ scrollMarginTop: 90, paddingTop: 64 }}>
+          <div className="b-wrap">
+            <div className="b-head">
+              <p className="b-eyebrow">{t('points.buy.eyebrow')}</p>
+              <h2>{t('points.buy.title')}</h2>
+              <p>{t('points.buy.desc')}</p>
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', alignItems: 'start' }}>
-            <TopUp />
+            <div className="p-grid">
+              <TopUp />
 
-            <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(24px,3vw,36px)' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>
-                {t('points.price.eyebrow')}
-              </div>
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '18px' }}>
-                {t('points.price.perStudent')}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="p-card p-price">
+                <p className="b-eyebrow">{t('points.price.eyebrow')}</p>
+                <p className="p-label" style={{ marginTop: 6, marginBottom: 10, fontWeight: 400 }}>{t('points.price.perStudent')}</p>
                 {lessonRows.map(row => (
-                  <div key={row.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)' }}>{t('points.price.row.' + row.key)}</span>
-                    <span style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                      <strong style={{ fontSize: '17px', color: GOLD }}>{t('points.unit', { n: row.points })}</strong>
-                      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginLeft: '7px' }}>{money(row.points)}</span>
+                  <div key={row.key} className="p-row">
+                    <span>{t('points.price.row.' + row.key)}</span>
+                    <span style={{ whiteSpace: 'nowrap' }}>
+                      <strong>{t('points.unit', { n: row.points })}</strong>
+                      <small>{money(row.points)}</small>
                     </span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)' }}>{t('points.price.row.team')}</span>
-                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>{t('points.price.teamNote')}</span>
+                <div className="p-row">
+                  <span>{t('points.price.row.team')}</span>
+                  <small>{t('points.price.teamNote')}</small>
                 </div>
-              </div>
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>
-                {t('points.price.hour')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* DISCOUNTS. There are none today: VIP was removed (2026-09) and
-          off-peak is switched off in lib/points. This band only appears if
-          off-peak is switched back on. */}
-      {OFF_PEAK_ENABLED && (<>
-        <div style={{ background: '#f0f4f8', position: 'relative' }}>
-          <svg viewBox="0 0 1440 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', width: '100%', marginTop: '-1px' }}>
-            <path d="M0,20 C480,40 960,0 1440,20 L1440,0 L0,0 Z" fill={DARK} />
-          </svg>
-        </div>
-
-        {/* DISCOUNTS */}
-        <section id="discounts" style={{ scrollMarginTop: '90px', background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
-          <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-            <SectionEyebrow dark>{t('points.disc.eyebrow')}</SectionEyebrow>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,2.5vw,32px)', fontWeight: 900, color: NAVY, marginBottom: '6px' }}>{t('points.disc.title')}</h2>
-            <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.7, maxWidth: '620px', marginBottom: '32px' }}>
-              {t('points.disc.desc')}
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
-              <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e9f0', padding: '28px 26px' }}>
-                <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY, marginBottom: '6px' }}>
-                  {t('points.disc.offTitle', { pct: Math.round(OFF_PEAK_DISCOUNT * 100) })}
-                </div>
-                <p style={{ fontSize: '13.5px', color: '#5a6a8a', lineHeight: 1.7, marginTop: 0, marginBottom: '18px' }}>{t('points.disc.offDesc')}</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {['weekday', 'weekend'].map(k => (
-                    <div key={k} style={{ background: '#f5f8fc', border: '1px solid #e5e9f0', borderRadius: '10px', padding: '12px 14px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#8a9ab8', marginBottom: '3px' }}>{t('points.disc.off.' + k + '.label')}</div>
-                      <div style={{ fontSize: '14px', color: NAVY, fontWeight: 600 }}>{t('points.disc.off.' + k + '.hours')}</div>
-                    </div>
-                  ))}
-                </div>
-                <p style={{ fontSize: '12px', color: '#8a9ab8', lineHeight: 1.7, marginTop: '16px', marginBottom: 0 }}>{t('points.disc.offNote')}</p>
+                <p className="p-fine" style={{ marginTop: 16 }}>{t('points.price.hour')}</p>
               </div>
             </div>
           </div>
         </section>
+      </div>
 
-        <div style={{ background: DARK, position: 'relative' }}>
-          <svg viewBox="0 0 1440 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', width: '100%', marginTop: '-1px' }}>
-            <path d="M0,20 C480,0 960,40 1440,20 L1440,0 L0,0 Z" fill="#f0f4f8" />
-          </svg>
-        </div>
-      </>)}
-
-      {/* SWIM TEAM — the one thing points do not buy */}
-      <section id="team" style={{ scrollMarginTop: '90px', background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ background: NAVY, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)', padding: 'clamp(28px,4vw,40px)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px' }}>
-            <div>
-              <SectionEyebrow>{t('plans.team.eyebrow')}</SectionEyebrow>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px,2.2vw,28px)', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>{t('plans.team.title')}</h2>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>{t('plans.team.meta')}</p>
-              <p style={{ fontSize: '13.5px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, marginBottom: '20px' }}>
-                {t('plans.team.desc')}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {['feat1', 'feat2', 'feat3', 'feat4'].map((feat) => (
-                  <div key={feat} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e05a4a', flexShrink: 0, display: 'inline-block' }} />
-                    {t('plans.team.' + feat)}
+      {/* DISCOUNTS. There are none today: VIP was removed (2026-09) and
+          off-peak is switched off in lib/points. This band only appears if
+          off-peak is switched back on. */}
+      {OFF_PEAK_ENABLED && (
+        <section id="discounts" className="b-sec" style={{ scrollMarginTop: 90 }}>
+          <div className="b-wrap">
+            <div className="b-head">
+              <p className="b-eyebrow">{t('points.disc.eyebrow')}</p>
+              <h2>{t('points.disc.title')}</h2>
+              <p>{t('points.disc.desc')}</p>
+            </div>
+            <div className="b-card" style={{ maxWidth: 520 }}>
+              <h3>{t('points.disc.offTitle', { pct: Math.round(OFF_PEAK_DISCOUNT * 100) })}</h3>
+              <p>{t('points.disc.offDesc')}</p>
+              <div className="p-off" style={{ marginTop: 16 }}>
+                {['weekday', 'weekend'].map(k => (
+                  <div key={k}>
+                    <p className="b-eyebrow" style={{ color: BRAND.mute }}>{t('points.disc.off.' + k + '.label')}</p>
+                    <b>{t('points.disc.off.' + k + '.hours')}</b>
                   </div>
                 ))}
+              </div>
+              <p>{t('points.disc.offNote')}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* SWIM TEAM — the one thing points do not buy */}
+      <section id="team" className="b-sec" style={{ scrollMarginTop: 90 }}>
+        <div className="b-wrap">
+          <div className="p-team">
+            <div>
+              <p className="b-eyebrow">{t('plans.team.eyebrow')}</p>
+              <h2>{t('plans.team.title')}</h2>
+              <p className="meta">{t('plans.team.meta')}</p>
+              <p className="desc">{t('plans.team.desc')}</p>
+              <div className="p-feats">
+                {['feat1', 'feat2', 'feat3', 'feat4'].map(feat => <div key={feat}>{t('plans.team.' + feat)}</div>)}
               </div>
             </div>
             <div>
               <TeamTierList />
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: '16px' }}>
-                {t('points.team.notPoints')}
-              </p>
+              <p className="fine">{t('points.team.notPoints')}</p>
               <TeamButton />
             </div>
           </div>
@@ -469,26 +412,16 @@ export default function PlansContent() {
       </section>
 
       {/* CTA */}
-      <section style={{ background: NAVY, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1.5px, transparent 1.5px)', backgroundSize: '22px 22px' }} />
-        <div style={{ position: 'relative', zIndex: 1, maxWidth: '600px', margin: '0 auto' }}>
-          <SectionEyebrow>{t('plans.cta.eyebrow')}</SectionEyebrow>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,3vw,36px)', fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: '16px' }}>{t('plans.cta.title')}</h2>
-          <Divider center />
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '32px' }}>
-            {t('points.cta.desc')}
-          </p>
-          <Link href={localePath('/assessment', locale)} style={{
-            display: 'inline-block', padding: '13px 32px', borderRadius: '8px', background: GOLD, color: NAVY,
-            fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', textDecoration: 'none',
-          }}>
-            {t('points.cta.btn')}
-          </Link>
+      <section className="b-final">
+        <div className="b-wrap">
+          <p className="b-eyebrow" style={{ color: BRAND.yellow, marginBottom: 12 }}>{t('plans.cta.eyebrow')}</p>
+          <h2>{t('plans.cta.title')}</h2>
+          <p>{t('points.cta.desc')}</p>
+          <div className="b-ctas">
+            <Link href={localePath('/assessment', locale)} className="b-btn gold">{t('points.cta.btn')}</Link>
+          </div>
         </div>
       </section>
-
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
-      </div>
-    </div>
+    </BrandRoot>
   )
 }
