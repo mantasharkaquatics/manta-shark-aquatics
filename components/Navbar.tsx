@@ -164,7 +164,7 @@ export default function Navbar() {
         aria-label={t('nav.language')}
         value={locale}
         onChange={e => changeLocale(e.target.value as Locale)}
-        className="appearance-none bg-[#111d38] text-gray-300 text-sm border border-white/15 rounded-lg pl-3 pr-8 py-1.5 cursor-pointer hover:border-[#c9a84c]/60 focus:outline-none focus:border-[#c9a84c] transition-colors">
+        className="appearance-none bg-[#0e1d3b] text-gray-200 text-sm border border-white/15 rounded-lg pl-3 pr-8 py-1.5 cursor-pointer hover:border-[#f09800]/60 focus:outline-none focus:border-[#f09800] transition-colors">
         {LOCALES.map(l => (
           <option key={l} value={l}>{t('locale.' + l + '.native')}</option>
         ))}
@@ -178,20 +178,20 @@ export default function Navbar() {
   )
 
   return (
-    <nav className="bg-[#1a2744] sticky top-0 z-50 shadow-lg">
+    <nav className="bg-[#12254a] sticky top-0 z-50 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href={localePath('/', locale)} className="flex items-center gap-3">
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={64} height={64} className="rounded-full object-cover w-12 h-12 sm:w-16 sm:h-16" />
             <span className="text-white font-bold text-lg leading-tight hidden sm:block">
-              Manta Shark<br /><span className="text-[#c9a84c] font-normal text-sm">Aquatics</span>
+              Manta Shark<br /><span className="text-[#f7b733] font-normal text-sm">Aquatics</span>
             </span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
             {navLinks.map(link => (
               <Link key={link.href} href={localePath(link.href, locale)}
-                className={`text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-300 hover:text-[#c9a84c]'}`}>
+                className={`text-sm font-medium transition-colors ${pathname === link.href ? 'text-[#f7b733]' : 'text-gray-200 hover:text-[#f7b733]'}`}>
                 {t(link.labelKey)}
               </Link>
             ))}
@@ -210,7 +210,7 @@ export default function Navbar() {
                 </Link>
                 <button
                   onClick={handleSignOut}
-                  className="hidden md:inline-flex items-center min-h-11 bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-5 rounded transition-colors">
+                  className="hidden md:inline-flex items-center min-h-11 border border-white/30 hover:border-white/60 text-white text-sm font-semibold px-5 rounded-lg transition-colors">
                   {t('nav.signOut')}
                 </button>
               </>
@@ -221,7 +221,7 @@ export default function Navbar() {
                   {t('nav.signIn')}
                 </Link>
                 <Link href="/register"
-                  className="inline-flex items-center min-h-11 bg-[#c9a84c] hover:bg-[#b8962e] text-white text-sm font-semibold px-4 rounded-lg transition-colors">
+                  className="inline-flex items-center min-h-11 bg-[#f09800] hover:bg-[#d98900] text-[#12254a] text-sm font-bold px-4 rounded-lg transition-colors">
                   {t('nav.createAccount')}
                 </Link>
               </>
@@ -244,11 +244,11 @@ export default function Navbar() {
           and the rest of the row read as dead space. The chevron is the same
           convention a phone user already knows from their settings app. */}
       {menuOpen && (
-        <div className="md:hidden bg-[#111d38] px-4 pb-4">
+        <div className="md:hidden bg-[#12254a] px-4 pb-4">
           {navLinks.map(link => (
             <Link key={link.href} href={localePath(link.href, locale)}
               onClick={() => setMenuOpen(false)}
-              className={`flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base font-medium transition-colors ${pathname === link.href ? 'text-[#c9a84c]' : 'text-gray-200 hover:text-[#c9a84c]'}`}>
+              className={`flex items-center justify-between gap-3 min-h-14 border-b border-white/10 text-base font-medium transition-colors ${pathname === link.href ? 'text-[#f7b733]' : 'text-gray-200 hover:text-[#f7b733]'}`}>
               <span>{t(link.labelKey)}</span>
               <Chevron />
             </Link>
@@ -287,15 +287,15 @@ export default function Navbar() {
               className="flex items-center justify-between gap-3 w-full text-left min-h-14 border-b border-white/10 text-base text-gray-200">
               <span>{t('nav.language')}</span>
               <span className="flex items-center gap-2">
-                <span className="text-sm text-[#c9a84c]">{t('locale.' + locale + '.native')}</span>
+                <span className="text-sm text-[#f7b733]">{t('locale.' + locale + '.native')}</span>
                 <Chevron className={langOpen ? 'rotate-90' : ''} />
               </span>
             </button>
             {langOpen && (
-              <div className="my-2 overflow-hidden rounded-xl border border-[#1e3a6e] bg-[#0d1529]">
+              <div className="my-2 overflow-hidden rounded-xl border border-white/10 bg-[#0e1d3b]">
                 {LOCALES.map((l, i) => (
                   <button key={l} onClick={() => { changeLocale(l); setMenuOpen(false) }}
-                    className={`flex w-full items-center justify-between gap-3 px-4 text-left text-base min-h-[52px] transition-colors ${i > 0 ? 'border-t border-white/[0.06]' : ''} ${l === locale ? 'text-[#c9a84c] font-semibold' : 'text-gray-300'}`}>
+                    className={`flex w-full items-center justify-between gap-3 px-4 text-left text-base min-h-[52px] transition-colors ${i > 0 ? 'border-t border-white/[0.06]' : ''} ${l === locale ? 'text-[#f7b733] font-semibold' : 'text-gray-300'}`}>
                     <span>{t('locale.' + l + '.native')}</span>
                     {l === locale && <Check />}
                   </button>

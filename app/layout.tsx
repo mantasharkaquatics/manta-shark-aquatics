@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Figtree } from "next/font/google";
+import { Geist, Geist_Mono, Figtree, Fraunces, Nunito_Sans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import ScrollRestoration from "@/components/ScrollRestoration";
 
 const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
+
+// The parent-facing site's faces (lib/brand.ts): Fraunces for headings -- soft,
+// rounded serifs close to the logo's lettering -- and Nunito Sans for reading.
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-display', weight: ['700', '800', '900'], style: ['normal', 'italic'] });
+const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-body', weight: ['400', '500', '600', '700', '800'] });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", figtree.variable)}
+      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", figtree.variable, fraunces.variable, nunitoSans.variable)}
     >
       <body className="min-h-full flex flex-col">
         <ScrollRestoration />

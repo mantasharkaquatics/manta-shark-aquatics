@@ -7,15 +7,18 @@ import { localePath } from '@/lib/i18n/paths'
 import { createClient } from '@/lib/supabase/client'
 import { BASE_POINTS } from '@/lib/points'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY } from '@/lib/brand'
 
 // The home page has one job: tell a new family how to start, in three steps,
 // and let them take the first one. Everything else on it -- the four ways to
 // swim, what parents see after each lesson, three questions -- exists to make
 // that first step feel safe. (Owner, 2026-09: no stat tiles, no reviews.)
 
-const NAVY = '#0f1a33'
-const INK = '#111d38'
-const GOLD = '#c9a84c'
+const NAVY = BRAND.navy
+const INK = BRAND.ink
+const AMBER = BRAND.amber
+const YELLOW = BRAND.yellow
+const BLUE = BRAND.blue
 
 export default function HomeContent() {
   const t = useT()
@@ -42,103 +45,107 @@ export default function HomeContent() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=DM+Sans:wght@400;500;600;700&display=swap');
-        .h-root { font-family: 'DM Sans', sans-serif; color: ${INK}; }
+        .h-root { font-family: ${FONT_BODY}; color: ${INK}; }
         .h-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-        .h-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: ${GOLD}; }
-        .h-root h1, .h-root h2 { font-family: 'Playfair Display', Georgia, serif; margin: 0; text-wrap: balance; }
+        .h-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: ${BLUE}; }
+        .h-hero .h-eyebrow { color: ${YELLOW}; }
+        .h-root h1, .h-root h2 { font-family: ${FONT_DISPLAY}; margin: 0; text-wrap: balance; }
+        /* Chinese has no true italic -- the browser would just slant the glyphs. */
+        .h-root.zh h1 em, .h-root.zh h2 em { font-style: normal; }
         .h-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px;
                  font-weight: 700; font-size: 15px; padding: 15px 26px; border: 1.5px solid transparent; cursor: pointer;
                  text-decoration: none; font-family: inherit; }
-        .h-btn.gold { background: ${GOLD}; color: ${NAVY}; }
-        .h-btn.ghost { border-color: rgba(255,255,255,0.35); color: #fff; background: transparent; }
+        .h-btn.gold { background: ${AMBER}; color: ${NAVY}; }
+        .h-btn.gold:hover { background: ${BRAND.amberHover}; }
+        .h-btn.ghost { border-color: rgba(255,255,255,0.45); color: #fff; background: transparent; }
         .h-btn.dark { background: ${INK}; color: #fff; }
 
         /* Hero. One motif: our own logo, turned white and faded right back,
            centred in the section, behind both the headline and the steps card. (Owner, 2026-09: replaced the lane lines.) The
            filter turns every opaque pixel of the colour logo white; its
            transparent background stays transparent. */
-        .h-hero { background: ${NAVY}; color: #fff; position: relative; overflow: hidden; }
+        .h-hero { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; }
         .h-hero::before { content: ''; position: absolute; pointer-events: none;
           width: 1400px; height: 1400px; left: 50%; top: 50%; transform: translate(-50%, -50%);
           background: url('/logo.png') center / contain no-repeat;
           filter: brightness(0) invert(1); opacity: 0.022; }
         .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
-          background: radial-gradient(closest-side, rgba(63,111,181,0.25), transparent); }
+          background: radial-gradient(closest-side, rgba(32,80,160,0.35), transparent); }
         .h-hero .h-wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px;
                           align-items: center; padding-top: 80px; padding-bottom: 88px; }
         .h-hero h1 { font-size: 54px; line-height: 1.08; font-weight: 900; margin: 14px 0 18px; }
-        .h-hero h1 em { color: ${GOLD}; }
-        .h-lead { font-size: 18px; line-height: 1.65; color: rgba(255,255,255,0.72); max-width: 520px; margin: 0 0 30px; }
+        .h-hero h1 em { color: ${YELLOW}; }
+        .h-lead { font-size: 18px; line-height: 1.65; color: rgba(255,255,255,0.82); max-width: 520px; margin: 0 0 30px; }
         .h-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
-        .h-facts { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 28px; font-size: 13px; color: rgba(255,255,255,0.55); }
-        .h-facts span::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${GOLD};
+        .h-facts { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 28px; font-size: 13.5px; color: rgba(255,255,255,0.7); }
+        .h-facts span::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${YELLOW};
                                 margin-right: 8px; vertical-align: middle; }
 
         .h-steps { background: #fff; color: ${INK}; border-radius: 18px; padding: 28px; box-shadow: 0 30px 60px rgba(0,0,0,0.35); }
         .h-steps h3 { margin: 0 0 4px; font-size: 18px; }
-        .h-steps .sub { font-size: 13px; color: #5d6b86; margin: 0 0 20px; }
-        .h-step { display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid #e3e8f0; }
-        .h-step b { width: 34px; height: 34px; border-radius: 50%; background: ${INK}; color: #fff; display: grid; place-items: center; font-size: 14px; }
-        .h-step:first-of-type b { background: ${GOLD}; color: ${NAVY}; }
+        .h-steps .sub { font-size: 13px; color: ${BRAND.mute}; margin: 0 0 20px; }
+        .h-step { display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid ${BRAND.line}; }
+        .h-step b { width: 34px; height: 34px; border-radius: 50%; background: ${BLUE}; color: #fff; display: grid; place-items: center; font-size: 14px; }
+        .h-step:first-of-type b { background: ${AMBER}; color: ${NAVY}; }
         .h-step h4 { margin: 2px 0 3px; font-size: 15px; }
-        .h-step p { margin: 0; font-size: 13px; color: #5d6b86; line-height: 1.55; }
+        .h-step p { margin: 0; font-size: 13.5px; color: ${BRAND.mute}; line-height: 1.55; }
         .h-steps .h-btn { width: 100%; margin-top: 14px; }
 
         .h-sec { padding: 88px 0; }
         .h-head { max-width: 640px; margin-bottom: 40px; }
         .h-head h2 { font-size: 38px; line-height: 1.15; margin-top: 10px; }
-        .h-head p { color: #5d6b86; font-size: 16px; line-height: 1.65; margin: 12px 0 0; }
+        .h-head p { color: ${BRAND.mute}; font-size: 16px; line-height: 1.65; margin: 12px 0 0; }
 
         .h-progs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-        .h-prog { border: 1px solid #e3e8f0; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
-        .h-prog .k { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #5d6b86; text-transform: uppercase; }
+        .h-prog { border: 1px solid ${BRAND.line}; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+        .h-prog .k { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: ${BLUE}; text-transform: uppercase; }
         .h-prog h3 { margin: 0; font-size: 20px; }
-        .h-prog p { margin: 0; font-size: 14px; color: #5d6b86; line-height: 1.6; flex: 1; }
-        .h-prog .pr { display: flex; align-items: baseline; gap: 6px; border-top: 1px solid #e3e8f0; padding-top: 14px; }
-        .h-prog .pr b { font-family: 'Playfair Display', serif; font-size: 28px; }
-        .h-prog .pr span { font-size: 12px; color: #5d6b86; }
-        .h-prog.team { background: ${INK}; color: #fff; border-color: ${INK}; }
+        .h-prog p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; flex: 1; }
+        .h-prog .pr { display: flex; align-items: baseline; gap: 6px; border-top: 1px solid ${BRAND.line}; padding-top: 14px; }
+        .h-prog .pr b { font-family: ${FONT_DISPLAY}; font-size: 28px; }
+        .h-prog .pr span { font-size: 12px; color: ${BRAND.mute}; }
+        .h-prog.team { background: ${NAVY}; color: #fff; border-color: ${NAVY}; }
         .h-prog.team p, .h-prog.team .k, .h-prog.team .pr span { color: rgba(255,255,255,0.6); }
         .h-prog.team .pr { border-color: rgba(255,255,255,0.12); }
-        .h-note { font-size: 13px; color: #5d6b86; margin-top: 18px; line-height: 1.6; }
-        .h-note a { color: ${INK}; font-weight: 700; border-bottom: 1.5px solid ${GOLD}; text-decoration: none; }
+        .h-note { font-size: 13px; color: ${BRAND.mute}; margin-top: 18px; line-height: 1.6; }
+        .h-note a { color: ${BLUE}; font-weight: 700; border-bottom: 1.5px solid ${AMBER}; text-decoration: none; }
 
-        .h-why { background: #f4f6fa; }
+        .h-why { background: #fff; }
+        .h-paper { background: ${BRAND.paper}; }
         .h-whygrid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
         .h-pts { display: flex; flex-direction: column; gap: 22px; }
         .h-pt { display: grid; grid-template-columns: 44px 1fr; gap: 16px; }
-        .h-pt i { width: 44px; height: 44px; border-radius: 12px; background: #fff; border: 1px solid #e3e8f0; display: grid; place-items: center;
-                  font-style: normal; font-size: 18px; color: ${GOLD}; font-weight: 900; font-family: 'Playfair Display', serif; }
+        .h-pt i { width: 44px; height: 44px; border-radius: 12px; background: #fff; border: 1px solid ${BRAND.line}; display: grid; place-items: center;
+                  font-style: normal; font-size: 18px; color: ${BLUE}; font-weight: 900; font-family: ${FONT_DISPLAY}; }
         .h-pt h4 { margin: 2px 0 4px; font-size: 16px; }
-        .h-pt p { margin: 0; font-size: 14px; color: #5d6b86; line-height: 1.6; }
+        .h-pt p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; }
 
         /* What a parent sees after a lesson: a picture of the real student card. */
-        .h-phone { background: ${NAVY}; border-radius: 28px; padding: 18px; max-width: 360px; margin: 0 auto; box-shadow: 0 30px 60px rgba(17,29,56,0.25); }
-        .h-pcard { background: #1a2744; border-radius: 16px; padding: 18px; color: #fff; border-top: 3px solid #e05a4a; }
+        .h-phone { background: ${BRAND.navyDeep}; border-radius: 28px; padding: 18px; max-width: 360px; margin: 0 auto; box-shadow: 0 30px 60px rgba(17,29,56,0.25); }
+        .h-pcard { background: ${NAVY}; border-radius: 16px; padding: 18px; color: #fff; border-top: 3px solid #e05a4a; }
         .h-pcard .n { display: flex; gap: 10px; align-items: center; }
         .h-pcard .av { width: 38px; height: 38px; border-radius: 50%; background: #e05a4a; display: grid; place-items: center; font-weight: 800; }
         .h-pcard .lv { font-weight: 700; margin-top: 14px; }
         .h-pcard .st { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; }
         .h-bar { height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; margin: 12px 0 6px; overflow: hidden; }
-        .h-bar i { display: block; height: 100%; width: 67%; background: ${GOLD}; }
+        .h-bar i { display: block; height: 100%; width: 67%; background: ${AMBER}; }
         .h-pcard .pc { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.5); }
         .h-skills { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
         .h-skills span { font-size: 11px; padding: 4px 8px; border-radius: 6px; background: rgba(143,220,194,0.12); color: #8fdcc2; }
         .h-skills span.o { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); }
         .h-noteb { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-top: 14px; font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.8); }
-        .h-noteb small { display: block; color: ${GOLD}; font-weight: 700; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; }
-        .h-cap { text-align: center; font-size: 12px; color: #5d6b86; margin-top: 14px; }
+        .h-noteb small { display: block; color: ${YELLOW}; font-weight: 700; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; }
+        .h-cap { text-align: center; font-size: 12px; color: ${BRAND.mute}; margin-top: 14px; }
 
         .h-qs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-        .h-q { background: #fff; border: 1px solid #e3e8f0; border-radius: 14px; padding: 22px; }
+        .h-q { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 14px; padding: 22px; }
         .h-q h4 { margin: 0 0 8px; font-size: 15px; }
-        .h-q p { margin: 0; font-size: 14px; color: #5d6b86; line-height: 1.6; }
+        .h-q p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; }
 
-        .h-final { background: ${NAVY}; color: #fff; text-align: center; }
+        .h-final { background: ${HERO_GRADIENT}; color: #fff; text-align: center; }
         .h-final h2 { font-size: 44px; line-height: 1.12; font-weight: 900; }
-        .h-final h2 em { color: ${GOLD}; }
-        .h-final p { color: rgba(255,255,255,0.65); margin: 16px auto 30px; max-width: 520px; line-height: 1.6; }
+        .h-final h2 em { color: ${YELLOW}; }
+        .h-final p { color: rgba(255,255,255,0.8); margin: 16px auto 30px; max-width: 520px; line-height: 1.6; }
         .h-final .h-ctas { justify-content: center; }
 
         @media (max-width: 900px) {
@@ -158,7 +165,7 @@ export default function HomeContent() {
         }
       `}</style>
 
-      <div className="h-root">
+      <div className={'h-root' + (locale.startsWith('zh') ? ' zh' : '')}>
         {/* HERO: the promise on the left, the three steps on the right. */}
         <header className="h-hero">
           <div className="h-wrap">
@@ -195,7 +202,7 @@ export default function HomeContent() {
         </header>
 
         {/* PROGRAMS: price on the card, nothing hidden behind a tap. */}
-        <section className="h-sec">
+        <section className="h-sec h-paper">
           <div className="h-wrap">
             <div className="h-head">
               <div className="h-eyebrow">{t('home.programs.eyebrow')}</div>
@@ -270,7 +277,7 @@ export default function HomeContent() {
         </section>
 
         {/* QUESTIONS: the three a new family asks before booking. */}
-        <section className="h-sec">
+        <section className="h-sec h-paper">
           <div className="h-wrap">
             <div className="h-head">
               <div className="h-eyebrow">{t('home.faq.eyebrow')}</div>
