@@ -128,7 +128,7 @@ export default function LevelsContent() {
             {t('levels.hero.subtitle')}
           </p>
 
-          {/* Where a level comes from. Without this the nine levels read as a
+          {/* Where a level comes from. Without this the seven levels read as a
               chart to self-diagnose against; they are handed out, not chosen. */}
           <p style={{ fontSize: 'clamp(12px, 1.3vw, 13.5px)', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: '520px', marginBottom: '16px' }}>
             {t('levels.assessFirst.body')}{' '}
