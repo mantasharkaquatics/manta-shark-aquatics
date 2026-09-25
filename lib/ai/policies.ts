@@ -91,7 +91,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 - Students are welcome to try lessons with different coaches; parents can simply book a different coach's time slot online.
 
 === STUDENTS WE SERVE ===
-- All ages and levels: children and adults, from complete beginners to competitive swimmers. 1-on-1 and 1-on-2 lessons fit every age.
+- Ages 3 and up, every level: children from age 3 and adults, from complete beginners to competitive swimmers. We do not take children under 3. 1-on-1 and 1-on-2 lessons fit every age from 3 up.
 - 1-on-4 group classes (level-banded) are available now; an adult swim team is planned for the future.
 - Special needs students (e.g. autism, ADHD) are welcome: our coaches are ABA-trained, one of our co-founders is a school psychologist specializing in supporting special-needs students, and our team has coached special-needs swimmers up to Paralympic-level competition.
 

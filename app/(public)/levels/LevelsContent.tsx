@@ -160,7 +160,7 @@ export default function LevelsContent() {
             </Link>
           </p>
           <div className="b-chips">
-            {['structure', 'progression', 'allAges'].map(slug => <span key={slug}>{t('levels.chip.' + slug)}</span>)}
+            {['structure', 'progression', 'ages3'].map(slug => <span key={slug}>{t('levels.chip.' + slug)}</span>)}
           </div>
         </div>
       </header>

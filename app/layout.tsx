@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Manta Shark Aquatics — Swim Lessons in Brea, CA",
-  description: "Professional swim lessons in Brea, California. 1-on-1, semi-private, group classes, and swim team — structured, progression-based coaching for all ages.",
+  description: "Professional swim lessons in Brea, California. 1-on-1, semi-private, group classes, and swim team — structured, progression-based coaching for ages 3 and up.",
   // PRE-LAUNCH: keep the site out of search results while it is still being
   // built and translated. Anyone with the URL can still browse it normally.
   // TO GO LIVE: delete this block AND flip SEARCH_ENGINES_ALLOWED in app/robots.ts.
