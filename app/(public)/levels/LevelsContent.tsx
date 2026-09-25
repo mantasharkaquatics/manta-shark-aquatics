@@ -178,7 +178,7 @@ export default function LevelsContent() {
         className="desktop-levels"
         style={{
           display: 'grid',
-          gridTemplateColumns: '210px 1fr',
+          gridTemplateColumns: '250px 1fr',
           background: '#f0f4f8',
           minHeight: '560px',
         }}
@@ -231,17 +231,21 @@ export default function LevelsContent() {
               >
                 {lv.num}
               </span>
-              <span style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+              {/* minWidth 0 lets the name wrap inside the button instead of
+                  running past it: "Independent Movement" and "Competitive
+                  Swimming" are wider than the column. */}
+              <span style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0, flex: 1 }}>
                 <span style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
                   {t('levels.levelN', { n: lv.num })}
                 </span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: activeLevel === i ? '#fff' : 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, lineHeight: 1.3, color: activeLevel === i ? '#fff' : 'rgba(255,255,255,0.8)', overflowWrap: 'anywhere' }}>
                   {t('level.' + lv.num + '.name')}
                 </span>
               </span>
               <span
                 style={{
                   marginLeft: 'auto',
+                  flexShrink: 0,
                   fontSize: '14px',
                   color: activeLevel === i ? '#c9a84c' : 'rgba(255,255,255,0.25)',
                   transform: activeLevel === i ? 'rotate(90deg)' : 'none',
