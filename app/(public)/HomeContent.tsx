@@ -60,9 +60,9 @@ export default function HomeContent() {
            transparent background stays transparent. */
         .h-hero { background: ${NAVY}; color: #fff; position: relative; overflow: hidden; }
         .h-hero::before { content: ''; position: absolute; pointer-events: none;
-          width: 1100px; height: 1100px; left: max(-220px, calc(50% - 800px)); top: 50%; transform: translateY(-50%);
+          width: 1400px; height: 1400px; left: max(-360px, calc(50% - 980px)); top: 50%; transform: translateY(-50%);
           background: url('/logo.png') center / contain no-repeat;
-          filter: brightness(0) invert(1); opacity: 0.05; }
+          filter: brightness(0) invert(1); opacity: 0.035; }
         .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
           background: radial-gradient(closest-side, rgba(63,111,181,0.25), transparent); }
         .h-hero .h-wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px;
