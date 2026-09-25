@@ -17,6 +17,7 @@ import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import SkillTree from './SkillTree'
+import { BRAND, HERO_GRADIENT, FONT_BODY } from '@/lib/brand'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -26,36 +27,46 @@ const MOBILE_CSS = `
 
 .msa-rail { display: grid; gap: 16px }
 .msa-addkid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  min-height: 180px; border-radius: 16px; border: 1.5px dashed rgba(255,255,255,0.18);
-  color: rgba(255,255,255,0.55); font-size: 13px; font-weight: 700; text-decoration: none;
+  min-height: 180px; border-radius: 16px; border: 1.5px dashed #c9d8ee; background: rgba(255,255,255,0.6);
+  color: #56647d; font-size: 13px; font-weight: 700; text-decoration: none;
   transition: border-color .15s, color .15s }
-.msa-addkid:hover { border-color: rgba(201,168,76,0.6); color: #c9a84c }
+.msa-addkid:hover { border-color: #2050a0; color: #2050a0 }
 .msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 22px; font-weight: 400; background: rgba(255,255,255,0.06) }
-.msa-partner { margin: 12px 0 0; text-align: center; font-size: 12.5px; color: rgba(255,255,255,0.45) }
-.msa-partner a { color: #c9a84c; font-weight: 700; text-decoration: none; white-space: nowrap }
+  font-size: 22px; font-weight: 400; background: #eef4fc; color: #2050a0 }
+.msa-partner { margin: 12px 0 0; text-align: center; font-size: 13px; color: #56647d }
+.msa-partner a { color: #2050a0; font-weight: 700; text-decoration: none; white-space: nowrap }
 .msa-refer { margin-top: 6px }
-.msa-refer a { color: #8fdcc2 }
+.msa-refer a { color: #1f7a57 }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
-.msa-act-book { background: #c9a84c; color: #0f1a33; border: none; border-radius: 12px; padding: 15px;
-  font-size: 15px; font-weight: 800; cursor: pointer }
-.msa-act-pts { display: flex; align-items: center; gap: 14px; background: #1a2744; border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.1); padding: 10px 16px; cursor: pointer; color: rgba(255,255,255,0.5); font-size: 12px }
-.msa-act-pts b { font-size: 19px; color: #c9a84c; font-variant-numeric: tabular-nums }
-.msa-act-pts em { font-style: normal; font-weight: 700; color: #c9a84c }
-.msa-act-pts.owe { border-color: rgba(220,90,80,0.6) }
-.msa-gift { font-size: 12px; font-weight: 700; color: #8fdcc2; background: rgba(111,201,170,0.1);
-  border: 1px solid rgba(111,201,170,0.35); border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+.msa-act-book { background: #f09800; color: #12254a; border: none; border-radius: 12px; padding: 15px;
+  font-size: 15px; font-weight: 800; cursor: pointer; transition: background .15s }
+.msa-act-book:hover { background: #d98900 }
+.msa-act-pts { display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 12px;
+  border: 1px solid #e3ebf6; padding: 10px 16px; cursor: pointer; color: #56647d; font-size: 12px }
+.msa-act-pts:hover { border-color: #c9d8ee }
+.msa-act-pts b { font-size: 19px; color: #12254a; font-variant-numeric: tabular-nums }
+.msa-act-pts em { font-style: normal; font-weight: 700; color: #2050a0 }
+.msa-act-pts.owe { border-color: #f5c2bd }
+.msa-gift { font-size: 12px; font-weight: 700; color: #1f7a57; background: #e6f4ee;
+  border: 1px solid #b7e0cc; border-radius: 999px; padding: 3px 9px; white-space: nowrap;
   font-variant-numeric: tabular-nums }
-.msa-act-pts.owe b, .msa-act-pts.owe em { color: #f2a09a }
-.msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.72);
+.msa-act-pts.owe b, .msa-act-pts.owe em { color: #c0392b }
+.msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(14,29,59,0.55);
   display: flex; align-items: center; justify-content: center; padding: 20px }
-.msa-sheet { background: #152036; border: 1px solid rgba(255,255,255,0.12); border-radius: 18px;
+.msa-sheet { background: #f6f9fd; border: 1px solid #e3ebf6; border-radius: 18px; box-shadow: 0 30px 60px rgba(14,29,59,0.3);
   width: 100%; max-width: 520px; max-height: 86vh; overflow-y: auto; padding: 20px }
 .msa-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px }
-.msa-sheet-head b { font-size: 16px; color: #fff }
-.msa-sheet-x { width: 34px; height: 34px; border-radius: 9px; border: none; background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.75); font-size: 16px; cursor: pointer }
+.msa-sheet-head b { font-size: 17px; color: #12254a }
+.msa-sheet-x { width: 34px; height: 34px; border-radius: 9px; border: none; background: #e8eef7;
+  color: #34435e; font-size: 16px; cursor: pointer }
+/* The greeting: the site's dark top, short -- this is a working page. */
+.msa-hello { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden }
+.msa-hello::before { content: ''; position: absolute; pointer-events: none; width: 520px; height: 520px; right: -40px; top: 50%;
+  transform: translateY(-50%); background: url('/logo.png') center / contain no-repeat; filter: brightness(0) invert(1); opacity: 0.03 }
+.msa-hello-in { position: relative; max-width: 1100px; margin: 0 auto; padding: 40px clamp(20px,5vw,48px) 44px }
+.msa-hello h1 { font-family: var(--font-display), 'PingFang TC', serif; font-size: clamp(26px,3vw,36px); font-weight: 900; margin: 0; color: #fff }
+.msa-hello h1 em { color: #f7b733 }
+.msa-sec-h { font-size: 12px; font-weight: 800; color: #2050a0; margin: 0 0 16px; letter-spacing: 2px; text-transform: uppercase }
 .msa-rail-students { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
 .msa-dots { display: none }
@@ -77,8 +88,8 @@ const MOBILE_CSS = `
    the largest thing on it, in the same colour that swimmer has in the calendar;
    what kind of lesson, when and with whom is one quiet line above it. */
 .msa-lesson-head { display: flex; align-items: flex-start; gap: 10px }
-.msa-lesson-meta { font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.45); min-width: 0 }
-.msa-lesson-meta b { font-weight: 700; color: rgba(255,255,255,0.82) }
+.msa-lesson-meta { font-size: 13px; line-height: 1.55; color: #56647d; min-width: 0 }
+.msa-lesson-meta b { font-weight: 700; color: #16294a }
 /* Its own margin sat on top of the card's 10px gap, so the name floated with
    about 20px under it. The leading is tightened instead of the space removed --
    the line above and the buttons below still get room. */
@@ -115,8 +126,10 @@ const MOBILE_CSS = `
   .msa-rail::-webkit-scrollbar { display: none }
   .msa-rail > * { scroll-snap-align: center; flex: 0 0 92% }
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
-  .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.18); transition: width .18s, background .18s }
-  .msa-dot-on { width: 18px; border-radius: 3px; background: #c9a84c }
+  .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: #c9d3e3; transition: width .18s, background .18s }
+  .msa-dot-on { width: 18px; border-radius: 3px; background: #2050a0 }
+  .msa-hello-in { padding-top: 28px; padding-bottom: 30px }
+  .msa-hello::before { width: 320px; height: 320px; right: -80px }
 
   /* Four things fought for one 240px row: course name, level badge, day badge and
      status pill, with the coach line and two buttons under them. The date block
@@ -137,9 +150,11 @@ const MOBILE_CSS = `
 }
 `
 
-const NAVY = '#1a2744'
-const DARK = '#111d38'
-const GOLD = '#c9a84c'
+// Palette B (2026-09). GOLD was the old accent and is still the name the
+// page uses for it; it is now the LOGO blue. Filled buttons use AMBER.
+const NAVY = BRAND.navy
+const GOLD = BRAND.blue
+const AMBER = BRAND.amber
 
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
@@ -282,7 +297,7 @@ function Rail({ variant, count, children }: { variant: 'students' | 'credits'; c
    number; the home page hides its "add" card once it is reached. */
 const MAX_SWIMMERS = 3
 
-const SWIMMER_COLORS = ['#c9a84c', '#4a90c4', '#4caf72', '#7b5ea7', '#e8883a']
+const SWIMMER_COLORS = ['#2050a0', '#c2621a', '#2e9d6a', '#7b5ea7', '#c2185b']
 
 // QR payload: base64 encode of student_id so it's not raw UUID
 function makeQRPayload(studentId: string): string {
@@ -358,7 +373,7 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
         </div>
         {rows.length === 0 && (
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', textAlign: 'center', padding: '24px 0', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: '#56647d', textAlign: 'center', padding: '24px 0', margin: 0 }}>
             {t('dash.noRecordsYet')}
           </p>
         )}
@@ -367,22 +382,22 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
             const b = r.b
             const attended = !!b && b.status === 'confirmed' && !!b.checked_in
             const absent = !!b && b.status === 'confirmed' && !b.checked_in
-            const badgeColor = absent ? '#e05a4a' : attended ? '#7fd8a0' : b ? (STATUS_COLORS[b.status] || 'rgba(255,255,255,0.3)') : ''
+            const badgeColor = absent ? '#e05a4a' : attended ? '#1f7a57' : b ? (STATUS_COLORS[b.status] || '#9aa6ba') : ''
             const badge = !b ? '' : absent ? t('status.absent') : attended ? t('status.attended') : b.status
             const hasDetail = !!r.rec && (!!r.rec.note || r.rec.skills.length > 0)
             const isOpen = !!open[r.key]
             return (
-              <div key={r.key} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.02)' }}>
+              <div key={r.key} style={{ border: '1px solid #e3ebf6', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
                 <button className="tap-auto" disabled={!hasDetail} aria-expanded={hasDetail ? isOpen : undefined}
                   onClick={() => hasDetail && setOpen(o => ({ ...o, [r.key]: !o[r.key] }))}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '11px 12px',
                     background: 'transparent', border: 'none', textAlign: 'left', cursor: hasDetail ? 'pointer' : 'default' }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
+                    <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#16294a' }}>
                       {new Date(r.date + 'T00:00:00').toLocaleDateString(dateFmt, { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' })}
                       {r.start ? ` · ${formatTime(r.start)}` : ''}
                     </span>
-                    <span style={{ display: 'block', fontSize: '11.5px', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>
+                    <span style={{ display: 'block', fontSize: '11.5px', color: '#56647d', marginTop: '2px' }}>
                       {r.course ? (r.courseId ? tDb(locale, 'course_types', r.courseId, r.course) : r.course) : ''}
                       {r.coach ? ` · ${t('dash.withCoach', { name: r.coach })}` : ''}
                     </span>
@@ -392,24 +407,24 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
                     <span style={{ fontSize: '10px', fontWeight: 700, color: badgeColor, background: `${badgeColor}18`,
                       borderRadius: '10px', padding: '2px 8px', flexShrink: 0, whiteSpace: 'nowrap' }}>{badge}</span>
                   )}
-                  {hasDetail && <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>}
+                  {hasDetail && <span style={{ fontSize: '10px', color: '#56647d', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>}
                 </button>
                 {hasDetail && isOpen && r.rec && (
                   <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
                     {r.rec.note && (
                       <div style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}40`, borderRadius: '8px', padding: '9px 11px' }}>
                         <div style={{ fontSize: '10px', color: GOLD, fontWeight: 700, letterSpacing: '0.5px', marginBottom: '3px' }}>{t('dash.coachNote')}</div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.78)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{r.rec.note}</div>
+                        <div style={{ fontSize: '12px', color: '#16294a', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{r.rec.note}</div>
                       </div>
                     )}
                     {r.rec.skills.map(sk => (
                       <div key={sk.skill_id}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '3px' }}>
-                          <span style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.65)' }}>{sk.skill_id ? tDb(locale, 'skills', sk.skill_id, sk.skill_name) : sk.skill_name}</span>
+                          <span style={{ fontSize: '11.5px', color: '#56647d' }}>{sk.skill_id ? tDb(locale, 'skills', sk.skill_id, sk.skill_name) : sk.skill_name}</span>
                           <span style={{ fontSize: '11.5px', fontWeight: 700, flexShrink: 0, color: MASTERY_COLOR[masteryOf(sk.progress_percent)] }}>{t(masteryKey(masteryOf(sk.progress_percent)))}</span>
                         </div>
-                        <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
-                          <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : GOLD, borderRadius: '2px' }} />
+                        <div style={{ height: '3px', background: '#eef2f8', borderRadius: '2px' }}>
+                          <div style={{ height: '100%', width: sk.progress_percent + '%', background: sk.progress_percent >= 100 ? '#4caf72' : AMBER, borderRadius: '2px' }} />
                         </div>
                       </div>
                     ))}
@@ -422,14 +437,14 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
         {pages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '14px' }}>
             <button className="tap-auto" disabled={pg === 0} onClick={() => setPage(pg - 1)}
-              style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent',
-                color: pg === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.65)', fontSize: '12px', cursor: pg === 0 ? 'default' : 'pointer' }}>
+              style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent',
+                color: pg === 0 ? '#9aa6ba' : '#56647d', fontSize: '12px', cursor: pg === 0 ? 'default' : 'pointer' }}>
               ← {t('dash.prev')}
             </button>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>{pg + 1} / {pages}</span>
+            <span style={{ fontSize: '12px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{pg + 1} / {pages}</span>
             <button className="tap-auto" disabled={pg === pages - 1} onClick={() => setPage(pg + 1)}
-              style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent',
-                color: pg === pages - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.65)', fontSize: '12px', cursor: pg === pages - 1 ? 'default' : 'pointer' }}>
+              style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent',
+                color: pg === pages - 1 ? '#9aa6ba' : '#56647d', fontSize: '12px', cursor: pg === pages - 1 ? 'default' : 'pointer' }}>
               {t('dash.next')} →
             </button>
           </div>
@@ -466,7 +481,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+        position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 1000, padding: '20px',
       }}
@@ -474,8 +489,8 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: NAVY, borderRadius: '20px',
-          border: '1px solid rgba(255,255,255,0.12)',
+          background: '#fff', borderRadius: '20px',
+          border: '1px solid #e3ebf6',
           padding: '36px', maxWidth: '360px', width: '100%',
           textAlign: 'center', position: 'relative',
         }}
@@ -486,9 +501,9 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           className="tap-auto"
           style={{
             position: 'absolute', top: '16px', right: '16px',
-            background: 'rgba(255,255,255,0.08)', border: 'none',
+            background: '#eef2f8', border: 'none',
             borderRadius: '50%', width: '32px', height: '32px',
-            color: 'rgba(255,255,255,0.6)', fontSize: '16px',
+            color: '#56647d', fontSize: '16px',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >×</button>
@@ -498,7 +513,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
             Check-in QR Code
           </div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+          <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '22px', fontWeight: 900, color: '#16294a' }}>
             {student.full_name}
           </div>
         </div>
@@ -507,7 +522,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
         <div style={{
           background: '#fff', borderRadius: '16px', padding: '20px',
           display: 'inline-block', marginBottom: '20px',
-          boxShadow: `0 0 0 4px ${GOLD}30`,
+          boxShadow: `0 0 0 4px rgba(32,80,160,0.15)`,
         }}>
           {qrDataUrl ? (
             <img src={qrDataUrl} alt={t('dash.qrAlt')} style={{ display: 'block', width: '200px', height: '200px' }} />
@@ -519,7 +534,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
         </div>
 
         {/* Instructions */}
-        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', margin: '0 0 20px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: '12px', color: '#56647d', margin: '0 0 20px', lineHeight: 1.6 }}>
           Show this QR code at the front desk to check in for today's lesson.
         </p>
 
@@ -528,7 +543,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           onClick={handleDownload}
           style={{
             width: '100%', padding: '12px', borderRadius: '10px',
-            background: GOLD, color: NAVY, border: 'none',
+            background: AMBER, color: NAVY, border: 'none',
             fontSize: '13px', fontWeight: 700, cursor: 'pointer',
             letterSpacing: '0.5px',
           }}
@@ -594,20 +609,20 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
   }
 
   return (
-    <div style={{ background: '#1a2744', borderRadius: '14px', border: '1px solid rgba(201,168,76,0.35)', padding: '20px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>
+    <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #c9d8ee', padding: '20px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#56647d', marginBottom: '8px' }}>
         {t('points.card.title')}
       </div>
       {/* Purchased and bonus points are shown apart, never as one total: they
           follow different rules (bonus points expire, are spent first, and are
           not refundable), and a family should see which is which at a glance. */}
       {w.balanceGranted > 0 && (
-        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '4px' }}>{t('points.card.purchasedLabel')}</div>
+        <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '4px' }}>{t('points.card.purchasedLabel')}</div>
       )}
-      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', fontWeight: 900, color: '#c9a84c', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+      <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '36px', fontWeight: 900, color: GOLD, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
         {w.balancePurchased.toLocaleString()}
       </div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', marginBottom: '14px' }}>
+      <div style={{ fontSize: '12px', color: '#56647d', marginTop: '4px', marginBottom: '14px' }}>
         {/* This line used to read "worth $1,985", which was the single
             strongest cue on the screen that the balance is MONEY PARKED HERE
             rather than lessons already bought. The rate is unchanged and still
@@ -618,14 +633,14 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
       {/* Bonus points: their own box, with the date they stop working, said
           before it arrives so an expiry is never the first a family hears of it. */}
       {w.balanceGranted > 0 && (
-        <div style={{ background: 'rgba(111,201,170,0.08)', border: '1px solid rgba(111,201,170,0.35)', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+        <div style={{ background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#8fdcc2' }}>{t('points.card.grantedLabel')}</span>
-            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 900, color: '#8fdcc2', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#1f7a57' }}>{t('points.card.grantedLabel')}</span>
+            <span style={{ fontFamily: 'var(--font-display), serif', fontSize: '22px', fontWeight: 900, color: '#1f7a57', fontVariantNumeric: 'tabular-nums' }}>
               {w.balanceGranted.toLocaleString()}
             </span>
           </div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '6px', lineHeight: 1.5 }}>
+          <div style={{ fontSize: '12px', color: '#56647d', marginTop: '6px', lineHeight: 1.5 }}>
             {w.grantedNextExpiry
               ? t('points.card.grantedNote', {
                   n: w.grantedNextExpiry.points.toLocaleString(),
@@ -643,38 +658,38 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
           it. Nothing else on this screen changes -- their lessons and their
           history are all still theirs. */}
       {w.arrears > 0 && (
-        <div style={{ background: 'rgba(220,90,80,0.12)', border: '1px solid rgba(220,90,80,0.45)', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#f2a09a', marginBottom: '4px' }}>
+        <div style={{ background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#c0392b', marginBottom: '4px' }}>
             {t('points.card.arrearsTitle', { n: w.arrears.toLocaleString() })}
           </div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.5, marginBottom: '10px' }}>
+          <div style={{ fontSize: '12px', color: '#56647d', lineHeight: 1.5, marginBottom: '10px' }}>
             {t('points.card.arrearsBody')}
           </div>
           <button
             onClick={onBuy}
-            style={{ background: '#c9a84c', color: '#1a2744', border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', minHeight: '40px' }}
+            style={{ background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', minHeight: '40px' }}
           >
             {t('points.card.arrearsCta')}
           </button>
         </div>
       )}
 
-      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px', lineHeight: 1.5 }}>
+      <div style={{ fontSize: '11px', color: '#56647d', marginBottom: '4px', lineHeight: 1.5 }}>
         {t('points.card.done', { n: w.lessonsCompleted })}
       </div>
-      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '14px', lineHeight: 1.5 }}>
+      <div style={{ fontSize: '11px', color: '#56647d', marginBottom: '14px', lineHeight: 1.5 }}>
         {t('points.card.forgiveness', { n: w.forgiveness, per: w.lessonsPerForgiveness })}
       </div>
 
       <button onClick={onBuy}
-        style={{ display: 'block', width: '100%', textAlign: 'center', padding: '9px 0', marginBottom: '12px', background: '#c9a84c', color: '#1a2744', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
+        style={{ display: 'block', width: '100%', textAlign: 'center', padding: '9px 0', marginBottom: '12px', background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
         {t('points.card.buy')}
       </button>
 
       {(w.history?.length ?? 0) > 0 && (
         <>
           <button onClick={() => { setShowHistory(!showHistory); setHistPage(0) }}
-            style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
+            style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: '#56647d', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
             <span style={{ fontSize: '9px' }}>{showHistory ? '▲' : '▼'}</span>
             {t(showHistory ? 'points.card.hideHistory' : 'points.card.showHistory')}
           </button>
@@ -696,12 +711,12 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                 if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return
                 goPage(page + (dx < 0 ? 1 : -1))
               }}
-              style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              style={{ marginTop: '12px', borderTop: '1px solid #e3ebf6', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {pageRows.map(row => (
                 <div key={row.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{reasonLabel(row.reason)}</div>
-                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: '12px', color: '#56647d' }}>{reasonLabel(row.reason)}</div>
+                    <div style={{ fontSize: '10px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
                       {new Date(row.at).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                       {row.note ? ' · ' + row.note : ''}
                     </div>
@@ -715,10 +730,10 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                     )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: row.points >= 0 ? '#7fd8a0' : 'rgba(255,255,255,0.75)' }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: row.points >= 0 ? '#1f7a57' : '#16294a' }}>
                       {row.points >= 0 ? '+' : '−'}{Math.abs(row.points).toLocaleString()}
                     </div>
-                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{row.balanceAfter.toLocaleString()}</div>
+                    <div style={{ fontSize: '10px', color: '#56647d' }}>{row.balanceAfter.toLocaleString()}</div>
                   </div>
                 </div>
               ))}
@@ -729,13 +744,13 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                       into a block taller than the ten rows above it. */}
                   <button onClick={() => goPage(page - 1)} disabled={page === 0}
                     aria-label={t('points.card.prevPage')} className="tap-auto"
-                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: page === 0 ? 'not-allowed' : 'pointer' }}>←</button>
-                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontVariantNumeric: 'tabular-nums' }}>
+                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e3ebf6', background: 'transparent', color: page === 0 ? '#9aa6ba' : '#56647d', fontSize: '12px', cursor: page === 0 ? 'not-allowed' : 'pointer' }}>←</button>
+                  <span style={{ fontSize: '11px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
                     {page + 1} / {pageCount}
                   </span>
                   <button onClick={() => goPage(page + 1)} disabled={page === pageCount - 1}
                     aria-label={t('points.card.nextPage')} className="tap-auto"
-                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: page === pageCount - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: page === pageCount - 1 ? 'not-allowed' : 'pointer' }}>→</button>
+                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e3ebf6', background: 'transparent', color: page === pageCount - 1 ? '#9aa6ba' : '#56647d', fontSize: '12px', cursor: page === pageCount - 1 ? 'not-allowed' : 'pointer' }}>→</button>
                 </div>
               )}
             </div>
@@ -780,24 +795,24 @@ function ReferralCard({ focus }: { focus: boolean }) {
   }
 
   return (
-    <div ref={ref} style={{ background: '#1a2744', borderRadius: '14px', border: '1px solid rgba(111,201,170,0.35)', padding: '18px 20px', scrollMarginTop: '12px' }}>
-      <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>{t('ref.title', { n: data.points })}</div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, marginBottom: '12px' }}>{t('ref.desc', { n: data.points })}</div>
+    <div ref={ref} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #b7e0cc', padding: '18px 20px', scrollMarginTop: '12px' }}>
+      <div style={{ fontSize: '15px', fontWeight: 700, color: '#16294a', marginBottom: '4px' }}>{t('ref.title', { n: data.points })}</div>
+      <div style={{ fontSize: '12px', color: '#56647d', lineHeight: 1.6, marginBottom: '12px' }}>{t('ref.desc', { n: data.points })}</div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
-        <span style={{ flex: 1, background: '#0d1529', border: '1px dashed rgba(201,168,76,0.6)', borderRadius: '8px', padding: '9px 12px', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '17px', fontWeight: 700, letterSpacing: '3px', color: '#c9a84c', textAlign: 'center' }}>
+        <span style={{ flex: 1, background: '#fff', border: '1px dashed #c9d8ee', borderRadius: '8px', padding: '9px 12px', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '17px', fontWeight: 700, letterSpacing: '3px', color: GOLD, textAlign: 'center' }}>
           {data.code}
         </span>
         <button className="tap-auto" onClick={share}
-          style={{ background: 'none', border: '1px solid rgba(201,168,76,0.6)', color: '#c9a84c', borderRadius: '8px', padding: '0 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          style={{ background: 'none', border: '1px solid #c9d8ee', color: GOLD, borderRadius: '8px', padding: '0 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
           {copied ? t('ref.copied') : t('ref.share')}
         </button>
       </div>
       {data.referrals.length > 0 && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {data.referrals.map((r, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '12.5px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '8px 10px' }}>
-              <span style={{ color: 'rgba(255,255,255,0.8)' }}>{t('ref.family', { name: r.family })}</span>
-              <span style={{ color: r.status === 'awarded' ? '#8fdcc2' : 'rgba(255,255,255,0.45)', fontWeight: r.status === 'awarded' ? 700 : 400 }}>
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '12.5px', background: '#f6f9fd', borderRadius: '8px', padding: '8px 10px' }}>
+              <span style={{ color: '#16294a' }}>{t('ref.family', { name: r.family })}</span>
+              <span style={{ color: r.status === 'awarded' ? '#1f7a57' : '#56647d', fontWeight: r.status === 'awarded' ? 700 : 400 }}>
                 {r.status === 'awarded' ? t('ref.awarded', { n: data.points }) : t('ref.pending')}
               </span>
             </div>
@@ -838,21 +853,21 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
     } finally { setPortalLoading(null) }
   }
   return (
-    <div style={{ background: '#1a2744', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
+    <div style={{ background: '#fff', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>{t('team.title')}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {memberships.map((m, mi) => (
-          <div key={m.id} style={{ borderTop: mi > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none', marginTop: mi > 0 ? '16px' : 0, paddingTop: mi > 0 ? '16px' : 0 }}>
+          <div key={m.id} style={{ borderTop: mi > 0 ? '1px solid #e3ebf6' : 'none', marginTop: mi > 0 ? '16px' : 0, paddingTop: mi > 0 ? '16px' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{m.student_name}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name} · {m.is_prepaid ? t('team.prepaid') : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() }) : ''}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{t('team.unlimited')}</div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{m.student_name}</div>
+              <div style={{ fontSize: '11px', color: '#56647d' }}>{m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name} · {m.is_prepaid ? t('team.prepaid') : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() }) : ''}</div>
+              <div style={{ fontSize: '11px', color: '#56647d' }}>{t('team.unlimited')}</div>
               {(m.weekly_slots || []).length > 0 && (
                 <div style={{ marginTop: '8px' }}>
                   <button onClick={() => setSchedOpen(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
-                    style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: '#56647d', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
                     <span style={{ fontSize: '9px' }}>{schedOpen[m.id] ? '\u25b2' : '\u25bc'}</span>
                     {t(schedOpen[m.id] ? 'team.hideSchedule' : 'team.showSchedule')}
                   </button>
@@ -860,8 +875,8 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
                     <div style={{ marginTop: '8px', borderLeft: `2px solid ${RED}55`, paddingLeft: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       {practiceLines(m.weekly_slots || []).map((ln, li) => (
                         <div key={li} style={{ fontSize: '11px', lineHeight: 1.5 }}>
-                          <span style={{ color: '#fff', fontWeight: 600 }}>{ln.days}</span>
-                          <span style={{ color: 'rgba(255,255,255,0.5)' }}> · {ln.time}{ln.coach ? ` · Coach ${ln.coach}` : ''}</span>
+                          <span style={{ color: '#16294a', fontWeight: 600 }}>{ln.days}</span>
+                          <span style={{ color: '#56647d' }}> · {ln.time}{ln.coach ? ` · Coach ${ln.coach}` : ''}</span>
                         </div>
                       ))}
                     </div>
@@ -874,14 +889,14 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               const exp = m.expires_at ? new Date(m.expires_at) : null
               const expired = exp ? exp.getTime() < Date.now() : false
               const label = exp ? t(expired ? 'team.expired' : 'team.paidThru', { date: exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }) : t('team.prepaid')
-              const c = expired ? '#e05a4a' : '#86efac'
-              const bg = expired ? 'rgba(224,90,74,0.12)' : 'rgba(134,239,172,0.12)'
-              const bd = expired ? '1px solid rgba(224,90,74,0.3)' : '1px solid rgba(134,239,172,0.3)'
+              const c = expired ? '#c0392b' : '#1f7a57'
+              const bg = expired ? '#fdecea' : '#e6f4ee'
+              const bd = expired ? '1px solid #f5c2bd' : '1px solid #b7e0cc'
               return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: c, background: bg, border: bd, borderRadius: '20px', padding: '3px 10px', whiteSpace: 'nowrap' }}>{label}</span>
-            })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#e8883a', background: 'rgba(232,136,58,0.12)', border: '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#86efac' : '#e8883a', background: m.status === 'active' ? 'rgba(134,239,172,0.12)' : 'rgba(232,136,58,0.12)', border: m.status === 'active' ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(232,136,58,0.3)', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? t('team.active') : t('team.pastDue')}</span>}
+            })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#c2621a', background: '#fdf1e6', border: '1px solid #f3cfae', borderRadius: '20px', padding: '3px 10px' }}>{t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#1f7a57' : '#c2621a', background: m.status === 'active' ? '#e6f4ee' : '#fdf1e6', border: m.status === 'active' ? '1px solid #b7e0cc' : '1px solid #f3cfae', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? t('team.active') : t('team.pastDue')}</span>}
             {!m.is_prepaid && (
             <button onClick={() => openPortal(m.id)} disabled={portalLoading === m.id}
-              style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+              style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
               {portalLoading === m.id ? '...' : t('team.manage')}
             </button>
             )}
@@ -890,21 +905,21 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
           {(m.invoices || []).length > 0 && (
             <div style={{ marginTop: '10px' }}>
               <button onClick={() => setExpanded(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
-                style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: '#56647d', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
                 <span style={{ fontSize: '9px' }}>{expanded[m.id] ? '\u25b2' : '\u25bc'}</span>
                 {t(`team.${expanded[m.id] ? 'hide' : 'show'}Invoice${(m.invoices || []).length === 1 ? '' : 's'}`, { n: (m.invoices || []).length })}
               </button>
               {expanded[m.id] && (
-                <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ marginTop: '12px', borderTop: '1px solid #e3ebf6', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {(m.invoices || []).map((iv, i) => {
                     const dateStr = formatDateNum(iv.date)
                     const expStr = iv.period_end ? formatDateNum(iv.period_end) : null
                     return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px 8px', flexWrap: 'wrap', paddingBottom: i < (m.invoices || []).length - 1 ? '8px' : 0, borderBottom: i < (m.invoices || []).length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: 'rgba(255,255,255,0.3)' }}> · {t('credit.expPrefix')} {expStr}</span>}</div>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px 8px', flexWrap: 'wrap', paddingBottom: i < (m.invoices || []).length - 1 ? '8px' : 0, borderBottom: i < (m.invoices || []).length - 1 ? '1px solid #e3ebf6' : 'none' }}>
+                        <div style={{ fontSize: '11px', color: '#56647d', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{dateStr}{expStr && <span style={{ color: '#56647d' }}> · {t('credit.expPrefix')} {expStr}</span>}</div>
                         {iv.url && (
                           <a href={iv.url} target="_blank" rel="noopener noreferrer" title={t('credit.downloadInvoiceFull')}
-                            style={{ fontSize: '11px', fontWeight: 700, color: '#1a2744', background: '#c9a84c', padding: '3px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                            style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: '#eef4fc', border: '1px solid #c9d8ee', padding: '3px 7px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                             {t('credit.downloadInvoice')}
                           </a>
                         )}
@@ -1597,12 +1612,12 @@ export default function DashboardPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: BRAND.paper, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
           style={{ display: 'block', margin: '0 auto 16px', borderRadius: '50%', objectFit: 'cover', animation: 'msaPulse 1.6s ease-in-out infinite' }} />
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{t('common.loading')}</div>
+        <div style={{ fontSize: '14px', color: '#56647d' }}>{t('common.loading')}</div>
       </div>
     </div>
   )
@@ -1621,7 +1636,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh' }}>
+    <div style={{ fontFamily: FONT_BODY, background: BRAND.paper, minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
@@ -1654,17 +1669,17 @@ export default function DashboardPage() {
 
       {/* Info Modal */}
       {infoModal && (
-        <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>Notice</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{infoModal.title}</div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
+        <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>Notice</div>
+            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
+            <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 Close
               </button>
               {infoModal.onAction && (
-                <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#c9a84c', color: '#1a2744', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                   {infoModal.actionLabel || 'OK'}
                 </button>
               )}
@@ -1675,15 +1690,15 @@ export default function DashboardPage() {
 
       {/* Cancel Confirm Modal */}
       {cancelTarget && (
-        <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#e05a4a', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : 'dash.cancelModal.eyebrowCancel')}</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : 'dash.cancelModal.titleCancel')}</div>
-            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{cancelTarget.date} · {cancelTarget.time}</div>
+        <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : 'dash.cancelModal.eyebrowCancel')}</div>
+            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : 'dash.cancelModal.titleCancel')}</div>
+            <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
+              <div style={{ fontSize: '12px', color: '#56647d' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
+            <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>
               {cancelTarget.type === 'reject'
                 ? t('dash.cancelModal.bodyReject')
                 : cancelTarget.isLate
@@ -1691,7 +1706,7 @@ export default function DashboardPage() {
                 : t('dash.cancelModal.bodyNormalPoints', { n: cancelTarget.points ?? 0 })}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.keepInvitation' : 'dash.cancelModal.keepLesson')}
               </button>
               <button onClick={async () => { if (cancelTarget.type === 'reject') { await rejectPartnerBooking(cancelTarget.id) } else { await cancelBooking(cancelTarget.id) } setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
@@ -1704,22 +1719,22 @@ export default function DashboardPage() {
 
       {/* Reschedule Confirm Modal */}
       {rescheduleTarget && (
-        <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
-            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{rescheduleTarget.courseTypeId ? tDb(locale, 'course_types', rescheduleTarget.courseTypeId, rescheduleTarget.courseName) : rescheduleTarget.courseName}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
+        <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
+            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
+            <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{rescheduleTarget.courseTypeId ? tDb(locale, 'course_types', rescheduleTarget.courseTypeId, rescheduleTarget.courseName) : rescheduleTarget.courseName}</div>
+              <div style={{ fontSize: '12px', color: '#56647d' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
             </div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>
+            <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>
               {t('dash.resModal.body')}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRescheduleTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => setRescheduleTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {t('dash.cancelModal.keepLesson')}
               </button>
-              <button onClick={confirmReschedule} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#c9a84c', color: '#1a2744', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={confirmReschedule} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                 {t('dash.resModal.confirm')}
               </button>
             </div>
@@ -1727,40 +1742,42 @@ export default function DashboardPage() {
         </div>
       )}
 
-<div style={{ maxWidth: '1100px', margin: '0 auto', padding: 'clamp(24px,4vw,48px) clamp(20px,5vw,48px)' }}>
-
-        {/* GREETING */}
-        <div style={{ marginBottom: '36px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
+      {/* GREETING -- the site's dark top, kept short: this is a working page. */}
+      <header className="msa-hello">
+        <div className="msa-hello-in">
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: BRAND.yellow, marginBottom: '8px' }}>
             {(() => { const d = new Date(); return t('date.header', { weekday: t('date.weekday.' + d.getDay()), month: t('date.month.' + (d.getMonth() + 1)), day: d.getDate() }) })()}
           </div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(22px,3vw,34px)', fontWeight: 900, color: '#fff', margin: 0 }}>
-            {t('dash.greeting.' + greeting)}<em style={{ color: GOLD, fontStyle: 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
+          <h1>
+            {t('dash.greeting.' + greeting)}<em style={{ fontStyle: locale.startsWith('zh') ? 'normal' : 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
           </h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginTop: '6px' }}>{t('dash.summary')}</p>
+          <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.78)', margin: '8px 0 0' }}>{t('dash.summary')}</p>
         </div>
+      </header>
+
+<div style={{ maxWidth: '1100px', margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,5vw,48px) clamp(40px,5vw,64px)' }}>
 
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
-          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '28px 0 16px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.mySwimmers')}</h2>
+          <h2 className="msa-sec-h">{t('dash.mySwimmers')}</h2>
           <Rail variant="students" count={students.length + (students.length < MAX_SWIMMERS ? 1 : 0)}>
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
-              const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : 'rgba(255,255,255,0.2)'
+              const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : '#c9d3e3'
               const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
               const age = student.date_of_birth ? getAge(student.date_of_birth) : null
               const ageMonths = student.date_of_birth && age === 0 ? getAgeMonths(student.date_of_birth) : null
               const ageLabel = age === null ? t('dash.ageUnknown') : age >= 1 ? t('dash.age', { n: age }) : ageMonths !== null && ageMonths >= 1 ? t(ageMonths === 1 ? 'dash.ageMonth' : 'dash.ageMonths', { n: ageMonths }) : t('dash.ageNewborn')
               return (
-                <div key={student.id} style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', position: 'relative', overflow: 'hidden' }}>
+                <div key={student.id} style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e3ebf6', padding: '24px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: levelColor }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: '18px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display), serif', fontSize: '18px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>
                       {getInitials(student.full_name)}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>{student.full_name}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>{student.full_name}</div>
+                      <div style={{ fontSize: '12px', color: '#56647d' }}>
                         {ageLabel}
                         {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
                       </div>
@@ -1780,10 +1797,10 @@ export default function DashboardPage() {
                     </button>
                   </div>
                   {!hasLevel && (
-                    <div style={{ marginTop: '16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ marginTop: '16px', background: '#f6f9fd', border: '1px solid #e3ebf6', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>{t('dash.currentLevel')}</div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>{t('dash.pendingAssessment')}</div>
+                        <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#56647d', marginBottom: '2px' }}>{t('dash.currentLevel')}</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#56647d' }}>{t('dash.pendingAssessment')}</div>
                       </div>
                       <div style={{ fontSize: '20px' }}>📋</div>
                     </div>
@@ -1792,8 +1809,8 @@ export default function DashboardPage() {
                   {!hasLevel && pastBookings.some(b => b.student_id === student.id) && (
                     <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}
                       style={{ width: '100%', marginTop: '14px', padding: '11px', borderRadius: '10px',
-                        border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)',
-                        color: 'rgba(255,255,255,0.8)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                        border: '1px solid #e3ebf6', background: '#f6f9fd',
+                        color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                       {t('dash.records')}
                     </button>
                   )}
@@ -1812,30 +1829,30 @@ export default function DashboardPage() {
                        the map is one tap away and says it properly. */
                     return (
                       <div style={{ marginTop: '18px' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>
                           {t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '3px' }}>
+                        <div style={{ fontSize: '12px', color: '#56647d', marginTop: '3px' }}>
                           {t('dash.stageN', { n: curStage })} · {t(stageNameKey(lvl, curStage))}
                         </div>
-                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden', marginTop: '14px' }}>
-                          <div style={{ height: '100%', width: curPct + '%', background: GOLD, borderRadius: '3px', transition: 'width .3s ease' }} />
+                        <div style={{ height: '6px', background: '#eef2f8', borderRadius: '3px', overflow: 'hidden', marginTop: '14px' }}>
+                          <div style={{ height: '100%', width: curPct + '%', background: AMBER, borderRadius: '3px', transition: 'width .3s ease' }} />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{t('dash.stageCompletion')}</span>
+                          <span style={{ fontSize: '11px', color: '#56647d' }}>{t('dash.stageCompletion')}</span>
                           <b style={{ fontSize: '12px', color: GOLD }}>{curPct}%</b>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                           <button className="tap-auto"
                             onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}
-                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: 'none', background: GOLD,
-                              color: NAVY, fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>
+                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: 'none', background: NAVY,
+                              color: '#fff', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>
                             {t('dash.skillTree')}
                           </button>
                           <button className="tap-auto"
                             onClick={() => { setRecordsFor(student); setRecordsPage(0) }}
-                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.14)',
-                              background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.8)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: '1px solid #e3ebf6',
+                              background: '#f6f9fd', color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                             {t('dash.records')}
                           </button>
                         </div>
@@ -1897,7 +1914,7 @@ export default function DashboardPage() {
         {/* Pending partner bookings notice */}
         {pendingPartnerBookings.length > 0 && (
           <section style={{ marginBottom: '28px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>⏳ {t('dash.invite.section')}</h2>
+            <h2 className="msa-sec-h">⏳ {t('dash.invite.section')}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {mergePendingInvites(pendingPartnerBookings).map((b: any) => {
                 const cs = Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
@@ -1924,17 +1941,17 @@ export default function DashboardPage() {
                   } catch { inviteCost = null }
                 }
                 return (
-                  <div key={b.id} style={{ background: 'rgba(123,97,196,0.1)', border: '1px solid rgba(123,97,196,0.35)', borderRadius: '14px', padding: '16px 20px' }}>
+                  <div key={b.id} style={{ background: '#f3effc', border: '1px solid #d6cbf2', borderRadius: '14px', padding: '16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 {t('dash.invite.badge')}</div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>
+                        <div style={{ fontSize: '11px', color: '#6d4fc2', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 {t('dash.invite.badge')}</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>
                           {t('dash.invite.line', { name: student?.full_name || '' })}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '2px' }}>
+                        <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '2px' }}>
                           {ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}
                         </div>
-                        <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
+                        <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#c0392b' : '#56647d' }}>
                           ⏱ {t('dash.invite.countdown', { time: countdownStr })}
                         </div>
                       </div>
@@ -1942,7 +1959,7 @@ export default function DashboardPage() {
                         <button
                           onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || 'Lesson', date: formatDate(cs?.session_date || ''), time: formatTime(cs?.start_time || ''), type: 'reject' })}
                           disabled={rejectingId === b.id || confirmingId === b.id}
-                          style={{ padding: '8px 16px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: '8px', color: '#f87171', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                          style={{ padding: '8px 16px', background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '8px', color: '#c0392b', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                           {rejectingId === b.id ? '...' : t('dash.invite.decline')}
                         </button>
                         <button
@@ -1967,13 +1984,13 @@ export default function DashboardPage() {
         {/* Reschedule Action Modal */}
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
       {rescheduleActionModal && (
-        <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#1a2744', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c9a84c', marginBottom: '8px' }}>{t('dash.resAction.eyebrow')}</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
+        <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resAction.eyebrow')}</div>
+            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
+            <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('dash.up.cancel')}</button>
+              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('dash.up.cancel')}</button>
               <button onClick={async () => {
                 const id = rescheduleActionModal.bookingId
                 setRescheduleActionModal(null)
@@ -1988,14 +2005,14 @@ export default function DashboardPage() {
       {/* UPCOMING LESSONS */}
         <section ref={upcomingRef} style={{ marginBottom: '36px', scrollMarginTop: '80px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', margin: 0, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{t('dash.upcomingLessons')}</h2>
+            <h2 className="msa-sec-h" style={{ margin: 0 }}>{t('dash.upcomingLessons')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ display: 'inline-flex', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                 {(['list', 'month'] as const).map(v => (
                   <button key={v} onClick={() => setLessonView(v)}
                     style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
-                      background: lessonView === v ? GOLD : 'transparent',
-                      color: lessonView === v ? NAVY : 'rgba(255,255,255,0.5)' }}>
+                      background: lessonView === v ? NAVY : '#fff',
+                      color: lessonView === v ? '#fff' : '#56647d' }}>
                     {v === 'list' ? t('dash.viewList') : t('dash.viewMonth')}</button>
                 ))}
               </div>
@@ -2022,10 +2039,10 @@ export default function DashboardPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <button onClick={() => { if (lvMonth === 0) { setLvMonth(11); setLvYear(lvYear - 1) } else setLvMonth(lvMonth - 1) }}
-                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>‹ Prev</button>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
+                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>‹ Prev</button>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
                   <button onClick={() => { if (lvMonth === 11) { setLvMonth(0); setLvYear(lvYear + 1) } else setLvMonth(lvMonth + 1) }}
-                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>Next ›</button>
+                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>Next ›</button>
                 </div>
                 {students.length > 1 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px' }}>
@@ -2039,7 +2056,7 @@ export default function DashboardPage() {
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
                   {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
-                    <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', padding: '4px 0' }}>{d}</div>
+                    <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: '#56647d', padding: '4px 0' }}>{d}</div>
                   ))}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
@@ -2055,17 +2072,17 @@ export default function DashboardPage() {
                         role={dayBookings.length > 0 ? 'button' : undefined}
                         tabIndex={dayBookings.length > 0 ? 0 : undefined}
                         onKeyDown={e => { if (dayBookings.length > 0 && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setDaySheet(ds) } }}
-                        style={{ cursor: dayBookings.length > 0 ? 'pointer' : 'default', backgroundColor: NAVY, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
-                        <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? 'rgba(255,255,255,0.25)' : dayBookings.length > 0 ? '#fff' : 'rgba(255,255,255,0.4)' }}>{i + 1}</div>
+                        style={{ cursor: dayBookings.length > 0 ? 'pointer' : 'default', backgroundColor: '#fff', backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : '#e3ebf6'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
+                        <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? '#9aa6ba' : dayBookings.length > 0 ? '#16294a' : '#56647d' }}>{i + 1}</div>
                         {/* Three at most. A busy Tuesday had six, which made one cell
                             three times the height of its neighbours and pushed the rest of
                             the month off the screen. The rest are one tap away. */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {dayBookings.slice(0, MAX_PER_DAY).map((b, j) => (
                             <button key={b.id + j} onClick={e => { e.stopPropagation(); setLessonDetail(b) }} style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center',
-                              border: `1px solid ${isPast ? 'rgba(255,255,255,0.1)' : GOLD + '55'}`,
-                              background: isPast ? 'rgba(255,255,255,0.04)' : `${GOLD}14` }}>
-                              <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', whiteSpace: 'nowrap', color: isPast ? 'rgba(255,255,255,0.4)' : '#fff' }}>
+                              border: `1px solid ${isPast ? '#e3ebf6' : GOLD + '55'}`,
+                              background: isPast ? '#f6f9fd' : `${GOLD}14` }}>
+                              <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', whiteSpace: 'nowrap', color: isPast ? '#56647d' : '#16294a' }}>
                                 {t12c(b.start_time)}{b.checked_in ? ' ✓' : ''}
                               </span>
                               {students.length > 1 && (
@@ -2082,8 +2099,8 @@ export default function DashboardPage() {
                           {dayBookings.length > MAX_PER_DAY && (
                             <button onClick={e => { e.stopPropagation(); setDaySheet(ds) }}
                               style={{ padding: '3px 2px', borderRadius: '5px', width: '100%', cursor: 'pointer', textAlign: 'center',
-                                fontSize: '9.5px', fontWeight: 800, color: 'rgba(255,255,255,0.55)',
-                                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                                fontSize: '9.5px', fontWeight: 800, color: '#56647d',
+                                background: '#f6f9fd', border: '1px solid #e3ebf6' }}>
                               +{dayBookings.length - MAX_PER_DAY}
                             </button>
                           )}
@@ -2100,31 +2117,31 @@ export default function DashboardPage() {
                   const dateStr = new Date(daySheet + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
                   return (
                     <div className="msa-sheet-wrap" onClick={() => setDaySheet(null)}
-                      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                      style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div className="msa-sheet" onClick={e => e.stopPropagation()}
-                        style={{ background: DARK, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '18px 20px 24px', width: '100%', maxWidth: '420px', maxHeight: '78vh', overflowY: 'auto' }}>
-                        <div style={{ width: '38px', height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.18)', margin: '0 auto 14px' }} />
-                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '19px', fontWeight: 700, color: '#fff' }}>{dateStr}</div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '14px' }}>
+                        style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '18px 20px 24px', width: '100%', maxWidth: '420px', maxHeight: '78vh', overflowY: 'auto' }}>
+                        <div style={{ width: '38px', height: '4px', borderRadius: '2px', background: '#eef2f8', margin: '0 auto 14px' }} />
+                        <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</div>
+                        <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '14px' }}>
                           {t(rows.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: rows.length })}
                         </div>
                         {rows.map((b, j) => (
                           <button key={b.id + j} onClick={() => { setDaySheet(null); setLessonDetail(b) }}
                             style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', textAlign: 'left', cursor: 'pointer',
                               padding: '11px 12px', borderRadius: '12px', marginBottom: '8px',
-                              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 800, whiteSpace: 'nowrap', minWidth: '66px', color: '#fff' }}>{t12(b.start_time)}</span>
+                              background: '#f6f9fd', border: '1px solid #e3ebf6' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, whiteSpace: 'nowrap', minWidth: '66px', color: '#16294a' }}>{t12(b.start_time)}</span>
                             <span style={{ minWidth: 0, flex: 1 }}>
                               <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: swimmerColor(b.student_name) }}>{b.student_name || '—'}</span>
-                              <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.42)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <span style={{ display: 'block', fontSize: '11px', color: '#56647d', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : ''}{b.coach_name && b.course_name ? ' · ' : ''}{b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name}
                               </span>
                             </span>
-                            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '15px', flexShrink: 0 }}>›</span>
+                            <span style={{ color: '#9aa6ba', fontSize: '15px', flexShrink: 0 }}>›</span>
                           </button>
                         ))}
                         <button onClick={() => setDaySheet(null)}
-                          style={{ marginTop: '10px', width: '100%', padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('common.close')}</button>
+                          style={{ marginTop: '10px', width: '100%', padding: '12px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('common.close')}</button>
                       </div>
                     </div>
                   )
@@ -2134,16 +2151,16 @@ export default function DashboardPage() {
                   const past = !!(b.session_date && b.session_date < todayDs)
                   const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
                   const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn') : t('status.confirmed')
-                  const statusColor = past ? (b.checked_in ? '#7fd8a0' : '#e05a4a') : b.checked_in ? '#7fd8a0' : GOLD
+                  const statusColor = past ? (b.checked_in ? '#1f7a57' : '#c0392b') : b.checked_in ? '#1f7a57' : GOLD
                   const funding = b.is_trial ? t('common.assessment') : b.points_charged != null ? t('points.unit', { n: b.points_charged }) : '—'
                   return (
-                    <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                      <div onClick={e => e.stopPropagation()} style={{ background: DARK, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+                    <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                           <div>
-                            <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || 'Lesson'}</div>
+                            <div style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || 'Lesson'}</div>
                             {b.level_min != null && b.level_max != null && (
-                              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>Level {b.level_min}–{b.level_max} Group</div>
+                              <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>Level {b.level_min}–{b.level_max} Group</div>
                             )}
                           </div>
                           <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>
@@ -2155,13 +2172,13 @@ export default function DashboardPage() {
                           { label: 'Coach', value: b.coach_name ? `Coach ${b.coach_name}` : '—' },
                           { label: 'Payment', value: funding },
                         ].map(row => (
-                          <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{row.label}</span>
-                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff', textAlign: 'right' }}>{row.value}</span>
+                          <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #e3ebf6' }}>
+                            <span style={{ fontSize: '13px', color: '#56647d' }}>{row.label}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#16294a', textAlign: 'right' }}>{row.value}</span>
                           </div>
                         ))}
                         <button onClick={() => setLessonDetail(null)}
-                          style={{ marginTop: '18px', width: '100%', padding: '12px', background: GOLD, border: 'none', borderRadius: '10px', color: NAVY, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+                          style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
                       </div>
                     </div>
                   )
@@ -2169,9 +2186,9 @@ export default function DashboardPage() {
               </div>
             )
           })() : upcomingBookings.length === 0 ? (
-            <div style={{ background: NAVY, borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.12)', padding: '32px', textAlign: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: '14px', border: '1px dashed #e3ebf6', padding: '32px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{t('dash.noUpcoming')}</p>
+              <p style={{ fontSize: '14px', color: '#56647d', margin: 0 }}>{t('dash.noUpcoming')}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -2194,13 +2211,13 @@ export default function DashboardPage() {
                   return (
                     <div key={day.date} style={{ display: 'contents' }}>
                       <div className="msa-day-head">
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#fff' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#16294a' }}>
                           {dd.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                         </span>
-                        {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
-                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
-                        <span style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.09)' }} />
-                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
+                        {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
+                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+                        <span style={{ flex: 1, height: '1px', background: '#eef2f8' }} />
+                        <span style={{ fontSize: '11px', color: '#56647d', whiteSpace: 'nowrap' }}>
                           {t(day.items.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: day.items.length })}
                         </span>
                       </div>
@@ -2210,12 +2227,12 @@ export default function DashboardPage() {
                 const isTomorrow = daysUntil === 1
                 const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
                 return (
-                  <div key={booking.id} className="msa-lesson" style={{ background: NAVY, border: `1px solid ${isToday ? GOLD + '40' : 'rgba(255,255,255,0.08)'}` }}>
-                    <div className="msa-lesson-date" style={{ background: isToday ? GOLD : 'rgba(255,255,255,0.06)' }}>
-                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : 'rgba(255,255,255,0.4)' }}>
+                  <div key={booking.id} className="msa-lesson" style={{ background: '#fff', border: `1px solid ${isToday ? GOLD + '40' : '#e3ebf6'}` }}>
+                    <div className="msa-lesson-date" style={{ background: isToday ? AMBER : '#f6f9fd' }}>
+                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : '#56647d' }}>
                         {new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
                       </div>
-                      <div style={{ fontSize: '20px', fontWeight: 900, color: isToday ? NAVY : '#fff', lineHeight: 1 }}>
+                      <div style={{ fontSize: '20px', fontWeight: 900, color: isToday ? NAVY : '#16294a', lineHeight: 1 }}>
                         {new Date(booking.session_date + 'T00:00:00').getDate()}
                       </div>
                     </div>
@@ -2226,17 +2243,17 @@ export default function DashboardPage() {
                           {!booking._group && booking.coach_name ? <> · {t('dash.up.coach', { name: booking.coach_name })}</> : null}
                           {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.up.levelBadge', { min: booking.level_min ?? '', max: booking.level_max ?? '' })}</span> : null })()}
                         </span>
-                        {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: GOLD, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
-                        {isTomorrow && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+                        {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
+                        {isTomorrow && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
                         {booking._group && <span className="msa-lesson-status-inline msa-lesson-pill">
                           {(() => {
-                            if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
+                            if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#1f7a57', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
                             if (booking.session_date !== getTodayLA()) return null
                             const [sh, sm] = booking.start_time.split(':').map(Number)
                             const [eh, em] = booking.end_time.split(':').map(Number)
                             const nowMin = getNowMinutesLA()
                             if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.up.checkinOpen')}</span>
-                            if (nowMin < sh * 60 + sm - 30) return <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>{t('dash.up.checkinSoon')}</span>
+                            if (nowMin < sh * 60 + sm - 30) return <span style={{ fontSize: '10px', color: '#56647d', whiteSpace: 'nowrap' }}>{t('dash.up.checkinSoon')}</span>
                             return null
                           })()}
                           <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.status.' + booking.status)}</span>
@@ -2254,13 +2271,13 @@ export default function DashboardPage() {
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
                           <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                            <span style={{ color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' }}>{t('dash.up.coach', { name: booking.coach_name })}</span>
-                            {booking.student_name ? <span style={{ color: 'rgba(255,255,255,0.25)', textDecoration: 'line-through' }}> · ({booking.student_name})</span> : ''}
+                            <span style={{ color: '#56647d', textDecoration: 'line-through' }}>{t('dash.up.coach', { name: booking.coach_name })}</span>
+                            {booking.student_name ? <span style={{ color: '#9aa6ba', textDecoration: 'line-through' }}> · ({booking.student_name})</span> : ''}
                           </div>
-                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
+                          <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
                           <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                            <span style={{ color: '#c9a84c' }}>{t('dash.up.coach', { name: booking.new_coach_name })}</span>
-                            {booking.student_name ? <span style={{ color: '#7dd3fc' }}> · ({booking.student_name})</span> : ''}
+                            <span style={{ color: GOLD }}>{t('dash.up.coach', { name: booking.new_coach_name })}</span>
+                            {booking.student_name ? <span style={{ color: '#1d6fa5' }}> · ({booking.student_name})</span> : ''}
                           </div>
                         </div>
                       ) : booking._group ? (
@@ -2280,10 +2297,10 @@ export default function DashboardPage() {
                                   .reduce((a, x) => a + (x.points_charged ?? 0), 0)
                               : (m.points_charged ?? 0)
                             return (
-                              <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
+                              <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid #e3ebf6' : 'none' }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}</div>
-                                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '1px' }}>
+                                  <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
                                     {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}
                                   </div>
                                 </div>
@@ -2292,24 +2309,24 @@ export default function DashboardPage() {
                                     <button
                                       onClick={() => setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
                                       disabled={rDis}
-                                      style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: rDis ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
+                                      style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>
                                     {cEnabled ? (
                                       <button
                                         onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date), time: formatTime(m.start_time), isLate: late, points: refundPts })}
-                                        style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {cancellingId === m.id ? '...' : late ? t('dash.up.cancelLate') : t('dash.up.cancel')}
                                       </button>
                                     ) : late ? (
                                       <button
                                         onClick={() => openChatOr(lateLockHelp(m))}
                                         title={lateLockHelp(m)}
-                                        style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: 'rgba(255,255,255,0.55)', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {t('dash.up.cancelLocked')}
                                       </button>
                                     ) : (
-                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.2)', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>{t('dash.up.cancel')}</div>
+                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#9aa6ba', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>{t('dash.up.cancel')}</div>
                                     )}
                                   </div>
                                 )}
@@ -2323,16 +2340,16 @@ export default function DashboardPage() {
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_start_time ? (
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>→</span>
-                            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '')}</span>
+                            <span style={{ fontSize: '12px', color: '#56647d', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date)}</span>
+                            <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
+                            <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '')}</span>
                           </div>
                           {booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
                             const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
                           })()}
                         </div>
                       ) : (
@@ -2342,14 +2359,14 @@ export default function DashboardPage() {
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
                             const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
                           })()}
                         {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
                             const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
                             const mins = Math.floor(ms / 60000)
                             const secs = Math.floor((ms % 60000) / 1000)
                             const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#f87171' : '#c9a84c', marginTop: '2px' }}>⏱ {t('dash.up.partnerCountdown', { time: str })}</div>
+                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.partnerCountdown', { time: str })}</div>
                           })()}
                         </div>
                       )}
@@ -2357,7 +2374,7 @@ export default function DashboardPage() {
                     <div className="msa-lesson-side" style={{ display: booking._group ? 'none' : 'flex' }}>
                       <div className="msa-lesson-status">
                       {(() => {
-                        if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#86efac', background: 'rgba(134,239,172,0.12)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
+                        if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#1f7a57', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
                         if (booking.session_date !== getTodayLA()) return null
                         const [sh, sm] = booking.start_time.split(':').map(Number)
                         const [eh, em] = booking.end_time.split(':').map(Number)
@@ -2380,14 +2397,14 @@ export default function DashboardPage() {
                               await fetchAll()
                               setReschedulingId(null)
                             }}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(134,239,172,0.4)', background: 'transparent', color: '#86efac', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #b7e0cc', background: 'transparent', color: '#1f7a57', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             {t('dash.up.acceptReschedule')}
                           </button>
                           <button
                             onClick={async () => {
                               setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: t('dash.resAction.declineTitle'), message: t('dash.resAction.keepsTime') })
                             }}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                             {t('dash.up.decline')}
                           </button>
                           </>}
@@ -2396,7 +2413,7 @@ export default function DashboardPage() {
                               onClick={async () => {
                                 setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: t('dash.resAction.cancelTitle'), message: t('dash.resAction.keepsTime') })
                               }}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                               {t('dash.up.cancelReschedule')}
                             </button>
                           )}
@@ -2404,7 +2421,7 @@ export default function DashboardPage() {
                       ) : booking.status === 'pending_payment' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.08)', color: '#c9a84c', fontSize: '11px', fontWeight: 600 }}>
+                            <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
                               ⏱ {t('dash.pend.awaiting')}
                             </div>
                             <button
@@ -2419,29 +2436,29 @@ export default function DashboardPage() {
                                 setPendingPayBusy(null)
                               }}
                               disabled={pendingPayBusy === booking.id}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.5)', background: '#c9a84c', color: '#1a2744', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: AMBER, color: NAVY, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
                               {pendingPayBusy === booking.id ? '...' : t('dash.pend.payNow')}
                             </button>
                             <button
                               onClick={() => { setPendingPayMsg(''); setPendingCancelConfirm(booking.id) }}
                               disabled={pendingPayBusy === booking.id}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(224,90,74,0.4)', background: 'transparent', color: '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                               Cancel
                             </button>
                           </div>
-                          {pendingPayMsg && <div style={{ fontSize: '11px', color: '#e05a4a' }}>{pendingPayMsg}</div>}
+                          {pendingPayMsg && <div style={{ fontSize: '11px', color: '#c0392b' }}>{pendingPayMsg}</div>}
                           {pendingCancelConfirm === booking.id && (
-                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                              <div style={{ background: '#1a2744', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '100%' }}>
-                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
-                                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: '20px' }}>
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                              <div style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '100%' }}>
+                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
+                                <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '20px' }}>
                                   {t('dash.pend.cancelBody')}
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                   <button
                                     onClick={() => setPendingCancelConfirm(null)}
                                     disabled={pendingPayBusy === booking.id}
-                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                                     {t('dash.pend.keep')}
                                   </button>
                                   <button
@@ -2466,10 +2483,10 @@ export default function DashboardPage() {
                         </div>
                       ) : booking.status === 'in_cart' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.08)', color: '#c9a84c', fontSize: '11px', fontWeight: 600 }}>
+                          <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
                             🛒 {t('dash.cart.held')}
                           </div>
-                          <Link href="/booking?cart=1" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: '#c9a84c', fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
+                          <Link href="/booking?cart=1" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: 'transparent', color: GOLD, fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
                             {t('dash.cart.view')}
                           </Link>
                         </div>
@@ -2478,7 +2495,7 @@ export default function DashboardPage() {
                           <button
                             onClick={() => setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(201,168,76,0.4)', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'rgba(255,255,255,0.2)' : '#c9a84c', fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '#9aa6ba' : GOLD, fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
                           </button>
                           {(() => {
@@ -2493,7 +2510,7 @@ export default function DashboardPage() {
                                   if (toggle) toggle.click()
                                   else setNotice(t('dash.up.cancelContactHelp'))
                                 }}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: 'rgba(255,255,255,0.55)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {t('dash.up.cancelContact')}
                               </button>
                             )
@@ -2503,18 +2520,18 @@ export default function DashboardPage() {
                             return enabled ? (
                               <button
                                 onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date), time: formatTime(booking.start_time), isLate: late, points: booking.points_charged })}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid rgba(232,136,58,0.4)' : '1px solid rgba(224,90,74,0.3)', background: 'transparent', color: late ? '#e8883a' : '#e05a4a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {cancellingId === booking.id ? '...' : late ? t('dash.up.cancelLate') : t('dash.up.cancel')}
                               </button>
                             ) : late ? (
                               <button
                                 onClick={() => openChatOr(lateLockHelp(booking))}
                                 title={lateLockHelp(booking)}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: 'rgba(255,255,255,0.55)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {t('dash.up.cancelLocked')}
                               </button>
                             ) : (
-                              <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
+                              <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#9aa6ba', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
                                 {t('dash.up.cancel')}
                               </div>
                             )
@@ -2539,13 +2556,13 @@ export default function DashboardPage() {
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                 {more > 0 && (
                   <button onClick={() => setDayWindow(w => w + UPCOMING_STEP)}
-                    style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
+                    style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
                     ▼ {t('dash.showMoreDays', { n: Math.min(UPCOMING_STEP, more) })}
                   </button>
                 )}
                 {dayWindow > UPCOMING_DAYS && (
                   <button onClick={collapseUpcoming}
-                    style={{ flex: more > 0 ? '0 0 auto' : 1, padding: '10px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
+                    style={{ flex: more > 0 ? '0 0 auto' : 1, padding: '10px 18px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
                     ▲ {t('dash.collapse')}
                   </button>
                 )}
@@ -2558,7 +2575,6 @@ export default function DashboardPage() {
 
 
       </div>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
       <style>{MOBILE_CSS}</style>
       {parent && <ChatWidget parentId={parent.id} />}
       {treeFor && (
