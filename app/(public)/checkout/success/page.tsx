@@ -4,10 +4,23 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
+import { BRAND } from '@/lib/brand'
+import BrandRoot from '@/components/brand/BrandRoot'
 
-const NAVY = '#1a2744'
-const DARK = '#111d38'
-const GOLD = '#c9a84c'
+// Palette B (2026-09): the site's dark top with a green tick, then what just
+// happened as a short checklist on white, and the one next step in amber.
+const css = `
+  .su-tick { width: 56px; height: 56px; border-radius: 50%; background: #2e9d6a; color: #fff; display: grid; place-items: center;
+    font-size: 28px; font-weight: 900; margin-bottom: 18px; box-shadow: 0 0 0 6px rgba(46,157,106,0.25); }
+  .su-card { max-width: 560px; background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 26px; }
+  .su-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .su-list li { display: flex; gap: 12px; align-items: center; font-size: 15px; color: ${BRAND.ink}; line-height: 1.5; }
+  .su-list li::before { content: '✓'; width: 24px; height: 24px; border-radius: 50%; background: #e6f4ee; color: #1f7a57; display: grid;
+    place-items: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+  .su-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+  .su-actions .b-btn { width: 100%; }
+  .su-count { font-size: 13px; color: ${BRAND.mute}; margin: 14px 0 0; text-align: center; }
+`
 
 function SuccessContent() {
   const t = useT()
@@ -32,58 +45,47 @@ function SuccessContent() {
     return () => clearInterval(timer)
   }, [sessionId])
 
+  const items = isTeam
+    ? [t('success.team.1'), t('success.team.2'), t('success.emailSent'), t('success.team.4')]
+    : [t('success.points.1'), t('success.points.2'), t('success.emailSent'), t('success.points.3')]
+
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: DARK, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }}>
-        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(76,175,114,0.15)', border: '2px solid rgba(76,175,114,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: '36px' }}>✓</div>
-        <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: '#4caf72', marginBottom: '8px' }}>{t('success.eyebrow')}</div>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '32px', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>{isTeam ? t('success.titleTeam') : t('success.titlePoints')}</h1>
-        <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 32px' }}>
-          {isTeam ? t('success.descTeam') : t('success.descPoints')}
-        </p>
-        <div style={{ background: NAVY, borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', marginBottom: '24px', textAlign: 'left' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {(isTeam ? [
-              { icon: '✅', text: t('success.team.1') },
-              { icon: '🏊', text: t('success.team.2') },
-              { icon: '📧', text: t('success.emailSent') },
-              { icon: '🔁', text: t('success.team.4') },
-            ] : [
-              { icon: '✅', text: t('success.points.1') },
-              { icon: '📅', text: t('success.points.2') },
-              { icon: '📧', text: t('success.emailSent') },
-              { icon: '♾️', text: t('success.points.3') },
-            ]).map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '18px' }}>{item.icon}</span>
-                <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>{item.text}</span>
-              </div>
-            ))}
+    <BrandRoot>
+      <style>{css}</style>
+      <header className="b-hero">
+        <div className="b-wrap">
+          <div className="su-tick" aria-hidden="true">✓</div>
+          <p className="b-eyebrow">{t('success.eyebrow')}</p>
+          <h1>{isTeam ? t('success.titleTeam') : t('success.titlePoints')}</h1>
+          <p className="b-lead">{isTeam ? t('success.descTeam') : t('success.descPoints')}</p>
+        </div>
+      </header>
+
+      <section className="b-sec b-paper" style={{ paddingTop: 48 }}>
+        <div className="b-wrap">
+          <div className="su-card">
+            <ul className="su-list">
+              {items.map((text, i) => <li key={i}>{text}</li>)}
+            </ul>
+            <div className="su-actions">
+              <Link href={isTeam ? '/dashboard' : '/booking'} className="b-btn gold">
+                {isTeam ? t('success.ctaTeam') : t('success.ctaBook')}
+              </Link>
+              {/* Both buttons would go to the same place for a team membership. */}
+              {!isTeam && <Link href="/dashboard" className="b-btn line">{t('common.backToDashboard')}</Link>}
+            </div>
+            <p className="su-count">{t('success.redirecting', { n: countdown })}</p>
           </div>
         </div>
-        <Link href={isTeam ? '/dashboard' : '/booking'} style={{ display: 'block', padding: '16px', borderRadius: '12px', background: GOLD, color: NAVY, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none', marginBottom: '10px' }}>
-          {isTeam ? t('success.ctaTeam') : t('success.ctaBook')}
-        </Link>
-        <Link href="/dashboard" style={{ display: 'block', padding: '14px', borderRadius: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
-          {t('common.backToDashboard')}
-        </Link>
-        <p style={{ marginTop: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
-          {t('success.redirecting', { n: countdown })}
-        </p>
-      </div>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
-    </div>
+      </section>
+    </BrandRoot>
   )
 }
 
 export default function SuccessPage() {
   const t = useT()
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: '100vh', background: '#111d38', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{t('success.loading')}</div>
-      </div>
-    }>
+    <Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: BRAND.mute }}>{t('success.loading')}</div>}>
       <SuccessContent />
     </Suspense>
   )
