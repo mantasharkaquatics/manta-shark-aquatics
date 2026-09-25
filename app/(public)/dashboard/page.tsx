@@ -60,8 +60,10 @@ const MOBILE_CSS = `
 .msa-sheet-x { width: 34px; height: 34px; border-radius: 9px; border: none; background: #e8eef7;
   color: #34435e; font-size: 16px; cursor: pointer }
 /* The greeting: the site's dark top, short -- this is a working page. */
-.msa-hello { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden }
-.msa-hello-in { position: relative; max-width: 1100px; margin: 0 auto; padding: 40px clamp(20px,5vw,48px) 44px }
+/* No band of its own: the greeting sits on the page's one navy, so there is no
+   seam between it and the cards (owner, 2026-09-25). */
+.msa-hello { background: transparent; color: #fff; position: relative }
+.msa-hello-in { position: relative; max-width: 1100px; margin: 0 auto; padding: 40px clamp(20px,5vw,48px) 8px }
 .msa-hello h1 { font-family: var(--font-display), 'PingFang TC', serif; font-size: clamp(26px,3vw,36px); font-weight: 900; margin: 0; color: #fff }
 .msa-hello h1 em { color: #f7b733 }
 /* Palette B on this page (owner, 2026-09-25): the dark top carries on down
@@ -129,7 +131,7 @@ const MOBILE_CSS = `
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
   .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: width .18s, background .18s }
   .msa-dot-on { width: 18px; border-radius: 3px; background: #f7b733 }
-  .msa-hello-in { padding-top: 28px; padding-bottom: 30px }
+  .msa-hello-in { padding-top: 28px; padding-bottom: 4px }
 
   /* Four things fought for one 240px row: course name, level badge, day badge and
      status pill, with the coach line and two buttons under them. The date block
@@ -1639,7 +1641,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ fontFamily: FONT_BODY, background: `linear-gradient(180deg, ${BRAND.navyMid} 0px, ${NAVY} 520px)`, minHeight: '100vh' }}>
+    <div style={{ fontFamily: FONT_BODY, background: NAVY, minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
