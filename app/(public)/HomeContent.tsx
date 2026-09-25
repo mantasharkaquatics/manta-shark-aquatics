@@ -54,10 +54,15 @@ export default function HomeContent() {
         .h-btn.ghost { border-color: rgba(255,255,255,0.35); color: #fff; background: transparent; }
         .h-btn.dark { background: ${INK}; color: #fff; }
 
-        /* Hero. One motif: pool lane lines, faint, behind everything. */
+        /* Hero. One motif: our own logo, turned white and faded right back,
+           whole, centred behind the headline column. (Owner, 2026-09: replaced the lane lines.) The
+           filter turns every opaque pixel of the colour logo white; its
+           transparent background stays transparent. */
         .h-hero { background: ${NAVY}; color: #fff; position: relative; overflow: hidden; }
-        .h-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none;
-          background: repeating-linear-gradient(180deg, transparent 0 118px, rgba(201,168,76,0.10) 118px 120px); }
+        .h-hero::before { content: ''; position: absolute; pointer-events: none;
+          width: 620px; height: 620px; left: max(0px, calc(50% - 560px)); top: 50%; transform: translateY(-50%);
+          background: url('/logo.png') center / contain no-repeat;
+          filter: brightness(0) invert(1); opacity: 0.05; }
         .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
           background: radial-gradient(closest-side, rgba(63,111,181,0.25), transparent); }
         .h-hero .h-wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px;
@@ -139,6 +144,7 @@ export default function HomeContent() {
         @media (max-width: 900px) {
           .h-hero .h-wrap { grid-template-columns: 1fr; padding-top: 48px; padding-bottom: 56px; gap: 36px; }
           .h-hero h1 { font-size: 38px; }
+          .h-hero::before { width: 420px; height: 420px; left: 50%; top: 32%; transform: translate(-50%, -50%); }
           .h-progs { grid-template-columns: 1fr 1fr; }
           .h-whygrid { grid-template-columns: 1fr; }
           .h-qs { grid-template-columns: 1fr; }
