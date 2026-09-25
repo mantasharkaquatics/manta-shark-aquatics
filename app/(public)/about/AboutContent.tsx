@@ -1,11 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useT } from '@/lib/i18n/provider'
-
-const NAVY = '#1a2744'
-const DARK = '#111d38'
-const GOLD = '#c9a84c'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { BRAND } from '@/lib/brand'
+import BrandRoot from '@/components/brand/BrandRoot'
 
 const coaches = [
   { name: 'Shane', slug: 'shane', accent: '#4a90c4', initials: 'SH' },
@@ -13,261 +11,152 @@ const coaches = [
   { name: 'Mitzi', slug: 'mitzi', accent: '#e05a4a', initials: 'MZ' },
 ]
 
-const differentiators = [
-  { slug: 'patient', color: GOLD },
-  { slug: 'noRelearn', color: '#4a90c4' },
-  { slug: 'peace', color: '#4caf72' },
-  { slug: 'wellbeing', color: '#e05a4a' },
+/* Real photos go here (files in /public), e.g. pool: '/about/pool.jpg'.
+   Until there is one, the page shows no picture at all rather than an empty
+   grey box with "Pool Photo" written on it: a placeholder reads as an
+   unfinished site. The about.photo.* strings become the photos' alt text. */
+const PHOTOS: { pool: string | null; swimmer: string | null } = { pool: null, swimmer: null }
+
+// Four separate promises, not steps -- so each gets a small picture, not a number.
+const differentiators: { slug: string; icon: React.ReactNode }[] = [
+  { slug: 'patient', icon: <><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5M9 2h6" /></> },
+  { slug: 'noRelearn', icon: <><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5" /></> },
+  { slug: 'peace', icon: <><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z" /><path d="M8.5 12l2.5 2.5 4.5-5" /></> },
+  { slug: 'wellbeing', icon: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" /> },
 ]
+
+const css = `
+  .ab-two { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 56px; align-items: center; }
+  .ab-two p.b-body + p.b-body { margin-top: 14px; }
+  .ab-photo { border-radius: 20px; overflow: hidden; min-height: 380px; background: ${BRAND.paper} center / cover no-repeat; }
+  /* Without a photo: what a parent most wants to know, in the brand navy. */
+  .ab-facts { background: ${BRAND.navy}; color: #fff; border-radius: 20px; padding: 34px; position: relative; overflow: hidden; }
+  .ab-facts::before { content: ''; position: absolute; width: 420px; height: 420px; right: -120px; bottom: -140px; pointer-events: none;
+    background: url('/logo.png') center / contain no-repeat; filter: brightness(0) invert(1); opacity: 0.05; }
+  .ab-facts ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; position: relative; }
+  .ab-facts li { display: flex; align-items: center; gap: 14px; font-size: 18px; font-weight: 700; }
+  .ab-facts li::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: ${BRAND.yellow}; flex-shrink: 0; }
+
+  .ab-phil { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 56px; align-items: start; }
+  .ab-phil strong { color: ${BRAND.navy}; }
+
+  .ab-diffs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .ab-ico { width: 44px; height: 44px; border-radius: 12px; background: ${BRAND.paper}; border: 1px solid ${BRAND.line};
+    display: grid; place-items: center; margin-bottom: 16px; color: ${BRAND.blue}; }
+
+  .ab-team { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .ab-coach { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 20px; overflow: hidden; }
+  .ab-coach-top { display: flex; align-items: center; gap: 16px; padding: 24px 24px 20px; border-bottom: 1px solid ${BRAND.line}; }
+  .ab-init { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; color: #fff; flex-shrink: 0;
+    font-family: var(--font-display), serif; font-size: 22px; font-weight: 900; }
+  .ab-coach h3 { font-family: var(--font-display), serif; font-size: 24px; font-weight: 900; color: ${BRAND.navy}; }
+  .ab-role { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: ${BRAND.blue}; margin-top: 2px; }
+  .ab-facts-list { padding: 20px 24px 26px; display: flex; flex-direction: column; gap: 16px; }
+  .ab-facts-list small { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: ${BRAND.blue}; margin-bottom: 5px; }
+  .ab-facts-list p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.65; }
+
+  .ab-final p strong { color: #fff; font-weight: 700; }
+  .ab-note { font-size: 13px !important; color: rgba(255,255,255,0.55) !important; margin-top: 14px !important; }
+
+  @media (max-width: 900px) {
+    .ab-two, .ab-phil { grid-template-columns: 1fr; gap: 28px; }
+    .ab-diffs { grid-template-columns: 1fr 1fr; }
+    .ab-team { grid-template-columns: 1fr; }
+    .ab-photo { min-height: 260px; }
+  }
+  @media (max-width: 560px) {
+    .ab-diffs { grid-template-columns: 1fr; }
+    .ab-facts { padding: 26px; }
+    .ab-facts li { font-size: 16px; }
+  }
+`
 
 export default function AboutContent() {
   const t = useT()
+  const locale = useLocale()
+  const zh = locale.startsWith('zh')
+  const gap = zh ? '' : ' '
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: DARK }}>
+    <BrandRoot>
+      <style>{css}</style>
 
       {/* ── HERO ── */}
-      <div style={{
-        background: NAVY,
-        position: 'relative', overflow: 'hidden',
-        padding: 'clamp(80px,10vw,110px) clamp(24px,5vw,72px) clamp(48px,6vw,72px)',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1.5px, transparent 1.5px)',
-          backgroundSize: '22px 22px',
-        }} />
-        {/* Deco rings */}
-        {[{ side: 'left', offset: '-80px' }, { side: 'right', offset: '-80px' }].map((pos, i) => (
-          <div key={i} style={{
-            position: 'absolute',
-            [pos.side]: pos.offset,
-            top: '50%', transform: 'translateY(-50%)',
-            width: '320px', height: '320px', pointerEvents: 'none',
-          }}>
-            {[0, 60, 120].map((inset, j) => (
-              <span key={j} style={{
-                position: 'absolute', borderRadius: '50%',
-                border: `1px solid ${j === 2 ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.06)'}`,
-                inset,
-              }} />
-            ))}
-          </div>
-        ))}
-
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)',
-            marginBottom: '16px',
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-            {t('about.hero.eyebrow')}
-          </div>
-          <h1 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 'clamp(28px,4vw,52px)', fontWeight: 900,
-            color: '#fff', lineHeight: 1.1, marginBottom: '8px',
-          }}>
-            {t('about.hero.title1')}
-          </h1>
-          <h1 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 'clamp(28px,4vw,52px)', fontWeight: 900,
-            color: GOLD, fontStyle: 'italic', lineHeight: 1.1, marginBottom: '24px',
-          }}>
-            {t('about.hero.title2')}
-          </h1>
-          <p style={{
-            fontSize: 'clamp(13px,1.4vw,16px)',
-            color: 'rgba(255,255,255,0.65)',
-            lineHeight: 1.7, maxWidth: '560px', margin: '0 auto',
-          }}>
-            {t('about.hero.subtitle')}
-          </p>
+      <header className="b-hero">
+        <div className="b-wrap">
+          <p className="b-eyebrow">{t('about.hero.eyebrow')}</p>
+          <h1>{t('about.hero.title1')}<br /><em>{t('about.hero.title2')}</em></h1>
+          <p className="b-lead">{t('about.hero.subtitle')}</p>
         </div>
-      </div>
+      </header>
 
-      {/* ── ABOUT US — text left, pool image right ── */}
-      <section style={{ background: '#f0f4f8' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          maxWidth: '1200px', margin: '0 auto',
-        }}>
-          {/* Text */}
-          <div style={{ padding: 'clamp(48px,6vw,80px) clamp(32px,5vw,64px)' }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: '8px',
-              fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
-              textTransform: 'uppercase', color: GOLD, marginBottom: '16px',
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              {t('about.us.eyebrow')}
-            </div>
-            <h2 style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 'clamp(22px,2.8vw,36px)', fontWeight: 900,
-              color: NAVY, lineHeight: 1.2, marginBottom: '24px',
-            }}>
-              {t('about.us.title1')}<br />{t('about.us.title2')}
-            </h2>
-            <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8, marginBottom: '16px' }}>
-              {t('about.us.p1')}
-            </p>
-            <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8, marginBottom: '16px' }}>
-              {t('about.us.p2')}
-            </p>
-            <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8 }}>
-              {t('about.us.p3')}
-            </p>
+      {/* ── ABOUT US ── */}
+      <section className="b-sec">
+        <div className="b-wrap ab-two">
+          <div>
+            <p className="b-eyebrow">{t('about.us.eyebrow')}</p>
+            <h2 className="b-h2">{t('about.us.title1')}<br />{t('about.us.title2')}</h2>
+            <p className="b-body">{t('about.us.p1')}</p>
+            <p className="b-body">{t('about.us.p2')}</p>
+            <p className="b-body">{t('about.us.p3')}</p>
           </div>
-
-          {/* Image placeholder — replace with <Image> when you have a photo */}
-          <div style={{
-            background: `linear-gradient(135deg, #1a4a8a 0%, #0d2d5e 50%, #1a3a6a 100%)`,
-            minHeight: '400px',
-            position: 'relative', overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <div style={{
-              position: 'absolute', inset: 0,
-              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }} />
-            <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-              <div style={{ fontSize: '48px', marginBottom: '12px' }}>🏊</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', textTransform: 'uppercase' }}>
-                {t('about.photo.pool')}
-              </div>
+          {PHOTOS.pool ? (
+            <div className="ab-photo" role="img" aria-label={t('about.photo.pool')} style={{ backgroundImage: `url('${PHOTOS.pool}')` }} />
+          ) : (
+            <div className="ab-facts">
+              <ul>
+                <li>{t('home.hero.fact1')}</li>
+                <li>{t('levels.chip.structure')}</li>
+                <li>{t('home.hero.fact2')}</li>
+                <li>{t('home.hero.fact3')}</li>
+              </ul>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
-      {/* ── PHILOSOPHY — image left, text right ── */}
-      <section style={{ background: '#f0f4f8' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          maxWidth: '1200px', margin: '0 auto',
-        }}>
-          {/* Image placeholder */}
-          <div style={{
-            background: `linear-gradient(135deg, #0a3060 0%, #1a5080 50%, #0d4070 100%)`,
-            minHeight: '420px',
-            position: 'relative', overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            order: 0,
-          }}>
-            <div style={{
-              position: 'absolute', inset: 0,
-              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }} />
-            <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-              <div style={{ fontSize: '48px', marginBottom: '12px' }}>🌊</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', textTransform: 'uppercase' }}>
-                {t('about.photo.swimmer')}
-              </div>
+      {/* ── PHILOSOPHY ── */}
+      <section className="b-sec b-paper">
+        <div className="b-wrap">
+          {PHOTOS.swimmer && (
+            <div className="ab-photo" role="img" aria-label={t('about.photo.swimmer')}
+              style={{ backgroundImage: `url('${PHOTOS.swimmer}')`, marginBottom: 48 }} />
+          )}
+          <div className="ab-phil">
+            <div>
+              <p className="b-eyebrow">{t('about.phil.eyebrow')}</p>
+              <h2 className="b-h2">{t('about.phil.title1')}<br />{t('about.phil.title2')}</h2>
             </div>
-          </div>
-
-          {/* Text */}
-          <div style={{ padding: 'clamp(48px,6vw,80px) clamp(32px,5vw,64px)', order: 1 }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: '8px',
-              fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
-              textTransform: 'uppercase', color: GOLD, marginBottom: '16px',
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              {t('about.phil.eyebrow')}
+            <div style={{ paddingTop: 20 }}>
+              <p className="b-body" style={{ marginTop: 0 }}>
+                {t('about.phil.p1a')}<strong>{t('about.phil.p1strong')}</strong>{t('about.phil.p1b')}
+              </p>
+              <p className="b-body">
+                {t('about.phil.p2a')}<strong>{t('about.phil.p2strong')}</strong>{t('about.phil.p2b')}
+              </p>
             </div>
-            <h2 style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 'clamp(22px,2.8vw,34px)', fontWeight: 900,
-              color: NAVY, lineHeight: 1.2, marginBottom: '20px',
-            }}>
-              {t('about.phil.title1')}<br />{t('about.phil.title2')}
-            </h2>
-            <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8, marginBottom: '16px' }}>
-              {t('about.phil.p1a')}
-              <strong style={{ color: NAVY, fontWeight: 700 }}>{t('about.phil.p1strong')}</strong>
-              {t('about.phil.p1b')}
-            </p>
-            <p style={{ fontSize: '14px', color: '#5a6a8a', lineHeight: 1.8 }}>
-              {t('about.phil.p2a')}
-              <strong style={{ color: NAVY, fontWeight: 700 }}>{t('about.phil.p2strong')}</strong>
-              {t('about.phil.p2b')}
-            </p>
           </div>
         </div>
       </section>
 
       {/* ── THE DIFFERENCE ── */}
-      <section style={{ background: DARK, padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: '8px',
-              fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
-              textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '12px',
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              {t('about.diff.eyebrow')}
-            </div>
-            <h2 style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 'clamp(24px,3vw,38px)', fontWeight: 900,
-              color: '#fff', lineHeight: 1.2,
-            }}>
-              {t('about.diff.title1')}{' '}
-              <em style={{ color: GOLD, fontStyle: 'italic' }}>{t('about.diff.title2')}</em>
-            </h2>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginTop: '12px', maxWidth: '520px', margin: '12px auto 0', lineHeight: 1.7 }}>
-              {t('about.diff.subtitle')}
-            </p>
+      <section className="b-sec">
+        <div className="b-wrap">
+          <div className="b-head">
+            <p className="b-eyebrow">{t('about.diff.eyebrow')}</p>
+            <h2>{t('about.diff.title1')}{gap}<em style={{ color: BRAND.blue }}>{t('about.diff.title2')}</em></h2>
+            <p>{t('about.diff.subtitle')}</p>
           </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '20px',
-          }}>
-            {differentiators.map((item) => (
-              <div key={item.slug} style={{
-                background: NAVY,
-                borderRadius: '16px',
-                padding: '28px 24px',
-                border: '1px solid rgba(255,255,255,0.07)',
-                position: 'relative', overflow: 'hidden',
-              }}>
-                <div style={{
-                  position: 'absolute', top: 0, left: 0,
-                  width: '100%', height: '3px',
-                  background: item.color,
-                  borderRadius: '16px 16px 0 0',
-                }} />
-                <div style={{
-                  width: '36px', height: '36px', borderRadius: '10px',
-                  background: `${item.color}20`,
-                  border: `1px solid ${item.color}40`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  marginBottom: '16px',
-                }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color }} />
+          <div className="ab-diffs">
+            {differentiators.map(item => (
+              <div key={item.slug} className="b-card">
+                <div className="ab-ico">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {item.icon}
+                  </svg>
                 </div>
-                <h3 style={{
-                  fontSize: '15px', fontWeight: 700,
-                  color: '#fff', marginBottom: '10px', lineHeight: 1.3,
-                }}>
-                  {t('about.diff.' + item.slug + '.title')}
-                </h3>
-                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
-                  {t('about.diff.' + item.slug + '.text')}
-                </p>
+                <h3>{t('about.diff.' + item.slug + '.title')}</h3>
+                <p>{t('about.diff.' + item.slug + '.text')}</p>
               </div>
             ))}
           </div>
@@ -275,98 +164,30 @@ export default function AboutContent() {
       </section>
 
       {/* ── MEET THE TEAM ── */}
-      <section style={{ background: '#f0f4f8', padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: '8px',
-              fontSize: '10px', fontWeight: 600, letterSpacing: '3px',
-              textTransform: 'uppercase', color: '#8a9ab8', marginBottom: '12px',
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD, display: 'inline-block' }} />
-              {t('about.team.eyebrow')}
-            </div>
-            <h2 style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 'clamp(24px,3vw,38px)', fontWeight: 900,
-              color: NAVY, lineHeight: 1.2, marginBottom: '12px',
-            }}>
-              {t('about.team.title1')} <em style={{ color: GOLD, fontStyle: 'italic' }}>{t('about.team.title2')}</em>
-            </h2>
-            <p style={{ fontSize: '14px', color: '#8a9ab8', maxWidth: '480px', margin: '0 auto', lineHeight: 1.7 }}>
-              {t('about.team.subtitle')}
-            </p>
+      <section className="b-sec b-paper">
+        <div className="b-wrap">
+          <div className="b-head">
+            <p className="b-eyebrow">{t('about.team.eyebrow')}</p>
+            <h2>{t('about.team.title1')}{gap}<em style={{ color: BRAND.blue }}>{t('about.team.title2')}</em></h2>
+            <p>{t('about.team.subtitle')}</p>
           </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '24px',
-          }}>
-            {coaches.map((coach) => (
-              <div key={coach.name} style={{
-                background: '#fff',
-                borderRadius: '20px',
-                overflow: 'hidden',
-                boxShadow: '0 4px 24px rgba(26,52,128,0.08)',
-                border: '1px solid #eef1f7',
-              }}>
-                {/* Photo area */}
-                <div style={{
-                  height: '200px',
-                  background: `linear-gradient(135deg, ${coach.accent}33 0%, ${coach.accent}11 100%)`,
-                  position: 'relative',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderBottom: `3px solid ${coach.accent}`,
-                }}>
-                  <div style={{
-                    width: '80px', height: '80px', borderRadius: '50%',
-                    background: coach.accent,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: '28px', fontWeight: 900, color: '#fff',
-                    boxShadow: `0 4px 20px ${coach.accent}50`,
-                  }}>
-                    {coach.initials}
-                  </div>
-                  <div style={{
-                    position: 'absolute', bottom: '12px', right: '16px',
-                    fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px',
-                    textTransform: 'uppercase', color: coach.accent,
-                    background: `${coach.accent}15`,
-                    border: `1px solid ${coach.accent}30`,
-                    borderRadius: '20px', padding: '3px 10px',
-                  }}>
-                    {t('about.coach.role')}
+          <div className="ab-team">
+            {coaches.map(coach => (
+              <div key={coach.name} className="ab-coach">
+                <div className="ab-coach-top">
+                  <div className="ab-init" style={{ background: coach.accent }}>{coach.initials}</div>
+                  <div>
+                    <h3>{coach.name}</h3>
+                    <div className="ab-role">{t('about.coach.role')}</div>
                   </div>
                 </div>
-
-                {/* Content */}
-                <div style={{ padding: '24px 24px 28px' }}>
-                  <h3 style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: '24px', fontWeight: 900,
-                    color: NAVY, marginBottom: '20px',
-                  }}>
-                    {coach.name}
-                  </h3>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {[1, 2, 3].map((i) => (
-                      <div key={i}>
-                        <div style={{
-                          fontSize: '9px', fontWeight: 700, letterSpacing: '2px',
-                          textTransform: 'uppercase', color: coach.accent,
-                          marginBottom: '5px',
-                        }}>
-                          {t('about.coach.' + coach.slug + '.s' + i + '.label')}
-                        </div>
-                        <p style={{ fontSize: '12.5px', color: '#5a6a8a', lineHeight: 1.65 }}>
-                          {t('about.coach.' + coach.slug + '.s' + i + '.text')}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                <div className="ab-facts-list">
+                  {[1, 2, 3].map(i => (
+                    <div key={i}>
+                      <small>{t('about.coach.' + coach.slug + '.s' + i + '.label')}</small>
+                      <p>{t('about.coach.' + coach.slug + '.s' + i + '.text')}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -375,76 +196,18 @@ export default function AboutContent() {
       </section>
 
       {/* ── CTA ── */}
-      <section style={{
-        background: NAVY,
-        padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,72px)',
-        textAlign: 'center',
-        position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1.5px, transparent 1.5px)',
-          backgroundSize: '22px 22px',
-        }} />
-        <div style={{ position: 'relative', zIndex: 1, maxWidth: '640px', margin: '0 auto' }}>
-          <h2 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 'clamp(26px,3.5vw,44px)', fontWeight: 900,
-            color: '#fff', lineHeight: 1.15, marginBottom: '20px',
-          }}>
-            {t('about.cta.title1')} <em style={{ color: GOLD, fontStyle: 'italic' }}>{t('about.cta.title2')}</em>
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '24px' }}>
-            <div style={{ width: 36, height: 2, background: 'rgba(201,168,76,0.35)', borderRadius: 1 }} />
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: GOLD }} />
-            <div style={{ width: 36, height: 2, background: 'rgba(201,168,76,0.35)', borderRadius: 1 }} />
+      <section className="b-final ab-final">
+        <div className="b-wrap">
+          <h2>{t('about.cta.title1')}{gap}<em>{t('about.cta.title2')}</em></h2>
+          <p style={{ maxWidth: 600 }}>
+            {t('about.cta.p1')}<strong>{t('about.cta.pStrong')}</strong>{t('about.cta.p2')}
+          </p>
+          <div className="b-ctas">
+            <Link href="/register" className="b-btn gold">{t('about.cta.button')}</Link>
           </div>
-          <p style={{ fontSize: 'clamp(13px,1.4vw,16px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.8, marginBottom: '36px' }}>
-            {t('about.cta.p1')}
-            <strong style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{t('about.cta.pStrong')}</strong>
-            {t('about.cta.p2')}
-          </p>
-          <Link
-            href="/register"
-            style={{
-              display: 'inline-block',
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '13px', fontWeight: 700, letterSpacing: '2px',
-              textTransform: 'uppercase',
-              color: NAVY, background: GOLD,
-              border: `2px solid ${GOLD}`,
-              padding: '15px 48px', borderRadius: '6px',
-              textDecoration: 'none',
-              boxShadow: '0 4px 24px rgba(200,160,32,0.28)',
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLElement
-              el.style.background = 'transparent'
-              el.style.color = GOLD
-              el.style.transform = 'translateY(-2px)'
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLElement
-              el.style.background = GOLD
-              el.style.color = NAVY
-              el.style.transform = 'translateY(0)'
-            }}
-          >
-            {t('about.cta.button')}
-          </Link>
-          <p style={{ marginTop: '12px', fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
-            {t('about.cta.note')}
-          </p>
+          <p className="ab-note">{t('about.cta.note')}</p>
         </div>
       </section>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');
-        @media (max-width: 768px) {
-          .philosophy-image { order: 1 !important; }
-          .philosophy-text { order: 0 !important; }
-        }
-      `}</style>
-    </div>
+    </BrandRoot>
   )
 }
