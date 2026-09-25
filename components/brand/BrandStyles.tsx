@@ -21,12 +21,16 @@ const css = `
 .b-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 .b-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: ${BRAND.blue}; margin: 0; }
 
-.b-hero { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; }
+.b-hero { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; min-height: 460px; }
+/* Every page's dark top is the same height, and the logo and the glow are
+   pinned to the top edge in pixels -- not centred on the section -- so
+   moving between pages nothing in the background jumps or changes size.
+   (Owner, 2026-09-25.) A page whose text runs longer only grows downward. */
 .b-hero::before { content: ''; position: absolute; pointer-events: none;
-  width: 1000px; height: 1000px; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 1000px; height: 1000px; left: 50%; top: 230px; transform: translate(-50%, -50%);
   background: url('/logo.png') center / contain no-repeat;
   filter: brightness(0) invert(1); opacity: 0.022; }
-.b-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
+.b-hero::after { content: ''; position: absolute; right: -10%; top: -140px; width: 60%; height: 740px; pointer-events: none;
   background: radial-gradient(closest-side, rgba(32,80,160,0.35), transparent); }
 .b-hero .b-wrap { position: relative; z-index: 1; padding-top: 72px; padding-bottom: 76px; }
 .b-hero .b-eyebrow { color: ${BRAND.yellow}; }
@@ -73,7 +77,8 @@ const css = `
 @media (max-width: 900px) {
   .b-hero .b-wrap { padding-top: 48px; padding-bottom: 56px; }
   .b-hero h1 { font-size: 34px; }
-  .b-hero::before { width: 480px; height: 480px; }
+  .b-hero { min-height: 0; }
+  .b-hero::before { width: 480px; height: 480px; top: 200px; }
   .b-lead { font-size: 16.5px; }
   .b-sec, .b-final { padding: 60px 0; }
   .b-head h2, .b-h2 { font-size: 28px; }

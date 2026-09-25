@@ -297,7 +297,7 @@ export default function PlansContent() {
 
       {/* HERO */}
       <header className="b-hero">
-        <div className="b-wrap" style={{ paddingBottom: 100 }}>
+        <div className="b-wrap">
           <p className="b-eyebrow">{t('points.hero.eyebrow')}</p>
           <h1>{t('points.hero.title1')}{locale.startsWith('zh') ? '' : ' '}<em>{t('points.hero.title2')}</em></h1>
           <p className="b-lead">{t('points.hero.subtitle')}</p>
