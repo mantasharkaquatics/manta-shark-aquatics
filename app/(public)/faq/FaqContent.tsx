@@ -25,10 +25,8 @@ const css = `
              color: ${BRAND.ink}; text-decoration: none; transition: background 0.15s; }
   .f-nav a:hover { background: ${BRAND.paper}; }
   .f-nav a span { flex: 1; min-width: 0; }
-  .f-nav a small { font-size: 12px; font-weight: 700; color: ${BRAND.mute}; background: ${BRAND.paper}; border-radius: 999px; padding: 2px 8px; }
   .f-nav a i { font-style: normal; color: #b8c4d6; font-size: 16px; }
   .f-nav a[aria-current="true"] { background: ${BRAND.navy}; color: #fff; }
-  .f-nav a[aria-current="true"] small { background: rgba(255,255,255,0.14); color: #fff; }
   .f-nav a[aria-current="true"] i { color: ${BRAND.yellow}; }
   .f-nav a:focus-visible, .f-chips a:focus-visible { outline: 3px solid ${BRAND.yellow}; outline-offset: 2px; }
 
@@ -114,7 +112,6 @@ export default function FaqContent() {
             {FAQ.map(cat => (
               <a key={cat.id} href={'#faq-' + cat.id} aria-current={current === cat.id} onClick={() => setCurrent(cat.id)}>
                 <span>{t('faq.cat.' + cat.id)}</span>
-                <small>{cat.items.length}</small>
                 <i aria-hidden="true">›</i>
               </a>
             ))}
