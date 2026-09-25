@@ -81,6 +81,9 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
+  // Typed twice so a slip on a phone keyboard does not lock a family out of
+  // the account they are creating (owner, 2026-09-25).
+  const [password2, setPassword2] = useState('')
   const [addressLine1, setAddressLine1] = useState('')
   const [addressLine2, setAddressLine2] = useState('')
   const [city, setCity] = useState('')
@@ -267,9 +270,10 @@ export default function RegisterPage() {
   }
 
   function handleContinue() {
-    if (!firstName || !lastName || !email || !phone || !password || !addressLine1 || !city || !state || !zipCode) {
+    if (!firstName || !lastName || !email || !phone || !password || !password2 || !addressLine1 || !city || !state || !zipCode) {
       setError(t('register.err.fillAll')); return
     }
+    if (password !== password2) { setError(t('register.err.passwordMismatch')); return }
     if (!emailVerified) { setError(t('register.err.verifyEmail')); return }
     if (!phoneVerified) { setError(t('register.err.verifyPhone')); return }
     setError(''); setStep(2)
@@ -467,10 +471,23 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Side by side on a computer, one under the other on a phone. */}
             <div>
-              <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
-              <PasswordField value={password} onChange={setPassword} autoComplete="new-password"
-                className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
+                  <PasswordField value={password} onChange={setPassword} autoComplete="new-password"
+                    className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.passwordConfirm')} <span className="text-red-600">*</span></label>
+                  <PasswordField value={password2} onChange={setPassword2} autoComplete="new-password"
+                    className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" + (password2 && password2 !== password ? ' !border-red-500' : '')} />
+                </div>
+              </div>
+              {password2 && (password2 === password
+                ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
+                : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}
             </div>
             {error && <p className="text-red-600 text-sm">{error}</p>}
             <button
