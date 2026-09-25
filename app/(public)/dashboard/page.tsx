@@ -27,22 +27,22 @@ const MOBILE_CSS = `
 
 .msa-rail { display: grid; gap: 16px }
 .msa-addkid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  min-height: 180px; border-radius: 16px; border: 1.5px dashed #c9d8ee; background: rgba(255,255,255,0.6);
-  color: #56647d; font-size: 13px; font-weight: 700; text-decoration: none;
+  min-height: 180px; border-radius: 16px; border: 1.5px dashed rgba(255,255,255,0.3); background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 700; text-decoration: none;
   transition: border-color .15s, color .15s }
-.msa-addkid:hover { border-color: #2050a0; color: #2050a0 }
+.msa-addkid:hover { border-color: #f7b733; color: #fff; background: rgba(255,255,255,0.1) }
 .msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 22px; font-weight: 400; background: #eef4fc; color: #2050a0 }
-.msa-partner { margin: 12px 0 0; text-align: center; font-size: 13px; color: #56647d }
-.msa-partner a { color: #2050a0; font-weight: 700; text-decoration: none; white-space: nowrap }
+  font-size: 22px; font-weight: 400; background: #fff; color: #12254a }
+.msa-partner { margin: 12px 0 0; text-align: center; font-size: 13px; color: rgba(255,255,255,0.78) }
+.msa-partner a { color: #f7b733; font-weight: 700; text-decoration: none; white-space: nowrap }
 .msa-refer { margin-top: 6px }
-.msa-refer a { color: #1f7a57 }
+.msa-refer a { color: #f7b733 }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
 .msa-act-book { background: #f09800; color: #12254a; border: none; border-radius: 12px; padding: 15px;
   font-size: 15px; font-weight: 800; cursor: pointer; transition: background .15s }
 .msa-act-book:hover { background: #d98900 }
 .msa-act-pts { display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 12px;
-  border: 1px solid #e3ebf6; padding: 10px 16px; cursor: pointer; color: #56647d; font-size: 12px }
+  border: 1px solid transparent; padding: 10px 16px; cursor: pointer; color: #56647d; font-size: 12px }
 .msa-act-pts:hover { border-color: #c9d8ee }
 .msa-act-pts b { font-size: 19px; color: #12254a; font-variant-numeric: tabular-nums }
 .msa-act-pts em { font-style: normal; font-weight: 700; color: #2050a0 }
@@ -66,7 +66,10 @@ const MOBILE_CSS = `
 .msa-hello-in { position: relative; max-width: 1100px; margin: 0 auto; padding: 40px clamp(20px,5vw,48px) 44px }
 .msa-hello h1 { font-family: var(--font-display), 'PingFang TC', serif; font-size: clamp(26px,3vw,36px); font-weight: 900; margin: 0; color: #fff }
 .msa-hello h1 em { color: #f7b733 }
-.msa-sec-h { font-size: 12px; font-weight: 800; color: #2050a0; margin: 0 0 16px; letter-spacing: 2px; text-transform: uppercase }
+/* Palette B on this page (owner, 2026-09-25): the dark top carries on down
+   the page and every card is white on it, lifted by a shadow. */
+.msa-card { box-shadow: 0 10px 30px rgba(0,0,0,0.22) }
+.msa-sec-h { font-size: 12px; font-weight: 800; color: #f7b733; margin: 0 0 16px; letter-spacing: 2px; text-transform: uppercase }
 .msa-rail-students { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
 .msa-dots { display: none }
@@ -126,8 +129,8 @@ const MOBILE_CSS = `
   .msa-rail::-webkit-scrollbar { display: none }
   .msa-rail > * { scroll-snap-align: center; flex: 0 0 92% }
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
-  .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: #c9d3e3; transition: width .18s, background .18s }
-  .msa-dot-on { width: 18px; border-radius: 3px; background: #2050a0 }
+  .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: width .18s, background .18s }
+  .msa-dot-on { width: 18px; border-radius: 3px; background: #f7b733 }
   .msa-hello-in { padding-top: 28px; padding-bottom: 30px }
   .msa-hello::before { width: 320px; height: 320px; right: -80px }
 
@@ -1612,7 +1615,7 @@ export default function DashboardPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: BRAND.paper, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
@@ -1636,7 +1639,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ fontFamily: FONT_BODY, background: BRAND.paper, minHeight: '100vh' }}>
+    <div style={{ fontFamily: FONT_BODY, background: `linear-gradient(180deg, ${BRAND.navyMid} 0px, ${NAVY} 520px)`, minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
@@ -1769,7 +1772,7 @@ export default function DashboardPage() {
               const ageMonths = student.date_of_birth && age === 0 ? getAgeMonths(student.date_of_birth) : null
               const ageLabel = age === null ? t('dash.ageUnknown') : age >= 1 ? t('dash.age', { n: age }) : ageMonths !== null && ageMonths >= 1 ? t(ageMonths === 1 ? 'dash.ageMonth' : 'dash.ageMonths', { n: ageMonths }) : t('dash.ageNewborn')
               return (
-                <div key={student.id} style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e3ebf6', padding: '24px', position: 'relative', overflow: 'hidden' }}>
+                <div key={student.id} className="msa-card" style={{ background: '#fff', borderRadius: '16px', padding: '24px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: levelColor }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display), serif', fontSize: '18px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>
@@ -1883,7 +1886,7 @@ export default function DashboardPage() {
               + {t('quick.book')}
             </button>
             {wallet && (
-              <button className={'tap-auto msa-act-pts' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : '')}
+              <button className={'tap-auto msa-act-pts msa-card' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : '')}
                 onClick={() => setPointsOpen(true)}>
                 <span><b>{wallet.balancePurchased.toLocaleString()}</b> {t('dash.pointsUnit')}</span>
                 {/* Bonus points apart from purchased ones, in their own colour. */}
@@ -2039,13 +2042,13 @@ export default function DashboardPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <button onClick={() => { if (lvMonth === 0) { setLvMonth(11); setLvYear(lvYear - 1) } else setLvMonth(lvMonth - 1) }}
-                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>‹ Prev</button>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#fff', cursor: 'pointer' }}>‹ Prev</button>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
                   <button onClick={() => { if (lvMonth === 11) { setLvMonth(0); setLvYear(lvYear + 1) } else setLvMonth(lvMonth + 1) }}
-                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>Next ›</button>
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#fff', cursor: 'pointer' }}>Next ›</button>
                 </div>
                 {students.length > 1 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px', background: '#fff', borderRadius: '10px', padding: '6px 12px', width: 'fit-content' }}>
                     {students.map((st, i) => (
                       <span key={st.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: SWIMMER_COLORS[i % SWIMMER_COLORS.length] }}>
                         <i style={{ width: '7px', height: '7px', borderRadius: '50%', display: 'block', background: SWIMMER_COLORS[i % SWIMMER_COLORS.length] }} />
@@ -2056,7 +2059,7 @@ export default function DashboardPage() {
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
                   {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
-                    <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: '#56647d', padding: '4px 0' }}>{d}</div>
+                    <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.7)', padding: '4px 0' }}>{d}</div>
                   ))}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
@@ -2186,7 +2189,7 @@ export default function DashboardPage() {
               </div>
             )
           })() : upcomingBookings.length === 0 ? (
-            <div style={{ background: '#fff', borderRadius: '14px', border: '1px dashed #e3ebf6', padding: '32px', textAlign: 'center' }}>
+            <div className="msa-card" style={{ background: '#fff', borderRadius: '14px', padding: '32px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
               <p style={{ fontSize: '14px', color: '#56647d', margin: 0 }}>{t('dash.noUpcoming')}</p>
             </div>
@@ -2211,13 +2214,13 @@ export default function DashboardPage() {
                   return (
                     <div key={day.date} style={{ display: 'contents' }}>
                       <div className="msa-day-head">
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#16294a' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? BRAND.yellow : '#fff' }}>
                           {dd.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                         </span>
                         {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
-                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
-                        <span style={{ flex: 1, height: '1px', background: '#eef2f8' }} />
-                        <span style={{ fontSize: '11px', color: '#56647d', whiteSpace: 'nowrap' }}>
+                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.14)', color: '#fff', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+                        <span style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.18)' }} />
+                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', whiteSpace: 'nowrap' }}>
                           {t(day.items.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: day.items.length })}
                         </span>
                       </div>
@@ -2227,7 +2230,7 @@ export default function DashboardPage() {
                 const isTomorrow = daysUntil === 1
                 const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
                 return (
-                  <div key={booking.id} className="msa-lesson" style={{ background: '#fff', border: `1px solid ${isToday ? GOLD + '40' : '#e3ebf6'}` }}>
+                  <div key={booking.id} className="msa-lesson msa-card" style={{ background: '#fff', border: `1px solid ${isToday ? BRAND.amber : 'transparent'}` }}>
                     <div className="msa-lesson-date" style={{ background: isToday ? AMBER : '#f6f9fd' }}>
                       <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : '#56647d' }}>
                         {new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
