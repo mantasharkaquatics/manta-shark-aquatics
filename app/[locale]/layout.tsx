@@ -3,6 +3,8 @@ import { LocaleProvider } from '@/lib/i18n/provider'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
+import BrandStyles from '@/components/brand/BrandStyles'
+import { FONT_BODY } from '@/lib/brand'
 
 // Only the two Chinese locales get a URL segment. English keeps the bare paths
 // (/plans, /levels, ...) so every existing link stays valid.
@@ -29,10 +31,14 @@ export default async function LocaleLayout({
   const { locale } = await params
   return (
     <LocaleProvider locale={locale as Locale}>
-      <Navbar />
-      <ActivityPing />
-      {children}
-      <Footer />
+      {/* Same shell as (public)/layout.tsx: the brand stylesheet and reading face. */}
+      <div style={{ display: 'contents', fontFamily: FONT_BODY }}>
+        <BrandStyles />
+        <Navbar />
+        <ActivityPing />
+        {children}
+        <Footer />
+      </div>
     </LocaleProvider>
   )
 }

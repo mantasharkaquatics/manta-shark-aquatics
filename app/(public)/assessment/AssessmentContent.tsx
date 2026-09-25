@@ -7,15 +7,13 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { createClient } from '@/lib/supabase/client'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
-
-const NAVY = '#1a2744'
-const DARK = '#111d38'
-const GOLD = '#c9a84c'
+import { BRAND } from '@/lib/brand'
+import BrandRoot from '@/components/brand/BrandRoot'
 
 /** Booking lives behind the login, so send a signed-out visitor to register
  *  and carry them onward rather than dropping them on a login form with no
  *  explanation of why they are there. */
-function BookAssessmentButton({ label, variant = 'solid' }: { label: string; variant?: 'solid' | 'ghost' }) {
+function BookAssessmentButton({ label }: { label: string }) {
   const router = useRouter()
   const supabase = createClient()
   const [busy, setBusy] = useState(false)
@@ -26,144 +24,155 @@ function BookAssessmentButton({ label, variant = 'solid' }: { label: string; var
     router.push(user ? '/booking' : '/register?redirect=/booking')
   }
 
-  const solid = variant === 'solid'
   return (
-    <button onClick={go} disabled={busy}
-      style={{
-        padding: '15px 34px', borderRadius: '10px', cursor: busy ? 'wait' : 'pointer',
-        background: solid ? GOLD : 'transparent',
-        color: solid ? NAVY : '#fff',
-        border: solid ? 'none' : '1px solid rgba(255,255,255,0.3)',
-        fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase',
-        opacity: busy ? 0.6 : 1,
-      }}>
-      {busy ? '...' : label}
+    <button type="button" className="b-btn gold" onClick={go} disabled={busy}>
+      {busy ? '…' : label}
     </button>
   )
 }
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, margin: '0 0 10px' }}>
-      {children}
-    </p>
-  )
+// Small line icons for the three "what the level gives you" cards. They are
+// three separate benefits, not steps, so they get pictures rather than numbers.
+const ICONS: Record<'l1' | 'l2' | 'l3', React.ReactNode> = {
+  l1: <path d="M3 20h5v-5h5v-5h5V5h3" />,
+  l2: <><path d="M9 6h11M9 12h11M9 18h11" /><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11" /><circle cx="5" cy="18" r="1.3" /></>,
+  l3: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
 }
 
 export default function AssessmentContent() {
   const t = useT()
   const locale = useLocale()
   const price = '$' + (TRIAL_PRICE_CENTS / 100).toLocaleString()
-
-  const h2: React.CSSProperties = {
-    fontFamily: "'Playfair Display', serif", fontWeight: 900, color: '#fff',
-    fontSize: 'clamp(22px,2.6vw,32px)', lineHeight: 1.25, margin: '0 0 14px',
-  }
-  const body: React.CSSProperties = {
-    fontSize: '15px', lineHeight: 1.85, color: 'rgba(255,255,255,0.72)', margin: '0 0 14px', maxWidth: '62ch',
-  }
-  const section: React.CSSProperties = { padding: 'clamp(48px,6vw,76px) clamp(24px,5vw,72px)' }
-  const inner: React.CSSProperties = { maxWidth: '1000px', margin: '0 auto' }
+  const chips = t('assess.hero.meta', { price }).split(' · ')
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: DARK }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+    <BrandRoot>
+      <style>{`
+        .a-what { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 56px; align-items: center; }
+        .a-why { font-size: 14.5px; color: ${BRAND.mute}; line-height: 1.75; margin: 18px 0 0; max-width: 62ch;
+                 padding-top: 18px; border-top: 1px solid ${BRAND.line}; }
+
+        /* The assessment itself, drawn: climb from Level 1 until a level is
+           not smooth yet -- that one is where lessons start. */
+        .a-ladder { background: ${BRAND.paper}; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 22px; }
+        .a-rung { display: grid; grid-template-columns: 30px 1fr auto; gap: 12px; align-items: center;
+                  background: #fff; border: 1px solid ${BRAND.line}; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+        .a-rung + .a-rung { margin-top: 8px; }
+        .a-rung i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+                    font-weight: 800; font-size: 14px; background: #e6f4ee; color: #1f7a57; }
+        .a-rung b { font-weight: 800; }
+        .a-rung span { font-size: 12.5px; color: ${BRAND.mute}; text-align: right; }
+        .a-rung.stop { background: ${BRAND.navy}; border-color: ${BRAND.navy}; color: #fff; }
+        .a-rung.stop i { background: ${BRAND.amber}; color: ${BRAND.navy}; }
+        .a-rung.stop span { color: ${BRAND.yellow}; font-weight: 700; }
+        .a-rung.skip { background: transparent; border-style: dashed; color: ${BRAND.mute}; }
+        .a-rung.skip i { background: transparent; border: 1px dashed ${BRAND.line}; color: ${BRAND.mute}; }
+        .a-cap { font-size: 12.5px; color: ${BRAND.mute}; line-height: 1.6; margin: 14px 2px 0; }
+
+        .a-after { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: start; }
+        .a-afterp { margin-top: 28px; }
+        .a-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 26px; }
+        .a-ico { width: 44px; height: 44px; border-radius: 12px; background: ${BRAND.paper}; border: 1px solid ${BRAND.line};
+                 display: grid; place-items: center; margin-bottom: 16px; color: ${BRAND.blue}; }
+        .a-first { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; }
+        .a-first p { max-width: 58ch; }
+
+        @media (max-width: 900px) {
+          .a-what, .a-after { grid-template-columns: 1fr; gap: 32px; }
+          .a-cards { grid-template-columns: 1fr; }
+          .a-afterp { margin-top: 0; }
+        }
+      `}</style>
 
       {/* ── HERO ── */}
-      <section style={{ background: NAVY, position: 'relative', overflow: 'hidden', padding: 'clamp(80px,10vw,110px) clamp(24px,5vw,72px) clamp(48px,6vw,72px)' }}>
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1.5px, transparent 1.5px)', backgroundSize: '22px 22px' }} />
-        <div style={{ position: 'absolute', right: '-60px', top: '50%', transform: 'translateY(-50%)', width: 380, height: 380, pointerEvents: 'none' }}>
-          {[0, 60, 130].map((inset, i) => (
-            <span key={i} style={{ position: 'absolute', borderRadius: '50%', border: `1px solid ${i === 2 ? 'rgba(201,168,76,0.13)' : 'rgba(255,255,255,0.07)'}`, inset }} />
-          ))}
-        </div>
-        <div style={{ ...inner, position: 'relative', zIndex: 1 }}>
-          <Eyebrow>{t('assess.hero.eyebrow')}</Eyebrow>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(28px,3.6vw,46px)', fontWeight: 900, color: '#fff', lineHeight: 1.12, letterSpacing: '-0.5px', margin: '0 0 16px', maxWidth: '18ch', textWrap: 'balance' }}>
-            {t('assess.hero.title')}
-          </h1>
-          <p style={{ ...body, color: 'rgba(255,255,255,0.75)', fontSize: '16px', margin: '0 0 20px' }}>
-            {t('assess.hero.sub')}
-          </p>
-          <p style={{ fontSize: '13px', fontWeight: 600, color: GOLD, letterSpacing: '0.4px', margin: '0 0 28px' }}>
-            {t('assess.hero.meta', { price })}
-          </p>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+      <header className="b-hero">
+        <div className="b-wrap">
+          <p className="b-eyebrow">{t('assess.hero.eyebrow')}</p>
+          <h1>{t('assess.hero.title')}</h1>
+          <p className="b-lead">{t('assess.hero.sub')}</p>
+          <div className="b-chips">
+            {chips.map((c, i) => <span key={i} className={i === chips.length - 1 ? 'hi' : ''}>{c}</span>)}
+          </div>
+          <div className="b-ctas">
             <BookAssessmentButton label={t('assess.hero.cta')} />
-            <Link href={localePath('/levels', locale)}
-              style={{ padding: '15px 34px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' }}>
-              {t('assess.hero.ctaSecondary')}
-            </Link>
+            <Link href={localePath('/levels', locale)} className="b-btn ghost">{t('assess.hero.ctaSecondary')}</Link>
+          </div>
+        </div>
+      </header>
+
+      {/* ── WHAT HAPPENS ── */}
+      <section className="b-sec">
+        <div className="b-wrap a-what">
+          <div>
+            <p className="b-eyebrow">{t('assess.what.eyebrow')}</p>
+            <h2 className="b-h2">{t('assess.what.title')}</h2>
+            <p className="b-body">{t('assess.what.body')}</p>
+            <p className="a-why">{t('assess.what.why')}</p>
+          </div>
+          <div className="a-ladder" aria-hidden="true">
+            {[1, 2].map(n => (
+              <div key={n} className="a-rung"><i>✓</i><b>{t('assess.ladder.level', { n })}</b><span>{t('assess.ladder.pass')}</span></div>
+            ))}
+            <div className="a-rung stop"><i>3</i><b>{t('assess.ladder.level', { n: 3 })}</b><span>{t('assess.ladder.stop')}</span></div>
+            <div className="a-rung skip"><i>4</i><b>{t('assess.ladder.level', { n: 4 })}</b><span>{t('assess.ladder.skip')}</span></div>
+            <p className="a-cap">{t('assess.ladder.caption')}</p>
           </div>
         </div>
       </section>
 
-      {/* ── WHAT HAPPENS ── */}
-      <section style={section}>
-        <div style={inner}>
-          <Eyebrow>{t('assess.what.eyebrow')}</Eyebrow>
-          <h2 style={h2}>{t('assess.what.title')}</h2>
-          <p style={body}>{t('assess.what.body')}</p>
-          <p style={{ ...body, color: 'rgba(255,255,255,0.5)', fontSize: '14px', margin: 0 }}>{t('assess.what.why')}</p>
-        </div>
-      </section>
+      {/* ── AFTERWARDS + WHAT THE LEVEL GIVES YOU ── */}
+      <section className="b-sec b-paper">
+        <div className="b-wrap">
+          <div className="a-after" style={{ marginBottom: 48 }}>
+            <div>
+              <p className="b-eyebrow">{t('assess.after.eyebrow')}</p>
+              <h2 className="b-h2">{t('assess.after.title')}</h2>
+            </div>
+            <p className="b-body a-afterp">{t('assess.after.body')}</p>
+          </div>
 
-      {/* ── AFTERWARDS ── */}
-      <section style={{ ...section, background: NAVY }}>
-        <div style={inner}>
-          <Eyebrow>{t('assess.after.eyebrow')}</Eyebrow>
-          <h2 style={h2}>{t('assess.after.title')}</h2>
-          <p style={{ ...body, margin: 0 }}>{t('assess.after.body')}</p>
-        </div>
-      </section>
-
-      {/* ── WHAT THE LEVEL BUYS YOU ── */}
-      <section style={section}>
-        <div style={inner}>
-          <Eyebrow>{t('assess.next.eyebrow')}</Eyebrow>
-          <h2 style={{ ...h2, marginBottom: '28px' }}>{t('assess.next.title')}</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-            {(['l1', 'l2', 'l3'] as const).map((k, i) => (
-              <div key={k} style={{ background: NAVY, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px 22px' }}>
-                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '13px', fontWeight: 700, color: GOLD, marginBottom: '10px', letterSpacing: '1px' }}>
-                  {String(i + 1).padStart(2, '0')}
+          <p className="b-eyebrow">{t('assess.next.eyebrow')}</p>
+          <h2 className="b-h2" style={{ marginBottom: 28, maxWidth: '24ch' }}>{t('assess.next.title')}</h2>
+          <div className="a-cards">
+            {(['l1', 'l2', 'l3'] as const).map(k => (
+              <div key={k} className="b-card">
+                <div className="a-ico">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {ICONS[k]}
+                  </svg>
                 </div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>{t(`assess.next.${k}.title`)}</h3>
-                <p style={{ fontSize: '13.5px', lineHeight: 1.75, color: 'rgba(255,255,255,0.6)', margin: 0 }}>{t(`assess.next.${k}.body`)}</p>
+                <h3>{t(`assess.next.${k}.title`)}</h3>
+                <p>{t(`assess.next.${k}.body`)}</p>
               </div>
             ))}
           </div>
-          <Link href={localePath('/levels', locale)} style={{ fontSize: '14px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
-            {t('assess.next.levelsLink')}
-          </Link>
+          <Link href={localePath('/levels', locale)} className="b-link">{t('assess.next.levelsLink')}</Link>
         </div>
       </section>
 
       {/* ── FIRST VISIT ── */}
-      <section style={{ ...section, paddingTop: 0 }}>
-        <div style={inner}>
-          <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '16px', padding: '26px 28px' }}>
-            <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>{t('assess.faq.title')}</h3>
-            <p style={{ fontSize: '14px', lineHeight: 1.75, color: 'rgba(255,255,255,0.6)', margin: '0 0 14px', maxWidth: '58ch' }}>{t('assess.faq.body')}</p>
-            <Link href={localePath('/faq', locale)} style={{ fontSize: '14px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
-              {t('assess.faq.cta')}
-            </Link>
+      <section className="b-sec" style={{ paddingTop: 56, paddingBottom: 56 }}>
+        <div className="b-wrap a-first">
+          <div>
+            <h3 style={{ fontSize: 20 }}>{t('assess.faq.title')}</h3>
+            <p className="b-body" style={{ marginTop: 8 }}>{t('assess.faq.body')}</p>
           </div>
+          <Link href={localePath('/faq', locale)} className="b-btn line">{t('assess.faq.cta')}</Link>
         </div>
       </section>
 
       {/* ── CLOSING CTA ── */}
-      <section style={{ ...section, background: NAVY, textAlign: 'center' }}>
-        <div style={{ maxWidth: '620px', margin: '0 auto' }}>
-          <h2 style={{ ...h2, marginBottom: '12px' }}>{t('assess.cta.title')}</h2>
-          <p style={{ ...body, margin: '0 auto 24px', color: 'rgba(255,255,255,0.6)' }}>{t('assess.cta.body', { price })}</p>
-          <BookAssessmentButton label={t('assess.cta.button')} />
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: '26px 0 6px' }}>{t('assess.cta.note')}</p>
-          <Link href={localePath('/plans', locale)} style={{ fontSize: '13px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
-            {t('assess.cta.plans')}
-          </Link>
+      <section className="b-final">
+        <div className="b-wrap">
+          <h2>{t('assess.cta.title')}</h2>
+          <p>{t('assess.cta.body', { price })}</p>
+          <div className="b-ctas"><BookAssessmentButton label={t('assess.cta.button')} /></div>
+          <p className="b-small">
+            {t('assess.cta.note')}{' '}
+            <Link href={localePath('/plans', locale)}>{t('assess.cta.plans')}</Link>
+          </p>
         </div>
       </section>
-    </div>
+    </BrandRoot>
   )
 }
