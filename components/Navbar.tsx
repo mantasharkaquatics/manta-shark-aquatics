@@ -237,8 +237,11 @@ export default function Navbar() {
   const toggle = (which: 'lang' | 'acct' | 'drawer') => setOpen(o => (o === which ? null : which))
 
   const cta = authLoading ? null : isLoggedIn ? (
-    <Link href="/booking" className="rn-cta">
-      <span className="rn-full">{t('quick.book')}</span><span className="rn-short">{t('nav.bookShort')}</span>
+    // Signed in, the button takes a family home: their Dashboard is where
+    // booking starts anyway (its own big Book a Lesson button), and it is the
+    // page they otherwise had to dig for in the account menu.
+    <Link href="/dashboard" className="rn-cta" aria-current={current('/dashboard')}>
+      <span className="rn-full">{t('nav.myPage')}</span><span className="rn-short">{t('nav.myPage')}</span>
     </Link>
   ) : (
     <Link href="/register" className="rn-cta">
