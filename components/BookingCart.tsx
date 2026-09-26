@@ -4,9 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
+import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 
-const GOLD = '#c9a84c'
-const NAVY = '#1a2744'
+// Palette B: a white drawer, amber for the button that commits.
+const NAVY = BRAND.navy
+const AMBER = BRAND.amber
+const GOLD = BRAND.blue
 
 type CartItem = {
   booking_id: string
@@ -151,7 +154,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
         onClick={() => { setDone(false); setOpen(true) }}
         style={{
           position: 'fixed', left: '20px', bottom: '20px', zIndex: 60,
-          background: GOLD, color: NAVY, border: 'none', borderRadius: '999px',
+          background: AMBER, color: NAVY, border: 'none', borderRadius: '999px',
           padding: '14px 20px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
           boxShadow: '0 6px 24px rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', gap: '8px',
         }}
@@ -170,24 +173,24 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
       {open && (
         <div
           onClick={() => setOpen(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.55)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(14,29,59,0.55)' }}
         >
           <div
             onClick={e => e.stopPropagation()}
             style={{
               position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(420px, 100vw)',
-              background: '#111d38', borderLeft: '1px solid rgba(255,255,255,0.1)',
+              background: '#fff', borderLeft: '1px solid #e3ebf6',
               display: 'flex', flexDirection: 'column', padding: '24px', overflowY: 'auto',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#fff', fontFamily: 'Playfair Display, serif' }}>{t('cart.title')}</h2>
-              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '20px', cursor: 'pointer' }}>×</button>
+              <h2 style={{ margin: 0, fontSize: '18px', color: '#16294a', fontFamily: FONT_DISPLAY }}>{t('cart.title')}</h2>
+              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: '#56647d', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
 
             {mins !== null && count > 0 && (
               <div style={{
-                background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)',
+                background: '#eef4fc', border: '1px solid #c9d8ee',
                 borderRadius: '10px', padding: '10px 14px', marginBottom: '16px',
                 fontSize: '13px', color: GOLD, fontWeight: 600,
               }}>
@@ -197,7 +200,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
 
             {done && (
               <div style={{
-                background: 'rgba(80,200,120,0.12)', border: '1px solid rgba(80,200,120,0.4)',
+                background: '#e6f4ee', border: '1px solid #b7e0cc',
                 borderRadius: '10px', padding: '14px', marginBottom: '16px', color: '#7fdca4', fontSize: '14px', fontWeight: 600,
               }}>
                 ✓ {t('cart.booked')}
@@ -206,24 +209,24 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
 
             {error && (
               <div style={{
-                background: 'rgba(220,80,80,0.12)', border: '1px solid rgba(220,80,80,0.4)',
-                borderRadius: '10px', padding: '12px 14px', marginBottom: '16px', color: '#f0a0a0', fontSize: '13px',
+                background: '#fdecea', border: '1px solid #f5c2bd',
+                borderRadius: '10px', padding: '12px 14px', marginBottom: '16px', color: '#c0392b', fontSize: '13px',
               }}>{error}</div>
             )}
 
             {count === 0 && !done && (
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>{t('cart.empty')}</p>
+              <p style={{ color: '#56647d', fontSize: '14px' }}>{t('cart.empty')}</p>
             )}
 
             {cart?.items.map(it => (
               <div key={it.booking_id} style={{
-                background: NAVY, borderRadius: '12px', padding: '14px 16px', marginBottom: '10px',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: '#fff', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px',
+                border: '1px solid #e3ebf6',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <div style={{ color: '#fff', fontSize: '14px', fontWeight: 600 }}>{it.student_name}</div>
-                    <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginTop: '4px' }}>
+                    <div style={{ color: '#16294a', fontSize: '14px', fontWeight: 600 }}>{it.student_name}</div>
+                    <div style={{ color: '#56647d', fontSize: '12px', marginTop: '4px' }}>
                       {it.course_type_id ? tDb(locale, 'course_types', it.course_type_id, it.course_name) : it.course_name} · {t('cart.coach', { name: it.coach_name })}
                     </div>
                     <div style={{ color: GOLD, fontSize: '12px', marginTop: '4px', fontWeight: 600 }}>
@@ -233,7 +236,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                   <button
                     onClick={() => handleRemove(it.booking_id)}
                     disabled={busy}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '16px' }}
+                    style={{ background: 'none', border: 'none', color: '#56647d', cursor: 'pointer', fontSize: '16px' }}
                   >🗑</button>
                 </div>
               </div>
@@ -244,16 +247,16 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                 {/* One total, and the balance it leaves. The cart used to show a
                     line per course type because credits were held per course;
                     with one balance there is one sum to check. */}
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '12px 0', paddingTop: '12px' }}>
+                <div style={{ borderTop: '1px solid #e3ebf6', margin: '12px 0', paddingTop: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.6)' }}>{t('cart.total')}</span>
-                    <span style={{ color: '#fff', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ color: '#56647d' }}>{t('cart.total')}</span>
+                    <span style={{ color: '#16294a', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                       {t('points.unit', { n: cart.quote.total })}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.4)' }}>{t('cart.after')}</span>
-                    <span style={{ color: cart.quote.sufficient ? 'rgba(255,255,255,0.6)' : '#f0a0a0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ color: '#56647d' }}>{t('cart.after')}</span>
+                    <span style={{ color: cart.quote.sufficient ? '#56647d' : '#c0392b', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {t('points.unit', { n: Math.max(0, cart.quote.balance - cart.quote.total) })}
                     </span>
                   </div>
@@ -263,8 +266,8 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                   disabled={busy || !cart.quote.sufficient}
                   style={{
                     padding: '14px', borderRadius: '10px', border: 'none',
-                    background: busy || !cart.quote.sufficient ? 'rgba(255,255,255,0.1)' : GOLD,
-                    color: busy || !cart.quote.sufficient ? 'rgba(255,255,255,0.3)' : NAVY,
+                    background: busy || !cart.quote.sufficient ? '#eef2f8' : AMBER,
+                    color: busy || !cart.quote.sufficient ? '#56647d' : NAVY,
                     fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase',
                     cursor: busy || !cart.quote.sufficient ? 'not-allowed' : 'pointer', marginTop: '4px',
                   }}

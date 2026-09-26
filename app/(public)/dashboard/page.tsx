@@ -17,7 +17,7 @@ import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import SkillTree from './SkillTree'
-import { BRAND, FONT_BODY } from '@/lib/brand'
+import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -547,7 +547,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
             {t('dash.qr.eyebrow')}
           </div>
-          <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '22px', fontWeight: 900, color: '#16294a' }}>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: '22px', fontWeight: 900, color: '#16294a' }}>
             {student.full_name}
           </div>
         </div>
@@ -653,7 +653,7 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
       {w.balanceGranted > 0 && (
         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '4px' }}>{t('points.card.purchasedLabel')}</div>
       )}
-      <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '36px', fontWeight: 900, color: GOLD, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+      <div style={{ fontFamily: FONT_DISPLAY, fontSize: '36px', fontWeight: 900, color: GOLD, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
         {w.balancePurchased.toLocaleString()}
       </div>
       <div style={{ fontSize: '12px', color: '#56647d', marginTop: '4px', marginBottom: '14px' }}>
@@ -670,7 +670,7 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
         <div style={{ background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#1f7a57' }}>{t('points.card.grantedLabel')}</span>
-            <span style={{ fontFamily: 'var(--font-display), serif', fontSize: '22px', fontWeight: 900, color: '#1f7a57', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontFamily: FONT_DISPLAY, fontSize: '22px', fontWeight: 900, color: '#1f7a57', fontVariantNumeric: 'tabular-nums' }}>
               {w.balanceGranted.toLocaleString()}
             </span>
           </div>
@@ -1761,7 +1761,7 @@ export default function DashboardPage() {
         <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>Notice</div>
-            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -1782,7 +1782,7 @@ export default function DashboardPage() {
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : 'dash.cancelModal.eyebrowCancel')}</div>
-            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : 'dash.cancelModal.titleCancel')}</div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : 'dash.cancelModal.titleCancel')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{cancelTarget.date} · {cancelTarget.time}</div>
@@ -1811,7 +1811,7 @@ export default function DashboardPage() {
         <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
-            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{rescheduleTarget.courseTypeId ? tDb(locale, 'course_types', rescheduleTarget.courseTypeId, rescheduleTarget.courseName) : rescheduleTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
@@ -2053,7 +2053,7 @@ export default function DashboardPage() {
         <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resAction.eyebrow')}</div>
-            <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('dash.up.cancel')}</button>
@@ -2187,7 +2187,7 @@ export default function DashboardPage() {
                       <div className="msa-sheet" onClick={e => e.stopPropagation()}
                         style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '18px 20px 24px', width: '100%', maxWidth: '420px', maxHeight: '78vh', overflowY: 'auto' }}>
                         <div style={{ width: '38px', height: '4px', borderRadius: '2px', background: '#eef2f8', margin: '0 auto 14px' }} />
-                        <div style={{ fontFamily: 'var(--font-display), serif', fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</div>
+                        <div style={{ fontFamily: FONT_DISPLAY, fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</div>
                         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '14px' }}>
                           {t(rows.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: rows.length })}
                         </div>
