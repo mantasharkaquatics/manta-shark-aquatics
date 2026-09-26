@@ -243,6 +243,13 @@ export default function BookingPage() {
   // leaves the step complete (a 1-on-2 still waits for its second swimmer,
   // and a family short of points stays to see the warning).
   const advanceRef = useRef(false)
+  /* Bumped on every course (or second-swimmer) click, so the advance effect
+     below re-runs even when the click re-picks what is already selected --
+     which is exactly what happens after 'Back' from the time step, where the
+     course is still set. Without it the page sat on the course step with
+     nothing to press. */
+  const [advanceTick, setAdvanceTick] = useState(0)
+  const requestAdvance = () => { advanceRef.current = true; setAdvanceTick(n => n + 1) }
 
   // ── 1on4 class-based flow (cross-coach, band-matched) ──
   const groupFlow = !isTrial && selectedCourse?.slug === '1on4'
@@ -683,7 +690,7 @@ export default function BookingPage() {
     if (step !== 1 || !advanceRef.current || !courseStepReady) return
     advanceRef.current = false
     setStep(3)
-  }, [step, courseStepReady, selectedCourse, isTrial])
+  }, [step, courseStepReady, selectedCourse, isTrial, advanceTick])
   useEffect(() => { if (step !== 1) advanceRef.current = false }, [step])
 
   // A family with one swimmer has nothing to choose on the first step.
@@ -1363,7 +1370,7 @@ export default function BookingPage() {
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {(trialEligible || trialHasCredit) && !isReschedule && (
-                <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { advanceRef.current = true; setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
+                <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { requestAdvance(); setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <span style={{ fontSize: '28px' }}>⭐</span>
@@ -1381,7 +1388,7 @@ export default function BookingPage() {
                 const listed = listPrice(ct.slug)
                 const full = BASE_POINTS[ct.slug] ?? 0
                 return (
-                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; advanceRef.current = true; setSelectedCourse(ct); setIsTrial(false) }} color={color}>
+                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; requestAdvance(); setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
@@ -1445,7 +1452,7 @@ export default function BookingPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {students.filter(s => s.id !== selectedStudent?.id).map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; advanceRef.current = true; setSelectedStudent2(s) }} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; requestAdvance(); setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4a90c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, color: '#16294a', fontFamily: FONT_DISPLAY, flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
@@ -1458,7 +1465,7 @@ export default function BookingPage() {
                     </SelectCard>
                   ))}
                   {partnerStudents.map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; advanceRef.current = true; setSelectedStudent2(s) }} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; requestAdvance(); setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#7b61c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, color: '#fff', fontFamily: FONT_DISPLAY, flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
