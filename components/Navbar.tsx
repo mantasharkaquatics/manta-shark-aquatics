@@ -40,8 +40,23 @@ const css = `
 
   .rn-space { height: var(--nav-space); background: ${BRAND.navy}; }
   .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; }
-  .rn-bar { height: 66px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(10,22,48,.16);
-    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 12px 0 28px; }
+  /* The bar is three white pieces with the page showing through between them
+     (owner, 2026-09-26): an arrow-shaped cut after the name, as if a swimmer
+     had just split the water, and a straight cut before the buttons, each with
+     an amber line down its middle. The pieces overlap by 8px so the cuts are an
+     even 18px wide; the shadow is a drop-shadow so it follows the cut edges. */
+  .rn-bar { height: 66px; display: flex; align-items: stretch; filter: drop-shadow(0 6px 14px rgba(10,22,48,.18)); }
+  .rn-piece { background: #fff; display: flex; align-items: center; }
+  .rn-lwrap { position: relative; display: flex; z-index: 1; }
+  .rn-p1 { padding: 0 44px 0 28px; border-radius: 10px 0 0 10px;
+    clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 50%, calc(100% - 26px) 100%, 0 100%); }
+  .rn-chev { position: absolute; top: 0; left: calc(100% - 18px); width: 28px; height: 100%; overflow: visible; pointer-events: none; }
+  .rn-p2 { flex: 1; min-width: 0; margin-left: -8px; padding-left: 26px; justify-content: center;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 26px 50%); }
+  .rn-vgap { width: 18px; flex-shrink: 0; position: relative; }
+  .rn-vgap::after { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: ${BRAND.amber}; }
+  .rn-p3 { padding: 0 12px 0 14px; border-radius: 0 10px 10px 0; }
+  .rn-short { display: none; }
   .rn-word { justify-self: start; font-weight: 800; font-size: 16px; letter-spacing: .34em; color: ${BRAND.navy};
     text-decoration: none; white-space: nowrap; padding: 8px 0; }
   .rn-links { display: flex; gap: 6px; }
@@ -77,7 +92,15 @@ const css = `
 
   @media (max-width: 1023px) {
     .rn { top: 8px; left: 8px; right: 8px; }
-    .rn-bar { height: 60px; grid-template-columns: 1fr auto; padding: 0 8px 0 18px; }
+    .rn-bar { height: 60px; }
+    /* No links on a phone, so no middle piece: the arrow cut opens straight
+       onto the buttons, and the straight cut goes. */
+    .rn-p1 { padding: 0 38px 0 18px; }
+    .rn-p2, .rn-vgap { display: none; }
+    .rn-p3 { flex: 1; justify-content: flex-end; margin-left: -8px; padding: 0 8px 0 30px;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 26px 50%); }
+    .rn-full { display: none; }
+    .rn-short { display: inline; }
     .rn-links, .rn-right .rn-pop { display: none; }
     .rn-word { font-size: 13.5px; letter-spacing: .26em; }
     .rn-cta { height: 40px; padding: 0 14px; font-size: 14px; }
@@ -223,10 +246,12 @@ export default function Navbar() {
 
   const cta = authLoading ? null : isLoggedIn ? (
     <Link href="/booking" className="rn-cta">
-      <span className="rn-full">{t('quick.book')}</span>
+      <span className="rn-full">{t('quick.book')}</span><span className="rn-short">{t('nav.bookShort')}</span>
     </Link>
   ) : (
-    <Link href="/register" className="rn-cta">{t('nav.createAccount')}</Link>
+    <Link href="/register" className="rn-cta">
+      <span className="rn-full">{t('nav.createAccount')}</span><span className="rn-short">{t('nav.signUpShort')}</span>
+    </Link>
   )
 
   return (
@@ -236,17 +261,27 @@ export default function Navbar() {
       <nav ref={navRef} className="rn" aria-label="Main">
         {open === 'drawer' && <div className="rn-scrim" onClick={() => setOpen(null)} />}
         <div className="rn-bar">
-          <Link href={localePath('/', locale)} className="rn-word">MANTA SHARK</Link>
-
-          <div className="rn-links">
-            {navLinks.map(link => (
-              <Link key={link.href} href={localePath(link.href, locale)} aria-current={current(link.href)}>
-                {t(link.labelKey)}
-              </Link>
-            ))}
+          <div className="rn-lwrap">
+            <div className="rn-piece rn-p1">
+              <Link href={localePath('/', locale)} className="rn-word">MANTA SHARK</Link>
+            </div>
+            <svg className="rn-chev" viewBox="0 0 28 66" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M1 0 L27 33 L1 66" fill="none" stroke={BRAND.amber} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            </svg>
           </div>
 
-          <div className="rn-right">
+          <div className="rn-piece rn-p2">
+            <div className="rn-links">
+              {navLinks.map(link => (
+                <Link key={link.href} href={localePath(link.href, locale)} aria-current={current(link.href)}>
+                  {t(link.labelKey)}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <span className="rn-vgap" aria-hidden="true" />
+
+          <div className="rn-piece rn-p3 rn-right">
             {cta}
 
             <div className="rn-pop">
