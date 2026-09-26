@@ -40,21 +40,21 @@ const css = `
 
   .rn-space { height: var(--nav-space); background: ${BRAND.navy}; }
   .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; }
-  /* The bar is three white pieces with the page showing through between them
-     (owner, 2026-09-26): an arrow-shaped cut after the name, as if a swimmer
-     had just split the water, and a straight cut before the buttons, each with
-     an amber line down its middle. The pieces overlap by 8px so the cuts are an
-     even 18px wide; the shadow is a drop-shadow so it follows the cut edges. */
-  .rn-bar { height: 66px; display: flex; align-items: stretch; filter: drop-shadow(0 6px 14px rgba(10,22,48,.18)); }
+  /* The bar is split once, just after the name (owner, 2026-09-26): an
+     arrow-shaped cut, as if a swimmer had just split the water, with an amber
+     line down its middle and the page showing through either side of it.
+     --tip is how far the arrow reaches; --ov is how far the next piece tucks
+     back under it, so the cut is (--tip - --ov) wide. The shadow is a
+     drop-shadow so it follows the cut edges. */
+  .rn-bar { --tip: 26px; --ov: 8px; height: 66px; display: flex; align-items: stretch; filter: drop-shadow(0 6px 14px rgba(10,22,48,.18)); }
   .rn-piece { background: #fff; display: flex; align-items: center; }
   .rn-lwrap { position: relative; display: flex; z-index: 1; }
-  .rn-p1 { padding: 0 44px 0 28px; border-radius: 10px 0 0 10px;
-    clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 50%, calc(100% - 26px) 100%, 0 100%); }
-  .rn-chev { position: absolute; top: 0; left: calc(100% - 18px); width: 28px; height: 100%; overflow: visible; pointer-events: none; }
-  .rn-p2 { flex: 1; min-width: 0; margin-left: -8px; padding-left: 26px; justify-content: center;
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 26px 50%); }
-  .rn-vgap { width: 18px; flex-shrink: 0; position: relative; }
-  .rn-vgap::after { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: ${BRAND.amber}; }
+  .rn-p1 { padding: 0 calc(var(--tip) + 18px) 0 28px; border-radius: 10px 0 0 10px;
+    clip-path: polygon(0 0, calc(100% - var(--tip)) 0, 100% 50%, calc(100% - var(--tip)) 100%, 0 100%); }
+  .rn-chev { position: absolute; top: 0; left: calc(100% - (var(--tip) + var(--ov)) / 2 - 1px); width: calc(var(--tip) + 2px);
+    height: 100%; overflow: visible; pointer-events: none; }
+  .rn-p2 { flex: 1; min-width: 0; margin-left: calc(-1 * var(--ov)); padding-left: var(--tip); justify-content: center;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, var(--tip) 50%); }
   .rn-p3 { padding: 0 12px 0 14px; border-radius: 0 10px 10px 0; }
   .rn-short { display: none; }
   .rn-word { justify-self: start; font-weight: 800; font-size: 16px; letter-spacing: .34em; color: ${BRAND.navy};
@@ -92,13 +92,13 @@ const css = `
 
   @media (max-width: 1023px) {
     .rn { top: 8px; left: 8px; right: 8px; }
-    .rn-bar { height: 60px; }
-    /* No links on a phone, so no middle piece: the arrow cut opens straight
-       onto the buttons, and the straight cut goes. */
-    .rn-p1 { padding: 0 38px 0 18px; }
-    .rn-p2, .rn-vgap { display: none; }
-    .rn-p3 { flex: 1; justify-content: flex-end; margin-left: -8px; padding: 0 8px 0 30px;
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 26px 50%); }
+    /* A smaller cut on a phone, and no middle piece: the arrow opens
+       straight onto the buttons. */
+    .rn-bar { height: 60px; --tip: 16px; --ov: 6px; }
+    .rn-p1 { padding: 0 calc(var(--tip) + 10px) 0 18px; }
+    .rn-p2 { display: none; }
+    .rn-p3 { flex: 1; justify-content: flex-end; margin-left: calc(-1 * var(--ov)); padding: 0 8px 0 calc(var(--tip) + 6px);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, var(--tip) 50%); }
     .rn-full { display: none; }
     .rn-short { display: inline; }
     .rn-links, .rn-right .rn-pop { display: none; }
@@ -279,7 +279,6 @@ export default function Navbar() {
               ))}
             </div>
           </div>
-          <span className="rn-vgap" aria-hidden="true" />
 
           <div className="rn-piece rn-p3 rn-right">
             {cta}
