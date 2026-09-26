@@ -40,24 +40,18 @@ const css = `
 
   .rn-space { height: var(--nav-space); background: ${BRAND.navy}; }
   .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; }
-  /* The bar is split once, just after the name (owner, 2026-09-26): an
-     arrow-shaped cut, as if a swimmer had just split the water, with an amber
-     line down its middle and the page showing through either side of it.
-     --tip is how far the arrow reaches; --ov is how far the next piece tucks
-     back under it, so the cut is (--tip - --ov) wide. The shadow is a
-     drop-shadow so it follows the cut edges. */
-  .rn-bar { --tip: 26px; --ov: 8px; height: 66px; display: flex; align-items: stretch; filter: drop-shadow(0 6px 14px rgba(10,22,48,.18)); }
-  .rn-piece { background: #fff; display: flex; align-items: center; }
-  .rn-lwrap { position: relative; display: flex; z-index: 1; }
-  .rn-p1 { padding: 0 calc(var(--tip) + 18px) 0 28px; border-radius: 10px 0 0 10px;
-    clip-path: polygon(0 0, calc(100% - var(--tip)) 0, 100% 50%, calc(100% - var(--tip)) 100%, 0 100%); }
-  .rn-chev { position: absolute; top: 0; left: calc(100% - (var(--tip) + var(--ov)) / 2 - 1px); width: calc(var(--tip) + 2px);
-    height: 100%; overflow: visible; pointer-events: none; }
-  .rn-p2 { flex: 1; min-width: 0; margin-left: calc(-1 * var(--ov)); padding-left: var(--tip); justify-content: center;
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, var(--tip) 50%); }
-  .rn-p3 { padding: 0 12px 0 14px; border-radius: 0 10px 10px 0; }
+  /* One white bar (owner, 2026-09-26, after trying cuts in it): the site's
+     tension lives in the wake at the bottom of each dark page top instead, and
+     the bar carries only the small chevron after the name. */
+  .rn-bar { height: 66px; display: flex; align-items: stretch; background: #fff; border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(10,22,48,.16); }
+  .rn-piece { display: flex; align-items: center; }
+  .rn-p1 { padding: 0 20px 0 28px; }
+  .rn-p2 { flex: 1; min-width: 0; justify-content: center; }
+  .rn-p3 { padding: 0 12px 0 14px; }
+  .rn-mark { width: 9px; height: 12px; margin-left: 10px; flex-shrink: 0; color: ${BRAND.blue}; vertical-align: -1px; }
   .rn-short { display: none; }
-  .rn-word { justify-self: start; font-weight: 800; font-size: 16px; letter-spacing: .34em; color: ${BRAND.navy};
+  .rn-word { justify-self: start; display: inline-flex; align-items: center; font-weight: 800; font-size: 16px; letter-spacing: .34em; color: ${BRAND.navy};
     text-decoration: none; white-space: nowrap; padding: 8px 0; }
   .rn-links { display: flex; gap: 6px; }
   .rn-links a { font-size: 15px; font-weight: 700; color: ${BRAND.ink}; text-decoration: none; padding: 8px 12px;
@@ -92,13 +86,11 @@ const css = `
 
   @media (max-width: 1023px) {
     .rn { top: 8px; left: 8px; right: 8px; }
-    /* A smaller cut on a phone, and no middle piece: the arrow opens
-       straight onto the buttons. */
-    .rn-bar { height: 60px; --tip: 16px; --ov: 6px; }
-    .rn-p1 { padding: 0 calc(var(--tip) + 10px) 0 18px; }
+    .rn-bar { height: 60px; }
+    .rn-p1 { padding: 0 10px 0 18px; }
     .rn-p2 { display: none; }
-    .rn-p3 { flex: 1; justify-content: flex-end; margin-left: calc(-1 * var(--ov)); padding: 0 8px 0 calc(var(--tip) + 6px);
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, var(--tip) 50%); }
+    .rn-p3 { flex: 1; justify-content: flex-end; padding: 0 8px; }
+    .rn-mark { margin-left: 8px; }
     .rn-full { display: none; }
     .rn-short { display: inline; }
     .rn-links, .rn-right .rn-pop { display: none; }
@@ -261,13 +253,13 @@ export default function Navbar() {
       <nav ref={navRef} className="rn" aria-label="Main">
         {open === 'drawer' && <div className="rn-scrim" onClick={() => setOpen(null)} />}
         <div className="rn-bar">
-          <div className="rn-lwrap">
-            <div className="rn-piece rn-p1">
-              <Link href={localePath('/', locale)} className="rn-word">MANTA SHARK</Link>
-            </div>
-            <svg className="rn-chev" viewBox="0 0 28 66" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M1 0 L27 33 L1 66" fill="none" stroke={BRAND.amber} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-            </svg>
+          <div className="rn-piece rn-p1">
+            <Link href={localePath('/', locale)} className="rn-word">
+              MANTA SHARK
+              <svg className="rn-mark" viewBox="0 0 12 14" aria-hidden="true">
+                <path d="M2.5 1.5 L9 7 L2.5 12.5" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
           </div>
 
           <div className="rn-piece rn-p2">

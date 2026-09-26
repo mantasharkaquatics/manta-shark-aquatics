@@ -1,4 +1,9 @@
-import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY } from '@/lib/brand'
+import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY, wakeImage, CHEVRON_MASK } from '@/lib/brand'
+
+// The soft blue light on the right of every dark top. It used to be an ::after
+// layered over the whole hero, which also tinted the pale wake strip at the
+// bottom; as a background layer it sits under the wake instead.
+const HERO_GLOW = `radial-gradient(closest-side, rgba(32,80,160,0.35), transparent) right -10% top -140px / 60% 710px no-repeat`
 
 // The shared look of every parent-facing page (palette B, 2026-09): a dark
 // navy top, light content below, amber for the one action that matters,
@@ -20,8 +25,12 @@ const css = `
 .b-root.zh h1 em, .b-root.zh h2 em { font-style: normal; }
 .b-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 .b-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: ${BRAND.blue}; margin: 0; }
+/* The site's chevron in front of every eyebrow, in the eyebrow's own colour. */
+.b-eyebrow::before, .h-eyebrow::before { content: ''; display: inline-block; width: 8px; height: 10px; margin-right: 8px; vertical-align: -0.5px;
+  background-color: currentColor; -webkit-mask: ${CHEVRON_MASK} center / contain no-repeat; mask: ${CHEVRON_MASK} center / contain no-repeat; }
 
-.b-hero { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; min-height: calc(430px + var(--nav-space, 0px));
+.b-hero { background: ${wakeImage('#fff')} bottom / 100% 130px no-repeat, ${HERO_GLOW}, ${HERO_GRADIENT};
+  color: #fff; position: relative; overflow: hidden; min-height: calc(500px + var(--nav-space, 0px));
   /* Slides up under the floating nav bar (components/Navbar.tsx) so the bar
      floats on the hero rather than on a strip of its own. */
   margin-top: calc(-1 * var(--nav-space, 0px)); }
@@ -36,9 +45,10 @@ const css = `
   width: 860px; height: 860px; top: calc(215px + var(--nav-space, 0px)); left: min(calc(50% - 5px), calc(100% - 787px)); transform: translateY(-50%);
   background: url('/logo.png') center / contain no-repeat;
   filter: brightness(0) invert(1); opacity: 0.022; }
-.b-hero::after { content: ''; position: absolute; right: -10%; top: -140px; width: 60%; height: 710px; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(32,80,160,0.35), transparent); }
-.b-hero .b-wrap { position: relative; z-index: 1; padding-top: calc(64px + var(--nav-space, 0px)); padding-bottom: 64px; }
+/* The wake: the strip is filled with the colour of the next section, so a
+   hero followed by a pale-blue section needs the pale-blue strip. */
+.b-hero:has(+ .b-paper) { background: ${wakeImage(BRAND.paper)} bottom / 100% 130px no-repeat, ${HERO_GLOW}, ${HERO_GRADIENT}; }
+.b-hero .b-wrap { position: relative; z-index: 1; padding-top: calc(64px + var(--nav-space, 0px)); padding-bottom: 134px; }
 .b-hero .b-eyebrow { color: ${BRAND.yellow}; }
 .b-hero h1 { font-size: 48px; line-height: 1.1; font-weight: 900; margin: 14px 0 16px; max-width: 20ch; }
 .b-hero h1 em { color: ${BRAND.yellow}; }
@@ -81,7 +91,8 @@ const css = `
 .b-final .b-small a { color: ${BRAND.yellow}; font-weight: 700; text-decoration: none; }
 
 @media (max-width: 900px) {
-  .b-hero .b-wrap { padding-top: calc(48px + var(--nav-space, 0px)); padding-bottom: 56px; }
+  .b-hero .b-wrap { padding-top: calc(48px + var(--nav-space, 0px)); padding-bottom: 96px; }
+  .b-hero, .b-hero:has(+ .b-paper) { background-size: 100% 70px, 60% 710px, auto; }
   .b-hero h1 { font-size: 34px; }
   .b-hero { min-height: 0; }
   .b-hero::before { width: 480px; height: 480px; top: calc(200px + var(--nav-space, 0px)); left: 50%; transform: translate(-50%, -50%); }

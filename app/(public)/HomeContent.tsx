@@ -7,7 +7,7 @@ import { localePath } from '@/lib/i18n/paths'
 import { createClient } from '@/lib/supabase/client'
 import { BASE_POINTS } from '@/lib/points'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
-import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY } from '@/lib/brand'
+import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY, wakeImage } from '@/lib/brand'
 
 // The home page has one job: tell a new family how to start, in three steps,
 // and let them take the first one. Everything else on it -- the four ways to
@@ -64,15 +64,13 @@ export default function HomeContent() {
            centred in the section, behind both the headline and the steps card. (Owner, 2026-09: replaced the lane lines.) The
            filter turns every opaque pixel of the colour logo white; its
            transparent background stays transparent. */
-        .h-hero { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; margin-top: calc(-1 * var(--nav-space, 0px)); }
+        .h-hero { background: ${wakeImage(BRAND.paper)} bottom / 100% 130px no-repeat, radial-gradient(closest-side, rgba(32,80,160,0.35), transparent) right -10% top -30% / 60% 130% no-repeat, ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; margin-top: calc(-1 * var(--nav-space, 0px)); }
         .h-hero::before { content: ''; position: absolute; pointer-events: none;
           width: 1400px; height: 1400px; left: 50%; top: 50%; transform: translate(-50%, -50%);
           background: url('/logo.png') center / contain no-repeat;
           filter: brightness(0) invert(1); opacity: 0.022; }
-        .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
-          background: radial-gradient(closest-side, rgba(32,80,160,0.35), transparent); }
         .h-hero .h-wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px;
-                          align-items: center; padding-top: calc(80px + var(--nav-space, 0px)); padding-bottom: 88px; }
+                          align-items: center; padding-top: calc(80px + var(--nav-space, 0px)); padding-bottom: 150px; }
         .h-hero h1 { font-size: 54px; line-height: 1.08; font-weight: 900; margin: 14px 0 18px; }
         .h-hero h1 em { color: ${YELLOW}; }
         .h-lead { font-size: 18px; line-height: 1.65; color: rgba(255,255,255,0.82); max-width: 520px; margin: 0 0 30px; }
@@ -149,7 +147,8 @@ export default function HomeContent() {
         .h-final .h-ctas { justify-content: center; }
 
         @media (max-width: 900px) {
-          .h-hero .h-wrap { grid-template-columns: 1fr; padding-top: calc(48px + var(--nav-space, 0px)); padding-bottom: 56px; gap: 36px; }
+          .h-hero { background-size: 100% 70px, 60% 130%, auto; }
+          .h-hero .h-wrap { grid-template-columns: 1fr; padding-top: calc(48px + var(--nav-space, 0px)); padding-bottom: 96px; gap: 36px; }
           .h-hero h1 { font-size: 38px; }
           .h-hero::before { width: 420px; height: 420px; left: 50%; top: 32%; transform: translate(-50%, -50%); }
           .h-progs { grid-template-columns: 1fr 1fr; }
