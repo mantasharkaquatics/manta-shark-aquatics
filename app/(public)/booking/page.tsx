@@ -134,7 +134,7 @@ function DoneRow({ label, value, sub, onChange, changeLabel }: {
         width: '20px', height: '20px', borderRadius: '50%', background: '#e6f4ee', color: '#1f7a57', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900,
       }}>✓</span>
-      <span style={{ fontSize: '13px', color: '#56647d', width: '40px', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: '13px', color: '#56647d', minWidth: '40px', whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</span>
       <span style={{ flex: 1, minWidth: 0, fontSize: '15px', fontWeight: 700, color: '#16294a' }}>
         {value}
         {sub && <span style={{ fontSize: '13px', fontWeight: 500, color: '#56647d', marginLeft: '6px' }}>{sub}</span>}
@@ -1404,6 +1404,7 @@ export default function BookingPage() {
                           the one thing this screen must never do. */}
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{
+                          display: 'inline-block',
                           background: `${color}20`, border: `1px solid ${color}40`,
                           borderRadius: '20px', padding: '4px 12px',
                           fontSize: '13px', fontWeight: 700, color, whiteSpace: 'nowrap',
