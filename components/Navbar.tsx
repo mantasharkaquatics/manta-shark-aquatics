@@ -16,9 +16,8 @@ import { BRAND } from '@/lib/brand'
    It is fixed, so the page scrolls underneath it. Pages that open on a dark hero
    slide that hero up under the bar (BrandStyles pulls .b-hero up by
    --nav-space); every other page gets the navy spacer rendered below, so its
-   content starts where it always did. Scrolling down tucks the bar away and
-   scrolling up brings it back, so on a phone it never sits over what you are
-   reading. Terms & Policies moved into the account menu and the footer: the
+   content starts where it always did. It stays in place while the page
+   scrolls (owner, 2026-09-26: always visible, a little taller). Terms & Policies moved into the account menu and the footer: the
    middle holds only the five pages a new parent is choosing between. */
 
 const navLinks = [
@@ -34,31 +33,28 @@ const LOCALE_SHORT: Record<Locale, string> = { en: 'EN', 'zh-Hant': '繁', 'zh-H
 
 const css = `
   /* --nav-space: the room a page leaves at its top for the bar.
-     --nav-cover: how far down the bar reaches right now -- sticky things on a
-     page (the levels and FAQ side menus, the booking week header) sit below it,
-     and move up when the bar tucks away. */
-  :root { --nav-space: 80px; --nav-cover: 76px; }
-  @media (max-width: 1023px) { :root { --nav-space: 68px; --nav-cover: 70px; } }
-  :root[data-nav-tucked] { --nav-cover: 8px; }
+     --nav-cover: how far down the bar reaches -- sticky things on a page (the
+     levels and FAQ side menus, the booking week header) sit below it. */
+  :root { --nav-space: 90px; --nav-cover: 86px; }
+  @media (max-width: 1023px) { :root { --nav-space: 76px; --nav-cover: 74px; } }
 
   .rn-space { height: var(--nav-space); background: ${BRAND.navy}; }
-  .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; transition: transform .28s ease; }
-  .rn.tuck { transform: translateY(calc(-100% - 48px)); }
-  .rn-bar { height: 56px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(10,22,48,.16);
+  .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; }
+  .rn-bar { height: 66px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(10,22,48,.16);
     display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 12px 0 28px; }
-  .rn-word { justify-self: start; font-weight: 800; font-size: 15px; letter-spacing: .34em; color: ${BRAND.navy};
+  .rn-word { justify-self: start; font-weight: 800; font-size: 16px; letter-spacing: .34em; color: ${BRAND.navy};
     text-decoration: none; white-space: nowrap; padding: 8px 0; }
   .rn-links { display: flex; gap: 6px; }
-  .rn-links a { font-size: 14.5px; font-weight: 700; color: ${BRAND.ink}; text-decoration: none; padding: 8px 12px;
+  .rn-links a { font-size: 15px; font-weight: 700; color: ${BRAND.ink}; text-decoration: none; padding: 8px 12px;
     border-radius: 8px; transition: background .15s, color .15s; }
   .rn-links a:hover { background: #eef3fa; }
   .rn-links a[aria-current="page"] { color: ${BRAND.blue}; box-shadow: inset 0 -2px 0 ${BRAND.blue}; border-radius: 0; }
   .rn-right { justify-self: end; display: flex; align-items: center; gap: 8px; }
-  .rn-cta { display: inline-flex; align-items: center; height: 38px; padding: 0 18px; border-radius: 999px;
+  .rn-cta { display: inline-flex; align-items: center; height: 42px; padding: 0 20px; border-radius: 999px;
     background: ${BRAND.amber}; color: ${BRAND.navy}; font-weight: 800; font-size: 14.5px; text-decoration: none; white-space: nowrap;
     transition: background .15s; }
   .rn-cta:hover { background: ${BRAND.amberHover}; }
-  .rn-ic { width: 40px; height: 40px; border-radius: 50%; border: 0; background: #eef1f6; color: ${BRAND.navy};
+  .rn-ic { width: 42px; height: 42px; border-radius: 50%; border: 0; background: #eef1f6; color: ${BRAND.navy};
     display: grid; place-items: center; font-family: inherit; font-weight: 800; font-size: 14px; line-height: 1; cursor: pointer; transition: background .15s; }
   .rn-ic:hover { background: #e2e8f1; }
   .rn-ic.me { background: ${BRAND.navy}; color: #fff; }
@@ -81,14 +77,15 @@ const css = `
 
   @media (max-width: 1023px) {
     .rn { top: 8px; left: 8px; right: 8px; }
-    .rn-bar { grid-template-columns: 1fr auto; padding: 0 8px 0 18px; }
+    .rn-bar { height: 60px; grid-template-columns: 1fr auto; padding: 0 8px 0 18px; }
     .rn-links, .rn-right .rn-pop { display: none; }
     .rn-word { font-size: 13.5px; letter-spacing: .26em; }
-    .rn-cta { height: 36px; padding: 0 14px; font-size: 14px; }
+    .rn-cta { height: 40px; padding: 0 14px; font-size: 14px; }
+    .rn-ic { width: 40px; height: 40px; }
     .rn-burger { display: grid; }
     .rn-scrim { position: fixed; inset: 0; background: rgba(10,22,48,.45); z-index: -1; }
     .rn-drawer { display: block; margin-top: 8px; background: #fff; border-radius: 12px; box-shadow: 0 16px 40px rgba(10,22,48,.25);
-      padding: 6px 12px; max-height: calc(100dvh - 90px); overflow-y: auto; }
+      padding: 6px 12px; max-height: calc(100dvh - 100px); overflow-y: auto; }
     .rn-drawer a, .rn-drawer button.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
       min-height: 52px; border: 0; border-bottom: 1px solid ${BRAND.line}; background: none; padding: 0 10px; text-align: left;
       font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.3; color: ${BRAND.ink}; text-decoration: none; cursor: pointer; }
@@ -103,7 +100,6 @@ const css = `
   @media (max-width: 380px) {
     .rn-word { letter-spacing: .18em; }
   }
-  @media (prefers-reduced-motion: reduce) { .rn { transition: none; } }
 `
 
 function Chevron() {
@@ -126,7 +122,6 @@ function PersonIcon() {
 
 export default function Navbar() {
   const [open, setOpen] = useState<null | 'lang' | 'acct' | 'drawer'>(null)
-  const [tucked, setTucked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [fullName, setFullName] = useState('')
@@ -187,27 +182,6 @@ export default function Navbar() {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
   }, [open])
 
-  // Tuck the bar away while scrolling down, bring it back on the way up.
-  useEffect(() => {
-    let last = window.scrollY
-    function onScroll() {
-      const y = window.scrollY
-      if (y < 120) setTucked(false)
-      else if (y > last + 6) setTucked(true)
-      else if (y < last - 6) setTucked(false)
-      last = y
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  const hidden = tucked && !open
-  useEffect(() => {
-    const root = document.documentElement
-    if (hidden) root.setAttribute('data-nav-tucked', '')
-    else root.removeAttribute('data-nav-tucked')
-  }, [hidden])
-
   async function changeLocale(next: Locale) {
     setOpen(null)
     setLocale(next)
@@ -259,7 +233,7 @@ export default function Navbar() {
     <>
       <style>{css}</style>
       <div className="rn-space" aria-hidden="true" />
-      <nav ref={navRef} className={`rn${hidden ? ' tuck' : ''}`} aria-label="Main">
+      <nav ref={navRef} className="rn" aria-label="Main">
         {open === 'drawer' && <div className="rn-scrim" onClick={() => setOpen(null)} />}
         <div className="rn-bar">
           <Link href={localePath('/', locale)} className="rn-word">MANTA SHARK</Link>

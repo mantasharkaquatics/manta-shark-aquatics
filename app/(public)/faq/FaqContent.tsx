@@ -35,7 +35,7 @@ const css = `
                padding: 9px 14px; font-size: 14px; font-weight: 700; color: ${BRAND.blue}; text-decoration: none; }
   .f-chips a::after { content: '↓'; font-size: 13px; }
 
-  .f-sec { scroll-margin-top: 96px; }
+  .f-sec { scroll-margin-top: 110px; }
   .f-sec + .f-sec { margin-top: 40px; }
   .f-sec h2 { font-size: 22px; font-weight: 800; color: ${BRAND.navy}; margin-bottom: 14px; }
   .f-list { display: flex; flex-direction: column; gap: 8px; }

@@ -327,7 +327,7 @@ export default function PlansContent() {
         {/* BUY + PRICE LIST, side by side. The list is next to the button on
             purpose: a parent deciding how much to put in needs to see what a
             lesson costs without scrolling away. */}
-        <section id="buy" className="b-sec" style={{ scrollMarginTop: 90, paddingTop: 64 }}>
+        <section id="buy" className="b-sec" style={{ scrollMarginTop: 104, paddingTop: 64 }}>
           <div className="b-wrap">
             <div className="b-head">
               <p className="b-eyebrow">{t('points.buy.eyebrow')}</p>
@@ -365,7 +365,7 @@ export default function PlansContent() {
           off-peak is switched off in lib/points. This band only appears if
           off-peak is switched back on. */}
       {OFF_PEAK_ENABLED && (
-        <section id="discounts" className="b-sec" style={{ scrollMarginTop: 90 }}>
+        <section id="discounts" className="b-sec" style={{ scrollMarginTop: 104 }}>
           <div className="b-wrap">
             <div className="b-head">
               <p className="b-eyebrow">{t('points.disc.eyebrow')}</p>
@@ -390,7 +390,7 @@ export default function PlansContent() {
       )}
 
       {/* SWIM TEAM — the one thing points do not buy */}
-      <section id="team" className="b-sec" style={{ scrollMarginTop: 90 }}>
+      <section id="team" className="b-sec" style={{ scrollMarginTop: 104 }}>
         <div className="b-wrap">
           <div className="p-team">
             <div>

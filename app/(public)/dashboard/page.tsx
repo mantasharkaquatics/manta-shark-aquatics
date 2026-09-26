@@ -2069,7 +2069,7 @@ export default function DashboardPage() {
       )}
 
       {/* UPCOMING LESSONS */}
-        <section ref={upcomingRef} style={{ marginBottom: '36px', scrollMarginTop: '80px' }}>
+        <section ref={upcomingRef} style={{ marginBottom: '36px', scrollMarginTop: '100px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <h2 className="msa-sec-h" style={{ margin: 0 }}>{t('dash.upcomingLessons')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
