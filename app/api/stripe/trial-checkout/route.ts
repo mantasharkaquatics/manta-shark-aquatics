@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { formatTime12h } from '@/lib/date'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -137,9 +138,15 @@ export async function POST(req: NextRequest) {
       sessId = newSess.id
     }
 
+    // How long the slot is held for payment. The same moment goes on the
+    // booking (the dashboard counts down to it) and on the Stripe checkout
+    // (which stops taking payment then), so the two can never disagree.
+    const holdEndsSec = Math.floor(Date.now() / 1000) + 30 * 60
+
     const { data: booking, error: bookErr } = await svc
       .from('bookings')
       .insert({
+        pending_expires_at: new Date(holdEndsSec * 1000).toISOString(),
         class_session_id: sessId,
         parent_id: student.parent_id,
         student_id: studentId,
@@ -159,7 +166,7 @@ export async function POST(req: NextRequest) {
       payment_method_types: ['card', 'us_bank_account'],
       mode: 'payment',
       customer_email: parent?.email,
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      expires_at: holdEndsSec,
       line_items: [{
         price_data: {
           currency: 'usd',
@@ -191,7 +198,7 @@ export async function POST(req: NextRequest) {
           courseName: 'Swim Assessment',
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
-          time,
+          time: formatTime12h(time),
           paymentUrl: checkoutSession.url || '',
           amount: TRIAL_PRICE_CENTS / 100,
         })

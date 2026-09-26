@@ -1146,6 +1146,31 @@ export default function DashboardPage() {
   const [pendingPayBusy, setPendingPayBusy] = useState<string | null>(null)
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
   const [pendingPayMsg, setPendingPayMsg] = useState('')
+  /* A Swim Assessment awaiting payment is checked against Stripe directly --
+     once when the page loads (so a family back from paying sees it confirmed
+     whether or not the webhook has arrived) and again when its hold runs out
+     (so the slot is released on time). */
+  const trialCheckedAt = useRef<Map<string, number>>(new Map())
+  async function syncTrial(id: string) {
+    trialCheckedAt.current.set(id, Date.now())
+    try {
+      const r = await fetch('/api/stripe/trial-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
+      const j = await r.json().catch(() => ({}))
+      if (j.state === 'confirmed' || j.state === 'released') { fetchAll(); return }
+      // Paid by bank transfer and still clearing: nothing to count down to.
+      if (j.state === 'open' && !j.expiresAt) trialCheckedAt.current.set(id, Infinity)
+    } catch { /* the next tick past the hold tries again */ }
+  }
+  useEffect(() => {
+    for (const b of upcomingBookings) {
+      if (b.status !== 'pending_payment') continue
+      const last = trialCheckedAt.current.get(b.id)
+      if (last === undefined) { syncTrial(b.id); continue }
+      const ends = b.pending_expires_at ? new Date(b.pending_expires_at).getTime() : null
+      if (ends != null && now >= ends && last < ends && now - last > 3000) syncTrial(b.id)
+      else if (ends != null && now >= ends && last >= ends && now - last > 15000) syncTrial(b.id)
+    }
+  }, [upcomingBookings, now])
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
@@ -2494,6 +2519,13 @@ export default function DashboardPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
                               ⏱ {t('dash.pend.awaiting')}
+                              {booking.pending_expires_at && (() => {
+                                const ms = new Date(booking.pending_expires_at).getTime() - now
+                                if (ms <= 0) return null
+                                const mins = Math.floor(ms / 60000)
+                                const secs = Math.floor((ms % 60000) / 1000)
+                                return <span style={{ marginLeft: '6px', fontVariantNumeric: 'tabular-nums', color: mins < 5 ? '#c0392b' : undefined }}>· {t('dash.pend.left', { time: `${mins}:${String(secs).padStart(2, '0')}` })}</span>
+                              })()}
                             </div>
                             <button
                               onClick={async () => {

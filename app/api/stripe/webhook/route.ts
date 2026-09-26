@@ -4,10 +4,10 @@ import { creditPurchase, DuplicateLedgerEntry, purchaseAlreadyCredited, purchase
 import { reclaimForArrears } from '@/lib/points-arrears'
 import { captureFee } from '@/lib/stripe-fees'
 import { insertInvoice } from '@/lib/invoices/create'
-import { formatTime12h } from '@/lib/date'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
+import { confirmTrialBooking } from '@/lib/trial-booking'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -33,146 +33,12 @@ export async function POST(req: NextRequest) {
     const meta = session.metadata!
 
     if (meta.type === 'trial_lesson') {
-      const booking_id = meta.booking_id
-      const student_id = meta.student_id
-
-      // Idempotency lock: only the pending_payment -> confirmed transition proceeds.
-      // Webhook retries and already-cancelled bookings fall through harmlessly.
-      const { data: locked, error: bookingErr } = await supabase
-        .from('bookings')
-        .update({ status: 'confirmed' })
-        .eq('id', booking_id)
-        .eq('status', 'pending_payment')
-        .select('id, parent_id, class_session_id')
-
-      if (bookingErr) {
-        console.error('Trial booking confirm error:', bookingErr)
+      try {
+        await confirmTrialBooking(supabase, session)
+      } catch (e: any) {
+        console.error(e?.message || e)
         return NextResponse.json({ error: 'Trial booking confirm failed' }, { status: 500 })
       }
-      if (!locked || locked.length === 0) {
-        return NextResponse.json({ received: true })
-      }
-      const bk = locked[0]
-
-      await supabase
-        .from('students')
-        .update({ trial_used_at: new Date().toISOString() })
-        .eq('id', student_id)
-
-      // Resolve course_type_id (new checkouts carry it in metadata; fallback for older ones)
-      let course_type_id = meta.course_type_id || null
-      if (!course_type_id) {
-        const { data: ct } = await supabase.from('course_types').select('id').eq('slug', '1on1').single()
-        course_type_id = ct?.id || null
-      }
-
-      const amount_cents = session.amount_total ?? 0
-
-      const { data: purchase, error: purchaseErr } = await supabase
-        .from('purchases')
-        .insert({
-          parent_id: bk.parent_id,
-          lesson_package_id: null,
-          amount_cents,
-          status: 'paid',
-          stripe_session_id: session.id,
-          paid_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
-      if (purchaseErr) console.error('Trial purchase insert error:', purchaseErr)
-
-      // The prepaid Swim Assessment. Still a lesson_credits row with is_trial:
-      // the assessment is bought before a family has a wallet, so it never
-      // became points. See _archive/README.md.
-      const expiresAt = new Date()
-      expiresAt.setMonth(expiresAt.getMonth() + 12)
-      const { data: credit, error: creditErr } = await supabase
-        .from('lesson_credits')
-        .insert({
-          student_id,
-          parent_id: bk.parent_id,
-          purchase_id: purchase?.id || null,
-          course_type_id,
-          total_credits: 1,
-          used_credits: 1,
-          is_trial: true,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select()
-        .single()
-      if (creditErr) console.error('Trial credit insert error:', creditErr)
-
-      if (credit) {
-        await supabase.from('bookings').update({ lesson_credit_id: credit.id }).eq('id', booking_id)
-      }
-
-      const { data: invStudent } = await supabase
-        .from('students').select('full_name').eq('id', student_id).single()
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.CRON_SECRET || '' },
-          body: JSON.stringify({
-            parent_id: bk.parent_id,
-            lesson_credit_id: credit?.id || null,
-            amount: amount_cents / 100,
-            payment_method: 'stripe',
-            items: [{ name: `Swim Assessment - ${invStudent?.full_name || ''}`.trim().replace(/ -$/, ''), quantity: 1, unit_price: amount_cents / 100 }],
-            stripe_payment_intent_id: session.payment_intent || null,
-          }),
-        })
-      } catch (e) {
-        console.error('Trial invoice error:', e)
-      }
-
-      // Confirmation email (two-step queries; nested joins are unreliable in production)
-      try {
-        const [{ data: parentRow }, { data: studentRow }, { data: sess }] = await Promise.all([
-          supabase.from('parents').select('first_name, email').eq('id', bk.parent_id).single(),
-          supabase.from('students').select('full_name').eq('id', student_id).single(),
-          supabase.from('class_sessions').select('coach_id, session_date, start_time').eq('id', bk.class_session_id).single(),
-        ])
-        let coachName = ''
-        if (sess?.coach_id) {
-          const { data: coach } = await supabase.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
-          if (coach) coachName = `${coach.first_name} ${coach.last_name}`
-        }
-        // Chat confirmation message (top-up notice: failures only log, never block the webhook)
-        try {
-          const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', bk.parent_id).order('created_at', { ascending: true }).limit(1).maybeSingle()
-          if (th && sess) {
-            const [y, m, d] = String(sess.session_date).split('-')
-            const [hh, mm] = String(sess.start_time).slice(0, 5).split(':').map(Number)
-            const ap = hh >= 12 ? 'PM' : 'AM'
-            const h12 = hh % 12 === 0 ? 12 : hh % 12
-            const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            const body = `Payment received! Your Swim Assessment is confirmed:\n\n- Student: ${studentRow?.full_name || ''}\n- Coach: ${coachName || ''}\n- Date: ${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}\n- Time: ${h12}:${String(mm).padStart(2, '0')} ${ap}\n\nYour receipt and invoice are on your Dashboard. See you at the pool!`
-            const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
-            if (chatErr) console.error('Trial chat confirm error:', chatErr)
-            else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)
-          }
-        } catch (e) {
-          console.error('Trial chat confirm error:', e)
-        }
-
-        if (parentRow?.email && sess) {
-          await sendEmail({
-            type: 'booking_confirmed',
-            to: parentRow.email,
-            parentName: parentRow.first_name || 'there',
-            studentName: studentRow?.full_name || '',
-            courseName: 'Swim Assessment',
-            coachName,
-            date: sess.session_date,
-            time: formatTime12h(String(sess.start_time).slice(0, 5)),
-          })
-        }
-      } catch (e) {
-        console.error('Trial confirmation email error:', e)
-      }
-
-      console.log(`✅ Trial lesson confirmed: booking ${booking_id} for student ${student_id}`)
       return NextResponse.json({ received: true })
     }
 

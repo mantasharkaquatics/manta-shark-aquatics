@@ -484,6 +484,7 @@
   "dash.pend.cancelTitle": "Cancel this Swim Assessment?",
   "dash.pend.cancelling": "Canceling…",
   "dash.pend.keep": "Keep Booking",
+  "dash.pend.left": "{time} left",
   "dash.pend.linkFailed": "Could not open the payment page.",
   "dash.pend.network": "Network error. Please try again.",
   "dash.pend.payNow": "Pay Now →",

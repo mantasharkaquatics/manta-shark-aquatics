@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import Stripe from 'stripe'
+import { syncTrialBooking } from '@/lib/trial-booking'
 
 type ExpiryNotice = {
   to: string
@@ -163,5 +165,32 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ deleted, checked: (expired || []).length, notified })
+  // Swim Assessments whose payment hold has run out. Normally Stripe's
+  // expired webhook (or the family's own dashboard) releases these; this is
+  // the backstop so an unpaid hold never keeps a coach's slot for good.
+  // Held ones stamped before the hold time existed are caught by age.
+  let trialsReleased = 0, trialsConfirmed = 0
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
+    const oldCutoff = new Date(Date.now() - 35 * 60 * 1000).toISOString()
+    const { data: stale } = await supabase
+      .from('bookings')
+      .select('id, status, stripe_session_id, class_session_id, pending_expires_at')
+      .eq('status', 'pending_payment').eq('is_trial', true)
+      .or(`pending_expires_at.lt.${now},and(pending_expires_at.is.null,created_at.lt.${oldCutoff})`)
+      .limit(50)
+    for (const b of stale || []) {
+      try {
+        const r = await syncTrialBooking(supabase, stripe, b as any)
+        if (r.state === 'released') trialsReleased++
+        if (r.state === 'confirmed') trialsConfirmed++
+      } catch (err) {
+        console.error('cleanup-pending-bookings: trial sync failed', (b as any).id, err)
+      }
+    }
+  } catch (err) {
+    console.error('cleanup-pending-bookings: trial sweep failed', err)
+  }
+
+  return NextResponse.json({ deleted, checked: (expired || []).length, notified, trialsReleased, trialsConfirmed })
 }
