@@ -36,7 +36,7 @@ const STAGES = [1, 2, 3] as const
 const css = `
   .l-desk { display: grid; grid-template-columns: 270px 1fr; gap: 24px; align-items: start; }
   .l-nav { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 10px; display: flex; flex-direction: column; gap: 4px;
-           position: sticky; top: 88px; }
+           position: sticky; top: calc(var(--nav-cover, 76px) + 12px); transition: top .28s ease; }
   .l-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 0; background: transparent;
             cursor: pointer; width: 100%; text-align: left; font-family: inherit; color: ${BRAND.ink}; transition: background 0.15s; }
   .l-item:hover { background: ${BRAND.paper}; }

@@ -19,7 +19,7 @@ const EMAIL = 'info@mantasharkaquatics.net'
 // questions. (The search box was taken out at the owner's request, 2026-09-25.)
 const css = `
   .f-grid { display: grid; grid-template-columns: 250px 1fr; gap: 32px; align-items: start; }
-  .f-nav { position: sticky; top: 96px; background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 10px;
+  .f-nav { position: sticky; top: calc(var(--nav-cover, 76px) + 20px); transition: top .28s ease; background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 10px;
            display: flex; flex-direction: column; gap: 4px; }
   .f-nav a { display: flex; align-items: center; gap: 10px; padding: 12px 12px; border-radius: 12px; font-size: 14.5px; font-weight: 700;
              color: ${BRAND.ink}; text-decoration: none; transition: background 0.15s; }

@@ -64,7 +64,7 @@ export default function HomeContent() {
            centred in the section, behind both the headline and the steps card. (Owner, 2026-09: replaced the lane lines.) The
            filter turns every opaque pixel of the colour logo white; its
            transparent background stays transparent. */
-        .h-hero { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; }
+        .h-hero { background: ${HERO_GRADIENT}; color: #fff; position: relative; overflow: hidden; margin-top: calc(-1 * var(--nav-space, 0px)); }
         .h-hero::before { content: ''; position: absolute; pointer-events: none;
           width: 1400px; height: 1400px; left: 50%; top: 50%; transform: translate(-50%, -50%);
           background: url('/logo.png') center / contain no-repeat;
@@ -72,7 +72,7 @@ export default function HomeContent() {
         .h-hero::after { content: ''; position: absolute; right: -10%; top: -30%; width: 60%; height: 160%; pointer-events: none;
           background: radial-gradient(closest-side, rgba(32,80,160,0.35), transparent); }
         .h-hero .h-wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px;
-                          align-items: center; padding-top: 80px; padding-bottom: 88px; }
+                          align-items: center; padding-top: calc(80px + var(--nav-space, 0px)); padding-bottom: 88px; }
         .h-hero h1 { font-size: 54px; line-height: 1.08; font-weight: 900; margin: 14px 0 18px; }
         .h-hero h1 em { color: ${YELLOW}; }
         .h-lead { font-size: 18px; line-height: 1.65; color: rgba(255,255,255,0.82); max-width: 520px; margin: 0 0 30px; }
@@ -149,7 +149,7 @@ export default function HomeContent() {
         .h-final .h-ctas { justify-content: center; }
 
         @media (max-width: 900px) {
-          .h-hero .h-wrap { grid-template-columns: 1fr; padding-top: 48px; padding-bottom: 56px; gap: 36px; }
+          .h-hero .h-wrap { grid-template-columns: 1fr; padding-top: calc(48px + var(--nav-space, 0px)); padding-bottom: 56px; gap: 36px; }
           .h-hero h1 { font-size: 38px; }
           .h-hero::before { width: 420px; height: 420px; left: 50%; top: 32%; transform: translate(-50%, -50%); }
           .h-progs { grid-template-columns: 1fr 1fr; }

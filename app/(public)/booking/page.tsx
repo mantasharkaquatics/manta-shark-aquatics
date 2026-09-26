@@ -1958,7 +1958,7 @@ export default function BookingPage() {
                         {/* Pinned under the site's 64px navbar (top: 0 put it BEHIND the
                             navbar, so it never showed once you scrolled), so the
                             weekdays stay in view all the way down the calendar. */}
-                        <div style={{ position: 'sticky', top: '64px', zIndex: 3, background: DARK, padding: '10px 0 6px', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 10px -6px rgba(0,0,0,0.5)' }}>
+                        <div style={{ position: 'sticky', top: 'var(--nav-cover, 64px)', transition: 'top .28s ease', zIndex: 3, background: DARK, padding: '10px 0 6px', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 6px 10px -6px rgba(0,0,0,0.5)' }}>
                           {/* The page title rides along with the weekdays, like the
                               month name above the weekday letters in a phone's
                               calendar. The dark band reaches into the left margin so
