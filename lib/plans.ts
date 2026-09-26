@@ -13,6 +13,14 @@
 export const TRIAL_PRICE_CENTS = 8500
 
 /**
+ * How long an unpaid Swim Assessment holds its slot. Kept short on purpose: a
+ * held slot is one no other family can book. Stripe will not let a checkout
+ * expire sooner than 30 minutes, so the checkout is closed by us at this mark
+ * (lib/trial-booking.ts) rather than by Stripe.
+ */
+export const TRIAL_HOLD_MINUTES = 15
+
+/**
  * Swim Team is a monthly membership, not a lesson. The real price comes from
  * team_tiers.monthly_price_cents per squad; this is only the label used where a
  * screen has to name the product before a tier is known.

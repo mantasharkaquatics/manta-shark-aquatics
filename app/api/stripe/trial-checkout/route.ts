@@ -2,7 +2,7 @@ import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
-import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { formatTime12h } from '@/lib/date'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
@@ -138,10 +138,11 @@ export async function POST(req: NextRequest) {
       sessId = newSess.id
     }
 
-    // How long the slot is held for payment. The same moment goes on the
-    // booking (the dashboard counts down to it) and on the Stripe checkout
-    // (which stops taking payment then), so the two can never disagree.
-    const holdEndsSec = Math.floor(Date.now() / 1000) + 30 * 60
+    // How long the slot is held for payment. The dashboard counts down to
+    // this, and when it passes the checkout is closed and the slot released
+    // (lib/trial-booking.ts). Stripe's own expiry cannot be under 30 minutes,
+    // so it is only the outer limit, not the hold.
+    const holdEndsSec = Math.floor(Date.now() / 1000) + TRIAL_HOLD_MINUTES * 60
 
     const { data: booking, error: bookErr } = await svc
       .from('bookings')
@@ -166,7 +167,7 @@ export async function POST(req: NextRequest) {
       payment_method_types: ['card', 'us_bank_account'],
       mode: 'payment',
       customer_email: parent?.email,
-      expires_at: holdEndsSec,
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60 + 60,
       line_items: [{
         price_data: {
           currency: 'usd',

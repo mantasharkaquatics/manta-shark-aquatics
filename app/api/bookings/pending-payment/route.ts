@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { requireParent } from '@/lib/api-auth'
+import { syncTrialBooking } from '@/lib/trial-booking'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   const { data: booking } = await svc
     .from('bookings')
-    .select('id, parent_id, status, stripe_session_id, class_session_id')
+    .select('id, parent_id, status, stripe_session_id, class_session_id, pending_expires_at')
     .eq('id', booking_id).single()
   if (!booking || booking.parent_id !== parent.id)
     return NextResponse.json({ error: 'Booking not found' }, { status: 403 })
@@ -33,6 +34,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No payment link is attached to this booking. It will be released automatically if unpaid.' }, { status: 409 })
 
   if (action === 'link') {
+    // Past its hold the slot is on its way back to other families; do not hand
+    // out a checkout that could still be paid (Stripe keeps it open for 30).
+    if (booking.pending_expires_at && Date.now() >= new Date(booking.pending_expires_at).getTime()) {
+      await syncTrialBooking(svc, stripe, booking).catch(() => {})
+      return NextResponse.json({ error: 'The payment link has expired. The slot will be released shortly.' }, { status: 409 })
+    }
     const session = await stripe.checkout.sessions.retrieve(booking.stripe_session_id)
     if (session.status === 'open' && session.url)
       return NextResponse.json({ url: session.url })
