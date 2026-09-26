@@ -4,10 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
-
-const NAVY = '#1a2744'
-const DARK = '#111d38'
-const GOLD = '#c9a84c'
+import { ACCT_CSS } from '@/components/brand/AcctStyles'
 
 type Partnership = {
   id: string
@@ -95,126 +92,111 @@ export default function PartnershipsPage() {
   const studentsForPartner = (partnerParentId: string) =>
     partnerStudents.filter(s => s.parent_id === partnerParentId)
 
+  const closeRevoke = () => { setRevokeConfirm(false); setRevokeId(null) }
+
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#0d1529', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('link.loading')}</div>
+    <div className="ac-root ac-loading">
+      <style>{ACCT_CSS}</style>
+      {t('link.loading')}
     </div>
   )
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d1529', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '680px', margin: '0 auto', padding: 'clamp(32px,5vw,64px) clamp(20px,5vw,40px)' }}>
+    <div className="ac-root">
+      <style>{ACCT_CSS}</style>
+      <div className="ac-wrap">
 
-        {/* Header */}
-        <div style={{ marginBottom: '36px' }}>
-          <Link href="/dashboard" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '20px' }}>← {t('common.backToDashboard')}</Link>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,4vw,32px)', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>{t('link.title')}</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{t('link.subtitle')}</p>
+        <div className="ac-head">
+          <Link href="/dashboard" className="ac-back">← {t('common.backToDashboard')}</Link>
+          <h1 className="ac-h1">{t('link.title')}</h1>
+          <p className="ac-sub">{t('link.subtitle')}</p>
         </div>
 
-        {/* Linked accounts */}
-        {partnerships.length > 0 && (
-          <div style={{ marginBottom: '28px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>{t('link.linkedAccounts')}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {partnerships.map(p => {
-                const partnerParentId = getPartnerParentId(p)
-                const students = studentsForPartner(partnerParentId)
-                return (
-                  <div key={p.id} style={{ background: DARK, border: `1px solid ${GOLD}25`, borderRadius: '14px', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: `${GOLD}15`, border: `1px solid ${GOLD}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>🤝</div>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: GOLD, marginBottom: '3px' }}>{t('link.linkedAccount')}</div>
-                        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                          {students.length > 0 ? t('link.students', { names: students.map(s => s.full_name).join(', ') }) : t('link.noStudents')}
+        <div className="ac-stack">
+          {/* Linked families */}
+          {partnerships.length > 0 ? (
+            <section className="ac-card">
+              <p className="ac-label">{t('link.linkedAccounts')}</p>
+              <div className="ac-stack" style={{ gap: 10, marginTop: 12 }}>
+                {partnerships.map(p => {
+                  const students = studentsForPartner(getPartnerParentId(p))
+                  return (
+                    <div key={p.id} className="ac-item ac-item-actions">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div className="ac-icon" aria-hidden="true">🤝</div>
+                        <div>
+                          <b>{t('link.linkedAccount')}</b>
+                          <small>{students.length > 0 ? t('link.students', { names: students.map(s => s.full_name).join(', ') }) : t('link.noStudents')}</small>
                         </div>
                       </div>
+                      <button type="button" className="ac-btn danger" onClick={() => { setRevokeId(p.id); setRevokeConfirm(true) }}>
+                        {t('link.unlink')}
+                      </button>
                     </div>
-                    <button onClick={() => { setRevokeId(p.id); setRevokeConfirm(true) }}
-                      style={{ color: '#f87171', fontSize: '12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}>{t('link.unlink')}</button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+                  )
+                })}
+              </div>
+            </section>
+          ) : (
+            <section className="ac-card ac-empty">
+              <div className="ac-icon" style={{ margin: '0 auto' }} aria-hidden="true">🤝</div>
+              <b>{t('link.emptyTitle')}</b>
+              <small className="ac-sub" style={{ fontSize: 14 }}>{t('link.emptyDesc')}</small>
+            </section>
+          )}
 
-        {partnerships.length === 0 && (
-          <div style={{ background: DARK, border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '14px', padding: '32px', textAlign: 'center', marginBottom: '28px' }}>
-            <div style={{ fontSize: '32px', marginBottom: '12px' }}>🤝</div>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>{t('link.emptyTitle')}</div>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)' }}>{t('link.emptyDesc')}</div>
-          </div>
-        )}
-
-        {/* Invite code section */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* My invite code */}
-          <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>{t('link.myCode')}</div>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px' }}>{t('link.myCodeDesc')}</div>
+          <section className="ac-card">
+            <p className="ac-label">{t('link.myCode')}</p>
+            <p className="ac-desc">{t('link.myCodeDesc')}</p>
             {myInviteCode ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ flex: 1, background: `${GOLD}10`, border: `1px solid ${GOLD}35`, borderRadius: '10px', padding: '12px 16px', color: GOLD, fontWeight: 700, fontSize: '18px', letterSpacing: '0.2em', textAlign: 'center' }}>
-                  {myInviteCode}
-                </div>
-                <button onClick={() => { navigator.clipboard.writeText(myInviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-                  style={{ background: copied ? '#4caf72' : GOLD, color: NAVY, border: 'none', borderRadius: '10px', padding: '12px 20px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', flexShrink: 0 }}>
+              <div className="ac-row ac-codeRow" style={{ gap: 10 }}>
+                <div className="ac-code">{myInviteCode}</div>
+                <button type="button" className={'ac-btn ' + (copied ? 'ok' : 'gold')}
+                  onClick={() => { navigator.clipboard.writeText(myInviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000) }}>
                   {copied ? '✓ ' + t('link.copied') : t('link.copy')}
                 </button>
               </div>
             ) : (
-              <button onClick={getMyCode}
-                style={{ width: '100%', background: GOLD, color: NAVY, border: 'none', borderRadius: '10px', padding: '12px', fontWeight: 700, fontSize: '14px', cursor: 'pointer' }}>{t('link.generateCode')}</button>
+              <button type="button" className="ac-btn gold block" onClick={getMyCode}>{t('link.generateCode')}</button>
             )}
-          </div>
+          </section>
 
-          {/* Enter invite code */}
-          <div style={{ background: DARK, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>{t('link.enterCode')}</div>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', marginBottom: '16px' }}>{t('link.enterCodeDesc')}</div>
+          {/* Enter a code */}
+          <section className="ac-card">
+            <p className="ac-label">{t('link.enterCode')}</p>
+            <p className="ac-desc">{t('link.enterCodeDesc')}</p>
             {joinSuccess ? (
-              <div style={{ color: '#4caf72', fontWeight: 600, fontSize: '14px' }}>✓ {t('link.linked')}</div>
+              <div className="ac-okmsg">✓ {t('link.linked')}</div>
             ) : (
               <>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    autoComplete="new-password"
-                    type="text"
-                    placeholder="MSA-XXXXXX"
-                    value={inputCode}
-                    onChange={e => setInputCode(e.target.value.toUpperCase())}
-                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', padding: '12px 14px', color: '#fff', fontSize: '15px', outline: 'none', letterSpacing: '0.1em' }}
-                  />
-                  <button onClick={handleJoin} disabled={!inputCode.trim()}
-                    style={{ background: inputCode.trim() ? GOLD : 'rgba(255,255,255,0.08)', color: inputCode.trim() ? NAVY : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '10px', padding: '12px 20px', fontWeight: 700, fontSize: '14px', cursor: inputCode.trim() ? 'pointer' : 'not-allowed', flexShrink: 0 }}>{t('link.linkBtn')}</button>
+                <div className="ac-row ac-joinRow" style={{ gap: 10 }}>
+                  <input className="ac-input" autoComplete="new-password" type="text" placeholder="MSA-XXXXXX"
+                    aria-label={t('link.enterCode')} value={inputCode}
+                    onChange={e => setInputCode(e.target.value.toUpperCase())} style={{ letterSpacing: '0.1em', flex: 1 }} />
+                  <button type="button" className="ac-btn gold" onClick={handleJoin} disabled={!inputCode.trim()}>{t('link.linkBtn')}</button>
                 </div>
-                {joinError && <div style={{ fontSize: '12px', color: '#f87171', marginTop: '10px', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: '8px' }}>{joinError}</div>}
+                {joinError && <div className="ac-err">{joinError}</div>}
               </>
             )}
-          </div>
+          </section>
         </div>
       </div>
 
-      {/* Unlink confirmation modal */}
+      {/* Unlink confirmation */}
       {revokeConfirm && (
-        <div onClick={() => { setRevokeConfirm(false); setRevokeId(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: DARK, borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#f87171', marginBottom: '8px' }}>{t('link.unlinkEyebrow')}</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>{t('link.unlinkTitle')}</div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '24px' }}>{t('link.unlinkDesc')}</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => { setRevokeConfirm(false); setRevokeId(null) }}
-                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
-              <button onClick={handleRevoke}
-                style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#f87171', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('link.confirmUnlink')}</button>
+        <div className="ac-back-drop" onClick={closeRevoke}>
+          <div className="ac-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <div className="eyebrow">{t('link.unlinkEyebrow')}</div>
+            <h2>{t('link.unlinkTitle')}</h2>
+            <p>{t('link.unlinkDesc')}</p>
+            <div className="ac-pair">
+              <button type="button" className="ac-btn line" onClick={closeRevoke}>{t('common.cancel')}</button>
+              <button type="button" className="ac-btn dangerFill" onClick={handleRevoke}>{t('link.confirmUnlink')}</button>
             </div>
           </div>
         </div>
       )}
-
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
     </div>
   )
 }

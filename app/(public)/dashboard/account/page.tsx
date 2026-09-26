@@ -3,12 +3,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
-
-const NAVY = '#1a2744'
-const DARK = '#111d38'
-const GOLD = '#c9a84c'
+import { ACCT_CSS } from '@/components/brand/AcctStyles'
 
 interface Parent {
   id: string; first_name: string; last_name: string; email: string; phone: string
@@ -16,8 +13,11 @@ interface Parent {
 }
 interface Student { id: string; full_name: string; date_of_birth: string | null; added_by_parent?: boolean }
 
+const INTL_LOCALE: Record<string, string> = { en: 'en-US', 'zh-Hant': 'zh-TW', 'zh-Hans': 'zh-CN' }
+
 export default function AccountPage() {
   const t = useT()
+  const locale = useLocale()
   const supabase = createClient()
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
@@ -89,175 +89,133 @@ export default function AccountPage() {
     await fetchAll()
   }
 
+  /* In the parent's language. A birthday is a date with no time, so it is
+     read as UTC and printed as UTC -- read as local time, "2016-05-03" came
+     out as May 2 in California. */
+  const fmt = (d: string, dateOnly = false) =>
+    new Date(d).toLocaleDateString(INTL_LOCALE[locale] || 'en-US', { year: 'numeric', month: 'long', day: 'numeric', ...(dateOnly ? { timeZone: 'UTC' } : {}) })
+
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#0d1529', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>{t('account.loading')}</div>
+    <div className="ac-root ac-loading">
+      <style>{ACCT_CSS}</style>
+      {t('account.loading')}
     </div>
   )
 
-  return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d1529', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '680px', margin: '0 auto', padding: 'clamp(32px,5vw,64px) clamp(20px,5vw,40px)' }}>
+  const full = students.length >= MAX_STUDENTS
 
-        <div style={{ marginBottom: '36px' }}>
-          <Link href="/dashboard" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '20px' }}>
-            ← {t('common.backToDashboard')}
-          </Link>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(24px,4vw,32px)', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>{t('account.title')}</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>{t('account.subtitle')}</p>
+  return (
+    <div className="ac-root">
+      <style>{ACCT_CSS}</style>
+      <div className="ac-wrap">
+
+        <div className="ac-head">
+          <Link href="/dashboard" className="ac-back">← {t('common.backToDashboard')}</Link>
+          <h1 className="ac-h1">{t('account.title')}</h1>
+          <p className="ac-sub">{t('account.subtitle')}</p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="ac-stack">
 
-          {/* Profile section */}
-          <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>{t('account.profile')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+          {/* Profile */}
+          <section className="ac-card">
+            <p className="ac-label">{t('account.profile')}</p>
+            <div className="ac-grid">
               {[
                 { label: t('account.name'), value: `${parent?.first_name} ${parent?.last_name}` },
                 { label: t('account.email'), value: parent?.email },
                 { label: t('account.phone'), value: parent?.phone || '—' },
-                { label: t('account.memberSince'), value: parent?.registered_at ? new Date(parent.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
+                { label: t('account.memberSince'), value: parent?.registered_at ? fmt(parent.registered_at) : '—' },
               ].map(item => (
                 <div key={item.label}>
-                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase' }}>{item.label}</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{item.value}</div>
+                  <div className="ac-k">{item.label}</div>
+                  <div className="ac-v">{item.value}</div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
-          {/* Newsletter section */}
-          <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* Newsletter */}
+          <section className="ac-card ac-row">
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>{t('account.newsletter')}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{t('account.newsletterDesc')}</div>
+              <b>{t('account.newsletter')}</b>
+              <small>{t('account.newsletterDesc')}</small>
             </div>
-            <button
-              onClick={toggleNewsletter}
-              disabled={newsletterSaving}
-              className="tap-auto"
-              style={{
-                width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
-                background: parent?.newsletter_subscribed ? '#4caf72' : 'rgba(255,255,255,0.15)',
-                position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-              }}
-            >
-              <span style={{
-                position: 'absolute', top: '3px',
-                left: parent?.newsletter_subscribed ? '23px' : '3px',
-                width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
-                transition: 'left 0.2s',
-              }} />
+            <button type="button" role="switch" aria-checked={!!parent?.newsletter_subscribed} aria-label={t('account.newsletter')}
+              onClick={toggleNewsletter} disabled={newsletterSaving} className="tap-auto ac-toggle">
+              <span />
             </button>
-          </div>
+          </section>
 
-          {/* Students (read-only, add-only) */}
-          <div style={{ background: DARK, borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '12px' }}>{t('account.students')}</div>
+          {/* Swimmers (read-only, add-only) */}
+          <section className="ac-card">
+            <p className="ac-label">{t('account.students')}</p>
             {students.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
+              <div className="ac-stack" style={{ gap: 10, marginTop: 12 }}>
                 {students.map(s => (
-                  <div key={s.id} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div key={s.id} className="ac-item">
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>{s.full_name}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : t('account.noBirthday')}
-                      </div>
-                      {s.added_by_parent && (
-                        <div style={{ fontSize: '11px', color: GOLD, marginTop: '2px' }}>{t('account.addedByYou')}</div>
-                      )}
+                      <b>{s.full_name}</b>
+                      <small>{s.date_of_birth ? fmt(s.date_of_birth, true) : t('account.noBirthday')}</small>
+                      {s.added_by_parent && <div className="ac-tag">{t('account.addedByYou')}</div>}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>{t('account.readOnly')}</div>
+                    <span className="ac-muted">{t('account.readOnly')}</span>
                   </div>
                 ))}
               </div>
             )}
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginBottom: '14px' }}>{t('account.contactSchool')}</div>
+            <p className="ac-note">{t('account.contactSchool')}</p>
 
-            {!showAddForm || students.length >= MAX_STUDENTS ? (
-              <button
-                onClick={() => setShowAddForm(true)}
-                disabled={students.length >= MAX_STUDENTS}
-                style={{ width: '100%', padding: '10px', borderRadius: '10px', border: `1px solid ${GOLD}`, background: 'transparent', color: GOLD, fontSize: '13px', fontWeight: 700, cursor: students.length >= MAX_STUDENTS ? 'not-allowed' : 'pointer', opacity: students.length >= MAX_STUDENTS ? 0.35 : 1 }}
-              >
+            {!showAddForm || full ? (
+              <button type="button" className="ac-add" onClick={() => setShowAddForm(true)} disabled={full}>
                 + {t('account.addSwimmer')}
               </button>
             ) : (
-              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '14px' }}>
-                <div style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '4px' }}>{t('register.fullName')}</label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    placeholder={t('account.namePlaceholder')}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '13px', outline: 'none' }}
-                  />
+              <div className="ac-item" style={{ display: 'block' }}>
+                <div style={{ marginBottom: 12 }}>
+                  <label className="ac-flabel" htmlFor="ac-name">{t('register.fullName')}</label>
+                  <input id="ac-name" className="ac-input" type="text" value={newName}
+                    onChange={e => setNewName(e.target.value)} placeholder={t('account.namePlaceholder')} />
                 </div>
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '4px' }}>{t('account.dob')}</label>
-                  <input
-                    type="date"
-                    value={newDob}
+                <div style={{ marginBottom: 14 }}>
+                  <label className="ac-flabel" htmlFor="ac-dob">{t('account.dob')}</label>
+                  <input id="ac-dob" className="ac-input" type="date" value={newDob}
                     max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
-                    onChange={e => setNewDob(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '13px', outline: 'none', colorScheme: 'dark' }}
-                  />
+                    onChange={e => setNewDob(e.target.value)} />
                 </div>
-                {addError && <div style={{ fontSize: '12px', color: '#e05a4a', marginBottom: '10px' }}>{addError}</div>}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setAddError(null) }}
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-                  >
+                {addError && <div className="ac-err" style={{ marginTop: 0, marginBottom: 12 }}>{addError}</div>}
+                <div className="ac-pair">
+                  <button type="button" className="ac-btn line"
+                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setAddError(null) }}>
                     {t('common.cancel')}
                   </button>
-                  <button
-                    onClick={() => setConfirmingAdd(true)}
-                    disabled={!newName.trim()}
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: newName.trim() ? 'pointer' : 'not-allowed', opacity: newName.trim() ? 1 : 0.5 }}
-                  >
+                  <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim()}>
                     {t('account.submit')}
                   </button>
                 </div>
               </div>
             )}
-          </div>
+          </section>
 
         </div>
       </div>
 
       {confirmingAdd && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '20px' }}
-          onClick={() => !adding && setConfirmingAdd(false)}>
-          <div style={{ background: NAVY, borderRadius: '16px', width: '100%', maxWidth: '380px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}
-            onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>{t('account.confirmTitle')}</h2>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: '0 0 20px', lineHeight: 1.5 }}>
-              {t('account.confirmA')}<strong style={{ color: '#fff' }}>{newName}</strong>{t('account.confirmB')}
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => setConfirmingAdd(false)}
-                disabled={adding}
-                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
+        <div className="ac-back-drop" onClick={() => !adding && setConfirmingAdd(false)}>
+          <div className="ac-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <h2>{t('account.confirmTitle')}</h2>
+            <p>{t('account.confirmA')}<strong>{newName}</strong>{t('account.confirmB')}</p>
+            <div className="ac-pair">
+              <button type="button" className="ac-btn line" onClick={() => setConfirmingAdd(false)} disabled={adding}>
                 {t('common.cancel')}
               </button>
-              <button
-                onClick={submitAddStudent}
-                disabled={adding}
-                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: GOLD, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
-              >
+              <button type="button" className="ac-btn gold" onClick={submitAddStudent} disabled={adding}>
                 {adding ? t('account.adding') : t('account.confirm')}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
     </div>
   )
 }
