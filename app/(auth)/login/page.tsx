@@ -10,7 +10,7 @@ import PasswordField from '@/components/ui/PasswordField'
 
 // There is no Navbar over the (auth) pages, so this card is the whole of the
 // brand a parent sees while signing in -- hence the logo. Palette B (2026-09):
-// the page is the site's dark top (navy gradient, faint logo, see .auth-bg in
+// the page is the site's dark top (navy gradient, see .auth-bg in
 // globals.css) and the form is a white card on it, amber for the one button.
 export default function LoginPage() {
   const t = useT()
