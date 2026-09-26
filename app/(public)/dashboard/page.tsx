@@ -88,11 +88,18 @@ const MOBILE_CSS = `
 .msa-mcard-bar i { display: block; height: 100%; background: #f7b733; border-radius: 3px; transition: width .3s ease }
 .msa-mcard-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 11.5px; color: rgba(255,255,255,0.7) }
 .msa-mcard-meta b { color: #f7b733 }
-.msa-mcard-btns { display: flex; gap: 8px; margin-top: auto; padding-top: 14px }
+.msa-mcard-btns { display: flex; gap: 8px; margin-top: 14px }
 .msa-mcard-btns button { flex: 1; border: 0; border-radius: 10px; padding: 10px 6px; background: rgba(255,255,255,0.12);
   color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: background .15s }
 .msa-mcard-btns button:hover { background: rgba(255,255,255,0.2) }
-.msa-mcard-qr:focus-visible, .msa-mcard-btns button:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
+.msa-mcard-here { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px;
+  border: 0; border-radius: 12px; padding: 12px; background: #f09800; color: #12254a; font-family: inherit;
+  font-size: 14px; font-weight: 900; cursor: pointer; transition: background .15s }
+.msa-mcard-here:hover:not(:disabled) { background: #d98900 }
+.msa-mcard-here:disabled { opacity: .75; cursor: progress }
+.msa-mcard-here.done { background: rgba(46,157,106,0.22); color: #bff0d6; cursor: default; font-weight: 800 }
+.msa-mcard-heremsg { margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: #ffd9a0 }
+.msa-mcard-here:focus-visible, .msa-mcard-qr:focus-visible, .msa-mcard-btns button:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
 .msa-sec-h { font-size: 16px; font-weight: 900; color: #12254a; margin: 0 0 14px }
 .msa-rail-students { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
@@ -1013,6 +1020,61 @@ export default function DashboardPage() {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
+
+  /* "I'm here": a one-tap check-in from the pool. The server says which
+     swimmers have a lesson open for check-in right now (30 minutes before
+     until it ends); the button only appears on those cards. Looked up again
+     every minute and whenever the page comes back to the front, because a
+     parent opens this page in the car park, not at home. */
+  type HereState = { open: boolean; lessonTime: string | null; checkedInTime: string | null }
+  const [here, setHere] = useState<Record<string, HereState>>({})
+  const [hereBusy, setHereBusy] = useState<string | null>(null)
+  const [hereMsg, setHereMsg] = useState<{ id: string; text: string } | null>(null)
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      try {
+        const r = await fetch('/api/checkin/self')
+        if (!r.ok) return
+        const j = await r.json()
+        if (alive) setHere(j.enabled ? j.students || {} : {})
+      } catch {}
+    }
+    load()
+    const iv = setInterval(load, 60000)
+    const onVis = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { alive = false; clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
+  }, [])
+
+  function checkInHere(student: Student) {
+    setHereMsg(null)
+    if (!('geolocation' in navigator)) { setHereMsg({ id: student.id, text: t('dash.here.denied') }); return }
+    setHereBusy(student.id)
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try {
+        const r = await fetch('/api/checkin/self', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: student.id, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        })
+        const j = await r.json().catch(() => ({}))
+        if (r.ok && j.success) {
+          setHere(h => ({ ...h, [student.id]: { open: false, lessonTime: null, checkedInTime: (j.lesson_times || [])[0] || '' } }))
+        } else {
+          const key = j.code === 'too_far' ? 'dash.here.tooFar' : j.code === 'weak_gps' ? 'dash.here.weak'
+            : j.code === 'not_open' || j.code === 'no_lesson_today' ? 'dash.here.closed' : 'dash.here.error'
+          setHereMsg({ id: student.id, text: t(key) })
+        }
+      } catch {
+        setHereMsg({ id: student.id, text: t('dash.here.error') })
+      } finally {
+        setHereBusy(null)
+      }
+    }, err => {
+      setHereBusy(null)
+      setHereMsg({ id: student.id, text: t(err.code === 1 ? 'dash.here.denied' : 'dash.here.weak') })
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 })
+  }
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
   // Which stage a family has opened on a student's card, keyed by student id.
   const [recordsFor, setRecordsFor] = useState<Student | null>(null)
@@ -1853,6 +1915,16 @@ export default function DashboardPage() {
                       </>
                     )
                   })()}
+
+                  {here[student.id]?.checkedInTime ? (
+                    <div className="msa-mcard-here done" role="status">✓ {t('dash.here.done', { time: here[student.id].checkedInTime || '' })}</div>
+                  ) : here[student.id]?.open ? (
+                    <button className="tap-auto msa-mcard-here" disabled={hereBusy === student.id} onClick={() => checkInHere(student)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                      {hereBusy === student.id ? t('dash.here.locating') : t('dash.here.button', { name: student.full_name })}
+                    </button>
+                  ) : null}
+                  {hereMsg?.id === student.id && <div className="msa-mcard-heremsg" role="alert">{hereMsg.text}</div>}
                 </div>
               )
             })}
