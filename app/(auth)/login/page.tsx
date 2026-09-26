@@ -67,7 +67,10 @@ export default function LoginPage() {
               placeholder="you@example.com" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#16294a] mb-1.5">{t('login.password')}</label>
+            <div className="flex items-baseline justify-between gap-3 mb-1.5">
+              <label className="block text-sm font-medium text-[#16294a]">{t('login.password')}</label>
+              <Link href="/forgot-password" className="text-sm text-[#2050a0] hover:underline font-semibold">{t('login.forgot')}</Link>
+            </div>
             <PasswordField value={password} onChange={setPassword} onEnter={handleLogin}
               autoComplete="current-password" className={field} placeholder="••••••••" />
           </div>

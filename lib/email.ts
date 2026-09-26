@@ -25,6 +25,7 @@ export type EmailType =
   | 'applicant_verification_code'
   | 'applicant_application_received'
   | 'applicant_password_reset'
+  | 'parent_password_reset'
   | 'payment_reversed'
   | 'refund_issued'
   | 'referral_reward'
@@ -79,6 +80,10 @@ export interface EmailPayload {
   referralRole?: 'referrer' | 'referred'
   otherFamily?: string
   expiresOn?: string
+  // parent_password_reset: the link to /reset-password, and the family's
+  // language (en / zh-Hant / zh-Hans) -- this one email is written in all three.
+  resetUrl?: string
+  lang?: string
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -100,6 +105,22 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'applicant_verification_code') {
     subject = `Your Manta Shark Aquatics application code`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verify your email</h2><p>Hi ${applicantName},</p><p>Thanks for starting an application with us. Enter this code to verify your email address and continue:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${code}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not start an application, you can ignore this email.</p></div></div>`
+
+  } else if (type === 'parent_password_reset') {
+    const L = payload.lang === 'zh-Hant' ? 'zh-Hant' : payload.lang === 'zh-Hans' ? 'zh-Hans' : 'en'
+    const c = {
+      en: { subject: 'Reset your Manta Shark Aquatics password', title: 'Reset your password', hi: `Hi ${parentName || 'there'},`,
+            body: 'We received a request to reset the password for your account. Tap the button below to choose a new one.',
+            btn: 'Reset password', note: 'This link works once and expires in 1 hour. If you did not ask to reset your password, you can ignore this email and your password will stay the same.' },
+      'zh-Hant': { subject: '重設您的 Manta Shark Aquatics 密碼', title: '重設密碼', hi: `${parentName || ''} 您好：`,
+            body: '我們收到重設您帳號密碼的要求。請點下方按鈕設定新密碼。',
+            btn: '重設密碼', note: '這個連結只能使用一次，1 小時後失效。如果不是您本人提出的要求，請忽略這封信，您的密碼不會改變。' },
+      'zh-Hans': { subject: '重设您的 Manta Shark Aquatics 密码', title: '重设密码', hi: `${parentName || ''} 您好：`,
+            body: '我们收到重设您账号密码的请求。请点下方按钮设置新密码。',
+            btn: '重设密码', note: '这个链接只能使用一次，1 小时后失效。如果不是您本人提出的请求，请忽略这封邮件，您的密码不会改变。' },
+    }[L]
+    subject = c.subject
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${c.title}</h2><p style="color: #16294a;">${c.hi}</p><p style="color: #16294a; line-height: 1.6;">${c.body}</p><div style="text-align:center; margin: 28px 0;"><a href="${payload.resetUrl}" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${c.btn}</a></div><p style="color:#56647d; font-size: 13px; line-height: 1.6;">${c.note}</p></div></div>`
 
   } else if (type === 'applicant_password_reset') {
     subject = `Reset your Manta Shark Aquatics password`
