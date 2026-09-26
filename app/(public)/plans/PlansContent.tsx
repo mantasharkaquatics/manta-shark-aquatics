@@ -8,7 +8,7 @@ import { tDb } from '@/lib/i18n'
 import { tierBandLabel } from '@/lib/team-tiers'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
-  ASSESSMENT_POINTS, BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
+  BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
   TOPUP_COURSES, TOPUP_LESSON_COUNTS, topUpAmount, type TopUpCourse,
   OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED,
 } from '@/lib/points'
@@ -284,8 +284,9 @@ export default function PlansContent() {
     }
   }, [])
 
+  // The assessment is not in here: it is paid by card, never with points, so
+  // it gets its own row below with a dollar price instead of a points one.
   const lessonRows = [
-    { key: 'assessment', points: ASSESSMENT_POINTS },
     { key: '1on1', points: BASE_POINTS['1on1'] },
     { key: '1on2', points: BASE_POINTS['1on2'] },
     { key: '1on4', points: BASE_POINTS['1on4'] },
@@ -341,6 +342,13 @@ export default function PlansContent() {
               <div className="p-card p-price">
                 <p className="b-eyebrow">{t('points.price.eyebrow')}</p>
                 <p className="p-label" style={{ marginTop: 6, marginBottom: 10, fontWeight: 400 }}>{t('points.price.perStudent')}</p>
+                <div className="p-row">
+                  <span>{t('points.price.row.assessment')}</span>
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    <strong>{money(TRIAL_PRICE_CENTS / 100)}</strong>
+                    <small>{t('points.price.assessNote')}</small>
+                  </span>
+                </div>
                 {lessonRows.map(row => (
                   <div key={row.key} className="p-row">
                     <span>{t('points.price.row.' + row.key)}</span>
