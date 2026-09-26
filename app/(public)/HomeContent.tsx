@@ -160,7 +160,11 @@ export default function HomeContent() {
         }
         @media (max-width: 520px) {
           .h-progs { grid-template-columns: 1fr; }
-          .h-ctas .h-btn { flex: 1; }
+          /* Grow to fill the row, but start from the label's own width: two
+             buttons share a row only when both labels fit on one line, and
+             otherwise each takes a full row of its own instead of squeezing
+             "Book a Swim Assessment" into three lines. */
+          .h-ctas .h-btn { flex: 1 1 auto; }
         }
       `}</style>
 

@@ -102,7 +102,7 @@ const css = `
   .b-final h2 { font-size: 30px; }
 }
 @media (max-width: 520px) {
-  .b-ctas .b-btn { flex: 1; }
+  .b-ctas .b-btn { flex: 1 1 auto; } /* see .h-ctas in HomeContent: a row only when both labels fit */
 }
 @media (prefers-reduced-motion: reduce) {
   .b-root * { transition: none !important; }
