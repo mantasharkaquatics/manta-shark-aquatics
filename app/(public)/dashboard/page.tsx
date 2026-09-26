@@ -17,7 +17,7 @@ import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import SkillTree from './SkillTree'
-import { BRAND, HERO_GRADIENT, FONT_BODY } from '@/lib/brand'
+import { BRAND, FONT_BODY } from '@/lib/brand'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -27,22 +27,22 @@ const MOBILE_CSS = `
 
 .msa-rail { display: grid; gap: 16px }
 .msa-addkid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  min-height: 180px; border-radius: 16px; border: 1.5px dashed rgba(255,255,255,0.3); background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 700; text-decoration: none;
+  min-height: 212px; border-radius: 20px; border: 1.5px dashed #a9bfdc; background: transparent;
+  color: #2050a0; font-size: 13.5px; font-weight: 800; text-decoration: none;
   transition: border-color .15s, color .15s }
-.msa-addkid:hover { border-color: #f7b733; color: #fff; background: rgba(255,255,255,0.1) }
+.msa-addkid:hover { border-color: #2050a0; background: rgba(32,80,160,0.04) }
 .msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 22px; font-weight: 400; background: #fff; color: #12254a }
-.msa-partner { margin: 12px 0 0; text-align: center; font-size: 13px; color: rgba(255,255,255,0.78) }
-.msa-partner a { color: #f7b733; font-weight: 700; text-decoration: none; white-space: nowrap }
+  font-size: 22px; font-weight: 400; background: #12254a; color: #fff }
+.msa-partner { margin: 12px 0 0; text-align: center; font-size: 13px; color: #3f4d66 }
+.msa-partner a { color: #2050a0; font-weight: 700; text-decoration: none; white-space: nowrap }
 .msa-refer { margin-top: 6px }
-.msa-refer a { color: #f7b733 }
+.msa-refer a { color: #2050a0 }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
-.msa-act-book { background: #f09800; color: #12254a; border: none; border-radius: 12px; padding: 15px;
-  font-size: 15px; font-weight: 800; cursor: pointer; transition: background .15s }
+.msa-act-book { background: #f09800; color: #12254a; border: none; border-radius: 999px; padding: 16px;
+  font-size: 16px; font-weight: 900; cursor: pointer; transition: background .15s }
 .msa-act-book:hover { background: #d98900 }
-.msa-act-pts { display: flex; align-items: center; gap: 14px; background: #edf2f8; border-radius: 12px;
-  border: 1px solid transparent; padding: 10px 16px; cursor: pointer; color: #56647d; font-size: 12px }
+.msa-act-pts { display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 999px;
+  border: 1px solid #d3deec; padding: 10px 20px; cursor: pointer; color: #56647d; font-size: 12px }
 .msa-act-pts:hover { border-color: #c9d8ee }
 .msa-act-pts b { font-size: 19px; color: #12254a; font-variant-numeric: tabular-nums }
 .msa-act-pts em { font-style: normal; font-weight: 700; color: #2050a0 }
@@ -59,17 +59,41 @@ const MOBILE_CSS = `
 .msa-sheet-head b { font-size: 17px; color: #12254a }
 .msa-sheet-x { width: 34px; height: 34px; border-radius: 9px; border: none; background: #e8eef7;
   color: #34435e; font-size: 16px; cursor: pointer }
-/* The greeting: the site's dark top, short -- this is a working page. */
-/* No band of its own: the greeting sits on the page's one navy, so there is no
-   seam between it and the cards (owner, 2026-09-25). */
-.msa-hello { background: transparent; color: #fff; position: relative }
-.msa-hello-in { position: relative; max-width: 1100px; margin: 0 auto; padding: 40px clamp(20px,5vw,48px) 8px }
-.msa-hello h1 { font-family: var(--font-display), 'PingFang TC', serif; font-size: clamp(26px,3vw,36px); font-weight: 900; margin: 0; color: #fff }
-.msa-hello h1 em { color: #f7b733 }
-/* Palette B on this page (owner, 2026-09-25): the dark top carries on down
-   the page and every card is white on it, lifted by a shadow. */
-.msa-card { box-shadow: 0 10px 30px rgba(0,0,0,0.22) }
-.msa-sec-h { font-size: 12px; font-weight: 800; color: #f7b733; margin: 0 0 16px; letter-spacing: 2px; text-transform: uppercase }
+/* Version 4, "member cards" (owner, 2026-09-26): a light page under the
+   floating nav, the greeting in plain navy type, and the dark colour moved
+   into each swimmer's card -- one navy card per child, like a membership card. */
+.msa-hello { position: relative }
+.msa-hello-in { position: relative; max-width: 1100px; margin: 0 auto; padding: 36px clamp(20px,5vw,48px) 0 }
+.msa-hello h1 { font-family: var(--font-display), 'PingFang TC', serif; font-size: clamp(28px,3vw,36px); font-weight: 900; margin: 0; color: #12254a }
+.msa-hello h1 em { color: #d98900 }
+.msa-mcard { position: relative; overflow: hidden; border-radius: 20px; padding: 20px; color: #fff; min-height: 212px;
+  background: linear-gradient(145deg, #1d3f7c, #12254a 65%); box-shadow: 0 16px 34px rgba(18,37,74,0.28);
+  display: flex; flex-direction: column }
+/* A glow in the swimmer's level colour, so two cards side by side differ at a glance. */
+.msa-mcard::before { content: ''; position: absolute; right: -40px; bottom: -50px; width: 220px; height: 220px; border-radius: 50%;
+  pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--lv) 55%, transparent), transparent) }
+.msa-mcard > * { position: relative }
+.msa-mcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px }
+.msa-mcard-brand { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: rgba(255,255,255,0.6); padding-top: 2px }
+.msa-mcard-qr { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 0; border-radius: 999px;
+  background: #fff; color: #12254a; padding: 7px 12px; font-family: inherit; font-size: 12.5px; font-weight: 900; cursor: pointer }
+.msa-mcard-qr:hover { background: #fff3dc }
+.msa-mcard-name { font-family: var(--font-display), 'PingFang TC', serif; font-size: 26px; font-weight: 900; line-height: 1.15;
+  margin: 4px 0 2px; overflow-wrap: anywhere }
+.msa-mcard-age { font-size: 12.5px; color: rgba(255,255,255,0.68) }
+.msa-mcard-lv { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; margin-top: 12px;
+  background: rgba(255,255,255,0.12); border-radius: 999px; padding: 5px 11px; font-size: 12.5px; font-weight: 800 }
+.msa-mcard-lv i { width: 9px; height: 9px; border-radius: 50%; background: var(--lv); flex-shrink: 0 }
+.msa-mcard-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); margin-top: 14px; overflow: hidden }
+.msa-mcard-bar i { display: block; height: 100%; background: #f7b733; border-radius: 3px; transition: width .3s ease }
+.msa-mcard-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 11.5px; color: rgba(255,255,255,0.7) }
+.msa-mcard-meta b { color: #f7b733 }
+.msa-mcard-btns { display: flex; gap: 8px; margin-top: auto; padding-top: 14px }
+.msa-mcard-btns button { flex: 1; border: 0; border-radius: 10px; padding: 10px 6px; background: rgba(255,255,255,0.12);
+  color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: background .15s }
+.msa-mcard-btns button:hover { background: rgba(255,255,255,0.2) }
+.msa-mcard-qr:focus-visible, .msa-mcard-btns button:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
+.msa-sec-h { font-size: 16px; font-weight: 900; color: #12254a; margin: 0 0 14px }
 .msa-rail-students { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }
 .msa-rail-credits  { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) }
 .msa-dots { display: none }
@@ -124,14 +148,15 @@ const MOBILE_CSS = `
   .msa-sheet-back { align-items: flex-end; padding: 0 }
   .msa-sheet { border-radius: 18px 18px 0 0; max-height: 88vh; padding-bottom: calc(20px + env(safe-area-inset-bottom)) }
   .msa-rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
-              padding: 2px clamp(20px,5vw,48px) 10px; margin: 0 calc(-1 * clamp(20px,5vw,48px));
+              padding: 2px clamp(20px,5vw,48px) 30px; margin: 0 calc(-1 * clamp(20px,5vw,48px)) -20px;
               scrollbar-width: none }
   .msa-rail::-webkit-scrollbar { display: none }
   .msa-rail > * { scroll-snap-align: center; flex: 0 0 92% }
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
-  .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: width .18s, background .18s }
-  .msa-dot-on { width: 18px; border-radius: 3px; background: #f7b733 }
-  .msa-hello-in { padding-top: 28px; padding-bottom: 4px }
+  .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: #b9c6da; transition: width .18s, background .18s }
+  .msa-dot-on { width: 18px; border-radius: 3px; background: #2050a0 }
+  .msa-hello-in { padding-top: 24px }
+  .msa-mcard { min-height: 196px; padding: 16px }
 
   /* Four things fought for one 240px row: course name, level badge, day badge and
      status pill, with the coach line and two buttons under them. The date block
@@ -157,9 +182,6 @@ const MOBILE_CSS = `
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
 const AMBER = BRAND.amber
-// Cards on the navy page: a soft blue-white, not pure white -- pure white on
-// navy glared (owner, 2026-09-25).
-const CARD = '#edf2f8'
 
 
 interface Parent { id: string; first_name: string; last_name: string; email: string }
@@ -1617,7 +1639,7 @@ export default function DashboardPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
@@ -1641,7 +1663,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ fontFamily: FONT_BODY, background: NAVY, minHeight: '100vh' }}>
+    <div style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
@@ -1750,13 +1772,13 @@ export default function DashboardPage() {
       {/* GREETING -- the site's dark top, kept short: this is a working page. */}
       <header className="msa-hello">
         <div className="msa-hello-in">
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: BRAND.yellow, marginBottom: '8px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: BRAND.blue, marginBottom: '8px' }}>
             {(() => { const d = new Date(); return t('date.header', { weekday: t('date.weekday.' + d.getDay()), month: t('date.month.' + (d.getMonth() + 1)), day: d.getDate() }) })()}
           </div>
           <h1>
             {t('dash.greeting.' + greeting)}<em style={{ fontStyle: locale.startsWith('zh') ? 'normal' : 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
           </h1>
-          <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.78)', margin: '8px 0 0' }}>{t('dash.summary')}</p>
+          <p style={{ fontSize: '15px', color: '#56647d', margin: '6px 0 0' }}>{t('dash.summary')}</p>
         </div>
       </header>
 
@@ -1774,50 +1796,31 @@ export default function DashboardPage() {
               const ageMonths = student.date_of_birth && age === 0 ? getAgeMonths(student.date_of_birth) : null
               const ageLabel = age === null ? t('dash.ageUnknown') : age >= 1 ? t('dash.age', { n: age }) : ageMonths !== null && ageMonths >= 1 ? t(ageMonths === 1 ? 'dash.ageMonth' : 'dash.ageMonths', { n: ageMonths }) : t('dash.ageNewborn')
               return (
-                <div key={student.id} className="msa-card" style={{ background: CARD, borderRadius: '16px', padding: '24px', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: levelColor }} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: levelColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display), serif', fontSize: '18px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>
-                      {getInitials(student.full_name)}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>{student.full_name}</div>
-                      <div style={{ fontSize: '12px', color: '#56647d' }}>
-                        {ageLabel}
-                        {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
-                      </div>
-                    </div>
-                    {/* Check-in sits beside the name it belongs to: a family
-                        with two swimmers used to scroll to the bottom of each
-                        card to find the right one, on the pool deck, holding
-                        a towel. Outlined rather than filled, so it does not
-                        compete with the card's main button. */}
-                    <button className="tap-auto" onClick={() => setQrStudent(student)}
-                      aria-label={t('dash.viewQr')}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-                        borderRadius: '10px', border: `1px solid ${GOLD}75`, background: `${GOLD}14`, color: GOLD,
-                        fontSize: '12px', fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      <svg width="15" height="15" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h5v5H3zM12 3h5v5h-5zM3 12h5v5H3z" fill="none" stroke="currentColor" strokeWidth="1.7" /><path d="M12 12h2v2h-2zM15 15h2v2h-2zM15 12h2v2h-2zM12 15h2v2h-2z" fill="currentColor" /></svg>
+                <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
+                  <div className="msa-mcard-top">
+                    <span className="msa-mcard-brand">MANTA SHARK · SWIMMER</span>
+                    {/* Check-in sits on the card it belongs to: a family with two
+                        swimmers is on the pool deck, holding a towel. */}
+                    <button className="tap-auto msa-mcard-qr" onClick={() => setQrStudent(student)} aria-label={t('dash.viewQr')}>
+                      <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h5v5H3zM12 3h5v5h-5zM3 12h5v5H3z" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 12h2v2h-2zM15 15h2v2h-2zM15 12h2v2h-2zM12 15h2v2h-2z" fill="currentColor" /></svg>
                       {t('dash.checkIn')}
                     </button>
                   </div>
-                  {!hasLevel && (
-                    <div style={{ marginTop: '16px', background: '#f6f9fd', border: '1px solid #e3ebf6', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#56647d', marginBottom: '2px' }}>{t('dash.currentLevel')}</div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#56647d' }}>{t('dash.pendingAssessment')}</div>
-                      </div>
-                      <div style={{ fontSize: '20px' }}>📋</div>
-                    </div>
-                  )}
+                  <div className="msa-mcard-name">{student.full_name}</div>
+                  <div className="msa-mcard-age">
+                    {ageLabel}
+                    {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
+                  </div>
 
-                  {!hasLevel && pastBookings.some(b => b.student_id === student.id) && (
-                    <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}
-                      style={{ width: '100%', marginTop: '14px', padding: '11px', borderRadius: '10px',
-                        border: '1px solid #d5e0ef', background: '#fff',
-                        color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                      {t('dash.records')}
-                    </button>
+                  {!hasLevel && (
+                    <>
+                      <span className="msa-mcard-lv"><i />{t('dash.pendingAssessment')}</span>
+                      {pastBookings.some(b => b.student_id === student.id) && (
+                        <div className="msa-mcard-btns">
+                          <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}>{t('dash.records')}</button>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {hasLevel && (() => {
@@ -1828,40 +1831,26 @@ export default function DashboardPage() {
                       : [1, 2, 3].map(n => ({ stage: n as 1 | 2 | 3, percent: 0, complete: false, skillCount: 0 }))
                     const curStage = resolveStage(student.current_stage, stages)
                     const curPct = stages[curStage - 1]?.percent ?? 0
-                    /* One level line, one stage line, one bar, two buttons. The
-                       three stage buttons and the skill list they opened said the
-                       same thing the learning map says, a second time and smaller;
-                       the map is one tap away and says it properly. */
+                    /* One pill, one bar, two buttons. The learning map is one tap
+                       away and says the rest properly. */
                     return (
-                      <div style={{ marginTop: '18px' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>
-                          {t('level.badge', { n: student.current_level ?? '', name: levelName || '' })}
+                      <>
+                        <span className="msa-mcard-lv"><i />{t('level.badge', { n: student.current_level ?? '', name: levelName || '' })} · {t('dash.stageN', { n: curStage })}</span>
+                        <div className="msa-mcard-bar"><i style={{ width: curPct + '%' }} /></div>
+                        <div className="msa-mcard-meta">
+                          <span>{t(stageNameKey(lvl, curStage))}</span>
+                          <b>{curPct}%</b>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#56647d', marginTop: '3px' }}>
-                          {t('dash.stageN', { n: curStage })} · {t(stageNameKey(lvl, curStage))}
-                        </div>
-                        <div style={{ height: '6px', background: '#d9e2ee', borderRadius: '3px', overflow: 'hidden', marginTop: '14px' }}>
-                          <div style={{ height: '100%', width: curPct + '%', background: AMBER, borderRadius: '3px', transition: 'width .3s ease' }} />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#56647d' }}>{t('dash.stageCompletion')}</span>
-                          <b style={{ fontSize: '12px', color: GOLD }}>{curPct}%</b>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                        <div className="msa-mcard-btns">
                           <button className="tap-auto"
-                            onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}
-                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: 'none', background: NAVY,
-                              color: '#fff', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>
+                            onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
                             {t('dash.skillTree')}
                           </button>
-                          <button className="tap-auto"
-                            onClick={() => { setRecordsFor(student); setRecordsPage(0) }}
-                            style={{ flex: 1, padding: '11px 6px', borderRadius: '10px', border: '1px solid #d5e0ef',
-                              background: '#fff', color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                          <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}>
                             {t('dash.records')}
                           </button>
                         </div>
-                      </div>
+                      </>
                     )
                   })()}
                 </div>
@@ -1888,7 +1877,7 @@ export default function DashboardPage() {
               + {t('quick.book')}
             </button>
             {wallet && (
-              <button className={'tap-auto msa-act-pts msa-card' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : '')}
+              <button className={'tap-auto msa-act-pts' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : '')}
                 onClick={() => setPointsOpen(true)}>
                 <span><b>{wallet.balancePurchased.toLocaleString()}</b> {t('dash.pointsUnit')}</span>
                 {/* Bonus points apart from purchased ones, in their own colour. */}
@@ -2044,13 +2033,13 @@ export default function DashboardPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <button onClick={() => { if (lvMonth === 0) { setLvMonth(11); setLvYear(lvYear - 1) } else setLvMonth(lvMonth - 1) }}
-                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#fff', cursor: 'pointer' }}>‹ Prev</button>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
+                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>‹ Prev</button>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
                   <button onClick={() => { if (lvMonth === 11) { setLvMonth(0); setLvYear(lvYear + 1) } else setLvMonth(lvMonth + 1) }}
-                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#fff', cursor: 'pointer' }}>Next ›</button>
+                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>Next ›</button>
                 </div>
                 {students.length > 1 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px', background: CARD, borderRadius: '10px', padding: '6px 12px', width: 'fit-content' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px' }}>
                     {students.map((st, i) => (
                       <span key={st.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: SWIMMER_COLORS[i % SWIMMER_COLORS.length] }}>
                         <i style={{ width: '7px', height: '7px', borderRadius: '50%', display: 'block', background: SWIMMER_COLORS[i % SWIMMER_COLORS.length] }} />
@@ -2061,7 +2050,7 @@ export default function DashboardPage() {
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
                   {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
-                    <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: 'rgba(255,255,255,0.7)', padding: '4px 0' }}>{d}</div>
+                    <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: '#56647d', padding: '4px 0' }}>{d}</div>
                   ))}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
@@ -2077,7 +2066,7 @@ export default function DashboardPage() {
                         role={dayBookings.length > 0 ? 'button' : undefined}
                         tabIndex={dayBookings.length > 0 ? 0 : undefined}
                         onKeyDown={e => { if (dayBookings.length > 0 && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setDaySheet(ds) } }}
-                        style={{ cursor: dayBookings.length > 0 ? 'pointer' : 'default', backgroundColor: CARD, backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : '#e3ebf6'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
+                        style={{ cursor: dayBookings.length > 0 ? 'pointer' : 'default', backgroundColor: '#fff', backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : '#e3ebf6'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
                         <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? '#9aa6ba' : dayBookings.length > 0 ? '#16294a' : '#56647d' }}>{i + 1}</div>
                         {/* Three at most. A busy Tuesday had six, which made one cell
                             three times the height of its neighbours and pushed the rest of
@@ -2191,7 +2180,7 @@ export default function DashboardPage() {
               </div>
             )
           })() : upcomingBookings.length === 0 ? (
-            <div className="msa-card" style={{ background: CARD, borderRadius: '14px', padding: '32px', textAlign: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: '14px', border: '1px dashed #e3ebf6', padding: '32px', textAlign: 'center' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
               <p style={{ fontSize: '14px', color: '#56647d', margin: 0 }}>{t('dash.noUpcoming')}</p>
             </div>
@@ -2216,13 +2205,13 @@ export default function DashboardPage() {
                   return (
                     <div key={day.date} style={{ display: 'contents' }}>
                       <div className="msa-day-head">
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? BRAND.yellow : '#fff' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#16294a' }}>
                           {dd.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                         </span>
                         {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
-                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: 'rgba(255,255,255,0.14)', color: '#fff', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
-                        <span style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.18)' }} />
-                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', whiteSpace: 'nowrap' }}>
+                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+                        <span style={{ flex: 1, height: '1px', background: '#eef2f8' }} />
+                        <span style={{ fontSize: '11px', color: '#56647d', whiteSpace: 'nowrap' }}>
                           {t(day.items.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: day.items.length })}
                         </span>
                       </div>
@@ -2232,7 +2221,7 @@ export default function DashboardPage() {
                 const isTomorrow = daysUntil === 1
                 const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
                 return (
-                  <div key={booking.id} className="msa-lesson msa-card" style={{ background: CARD, border: `1px solid ${isToday ? BRAND.amber : 'transparent'}` }}>
+                  <div key={booking.id} className="msa-lesson" style={{ background: '#fff', border: `1px solid ${isToday ? GOLD + '40' : '#e3ebf6'}` }}>
                     <div className="msa-lesson-date" style={{ background: isToday ? AMBER : '#f6f9fd' }}>
                       <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : '#56647d' }}>
                         {new Date(booking.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
