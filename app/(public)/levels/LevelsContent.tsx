@@ -52,11 +52,14 @@ const css = `
   .l-chev { margin-left: auto; flex-shrink: 0; font-size: 16px; color: #b8c4d6; }
   .l-item[aria-current="true"] .l-chev { color: ${BRAND.yellow}; }
 
-  .l-head { border-radius: 18px; padding: 28px 34px; position: relative; overflow: hidden; margin-bottom: 20px; }
-  .l-head::after { content: ''; position: absolute; right: -30px; top: -30px; width: 150px; height: 150px; border-radius: 50%;
+  /* One line and one height for all seven (owner, 2026-09-28): "LEVEL 1  Water
+     Discovery" side by side instead of stacked. */
+  .l-head { border-radius: 18px; height: 74px; padding: 0 30px; position: relative; overflow: hidden; margin-bottom: 16px;
+            display: flex; align-items: center; gap: 16px; white-space: nowrap; }
+  .l-head::after { content: ''; position: absolute; right: -24px; top: -40px; width: 120px; height: 120px; border-radius: 50%;
                    background: rgba(255,255,255,0.1); pointer-events: none; }
   .l-head small { font-size: 11px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; opacity: 0.72; }
-  .l-head h2 { font-size: 34px; font-weight: 900; margin-top: 6px; }
+  .l-head h2 { font-size: 26px; font-weight: 900; margin: 0; }
   .l-body { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 30px 34px; }
   .l-tag { font-size: 17px; font-weight: 700; color: ${BRAND.navy}; line-height: 1.5; margin: 0 0 10px; }
   .l-desc { font-size: 15px; color: ${BRAND.mute}; line-height: 1.8; margin: 0 0 22px; padding-bottom: 22px; border-bottom: 1px solid ${BRAND.line}; }
