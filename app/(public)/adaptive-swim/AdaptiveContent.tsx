@@ -28,8 +28,7 @@ const css = `
   .ad-stat { display: grid; grid-template-columns: 240px 1fr; gap: 36px; align-items: center; }
   .ad-big { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 26px 20px; text-align: center; }
   .ad-big b { display: block; font-size: 58px; line-height: 1; font-weight: 900; color: ${BRAND.amber}; }
-  .ad-big span { display: block; margin-top: 10px; font-size: 13px; line-height: 1.5; color: ${BRAND.mute}; }
-  .ad-src { font-size: 12px; color: #8794ab; margin-top: 12px; }
+  .ad-big span { display: block; margin-top: 10px; font-size: 13px; line-height: 1.5; color: ${BRAND.mute}; white-space: pre-line; }
 
   .ad-two { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 48px; align-items: start; }
   .ad-facts { background: ${BRAND.navy}; color: #fff; border-radius: 20px; padding: 32px; }
@@ -137,10 +136,9 @@ export default function AdaptiveContent() {
             <h2>{t('adapt.why.title')}</h2>
           </div>
           <div className="ad-stat">
-            <div className="ad-big"><b>160×</b><span>{t('adapt.why.stat')}</span></div>
+            <div className="ad-big"><b>{t('adapt.why.big')}</b><span>{t('adapt.why.stat')}</span></div>
             <div>
               <p className="b-body" style={{ marginTop: 0 }}>{t('adapt.why.body')}</p>
-              <p className="ad-src">{t('adapt.why.src')}</p>
             </div>
           </div>
         </div>
