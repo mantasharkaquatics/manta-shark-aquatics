@@ -236,13 +236,19 @@ export default function Navbar() {
   const current = (href: string) => (bare === href ? 'page' as const : undefined)
   const toggle = (which: 'lang' | 'acct' | 'drawer') => setOpen(o => (o === which ? null : which))
 
+  // Signed in, the button takes a family home to their Dashboard -- except on
+  // the Dashboard itself, where "go home" would do nothing and the next thing
+  // they want is to book (owner's call, 2026-09-28).
   const cta = authLoading ? null : isLoggedIn ? (
-    // Signed in, the button takes a family home: their Dashboard is where
-    // booking starts anyway (its own big Book a Lesson button), and it is the
-    // page they otherwise had to dig for in the account menu.
-    <Link href="/dashboard" className="rn-cta" aria-current={current('/dashboard')}>
-      <span className="rn-full">{t('nav.myPage')}</span><span className="rn-short">{t('nav.myPage')}</span>
-    </Link>
+    bare === '/dashboard' ? (
+      <Link href="/booking" className="rn-cta">
+        <span className="rn-full">{t('quick.book')}</span><span className="rn-short">{t('nav.bookShort')}</span>
+      </Link>
+    ) : (
+      <Link href="/dashboard" className="rn-cta">
+        <span className="rn-full">{t('nav.myPage')}</span><span className="rn-short">{t('nav.myPage')}</span>
+      </Link>
+    )
   ) : (
     <Link href="/register" className="rn-cta">
       <span className="rn-full">{t('nav.createAccount')}</span><span className="rn-short">{t('nav.signUpShort')}</span>
