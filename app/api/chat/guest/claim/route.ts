@@ -26,6 +26,10 @@ export async function POST(req: NextRequest) {
     .eq('guest_key', body.key).maybeSingle()
   if (!guest || guest.parent_id) return NextResponse.json({ ok: true, moved: false })
 
+  // The guest assistant's buttons ("Create a free account") are wrong once the
+  // family is signed in, and the widget shows the last message's buttons.
+  await svc.from('chat_messages').update({ metadata: null }).eq('thread_id', guest.id).not('metadata', 'is', null)
+
   const { data: mine } = await svc.from('chat_threads').select('id').eq('parent_id', parent.id).maybeSingle()
   if (!mine) {
     const { error } = await svc.from('chat_threads')
