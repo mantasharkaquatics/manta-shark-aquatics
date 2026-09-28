@@ -601,8 +601,9 @@ export default function SkillTree({
                   const band = masteryOf(s.percent)
                   /* A level the swimmer has not reached keeps its skills to
                      itself (owner, 2026-09-28): a padlock with no name, and
-                     nothing to open. The stage names beside the rows stay, so
-                     the family still sees what the level is about. Anything
+                     nothing to open. The stage names beside the rows stay, and
+                     so does the name of the level's test, so the family still
+                     sees what the level is about. Anything
                      the coach has already started up there shows as usual,
                      and coaches always see everything. */
                   if (!forCoach && s.level > currentLevel && band === 0) {
@@ -611,6 +612,14 @@ export default function SkillTree({
                         style={{ ['--c' as any]: s.col, ['--r' as any]: s.row, cursor: 'default' }}
                         aria-label={t('tree.state.locked')}>
                         <span className="mst-mk">{MARK.locked}</span>
+                        {/* The level's test is a milestone, not a lesson plan:
+                            its name shows (owner, 2026-09-28), still locked. */}
+                        {s.apart && (
+                          <span className="mst-nm">
+                            <i className="mst-eb">{t('tree.apart')}</i>
+                            {tDb(locale, 'skills', s.id, s.name)}
+                          </span>
+                        )}
                       </div>
                     )
                   }
