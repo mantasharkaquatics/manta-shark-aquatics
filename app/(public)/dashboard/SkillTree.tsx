@@ -599,6 +599,21 @@ export default function SkillTree({
                 )}
                 {inLv.map(s => {
                   const band = masteryOf(s.percent)
+                  /* A level the swimmer has not reached keeps its skills to
+                     itself (owner, 2026-09-28): a padlock with no name, and
+                     nothing to open. The stage names beside the rows stay, so
+                     the family still sees what the level is about. Anything
+                     the coach has already started up there shows as usual,
+                     and coaches always see everything. */
+                  if (!forCoach && s.level > currentLevel && band === 0) {
+                    return (
+                      <div key={s.id} data-id={s.id} className={'mst-tile locked' + (s.apart ? ' apart' : '')}
+                        style={{ ['--c' as any]: s.col, ['--r' as any]: s.row, cursor: 'default' }}
+                        aria-label={t('tree.state.locked')}>
+                        <span className="mst-mk">{MARK.locked}</span>
+                      </div>
+                    )
+                  }
                   return (
                     <button key={s.id} data-id={s.id}
                       className={'mst-tile ' + s.state + (s.apart ? ' apart' : '')}
