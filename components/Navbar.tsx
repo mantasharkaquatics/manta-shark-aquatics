@@ -135,18 +135,30 @@ const css = `
     .rn-burger { display: grid; }
     .rn-scrim { position: fixed; inset: 0; background: rgba(10,22,48,.45); z-index: -1; }
     .rn-drawer { display: block; margin-top: 8px; background: #fff; border-radius: 12px; box-shadow: 0 16px 40px rgba(10,22,48,.25);
-      padding: 6px 12px; max-height: calc(100dvh - 100px); overflow-y: auto; }
+      padding: 6px 12px; max-height: calc(100dvh - 88px); overflow-y: auto; }
     .rn-drawer a, .rn-drawer button.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
-      min-height: 52px; border: 0; border-bottom: 1px solid ${BRAND.line}; background: none; padding: 0 10px; text-align: left;
+      min-height: 44px; border: 0; border-bottom: 1px solid ${BRAND.line}; background: none; padding: 0 10px; text-align: left;
       font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.3; color: ${BRAND.ink}; text-decoration: none; cursor: pointer; }
     .rn-drawer a[aria-current="page"] { color: ${BRAND.blue}; }
-    .rn-drawer a.kid { min-height: 46px; padding-left: 26px; font-size: 15px; font-weight: 600; color: ${BRAND.mute}; }
-    .rn-drawer button.out { color: #c0392b; border-bottom: 0; }
-    .rn-drawer .lang { display: flex; gap: 8px; padding: 4px 10px 12px; border-bottom: 1px solid ${BRAND.line}; }
-    .rn-drawer .lang button { flex: 1; min-height: 44px; border-radius: 10px; border: 1.5px solid ${BRAND.line}; background: #fff;
+    /* Everything fits on one phone screen without scrolling (owner,
+       2026-09-28): the four programmes are a 2x2 grid of buttons, sign-in
+       is a real button, and Terms / Sign out are small links at the foot. */
+    .rn-drawer .kids { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 10px 10px; border-bottom: 1px solid ${BRAND.line}; }
+    .rn-drawer .kids.acct { grid-template-columns: repeat(3, 1fr); padding-top: 10px; }
+    .rn-drawer .kids a { min-height: 38px; justify-content: center; text-align: center; padding: 0 8px; border: 1px solid ${BRAND.line};
+      border-radius: 10px; background: ${BRAND.paper}; font-size: 14px; font-weight: 700; color: ${BRAND.navy}; }
+    .rn-drawer .kids a[aria-current="page"] { border-color: ${BRAND.blue}; color: ${BRAND.blue}; }
+    .rn-drawer a.signin { justify-content: center; min-height: 44px; margin: 10px 10px 0; width: auto; border: 1.5px solid ${BRAND.navy};
+      border-radius: 12px; color: ${BRAND.navy}; font-weight: 800; }
+    .rn-drawer .foot { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 10px 0 6px; }
+    .rn-drawer .foot a, .rn-drawer .foot button { min-height: 32px; width: auto; border: 0; padding: 0 8px; font-size: 13px; font-weight: 600;
+      color: ${BRAND.mute}; background: none; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; }
+    .rn-drawer .foot button.out { color: #c0392b; }
+    .rn-drawer .foot i { color: ${BRAND.line}; font-style: normal; }
+    .rn-drawer .lang { display: flex; gap: 8px; padding: 12px 10px; border-bottom: 1px solid ${BRAND.line}; }
+    .rn-drawer .lang button { flex: 1; min-height: 40px; border-radius: 10px; border: 1.5px solid ${BRAND.line}; background: #fff;
       font-family: inherit; font-weight: 700; font-size: 15px; line-height: 1; color: ${BRAND.ink}; cursor: pointer; }
     .rn-drawer .lang button[aria-pressed="true"] { border-color: ${BRAND.navy}; background: ${BRAND.navy}; color: #fff; }
-    .rn-drawer .sub { font-size: 12.5px; font-weight: 700; color: ${BRAND.mute}; padding: 12px 10px 8px; }
   }
   @media (max-width: 380px) {
     .rn-word { letter-spacing: .18em; }
@@ -405,45 +417,49 @@ export default function Navbar() {
 
         {open === 'drawer' && (
           <div className="rn-drawer">
+            {/* Signed in: the family's own three pages as one row of buttons. */}
             {isLoggedIn && (
-              <Link href="/dashboard" aria-current={current('/dashboard')}>
-                <span>{t('nav.myPage')}</span><Chevron />
-              </Link>
+              <div className="kids acct">
+                <Link href="/dashboard" aria-current={current('/dashboard')} onClick={() => setOpen(null)}>{t('nav.myPage')}</Link>
+                <Link href="/dashboard/account" onClick={() => setOpen(null)}>{t('nav.dashboard')}</Link>
+                <Link href="/dashboard/partnerships" onClick={() => setOpen(null)}>{t('quick.partnerships')}</Link>
+              </div>
             )}
             {navLinks.map(link => (
               <Fragment key={link.href}>
                 <Link href={localePath(link.href, locale)} aria-current={current(link.href)}>
                   <span>{t(link.labelKey)}</span><Chevron />
                 </Link>
-                {link.href === '/programs' && PROGRAM_ITEMS.map(it => (
-                  <Link key={it.key} className="kid" href={localePath(it.href, locale)} aria-current={current(it.href)} onClick={() => setOpen(null)}>
-                    <span>{t('nav.prog.' + it.key)}</span><Chevron />
-                  </Link>
-                ))}
+                {link.href === '/programs' && (
+                  <div className="kids">
+                    {PROGRAM_ITEMS.map(it => (
+                      <Link key={it.key} href={localePath(it.href, locale)} aria-current={current(it.href)} onClick={() => setOpen(null)}>
+                        {t('nav.prog.' + it.key)}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </Fragment>
             ))}
-            {isLoggedIn ? (
-              <>
-                <Link href="/dashboard/account"><span>{t('nav.dashboard')}</span><Chevron /></Link>
-                <Link href="/dashboard/partnerships"><span>{t('quick.partnerships')}</span><Chevron /></Link>
-              </>
-            ) : (
-              <Link href="/login"><span>{t('nav.signIn')}</span><Chevron /></Link>
-            )}
-            <Link href="/policies"><span>{t('page.policies')}</span><Chevron /></Link>
             {/* Language as three side-by-side buttons: always visible, but each is
                 a deliberate target rather than a row a scrolling thumb can catch. */}
-            <div className="sub">{t('nav.language')}</div>
-            <div className="lang">
+            <div className="lang" role="group" aria-label={t('nav.language')}>
               {LOCALES.map(l => (
                 <button key={l} type="button" aria-pressed={l === locale} onClick={() => changeLocale(l)}>
                   {t('locale.' + l + '.native')}
                 </button>
               ))}
             </div>
-            {isLoggedIn && (
-              <button type="button" className="row out" onClick={handleSignOut}>{t('nav.signOut')}</button>
-            )}
+            {!isLoggedIn && <Link href="/login" className="signin">{t('nav.signIn')}</Link>}
+            <div className="foot">
+              <Link href="/policies">{t('page.policies')}</Link>
+              {isLoggedIn && (
+                <>
+                  <i aria-hidden="true">·</i>
+                  <button type="button" className="out" onClick={handleSignOut}>{t('nav.signOut')}</button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </nav>
