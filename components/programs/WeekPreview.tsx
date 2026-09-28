@@ -6,7 +6,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { tDb } from '@/lib/i18n'
 import { BRAND } from '@/lib/brand'
-import { BAND_COLORS, TEAM_TIER_COLORS, bandRange } from '@/lib/zone-colors'
+import { BAND_COLORS, TEAM_TIER_COLORS, bandRange, bandSlotOf } from '@/lib/zone-colors'
 import { formatTime12h } from '@/lib/date'
 import { tierBandLabel } from '@/lib/team-tiers'
 import { createClient } from '@/lib/supabase/client'
@@ -137,17 +137,23 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
   // Every day's entries as { key, label, tag } -- the one shape the grid draws.
   type Entry = { key: string; label: string; tag?: { text: string; color: string } }
   const entriesFor = (d: Data['days'][number]): Entry[] => {
-    if (kind === 'team') return (d.slots || []).map(s => ({
+    if (kind === 'team') return [...(d.slots || [])]
+      .sort((x, y) => x.time.localeCompare(y.time) || tiers.findIndex(q => q.id === x.tier_id) - tiers.findIndex(q => q.id === y.tier_id))
+      .map(s => ({
       key: s.tier_id + s.time, label: range(s.time, s.end), tag: { text: tierName(s.tier_id), color: tierColor(s.tier_id) },
     }))
     if (kind === 'group') return (d.slots || [])
-      .filter(s => band === 'all' || s.band == null || s.band === band)
-      .map(s => ({
-        key: s.time + s.band, label: formatTime12h(s.time),
-        tag: band === 'all' ? (s.band
-          ? { text: 'L' + bandRange(...(s.band.split('-') as [string, string])), color: BAND_COLORS[s.band] || BRAND.blue }
-          : { text: t('programs.week.anyLevel'), color: BRAND.blue }) : undefined,
-      }))
+      .filter(s => band === 'all' || s.band == null || bandSlotOf(...(s.band.split('-') as [string, string])) === band)
+      .map(s => {
+        const [a, b] = (s.band || '').split('-')
+        const slot = s.band ? bandSlotOf(a, b) : null
+        return {
+          key: s.time + s.band, label: formatTime12h(s.time),
+          tag: band === 'all' ? (s.band
+            ? { text: 'L' + bandRange(a, b), color: (slot && BAND_COLORS[slot]) || BRAND.blue }
+            : { text: t('programs.week.anyLevel'), color: BRAND.blue }) : undefined,
+        }
+      })
     return (d.times || []).map(x => ({ key: x, label: formatTime12h(x) }))
   }
 

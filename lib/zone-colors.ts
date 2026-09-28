@@ -13,6 +13,20 @@ export function bandRange(min: number | string, max: number | string): string {
   return lo >= hi ? String(lo) : `${lo}–${hi}`
 }
 
+/* Which of the four bands a stored range belongs to. Zones for the top band
+   exist both as 7-9 and as 7-7 in the table, so a band is found by where its
+   lower level falls, never by comparing keys. */
+export function bandSlotOf(min?: number | string | null, max?: number | string | null): string | null {
+  if (min == null || max == null) return null
+  const lo = Number(min)
+  return Object.keys(BAND_COLORS).find(k => { const [a, b] = k.split('-').map(Number); return lo >= a && lo <= b }) ?? null
+}
+
+export function bandColorOf(min?: number | string | null, max?: number | string | null): string | undefined {
+  const k = bandSlotOf(min, max)
+  return k ? BAND_COLORS[k] : undefined
+}
+
 export function bandKey(min?: number | null, max?: number | null): string | null {
   return min != null && max != null ? `${min}-${max}` : null
 }
@@ -23,8 +37,7 @@ export function zoneFill(
   tierOrder: string[],
 ): string | null {
   if (z.zone_type === 'group') {
-    const k = bandKey(z.group_level_min, z.group_level_max)
-    return (k && BAND_COLORS[k]) || ZONE_COLORS.group
+    return bandColorOf(z.group_level_min, z.group_level_max) || ZONE_COLORS.group
   }
   if (z.zone_type === 'team') {
     const i = z.team_tier_id ? tierOrder.indexOf(z.team_tier_id) : -1

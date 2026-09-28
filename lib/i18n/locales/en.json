@@ -542,6 +542,7 @@
   "dash.invite.line": "{name} is invited to a lesson",
   "dash.invite.section": "Pending Invitations",
   "dash.lesson.band": "Level {r} group",
+  "dash.lesson.levelBadge": "Level {r}",
   "dash.lessonHistory": "Lesson History",
   "dash.lessonRecords": "Lesson Records ({n})",
   "dash.mySwimmers": "My Swimmers",

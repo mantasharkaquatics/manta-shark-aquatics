@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { meetsLeadTime, isWithin24Hours } from '@/lib/booking-time'
 import { BASE_POINTS, OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, priceLesson, type PriceBreakdown } from '@/lib/points'
 import { zoneTypeForSlug } from '@/lib/zones'
-import { ZONE_COLORS, BAND_COLORS, bandKey, bandRange } from '@/lib/zone-colors'
+import { ZONE_COLORS, bandRange, bandColorOf } from '@/lib/zone-colors'
 
 const GROUP_BANDS: [number, number][] = [[1, 2], [3, 4], [5, 6], [7, 9]]
 function studentBandOf(lvl: number): { min: number; max: number } | null {
@@ -264,7 +264,7 @@ export default function BookingPage() {
   const [recurCoach, setRecurCoach] = useState<Map<string, string>>(new Map())
   const myLevel = selectedStudent?.current_level != null ? Number(selectedStudent.current_level) : null
   const myGroupBand = myLevel != null ? studentBandOf(myLevel) : null
-  const myBandColor = myGroupBand ? (BAND_COLORS[`${myGroupBand.min}-${myGroupBand.max}`] || ZONE_COLORS.group) : ZONE_COLORS.group
+  const myBandColor = myGroupBand ? (bandColorOf(myGroupBand.min, myGroupBand.max) || ZONE_COLORS.group) : ZONE_COLORS.group
   const [groupDates, setGroupDates] = useState<string[]>([])
   const [groupClasses, setGroupClasses] = useState<any[]>([])
   const [groupLoading, setGroupLoading] = useState(false)
@@ -528,8 +528,7 @@ export default function BookingPage() {
         if (zt === 'group' && z.group_level_min != null && z.group_level_max != null && selectedStudent?.current_level != null && (selectedStudent.current_level < z.group_level_min || selectedStudent.current_level > z.group_level_max)) continue
         const gs = generateSlots(z.start_time, z.end_time)
         if (zt === 'group') {
-          const k = bandKey(z.group_level_min, z.group_level_max)
-          const f = (k && BAND_COLORS[k]) || ZONE_COLORS.group
+          const f = bandColorOf(z.group_level_min, z.group_level_max) || ZONE_COLORS.group
           for (const t of gs) fillByTime[t] = f
         }
         allSlots.push(...gs)

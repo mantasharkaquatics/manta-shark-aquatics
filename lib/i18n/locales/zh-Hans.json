@@ -542,6 +542,7 @@
   "dash.invite.line": "{name} 受邀一起上课",
   "dash.invite.section": "待确认的邀请",
   "dash.lesson.band": "等级 {r} 团体班",
+  "dash.lesson.levelBadge": "等级 {r}",
   "dash.lessonHistory": "历史课程",
   "dash.lessonRecords": "上课记录（{n}）",
   "dash.mySwimmers": "学生资料",

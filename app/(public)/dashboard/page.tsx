@@ -10,7 +10,7 @@ import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson, LESSONS_PER_FORGIVENESS, REFERRAL_POINTS } from '@/lib/points'
-import { BAND_COLORS, bandKey, bandRange } from '@/lib/zone-colors'
+import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
@@ -2337,7 +2337,7 @@ export default function DashboardPage() {
                           <b>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</b>
                           {!booking._group && <> · {formatTime(booking.start_time)} — {formatTime(booking.end_time)}</>}
                           {!booking._group && booking.coach_name ? <> · {t('dash.up.coach', { name: booking.coach_name })}</> : null}
-                          {(() => { const bk = bandKey(booking.level_min, booking.level_max); return bk ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${BAND_COLORS[bk]}22`, color: BAND_COLORS[bk], border: `1px solid ${BAND_COLORS[bk]}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.up.levelBadge', { min: booking.level_min ?? '', max: booking.level_max ?? '' })}</span> : null })()}
+                          {(() => { const bc = bandColorOf(booking.level_min, booking.level_max); return bc && booking.level_min != null && booking.level_max != null ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${bc}22`, color: bc, border: `1px solid ${bc}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.lesson.levelBadge', { r: bandRange(booking.level_min, booking.level_max) })}</span> : null })()}
                         </span>
                         {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
                         {isTomorrow && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}

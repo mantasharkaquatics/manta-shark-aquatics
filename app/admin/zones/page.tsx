@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Fragment } from 'react'
-import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS } from '@/lib/zone-colors'
+import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS, bandColorOf, bandRange } from '@/lib/zone-colors'
 import { daySlots, SLOT_STEP_MINUTES } from '@/lib/date'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -267,7 +267,7 @@ export default function ZonesEditorPage() {
 
   const tierName = (id?: string) => tiers.find(t => t.id === id)?.name || ''
   const tierColor = (id?: string) => { const i = tiers.findIndex(t => t.id === id); return TEAM_COLORS[i >= 0 ? i % TEAM_COLORS.length : 0] }
-  const cellLabel = (c: Cell) => !c ? '' : c.t === 'team' ? tierName(c.tier) : c.t === 'group' ? (c.band ? 'L' + c.band.replace('-', '–') : 'Group') : 'Private'
+  const cellLabel = (c: Cell) => !c ? '' : c.t === 'team' ? tierName(c.tier) : c.t === 'group' ? (c.band ? 'L' + bandRange(...(c.band.split('-') as [string, string])) : 'Group') : 'Private'
   const accent = mode === 'date' ? PURPLE : '#c9a84c'
 
   return (
@@ -426,7 +426,7 @@ export default function ZonesEditorPage() {
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
                       onMouseEnter={() => { if (painting) paint(d, i) }}
                       title={(c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? 'group L' + c.band : c.t) + ' · ' : '') + idxToTime(i) + '–' + idxToEnd(i)}
-                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${BAND_GREENS[c.band]}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
+                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${bandColorOf(...(c.band.split('-') as [string, string])) || BAND_GREENS['1-2']}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
                   )
                 })}
                 {gap > 0 && <div key={`bt${i}`} style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', textAlign: 'right', paddingRight: 6, lineHeight: `${gapH}px` }}>{gap >= 10 ? `${gap}m` : ''}</div>}
