@@ -54,10 +54,14 @@ export default function LoginPage() {
       <div className="auth-card bg-white rounded-2xl p-7 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={120} height={120} className="mx-auto mb-2 object-contain" priority />
+            {/* The logo is the name (owner, 2026-09-28: the page already said
+                "Manta Shark" in the bar, the logo and a heading). logo.png is a
+                square with the artwork across its middle, so a wide, short box
+                with object-cover trims the empty top and bottom: the artwork
+                shows almost twice as large in slightly less height. */}
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={204} height={106} className="mx-auto object-cover" style={{ width: 204, height: 106 }} priority />
           </Link>
-          <h1 className="text-2xl font-bold text-[#12254a] auth-title">Manta Shark Aquatics</h1>
-          <p className="text-[#56647d] mt-2 text-sm">{t('login.subtitle')}</p>
+          <h1 className="text-[#56647d] mt-2 text-base">{t('login.subtitle')}</h1>
         </div>
         <div className="space-y-4">
           <div>
