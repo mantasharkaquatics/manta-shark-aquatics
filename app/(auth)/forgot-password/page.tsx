@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
       <div className="auth-card bg-white rounded-2xl p-7 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <Image src="/logo.png" alt="Manta Shark Aquatics" width={120} height={120} className="mx-auto mb-2 object-contain" priority />
+            <Image src="/logo.png" alt="Manta Shark Aquatics" width={204} height={106} className="mx-auto mb-2 object-cover" style={{ width: 204, height: 106 }} priority />
           </Link>
           <h1 className="text-2xl font-bold text-[#12254a] auth-title">{t('forgot.title')}</h1>
           <p className="text-[#56647d] mt-2 text-sm">{sent ? t('forgot.sentSub') : t('forgot.subtitle')}</p>
