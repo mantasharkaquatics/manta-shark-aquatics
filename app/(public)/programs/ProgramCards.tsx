@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
-import { BASE_POINTS } from '@/lib/points'
 
 /* The four programmes as link cards, in the order of the Programs menu. The
    overview page shows all four; each programme page shows the other three. */
@@ -26,8 +25,6 @@ const css = `
   .pc .k { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: ${BRAND.blue}; }
   .pc h3 { font-size: 20px; margin: 6px 0 0; color: ${BRAND.navy}; }
   .pc p { color: ${BRAND.mute}; font-size: 14px; line-height: 1.65; margin: 8px 0 0; flex: 1; }
-  .pc .pr { margin-top: 14px; padding-top: 12px; border-top: 1px solid ${BRAND.line}; font-size: 13.5px; font-weight: 700;
-    color: ${BRAND.navy}; font-variant-numeric: tabular-nums; }
   .pc .go { margin-top: 16px; font-size: 14px; font-weight: 800; color: ${BRAND.blue}; }
   @media (max-width: 1024px) { .pc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 620px) { .pc-grid { grid-template-columns: 1fr; } }
@@ -38,13 +35,6 @@ export default function ProgramCards({ except }: { except?: ProgramKey }) {
   const t = useT()
   const locale = useLocale()
   const list = PROGRAMS.filter(p => p.key !== except)
-  // Prices from lib/points, the numbers the booking page charges.
-  const price: Record<ProgramKey, string> = {
-    private: `${t('home.program.private.name')} $${BASE_POINTS['1on1']} · ${t('home.program.semi.name')} $${BASE_POINTS['1on2']}`,
-    group: `$${BASE_POINTS['1on4']} ${t('home.program.perSwimmer')}`,
-    adaptive: t('adapt.chip.price'),
-    team: t('programs.card.teamPrice'),
-  }
   return (
     <>
       <style>{css}</style>
@@ -54,7 +44,6 @@ export default function ProgramCards({ except }: { except?: ProgramKey }) {
             <div className="k">{t(`nav.prog.${p.key}Sub`)}</div>
             <h3>{t(`nav.prog.${p.key}`)}</h3>
             <p>{t(`programs.${p.key}.sub`)}</p>
-            <div className="pr">{price[p.key]}</div>
             <div className="go">{t(p.key === 'adaptive' ? 'programs.card.more' : 'programs.card.cta')} →</div>
           </Link>
         ))}

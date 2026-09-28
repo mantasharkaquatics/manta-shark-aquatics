@@ -8,8 +8,6 @@ import { createClient } from '@/lib/supabase/client'
 import ChatWidget from '@/components/ChatWidget'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
-import { BASE_POINTS } from '@/lib/points'
-import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 /* Adaptive swim: lessons for children with special needs (owner, 2026-09-28).
    The advantage is the founder -- Mitzi is a school psychologist as well as
@@ -99,8 +97,6 @@ export default function AdaptiveContent() {
     </p>
   )
 
-  const oneOnOne = BASE_POINTS['1on1']
-  const assess = TRIAL_PRICE_CENTS / 100
 
   return (
     <BrandRoot>
@@ -174,7 +170,7 @@ export default function AdaptiveContent() {
               <div key={n} className="b-card">
                 <b>{n}</b>
                 <h3>{t('adapt.how.s' + n + '.title')}</h3>
-                <p>{t('adapt.how.s' + n + '.text', { price: assess })}</p>
+                <p>{t('adapt.how.s' + n + '.text')}</p>
               </div>
             ))}
           </div>
@@ -211,8 +207,7 @@ export default function AdaptiveContent() {
               <p>{t('adapt.fund.rcBody')}</p>
             </div>
             <ul>
-              <li>{t('adapt.fund.l1', { n: oneOnOne })}</li>
-              <li>{t('adapt.fund.l2', { n: assess })}</li>
+              <li>{t('adapt.fund.l1')}<Link href={localePath('/plans', locale)} style={{ color: BRAND.yellow, fontWeight: 800 }}>{t('page.plans')}</Link></li>
               <li>{t('adapt.fund.l3')}</li>
             </ul>
           </div>

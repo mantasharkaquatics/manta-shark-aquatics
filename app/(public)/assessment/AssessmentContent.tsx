@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { createClient } from '@/lib/supabase/client'
-import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 
@@ -42,8 +41,7 @@ const ICONS: Record<'l1' | 'l2' | 'l3', React.ReactNode> = {
 export default function AssessmentContent() {
   const t = useT()
   const locale = useLocale()
-  const price = '$' + (TRIAL_PRICE_CENTS / 100).toLocaleString()
-  const chips = t('assess.hero.meta', { price }).split(' · ')
+  const chips = t('assess.hero.meta').split(' · ')
 
   return (
     <BrandRoot>
@@ -165,7 +163,7 @@ export default function AssessmentContent() {
       <section className="b-final">
         <div className="b-wrap">
           <h2>{t('assess.cta.title')}</h2>
-          <p>{t('assess.cta.body', { price })}</p>
+          <p>{t('assess.cta.body')}</p>
           <div className="b-ctas"><BookAssessmentButton label={t('assess.cta.button')} /></div>
           <p className="b-small">
             {t('assess.cta.note')}{' '}

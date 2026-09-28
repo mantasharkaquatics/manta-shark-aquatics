@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { createClient } from '@/lib/supabase/client'
-import { BASE_POINTS } from '@/lib/points'
-import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY, wakeImage } from '@/lib/brand'
 import FitChips, { HAS_FIT } from '@/components/programs/FitChips'
 
@@ -34,13 +32,12 @@ export default function HomeContent() {
   // Booking lives behind the login: a signed-out visitor registers first and is
   // carried on to booking; a signed-in one goes straight there.
   const bookAssessment = () => router.push(signedIn ? '/booking' : '/register?redirect=/booking')
-  const price = '$' + (TRIAL_PRICE_CENTS / 100).toLocaleString()
 
   const programs = [
-    { slug: 'private', price: BASE_POINTS['1on1'], unit: 'home.program.per30' },
-    { slug: 'semi', price: BASE_POINTS['1on2'], unit: 'home.program.perSwimmer' },
-    { slug: 'group', price: BASE_POINTS['1on4'], unit: 'home.program.perSwimmer' },
-    { slug: 'team', price: null, unit: 'home.program.membership' },
+    { slug: 'private' },
+    { slug: 'semi' },
+    { slug: 'group' },
+    { slug: 'team' },
   ] as const
 
   return (
@@ -108,10 +105,11 @@ export default function HomeContent() {
         .h-prog h3 { margin: 0; font-size: 20px; }
         .h-prog p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; flex: 1; }
         .h-prog .pr { display: flex; align-items: baseline; gap: 6px; border-top: 1px solid ${BRAND.line}; padding-top: 14px; }
-        .h-prog .pr b { font-family: ${FONT_DISPLAY}; font-size: 28px; }
-        .h-prog .pr span { font-size: 12px; color: ${BRAND.mute}; }
+        .h-prog .pr a { font-size: 14px; font-weight: 800; color: ${BLUE}; text-decoration: none; }
+        .h-prog .pr a:hover { text-decoration: underline; }
         .h-prog.team { background: ${NAVY}; color: #fff; border-color: ${NAVY}; }
-        .h-prog.team p, .h-prog.team .k, .h-prog.team .pr span { color: rgba(255,255,255,0.6); }
+        .h-prog.team p, .h-prog.team .k { color: rgba(255,255,255,0.6); }
+        .h-prog.team .pr a { color: ${BRAND.yellow}; }
         .h-prog.team .pr { border-color: rgba(255,255,255,0.12); }
         .h-note { font-size: 13px; color: ${BRAND.mute}; margin-top: 18px; line-height: 1.6; }
         .h-note a { color: ${BLUE}; font-weight: 700; border-bottom: 1.5px solid ${AMBER}; text-decoration: none; }
@@ -204,7 +202,7 @@ export default function HomeContent() {
                   <b>{n}</b>
                   <div>
                     <h4>{t(`home.start.s${n}.title`)}</h4>
-                    <p>{t(`home.start.s${n}.body`, { price })}</p>
+                    <p>{t(`home.start.s${n}.body`)}</p>
                   </div>
                 </div>
               ))}
@@ -215,7 +213,7 @@ export default function HomeContent() {
           </div>
         </header>
 
-        {/* PROGRAMS: price on the card, nothing hidden behind a tap. */}
+        {/* PROGRAMS: who each lesson suits; the price is one tap away on /plans. */}
         <section className="h-sec h-paper">
           <div className="h-wrap">
             <div className="h-head">
@@ -231,9 +229,9 @@ export default function HomeContent() {
                   {HAS_FIT.has(p.slug)
                     ? <FitChips slug={p.slug as 'private' | 'semi' | 'group'} />
                     : <p>{t(`home.program.${p.slug}.desc`)}</p>}
+                  {/* Prices live on the Points & Pricing page only (owner, 2026-09-28). */}
                   <div className="pr">
-                    <b>{p.price === null ? t('home.program.monthly') : '$' + p.price}</b>
-                    <span>{t(p.unit)}</span>
+                    <Link href={localePath('/plans', locale)}>{t('programs.card.pricing')} →</Link>
                   </div>
                 </div>
               ))}

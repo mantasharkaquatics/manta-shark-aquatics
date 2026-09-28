@@ -6,7 +6,6 @@ import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 import WeekPreview from '@/components/programs/WeekPreview'
-import { BASE_POINTS } from '@/lib/points'
 import ProgramCards from './ProgramCards'
 import FitChips from '@/components/programs/FitChips'
 
@@ -26,8 +25,8 @@ const css = `
   .pd-card p { color: ${BRAND.mute}; font-size: 14.5px; line-height: 1.65; margin: 10px 0 0; flex: 1; }
   .pd-card .pr { margin-top: 18px; padding-top: 14px; border-top: 1px solid ${BRAND.line};
     display: flex; align-items: baseline; gap: 8px; }
-  .pd-card .pr b { font-size: 26px; font-weight: 900; color: ${BRAND.navy}; }
-  .pd-card .pr span { font-size: 13px; color: ${BRAND.mute}; }
+  .pd-card .pr a { font-size: 14px; font-weight: 800; color: ${BRAND.blue}; text-decoration: none; }
+  .pd-card .pr a:hover { text-decoration: underline; }
   .pd-info { background: ${BRAND.paper}; border: 1px dashed #c9d8ee; border-radius: 18px; padding: 26px;
     display: flex; align-items: center; }
   .pd-info p { color: ${BRAND.mute}; font-size: 14.5px; line-height: 1.7; margin: 0; }
@@ -42,18 +41,19 @@ export default function ProgramDetail({ kind }: { kind: DetailKind }) {
   const locale = useLocale()
   const P = `programs.${kind}`
 
-  const card = (slug: '1on1' | '1on2' | '1on4', key: 'private' | 'semi' | 'group', unit: string) => (
+  const card = (key: 'private' | 'semi' | 'group') => (
     <div className="pd-card">
       <div className="k">{t(`home.program.${key}.kind`)}</div>
       <h3>{t(`home.program.${key}.name`)}</h3>
       <FitChips slug={key} />
-      <div className="pr"><b>${BASE_POINTS[slug]}</b><span>{t(unit)}</span></div>
+      {/* Prices live on the Points & Pricing page only (owner, 2026-09-28). */}
+      <div className="pr"><Link href={localePath('/plans', locale)}>{t('programs.card.pricing')} →</Link></div>
     </div>
   )
 
   const chips: string[] =
-    kind === 'private' ? [t('levels.chip.ages3'), `${t('home.program.private.name')} · $${BASE_POINTS['1on1']}`, `${t('home.program.semi.name')} · $${BASE_POINTS['1on2']}`]
-    : kind === 'group' ? [t('levels.chip.ages3'), `${t('home.program.group.name')} · $${BASE_POINTS['1on4']}`, t('programs.group.chip')]
+    kind === 'private' ? [t('levels.chip.ages3'), t('home.program.private.name'), t('home.program.semi.name')]
+    : kind === 'group' ? [t('levels.chip.ages3'), t('home.program.group.name'), t('programs.group.chip')]
     : [t('programs.team.chipLevel'), t('programs.team.chip90'), t('home.program.monthly')]
 
   return (
@@ -90,13 +90,13 @@ export default function ProgramDetail({ kind }: { kind: DetailKind }) {
           </div>
           {kind === 'private' && (
             <div className="pd-grid">
-              {card('1on1', 'private', 'home.program.per30')}
-              {card('1on2', 'semi', 'home.program.perSwimmer')}
+              {card('private')}
+              {card('semi')}
             </div>
           )}
           {kind === 'group' && (
             <div className="pd-grid">
-              {card('1on4', 'group', 'home.program.perSwimmer')}
+              {card('group')}
               <div className="pd-info"><p>{t('programs.group.bands')}</p></div>
             </div>
           )}
