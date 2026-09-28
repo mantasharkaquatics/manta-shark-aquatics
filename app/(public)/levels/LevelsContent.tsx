@@ -17,7 +17,7 @@ import BrandRoot from '@/components/brand/BrandRoot'
    this count checked. They went stale once already: the page was still offering
    treading water and a clothed swim months after both were taken out. */
 const levels = [
-  { num: 1, color: LEVEL_COLORS['1'], goalCount: 6 },
+  { num: 1, color: LEVEL_COLORS['1'], goalCount: 5 },
   { num: 2, color: LEVEL_COLORS['2'], goalCount: 6 },
   { num: 3, color: LEVEL_COLORS['3'], goalCount: 6 },
   { num: 4, color: LEVEL_COLORS['4'], goalCount: 6 },
