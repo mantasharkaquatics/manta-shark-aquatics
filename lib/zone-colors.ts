@@ -1,8 +1,17 @@
+import { MAX_LEVEL } from './levels'
 // Single source of truth for zone / band / tier colors.
 // Used by: Zones editor, admin booking Day view, parent booking page.
 export const ZONE_COLORS: Record<string, string> = { private: '#c9a84c', group: '#4caf72', team: '#e05a4a' }
 export const BAND_COLORS: Record<string, string> = { '1-2': '#38bdf8', '3-4': '#2dd4bf', '5-6': '#818cf8', '7-9': '#fb923c' }
 export const TEAM_TIER_COLORS = ['#ef4444', '#ec4899', '#9f1239']
+
+/* The top band is stored as levels 7-9, from before the curriculum settled on
+   seven levels; there is no Level 8 or 9. What a person reads is "7", and
+   "1–2" for the others -- the stored key stays as it is. */
+export function bandRange(min: number | string, max: number | string): string {
+  const lo = Number(min), hi = Math.min(Number(max), MAX_LEVEL)
+  return lo >= hi ? String(lo) : `${lo}–${hi}`
+}
 
 export function bandKey(min?: number | null, max?: number | null): string | null {
   return min != null && max != null ? `${min}-${max}` : null

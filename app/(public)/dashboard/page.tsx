@@ -10,7 +10,7 @@ import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson, LESSONS_PER_FORGIVENESS, REFERRAL_POINTS } from '@/lib/points'
-import { BAND_COLORS, bandKey } from '@/lib/zone-colors'
+import { BAND_COLORS, bandKey, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
@@ -2256,7 +2256,7 @@ export default function DashboardPage() {
                           <div>
                             <div style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || 'Lesson'}</div>
                             {b.level_min != null && b.level_max != null && (
-                              <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>Level {b.level_min}–{b.level_max} Group</div>
+                              <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('dash.lesson.band', { r: bandRange(b.level_min, b.level_max) })}</div>
                             )}
                           </div>
                           <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>

@@ -6,7 +6,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { tDb } from '@/lib/i18n'
 import { BRAND } from '@/lib/brand'
-import { BAND_COLORS, TEAM_TIER_COLORS } from '@/lib/zone-colors'
+import { BAND_COLORS, TEAM_TIER_COLORS, bandRange } from '@/lib/zone-colors'
 import { formatTime12h } from '@/lib/date'
 import { tierBandLabel } from '@/lib/team-tiers'
 import { createClient } from '@/lib/supabase/client'
@@ -145,7 +145,7 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
       .map(s => ({
         key: s.time + s.band, label: formatTime12h(s.time),
         tag: band === 'all' ? (s.band
-          ? { text: 'L' + s.band.replace('-', '–'), color: BAND_COLORS[s.band] || BRAND.blue }
+          ? { text: 'L' + bandRange(...(s.band.split('-') as [string, string])), color: BAND_COLORS[s.band] || BRAND.blue }
           : { text: t('programs.week.anyLevel'), color: BRAND.blue }) : undefined,
       }))
     return (d.times || []).map(x => ({ key: x, label: formatTime12h(x) }))
@@ -192,7 +192,7 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
             {BANDS.map(b => (
               <button key={b} type="button" aria-pressed={band === b} onClick={() => setBand(b)}>
                 <span className="wk-dot" style={{ background: BAND_COLORS[b] }} />
-                {t('programs.week.band', { a: b.split('-')[0], b: b.split('-')[1] })}
+                {t('programs.week.band', { r: bandRange(...(b.split('-') as [string, string])) })}
               </button>
             ))}
           </div>

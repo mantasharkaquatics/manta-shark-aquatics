@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { meetsLeadTime, isWithin24Hours } from '@/lib/booking-time'
 import { BASE_POINTS, OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, priceLesson, type PriceBreakdown } from '@/lib/points'
 import { zoneTypeForSlug } from '@/lib/zones'
-import { ZONE_COLORS, BAND_COLORS, bandKey } from '@/lib/zone-colors'
+import { ZONE_COLORS, BAND_COLORS, bandKey, bandRange } from '@/lib/zone-colors'
 
 const GROUP_BANDS: [number, number][] = [[1, 2], [3, 4], [5, 6], [7, 9]]
 function studentBandOf(lvl: number): { min: number; max: number } | null {
@@ -1399,7 +1399,7 @@ export default function BookingPage() {
                           </div>
                           {ct.slug === '1on4' && myGroupBand && (
                             <div style={{ marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
-                              {t('booking.yourClass', { min: myGroupBand.min, max: myGroupBand.max })}
+                              {t('booking.yourClass', { r: bandRange(myGroupBand.min, myGroupBand.max) })}
                             </div>
                           )}
                         </div>

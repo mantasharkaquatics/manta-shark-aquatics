@@ -1,6 +1,6 @@
 'use client'
 
-import { zoneFill } from '@/lib/zone-colors'
+import { zoneFill, bandRange } from '@/lib/zone-colors'
 
 import { formatTime12h, daySlots, getTodayLA } from '@/lib/date'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
@@ -1548,7 +1548,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                     if (!fill) return null
                     const zoneLabel = z.zone_type === 'team'
                       ? (String(z.start_time).slice(0, 5) === time ? ((z.team_tier_id && tierNames[z.team_tier_id]) || 'Team') : null)
-                      : (z.group_level_min != null ? `L${z.group_level_min}\u2013${z.group_level_max} Group` : 'Group')
+                      : (z.group_level_min != null ? `L${bandRange(z.group_level_min, z.group_level_max ?? z.group_level_min)} Group` : 'Group')
                     return (
                       <>
                         <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0 ${((Math.max(timeToMinutes(String(z.start_time).slice(0, 5)), cs) - cs) / Math.max(1, ce - cs)) * 100}%, ${fill}2b ${((Math.max(timeToMinutes(String(z.start_time).slice(0, 5)), cs) - cs) / Math.max(1, ce - cs)) * 100}% ${((Math.min(timeToMinutes(String(z.end_time).slice(0, 5)), ce) - cs) / Math.max(1, ce - cs)) * 100}%, transparent ${((Math.min(timeToMinutes(String(z.end_time).slice(0, 5)), ce) - cs) / Math.max(1, ce - cs)) * 100}% 100%)` }} />

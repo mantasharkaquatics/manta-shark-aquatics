@@ -15,7 +15,7 @@ const BANDS = [
   { key: '1-2', label: 'L1–2' },
   { key: '3-4', label: 'L3–4' },
   { key: '5-6', label: 'L5–6' },
-  { key: '7-9', label: 'L7–9' },
+  { key: '7-9', label: 'L7' },
 ]
 const BAND_GREENS = BAND_COLORS
 const TEAM_COLORS = TEAM_TIER_COLORS
