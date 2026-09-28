@@ -37,7 +37,7 @@ const css = `
   .l-desk { display: grid; grid-template-columns: 270px 1fr; gap: 24px; align-items: start; }
   .l-nav { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 10px; display: flex; flex-direction: column; gap: 4px;
            position: sticky; top: calc(var(--nav-cover, 76px) + 12px); transition: top .28s ease; }
-  .l-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 0; background: transparent;
+  .l-item { display: flex; align-items: center; gap: 12px; padding: 12px 12px; border-radius: 12px; border: 0; background: transparent;
             cursor: pointer; width: 100%; text-align: left; font-family: inherit; color: ${BRAND.ink}; transition: background 0.15s; }
   .l-item:hover { background: ${BRAND.paper}; }
   .l-item[aria-current="true"] { background: ${BRAND.navy}; color: #fff; }
@@ -52,15 +52,19 @@ const css = `
   .l-chev { margin-left: auto; flex-shrink: 0; font-size: 16px; color: #b8c4d6; }
   .l-item[aria-current="true"] .l-chev { color: ${BRAND.yellow}; }
 
-  /* One line and one height for all seven (owner, 2026-09-28): "LEVEL 1  Water
-     Discovery" side by side instead of stacked. */
-  .l-head { border-radius: 18px; height: 74px; padding: 0 30px; position: relative; overflow: hidden; margin-bottom: 16px;
-            display: flex; align-items: center; gap: 16px; white-space: nowrap; }
-  .l-head::after { content: ''; position: absolute; right: -24px; top: -40px; width: 120px; height: 120px; border-radius: 50%;
+  /* The level's colour, number, name and one-line promise as the top of a
+     single card (owner, 2026-09-28): the band and the text below it read as
+     one level, and the card's height lines up with the list on the left. */
+  .l-card { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; overflow: hidden; }
+  .l-head { padding: 26px 32px; position: relative; overflow: hidden; display: flex; align-items: center; gap: 20px; min-height: 128px; }
+  .l-head::after { content: ''; position: absolute; right: -40px; top: -50px; width: 170px; height: 170px; border-radius: 50%;
                    background: rgba(255,255,255,0.1); pointer-events: none; }
-  .l-head small { font-size: 11px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; opacity: 0.72; }
-  .l-head h2 { font-size: 26px; font-weight: 900; margin: 0; }
-  .l-body { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 30px 34px; }
+  .l-big { width: 68px; height: 68px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+           font-size: 32px; font-weight: 900; background: rgba(255,255,255,0.22); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35); }
+  .l-head small { font-size: 11px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; opacity: 0.75; }
+  .l-head h2 { font-size: 30px; font-weight: 900; margin: 2px 0 0; line-height: 1.15; }
+  .l-head p { font-size: 15px; font-weight: 600; margin: 6px 0 0; opacity: 0.9; line-height: 1.5; }
+  .l-body { padding: 26px 32px 30px; }
   .l-tag { font-size: 17px; font-weight: 700; color: ${BRAND.navy}; line-height: 1.5; margin: 0 0 10px; }
   .l-desc { font-size: 15px; color: ${BRAND.mute}; line-height: 1.8; margin: 0 0 22px; padding-bottom: 22px; border-bottom: 1px solid ${BRAND.line}; }
   .l-stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
@@ -191,15 +195,20 @@ export default function LevelsContent() {
             </nav>
 
             <div>
-              <div className="l-head" style={{ background: current.color, color: onColor(current.color) }}>
-                <small>{t('levels.levelN', { n: current.num })}</small>
-                <h2>{t('level.' + current.num + '.name')}</h2>
-              </div>
-              <div className="l-body">
-                <p className="l-tag">{t('levels.' + current.num + '.tagline')}</p>
-                <p className="l-desc">{t('levels.' + current.num + '.desc')}</p>
-                {stages(current.num, true)}
-                {goals(current)}
+              <div className="l-card">
+                <div className="l-head" style={{ background: current.color, color: onColor(current.color) }}>
+                  <span className="l-big" aria-hidden="true">{current.num}</span>
+                  <div>
+                    <small>{t('levels.levelN', { n: current.num })}</small>
+                    <h2>{t('level.' + current.num + '.name')}</h2>
+                    <p>{t('levels.' + current.num + '.tagline')}</p>
+                  </div>
+                </div>
+                <div className="l-body">
+                  <p className="l-desc">{t('levels.' + current.num + '.desc')}</p>
+                  {stages(current.num, true)}
+                  {goals(current)}
+                </div>
               </div>
             </div>
           </div>
