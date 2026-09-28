@@ -289,6 +289,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
               <input className={inputCls + ' max-w-[220px]'} value={studentEdits[s.id]?.name || ''}
                 onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], name: e.target.value } }))} />
               <input type="date" className={inputCls + ' max-w-[170px]'} value={studentEdits[s.id]?.dob || ''}
+                max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                 onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], dob: e.target.value } }))} />
               <button className={goldBtn} disabled={busy} onClick={() => saveStudent(s)}>Save</button>
             </div>

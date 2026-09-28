@@ -107,6 +107,8 @@ export async function POST(req: NextRequest) {
       if ('date_of_birth' in fields) {
         const d = fields.date_of_birth ? String(fields.date_of_birth).trim() : ''
         if (d && !DATE_RE.test(d)) return NextResponse.json({ error: 'Birthday must be YYYY-MM-DD.' }, { status: 400 })
+        if (d && d > new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }))
+          return NextResponse.json({ error: 'Birthday cannot be in the future.' }, { status: 400 })
         patch.date_of_birth = d || null
       }
       if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })

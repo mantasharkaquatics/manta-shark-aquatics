@@ -1090,6 +1090,7 @@
   "register.emailCodePh": "輸入信中的 6 位數驗證碼",
   "register.err.acceptTerms": "請勾選同意服務條款與免責同意書才能繼續。",
   "register.err.createFailed": "建立帳號失敗：",
+  "register.err.dobFuture": "生日不能是未來的日期，請再確認一下。",
   "register.err.enterCode": "請輸入驗證碼",
   "register.err.enterEmail": "請先輸入電子郵件",
   "register.err.enterPhone": "請先輸入手機號碼",

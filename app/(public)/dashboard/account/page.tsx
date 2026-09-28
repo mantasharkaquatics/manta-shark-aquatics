@@ -62,6 +62,10 @@ export default function AccountPage() {
 
   async function submitAddStudent() {
     if (!parent || !newName.trim()) return
+    // The date picker's max stops a click on a future day, not a typed one.
+    if (newDob && newDob > new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })) {
+      setAddError(t('register.err.dobFuture')); setConfirmingAdd(false); return
+    }
     setAdding(true)
     setAddError(null)
     const { error } = await supabase.from('students').insert({

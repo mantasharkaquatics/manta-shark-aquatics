@@ -1090,6 +1090,7 @@
   "register.emailCodePh": "输入邮件中的 6 位数验证码",
   "register.err.acceptTerms": "请勾选同意服务条款与免责同意书才能继续。",
   "register.err.createFailed": "创建账号失败：",
+  "register.err.dobFuture": "生日不能是未来的日期，请再确认一下。",
   "register.err.enterCode": "请输入验证码",
   "register.err.enterEmail": "请先输入电子邮件",
   "register.err.enterPhone": "请先输入手机号码",

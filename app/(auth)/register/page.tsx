@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import PasswordField from '@/components/ui/PasswordField'
+import { getTodayLA } from '@/lib/date'
 
 const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
 const DOB_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -19,19 +20,26 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
   const [y, setY] = useState(vy)
   const [m, setM] = useState(vm)
   const [d, setD] = useState(vd)
-  const nowYear = new Date().getFullYear()
+  // A birthday cannot be in the future: this year only offers the months so
+  // far, and this month only the days so far (school's own time zone).
+  const [ty, tm, td] = getTodayLA().split('-')
+  const nowYear = Number(ty)
   const years: number[] = []
   for (let yr = nowYear; yr >= nowYear - 100; yr--) years.push(yr)
-  const daysInMonth = y && m ? new Date(Number(y), Number(m), 0).getDate() : 31
+  const months = y === ty ? DOB_MONTHS.filter(mm => mm <= tm) : DOB_MONTHS
+  const lastDay = (yy: string, mm: string) => {
+    const n = yy && mm ? new Date(Number(yy), Number(mm), 0).getDate() : 31
+    return yy === ty && mm === tm ? Math.min(n, Number(td)) : n
+  }
+  const daysInMonth = lastDay(y, m)
   const days: string[] = []
   for (let i = 1; i <= daysInMonth; i++) days.push(String(i).padStart(2, '0'))
 
   const emit = (ny: string, nm: string, nd: string) => {
+    // Switching to this year can leave a month that has not happened yet.
+    if (ny === ty && nm && nm > tm) nm = ''
     let fd = nd
-    if (ny && nm && nd) {
-      const maxD = new Date(Number(ny), Number(nm), 0).getDate()
-      fd = String(Math.min(Number(nd), maxD)).padStart(2, '0')
-    }
+    if (ny && nm && nd) fd = String(Math.min(Number(nd), lastDay(ny, nm))).padStart(2, '0')
     setY(ny); setM(nm); setD(fd)
     onChange(ny && nm && fd ? `${ny}-${nm}-${fd}` : '')
   }
@@ -41,7 +49,7 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
     <div className="grid grid-cols-3 gap-2">
       <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls}>
         <option value="">{t('register.dob.month')}</option>
-        {DOB_MONTHS.map((mm, i) => <option key={mm} value={mm}>{DOB_MONTH_NAMES[i]}</option>)}
+        {months.map(mm => <option key={mm} value={mm}>{DOB_MONTH_NAMES[Number(mm) - 1]}</option>)}
       </select>
       <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls}>
         <option value="">{t('register.dob.day')}</option>
@@ -282,6 +290,7 @@ export default function RegisterPage() {
   async function handleSubmit() {
     if (!termsAccepted || !waiverAccepted) { setError(t('register.err.acceptTerms')); return }
     if (!students[0].fullName.trim()) { setError(t('register.err.studentName')); return }
+    if (students.some(s => s.dateOfBirth && s.dateOfBirth > getTodayLA())) { setError(t('register.err.dobFuture')); return }
     setLoading(true); setError('')
     const now = new Date().toISOString()
     const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })

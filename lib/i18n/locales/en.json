@@ -1090,6 +1090,7 @@
   "register.emailCodePh": "Enter the 6-digit code from your email",
   "register.err.acceptTerms": "Please accept the Terms of Service and Liability Waiver to continue.",
   "register.err.createFailed": "Failed to create account: ",
+  "register.err.dobFuture": "A birthday cannot be in the future. Please check the date.",
   "register.err.enterCode": "Please enter the verification code",
   "register.err.enterEmail": "Please enter your email first",
   "register.err.enterPhone": "Please enter your phone number first",
