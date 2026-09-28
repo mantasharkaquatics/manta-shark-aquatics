@@ -17,7 +17,7 @@ import BrandRoot from '@/components/brand/BrandRoot'
    this count checked. They went stale once already: the page was still offering
    treading water and a clothed swim months after both were taken out. */
 const levels = [
-  { num: 1, color: LEVEL_COLORS['1'], goalCount: 5 },
+  { num: 1, color: LEVEL_COLORS['1'], goalCount: 6 },
   { num: 2, color: LEVEL_COLORS['2'], goalCount: 6 },
   { num: 3, color: LEVEL_COLORS['3'], goalCount: 6 },
   { num: 4, color: LEVEL_COLORS['4'], goalCount: 6 },
@@ -65,9 +65,12 @@ const css = `
   .l-stage small { display: block; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
   .l-stage div { font-size: 13.5px; font-weight: 700; color: ${BRAND.navy}; line-height: 1.35; padding-right: 36px; }
   .l-goalh { font-size: 14px; font-weight: 800; color: ${BRAND.navy}; margin: 0 0 12px; }
-  .l-goals { list-style: none; display: flex; flex-direction: column; gap: 11px; padding: 0; margin: 0; }
-  .l-goals li { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; color: ${BRAND.ink}; line-height: 1.65; }
-  .l-goals li i { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 8px; }
+  /* What a child can do at the end of the level, as short tags (owner,
+     2026-09-28: the sentences were too much to read). */
+  .l-goals { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0; }
+  .l-goals li { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: ${BRAND.navy};
+    line-height: 1.35; padding: 8px 13px; border-radius: 10px; border: 1px solid; }
+  .l-goals li i { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; }
 
   .l-mob { display: none; flex-direction: column; gap: 8px; }
   .l-acc { border-radius: 14px; overflow: hidden; background: #fff; border: 1px solid ${BRAND.line}; }
@@ -81,7 +84,7 @@ const css = `
   .l-acc-body .l-stages { gap: 7px; margin-bottom: 16px; }
   .l-acc-body .l-stage { padding: 9px 10px; min-height: 0; }
   .l-acc-body .l-stage div { font-size: 12px; padding-right: 0; }
-  .l-acc-body .l-goals li { font-size: 14px; }
+  .l-acc-body .l-goals li { font-size: 13px; padding: 7px 11px; }
 
   .l-final-p { font-size: 16px; }
   .l-final-p strong { color: #fff; font-weight: 700; }
@@ -134,7 +137,7 @@ export default function LevelsContent() {
         <p className="l-goalh">{t('levels.goalsHeading')}</p>
         <ul className="l-goals">
           {Array.from({ length: lv.goalCount }, (_, k) => k + 1).map(g => (
-            <li key={g}><i style={{ background: lv.color }} />{t('levels.' + lv.num + '.goal.' + g)}</li>
+            <li key={g} style={{ background: lv.color + '12', borderColor: lv.color + '40' }}><i style={{ background: lv.color }} />{t('levels.' + lv.num + '.goal.' + g)}</li>
           ))}
         </ul>
       </>
