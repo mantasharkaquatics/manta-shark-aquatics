@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale, useSetLocale, rememberExplicitLocale, readExplicitLocale, clearExplicitLocale } from '@/lib/i18n/provider'
@@ -28,6 +28,15 @@ const navLinks = [
   { labelKey: 'page.about', href: '/about' },
   { labelKey: 'page.faq', href: '/faq' },
 ]
+
+/* The Programs menu (owner, 2026-09-28): the four kinds of lesson, each a
+   section of /programs except adaptive swim, which has its own page. */
+const PROGRAM_ITEMS = [
+  { key: 'private', href: '/programs', hash: '#private' },
+  { key: 'group', href: '/programs', hash: '#group' },
+  { key: 'adaptive', href: '/adaptive-swim', hash: '' },
+  { key: 'team', href: '/programs', hash: '#team' },
+] as const
 
 /* What the round language button says: the language you are in now. */
 const LOCALE_SHORT: Record<Locale, string> = { en: 'EN', 'zh-Hant': '繁', 'zh-Hans': '简' }
@@ -65,6 +74,24 @@ const css = `
   @media (max-width: 1240px) { .rn-links { gap: 0; } .rn-links a { padding: 8px 7px; font-size: 14px; } }
   @media (max-width: 1180px) { .rn-links a { padding: 8px 5px; font-size: 13.5px; } }
   .rn-links a[aria-current="page"] { color: ${BRAND.blue}; box-shadow: inset 0 -2px 0 ${BRAND.blue}; border-radius: 0; }
+  /* Programs drop-down: opens on hover or keyboard focus. The padding-top is
+     an invisible bridge, so the pointer can travel from the label down to the
+     menu without it closing on the way. */
+  .rn-dd { position: relative; display: flex; }
+  .rn-dd > a { display: inline-flex; align-items: center; }
+  .rn-dd > a svg { margin-left: 5px; flex-shrink: 0; transition: transform .15s; }
+  .rn-dd:hover > a svg, .rn-dd:focus-within > a svg { transform: rotate(180deg); }
+  .rn-ddm { display: none; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); padding-top: 12px; z-index: 5; }
+  .rn-dd:hover .rn-ddm, .rn-dd:focus-within .rn-ddm { display: block; }
+  .rn-dd.shut .rn-ddm { display: none; }
+  .rn-ddm .box { width: 290px; background: #fff; border-radius: 14px; box-shadow: 0 16px 40px rgba(10,22,48,.22); padding: 8px; }
+  .rn-links .rn-ddm a { display: block; white-space: normal; padding: 10px 12px; border-radius: 10px; font-size: 15px; box-shadow: none; }
+  .rn-links .rn-ddm a b { display: block; font-weight: 800; color: ${BRAND.navy}; }
+  .rn-links .rn-ddm a span { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: ${BRAND.mute}; }
+  .rn-links .rn-ddm a:hover { background: #f0f4fa; }
+  .rn-links .rn-ddm a:hover b { color: ${BRAND.blue}; }
+  .rn-links .rn-ddm hr { border: 0; border-top: 1px solid ${BRAND.line}; margin: 6px 6px; }
+  .rn-links .rn-ddm a.all { font-size: 13.5px; font-weight: 800; color: ${BRAND.blue}; }
   .rn-right { justify-self: end; display: flex; align-items: center; gap: 8px; }
   .rn-cta { display: inline-flex; align-items: center; height: 42px; padding: 0 20px; border-radius: 999px;
     background: ${BRAND.amber}; color: ${BRAND.navy}; font-weight: 800; font-size: 14.5px; text-decoration: none; white-space: nowrap;
@@ -112,6 +139,7 @@ const css = `
       min-height: 52px; border: 0; border-bottom: 1px solid ${BRAND.line}; background: none; padding: 0 10px; text-align: left;
       font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.3; color: ${BRAND.ink}; text-decoration: none; cursor: pointer; }
     .rn-drawer a[aria-current="page"] { color: ${BRAND.blue}; }
+    .rn-drawer a.kid { min-height: 46px; padding-left: 26px; font-size: 15px; font-weight: 600; color: ${BRAND.mute}; }
     .rn-drawer button.out { color: #c0392b; border-bottom: 0; }
     .rn-drawer .lang { display: flex; gap: 8px; padding: 4px 10px 12px; border-bottom: 1px solid ${BRAND.line}; }
     .rn-drawer .lang button { flex: 1; min-height: 44px; border-radius: 10px; border: 1.5px solid ${BRAND.line}; background: #fff;
@@ -245,6 +273,20 @@ export default function Navbar() {
   const current = (href: string) =>
     (bare === href || BRANCHES[href]?.includes(bare) ? 'page' as const : undefined)
   const toggle = (which: 'lang' | 'acct' | 'drawer') => setOpen(o => (o === which ? null : which))
+  // A hover menu would stay open under the pointer after a pick that only
+  // scrolls the same page; this shuts it until the pointer leaves.
+  const [ddShut, setDdShut] = useState(false)
+  const closeDd = () => { setDdShut(true); (document.activeElement as HTMLElement | null)?.blur() }
+  /* A section of the page you are already on: scroll to it ourselves. Left to
+     the router, a second pick appended its hash to the first (#group#team). */
+  const goSection = (e: React.MouseEvent, it: (typeof PROGRAM_ITEMS)[number]) => {
+    if (!it.hash || bare !== it.href) return
+    const el = document.querySelector(it.hash)
+    if (!el) return
+    e.preventDefault()
+    el.scrollIntoView({ block: 'start' })
+    history.replaceState(null, '', localePath(it.href, locale) + it.hash)
+  }
 
   // Signed in, the button takes a family home to their Dashboard -- except on
   // the Dashboard itself, where "go home" would do nothing and the next thing
@@ -283,7 +325,27 @@ export default function Navbar() {
 
           <div className="rn-piece rn-p2">
             <div className="rn-links">
-              {navLinks.map(link => (
+              {navLinks.map(link => link.href === '/programs' ? (
+                <div key={link.href} className={'rn-dd' + (ddShut ? ' shut' : '')} onMouseLeave={() => setDdShut(false)}>
+                  <Link href={localePath(link.href, locale)} aria-current={current(link.href)} aria-haspopup="true">
+                    {t(link.labelKey)}
+                    <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
+                      <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </Link>
+                  <div className="rn-ddm">
+                    <div className="box" role="menu" aria-label={t(link.labelKey)}>
+                      {PROGRAM_ITEMS.map(it => (
+                        <Link key={it.key} role="menuitem" href={localePath(it.href, locale) + it.hash} onClick={e => { closeDd(); goSection(e, it) }}>
+                          <b>{t('nav.prog.' + it.key)}</b><span>{t('nav.prog.' + it.key + 'Sub')}</span>
+                        </Link>
+                      ))}
+                      <hr />
+                      <Link role="menuitem" className="all" href={localePath('/programs', locale)} onClick={closeDd}>{t('nav.prog.all')} →</Link>
+                    </div>
+                  </div>
+                </div>
+              ) : (
                 <Link key={link.href} href={localePath(link.href, locale)} aria-current={current(link.href)}>
                   {t(link.labelKey)}
                 </Link>
@@ -358,9 +420,16 @@ export default function Navbar() {
               </Link>
             )}
             {navLinks.map(link => (
-              <Link key={link.href} href={localePath(link.href, locale)} aria-current={current(link.href)}>
-                <span>{t(link.labelKey)}</span><Chevron />
-              </Link>
+              <Fragment key={link.href}>
+                <Link href={localePath(link.href, locale)} aria-current={current(link.href)}>
+                  <span>{t(link.labelKey)}</span><Chevron />
+                </Link>
+                {link.href === '/programs' && PROGRAM_ITEMS.map(it => (
+                  <Link key={it.key} className="kid" href={localePath(it.href, locale) + it.hash} onClick={e => { setOpen(null); goSection(e, it) }}>
+                    <span>{t('nav.prog.' + it.key)}</span><Chevron />
+                  </Link>
+                ))}
+              </Fragment>
             ))}
             {isLoggedIn ? (
               <>
