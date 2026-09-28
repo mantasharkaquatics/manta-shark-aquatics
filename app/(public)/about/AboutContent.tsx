@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { BRAND } from '@/lib/brand'
+import { localePath } from '@/lib/i18n/paths'
 import BrandRoot from '@/components/brand/BrandRoot'
 
 const coaches = [
@@ -170,6 +171,7 @@ export default function AboutContent() {
             <p className="b-eyebrow">{t('about.team.eyebrow')}</p>
             <h2>{t('about.team.title1')}{gap}<em style={{ color: BRAND.blue }}>{t('about.team.title2')}</em></h2>
             <p>{t('about.team.subtitle')}</p>
+            <p><Link href={localePath('/adaptive-swim', locale)} className="b-link">{t('about.team.adaptive')} →</Link></p>
           </div>
           <div className="ab-team">
             {coaches.map(coach => (

@@ -23,6 +23,7 @@ import { BRAND } from '@/lib/brand'
 const navLinks = [
   { labelKey: 'page.assessment', href: '/assessment' },
   { labelKey: 'page.levels', href: '/levels' },
+  { labelKey: 'page.adaptive', href: '/adaptive-swim' },
   { labelKey: 'page.plans', href: '/plans' },
   { labelKey: 'page.about', href: '/about' },
   { labelKey: 'page.faq', href: '/faq' },
@@ -36,7 +37,7 @@ const css = `
      --nav-cover: how far down the bar reaches -- sticky things on a page (the
      levels and FAQ side menus, the booking week header) sit below it. */
   :root { --nav-space: 90px; --nav-cover: 86px; }
-  @media (max-width: 1023px) { :root { --nav-space: 76px; --nav-cover: 74px; } }
+  @media (max-width: 1099px) { :root { --nav-space: 76px; --nav-cover: 74px; } }
 
   .rn-space { height: var(--nav-space); background: ${BRAND.navy}; }
   .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; }
@@ -57,6 +58,12 @@ const css = `
   .rn-links a { font-size: 15px; font-weight: 700; color: ${BRAND.ink}; text-decoration: none; padding: 8px 12px;
     border-radius: 8px; transition: background .15s, color .15s; }
   .rn-links a:hover { background: #eef3fa; }
+  /* Six links since Adaptive Swim joined (2026-09-28). A label must never
+     wrap onto two lines in the bar, so they tighten up on narrower screens
+     before the bar hands over to the menu button. */
+  .rn-links a { white-space: nowrap; }
+  @media (max-width: 1240px) { .rn-links { gap: 0; } .rn-links a { padding: 8px 7px; font-size: 14px; } }
+  @media (max-width: 1180px) { .rn-links a { padding: 8px 5px; font-size: 13.5px; } }
   .rn-links a[aria-current="page"] { color: ${BRAND.blue}; box-shadow: inset 0 -2px 0 ${BRAND.blue}; border-radius: 0; }
   .rn-right { justify-self: end; display: flex; align-items: center; gap: 8px; }
   .rn-cta { display: inline-flex; align-items: center; height: 42px; padding: 0 20px; border-radius: 999px;
@@ -84,7 +91,7 @@ const css = `
   .rn-burger { display: none; }
   .rn-drawer { display: none; }
 
-  @media (max-width: 1023px) {
+  @media (max-width: 1099px) {
     .rn { top: 8px; left: 8px; right: 8px; }
     .rn-bar { height: 60px; }
     .rn-p1 { padding: 0 10px 0 18px; }

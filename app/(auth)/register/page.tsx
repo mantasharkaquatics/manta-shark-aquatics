@@ -10,6 +10,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import PasswordField from '@/components/ui/PasswordField'
 import { getTodayLA } from '@/lib/date'
+import { safeNext } from '@/lib/safe-next'
 
 const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
 const DOB_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -332,7 +333,7 @@ export default function RegisterPage() {
       } catch {}
     }
     setLoading(false)
-    router.push('/dashboard')
+    router.push(safeNext() || '/dashboard')
   }
 
   return (

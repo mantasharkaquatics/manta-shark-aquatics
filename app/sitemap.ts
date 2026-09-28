@@ -22,7 +22,7 @@ import { LEGAL_VERSIONS } from '@/lib/legal'
 /** Marketing pages, in the three languages. Keep in step with LOCALISED_PATHS
  *  in lib/i18n/paths.ts -- that set decides which prefixed URLs actually
  *  resolve, and a sitemap entry for one that does not is a 404 we advertised. */
-const LOCALISED = ['', '/assessment', '/levels', '/plans', '/about', '/faq'] as const
+const LOCALISED = ['', '/assessment', '/levels', '/adaptive-swim', '/plans', '/about', '/faq'] as const
 
 /** English-only pages. The legal documents stay in English by decision, and
  *  careers is the one page that is indexed even before launch. */

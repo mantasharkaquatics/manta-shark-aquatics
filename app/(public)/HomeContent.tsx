@@ -90,6 +90,13 @@ export default function HomeContent() {
         .h-steps .h-btn { width: 100%; margin-top: 14px; }
 
         .h-sec { padding: 88px 0; }
+        /* Adaptive swim: one navy band between the programmes and the why. */
+        .h-adapt { padding: 0 0 88px; background: ${BRAND.paper}; }
+        .h-adapt .box { background: ${NAVY}; color: #fff; border-radius: 22px; padding: 36px 40px;
+          display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: center; }
+        .h-adapt .h-eyebrow { color: ${YELLOW}; }
+        .h-adapt h2 { font-family: ${FONT_DISPLAY}; font-size: 30px; line-height: 1.2; margin: 8px 0 0; }
+        .h-adapt p { color: rgba(255,255,255,.82); font-size: 16px; line-height: 1.65; margin: 10px 0 0; max-width: 60ch; }
         .h-head { max-width: 640px; margin-bottom: 40px; }
         .h-head h2 { font-size: 38px; line-height: 1.15; margin-top: 10px; }
         .h-head p { color: ${BRAND.mute}; font-size: 16px; line-height: 1.65; margin: 12px 0 0; }
@@ -155,6 +162,9 @@ export default function HomeContent() {
           .h-whygrid { grid-template-columns: 1fr; }
           .h-qs { grid-template-columns: 1fr; }
           .h-sec { padding: 60px 0; }
+          .h-adapt { padding-bottom: 60px; }
+          .h-adapt .box { grid-template-columns: 1fr; padding: 28px; }
+          .h-adapt h2 { font-size: 24px; }
           .h-head h2 { font-size: 30px; }
           .h-final h2 { font-size: 32px; }
         }
@@ -229,6 +239,19 @@ export default function HomeContent() {
               {t('home.programs.note')}{' '}
               <Link href={localePath('/plans', locale)}>{t('home.programs.noteLink')}</Link>
             </p>
+          </div>
+        </section>
+
+        <section className="h-adapt">
+          <div className="h-wrap">
+            <div className="box">
+              <div>
+                <div className="h-eyebrow">{t('adapt.home.eyebrow')}</div>
+                <h2>{t('adapt.home.title')}</h2>
+                <p>{t('adapt.home.body')}</p>
+              </div>
+              <Link className="h-btn gold tap-auto" href={localePath('/adaptive-swim', locale)}>{t('adapt.home.cta')} →</Link>
+            </div>
           </div>
         </section>
 

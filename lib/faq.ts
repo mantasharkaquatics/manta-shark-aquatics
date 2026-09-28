@@ -16,7 +16,7 @@ export type FaqCategory = { id: string; items: readonly string[] }
 export const FAQ: readonly FaqCategory[] = [
   {
     id: 'first',
-    items: ['start', 'age', 'bring', 'diaper', 'pool', 'watch', 'crying'],
+    items: ['start', 'age', 'adaptive', 'bring', 'diaper', 'pool', 'watch', 'crying'],
   },
   {
     id: 'lessons',

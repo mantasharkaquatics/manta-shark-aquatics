@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { safeNext } from '@/lib/safe-next'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import PasswordField from '@/components/ui/PasswordField'
@@ -41,7 +42,7 @@ export default function LoginPage() {
         const { data: coach } = await supabase.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).single()
         if (coach) { router.push('/coach'); return }
         await supabase.from('parents').update({ last_login_at: new Date().toISOString() }).eq('auth_user_id', user.id)
-        router.push('/dashboard')
+        router.push(safeNext() || '/dashboard')
       }
     }
   }

@@ -17,7 +17,7 @@ const css = `
   .ab a:hover { color: ${BRAND.yellow}; }
   .ab a:focus-visible { outline: 2px solid ${BRAND.yellow}; outline-offset: 4px; border-radius: 4px; }
   .auth-shell { padding-top: 110px !important; }
-  @media (max-width: 1023px) {
+  @media (max-width: 1099px) {
     .ab { top: 8px; left: 8px; right: 8px; height: 60px; padding: 0 18px; }
     .ab a { font-size: 13.5px; letter-spacing: .26em; }
     .auth-shell { padding-top: 92px !important; }
