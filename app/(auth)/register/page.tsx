@@ -123,7 +123,13 @@ export default function RegisterPage() {
   // link, checked as it is typed, and bound to the new account by the server
   // once the account exists. It cannot be added after registration.
   const [referralCode, setReferralCode] = useState('')
-  const [referral, setReferral] = useState<{ valid: boolean; referrer?: string } | null>(null)
+  const [referral, setReferral] = useState<{ valid: boolean; referrer?: string; byPhone?: boolean } | null>(null)
+  // The field takes the friend's code or the friend's phone number: letters
+  // mean a code (6 characters), otherwise it is read as a phone number.
+  const referralIsCode = /[A-Za-z]/.test(referralCode)
+  const cleanReferral = (v: string) => /[A-Za-z]/.test(v)
+    ? v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+    : v.replace(/[^0-9+()\-\s]/g, '').slice(0, 20)
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('ref')
     if (ref) setReferralCode(ref.toUpperCase())
@@ -131,7 +137,8 @@ export default function RegisterPage() {
   useEffect(() => {
     const code = referralCode.trim()
     if (!code) { setReferral(null); return }
-    if (code.length < 6) { setReferral(null); return }
+    const ready = /[A-Za-z]/.test(code) ? code.length === 6 : code.replace(/\D/g, '').length >= 10
+    if (!ready) { setReferral(null); return }
     const timer = setTimeout(async () => {
       try {
         const res = await fetch('/api/referrals/check', {
@@ -537,11 +544,11 @@ export default function RegisterPage() {
             )}
             <div>
               <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.referral')}</label>
-              <input value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+              <input value={referralCode} onChange={e => setReferralCode(cleanReferral(e.target.value))}
                 placeholder={t('register.referralPlaceholder')} autoCapitalize="characters" autoComplete="off"
-                className={`w-full bg-white border text-[#16294a] placeholder-gray-400 focus:outline-none rounded-lg px-3 py-2.5 text-sm tracking-[0.2em] ${referral?.valid ? 'border-green-600' : referral && !referral.valid ? 'border-red-500' : 'border-[#d5e0ef] focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15'}`} />
+                className={`w-full bg-white border text-[#16294a] placeholder-gray-400 focus:outline-none rounded-lg px-3 py-2.5 text-sm ${referralIsCode ? 'tracking-[0.2em]' : ''} ${referral?.valid ? 'border-green-600' : referral && !referral.valid ? 'border-red-500' : 'border-[#d5e0ef] focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15'}`} />
               {referral?.valid && (
-                <p className="text-xs text-green-700 mt-1.5">{t('register.referralOk', { name: referral.referrer || '' })}</p>
+                <p className="text-xs text-green-700 mt-1.5">{referral.byPhone ? t('register.referralFound') : t('register.referralOk', { name: referral.referrer || '' })}</p>
               )}
               {referral && !referral.valid && (
                 <p className="text-xs text-red-600 mt-1.5">{t('register.referralBad')}</p>

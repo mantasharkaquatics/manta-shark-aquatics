@@ -71,6 +71,26 @@ export async function lookupCode(svc: Svc, rawCode: unknown) {
   return { parentId: data.id as string, code, display: `${data.first_name || ''}${initial ? ' ' + initial + '.' : ''}`.trim() }
 }
 
+/** The register page's referrer field takes either the family's code or the
+ *  phone number they registered with (owner's choice, 2026-09-28: a code has
+ *  to be looked up, a friend's number is already in your phone). Found by
+ *  phone, the name is NOT returned -- otherwise typing numbers at random would
+ *  tell anyone who our customers are. */
+export async function lookupReferrer(svc: Svc, raw: unknown) {
+  const s = String(raw ?? '').trim()
+  const digits = s.replace(/\D/g, '')
+  if (/[A-Za-z]/.test(s) || digits.length < 10) {
+    const owner = await lookupCode(svc, s)
+    return owner ? { ...owner, byPhone: false } : null
+  }
+  // Stored formats vary, so match on the last ten digits like everywhere else.
+  const last10 = digits.slice(-10)
+  const { data } = await svc.from('parents').select('id').like('phone', `%${last10}`).limit(2)
+  if (!data || data.length !== 1) return null
+  const code = await getOrCreateCode(svc, data[0].id)
+  return { parentId: data[0].id as string, code, display: '', byPhone: true }
+}
+
 export type ClaimResult =
   | { ok: true }
   | { ok: false; error: 'INVALID_CODE' | 'OWN_CODE' | 'ALREADY_REFERRED' | 'NOT_NEW' }
@@ -82,7 +102,7 @@ export type ClaimResult =
  * calling this route by hand.
  */
 export async function claimReferral(svc: Svc, newParentId: string, rawCode: unknown): Promise<ClaimResult> {
-  const owner = await lookupCode(svc, rawCode)
+  const owner = await lookupReferrer(svc, rawCode)
   if (!owner) return { ok: false, error: 'INVALID_CODE' }
   if (owner.parentId === newParentId) return { ok: false, error: 'OWN_CODE' }
 

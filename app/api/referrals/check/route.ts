@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { lookupCode } from '@/lib/referrals'
+import { lookupReferrer } from '@/lib/referrals'
 import { readJson } from '@/lib/http'
 
 export const runtime = 'nodejs'
@@ -12,7 +12,9 @@ export async function POST(req: NextRequest) {
   const body = await readJson(req)
   if (!body) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   const svc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const owner = await lookupCode(svc, (body as any).code)
+  const owner = await lookupReferrer(svc, (body as any).code)
   if (!owner) return NextResponse.json({ valid: false })
-  return NextResponse.json({ valid: true, code: owner.code, referrer: owner.display })
+  // Matched by phone: say only that it matched (see lookupReferrer).
+  if (owner.byPhone) return NextResponse.json({ valid: true, byPhone: true })
+  return NextResponse.json({ valid: true, referrer: owner.display })
 }
