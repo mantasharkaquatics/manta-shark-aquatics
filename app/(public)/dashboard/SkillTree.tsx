@@ -27,10 +27,12 @@ import { tDb } from '@/lib/i18n'
 import { LEVEL_COLORS, MAX_LEVEL, levelNameKey, stageNameKey } from '@/lib/levels'
 import { masteryOf, masteryKey, MASTERY_COLOR, MASTERY_VALUE, PASS_LEVEL, UNLOCK_LEVEL } from '@/lib/mastery'
 import { placeLevel, routeWires } from '@/lib/tree-layout'
-import { stageColor, mixHex, stageEarned } from '@/lib/ribbons'
+import { stageEarned } from '@/lib/ribbons'
 import StageRibbon from '@/components/StageRibbon'
 
 const GOLD = '#c9a84c'
+/* Amber that reads as text on white (the brand amber #f09800 is for fills). */
+const AMBER_TXT = '#c97d00'
 
 /* 'ready' is the state the stage model could not express: everything this skill
    needs is done, but it sits in a level the school has not reached yet. Saying
@@ -133,186 +135,166 @@ const MEDAL = (
 )
 
 const CSS = `
-.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(4,9,17,0.88);
+/* Light, on the same palette as the Dashboard it opens from (owner's choice,
+   2026-09-28): white panel, the three stages as alternating paper and white
+   bands, amber = in progress, solid green = passed, blue ring = can start.
+   The old navy version tinted each band with the level's ribbon colour, which
+   on Level 1 turned the whole board a muddy red. */
+.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(18,37,74,0.55);
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
-.mst-panel { position: relative; width: 100%; max-width: 1180px; background: #0b1428;
+.mst-panel { position: relative; width: 100%; max-width: 1180px; background: #fff; color: #16294a;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   --cw: 112px; --rh: 116px; --sz: 52px; --rkb: 4px; --lane: 26px; --pad: 30px;
-  --rail: 146px; --sp: 16px }
+  --rail: 150px; --sp: 16px; --hd: 0px }
 @media (min-width: 900px) { .mst-panel { margin: 24px; border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.1) } }
+  border: 1px solid #e3ebf6; box-shadow: 0 30px 70px rgba(10,22,48,.35) } }
 
-.mst-head { position: sticky; top: 0; z-index: 5; background: #0b1428;
-  border-bottom: 1px solid rgba(255,255,255,0.08); padding: 16px 20px 12px }
+.mst-head { position: sticky; top: 0; z-index: 5; background: #fff;
+  border-bottom: 1px solid #e3ebf6; padding: 16px 20px 12px }
 .mst-x { position: absolute; top: 12px; right: 14px; width: 34px; height: 34px; border: none;
-  border-radius: 9px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75);
+  border-radius: 9px; background: #eef3f9; color: #56647d;
   font-size: 17px; cursor: pointer; line-height: 1 }
 .mst-stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px }
 .mst-stat b { display: block; font-size: 19px; font-weight: 800; line-height: 1.1;
   font-variant-numeric: tabular-nums }
-.mst-stat span { font-size: 10px; letter-spacing: .09em; color: rgba(255,255,255,0.4) }
+.mst-stat span { font-size: 10px; letter-spacing: .06em; color: #56647d }
 
 .mst-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 20px 4px }
 .mst-tab { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start;
-  gap: 1px; background: #111d38; border: 1px solid #1e3a6e; border-radius: 10px;
-  padding: 7px 13px; cursor: pointer; color: rgba(255,255,255,0.62); font: inherit;
-  min-height: 48px }
-.mst-tab b { font-size: 11px; letter-spacing: .09em; color: rgba(255,255,255,0.38);
-  font-weight: 700 }
-.mst-tab span { font-size: 13px; font-weight: 500; white-space: nowrap }
-.mst-tab[aria-selected=true] { background: rgba(201,168,76,.12); border-color: ${GOLD};
-  color: #fff }
-.mst-tab[aria-selected=true] b { color: ${GOLD} }
-.mst-tab:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 2px }
+  gap: 1px; background: #fff; border: 1px solid #d3deec; border-radius: 10px;
+  padding: 7px 13px; cursor: pointer; color: #16294a; font: inherit; min-height: 48px }
+.mst-tab b { font-size: 11px; letter-spacing: .09em; color: #8794ab; font-weight: 700 }
+.mst-tab span { font-size: 13px; font-weight: 600; white-space: nowrap }
+.mst-tab[aria-selected=true] { background: #12254a; border-color: #12254a; color: #fff }
+.mst-tab[aria-selected=true] b { color: #f7b733 }
+.mst-tab:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
 
-.mst-meta { font-size: 11.5px; color: rgba(255,255,255,0.35); margin: 0; padding: 8px 20px 0 }
-.mst-scroll { position: relative; overflow-x: auto; margin: 8px 20px 0; background: #111d38;
-  border: 1px solid #1e3a6e; border-radius: 13px;
-  /* --sp is the top padding, named because the bands and the ribbons are
-     positioned from it; on the phone it is 14px, not 16. */
+.mst-meta { font-size: 11.5px; color: #56647d; margin: 0; padding: 8px 20px 0 }
+/* Fixed: the board is sized to fit the box (see fit() below), so there is
+   nothing to drag sideways. It used to scroll -- the bands were wider than the
+   box by design, and on a phone the whole board was. */
+.mst-scroll { position: relative; overflow: hidden; margin: 8px 20px 0; background: #fff;
+  border: 1px solid #e3ebf6; border-radius: 13px;
   padding: var(--sp) 14px 12px calc(14px + var(--rail)) }
 .mst-board { position: relative; z-index: 1; margin: 0 auto;
   width: calc(var(--cols) * var(--cw) + 2 * var(--lane));
   height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
 .mst-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
   overflow: visible }
-.mst-w { fill: none; stroke: #25395f; stroke-width: 2 }
-.mst-w.lit { stroke: rgba(201,168,76,.8) }
+.mst-w { fill: none; stroke: #c9d8ee; stroke-width: 2 }
+.mst-w.lit { stroke: #f09800 }
 
-.mst-tile { position: absolute; width: var(--sz); height: var(--sz); border-radius: 10px;
-  background: #16233f; border: 1px solid #1e3a6e; display: grid; place-items: center;
-  padding: 0; cursor: pointer; color: rgba(255,255,255,0.35);
+.mst-tile { position: absolute; width: var(--sz); height: var(--sz); border-radius: 12px;
+  background: #fff; border: 1.5px solid #c9d8ee; display: grid; place-items: center;
+  padding: 0; cursor: pointer; color: #b3bdcc;
   font-size: 17px; line-height: 1;
   left: calc(var(--lane) + var(--c) * var(--cw) + (var(--cw) - var(--sz)) / 2);
   top: calc(var(--pad) + (var(--r) - 1) * var(--rh)) }
 /* One pixel above the geometric centre, and the same one pixel on every tile:
-   the percentage along the bottom pulls the eye down, so dead centre reads low.
-   A pixel is also the smallest move a screen can actually make -- anything
-   finer is rounding noise, and it comes out in whichever direction the
-   rasteriser feels like. */
+   the percentage along the bottom pulls the eye down, so dead centre reads low. */
 .mst-mk { display: block; width: 20px; height: 20px; transform: translateY(-1px) }
 .mst-mk svg { display: block; width: 100%; height: 100% }
 /* The number sits inside the tile, along the bottom, rather than in a badge hung
-   off the corner: "100%" measures 30px at any readable size, which on a 44px
-   phone tile overhung the skill name and reached into the next column. Taking it
-   out of the flow leaves the mark on the tile's own centre, recorded or not. */
+   off the corner, so it never reaches into the next column on a phone. */
 .mst-rk { position: absolute; left: 4px; right: 0; bottom: var(--rkb); text-align: center;
-  font-size: 9.5px; font-weight: 700; font-style: normal; line-height: 1;
-  font-variant-numeric: tabular-nums; letter-spacing: .02em; opacity: .82 }
+  font-size: 9.5px; font-weight: 800; font-style: normal; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: .02em }
 .mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
-  left: calc((var(--sz) - var(--cw)) / 2); font-size: 10.5px; line-height: 1.3;
-  text-align: center; color: rgba(255,255,255,0.35); font-weight: 500 }
- /* The three stages, as three bands behind the board. The rows already ARE
-   the stages; until now they sat on one flat sheet of navy and you had to
-   count rows to know which stage you were looking at. Each band carries that
-   stage's own ribbon colour, mixed far enough down into the panel's navy that
-   it tints the ground without competing with a tile. */
-.mst-stripe { position: absolute; left: -14px; z-index: 0;
-  /* The band has to reach both edges whether the board is narrower than the
-     panel (wide screen, few columns) or wider than it (phone, scrolled), so
-     it takes whichever is larger: the visible width or the board's own. */
-  width: max(calc(100% + 28px),
-    calc(var(--rail) + var(--cols) * var(--cw) + 2 * var(--lane) + 28px));
-  top: var(--bt); height: var(--bh) }
-.mst-stripe + .mst-stripe { border-top: 1px solid rgba(255,255,255,.055) }
+  left: calc((var(--sz) - var(--cw)) / 2); font-size: 11px; line-height: 1.3;
+  text-align: center; color: #b3bdcc; font-weight: 600 }
+/* The three stages, as three bands behind the board, alternating paper and
+   white so each row reads as its own layer without any colour competing with
+   the tiles. */
+.mst-stripe { position: absolute; left: 0; width: 100%; z-index: 0;
+  top: var(--bt); height: var(--bh); background: #f6f9fd }
+.mst-stripe.even { background: #fff; border-top: 1px solid #e9eff7; border-bottom: 1px solid #e9eff7 }
 
-/* Each stage's ribbon, name and number sit at the left end of its own band,
-   level with the first row of tiles, so the band, the ribbon and the skills
-   in it read as one row. They used to sit in a strip above the board, which
-   meant matching a ribbon to its row by counting. The scroll area keeps a
-   --rail-wide gutter on the left for them, so a tile can never land under one. */
+/* Each stage's ribbon and name sit at the left end of its own band, level with
+   its row of tiles. The box keeps a --rail-wide gutter for them. On a phone
+   they move to the top of the band instead (see the media query), so the
+   board gets the whole width. */
 .mst-rail { position: absolute; z-index: 1; width: calc(var(--rail) - 6px);
-  /* Hugs the board's left edge rather than the panel's: the board is centred,
-     so on a wide screen the panel edge is half a screen away from the first
-     tile. This is the board's own left minus the rail, floored at the gutter
-     for when the board is wider than the panel and nothing is centred. */
   left: max(12px, calc(14px + (100% - 28px - var(--rail)
     - var(--cols) * var(--cw) - 2 * var(--lane)) / 2));
   top: calc(var(--sp) + var(--pad) + (var(--r) - 1) * var(--rh) + var(--sz) / 2);
   transform: translateY(-50%);
   display: flex; align-items: center; gap: 8px; font-size: 10px;
-  color: rgba(255,255,255,0.35); line-height: 1.35 }
-.mst-rail b { display: block; font-size: 11.5px; font-weight: 700; max-width: 98px;
-  color: rgba(255,255,255,0.6) }
-.mst-rail.got b { color: #fff }
+  color: #8794ab; line-height: 1.35 }
+.mst-rail b { display: block; font-size: 12px; font-weight: 800; max-width: 104px; color: #12254a }
 .mst-rail svg { display: block; flex-shrink: 0 }
 
 .mst-apart { position: absolute; left: 0; right: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10) 20%,
-    rgba(255,255,255,0.10) 80%, transparent);
+  background: linear-gradient(90deg, transparent, #e3ebf6 20%, #e3ebf6 80%, transparent);
   top: calc(var(--pad) + (var(--r) - 1) * var(--rh) - 24px) }
 
 /* A checkpoint is not a step, so it is not drawn as one: a wide badge, its own
-   band, a medal instead of a state mark. It is the thing a whole level was for,
-   and on the board it should look like it. */
+   band, a medal instead of a state mark. */
 .mst-tile.apart { width: min(268px, 86%); height: 64px; left: 50%;
   transform: translateX(-50%); border-radius: 15px; padding: 0 16px;
   display: flex; align-items: center; gap: 13px; text-align: left;
-  background: linear-gradient(135deg, #16233f 0%, #1b2b4d 52%, #16233f 100%);
-  border: 1px solid #31497a }
-.mst-tile.apart::after { content: ''; position: absolute; inset: 0; border-radius: 15px;
-  background: linear-gradient(115deg, transparent 38%, rgba(255,255,255,.055) 50%,
-    transparent 62%); pointer-events: none }
+  background: linear-gradient(135deg, #fff 0%, #f6f9fd 100%); border: 1.5px solid #c9d8ee;
+  color: #2050a0 }
 .mst-tile.apart .mst-mk { width: 26px; height: 26px; transform: none; flex: none }
 .mst-tile.apart .mst-nm { position: static; width: auto; left: auto; top: auto;
-  font-size: 13px; font-weight: 700; text-align: left; line-height: 1.25 }
+  font-size: 13px; font-weight: 800; text-align: left; line-height: 1.25; color: #12254a }
 .mst-tile.apart .mst-eb { font-size: 9px; letter-spacing: .16em; font-weight: 700;
-  font-style: normal; opacity: .62; display: block; margin-bottom: 3px }
-.mst-tile.apart .mst-rk { position: static; margin-left: auto; font-size: 11px;
-  opacity: 1 }
-.mst-tile.apart.done { border-color: #4caf72;
-  background: linear-gradient(135deg, #112d1e 0%, #17382a 52%, #112d1e 100%);
-  box-shadow: 0 0 22px rgba(76,175,114,.22) }
-.mst-tile.apart.active { border-color: ${GOLD};
-  box-shadow: 0 0 22px rgba(201,168,76,.26) }
-.mst-tile.apart.locked { opacity: .5 }
-.mst-tile:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 3px }
-.mst-tile.open { border-color: #31497a; background: #1a2a4a; color: #6d8cc0 }
-.mst-tile.open .mst-nm { color: rgba(255,255,255,0.6) }
-/* A dotted ring is mostly gaps, so it needs more contrast than a solid
-   one to read at the same weight. */
-.mst-tile.ready { border-color: #3a5487; border-style: dashed; color: rgba(255,255,255,0.68) }
-.mst-tile.ready .mst-nm { color: rgba(255,255,255,0.5) }
-.mst-tile.active { border-color: ${GOLD}; background: #262112; color: ${GOLD};
-  box-shadow: 0 0 15px rgba(201,168,76,.32) }
-.mst-tile.active .mst-nm { color: ${GOLD}; font-weight: 700 }
-.mst-tile.done { border-color: #4caf72; background: #112d1e; color: #4caf72;
-  box-shadow: 0 0 15px rgba(76,175,114,.28) }
-.mst-tile.done .mst-nm { color: #4caf72; font-weight: 700 }
-.mst-tile.locked { opacity: .58 }
-.mst-tile[aria-current=true] { box-shadow: 0 0 0 2px #e9f0fb }
+  font-style: normal; color: #8794ab; display: block; margin-bottom: 3px }
+.mst-tile.apart .mst-rk { position: static; margin-left: auto; font-size: 11px }
+.mst-tile.apart.done { border-color: #1f9d62; background: #e8f6ee; color: #1f7a57 }
+.mst-tile.apart.done .mst-nm { color: #1f7a57 }
+.mst-tile.apart.active { border-color: #f09800; background: #fff6e3; color: #c97d00;
+  box-shadow: 0 6px 16px rgba(240,152,0,.2) }
+.mst-tile.apart.locked { background: #f6f9fd; border-color: #e3e9f2; color: #b3bdcc }
+.mst-tile.apart.locked .mst-nm { color: #b3bdcc }
+.mst-tile:focus-visible { outline: 2px solid #2050a0; outline-offset: 3px }
+.mst-tile.open { border-color: #c9d8ee; background: #fff; color: #2050a0 }
+.mst-tile.open .mst-nm { color: #3b4a66 }
+.mst-tile.ready { border-color: #b3c3dc; border-style: dashed; color: #8794ab }
+.mst-tile.ready .mst-nm { color: #8794ab }
+.mst-tile.active { border-color: #f09800; background: #fff6e3; color: #c97d00;
+  box-shadow: 0 4px 12px rgba(240,152,0,.22) }
+.mst-tile.active .mst-nm { color: #c97d00; font-weight: 800 }
+.mst-tile.done { border-color: #1f9d62; background: #1f9d62; color: #fff;
+  box-shadow: 0 4px 12px rgba(31,157,98,.25) }
+.mst-tile.done .mst-nm { color: #1f7a57; font-weight: 800 }
+.mst-tile.locked { background: #f1f4f8; border-color: #e3e9f2; color: #a3aec0 }
+.mst-tile.locked .mst-nm { color: #9aa6ba }
+.mst-tile[aria-current=true] { outline: 2px solid #12254a; outline-offset: 3px }
 
 .mst-key { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 11.5px;
-  color: rgba(255,255,255,0.38); padding: 12px 20px 0 }
+  color: #56647d; padding: 12px 20px 0 }
 .mst-key span { display: inline-flex; align-items: center; gap: 6px }
-.mst-key i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none }
+.mst-key i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none }
 
-.mst-detail { margin: 14px 20px 26px; background: #111d38; border: 1px solid #1e3a6e;
+.mst-detail { margin: 14px 20px 26px; background: #f6f9fd; border: 1px solid #e3ebf6;
   border-radius: 13px; padding: 14px 16px }
-.mst-detail h3 { margin: 0; font-size: 15.5px; color: #fff }
-.mst-detail .dm { font-size: 11.5px; color: rgba(255,255,255,0.38); margin: 3px 0 0 }
+.mst-detail h3 { margin: 0; font-size: 15.5px; color: #12254a }
+.mst-detail .dm { font-size: 11.5px; color: #8794ab; margin: 3px 0 0 }
 .mst-band { display: inline-block; margin-top: 9px; font-size: 11.5px; font-weight: 700;
-  border-radius: 6px; padding: 2px 9px; border: 1px solid currentColor }
-.mst-dt { font-size: 10px; letter-spacing: .1em; color: rgba(255,255,255,0.35);
-  margin: 12px 0 4px }
-.mst-dd { margin: 0; font-size: 12.5px; color: rgba(255,255,255,0.72); line-height: 1.7 }
+  border-radius: 6px; padding: 2px 9px; border: 1px solid currentColor; background: #fff }
+.mst-dt { font-size: 10px; letter-spacing: .1em; color: #8794ab; margin: 12px 0 4px }
+.mst-dd { margin: 0; font-size: 12.5px; color: #3b4a66; line-height: 1.7 }
 .mst-pre { display: flex; flex-wrap: wrap; gap: 5px }
-.mst-pre span { font-size: 11.5px; border-radius: 6px; padding: 2px 8px; background: #16233f;
-  color: rgba(255,255,255,0.6) }
-.mst-pre span.ok { background: #112d1e; color: #4caf72 }
+.mst-pre span { font-size: 11.5px; border-radius: 6px; padding: 2px 8px; background: #eef3f9;
+  color: #3b4a66 }
+.mst-pre span.ok { background: #e6f4ee; color: #1f7a57 }
 .mst-pre span b { font-weight: 700; opacity: .65; margin-left: 4px; font-size: 10px }
 
+/* Phone: the stage names leave the left gutter and become a header at the top
+   of each band (--hd is the room made for it), and the board takes the full
+   width, so it fits without sideways scrolling. */
 @media (max-width: 640px) {
-  .mst-panel { --cw: 88px; --rh: 108px; --sz: 44px; --rkb: 2px; --lane: 22px; --pad: 30px;
-    --rail: 106px; --sp: 14px }
-  .mst-rail { gap: 6px }
-  .mst-rail b { font-size: 10.5px; max-width: 70px }
-  .mst-rail span span { font-size: 9.5px }
+  .mst-panel { --cw: 88px; --rh: 146px; --sz: 44px; --rkb: 2px; --lane: 14px; --pad: 70px;
+    --rail: 0px; --sp: 14px; --hd: 40px }
+  .mst-rail { left: 12px; width: auto; transform: none; gap: 7px;
+    top: calc(var(--sp) + var(--pad) + (var(--r) - 1) * var(--rh) - 52px) }
+  .mst-rail b { font-size: 12px; max-width: none; display: inline }
+  .mst-rail span span { font-size: 10px; margin-left: 6px }
   .mst-rk { font-size: 9px }
-  .mst-scroll { margin: 8px 14px 0; padding: var(--sp) 10px 10px calc(10px + var(--rail)) }
+  .mst-scroll { margin: 8px 14px 0; padding: var(--sp) 10px 10px 10px }
   .mst-tabs, .mst-meta, .mst-key { padding-left: 14px; padding-right: 14px }
   .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0 }
-  .mst-nm { font-size: 9.5px }
+  .mst-nm { font-size: 10px }
 }
 `
 
@@ -432,7 +414,28 @@ export default function SkillTree({
   useLayoutEffect(() => {
     const board = boardRef.current
     if (!board) return
+    const box = board.parentElement as HTMLElement
+    /* Fixed, not scrollable: the columns shrink to whatever the box has room
+       for (never wider than the CSS size for this screen), and the tiles with
+       them when a column gets narrow. The lines are then routed on the sizes
+       actually in use. */
+    const fit = () => {
+      box.style.removeProperty('--cw')
+      box.style.removeProperty('--sz')
+      const bs = getComputedStyle(box)
+      const maxCw = parseFloat(bs.getPropertyValue('--cw'))
+      const maxSz = parseFloat(bs.getPropertyValue('--sz'))
+      const lane0 = parseFloat(bs.getPropertyValue('--lane')) || 0
+      const avail = box.clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight)
+      if (!maxCw || !maxSz || avail <= 0) return
+      const cw = Math.max(48, Math.min(maxCw, Math.floor((avail - 2 * lane0) / cols)))
+      if (cw < maxCw) {
+        box.style.setProperty('--cw', cw + 'px')
+        box.style.setProperty('--sz', Math.min(maxSz, cw - 8) + 'px')
+      }
+    }
     const draw = () => {
+      fit()
       const cs = getComputedStyle(board)
       const cw = parseFloat(cs.getPropertyValue('--cw'))
       const rh = parseFloat(cs.getPropertyValue('--rh'))
@@ -472,7 +475,7 @@ export default function SkillTree({
     }
     draw()
     const ro = new ResizeObserver(draw)
-    ro.observe(board)
+    ro.observe(box)
     window.addEventListener('resize', draw)
     return () => { ro.disconnect(); window.removeEventListener('resize', draw) }
   }, [inLv, needs, cols, rows])
@@ -489,10 +492,10 @@ export default function SkillTree({
       <div className="mst-panel" onClick={e => e.stopPropagation()}>
         <div className="mst-head">
           <button className="mst-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
-          <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: GOLD }}>
+          <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
             {t('tree.title')}
           </div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginTop: '2px' }}>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#12254a', marginTop: '2px' }}>
             {studentName}
           </div>
           <div className="mst-stats">
@@ -501,17 +504,17 @@ export default function SkillTree({
               <span>{t('tree.stat.level')}</span>
             </div>
             <div className="mst-stat">
-              <b style={{ color: GOLD }}>{currentStage}</b>
+              <b style={{ color: AMBER_TXT }}>{currentStage}</b>
               <span>{t('tree.stat.stage')}</span>
             </div>
             <div className="mst-stat">
-              <b style={{ color: GOLD }}>{done}
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>/{total || '—'}</span>
+              <b style={{ color: AMBER_TXT }}>{done}
+                <span style={{ fontSize: '13px', color: '#8794ab' }}>/{total || '—'}</span>
               </b>
               <span>{t('tree.stat.lit')}</span>
             </div>
             <div className="mst-stat">
-              <b style={{ color: GOLD }}>{total ? Math.round((100 * done) / total) : 0}%</b>
+              <b style={{ color: AMBER_TXT }}>{total ? Math.round((100 * done) / total) : 0}%</b>
               <span>{t('tree.stat.overall')}</span>
             </div>
           </div>
@@ -535,23 +538,19 @@ export default function SkillTree({
             </p>
 
             <div className="mst-scroll" style={{ ['--cols' as any]: cols }}>
-              {([1, 2, 3] as const).filter(st => st <= rows).map(st => {
-                const c = stageColor(lv, st)
-                return (
-                  <div key={st} className="mst-stripe"
-                    style={{
-                      /* The first band runs up to the panel's own edge and the
-                         last one down to it, so the three layers fill the box
-                         with no navy showing above or below them. */
-                      ['--bt' as any]: st === 1 ? '0px'
-                        : `calc(var(--sp) + var(--pad) - 18px + ${st - 1} * var(--rh))`,
-                      ['--bh' as any]: st === 1 ? 'calc(var(--sp) + var(--pad) - 18px + var(--rh))'
-                        : st === rows ? 'calc(var(--sz) + 70px)' : 'var(--rh)',
-                      background: 'linear-gradient(90deg, '
-                        + mixHex(c, '#0b1428', 0.74) + ', ' + mixHex(c, '#0b1428', 0.88) + ')',
-                    }} />
-                )
-              })}
+              {([1, 2, 3] as const).filter(st => st <= rows).map(st => (
+                <div key={st} className={'mst-stripe' + (st % 2 === 0 ? ' even' : '')}
+                  style={{
+                    /* The first band runs up to the box's own edge and the
+                       last one down to it, so the layers fill the box. --hd is
+                       the room a phone makes at the top of each band for the
+                       stage name. */
+                    ['--bt' as any]: st === 1 ? '0px'
+                      : `calc(var(--sp) + var(--pad) - 18px - var(--hd) + ${st - 1} * var(--rh))`,
+                    ['--bh' as any]: st === 1 ? 'calc(var(--sp) + var(--pad) - 18px - var(--hd) + var(--rh))'
+                      : st === rows ? 'calc(var(--sz) + 70px + var(--hd))' : 'var(--rh)',
+                  }} />
+              ))}
               {/* A stage is earned when every skill in it reads 100 -- the same
                   rule the coach marks against, so the ribbon cannot drift from
                   the tiles beside it. */}
@@ -611,11 +610,11 @@ export default function SkillTree({
             </div>
 
             <div className="mst-key">
-              <span><i style={{ color: '#4caf72' }} />{t('tree.state.done')}</span>
-              <span><i style={{ color: GOLD }} />{t('tree.state.active')}</span>
-              <span><i style={{ color: '#6d8cc0' }} />{t('tree.state.open')}</span>
-              <span><i style={{ opacity: .6, boxShadow: 'inset 0 0 0 1px currentColor', background: 'transparent' }} />{t('tree.state.ready')}</span>
-              <span><i style={{ opacity: .45 }} />{t('tree.state.locked')}</span>
+              <span><i style={{ color: '#1f9d62' }} />{t('tree.state.done')}</span>
+              <span><i style={{ color: '#f09800' }} />{t('tree.state.active')}</span>
+              <span><i style={{ color: '#2050a0' }} />{t('tree.state.open')}</span>
+              <span><i style={{ color: '#8794ab', boxShadow: 'inset 0 0 0 1.5px currentColor', background: 'transparent' }} />{t('tree.state.ready')}</span>
+              <span><i style={{ color: '#c3ccd9' }} />{t('tree.state.locked')}</span>
             </div>
 
             <div className="mst-detail">
