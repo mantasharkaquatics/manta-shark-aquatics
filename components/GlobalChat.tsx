@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
-import ChatWidget from '@/components/ChatWidget'
+import ChatWidget, { claimGuestChat } from '@/components/ChatWidget'
 
 /* The chat button on every public, account and sign-in page (owner,
    2026-09-28). It used to be mounted page by page for signed-in parents only,
@@ -25,6 +25,12 @@ export default function GlobalChat() {
     const apply = async (uid?: string) => {
       if (!uid) { if (alive) setParentId(null); return }
       const { data } = await supabase.from('parents').select('id').eq('auth_user_id', uid).maybeSingle()
+      // Chatted as a visitor in this browser before signing in: the
+      // conversation becomes the family's as soon as they are signed in,
+      // whether or not they open the chat, so the team sees who it was
+      // (owner, 2026-09-28). Done before the widget mounts, so it opens on
+      // the account thread with those messages already in it.
+      if (data?.id) await claimGuestChat()
       if (alive) setParentId(data?.id ?? null)
     }
     supabase.auth.getUser().then(({ data: { user } }) => apply(user?.id))

@@ -31,8 +31,9 @@ function renderBody(text: string, linkLabel: string) {
 // with realtime updates, as before. Signed out (parentId null), it is a guest
 // conversation held by /api/chat/guest: public answers only, with a nudge to
 // create a free account for anything that needs one (owner, 2026-09-28). The
-// guest key lives in this browser; after the visitor signs up, the first open
-// hands it to /api/chat/guest/claim so the conversation moves into the account.
+// guest key lives in this browser; as soon as the visitor is signed in,
+// GlobalChat hands it to /api/chat/guest/claim so the conversation moves into
+// the account.
 //
 // A page asks the widget to open -- optionally with text in the box, never
 // sent -- through openChat() in lib/chat-open.
@@ -40,6 +41,17 @@ function renderBody(text: string, linkLabel: string) {
 // would otherwise sit under the button (the booking page on a phone).
 const GUEST_KEY = 'msa_guest_chat_key'
 const readGuestKey = () => { try { return localStorage.getItem(GUEST_KEY) } catch { return null } }
+
+/** Hand this browser's guest conversation to the signed-in account (see
+ *  /api/chat/guest/claim). Forgets the key once the server has taken it. */
+export async function claimGuestChat() {
+  const k = readGuestKey()
+  if (!k) return
+  try {
+    const r = await fetch('/api/chat/guest/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: k }) })
+    if (r.ok) { try { localStorage.removeItem(GUEST_KEY) } catch {} }
+  } catch {}
+}
 
 export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | null; lift?: number }) {
   const t = useT()
@@ -113,14 +125,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       if (k) await loadGuest(k)
       return
     }
-    // Chatted as a visitor before signing up: bring that conversation along.
-    const k = readGuestKey()
-    if (k) {
-      try {
-        const r = await fetch('/api/chat/guest/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: k }) })
-        if (r.ok) { try { localStorage.removeItem(GUEST_KEY) } catch {} }
-      } catch {}
-    }
+    // Normally already done by GlobalChat at sign-in; harmless if not.
+    await claimGuestChat()
     const { data } = await supabase
       .from('chat_threads')
       .select('id')
