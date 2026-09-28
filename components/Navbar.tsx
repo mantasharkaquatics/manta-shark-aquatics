@@ -29,13 +29,13 @@ const navLinks = [
   { labelKey: 'page.faq', href: '/faq' },
 ]
 
-/* The Programs menu (owner, 2026-09-28): the four kinds of lesson, each a
-   section of /programs except adaptive swim, which has its own page. */
+/* The Programs menu (owner, 2026-09-28): the four kinds of lesson, each with
+   its own page and its own open times. */
 const PROGRAM_ITEMS = [
-  { key: 'private', href: '/programs', hash: '#private' },
-  { key: 'group', href: '/programs', hash: '#group' },
-  { key: 'adaptive', href: '/adaptive-swim', hash: '' },
-  { key: 'team', href: '/programs', hash: '#team' },
+  { key: 'private', href: '/programs/private' },
+  { key: 'group', href: '/programs/group' },
+  { key: 'adaptive', href: '/adaptive-swim' },
+  { key: 'team', href: '/programs/team' },
 ] as const
 
 /* What the round language button says: the language you are in now. */
@@ -89,7 +89,8 @@ const css = `
   .rn-links .rn-ddm a b { display: block; font-weight: 800; color: ${BRAND.navy}; }
   .rn-links .rn-ddm a span { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: ${BRAND.mute}; }
   .rn-links .rn-ddm a:hover { background: #f0f4fa; }
-  .rn-links .rn-ddm a:hover b { color: ${BRAND.blue}; }
+  .rn-links .rn-ddm a:hover b, .rn-links .rn-ddm a[aria-current="page"] b { color: ${BRAND.blue}; }
+  .rn-links .rn-ddm a[aria-current="page"] { background: #f0f4fa; }
   .rn-links .rn-ddm hr { border: 0; border-top: 1px solid ${BRAND.line}; margin: 6px 6px; }
   .rn-links .rn-ddm a.all { font-size: 13.5px; font-weight: 800; color: ${BRAND.blue}; }
   .rn-right { justify-self: end; display: flex; align-items: center; gap: 8px; }
@@ -269,24 +270,14 @@ export default function Navbar() {
     return isLocale(seg) && seg !== 'en' ? pathname.slice(seg.length + 1) || '/' : pathname
   })()
   // A programme page is a branch of Programs, so the bar keeps Programs lit there.
-  const BRANCHES: Record<string, string[]> = { '/programs': ['/adaptive-swim'] }
+  const BRANCHES: Record<string, string[]> = { '/programs': PROGRAM_ITEMS.map(it => it.href) }
   const current = (href: string) =>
     (bare === href || BRANCHES[href]?.includes(bare) ? 'page' as const : undefined)
   const toggle = (which: 'lang' | 'acct' | 'drawer') => setOpen(o => (o === which ? null : which))
-  // A hover menu would stay open under the pointer after a pick that only
-  // scrolls the same page; this shuts it until the pointer leaves.
+  // The bar stays mounted across pages, so a hover menu would stay open under
+  // the pointer after a pick; this shuts it until the pointer leaves.
   const [ddShut, setDdShut] = useState(false)
   const closeDd = () => { setDdShut(true); (document.activeElement as HTMLElement | null)?.blur() }
-  /* A section of the page you are already on: scroll to it ourselves. Left to
-     the router, a second pick appended its hash to the first (#group#team). */
-  const goSection = (e: React.MouseEvent, it: (typeof PROGRAM_ITEMS)[number]) => {
-    if (!it.hash || bare !== it.href) return
-    const el = document.querySelector(it.hash)
-    if (!el) return
-    e.preventDefault()
-    el.scrollIntoView({ block: 'start' })
-    history.replaceState(null, '', localePath(it.href, locale) + it.hash)
-  }
 
   // Signed in, the button takes a family home to their Dashboard -- except on
   // the Dashboard itself, where "go home" would do nothing and the next thing
@@ -336,7 +327,7 @@ export default function Navbar() {
                   <div className="rn-ddm">
                     <div className="box" role="menu" aria-label={t(link.labelKey)}>
                       {PROGRAM_ITEMS.map(it => (
-                        <Link key={it.key} role="menuitem" href={localePath(it.href, locale) + it.hash} onClick={e => { closeDd(); goSection(e, it) }}>
+                        <Link key={it.key} role="menuitem" href={localePath(it.href, locale)} aria-current={current(it.href)} onClick={closeDd}>
                           <b>{t('nav.prog.' + it.key)}</b><span>{t('nav.prog.' + it.key + 'Sub')}</span>
                         </Link>
                       ))}
@@ -425,7 +416,7 @@ export default function Navbar() {
                   <span>{t(link.labelKey)}</span><Chevron />
                 </Link>
                 {link.href === '/programs' && PROGRAM_ITEMS.map(it => (
-                  <Link key={it.key} className="kid" href={localePath(it.href, locale) + it.hash} onClick={e => { setOpen(null); goSection(e, it) }}>
+                  <Link key={it.key} className="kid" href={localePath(it.href, locale)} aria-current={current(it.href)} onClick={() => setOpen(null)}>
                     <span>{t('nav.prog.' + it.key)}</span><Chevron />
                   </Link>
                 ))}
