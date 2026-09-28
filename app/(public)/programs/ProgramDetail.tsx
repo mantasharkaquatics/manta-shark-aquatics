@@ -8,6 +8,7 @@ import BrandRoot from '@/components/brand/BrandRoot'
 import WeekPreview from '@/components/programs/WeekPreview'
 import { BASE_POINTS } from '@/lib/points'
 import ProgramCards from './ProgramCards'
+import FitChips from '@/components/programs/FitChips'
 
 /* One page per programme (owner, 2026-09-28): what the lesson is, what it
    costs, and the open times of THAT kind of lesson over the next seven days.
@@ -45,7 +46,7 @@ export default function ProgramDetail({ kind }: { kind: DetailKind }) {
     <div className="pd-card">
       <div className="k">{t(`home.program.${key}.kind`)}</div>
       <h3>{t(`home.program.${key}.name`)}</h3>
-      <p>{t(`home.program.${key}.desc`)}</p>
+      <FitChips slug={key} />
       <div className="pr"><b>${BASE_POINTS[slug]}</b><span>{t(unit)}</span></div>
     </div>
   )

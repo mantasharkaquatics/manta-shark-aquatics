@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { BASE_POINTS } from '@/lib/points'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY, wakeImage } from '@/lib/brand'
+import FitChips, { HAS_FIT } from '@/components/programs/FitChips'
 
 // The home page has one job: tell a new family how to start, in three steps,
 // and let them take the first one. Everything else on it -- the four ways to
@@ -227,7 +228,9 @@ export default function HomeContent() {
                 <div key={p.slug} className={'h-prog' + (p.slug === 'team' ? ' team' : '')}>
                   <div className="k">{t(`home.program.${p.slug}.kind`)}</div>
                   <h3>{t(`home.program.${p.slug}.name`)}</h3>
-                  <p>{t(`home.program.${p.slug}.desc`)}</p>
+                  {HAS_FIT.has(p.slug)
+                    ? <FitChips slug={p.slug as 'private' | 'semi' | 'group'} />
+                    : <p>{t(`home.program.${p.slug}.desc`)}</p>}
                   <div className="pr">
                     <b>{p.price === null ? t('home.program.monthly') : '$' + p.price}</b>
                     <span>{t(p.unit)}</span>
