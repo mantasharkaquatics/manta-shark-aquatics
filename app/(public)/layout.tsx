@@ -1,6 +1,7 @@
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
+import GlobalChat from '@/components/GlobalChat'
 import { FONT_BODY } from '@/lib/brand'
 import BrandStyles from '@/components/brand/BrandStyles'
 
@@ -14,6 +15,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <ActivityPing />
       {children}
       <Footer />
+      <GlobalChat />
     </div>
   )
 }

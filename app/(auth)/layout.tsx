@@ -1,4 +1,5 @@
 import AuthBar from '@/components/brand/AuthBar'
+import GlobalChat from '@/components/GlobalChat'
 
 // Sign-in and sign-up (both steps): the site's floating bar with just the name,
 // so there is always a visible way back to the home page.
@@ -7,6 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <>
       <AuthBar />
       {children}
+      <GlobalChat />
     </>
   )
 }

@@ -18,7 +18,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
-import ChatWidget from '@/components/ChatWidget'
 import NoticeModal from '@/components/NoticeModal'
 import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
@@ -2597,7 +2596,6 @@ export default function BookingPage() {
         )}
       </div>
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
-      {parentId && <ChatWidget parentId={parentId} lift={isPhone ? 104 : 0} />}
       {parentId && <BookingCart refreshSignal={cartRefresh} onCommitted={() => { if (selectedCoach && selectedDate) loadTimeSlots() }} />}
     </div>
   )

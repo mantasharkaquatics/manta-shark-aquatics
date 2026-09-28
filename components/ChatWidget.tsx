@@ -2,7 +2,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import Link from 'next/link'
+import { CHAT_OPEN_EVENT } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
@@ -24,14 +26,27 @@ function renderBody(text: string, linkLabel: string) {
   )
 }
 
-// seedInput/seedKey let a page hand the widget a question the visitor already
-// typed elsewhere -- the FAQ search box. It opens and fills the box but does
-// NOT send: putting words in a parent's mouth and firing them off is not ours
-// to do. seedKey changes on every request so the same text can be seeded twice.
+// One widget for every page, mounted by the page layouts (components/GlobalChat).
+// Signed in, it is the family's own thread, read and written through Supabase
+// with realtime updates, as before. Signed out (parentId null), it is a guest
+// conversation held by /api/chat/guest: public answers only, with a nudge to
+// create a free account for anything that needs one (owner, 2026-09-28). The
+// guest key lives in this browser; after the visitor signs up, the first open
+// hands it to /api/chat/guest/claim so the conversation moves into the account.
+//
+// A page asks the widget to open -- optionally with text in the box, never
+// sent -- through openChat() in lib/chat-open.
 // lift: extra px above the bottom edge, for pages whose own sticky action bar
 // would otherwise sit under the button (the booking page on a phone).
-export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: { parentId: string; seedInput?: string; seedKey?: number; lift?: number }) {
+const GUEST_KEY = 'msa_guest_chat_key'
+const readGuestKey = () => { try { return localStorage.getItem(GUEST_KEY) } catch { return null } }
+
+export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | null; lift?: number }) {
   const t = useT()
+  const locale = useLocale()
+  const guest = !parentId
+  const [guestKey, setGuestKey] = useState<string | null>(null)
+  const [limited, setLimited] = useState(false)
   const supabase = createClient()
   const [open, setOpen] = useState(false)
   // Auto-restore the open chat after navigating away (e.g. to payment) and back
@@ -49,10 +64,14 @@ export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: {
   const [awaitingAi, setAwaitingAi] = useState(false)
 
   useEffect(() => {
-    if (seedKey === undefined) return
-    setOpen(true)
-    if (seedInput) setInput(seedInput)
-  }, [seedKey])
+    const onOpen = (e: Event) => {
+      setOpen(true)
+      const text = (e as CustomEvent).detail?.text
+      if (text) setInput(text)
+    }
+    window.addEventListener(CHAT_OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(CHAT_OPEN_EVENT, onOpen)
+  }, [])
   const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
@@ -88,6 +107,20 @@ export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: {
   }, [open])
 
   async function initThread() {
+    if (guest) {
+      const k = readGuestKey()
+      setGuestKey(k)
+      if (k) await loadGuest(k)
+      return
+    }
+    // Chatted as a visitor before signing up: bring that conversation along.
+    const k = readGuestKey()
+    if (k) {
+      try {
+        const r = await fetch('/api/chat/guest/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: k }) })
+        if (r.ok) { try { localStorage.removeItem(GUEST_KEY) } catch {} }
+      } catch {}
+    }
     const { data } = await supabase
       .from('chat_threads')
       .select('id')
@@ -105,6 +138,46 @@ export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: {
     }
   }
 
+  async function loadGuest(k: string) {
+    try {
+      const r = await fetch('/api/chat/guest?key=' + encodeURIComponent(k))
+      const d = await r.json()
+      if (d.gone) { try { localStorage.removeItem(GUEST_KEY) } catch {}; setGuestKey(null); setMessages([]); return }
+      // Keep a message still on its way (shown before the server has it).
+      if (Array.isArray(d.messages)) setMessages(prev => [...d.messages, ...prev.filter(m => m._local)])
+    } catch {}
+  }
+
+  // A guest has no realtime channel, so a reply from the team is picked up by
+  // asking again every 15 seconds while the window is open.
+  useEffect(() => {
+    if (!guest || !open || !guestKey) return
+    const id = setInterval(() => loadGuest(guestKey), 15000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guest, open, guestKey])
+
+  async function sendGuest(body: string) {
+    const now = new Date().toISOString()
+    setMessages(prev => [...prev, { id: 'local-' + now, _local: true, sender_type: 'parent', body, created_at: now }])
+    setAwaitingAi(true)
+    try {
+      const r = await fetch('/api/chat/guest', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: guestKey, text: body, locale }),
+      })
+      const d = await r.json().catch(() => ({} as any))
+      if (r.status === 429) { setLimited(true); setMessages(prev => prev.filter(m => !m._local)); return }
+      if (r.status === 409) { try { localStorage.removeItem(GUEST_KEY) } catch {}; setGuestKey(null); return }
+      if (d.key) { setGuestKey(d.key); try { localStorage.setItem(GUEST_KEY, d.key) } catch {} }
+      if (Array.isArray(d.messages)) setMessages(d.messages)
+    } catch {
+      setMessages(prev => prev.filter(m => !m._local))
+    } finally {
+      setAwaitingAi(false)
+    }
+  }
+
   async function loadMessages() {
     const { data } = await supabase
       .from('chat_messages')
@@ -116,6 +189,14 @@ export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: {
 
   async function sendMessage(text?: string) {
     const body = (text ?? input).trim()
+    if (guest) {
+      if (!body || sending || limited) return
+      setSending(true)
+      if (!text) setInput('')
+      await sendGuest(body)
+      setSending(false)
+      return
+    }
     if (!body || !threadId || sending) return
     setSending(true)
     if (!text) setInput('')
@@ -201,12 +282,22 @@ export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: {
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label="Close">✕</button>
           </div>
 
+          {/* Signed out: what an account adds, and the way to get one. */}
+          {guest && (
+            <div style={{ background: '#fff7e6', borderBottom: '1px solid #f3dfb4', padding: '9px 16px', fontSize: '12.5px', color: BRAND.ink, lineHeight: 1.5 }}>
+              {t('chat.guest.banner')}{' '}
+              <Link href="/register" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 800 }}>{t('chat.guest.signUp')}</Link>
+              {' · '}
+              <Link href="/login" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 700 }}>{t('chat.guest.signIn')}</Link>
+            </div>
+          )}
+
           {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', color: '#56647d', fontSize: '14px', marginTop: '40px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>👋</div>
-                {t('chat.empty')}
+                {t(guest ? 'chat.guest.empty' : 'chat.empty')}
               </div>
             )}
             {messages.map(msg => msg.sender_type === 'system' ? (
@@ -255,6 +346,12 @@ export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: {
                 </div>
               </div>
             )}
+            {limited && (
+              <div style={{ textAlign: 'center', fontSize: '12.5px', color: '#8a5a00', background: '#fff7e6', borderRadius: '10px', padding: '10px 12px' }}>
+                {t('chat.guest.limit')}{' '}
+                <Link href="/register" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 800 }}>{t('chat.guest.signUp')}</Link>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
@@ -265,6 +362,7 @@ export default function ChatWidget({ parentId, seedInput, seedKey, lift = 0 }: {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
               placeholder={t('chat.placeholder')}
+              maxLength={800}
               style={{
                 // 16px: anything smaller and iOS zooms the page when the field is tapped.
                 flex: 1, background: '#fff', border: '1px solid #d5e0ef',

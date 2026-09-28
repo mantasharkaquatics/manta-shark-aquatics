@@ -3,6 +3,7 @@ import { LocaleProvider } from '@/lib/i18n/provider'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
+import GlobalChat from '@/components/GlobalChat'
 import BrandStyles from '@/components/brand/BrandStyles'
 import { FONT_BODY } from '@/lib/brand'
 
@@ -38,6 +39,7 @@ export default async function LocaleLayout({
         <ActivityPing />
         {children}
         <Footer />
+        <GlobalChat />
       </div>
     </LocaleProvider>
   )

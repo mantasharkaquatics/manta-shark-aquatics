@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
-import { createClient } from '@/lib/supabase/client'
-import ChatWidget from '@/components/ChatWidget'
+import { openChat } from '@/lib/chat-open'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 
@@ -66,37 +65,16 @@ const css = `
 export default function AdaptiveContent() {
   const t = useT()
   const locale = useLocale()
-  const [parentId, setParentId] = useState<string | null>(null)
-  const [seed, setSeed] = useState<{ text: string; n: number } | null>(null)
-
+  // The chat is open to everyone now (owner, 2026-09-28), so the button opens
+  // it with the adaptive-swim question in the box. ?chat=1 still arrives from
+  // older sign-up links and opens it the same way.
   useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase.from('parents').select('id').eq('auth_user_id', user.id).single()
-        .then(({ data }) => {
-          if (!data) return
-          setParentId(data.id)
-          // Back from registering or signing in: open the chat straight away.
-          if (new URLSearchParams(window.location.search).get('chat') === '1')
-            setSeed({ text: t('adapt.chatSeed'), n: 1 })
-        })
-    })
+    if (new URLSearchParams(window.location.search).get('chat') === '1') openChat(t('adapt.chatSeed'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const here = localePath('/adaptive-swim', locale) + '?chat=1'
-  const openChat = () => setSeed({ text: t('adapt.chatSeed'), n: (seed?.n ?? 0) + 1 })
-  const chatBtn = (cls: string) => parentId
-    ? <button type="button" className={'b-btn ' + cls} onClick={openChat}>{t('adapt.cta.chat')} →</button>
-    : <Link className={'b-btn ' + cls} href={'/register?next=' + encodeURIComponent(here)}>{t('adapt.cta.chat')} →</Link>
-  const signIn = !parentId && (
-    <p className="b-small" style={{ marginTop: 14 }}>
-      {t('adapt.cta.account')}{' '}
-      <Link href={'/login?next=' + encodeURIComponent(here)} style={{ color: BRAND.yellow, fontWeight: 700 }}>{t('adapt.cta.signIn')}</Link>
-    </p>
+  const chatBtn = (cls: string) => (
+    <button type="button" className={'b-btn ' + cls} onClick={() => openChat(t('adapt.chatSeed'))}>{t('adapt.cta.chat')} →</button>
   )
-
 
   return (
     <BrandRoot>
@@ -121,7 +99,6 @@ export default function AdaptiveContent() {
             {chatBtn('gold')}
             <Link className="b-btn ghost" href={localePath('/plans', locale)}>{t('adapt.cta.prices')}</Link>
           </div>
-          {signIn}
         </div>
       </header>
 
@@ -236,11 +213,9 @@ export default function AdaptiveContent() {
           <h2>{t('adapt.final.title')}</h2>
           <p>{t('adapt.final.body')}</p>
           <div className="b-ctas">{chatBtn('gold')}</div>
-          {signIn}
         </div>
       </section>
 
-      {parentId && <ChatWidget parentId={parentId} seedInput={seed?.text} seedKey={seed?.n} />}
     </BrandRoot>
   )
 }

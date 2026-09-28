@@ -1,5 +1,4 @@
 'use client'
-import ChatWidget from '@/components/ChatWidget'
 import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
 import { useEffect, useState, useRef } from 'react'
@@ -2679,7 +2678,6 @@ export default function DashboardPage() {
 
       </div>
       <style>{MOBILE_CSS}</style>
-      {parent && <ChatWidget parentId={parent.id} />}
       {treeFor && (
         <SkillTree
           studentName={treeFor.name}

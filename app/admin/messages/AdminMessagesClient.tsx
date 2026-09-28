@@ -150,7 +150,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#fff', fontSize: '14px' }}>
-                  {thread.parents?.first_name} {thread.parents?.last_name}
+                  {thread.parents ? `${thread.parents.first_name} ${thread.parents.last_name || ''}` : 'Guest (not signed up)'}
                   {thread.unread_by_admin && (
                     <span style={{ background: RED, borderRadius: '50%', width: '8px', height: '8px', display: 'inline-block', flexShrink: 0 }} />
                   )}
@@ -180,8 +180,8 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   <button onClick={(e) => { e.stopPropagation(); setMobileView('list') }} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '20px', cursor: 'pointer' }}>←</button>
                 )}
                 <div>
-                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents?.first_name} {selectedThread.parents?.last_name}</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{selectedThread.parents?.email}</div>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents ? `${selectedThread.parents.first_name} ${selectedThread.parents.last_name || ''}` : 'Guest (not signed up)'}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{selectedThread.parents ? selectedThread.parents.email : 'A website visitor. They see your reply the next time the chat is open; it moves into their account if they sign up.'}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
                     {selectedThread.mode === 'human' ? (
                       <>

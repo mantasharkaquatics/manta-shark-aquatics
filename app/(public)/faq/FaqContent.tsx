@@ -4,13 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
-import { createClient } from '@/lib/supabase/client'
-import ChatWidget from '@/components/ChatWidget'
+import { openChat } from '@/lib/chat-open'
 import { FAQ } from '@/lib/faq'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 
-const EMAIL = 'info@mantasharkaquatics.net'
 
 // Palette B (2026-09): dark top, the questions as white cards on the pale
 // blue, and a topic list that looks like what it is -- a menu you press. On a
@@ -64,20 +62,6 @@ export default function FaqContent() {
   const locale = useLocale()
   const [open, setOpen] = useState<string | null>(null)
   const [current, setCurrent] = useState<string>(FAQ[0].id)
-  const [parentId, setParentId] = useState<string | null>(null)
-  const [seed, setSeed] = useState<{ text: string; n: number } | null>(null)
-
-  // The chat widget belongs to signed-in parents. A visitor who is not signed
-  // in gets the email address instead of a button that would do nothing.
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase.from('parents').select('id').eq('auth_user_id', user.id).single()
-        .then(({ data }) => { if (data) setParentId(data.id) })
-    })
-  }, [])
-
   // Keep the topic list pointing at the section being read, so it is plain
   // that the list moves you around the page.
   useEffect(() => {
@@ -90,9 +74,8 @@ export default function FaqContent() {
     return () => io.disconnect()
   }, [])
 
-  const askButton = parentId
-    ? <button type="button" className="b-btn gold" onClick={() => setSeed({ text: '', n: (seed?.n ?? 0) + 1 })}>{t('faq.stillChat')}</button>
-    : <a className="b-btn gold" href={`mailto:${EMAIL}`}>{t('faq.stillEmail')}</a>
+  // Everyone gets the chat now, signed in or not (owner, 2026-09-28).
+  const askButton = <button type="button" className="b-btn gold" onClick={() => openChat()}>{t('faq.stillChat')}</button>
 
   return (
     <BrandRoot>
@@ -156,7 +139,6 @@ export default function FaqContent() {
         </div>
       </section>
 
-      {parentId && <ChatWidget parentId={parentId} seedInput={seed?.text} seedKey={seed?.n} />}
     </BrandRoot>
   )
 }
