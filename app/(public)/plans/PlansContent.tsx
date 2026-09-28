@@ -162,10 +162,8 @@ function TopUp() {
   const router = useRouter()
   const supabase = createClient()
   /* Two questions, not one nine-way comparison: which class, then how many.
-     Opens on the group class because it is the cheapest way in -- $400 is a
-     friendlier first number than $650, and a family who wants private lessons
-     will happily press one more button to say so. */
-  const [course, setCourse] = useState<TopUpCourse>('1on4')
+     Opens on 1-on-1, 10 lessons (owner, 2026-09-28). */
+  const [course, setCourse] = useState<TopUpCourse>('1on1')
   const [lessons, setLessons] = useState<number>(TOPUP_LESSON_COUNTS[0])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
