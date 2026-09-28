@@ -144,7 +144,7 @@ const CSS = `
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
 .mst-panel { position: relative; width: 100%; max-width: 1180px; background: #fff; color: #16294a;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
-  --cw: 112px; --rh: 116px; --sz: 52px; --rkb: 4px; --lane: 26px; --pad: 30px;
+  --cw: 112px; --rh: 132px; --sz: 52px; --rkb: 4px; --lane: 26px; --pad: 30px;
   --rail: 150px; --sp: 16px; --hd: 0px }
 @media (min-width: 900px) { .mst-panel { margin: 24px; border-radius: 16px;
   border: 1px solid #e3ebf6; box-shadow: 0 30px 70px rgba(10,22,48,.35) } }
@@ -199,8 +199,8 @@ const CSS = `
 .mst-rk { position: absolute; left: 4px; right: 0; bottom: var(--rkb); text-align: center;
   font-size: 9.5px; font-weight: 800; font-style: normal; line-height: 1;
   font-variant-numeric: tabular-nums; letter-spacing: .02em }
-.mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: var(--cw);
-  left: calc((var(--sz) - var(--cw)) / 2); font-size: 11px; line-height: 1.3;
+.mst-nm { position: absolute; top: calc(var(--sz) + 6px); width: calc(var(--cw) - 6px);
+  left: calc((var(--sz) - var(--cw)) / 2 + 3px); font-size: 11px; line-height: 1.3;
   text-align: center; color: #b3bdcc; font-weight: 600 }
 /* The three stages, as three bands behind the board, alternating paper and
    white so each row reads as its own layer without any colour competing with
@@ -280,18 +280,19 @@ const CSS = `
 .mst-pre span.ok { background: #e6f4ee; color: #1f7a57 }
 .mst-pre span b { font-weight: 700; opacity: .65; margin-left: 4px; font-size: 10px }
 
-/* Phone: the stage names leave the left gutter and become a header at the top
-   of each band (--hd is the room made for it), and the board takes the full
-   width, so it fits without sideways scrolling. */
+/* Phone: the stage heading stays at the left of its band -- anywhere between
+   the rows it would sit on the lines that drop into the row below -- but as a
+   narrow column: ribbon on top, name wrapped under it. The board gets the rest
+   of the width, so it fits without sideways scrolling. */
 @media (max-width: 640px) {
-  .mst-panel { --cw: 88px; --rh: 146px; --sz: 44px; --rkb: 2px; --lane: 14px; --pad: 70px;
-    --rail: 0px; --sp: 14px; --hd: 40px }
-  .mst-rail { left: 12px; width: auto; transform: none; gap: 7px;
-    top: calc(var(--sp) + var(--pad) + (var(--r) - 1) * var(--rh) - 52px) }
-  .mst-rail b { font-size: 12px; max-width: none; display: inline }
-  .mst-rail span span { font-size: 10px; margin-left: 6px }
+  .mst-panel { --cw: 88px; --rh: 124px; --sz: 44px; --rkb: 2px; --lane: 12px; --pad: 30px;
+    --rail: 54px; --sp: 14px; --hd: 0px }
+  .mst-rail { left: 6px; width: 50px; transform: none; flex-direction: column; gap: 3px;
+    text-align: center; top: calc(var(--sp) + var(--pad) + (var(--r) - 1) * var(--rh) - 4px) }
+  .mst-rail b { font-size: 10px; max-width: 50px; line-height: 1.25 }
+  .mst-rail span span { display: block; font-size: 9px; margin-top: 2px }
   .mst-rk { font-size: 9px }
-  .mst-scroll { margin: 8px 14px 0; padding: var(--sp) 10px 10px 10px }
+  .mst-scroll { margin: 8px 14px 0; padding: var(--sp) 8px 10px calc(8px + var(--rail)) }
   .mst-tabs, .mst-meta, .mst-key { padding-left: 14px; padding-right: 14px }
   .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0 }
   .mst-nm { font-size: 10px }
@@ -455,6 +456,8 @@ export default function SkillTree({
          sent those lines round the outside of the board. */
       const base = board.getBoundingClientRect()
       const blocked: Record<number, Array<[number, number]>> = {}
+      const startY: Record<string, number> = {}
+      const heads: Record<number, [number, number]> = {}
       for (const el of Array.from(board.querySelectorAll<HTMLElement>('.mst-tile'))) {
         const row = Number(getComputedStyle(el).getPropertyValue('--r')) || 0
         const put = (l: number, r: number) => { (blocked[row] ||= []).push([l, r]) }
@@ -466,9 +469,19 @@ export default function SkillTree({
           range.selectNodeContents(nm)
           const t = range.getBoundingClientRect()
           if (t.width) put(t.left - base.left - 5, t.right - base.left + 5)
+          // The line leaves from under the name, never through it.
+          if (t.height && el.dataset.id) startY[el.dataset.id] = t.bottom - base.top + 4
         }
       }
-      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked })
+      // On a phone the stage names sit in each row's top channel.
+      if (parseFloat(cs.getPropertyValue('--hd')) > 0) {
+        for (const el of Array.from(box.querySelectorAll<HTMLElement>('.mst-rail'))) {
+          const row = Number(getComputedStyle(el).getPropertyValue('--r')) || 0
+          const b = el.getBoundingClientRect()
+          heads[row] = [b.left - base.left - 6, b.right - base.left + 6]
+        }
+      }
+      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked, startY, heads })
       for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
         el.setAttribute('d', paths[el.dataset.k || ''] || '')
       }
@@ -587,7 +600,7 @@ export default function SkillTree({
                 {inLv.map(s => {
                   const band = masteryOf(s.percent)
                   return (
-                    <button key={s.id}
+                    <button key={s.id} data-id={s.id}
                       className={'mst-tile ' + s.state + (s.apart ? ' apart' : '')}
                       style={{ ['--c' as any]: s.col, ['--r' as any]: s.row }}
                       aria-current={sel?.id === s.id || undefined}

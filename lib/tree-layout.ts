@@ -55,6 +55,13 @@ export type Geom = {
       through the gaps between them; without this it had to go round the outside
       of the board, which drew a box around half the level. */
   blocked?: Record<number, Array<[number, number]>>
+  /** Where each skill's line may start: just under its name, measured. A line
+      that left from the tile's bottom edge ran straight down through the name
+      printed under it (owner, 2026-09-28: no text may sit on a line). */
+  startY?: Record<string, number>
+  /** A stage heading printed in a row's top channel (the phone layout), as the
+      x-range it covers. A row-skipping line must not drop through it either. */
+  heads?: Record<number, [number, number]>
 }
 
 export type Edge = { from: string; to: string }
@@ -258,8 +265,11 @@ export function routeWires(
      get past. The outer margin is always free, so there is always a fallback. */
   const corridor = (from: number, to: number, desired: number): number => {
     let free: Array<[number, number]> = [[4, width - 4]]
-    for (let r = from; r < to; r++) {
-      const busy = (g.blocked?.[r] || []).slice().sort((p, q) => p[0] - q[0])
+    for (let r = from; r <= to; r++) {
+      // The last row is only in the way through its heading: the line turns
+      // in above that row's tiles.
+      const busy = [...(r < to ? g.blocked?.[r] || [] : []), ...(g.heads?.[r] ? [g.heads[r]] : [])]
+        .sort((p, q) => p[0] - q[0])
       const next: Array<[number, number]> = []
       for (const [lo, hi] of free) {
         let cur = lo
@@ -310,8 +320,9 @@ export function routeWires(
     const key = e.from + '>' + e.to
     const drop = e.b.row - e.a.row
 
+    const start = g.startY?.[e.from] ?? bottom(e.a.row) + 2
     if (drop === 1) {
-      const y1 = bottom(e.a.row) + 2, y2 = top(e.b.row) - 4
+      const y1 = start, y2 = top(e.b.row) - 4
       if (Math.abs(x1 - x2) < 2) { out[key] = `M${x1} ${y1} L${x2} ${y2}`; continue }
       const ly = lane(e.b.row, pickLane(e.b.row, x1, x2, e.from, [0, 1, 2]))
       out[key] = `M${x1} ${y1} L${x1} ${ly} L${x2} ${ly} L${x2} ${y2}`
@@ -334,7 +345,7 @@ export function routeWires(
         gutter.set(e.from, lane0)
       }
       const yIn = lane(e.b.row, 2)
-      const y1 = bottom(e.a.row) + 2, y2 = top(e.b.row) - 4
+      const y1 = start, y2 = top(e.b.row) - 4
       out[key] =
         `M${x1} ${y1} L${x1} ${lane0.yOut} L${lane0.gx} ${lane0.yOut} ` +
         `L${lane0.gx} ${yIn} L${x2} ${yIn} L${x2} ${y2}`
