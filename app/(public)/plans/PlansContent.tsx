@@ -284,6 +284,17 @@ export default function PlansContent() {
 
   // The assessment is not in here: it is paid by card, never with points, so
   // it gets its own row below with a dollar price instead of a points one.
+  // The squad fee comes from team_tiers (what the checkout charges), not a
+  // number written here. Squads can differ, so a spread reads "from $X".
+  const [teamFees, setTeamFees] = useState<number[]>([])
+  useEffect(() => {
+    fetch('/api/team/tiers').then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.tiers) setTeamFees(d.tiers.map((x: { monthly_price_cents: number }) => x.monthly_price_cents / 100).filter((n: number) => n > 0)) })
+      .catch(() => {})
+  }, [])
+  const teamFee = teamFees.length ? Math.min(...teamFees) : null
+  const teamFeeVaries = teamFees.some(n => n !== teamFee)
+
   const lessonRows = [
     { key: '1on1', points: BASE_POINTS['1on1'] },
     { key: '1on2', points: BASE_POINTS['1on2'] },
@@ -358,7 +369,10 @@ export default function PlansContent() {
                 ))}
                 <div className="p-row">
                   <span>{t('points.price.row.team')}</span>
-                  <small>{t('points.price.teamNote')}</small>
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    {teamFee != null && <strong>{teamFeeVaries ? t('points.price.teamFrom', { price: money(teamFee) }) : money(teamFee)}</strong>}
+                    <small>{t('points.price.teamNote')}</small>
+                  </span>
                 </div>
                 <p className="p-fine" style={{ marginTop: 16 }}>{t('points.price.hour')}</p>
               </div>

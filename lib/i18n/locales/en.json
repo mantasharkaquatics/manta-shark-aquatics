@@ -1132,6 +1132,7 @@
   "points.price.row.1on4": "1-on-4 Group",
   "points.price.row.assessment": "Swim Assessment",
   "points.price.row.team": "Swim Team",
+  "points.price.teamFrom": "from {price}",
   "points.price.teamNote": "Monthly membership",
   "points.reason.admin_deduct": "Adjusted by Manta Shark",
   "points.reason.admin_grant": "Added by Manta Shark",

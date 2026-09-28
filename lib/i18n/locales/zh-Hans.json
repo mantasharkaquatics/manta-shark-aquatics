@@ -1132,6 +1132,7 @@
   "points.price.row.1on4": "一对四",
   "points.price.row.assessment": "游泳评估",
   "points.price.row.team": "泳队",
+  "points.price.teamFrom": "{price} 起",
   "points.price.teamNote": "月费制",
   "points.reason.admin_deduct": "Manta Shark 调整",
   "points.reason.admin_grant": "Manta Shark 加点",
