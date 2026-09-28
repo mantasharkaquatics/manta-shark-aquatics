@@ -416,7 +416,16 @@ export default function Navbar() {
         </div>
 
         {open === 'drawer' && (
-          <div className="rn-drawer">
+          /* Any link closes the menu. The route change closes it too, but a
+             tap on the page you are already on changes nothing, so the menu
+             stayed open over it (owner, 2026-09-28); that tap now also takes
+             you back to the top of the page. */
+          <div className="rn-drawer" onClick={e => {
+            const a = (e.target as HTMLElement).closest('a')
+            if (!a) return
+            setOpen(null)
+            if (a.pathname === window.location.pathname) window.scrollTo({ top: 0 })
+          }}>
             {/* Signed in: the family's own three pages as one row of buttons. */}
             {isLoggedIn && (
               <div className="kids acct">
