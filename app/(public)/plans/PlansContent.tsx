@@ -43,9 +43,12 @@ const css = `
   .p-card { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 20px; padding: 30px; }
   .p-label { font-size: 13px; color: ${BRAND.mute}; margin: 0 0 8px; font-weight: 600; }
 
-  .p-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid ${BRAND.line}; border-radius: 10px; overflow: hidden; margin-bottom: 20px; background: ${BRAND.paper}; }
+  /* Three equal cells on one line in every language: "1-on-1 Private" wrapped
+     the English onto two rows on a phone (owner, 2026-09-28). */
+  .p-seg { display: inline-grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid ${BRAND.line}; border-radius: 10px;
+    overflow: hidden; margin-bottom: 20px; background: ${BRAND.paper}; }
   .p-seg button { padding: 10px 18px; font-size: 14px; font-weight: 700; border: 0; cursor: pointer; background: transparent;
-    color: ${BRAND.mute}; font-family: inherit; }
+    color: ${BRAND.mute}; font-family: inherit; white-space: nowrap; }
   .p-seg button[aria-pressed="true"] { background: ${BRAND.navy}; color: #fff; }
 
   .p-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 14px; }
@@ -53,7 +56,7 @@ const css = `
     text-align: center; font-family: inherit; color: ${BRAND.ink}; }
   .p-count:hover { border-color: #bcd0ea; }
   .p-count[aria-pressed="true"] { border-color: ${BRAND.blue}; background: #eef4fc; }
-  .p-count b { display: block; font-family: var(--font-display), serif; font-size: 28px; font-weight: 900; line-height: 1; }
+  .p-count b { display: block; font-family: var(--font-display), serif; font-size: 28px; font-weight: 900; line-height: 1; white-space: nowrap; }
   .b-root.zh .p-count b { font-family: inherit; font-size: 24px; }
   .p-count[aria-pressed="true"] b { color: ${BRAND.blue}; }
   .p-count span { display: block; font-size: 12px; margin-top: 6px; color: ${BRAND.mute}; font-variant-numeric: tabular-nums; }
@@ -93,6 +96,12 @@ const css = `
   .p-tiers .note { font-size: 12px; color: rgba(255,255,255,0.5); }
   .p-team .fine { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.7; margin: 0 0 16px; }
 
+  @media (max-width: 520px) {
+    .p-seg { display: grid; }
+    .p-seg button { padding: 11px 6px; }
+    .p-count b { font-size: 23px; }
+    .b-root.zh .p-count b { font-size: 22px; }
+  }
   @media (max-width: 900px) {
     .p-grid, .p-team { grid-template-columns: 1fr; }
     .p-card, .p-team { padding: 24px; }
@@ -211,7 +220,7 @@ function TopUp() {
       <div className="p-seg" role="group">
         {TOPUP_COURSES.map(c => (
           <button key={c} type="button" aria-pressed={course === c} onClick={() => setCourse(c)}>
-            {t('points.price.row.' + c)}
+            {t('home.program.' + ({ '1on1': 'private', '1on2': 'semi', '1on4': 'group' } as const)[c] + '.name')}
           </button>
         ))}
       </div>
