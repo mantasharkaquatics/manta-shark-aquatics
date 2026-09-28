@@ -22,8 +22,8 @@ import { BRAND } from '@/lib/brand'
 
 const navLinks = [
   { labelKey: 'page.assessment', href: '/assessment' },
+  { labelKey: 'page.programs', href: '/programs' },
   { labelKey: 'page.levels', href: '/levels' },
-  { labelKey: 'page.adaptive', href: '/adaptive-swim' },
   { labelKey: 'page.plans', href: '/plans' },
   { labelKey: 'page.about', href: '/about' },
   { labelKey: 'page.faq', href: '/faq' },
@@ -240,7 +240,10 @@ export default function Navbar() {
     const seg = pathname.split('/')[1] || ''
     return isLocale(seg) && seg !== 'en' ? pathname.slice(seg.length + 1) || '/' : pathname
   })()
-  const current = (href: string) => (bare === href ? 'page' as const : undefined)
+  // A programme page is a branch of Programs, so the bar keeps Programs lit there.
+  const BRANCHES: Record<string, string[]> = { '/programs': ['/adaptive-swim'] }
+  const current = (href: string) =>
+    (bare === href || BRANCHES[href]?.includes(bare) ? 'page' as const : undefined)
   const toggle = (which: 'lang' | 'acct' | 'drawer') => setOpen(o => (o === which ? null : which))
 
   // Signed in, the button takes a family home to their Dashboard -- except on

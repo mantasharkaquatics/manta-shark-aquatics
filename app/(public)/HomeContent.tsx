@@ -238,6 +238,8 @@ export default function HomeContent() {
             <p className="h-note">
               {t('home.programs.note')}{' '}
               <Link href={localePath('/plans', locale)}>{t('home.programs.noteLink')}</Link>
+              {' · '}
+              <Link href={localePath('/programs', locale)}>{t('adapt.crumb')}</Link>
             </p>
           </div>
         </section>

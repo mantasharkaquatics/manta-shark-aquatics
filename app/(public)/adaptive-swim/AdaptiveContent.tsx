@@ -108,7 +108,11 @@ export default function AdaptiveContent() {
 
       <header className="b-hero">
         <div className="b-wrap">
-          <p className="b-eyebrow">{t('adapt.hero.eyebrow')}</p>
+          <p className="b-eyebrow">
+            <Link href={localePath('/programs', locale)} style={{ color: 'inherit', textDecoration: 'none' }}>{t('adapt.crumb')}</Link>
+            <span aria-hidden="true" style={{ opacity: .6, margin: '0 8px' }}>/</span>
+            {t('adapt.hero.eyebrow')}
+          </p>
           <h1>{t('adapt.hero.title1')}<br /><em>{t('adapt.hero.title2')}</em></h1>
           <p className="b-lead">{t('adapt.hero.sub')}</p>
           <div className="b-chips">

@@ -7,6 +7,7 @@ import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 
 const LINKS = [
   { labelKey: 'page.assessment', href: '/assessment' },
+  { labelKey: 'page.programs', href: '/programs' },
   { labelKey: 'page.levels', href: '/levels' },
   { labelKey: 'page.adaptive', href: '/adaptive-swim' },
   { labelKey: 'page.plans', href: '/plans' },
