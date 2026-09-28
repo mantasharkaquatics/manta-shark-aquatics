@@ -12,8 +12,9 @@ import { BASE_POINTS } from '@/lib/points'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 /* Adaptive swim: lessons for children with special needs (owner, 2026-09-28).
-   The advantage is the founder -- Mitzi is a school psychologist (Walnut
-   Valley USD) as well as a former national-team swimmer -- and the school is
+   The advantage is the founder -- Mitzi is a school psychologist as well as
+   a former national-team swimmer (her district is not named, owner 2026-09-28)
+   -- and the school is
    a Regional Center of Orange County vendor. Same lessons, same price, one
    coach; the difference is how they are taught.
 
