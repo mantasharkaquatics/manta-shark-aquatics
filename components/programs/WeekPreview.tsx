@@ -76,15 +76,19 @@ const css = `
   .wk-tier .sp { margin-top: auto; padding-top: 10px; border-top: 1px solid ${BRAND.line}; font-size: 13px; font-weight: 800; }
   .wk-tier .sp.left { color: #1f8a5b; } .wk-tier .sp.full { color: #b42318; }
 
-  /* Below this the seven columns get too narrow for a time and a level tag, so
-     each day becomes a row: the day on the left, its times wrapping beside it. */
+  /* Below this the seven columns get too narrow, so the week becomes a row of
+     day cards that slides sideways (owner, 2026-09-28: stacked, the page ran
+     far too long on a phone). The row bleeds to the screen edges and the next
+     day peeks in, which is what says "swipe". Only this row scrolls; the page
+     itself never does. */
+  .wk-swipe { display: none; font-size: 12.5px; color: ${BRAND.mute}; margin: -4px 0 10px; }
   @media (max-width: 1024px) {
-    .wk { grid-template-columns: 1fr; gap: 8px; }
-    .wk-day { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: start; gap: 10px; padding: 12px; }
-    .wk-hd { flex-direction: column; align-items: flex-start; gap: 2px; border-bottom: 0; padding: 2px 0 0; margin: 0; }
-    .wk-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); align-items: center; }
-    .wk-list.wide { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-    .wk-none { grid-column: 1 / -1; }
+    .wk { display: flex; gap: 10px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+          margin: 0 -24px; padding: 2px 24px 8px; scroll-padding-left: 24px; scrollbar-width: none; }
+    .wk::-webkit-scrollbar { display: none; }
+    .wk-day { flex: 0 0 152px; scroll-snap-align: start; }
+    .wk-list.wide .wk-slot { padding: 7px 6px; }
+    .wk-swipe { display: block; }
   }
 `
 
@@ -213,6 +217,8 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
       ) : total === 0 ? (
         <div className="wk-state">{t('programs.week.empty')}</div>
       ) : (
+        <>
+        <p className="wk-swipe">{t('programs.week.swipe')} →</p>
         <div className="wk">
           {days.map(d => {
             const list = entriesFor(d)
@@ -244,6 +250,7 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
             )
           })}
         </div>
+        </>
       )}
 
       <div className="wk-foot">

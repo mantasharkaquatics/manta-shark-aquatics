@@ -1218,6 +1218,7 @@
   "programs.week.sub": "实时显示目前还空着的时段。登录后在预约页选定时间，完成预约前不会替您保留。",
   "programs.week.subGroup": "每一班只收同一程度区间的孩子。选择孩子的等级，只看适合的班。",
   "programs.week.subTeam": "每一队每周固定时段练习，学员会依等级分到对应的队。下方是本周的练习。",
+  "programs.week.swipe": "左右滑动看其他天",
   "programs.week.title.group": "还有名额的团体班",
   "programs.week.title.private": "本周还有的时段",
   "programs.week.title.team": "分队与练习时间",
