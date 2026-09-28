@@ -323,7 +323,7 @@ export default function PlansContent() {
           {/* Only promises that hold for purchased points today. ("Discounts
               you earn" went with VIP; off-peak is switched off.) */}
           <div className="b-chips">
-            {['oneDollar', 'noExpiry', 'refundable'].map(slug => (
+            {['oneDollar', 'noExpiry'].map(slug => (
               <span key={slug}>{t('points.chip.' + slug)}</span>
             ))}
           </div>
