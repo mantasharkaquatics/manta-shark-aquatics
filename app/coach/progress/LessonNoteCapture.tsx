@@ -46,11 +46,23 @@ export default function LessonNoteCapture({
   // onChange during React's render phase, which updates the parent mid-render.
   const secondsRef = useRef(0)
 
+  // The latest onChange, for the unmount cleanup below (which runs once).
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange })
+
   useEffect(() => {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current)
+      /* Gone from the screen means gone from the report. The parent used to
+         keep the last take after the recorder unmounted -- collapse the card
+         and reopen it, and an empty recorder sat above an enabled Send that
+         would upload the take no longer shown. A take still being recorded is
+         dropped too: its onstop would otherwise fire after this and hand the
+         parent a cut-off clip. */
+      if (recorderRef.current) recorderRef.current.onstop = null
       streamRef.current?.getTracks().forEach(t => t.stop())
       if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+      onChangeRef.current(null)
     }
   }, [])
 

@@ -34,6 +34,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   const [search, setSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<string>('')
+  const [assignError, setAssignError] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -63,6 +64,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   async function handleAssign() {
     if (!selectedStudent || !selectedLevel) return
     setSaving(true)
+    setAssignError(null)
     const res = await fetch('/api/admin/assign-level', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -70,10 +72,15 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
         student_id: selectedStudent.id,
         level_number: selectedLevel,
         notes, admin_id: adminId,
-        from_level: selectedStudent.current_level,
       })
-    })
-    if (res.ok) {
+    }).catch(() => null)
+    if (!res) {
+      setAssignError('Could not reach the server. Check your connection and try again.')
+    } else if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      setAssignError(j.error || 'The level was not changed. Please try again.')
+    }
+    if (res?.ok) {
       const record = await res.json()
       setUpgradeHistory(prev => [record, ...prev])
       setSaved(true)
@@ -173,6 +180,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
             >
               {saving ? 'Saving...' : saved ? '✓ Level Assigned' : `Assign Level ${selectedLevel}${selectedLevel ? ' · ' + LEVEL_NAMES[selectedLevel] : ''}`}
             </button>
+            {assignError && <p className="text-red-400 text-xs">{assignError}</p>}
           </div>
         )}
       </div>

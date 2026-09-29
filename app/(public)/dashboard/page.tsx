@@ -610,11 +610,14 @@ type LedgerRow = {
   id: string
   at: string
   points: number
-  balanceAfter: number
+  /** Null on a payment line: it did not move the balance. */
+  balanceAfter: number | null
   reason: string
   note: string | null
   amountCents: number | null
   invoice?: { id: string; number: string } | null
+  /** A dollar payment that bought no points -- the Swim Assessment. */
+  payment?: boolean
 }
 
 /** The wallet, as one card. */
@@ -768,10 +771,18 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                     )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: row.points >= 0 ? '#1f7a57' : '#16294a' }}>
-                      {row.points >= 0 ? '+' : '−'}{Math.abs(row.points).toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#56647d' }}>{row.balanceAfter.toLocaleString()}</div>
+                    {row.payment ? (
+                      <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#16294a' }}>
+                        ${((row.amountCents || 0) / 100).toFixed(2)}
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '12.5px', fontWeight: 700, color: row.points >= 0 ? '#1f7a57' : '#16294a' }}>
+                          {row.points >= 0 ? '+' : '−'}{Math.abs(row.points).toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#56647d' }}>{(row.balanceAfter ?? 0).toLocaleString()}</div>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1150,15 +1161,23 @@ export default function DashboardPage() {
      whether or not the webhook has arrived) and again when its hold runs out
      (so the slot is released on time). */
   const trialCheckedAt = useRef<Map<string, number>>(new Map())
+  /* Assessments whose first check against Stripe is still out. A family back
+     from paying used to see "awaiting payment · Pay now" for the second or two
+     that check took, and read it as the payment having failed. */
+  const [trialSynced, setTrialSynced] = useState<Set<string>>(new Set())
   async function syncTrial(id: string) {
+    const first = !trialCheckedAt.current.has(id)
     trialCheckedAt.current.set(id, Date.now())
     try {
       const r = await fetch('/api/stripe/trial-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
       const j = await r.json().catch(() => ({}))
-      if (j.state === 'confirmed' || j.state === 'released') { fetchAll(); return }
+      if (j.state === 'confirmed' || j.state === 'released') { await fetchAll(); return }
       // Paid by bank transfer and still clearing: nothing to count down to.
       if (j.state === 'open' && !j.expiresAt) trialCheckedAt.current.set(id, Infinity)
     } catch { /* the next tick past the hold tries again */ }
+    finally {
+      if (first) setTrialSynced(prev => new Set(prev).add(id))
+    }
   }
   useEffect(() => {
     for (const b of upcomingBookings) {
@@ -1495,14 +1514,20 @@ export default function DashboardPage() {
       /* These two reads share no data, and the translations only need the notes.
          Issued one after another they cost three round trips before the progress
          panel could render; issued together they cost two. */
-      const [hSessionsRes, hNotesRes] = await Promise.all([
+      const [hSessionsRes, hNotesRes, hTrialRes] = await Promise.all([
         histSessionIds.length > 0
           ? supabase.from('class_sessions').select('id, start_time, course_types(id, name)').in('id', histSessionIds)
           : Promise.resolve({ data: null }),
         histLessonKeys.length > 0
-          ? supabase.from('lesson_notes').select('id, lesson_key, language, note').in('lesson_key', histLessonKeys).eq('status', 'approved')
+          ? supabase.from('lesson_notes').select('id, student_id, lesson_key, language, note').in('lesson_key', histLessonKeys).eq('status', 'approved')
+          : Promise.resolve({ data: null }),
+        // Which of these lessons were a Swim Assessment. It sits in an ordinary
+        // 1-on-1 slot, so the session's course alone reads "1-on-1 Private".
+        histSessionIds.length > 0
+          ? supabase.from('bookings').select('student_id, class_session_id').in('class_session_id', histSessionIds).eq('is_trial', true)
           : Promise.resolve({ data: null }),
       ])
+      const trialLesson = new Set(((hTrialRes.data as any[] | null) || []).map((b: any) => `${b.student_id}|${b.class_session_id}`))
       {
         const hSessions = hSessionsRes.data as any[] | null
         for (const cs of hSessions || []) {
@@ -1517,7 +1542,10 @@ export default function DashboardPage() {
       }
       {
         const hNotes = hNotesRes.data as any[] | null
-        for (const n of hNotes || []) noteByKey[(n as any).lesson_key] = (n as any).note || ''
+        /* Keyed by swimmer AND lesson. Two siblings in the same 1-on-2 share the
+           lesson key, and a key on the lesson alone handed both of them
+           whichever sibling's note happened to load last. */
+        for (const n of hNotes || []) noteByKey[`${(n as any).student_id}|${(n as any).lesson_key}`] = (n as any).note || ''
 
         /* The note is read in whatever language the family is reading the SITE
            in. Keying it off the account setting alone meant a parent could
@@ -1537,7 +1565,7 @@ export default function DashboardPage() {
             .in('lesson_note_id', foreignIds)
             .eq('language', wantLang)
           const keyById: Record<string, string> = {}
-          for (const n of hNotes || []) keyById[(n as any).id] = (n as any).lesson_key
+          for (const n of hNotes || []) keyById[(n as any).id] = `${(n as any).student_id}|${(n as any).lesson_key}`
           for (const t of hTrans || []) {
             const k = keyById[(t as any).lesson_note_id]
             if (k && (t as any).text) noteByKey[k] = (t as any).text
@@ -1565,6 +1593,10 @@ export default function DashboardPage() {
             if (!levelSkillsMap[(sk as any).level_id]) levelSkillsMap[(sk as any).level_id] = []
             levelSkillsMap[(sk as any).level_id].push({ id: (sk as any).id, name: (sk as any).name, sort_order: (sk as any).sort_order, stage: Number((sk as any).stage) || 1 })
           }
+          // Stage first, then the order inside the stage. sort_order alone
+          // interleaved the three stages, so a record listed a stage 3 skill
+          // above the stage 1 skills the swimmer was actually working on.
+          for (const list of Object.values(levelSkillsMap)) list.sort((a, b) => a.stage - b.stage || a.sort_order - b.sort_order)
           // Add remaining snapshot skills (old data with mismatched level still shows names)
           const missing = allSkillIds.filter(id => !skillNameMap[id])
           if (missing.length > 0) {
@@ -1596,16 +1628,17 @@ export default function DashboardPage() {
                     sort_order: skillNameMap[skill_id]?.sort_order || 999,
                   })).sort((a, b) => a.sort_order - b.sort_order)
               const info = hist.class_session_id ? lessonInfo[hist.class_session_id] : null
+              const isTrial = !!hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`)
               return {
                 session_date: hist.session_date,
                 lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
                 start_time: info?.start_time || '',
-                course_name: info?.course_name || '',
-                course_type_id: info?.course_type_id || '',
+                course_name: isTrial ? t('common.assessment') : (info?.course_name || ''),
+                course_type_id: isTrial ? '' : (info?.course_type_id || ''),
                 // An hour is two sessions but one lesson; the record is stored
                 // against the first half, so its own end time would read short.
                 minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
-                note: hist.lesson_key ? (noteByKey[hist.lesson_key] || '') : '',
+                note: hist.lesson_key ? (noteByKey[`${sid}|${hist.lesson_key}`] || '') : '',
                 skills: skillsForRecord,
               }
             })
@@ -1645,10 +1678,14 @@ export default function DashboardPage() {
             session_date: hist.session_date,
             lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
             start_time: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.start_time : '') || '',
-            course_name: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_name : '') || '',
-            course_type_id: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_type_id : '') || '',
+            course_name: (hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`))
+              ? t('common.assessment')
+              : (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_name : '') || '',
+            course_type_id: (hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`))
+              ? ''
+              : (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_type_id : '') || '',
             minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
-            note: hist.lesson_key ? (noteByKey[hist.lesson_key] || '') : '',
+            note: hist.lesson_key ? (noteByKey[`${sid}|${hist.lesson_key}`] || '') : '',
             skills: Object.entries(hist.snapshot).map(([skill_id, pct]) => ({
               skill_id, skill_name: skillNameMap[skill_id]?.name || skill_id,
               progress_percent: pct as number, sort_order: skillNameMap[skill_id]?.sort_order || 999,
@@ -2513,6 +2550,10 @@ export default function DashboardPage() {
                             </button>
                           )}
                         </div>
+                      ) : booking.status === 'pending_payment' && booking.is_trial && !trialSynced.has(booking.id) ? (
+                        <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: '#56647d', fontSize: '11px', fontWeight: 600, alignSelf: 'flex-start' }}>
+                          ⏳ {t('dash.pend.checking')}
+                        </div>
                       ) : booking.status === 'pending_payment' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -2545,7 +2586,7 @@ export default function DashboardPage() {
                               onClick={() => { setPendingPayMsg(''); setPendingCancelConfirm(booking.id) }}
                               disabled={pendingPayBusy === booking.id}
                               style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                              Cancel
+                              {t('common.cancel')}
                             </button>
                           </div>
                           {pendingPayMsg && <div style={{ fontSize: '11px', color: '#c0392b' }}>{pendingPayMsg}</div>}
@@ -2601,6 +2642,9 @@ export default function DashboardPage() {
                             {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
                           </button>
                           {(() => {
+                            // Checked in means the lesson is happening: there is
+                            // nothing left to cancel.
+                            if (booking.checked_in) return null
                             // A Swim Assessment is paid by card, not out of the
                             // wallet, so there are no points to hand back. The parent
                             // tells us and the front desk cancels it. The API refuses

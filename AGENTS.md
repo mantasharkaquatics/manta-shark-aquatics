@@ -78,9 +78,18 @@ Facts the code depends on:
 - A level holds 9-16 skills split across exactly three stages. `skills.stage`
   is 1, 2 or 3; `students.current_stage` is where the swimmer sits.
 - **Assessment picks the level. Everyone starts that level at stage 1.**
-  `/api/admin/assign-level`, `/api/admin/students/assign-level` and
-  `/api/admin/review-level` all write `current_stage: 1` alongside the level —
-  if you add another route that sets `current_level`, it must do the same.
+  Every level change goes through `setStudentLevel()` in `lib/level-change.ts`
+  (used by `/api/admin/assign-level`, `/api/admin/review-level` and
+  `/api/admin/review-assessment`). It writes the `level_upgrades` row first and
+  the student second, so a failure cannot leave a swimmer moved with no record,
+  and it sets `current_stage: 1`. A new route that sets `current_level` must
+  call it rather than update `students` directly.
+- **The assessment is a lesson report with a level attached.** For a swimmer
+  with no level, the coach picks a recommended level on /coach/progress, scores
+  that level's skills and records the note; `/api/coach/lesson-note` stores all
+  three as pending (the skill scores go to `progress_history` only, not
+  `student_skill_progress`). The admin confirms them as ONE card in Reviews.
+  The desk check-in no longer offers to assign a level.
 - A stage is finished only when **every** skill in it reads 100. The database
   trigger `check_level_upgrade()` and `stageProgress()` in `lib/levels.ts` use
   the same rule on purpose, so the bar a parent sees and the promotion that

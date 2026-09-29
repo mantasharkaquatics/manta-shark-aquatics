@@ -10,6 +10,14 @@ import { UNLOCK_VALUE } from './mastery'
 // from here; do not paste another copy.
 
 export const MAX_LEVEL = 7
+/** 1..MAX_LEVEL, for every level picker. Pickers used to hard-code 1..9 and
+ *  kept offering L8 and L9 after the curriculum shrank to seven. */
+export const LEVEL_NUMBERS: number[] = Array.from({ length: MAX_LEVEL }, (_, i) => i + 1)
+/** A level a swimmer can actually be placed in. Accepts "3" as well as 3. */
+export function isLevelNumber(v: unknown): boolean {
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 1 && n <= MAX_LEVEL
+}
 export const STAGES = [1, 2, 3] as const
 export type Stage = 1 | 2 | 3
 

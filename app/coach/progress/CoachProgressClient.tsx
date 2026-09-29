@@ -5,10 +5,10 @@ import { levelNameKey } from '@/lib/levels'
 
 import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
 import SkillTree from '@/app/(public)/dashboard/SkillTree'
-import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
+import { LEVEL_COLORS, LEVEL_NUMBERS, STAGES } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
 import StageRibbon from '@/components/StageRibbon'
 
@@ -18,6 +18,10 @@ type StudentProgress = {
   skills: Skill[]
   progress: Record<string, number>
   todayLocked: boolean
+  /** No level yet: this lesson is their assessment. */
+  assessment?: boolean
+  /** The level whose skills are shown during an assessment. */
+  assessedLevel?: number | null
 }
 
 
@@ -43,10 +47,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   const [savingMap, setSavingMap] = useState<Record<string, boolean>>({})
   const [completedSet, setCompletedSet] = useState<Set<string>>(new Set(completedKeys))
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
-  const [recommendedLevelMap, setRecommendedLevelMap] = useState<Record<string, string>>({})
-  const [recommendLevelInput, setRecommendLevelInput] = useState<Record<string, string>>({})
-  const [recommendingMap, setRecommendingMap] = useState<Record<string, boolean>>({})
-  const [showChangeMap, setShowChangeMap] = useState<Record<string, boolean>>({})
+  // The level picked for a swimmer's assessment, per lesson card.
+  const [assessLevelMap, setAssessLevelMap] = useState<Record<string, string>>({})
   const [locked, setLocked] = useState(false)
   const [captureMap, setCaptureMap] = useState<Record<string, Capture | null>>({})
   const [errorMap, setErrorMap] = useState<Record<string, string>>({})
@@ -96,7 +98,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
         start_time: s.start_time || '',
         end_time: s.end_time || '',
         sessionDate: (s as any).session_date || today,
-        courseName: s.course_types?.id
+        courseName: b.is_trial ? t('common.assessment') : s.course_types?.id
           ? tDb(locale, 'course_types', s.course_types.id, s.course_types?.name || '')
           : (s.course_types?.name || ''),
         entryKey,
@@ -107,6 +109,33 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
     .map(e => ({ ...e, sessionTime: `${formatTime12h(e.start_time)} - ${formatTime12h(e.end_time)}` }))
 
+  // Latest request per card. A coach tapping L3 then L4 quickly must end up
+  // looking at L4's skills: an older response that lands late is dropped.
+  const loadSeq = useRef<Record<string, number>>({})
+
+  /** quiet: keep the card on screen while it loads (a level switch), so the
+   *  recorder stays mounted and its take survives. */
+  async function loadStudent(entryKey: string, studentId: string, sessionId: string, level?: string, quiet = false): Promise<'ok' | 'stale' | 'failed'> {
+    const seq = (loadSeq.current[entryKey] || 0) + 1
+    loadSeq.current[entryKey] = seq
+    if (!quiet) setLoadingMap(prev => ({ ...prev, [entryKey]: true }))
+    const q = `/api/coach/progress?student_id=${studentId}&class_session_id=${sessionId}${level ? `&level=${level}` : ''}`
+    const res = await fetch(q).catch(() => null)
+    const data = res && res.ok ? await res.json().catch(() => null) : null
+    if (loadSeq.current[entryKey] !== seq) return 'stale'
+    if (!data) {
+      setErrorMap(prev => ({ ...prev, [entryKey]: t('coach.progress.loadFailed') }))
+      setLoadingMap(prev => ({ ...prev, [entryKey]: false }))
+      return 'failed'
+    }
+    setErrorMap(prev => ({ ...prev, [entryKey]: '' }))
+    setStudentDataMap(prev => ({ ...prev, [entryKey]: data }))
+    setLocalProgressMap(prev => ({ ...prev, [entryKey]: { ...data.progress } }))
+    if (data.todayLocked) setCompletedSet(prev => new Set([...prev, entryKey]))
+    setLoadingMap(prev => ({ ...prev, [entryKey]: false }))
+    return 'ok'
+  }
+
   async function toggleStudent(entryKey: string, studentId: string, sessionId: string) {
     if (expandedStudent === entryKey) {
       setExpandedStudent(null)
@@ -115,22 +144,23 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     setExpandedStudent(entryKey)
     // Re-fetch on every expand to get the latest progress (reflects saves from the previous lesson)
     if (studentDataMap[entryKey]?.todayLocked) return
+    await loadStudent(entryKey, studentId, sessionId, assessLevelMap[entryKey])
+  }
 
-    setLoadingMap(prev => ({ ...prev, [entryKey]: true }))
-    const [res, recRes] = await Promise.all([
-      fetch(`/api/coach/progress?student_id=${studentId}&class_session_id=${sessionId}`),
-      fetch(`/api/coach/pending-recommendation?student_id=${studentId}`)
-    ])
-    const data = await res.json()
-    const recData = await recRes.json()
-
-    setStudentDataMap(prev => ({ ...prev, [entryKey]: data }))
-    setLocalProgressMap(prev => ({ ...prev, [entryKey]: { ...data.progress } }))
-    if (data.todayLocked) setCompletedSet(prev => new Set([...prev, entryKey]))
-    if (recData.recommended_level) {
-      setRecommendedLevelMap(prev => ({ ...prev, [entryKey]: String(recData.recommended_level) }))
-    }
-    setLoadingMap(prev => ({ ...prev, [entryKey]: false }))
+  /* An assessment: the coach says which level the swimmer belongs in, and that
+     level's skills open underneath to be scored. Changing the pick starts the
+     scores over -- they were marks against a different list. The recording is
+     kept: it is about the swimmer, not about the list. */
+  async function pickAssessLevel(entryKey: string, studentId: string, sessionId: string, level: string) {
+    if (locked || completedSet.has(entryKey)) return
+    const shown = studentDataMap[entryKey]?.assessedLevel
+    if (assessLevelMap[entryKey] === level && String(shown ?? '') === level) return
+    const before = assessLevelMap[entryKey]
+    setAssessLevelMap(prev => ({ ...prev, [entryKey]: level }))
+    setOpenStageMap(prev => { const n = { ...prev }; delete n[entryKey]; return n })
+    const result = await loadStudent(entryKey, studentId, sessionId, level, true)
+    // A failed load leaves the old list on screen; the highlight goes back to it.
+    if (result === 'failed') setAssessLevelMap(prev => ({ ...prev, [entryKey]: before || '' }))
   }
 
   // Progress and the recording leave together. The owner's rule is that a coach
@@ -152,6 +182,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     form.append('language', capture.language)
     form.append('seconds', String(capture.seconds))
     form.append('progress', JSON.stringify(progress))
+    const data = studentDataMap[entryKey]
+    if (data?.assessment && data.assessedLevel) form.append('recommended_level', String(data.assessedLevel))
 
     const res = await fetch('/api/coach/lesson-note', { method: 'POST', body: form })
     if (!res.ok) {
@@ -169,26 +201,6 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       }))
     }
     setSavingMap(prev => ({ ...prev, [entryKey]: false }))
-  }
-
-  async function submitRecommendation(entryKey: string, studentId: string, isChange: boolean) {
-    const level = recommendLevelInput[entryKey]
-    if (!level || locked) return
-    setRecommendingMap(prev => ({ ...prev, [entryKey]: true }))
-    const prevLevel = isChange ? recommendedLevelMap[entryKey] : null
-    await fetch('/api/coach/recommend-level', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        student_id: studentId,
-        recommended_level: parseInt(level),
-        notes: null,
-        previous_recommended_level: prevLevel ? parseInt(prevLevel) : null
-      })
-    })
-    setRecommendedLevelMap(prev => ({ ...prev, [entryKey]: level }))
-    setShowChangeMap(prev => ({ ...prev, [entryKey]: false }))
-    setRecommendingMap(prev => ({ ...prev, [entryKey]: false }))
   }
 
   return (
@@ -233,10 +245,9 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
             const localProgress = localProgressMap[s.entryKey] || {}
             const saving = savingMap[s.entryKey]
             const hasChanges = data && JSON.stringify(localProgress) !== JSON.stringify(data.progress)
-            const recLevel = recommendedLevelMap[s.entryKey]
-            const showChange = showChangeMap[s.entryKey]
-            const recommending = recommendingMap[s.entryKey]
-            const recInput = recommendLevelInput[s.entryKey] || ''
+            const assessPick = assessLevelMap[s.entryKey] || (data?.assessedLevel ? String(data.assessedLevel) : '')
+            // The level the stage ribbons and the learning map are drawn for.
+            const shownLevel = Number(data?.student.current_level) || Number(data?.assessedLevel) || 1
 
             return (
               <div key={s.entryKey} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
@@ -284,55 +295,30 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                       <div className="text-center text-gray-400 py-6">{t('coach.loading')}</div>
                     ) : data ? (
                       <>
-                        {/* Unassigned — recommend a level */}
-                        {!data.student.level && (
+                        {/* No level yet: this lesson is the assessment. The level
+                            is chosen here and travels with the report, so the
+                            admin confirms level, note and scores as one card. */}
+                        {data.assessment && (
                           <div className="bg-[#0d1529] rounded-xl border border-[#c9a84c]/30 p-4 mb-3">
-                            <div className="flex items-center justify-between mb-3">
-                              <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">{t('coach.progress.recTitle')}</p>
-                              {recLevel && !showChange && (
-                                <button onClick={() => { setShowChangeMap(prev => ({ ...prev, [s.entryKey]: true })); setRecommendLevelInput(prev => ({ ...prev, [s.entryKey]: recLevel })) }}
-                                  disabled={locked}
-                                  className="text-xs text-gray-400 hover:text-white border border-[#1e3a6e] px-2 py-1 rounded-lg transition-all disabled:opacity-40">
-                                  {t('coach.progress.recChange')}
-                                </button>
-                              )}
-                            </div>
-                            {recLevel && !showChange ? (
-                              <div className="flex items-center gap-3 py-2">
-                                <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                                <p className="text-green-400 text-sm font-medium">{t('coach.progress.recSubmitted', { n: recLevel, name: t(levelNameKey(recLevel)) })}</p>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="grid grid-cols-3 gap-2 mb-3">
-                                  {[1,2,3,4,5,6,7,8,9].map(n => (
-                                    <button key={n} onClick={() => setRecommendLevelInput(prev => ({ ...prev, [s.entryKey]: String(n) }))}
-                                      disabled={locked}
-                                      className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all disabled:opacity-40 ${
-                                        recInput === String(n) ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] bg-[#111d38] text-gray-400 hover:border-[#c9a84c]/50'
-                                      }`}
-                                    >
-                                      <div>L{n}</div>
-                                      <div className="opacity-70">{LEVEL_NAMES[String(n)]}</div>
-                                    </button>
-                                  ))}
-                                </div>
-                                <div className="flex gap-2">
-                                  {showChange && (
-                                    <button onClick={() => setShowChangeMap(prev => ({ ...prev, [s.entryKey]: false }))}
-                                      className="px-3 py-2 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:bg-[#1e3a6e]/40 transition-all">Cancel</button>
-                                  )}
-                                  <button onClick={() => submitRecommendation(s.entryKey, s.studentId, showChange)}
-                                    disabled={!recInput || recommending || locked}
-                                    className={`flex-1 py-2 rounded-lg font-semibold text-xs transition-all ${recInput && !locked ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
+                            <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider mb-1">{t('coach.progress.assessTitle')}</p>
+                            <p className="text-gray-400 text-xs mb-3">{isCompleted
+                              ? t('coach.progress.assessSent')
+                              : t('coach.progress.assessHint')}</p>
+                            {!isCompleted && (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {LEVEL_NUMBERS.map(n => (
+                                  <button key={n}
+                                    onClick={() => pickAssessLevel(s.entryKey, s.studentId, s.sessionId, String(n))}
+                                    disabled={locked || saving}
+                                    className={`py-2 px-2 rounded-lg border text-xs font-medium transition-all disabled:opacity-40 ${
+                                      assessPick === String(n) ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] bg-[#111d38] text-gray-400 hover:border-[#c9a84c]/50'
+                                    }`}
                                   >
-                                    {recommending ? t('coach.progress.recSending')
-                                      : showChange ? t('coach.progress.recConfirm', { n: recInput })
-                                      : recInput ? t('coach.progress.recSubmit', { n: recInput, name: t(levelNameKey(recInput)) })
-                                      : t('coach.progress.recPick')}
+                                    <div>L{n}</div>
+                                    <div className="opacity-70">{t(levelNameKey(String(n)))}</div>
                                   </button>
-                                </div>
-                              </>
+                                ))}
+                              </div>
                             )}
                           </div>
                         )}
@@ -376,7 +362,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                               type="button"
                               onClick={() => setTreeFor({
                                 name: s.full_name,
-                                level: Number(data.student.current_level) || 1,
+                                level: shownLevel,
                                 stage: Number(data.student.current_stage) || 1,
                                 // what is on screen, including marks not yet sent
                                 percents: { ...data.progress, ...localProgress },
@@ -444,7 +430,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                       stage at 100. It tells them what the swimmer
                                       is one or two boxes away from collecting. */}
                                   <StageRibbon
-                                    level={Number(data.student.current_level) || data.student.level?.level_number || 1}
+                                    level={shownLevel}
                                     stage={st} size={26} earned={allDone} />
                                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>
                                     {t('coach.stage', { n: st })}
@@ -504,6 +490,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                           </>
                         )}
                       </>
+                    ) : errorMap[s.entryKey] ? (
+                      <p className="text-red-400 text-xs">{errorMap[s.entryKey]}</p>
                     ) : null}
                   </div>
                 )}

@@ -65,7 +65,7 @@ export default async function CoachProgressPage() {
   // Step 3: fetch confirmed bookings
   const { data: bookingsRaw } = await supabase
     .from('bookings')
-    .select('id, class_session_id, student_id, lesson_group_id')
+    .select('id, class_session_id, student_id, lesson_group_id, is_trial')
     .in('class_session_id', sessionIds)
     .eq('status', 'confirmed')
 
@@ -103,7 +103,7 @@ export default async function CoachProgressPage() {
     course_types: { id: s.course_type_id, name: courseTypeMap[s.course_type_id] || '' },
     bookings: bookings
       .filter(b => b.class_session_id === s.id)
-      .map(b => ({ id: b.id, lesson_group_id: b.lesson_group_id, students: studentMap[b.student_id] || null }))
+      .map(b => ({ id: b.id, lesson_group_id: b.lesson_group_id, is_trial: !!b.is_trial, students: studentMap[b.student_id] || null }))
       .filter(b => b.students)
   }))
 

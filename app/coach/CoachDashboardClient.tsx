@@ -11,7 +11,7 @@ import { STAGES } from '@/lib/levels'
 type Student = {
   id: string
   full_name: string
-  current_level: string
+  current_level: string | null
   current_stage?: number | null
   profile_photo_url?: string
 }
@@ -20,6 +20,7 @@ type Booking = {
   id: string
   status: string
   lesson_group_id: string | null
+  is_trial?: boolean
   students: Student
 }
 
@@ -85,7 +86,7 @@ export default function CoachDashboardClient({
     setLoadingSkills(true)
 
     // Convert level_number to int for the query
-    const levelNum = parseInt(student.current_level)
+    const levelNum = parseInt(student.current_level || '')
     if (isNaN(levelNum)) {
       setLoadingSkills(false)
       return
@@ -200,7 +201,12 @@ export default function CoachDashboardClient({
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-white font-semibold">{session.course_types?.id
+                      {/* An assessment is booked into an ordinary 1-on-1 slot, so the
+                          course name alone told the coach "1-on-1 private" for a
+                          swimmer they were meant to be placing. */}
+                      <p className="text-white font-semibold">{activeBookings(session).some(b => b.is_trial)
+                        ? t('common.assessment')
+                        : session.course_types?.id
                         ? tDb(locale, 'course_types', session.course_types.id, session.course_types.name)
                         : session.course_types?.name}</p>
                       <p className="text-[#c9a84c] text-sm">{formatTime(session.start_time)} – {formatTime(session.end_time)}</p>
@@ -226,7 +232,7 @@ export default function CoachDashboardClient({
                         </div>
                         <div>
                           <p className="text-white text-sm font-medium">{booking.students.full_name}</p>
-                          <p className="text-gray-400 text-xs">{t('coach.level', { n: booking.students.current_level })}</p>
+                          <p className="text-gray-400 text-xs">{booking.students.current_level ? t('coach.level', { n: booking.students.current_level }) : t('coach.progress.unassigned')}</p>
                         </div>
                         <span className="ml-auto text-gray-500 text-xs">{t('coach.today.viewProgress')}</span>
                       </button>
@@ -263,7 +269,7 @@ export default function CoachDashboardClient({
                   </div>
                   <div>
                     <p className="text-white font-semibold">{selectedStudent.full_name}</p>
-                    <p className="text-gray-400 text-sm">{selectedStudent.current_level ? t(levelNameKey(selectedStudent.current_level)) : levelName}</p>
+                    <p className="text-gray-400 text-sm">{selectedStudent.current_level ? t(levelNameKey(selectedStudent.current_level)) : (levelName || t('coach.progress.unassigned'))}</p>
                   </div>
                 </div>
                 {allComplete && (
@@ -281,7 +287,7 @@ export default function CoachDashboardClient({
                   mouse wheel makes it a convenience rather than a trap. */}
               <div className="p-5 space-y-3 md:max-h-[500px] md:overflow-y-auto">
                 {skills.length === 0 ? (
-                  <p className="text-gray-400 text-sm">{t('coach.today.noSkills')}</p>
+                  <p className="text-gray-400 text-sm">{selectedStudent.current_level ? t('coach.today.noSkills') : t('coach.today.assessHint')}</p>
                 ) : STAGES.flatMap(st => {
                   const inStage = skills.filter(k => Number(k.stage || 1) === st)
                   if (inStage.length === 0) return []

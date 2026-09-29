@@ -15,7 +15,17 @@ export async function POST(req: NextRequest) {
   // student_skill_progress.last_updated_by is a FK to coaches, so the lesson's
   // coach belongs there, not the admin. Who reviewed is recorded on the history row.
   const { data: histRow } = await supabase
-    .from('progress_history').select('coach_id').eq('id', history_id).single()
+    .from('progress_history').select('coach_id, student_id').eq('id', history_id).single()
+  if (!histRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // A swimmer with no level is an assessment, and that is confirmed together
+  // with its level (/api/admin/review-assessment). Publishing it here would put
+  // a note in front of the family with no level behind it.
+  const { data: who } = await supabase
+    .from('students').select('current_level').eq('id', histRow.student_id).single()
+  if (!who?.current_level) {
+    return NextResponse.json({ error: 'This is an assessment with no level yet. Confirm it together with its level.' }, { status: 409 })
+  }
 
   // If the admin edited percentages before confirming, sync them into the student's actual skill progress first
   if (updated_snapshot && student_id) {

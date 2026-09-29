@@ -192,7 +192,16 @@ export async function POST(req: NextRequest) {
     try {
       const { data: th } = await supabase.from('chat_threads').select('id').eq('parent_id', parent_id).order('created_at', { ascending: true }).limit(1).maybeSingle()
       if (th) {
-        const body = `Payment received — ${pointsLabel} are in your wallet. Your balance is now ${res.balance.toLocaleString('en-US')} points.\n\nPoints never expire, and anything you don't use can be refunded at any time. Your receipt is under Points on your Dashboard.`
+        // In the family's language, and without volunteering refunds -- the
+        // owner's rule is that the site does not bring refunds up on its own.
+        const { data: langRow } = await supabase.from('parents').select('preferred_language').eq('id', parent_id).maybeSingle()
+        const lang = String(langRow?.preferred_language || 'en')
+        const bal = res.balance.toLocaleString('en-US')
+        const body = lang === 'zh-Hant'
+          ? `已收到付款，${points.toLocaleString('en-US')} 點已存入您的帳戶，目前餘額 ${bal} 點。\n\n點數不會過期。收據在「我的頁面」的點數紀錄裡。`
+          : lang === 'zh-Hans'
+          ? `已收到付款，${points.toLocaleString('en-US')} 点已存入您的账户，目前余额 ${bal} 点。\n\n点数不会过期。收据在「我的页面」的点数记录里。`
+          : `Payment received — ${pointsLabel} are in your wallet. Your balance is now ${bal} points.\n\nPoints never expire. Your receipt is in the points history on your Dashboard.`
         const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
         if (chatErr) console.error('Purchase chat confirm error:', chatErr)
         else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)

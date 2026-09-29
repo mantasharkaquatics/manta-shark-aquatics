@@ -62,7 +62,47 @@ export async function GET(req: NextRequest) {
         ? invoiceBySession.get(r.stripe_session_id) ?? null
         : null,
     }))
-    return NextResponse.json({ ...summary, history })
+    /* The Swim Assessment is paid in dollars before a family has any points, so
+       it never touches the ledger -- and its receipt had nowhere to be found,
+       although the confirmation told the family it was on their dashboard. Each
+       one joins the statement as its own line: no points, the dollar amount,
+       and the receipt. Merged by date and cut back to the same length. */
+    const { data: trialCredits } = await ctx.svc
+      .from('lesson_credits').select('id, student_id')
+      .eq('parent_id', ctx.parent.id).eq('is_trial', true)
+    let payments: any[] = []
+    if (trialCredits && trialCredits.length > 0) {
+      const creditIds = trialCredits.map((c: any) => c.id)
+      const studentIds = [...new Set(trialCredits.map((c: any) => c.student_id).filter(Boolean))]
+      const [{ data: invs }, { data: studs }] = await Promise.all([
+        ctx.svc.from('invoices').select('id, invoice_number, amount, created_at, lesson_credit_id')
+          .eq('parent_id', ctx.parent.id).in('lesson_credit_id', creditIds)
+          .order('created_at', { ascending: false }).limit(limit),
+        studentIds.length
+          ? ctx.svc.from('students').select('id, full_name').in('id', studentIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ])
+      const nameOf: Record<string, string> = {}
+      for (const st of studs || []) nameOf[st.id] = st.full_name
+      const studentOfCredit: Record<string, string> = {}
+      for (const c of trialCredits) studentOfCredit[c.id] = nameOf[c.student_id] || ''
+      payments = (invs || []).map((inv: any) => ({
+        id: 'inv-' + inv.id,
+        at: inv.created_at,
+        points: 0,
+        balanceAfter: null,
+        reason: 'assessment',
+        note: studentOfCredit[inv.lesson_credit_id] || null,
+        amountCents: Math.round(Number(inv.amount || 0) * 100),
+        bookingId: null,
+        invoice: { id: inv.id, number: inv.invoice_number },
+        payment: true,
+      }))
+    }
+    const merged = [...history, ...payments]
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      .slice(0, limit)
+    return NextResponse.json({ ...summary, history: merged })
   } catch (e: any) {
     console.error('wallet summary error:', e)
     return NextResponse.json({ error: 'Could not read the wallet' }, { status: 500 })

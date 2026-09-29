@@ -143,6 +143,25 @@ export async function loadReviewQueues(
       p.note = noteByPair[`${p.student_id}|${p.lesson_key}`] || null
     }
 
+    /* An assessment is one report with a level attached: the coach's pending
+       recommendation arrived with it (coaches have no other way to send one
+       now). The two are paired here and shown as ONE card, confirmed with one
+       button -- the note must never publish without the level it was written
+       for, and the recommendation leaves the separate list so it is not
+       counted twice. Paired on the swimmer, not on "has no level": a confirm
+       that failed after moving the level must still come back as one card. */
+    const recByStudent: Record<string, any> = {}
+    for (const r of recommendations) if (!recByStudent[r.student_id]) recByStudent[r.student_id] = r
+    const pairedRecIds = new Set<string>()
+    for (const p of enriched as any[]) {
+      const rec = recByStudent[p.student_id]
+      if (rec && !pairedRecIds.has(rec.id)) {
+        p.assessment = { recommendation_id: rec.id, recommended_level: Number(rec.recommended_level) }
+        pairedRecIds.add(rec.id)
+      }
+    }
+    recommendations = recommendations.filter((r: any) => !pairedRecIds.has(r.id))
+
     pendingProgressList = enriched.filter((p: any) => p.session_date === todayDate)
     pastPendingProgressList = enriched.filter((p: any) => p.session_date !== todayDate)
   }

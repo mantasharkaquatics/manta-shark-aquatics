@@ -111,7 +111,7 @@ export async function confirmTrialBooking(
   // Confirmation email (two-step queries; nested joins are unreliable in production)
   try {
     const [{ data: parentRow }, { data: studentRow }, { data: sess }] = await Promise.all([
-      supabase.from('parents').select('first_name, email').eq('id', bk.parent_id).single(),
+      supabase.from('parents').select('first_name, email, preferred_language').eq('id', bk.parent_id).single(),
       supabase.from('students').select('full_name').eq('id', student_id).single(),
       supabase.from('class_sessions').select('coach_id, session_date, start_time').eq('id', bk.class_session_id).single(),
     ])
@@ -129,7 +129,17 @@ export async function confirmTrialBooking(
         const ap = hh >= 12 ? 'PM' : 'AM'
         const h12 = hh % 12 === 0 ? 12 : hh % 12
         const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        const body = `Payment received! Your Swim Assessment is confirmed:\n\n- Student: ${studentRow?.full_name || ''}\n- Coach: ${coachName || ''}\n- Date: ${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}\n- Time: ${h12}:${String(mm).padStart(2, '0')} ${ap}\n\nYour receipt and invoice are on your Dashboard. See you at the pool!`
+        const time = `${h12}:${String(mm).padStart(2, '0')} ${ap}`
+        const student = studentRow?.full_name || ''
+        // In the family's own language: this used to be English for everyone,
+        // on a page a Chinese-reading parent had set to Chinese. The receipt
+        // line names the place it actually is -- the points statement.
+        const lang = String((parentRow as any)?.preferred_language || 'en')
+        const body = lang === 'zh-Hant'
+          ? `已收到付款！您的游泳評估已確認：\n\n- 學生：${student}\n- 教練：${coachName || ''}\n- 日期：${y}年${Number(m)}月${Number(d)}日\n- 時間：${time}\n\n收據在「我的頁面」的點數紀錄裡。泳池見！`
+          : lang === 'zh-Hans'
+          ? `已收到付款！您的游泳评估已确认：\n\n- 学生：${student}\n- 教练：${coachName || ''}\n- 日期：${y}年${Number(m)}月${Number(d)}日\n- 时间：${time}\n\n收据在「我的页面」的点数记录里。泳池见！`
+          : `Payment received! Your Swim Assessment is confirmed:\n\n- Student: ${student}\n- Coach: ${coachName || ''}\n- Date: ${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}\n- Time: ${time}\n\nYour receipt is in the points history on your Dashboard. See you at the pool!`
         const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
         if (chatErr) console.error('Trial chat confirm error:', chatErr)
         else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)

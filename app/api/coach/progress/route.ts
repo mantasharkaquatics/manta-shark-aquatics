@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { requireStaff } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
+import { isLevelNumber } from '@/lib/levels'
 
 export async function GET(req: NextRequest) {
   const staff = await requireStaff()
@@ -24,39 +25,6 @@ export async function GET(req: NextRequest) {
     .single()
 
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
-
-  let levelData = null
-  if (student.current_level) {
-    const { data: level } = await supabase
-      .from('levels')
-      .select('id, level_number, name')
-      .eq('level_number', student.current_level)
-      .single()
-    levelData = level
-  }
-
-  if (!levelData) {
-    return NextResponse.json({ student: { ...student, level: null }, skills: [], progress: {}, todayLocked: false })
-  }
-
-  const { data: skills } = await supabase
-    .from('skills')
-    // pass_criteria rides along: a coach deciding between 60 and 80 needs the
-    // standard in front of them, not in a handbook they would have to go and open.
-    .select('id, name, sort_order, stage, pass_criteria')
-    .eq('level_id', levelData.id)
-    .order('stage')
-    .order('sort_order')
-
-  const { data: progressRows } = await supabase
-    .from('student_skill_progress')
-    .select('skill_id, progress_percent')
-    .eq('student_id', studentId)
-
-  const progressMap: Record<string, number> = {}
-  for (const row of progressRows || []) {
-    progressMap[row.skill_id] = row.progress_percent
-  }
 
   // Check whether this lesson is already saved (keyed by class_session_id so same-day lessons don't lock each other)
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
@@ -85,8 +53,60 @@ export async function GET(req: NextRequest) {
     .from('coaches').select('default_note_language')
     .eq('auth_user_id', staff.user.id).maybeSingle()
 
+  /* A swimmer with no level is in their assessment. The coach picks the level
+     they would place them in and scores that level's skills in the same report,
+     so ?level=N asks for a level the swimmer is not in yet. It is honoured only
+     while they have no level: it must never become a way to write skills of
+     some other level for a placed swimmer. */
+  const wantLevel = req.nextUrl.searchParams.get('level')
+  const assessment = !student.current_level
+  const levelNumber = student.current_level || (wantLevel && isLevelNumber(wantLevel) ? String(Number(wantLevel)) : null)
+
+  let levelData = null
+  if (levelNumber) {
+    const { data: level } = await supabase
+      .from('levels')
+      .select('id, level_number, name')
+      .eq('level_number', levelNumber)
+      .single()
+    levelData = level
+  }
+
+  if (!levelData) {
+    return NextResponse.json({
+      student: { ...student, level: null }, skills: [], progress: {}, todayLocked, assessment,
+      assessedLevel: null, coachDefaultLanguage: me?.default_note_language || 'en',
+    })
+  }
+
+  const { data: skills } = await supabase
+    .from('skills')
+    // pass_criteria rides along: a coach deciding between 60 and 80 needs the
+    // standard in front of them, not in a handbook they would have to go and open.
+    .select('id, name, sort_order, stage, pass_criteria')
+    .eq('level_id', levelData.id)
+    .order('stage')
+    .order('sort_order')
+
+  // An assessment starts from nothing on file, whatever the table holds.
+  const { data: progressRows } = assessment
+    ? { data: [] as { skill_id: string; progress_percent: number }[] }
+    : await supabase
+      .from('student_skill_progress')
+      .select('skill_id, progress_percent')
+      .eq('student_id', studentId)
+
+  const progressMap: Record<string, number> = {}
+  for (const row of progressRows || []) {
+    progressMap[row.skill_id] = row.progress_percent
+  }
+
   return NextResponse.json({
-    student: { ...student, level: levelData },
+    // In an assessment the student row still has no level; `level` here is the
+    // one being assessed against, and `assessment` tells the page which it is.
+    student: { ...student, level: assessment ? null : levelData },
+    assessedLevel: assessment ? levelData.level_number : null,
+    assessment,
     skills: skills || [],
     progress: progressMap,
     todayLocked,
@@ -141,6 +161,12 @@ export async function POST(req: NextRequest) {
   // corrected.
   const { data: gateStudent } = await supabase
     .from('students').select('current_level, current_stage').eq('id', student_id).single()
+  // No level: that lesson is the assessment, filed with its level from the
+  // coach's Progress page. Written here, the scores would go straight into
+  // the live table with no level and nothing to review.
+  if (!gateStudent?.current_level) {
+    return NextResponse.json({ error: 'This swimmer has no level yet. Assign one on the Levels page first.' }, { status: 409 })
+  }
 
   let allowed: Set<string> | null = null
   let stored: Record<string, number> = {}

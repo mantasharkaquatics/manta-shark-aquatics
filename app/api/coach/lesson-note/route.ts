@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 
 // Match /api/chat/ai-reply so there is one model string to change, not two.
 import { POLISH_MODEL, RECORDING_LANGUAGES, LANGUAGE_NAMES, detectNoteLanguage } from '@/lib/ai/models'
+import { isLevelNumber } from '@/lib/levels'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -64,8 +65,36 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: student } = await svc
-    .from('students').select('id, full_name').eq('id', studentId).single()
+    .from('students').select('id, full_name, current_level').eq('id', studentId).single()
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+
+  /* A swimmer with no level is having their assessment. That report carries the
+     level the coach would place them in, and the skills scored are that level's.
+     Everything stays pending until an admin confirms the card in Reviews: the
+     level, the note and the scores publish together or not at all. */
+  const assessment = !student.current_level
+  const recommendedLevel = form.get('recommended_level')
+  if (assessment && !isLevelNumber(recommendedLevel)) {
+    return NextResponse.json({ error: 'Pick the level to recommend first' }, { status: 400 })
+  }
+  const scoredLevel = assessment ? String(Number(recommendedLevel)) : String(student.current_level)
+
+  // Only skills of the level being scored are kept. The page only ever shows
+  // those, so anything else is a stale tab or a hand-made request.
+  const { data: lvl } = await svc
+    .from('levels').select('id').eq('level_number', scoredLevel).maybeSingle()
+  if (!lvl) return NextResponse.json({ error: 'That level does not exist' }, { status: 400 })
+  const { data: levelSkills } = await svc
+    .from('skills').select('id').eq('level_id', lvl.id)
+  const allowedSkills = new Set((levelSkills || []).map((k: any) => k.id))
+  for (const [id, v] of Object.entries(progress)) {
+    const n = Number(v)
+    if (!allowedSkills.has(id) || !Number.isFinite(n) || n < 0 || n > 100) delete progress[id]
+    else progress[id] = n
+  }
+  if (Object.keys(progress).length === 0) {
+    return NextResponse.json({ error: 'Skill progress is missing' }, { status: 400 })
+  }
 
   const { data: glossaryRows } = await svc
     .from('note_glossary').select('term').eq('is_active', true).order('term')
@@ -166,6 +195,34 @@ export async function POST(req: NextRequest) {
     console.error('lesson-note: polish failed, keeping raw transcript', err)
   }
 
+  // ---- 3b. An assessment's level, pending beside the report ----
+  // BEFORE the report is written. If a later step fails the coach is not
+  // locked out (there is no report yet) and resending supersedes this one;
+  // written after, a failure here left a report with no level that Reviews
+  // could not confirm. The new one goes in first and only then are older
+  // pending ones closed, so there is never a moment with none.
+  if (assessment) {
+    const { data: rec, error: recError } = await svc.from('level_recommendations').insert({
+      student_id: studentId,
+      coach_id: coach.id,
+      recommended_level: Number(scoredLevel),
+      notes: null,
+    }).select('id').single()
+    if (recError || !rec) {
+      console.error('lesson-note: level recommendation save failed', recError)
+      return NextResponse.json({ error: 'Could not save the recommended level' }, { status: 500 })
+    }
+    const { data: prior } = await svc
+      .from('level_recommendations').select('id, recommended_level')
+      .eq('student_id', studentId).eq('status', 'pending').neq('id', rec.id)
+      .order('created_at', { ascending: false })
+    if (prior && prior.length > 0) {
+      await svc.from('level_recommendations').update({ status: 'rejected' }).in('id', prior.map((r: any) => r.id))
+      await svc.from('level_recommendations')
+        .update({ previous_recommended_level: prior[0].recommended_level }).eq('id', rec.id)
+    }
+  }
+
   // ---- 4. One report per student per lesson: an hour is ONE lesson ----
   const lessonKey = lessonGroupId || classSessionId
   const now = new Date().toISOString()
@@ -201,19 +258,23 @@ export async function POST(req: NextRequest) {
   // ---- 5. The progress half, same lesson key ----
   // student_skill_progress is the live picture and is written now; the family
   // only ever sees the approved progress_history row, so nothing leaks early.
-  const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
-    student_id: studentId,
-    skill_id,
-    progress_percent: pct as number,
-    last_updated_by: coach.id,
-    last_updated_at: now,
-  }))
-  const { error: sspError } = await svc
-    .from('student_skill_progress')
-    .upsert(upserts, { onConflict: 'student_id,skill_id' })
-  if (sspError) {
-    console.error('lesson-note: skill progress save failed', sspError)
-    return NextResponse.json({ error: 'Could not save the skill progress' }, { status: 500 })
+  // Not for an assessment: the swimmer has no level yet, and the scores belong
+  // to a level an admin may still change. The confirm writes them.
+  if (!assessment) {
+    const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
+      student_id: studentId,
+      skill_id,
+      progress_percent: pct as number,
+      last_updated_by: coach.id,
+      last_updated_at: now,
+    }))
+    const { error: sspError } = await svc
+      .from('student_skill_progress')
+      .upsert(upserts, { onConflict: 'student_id,skill_id' })
+    if (sspError) {
+      console.error('lesson-note: skill progress save failed', sspError)
+      return NextResponse.json({ error: 'Could not save the skill progress' }, { status: 500 })
+    }
   }
 
   const historyRow = {

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { LEVEL_NAMES } from '@/lib/levels'
 
 
 interface Student {
@@ -43,9 +42,6 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   const [totalPages, setTotalPages] = useState(1)
   const [recordsLoading, setRecordsLoading] = useState(false)
 
-  const [showLevelModal, setShowLevelModal] = useState(false)
-  const [levelModalStudent, setLevelModalStudent] = useState<{ id: string; name: string } | null>(null)
-  const [assigningLevel, setAssigningLevel] = useState(false)
 
   useEffect(() => { loadRecords(page) }, [page])
 
@@ -85,10 +81,11 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
         setResult({ success: true, message: 'Checked in ' + data.student_name + ' for ' + data.checked_in_count + ' lesson(s)' + (times ? ': ' + times : '') })
         setPage(1)
         loadRecords(1)
-        if (data.current_level === null) {
-          setLevelModalStudent({ id: data.student_id, name: data.student_name })
-          setShowLevelModal(true)
-        }
+        /* No level-picker here any more. The desk used to be offered "First
+           Lesson! Assign a starting level" on a new swimmer's check-in, which
+           placed them before anyone had seen them swim. The level now comes only
+           from the assessment: the coach recommends it with that lesson's
+           report, and an admin confirms it in Reviews. */
       }
     } catch (e: any) {
       setResult({ success: false, message: 'Check-in failed: ' + e.message })
@@ -172,21 +169,6 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     }
     await doCheckin(studentId, 'qr_code')
     setScanLoading(false)
-  }
-
-  async function assignLevel(level: number) {
-    if (!levelModalStudent) return
-    setAssigningLevel(true)
-    try {
-      await fetch('/api/admin/students/assign-level', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: levelModalStudent.id, level }),
-      })
-    } catch {}
-    setAssigningLevel(false)
-    setShowLevelModal(false)
-    setLevelModalStudent(null)
   }
 
   const confirmParent = confirmStudent ? (Array.isArray(confirmStudent.parents) ? confirmStudent.parents[0] : confirmStudent.parents) : null
@@ -326,40 +308,6 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
         </div>
       )}
 
-      {showLevelModal && levelModalStudent && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ background: '#1a2744', borderRadius: '20px', padding: '32px', maxWidth: '420px', width: '100%', border: '1px solid #c9a84c30' }}>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🏊</div>
-              <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '22px', fontWeight: 900, color: '#fff', margin: '0 0 8px' }}>
-                First Lesson!
-              </h2>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-                Assign a starting level for <strong style={{ color: '#fff' }}>{levelModalStudent.name}</strong>
-              </p>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' }}>
-              {[1,2,3,4,5,6,7,8,9].map(level => (
-                <button
-                  key={level}
-                  onClick={() => assignLevel(level)}
-                  disabled={assigningLevel}
-                  style={{ padding: '14px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', cursor: assigningLevel ? 'not-allowed' : 'pointer', textAlign: 'center' }}
-                >
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#c9a84c' }}>{level}</div>
-                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', lineHeight: 1.2 }}>{LEVEL_NAMES[String(level)]}</div>
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => { setShowLevelModal(false); setLevelModalStudent(null) }}
-              style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Skip for now
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

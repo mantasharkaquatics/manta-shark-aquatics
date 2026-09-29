@@ -57,7 +57,7 @@ export default async function CoachDashboardPage() {
       id, session_date, start_time, end_time, status,
       course_types(id, name, slug),
       bookings!class_session_id(
-        id, status, lesson_group_id,
+        id, status, lesson_group_id, is_trial,
         students(id, full_name, current_level, current_stage, profile_photo_url)
       )
     `)
