@@ -417,7 +417,7 @@ export default function BookingPage() {
     const hourOk = selectedCourse?.slug === '1on1'
       || (selectedCourse?.slug === '1on2' && !!selectedStudent2)
       || (selectedCourse?.slug === '1on2' && !!rescheduleGroupIdRef.current)
-    if (groupFlow || !selectedStudent || !selectedDate || lessonLength !== 60 || !hourOk) { setHourSlots([]); return }
+    if (groupFlow || isTrial || !selectedStudent || !selectedDate || lessonLength !== 60 || !hourOk) { setHourSlots([]); return }
     setHourLoading(true)
     fetch('/api/bookings/hour', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -428,7 +428,13 @@ export default function BookingPage() {
       .then(d => { setHourSlots(d?.slots || []); setHourBalance(d?.balance ?? 0); setHourRoster(d?.roster || []) })
       .catch(() => setHourSlots([]))
       .finally(() => setHourLoading(false))
-  }, [groupFlow, selectedStudent, selectedStudent2, selectedDate, lessonLength, selectedCourse])
+  }, [groupFlow, isTrial, selectedStudent, selectedStudent2, selectedDate, lessonLength, selectedCourse])
+
+  // Choosing the assessment after having looked at hour lessons must not carry
+  // the 60-minute mode into it.
+  useEffect(() => {
+    if (isTrial) { setLessonLength(30); setSelectedHour(null) }
+  }, [isTrial])
 
   useEffect(() => {
     async function init() {
@@ -1572,10 +1578,13 @@ export default function BookingPage() {
         {step === 3 && (
           <div>
             {!groupFlow && <SectionTitle title={t('booking.s4.title')} />}
-            {privateFlow && openings && openings.coaches.length > 1 && (
+            {/* Drawn at once, with only 不限教練 until the coaches arrive: the row
+                used to appear a beat after the calendar and push it down under
+                the visitor's finger. */}
+            {privateFlow && (!openings || openings.coaches.length > 1) && (
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {[{ id: 'any', first_name: t('booking.anyCoach') }, ...openings.coaches].map(c => {
+                  {[{ id: 'any', first_name: t('booking.anyCoach') }, ...(openings?.coaches || [])].map(c => {
                     const on = coachFilter === c.id
                     return (
                       <button key={c.id} onClick={() => pickFilter(c.id)}
@@ -1677,7 +1686,9 @@ export default function BookingPage() {
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#56647d' }}>
                     {t('booking.availableTimes', { date: selectedDate.toLocaleDateString(dateLoc, { weekday: 'long', month: 'short', day: 'numeric' }) })}
                   </div>
-                  {(selectedCourse?.slug === '1on1'
+                  {/* The Swim Assessment is 30 minutes, full stop. It rides on the
+                      1-on-1 course type, which is why it used to get this switch. */}
+                  {!isTrial && (selectedCourse?.slug === '1on1'
                     || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
                     <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (

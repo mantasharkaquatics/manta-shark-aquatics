@@ -1875,7 +1875,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                       )}
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="text-xs text-white/40">Lv.{student?.current_level} · {parent?.first_name} {parent?.last_name}</span>
+                      <span className="text-xs text-white/40">{student?.current_level != null ? `Lv.${student.current_level} · ` : ''}{parent?.first_name} {parent?.last_name}</span>
                       {/* An assessment is paid by card, not points, so there is no
                           refund choice to make: the whole-lesson cancel covers it. */}
                       {!b.is_trial && oneCancel !== b.id && (

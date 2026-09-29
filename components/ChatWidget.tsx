@@ -85,7 +85,6 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     return () => window.removeEventListener(CHAT_OPEN_EVENT, onOpen)
   }, [])
   const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
 
   useEffect(() => {
@@ -110,9 +109,25 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     return () => { supabase.removeChannel(channel) }
   }, [threadId])
 
+  // Scroll the message list itself, never the page: scrollIntoView also moves
+  // every scrolling ancestor, the window included.
+  const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = listRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [messages, awaitingAi])
+
+  // Opening the panel shows the newest message. The thread is usually loaded
+  // before the panel opens, so the effect above has nothing new to react to,
+  // and the freshly mounted list used to sit at the oldest message.
+  useEffect(() => {
+    if (!open) return
+    const id = requestAnimationFrame(() => {
+      const el = listRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    })
+    return () => cancelAnimationFrame(id)
+  }, [open])
 
   useEffect(() => {
     if (open) setUnread(0)
@@ -299,7 +314,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
           )}
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', color: '#56647d', fontSize: '14px', marginTop: '40px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>👋</div>
@@ -374,7 +389,6 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                 <Link href="/register" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 800 }}>{t('chat.guest.signUp')}</Link>
               </div>
             )}
-            <div ref={bottomRef} />
           </div>
 
           {/* Input */}
