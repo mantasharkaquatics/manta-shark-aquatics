@@ -767,7 +767,12 @@ export default function BookingPage() {
     return COACH_COLORS[(i < 0 ? 0 : i) % COACH_COLORS.length]
   }
   const coachName = (id: string) => coaches.find(c => c.id === id)?.first_name || ''
-  const Face = ({ id, size = 22 }: { id: string; size?: number }) => (
+  /** Position in the coach chips row, so faces line up the same way everywhere. */
+  const coachRank = (id: string) => {
+    const i = (openings?.coaches || []).findIndex((c: any) => c.id === id)
+    return i < 0 ? 999 : i
+  }
+  const Face =({ id, size = 22 }: { id: string; size?: number }) => (
     <span title={coachName(id)} style={{ width: size, height: size, borderRadius: '50%', background: coachColor(id), color: '#16294a',
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.45), fontWeight: 800, flexShrink: 0 }}>
       {coachName(id).slice(0, 1)}
@@ -1686,7 +1691,9 @@ export default function BookingPage() {
                 </div>
                 {lessonLength === 60 && (() => {
                   const rows = hourSlots
-                    .map((h: any) => ({ ...h, opts: (h.options || []).filter((o: any) => coachFilter === 'any' || o.coach1_id === coachFilter) }))
+                    .map((h: any) => ({ ...h, opts: (h.options || []).filter((o: any) => coachFilter === 'any' || o.coach1_id === coachFilter)
+                      // Same order as the coach chips and the 30-minute faces.
+                      .sort((a: any, b: any) => coachRank(a.coach1_id) - coachRank(b.coach1_id)) }))
                     .filter((h: any) => h.opts.length > 0)
                     .map((h: any) => ({ ...h, pick: h.opts.find((o: any) => !o.relay && o.coach1_id === openings?.preferred) || h.opts.find((o: any) => !o.relay) || h.opts[0] }))
                   // The server prices every hour slot and sends the figure with
@@ -1741,10 +1748,9 @@ export default function BookingPage() {
                                 {h.is_current && (
                                   <div style={{ fontSize: '11.5px', fontWeight: 700, color: GOLD, letterSpacing: '0.06em', marginBottom: '2px' }}>{t('booking.currentTime')}</div>
                                 )}
+                                {/* Start time only, as the 30-minute grid shows it.
+                                    The end time is in the summary once one is picked. */}
                                 {formatTime(h.start_time)}
-                                <div style={{ fontSize: '11.5px', fontWeight: 600, color: sel ? GOLD : usable ? '#56647d' : '#9aa6ba', marginTop: '1px' }}>
-                                  – {formatTime(h.end_time)}
-                                </div>
                                 {!isReschedule && h.points != null && (
                                   <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : '#9aa6ba' }}>
                                     {t('points.unit', { n: h.points })}
@@ -1759,19 +1765,52 @@ export default function BookingPage() {
                                 {isReschedule && (
                                   <div style={{ fontSize: '11.5px', color: '#56647d', marginTop: '2px', fontWeight: 700 }}>{t('booking.noExtraCharge')}</div>
                                 )}
-                                {!o.relay && coachFilter === 'any' && (
-                                  <div style={{ fontSize: '11.5px', color: '#56647d', marginTop: '2px', fontWeight: 600 }}>{o.coach1_name}</div>
-                                )}
-                                {o.relay && (
-                                  <div style={{ fontSize: '11.5px', color: '#56647d', marginTop: '2px', lineHeight: 1.3, fontWeight: 500 }}>
-                                    {t('booking.relayCoaches', { a: o.coach1_name, b: o.coach2_name })}
-                                  </div>
-                                )}
+                                {/* Every coach who can teach the whole hour, not only
+                                    the one pre-picked -- the same faces the 30-minute
+                                    grid shows. The coach is chosen below once a time is. */}
+                                <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', marginTop: '6px' }}>
+                                  {h.opts.map((x: any) => <Face key={x.coach1_id} id={x.coach1_id} size={22} />)}
+                                </div>
                               </button>
                             )
                           })}
                         </div>
                       )}
+                      {(() => {
+                        const cur = selectedHour ? rows.find((h: any) => h.start_time === selectedHour.start_time) : null
+                        if (!cur || coachFilter !== 'any') return null
+                        return (
+                          <div style={{ marginTop: '12px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 14px' }}>
+                            <div style={{ fontSize: '13.5px', color: '#56647d', marginBottom: '10px' }}>
+                              {t('booking.coachesAt', { time: formatTime(cur.start_time) })}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              {cur.opts.map((x: any) => {
+                                const on = selectedHour?.coach1_id === x.coach1_id
+                                return (
+                                  <button key={x.coach1_id}
+                                    onClick={() => {
+                                      if (on) return
+                                      const c1 = coaches.find(c => c.id === x.coach1_id)
+                                      if (c1) setSelectedCoach(c1)
+                                      setSelectedHour({ ...cur, ...x })
+                                    }}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '40px', padding: '0 14px 0 6px', borderRadius: '999px', cursor: on ? 'default' : 'pointer',
+                                      border: `1.5px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : 'transparent',
+                                      color: on ? '#16294a' : '#56647d', fontSize: '14px', fontWeight: 700 }}>
+                                    <Face id={x.coach1_id} size={26} />{coachName(x.coach1_id)}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            {selectedCoach && (
+                              <div style={{ fontSize: '13px', color: '#56647d', marginTop: '10px' }}>
+                                {t('booking.coachPicked', { name: selectedCoach.first_name })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })()}
