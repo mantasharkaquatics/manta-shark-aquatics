@@ -2682,29 +2682,36 @@ export default function DashboardPage() {
                         </div>
                       ) : booking._group ? null : (
                         <div className="msa-lesson-actions">
+                          {/* An assessment cannot be moved online (the booking page
+                              treats the move as a regular lesson, and the swimmer has no
+                              level yet), so its row offers one "message us" button below.
+                              A checked-in lesson is happening: nothing to move. */}
+                          {!booking.is_trial && !booking.checked_in && (
                           <button
                             onClick={() => setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '#9aa6ba' : GOLD, fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
                           </button>
+                          )}
                           {(() => {
                             // Checked in means the lesson is happening: there is
                             // nothing left to cancel.
                             if (booking.checked_in) return null
                             // A Swim Assessment is paid by card, not out of the
-                            // wallet, so there are no points to hand back. The parent
-                            // tells us and the front desk cancels it. The API refuses
-                            // it too.
+                            // wallet, so there are no points to hand back, and it
+                            // cannot be moved online either. The parent tells us and
+                            // the front desk handles both. The API refuses both too.
                             if (booking.is_trial) return (
                               <button
+                                title={t('dash.up.trialContactHelp')}
                                 onClick={() => {
                                   const toggle = document.querySelector('[data-chat-toggle]') as HTMLElement | null
                                   if (toggle) toggle.click()
-                                  else setNotice(t('dash.up.cancelContactHelp'))
+                                  else setNotice(t('dash.up.trialContactHelp'))
                                 }}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {t('dash.up.cancelContact')}
+                                {t('dash.up.trialContact')}
                               </button>
                             )
                             const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
