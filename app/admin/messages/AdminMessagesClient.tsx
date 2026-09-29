@@ -113,7 +113,11 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
   const unreadCount = threads.filter(t => t.unread_by_admin).length
 
   return (
-    <div style={{
+    // Fixed so the thread list and the conversation each scroll on their own.
+    // left:0 put it over the admin sidebar, and with the sidebar covered there
+    // was no way off this page but the browser's back button. From lg up the
+    // sidebar is w-52 (13rem), so the panel starts there.
+    <div className="admin-msg-shell" style={{
       fontFamily: "'DM Sans', sans-serif",
       background: DARKER,
       position: 'fixed',
@@ -124,6 +128,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
       display: 'flex',
       flexDirection: 'column',
     }}>
+      <style>{`@media (min-width: 1024px) { .admin-msg-shell { left: 13rem !important; } }`}</style>
       <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
         <h1 style={{ fontFamily: "'Playfair Display', serif", color: '#fff', fontSize: '24px', fontWeight: 900, margin: 0 }}>Messages</h1>
         {unreadCount > 0 && (

@@ -636,7 +636,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Members</h1>
         <p className="text-gray-400 mt-1">
-          {parents.length} families · {parents.reduce((a, p) => a + p.students.length, 0)} students
+          {parents.length} families · {parents.reduce((a, p) => a + p.students.filter(s => s.is_active !== false).length, 0)} students
         </p>
       </div>
 
@@ -695,7 +695,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                     <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="New activity" />
                   )}
                   <span className={`hidden sm:inline text-xs ${isOnline(parent) ? 'text-green-400' : 'text-gray-500'}`}>{isOnline(parent) ? 'Online' : timeAgo(parent.last_activity_at)}</span>
-                  <span className="text-gray-500 text-sm whitespace-nowrap">{parent.students.length} student{parent.students.length !== 1 ? 's' : ''}</span>
+                  <span className="text-gray-500 text-sm whitespace-nowrap">{(() => {
+                    const on = parent.students.filter(s => s.is_active !== false).length
+                    const off = parent.students.length - on
+                    return `${on} student${on !== 1 ? 's' : ''}${off ? ` · ${off} inactive` : ''}`
+                  })()}</span>
                   <span className="text-gray-500">{expanded === parent.id ? '▲' : '▼'}</span>
                 </div>
               </button>
@@ -808,7 +812,14 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   <span className="text-[#c9a84c] text-xs font-bold">{student.full_name.charAt(0)}</span>
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-white text-sm truncate">{student.full_name}</p>
+                                  <p className="text-white text-sm truncate">
+                                    {student.full_name}
+                                    {/* A deactivated swimmer is hidden from the parent's pages but was
+                                        listed here exactly like an active one. */}
+                                    {student.is_active === false && (
+                                      <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-400/30">Inactive</span>
+                                    )}
+                                  </p>
                                   <p className="text-gray-500 text-xs">
                                     {student.date_of_birth
                                       ? `${localDate(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`

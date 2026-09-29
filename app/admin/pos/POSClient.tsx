@@ -709,9 +709,9 @@ export default function POSClient() {
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
           <button onClick={() => handleCharge()} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
-            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTeam ? 'Complete team details' : isSdp ? 'Complete SDP details' : isTrial ? 'Select a student' : 'Enter an amount'}
+            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTeam ? 'Complete team details' : isSdp ? 'Complete SDP details' : isTrial ? 'Select a student' : !selectedParent ? 'Select a customer' : 'Enter an amount'}
           </button>
-          {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u26a0 No card reader connected</p>}
+          {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{'\u26a0'} No card reader connected</p>}
           {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u2713 Reader ready</p>}
         </div>
       </div>

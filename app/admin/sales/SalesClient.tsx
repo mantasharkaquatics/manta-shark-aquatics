@@ -209,7 +209,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                       </td>
                       <td className="px-5 py-4 text-gray-300 text-sm">{planName}</td>
                       <td className="px-5 py-4 text-gray-400 text-xs">{inv.payment_method || '—'}</td>
-                      <td className="px-5 py-4 text-white text-sm font-medium">${(inv.amount || 0).toFixed(2)}</td>
+                      <td className="px-5 py-4 text-white text-sm font-medium">${(inv.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-5 py-4 text-gray-400 text-sm">
                         {fDate(inv.issued_at)}<br/>
                         <span className="text-xs text-gray-600">{fTime(inv.issued_at)}</span>
