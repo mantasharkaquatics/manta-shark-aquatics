@@ -1151,6 +1151,19 @@ export default function DashboardPage() {
   /* The tree is a whole-curriculum view, so it opens over the page rather than
      inside a 280px card. One at a time: it is a reading surface, not a panel. */
   const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
+  // Esc closes the dialog on top, as it already did for the records and points
+  // sheets. Without it the only ways out were the X or a click on the backdrop,
+  // and that click also landed on whatever sat underneath.
+  useEffect(() => {
+    if (!treeFor && !qrStudent && !infoModal && !cancelTarget && !rescheduleTarget && !rescheduleActionModal) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setTreeFor(null); setQrStudent(null); setInfoModal(null)
+      setCancelTarget(null); setRescheduleTarget(null); setRescheduleActionModal(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleTarget, rescheduleActionModal])
   // An hour invitation arrives as two rows (one per half). Show ONE card
   // spanning both, priced at the number of rows this family actually owes.
   // Confirming from it sends the first row's id; the server resolves the group.
@@ -1837,10 +1850,16 @@ export default function DashboardPage() {
     (b.course_slug === '1on2' || b.partner_booking_id)
       ? t('dash.up.cancelPairHelp')
       : t('dash.up.cancelLockedHelp', { per: wallet?.lessonsPerForgiveness ?? LESSONS_PER_FORGIVENESS })
-  const openChatOr = (msg: string) => {
+  // Why a button cannot do its job online, said in words first. It used to
+  // open the chat straight away with the reason only in a hover tooltip,
+  // which a phone never shows -- the family saw a chat window and no reason.
+  const openChatOr = (msg: string, title?: string) => {
     const toggle = document.querySelector('[data-chat-toggle]') as HTMLElement | null
-    if (toggle) toggle.click()
-    else setNotice(msg)
+    setInfoModal({
+      title: title || t('dash.up.cancelLocked'),
+      message: msg,
+      ...(toggle ? { actionLabel: t('dash.up.messageUs'), onAction: () => toggle.click() } : {}),
+    })
   }
 
   return (
@@ -1879,16 +1898,16 @@ export default function DashboardPage() {
       {infoModal && (
         <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>Notice</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t('common.notice')}</div>
             <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                Close
+                {t('common.close')}
               </button>
               {infoModal.onAction && (
                 <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                  {infoModal.actionLabel || 'OK'}
+                  {infoModal.actionLabel || t('common.ok')}
                 </button>
               )}
             </div>
@@ -2712,11 +2731,7 @@ export default function DashboardPage() {
                             if (booking.is_trial) return (
                               <button
                                 title={t('dash.up.trialContactHelp')}
-                                onClick={() => {
-                                  const toggle = document.querySelector('[data-chat-toggle]') as HTMLElement | null
-                                  if (toggle) toggle.click()
-                                  else setNotice(t('dash.up.trialContactHelp'))
-                                }}
+                                onClick={() => openChatOr(t('dash.up.trialContactHelp'), t('common.assessment'))}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {t('dash.up.trialContact')}
                               </button>

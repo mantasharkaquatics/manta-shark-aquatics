@@ -196,6 +196,8 @@ export default function BookingPage() {
   const [success, setSuccess] = useState(false)
   const [isPartnerBookingSuccess, setIsPartnerBookingSuccess] = useState(false)
   const [isReschedule, setIsReschedule] = useState(false)
+  // The lesson being moved, so the last screen can say "from ... to ...".
+  const [rescheduleFrom, setRescheduleFrom] = useState<{ date: string; start: string } | null>(null)
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
   const rescheduleBookingIdRef = useRef<string | null>(null)
   // Set when rescheduling a 60-minute lesson: both halves move together and
@@ -454,7 +456,7 @@ export default function BookingPage() {
 
 
       const [{ data: studs }, { data: cts }, { data: coachs }] = await Promise.all([
-        supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true),
+        supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true).order('sort_order'),
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true),
       ])
@@ -481,6 +483,19 @@ export default function BookingPage() {
         const matchStudent = (studs || []).find((s: any) => s.id === rStudentId) || (studs || [])[0] || null
         if (matchCourse) setSelectedCourse(matchCourse as any)
         if (matchStudent) setSelectedStudent(matchStudent as any)
+        // Read the lesson being moved. A stale link (already moved or
+        // cancelled) used to let the parent pick a new time and only then be
+        // refused; say so up front instead.
+        const { data: ob } = await supabase.from('bookings')
+          .select('status, class_session_id').eq('id', rbId).maybeSingle()
+        // A key, not text: this runs before the account's language is applied,
+        // and a sentence translated now would stay English.
+        if (ob && ob.status !== 'confirmed') setNotice('err.cannotReschedule')
+        if (ob?.class_session_id) {
+          const { data: os } = await supabase.from('class_sessions')
+            .select('session_date, start_time').eq('id', ob.class_session_id).maybeSingle()
+          if (os) setRescheduleFrom({ date: os.session_date, start: String(os.start_time).slice(0, 5) })
+        }
         setLoading(false)
         setStep(3)
         return
@@ -493,6 +508,9 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!success) return
+    // The confirm button sits low on a long page; the success card rendered
+    // mid-screen under empty space, off the bottom of a phone.
+    window.scrollTo(0, 0)
     setCountdown(30)
     const interval = setInterval(() => {
       setCountdown(prev => (prev <= 1 ? 0 : prev - 1))
@@ -1207,7 +1225,9 @@ export default function BookingPage() {
               {recurPlan.map(x => (
                 <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
                   {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
-                  {planTimes.size > 1 ? ` · ${x.label}` : ''}
+                  {/* Always the time: this chip is the only place the success
+                      card says when the lesson is. */}
+                  {` · ${x.label}`}
                 </span>
               ))}
             </div>
@@ -1403,8 +1423,14 @@ export default function BookingPage() {
                 const color = COURSE_COLORS[ct.slug] || GOLD
                 const listed = listPrice(ct.slug)
                 const full = BASE_POINTS[ct.slug] ?? 0
+                // Before the assessment these cards cannot be chosen. They
+                // still show, so the family sees what comes next, but dimmed
+                // and labelled -- full colour and a price read as a card that
+                // was broken when a tap did nothing.
                 return (
-                  <SelectCard key={ct.id} selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; requestAdvance(); setSelectedCourse(ct); setIsTrial(false) }} color={color}>
+                  <div key={ct.id} aria-disabled={needsAssessment || undefined}
+                    style={needsAssessment ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
+                  <SelectCard selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; requestAdvance(); setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
@@ -1413,6 +1439,9 @@ export default function BookingPage() {
                           <div style={{ fontSize: '13px', color: '#56647d' }}>
                             {t(ct.max_students > 1 ? 'booking.courseMeta' : 'booking.courseMetaOne', { n: ct.duration_minutes, max: ct.max_students })}
                           </div>
+                          {needsAssessment && (
+                            <div style={{ marginTop: '5px', fontSize: '12px', fontWeight: 700, color: '#9a5b00' }}>{t('booking.afterAssessment')}</div>
+                          )}
                           {ct.slug === '1on4' && myGroupBand && (
                             <div style={{ marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
                               {t('booking.yourClass', { r: bandRange(myGroupBand.min, myGroupBand.max) })}
@@ -1442,6 +1471,7 @@ export default function BookingPage() {
                       </div>
                     </div>
                   </SelectCard>
+                  </div>
                 )
               })}
             </div>
@@ -1617,7 +1647,10 @@ export default function BookingPage() {
               </div>
             </div>}
 
-            {!groupFlow && selectedDate && (
+            {/* Only while the picked day is in the month on screen. Paging to
+                the next month used to leave last month's day and its times
+                underneath, reading as if they belonged to the new month. */}
+            {!groupFlow && selectedDate && selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#56647d' }}>
@@ -2466,6 +2499,10 @@ export default function BookingPage() {
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedCourse?.duration_minutes ?? 0 }) },
                 { label: t('booking.sum.pointsUsed'), value: t('points.unit', { n: recurTotal }) },
               ] : [
+                ...(isReschedule && rescheduleFrom ? [{
+                  label: t('booking.sum.movingFrom'),
+                  value: `${new Date(rescheduleFrom.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })} ${formatTime(rescheduleFrom.start)}`,
+                }] : []),
                 { label: t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: hourRoster.length > 1
                     ? hourRoster.map((x: any) => x.full_name).join(' & ')
@@ -2617,7 +2654,7 @@ export default function BookingPage() {
           </div>
         )}
       </div>
-      <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
+      <NoticeModal title={t('common.noticeTitle')} message={notice && notice.startsWith('err.') ? t(notice) : notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
       {parentId && <BookingCart refreshSignal={cartRefresh} onCommitted={() => { if (selectedCoach && selectedDate) loadTimeSlots() }} />}
     </div>
   )

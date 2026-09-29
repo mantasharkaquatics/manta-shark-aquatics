@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
@@ -306,7 +306,20 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                 {t(guest ? 'chat.guest.empty' : 'chat.empty')}
               </div>
             )}
-            {messages.map(msg => msg.sender_type === 'system' ? (
+            {messages.map((msg, idx) => {
+              // Messages from different days ran together with only a time on
+              // each, so yesterday's 4:30 PM sat above today's 10:43 AM with
+              // nothing to say a day had passed.
+              const dayOf = (x: any) => new Date(x.created_at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+              const newDay = idx === 0 || dayOf(messages[idx - 1]) !== dayOf(msg)
+              return (
+              <Fragment key={msg.id}>
+              {newDay && (
+                <div style={{ textAlign: 'center', fontSize: '11px', color: '#8a97ad', margin: '4px 0' }}>
+                  {new Date(msg.created_at).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })}
+                </div>
+              )}
+              {msg.sender_type === 'system' ? (
               <div key={msg.id} style={{ textAlign: 'center', fontSize: '11.5px', color: '#8a97ad', padding: '2px 0' }}>
                 {msg.body}
               </div>
@@ -342,7 +355,10 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                   </div>
                 </div>
               </div>
-            ))}
+            )}
+              </Fragment>
+              )
+            })}
             {awaitingAi && (
               <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                 <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: '#fff', border: '1px solid #e3ebf6', display: 'flex', alignItems: 'center', gap: '5px' }}>

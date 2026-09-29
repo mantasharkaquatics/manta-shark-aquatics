@@ -173,9 +173,13 @@ export default function AccountPage() {
             <p className="ac-note">{t('account.contactSchool')}</p>
 
             {!showAddForm || full ? (
-              <button type="button" className="ac-add" onClick={() => setShowAddForm(true)} disabled={full}>
-                + {t('account.addSwimmer')}
-              </button>
+              <>
+                <button type="button" className="ac-add" onClick={() => setShowAddForm(true)} disabled={full}>
+                  + {t('account.addSwimmer')}
+                </button>
+                {/* A greyed button with no reason reads as broken. */}
+                {full && <p className="ac-note" style={{ marginTop: 8 }}>{t('account.limitReached', { n: MAX_STUDENTS })}</p>}
+              </>
             ) : (
               <div className="ac-item" style={{ display: 'block' }}>
                 <div style={{ marginBottom: 12 }}>
