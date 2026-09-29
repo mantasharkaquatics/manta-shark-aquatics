@@ -1271,6 +1271,7 @@
   "register.err.sendFailed": "傳送失敗",
   "register.err.sendFailedRetry": "傳送失敗，請稍後再試",
   "register.err.signupFailed": "註冊失敗",
+  "register.err.studentDob": "請填寫每位學員的出生日期。",
   "register.err.studentName": "請至少填寫一位學員姓名。",
   "register.err.verifyEmail": "請先完成電子郵件驗證",
   "register.err.verifyFailed": "驗證失敗",

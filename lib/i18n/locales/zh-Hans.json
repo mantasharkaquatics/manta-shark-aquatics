@@ -1271,6 +1271,7 @@
   "register.err.sendFailed": "发送失败",
   "register.err.sendFailedRetry": "发送失败，请稍后再试",
   "register.err.signupFailed": "注册失败",
+  "register.err.studentDob": "请填写每位学员的出生日期。",
   "register.err.studentName": "请至少填写一位学员姓名。",
   "register.err.verifyEmail": "请先完成电子邮件验证",
   "register.err.verifyFailed": "验证失败",

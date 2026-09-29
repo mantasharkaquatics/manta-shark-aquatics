@@ -1271,6 +1271,7 @@
   "register.err.sendFailed": "Failed to send",
   "register.err.sendFailedRetry": "Failed to send. Please try again later",
   "register.err.signupFailed": "Sign up failed",
+  "register.err.studentDob": "Please enter each swimmer's date of birth.",
   "register.err.studentName": "Please enter at least one student name.",
   "register.err.verifyEmail": "Please verify your email first",
   "register.err.verifyFailed": "Verification failed",

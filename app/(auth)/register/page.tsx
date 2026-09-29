@@ -298,6 +298,10 @@ export default function RegisterPage() {
   async function handleSubmit() {
     if (!termsAccepted || !waiverAccepted) { setError(t('register.err.acceptTerms')); return }
     if (!students[0].fullName.trim()) { setError(t('register.err.studentName')); return }
+    // The birthday is required: the database will not store a swimmer without
+    // one, and this page used to create the account and then lose the child in
+    // silence when the birthday was left blank.
+    if (students.some(s => s.fullName.trim() && !s.dateOfBirth)) { setError(t('register.err.studentDob')); return }
     if (students.some(s => s.dateOfBirth && s.dateOfBirth > getTodayLA())) { setError(t('register.err.dobFuture')); return }
     setLoading(true); setError('')
     const now = new Date().toISOString()
@@ -315,12 +319,17 @@ export default function RegisterPage() {
     }).select().single()
     if (parentError || !parent) { setError(t('register.err.createFailed') + tErr(parentError?.message)); setLoading(false); return }
     let sortOrder = 1
+    // A failed insert used to be ignored, so the family landed on a dashboard
+    // with no child and no word about it. Now they are told, and the account --
+    // which already exists -- can add the swimmer from My Account.
+    let studentFailed = false
     for (const s of students.filter(s => s.fullName.trim())) {
-      await supabase.from('students').insert({
+      const { error: stuErr } = await supabase.from('students').insert({
         parent_id: parent.id, full_name: s.fullName.trim(),
-        date_of_birth: s.dateOfBirth || null, current_level: null, is_active: true,
+        date_of_birth: s.dateOfBirth, current_level: null, is_active: true,
         sort_order: sortOrder++,
       })
+      if (stuErr) { console.error('register: student insert failed', stuErr); studentFailed = true }
     }
     // Best effort: a code that fails here must not block the account, which
     // already exists. The server re-checks everything.
@@ -333,7 +342,9 @@ export default function RegisterPage() {
       } catch {}
     }
     setLoading(false)
-    router.push(safeNext() || '/dashboard')
+    // A swimmer did not save: open My Account with the add form ready, rather
+    // than a dashboard that silently has one child fewer than they entered.
+    router.push(studentFailed ? '/dashboard/account?add=1' : (safeNext() || '/dashboard'))
   }
 
   return (
@@ -532,7 +543,7 @@ export default function RegisterPage() {
                       className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-sm text-[#56647d] mb-1">{t('register.dob')}</label>
+                    <label className="block text-sm text-[#56647d] mb-1">{t('register.dob')} <span className="text-red-600">*</span></label>
                     <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} />
                   </div>
                 </div>

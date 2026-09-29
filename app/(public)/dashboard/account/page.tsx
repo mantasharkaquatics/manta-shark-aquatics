@@ -62,6 +62,8 @@ export default function AccountPage() {
 
   async function submitAddStudent() {
     if (!parent || !newName.trim()) return
+    // Required: the database will not store a swimmer without a birthday.
+    if (!newDob) { setAddError(t('register.err.studentDob')); setConfirmingAdd(false); return }
     // The date picker's max stops a click on a future day, not a typed one.
     if (newDob && newDob > new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })) {
       setAddError(t('register.err.dobFuture')); setConfirmingAdd(false); return
@@ -71,7 +73,7 @@ export default function AccountPage() {
     const { error } = await supabase.from('students').insert({
       parent_id: parent.id,
       full_name: newName.trim(),
-      date_of_birth: newDob || null,
+      date_of_birth: newDob,
       current_level: null,
       is_active: true,
       added_by_parent: true,
@@ -182,7 +184,7 @@ export default function AccountPage() {
                     onChange={e => setNewName(e.target.value)} placeholder={t('account.namePlaceholder')} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
-                  <label className="ac-flabel" htmlFor="ac-dob">{t('account.dob')}</label>
+                  <label className="ac-flabel" htmlFor="ac-dob">{t('account.dob')} <span style={{ color: '#c0392b' }}>*</span></label>
                   <input id="ac-dob" className="ac-input" type="date" value={newDob}
                     max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                     onChange={e => setNewDob(e.target.value)} />
@@ -193,7 +195,7 @@ export default function AccountPage() {
                     onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setAddError(null) }}>
                     {t('common.cancel')}
                   </button>
-                  <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim()}>
+                  <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim() || !newDob}>
                     {t('account.submit')}
                   </button>
                 </div>
