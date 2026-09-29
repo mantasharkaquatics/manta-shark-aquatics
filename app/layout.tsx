@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import ScrollRestoration from "@/components/ScrollRestoration";
+import { SITE_OG_IMAGE } from "@/lib/og";
 
 const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
 
@@ -22,9 +23,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_TITLE = "Manta Shark Aquatics — Swim Lessons in Brea, CA"
+const SITE_DESCRIPTION = "Professional swim lessons in Brea, California. 1-on-1, semi-private, group classes, and swim team — structured, progression-based coaching for ages 3 and up."
+
 export const metadata: Metadata = {
-  title: "Manta Shark Aquatics — Swim Lessons in Brea, CA",
-  description: "Professional swim lessons in Brea, California. 1-on-1, semi-private, group classes, and swim team — structured, progression-based coaching for ages 3 and up.",
+  // Link previews need absolute image URLs; app/(auth)/register/page.tsx
+  // swaps in the referral picture for ?ref= links.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: 'website', siteName: 'Manta Shark Aquatics',
+    title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SITE_OG_IMAGE],
+  },
+  twitter: { card: 'summary_large_image', title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SITE_OG_IMAGE.url] },
   // PRE-LAUNCH: keep the site out of search results while it is still being
   // built and translated. Anyone with the URL can still browse it normally.
   // TO GO LIVE: delete this block AND flip SEARCH_ENGINES_ALLOWED in app/robots.ts.
