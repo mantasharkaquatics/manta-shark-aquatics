@@ -1032,6 +1032,12 @@ export default function DashboardPage() {
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; slug: string; studentId: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Server errors arrive in English. A known one becomes its translation; the
+  // fallback key covers an empty body. Unknown text still shows, on purpose.
+  const errText = (raw: string | null | undefined, fallbackKey: string) => {
+    const k = errorKey(raw)
+    return k ? t(k) : (raw || t(fallbackKey))
+  }
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
@@ -1711,11 +1717,11 @@ export default function DashboardPage() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 402) {
-            setInfoModal({ title: t('points.short.title'), message: data.error || t('points.short.message'), actionLabel: t('points.card.buy'), onAction: () => { window.location.href = '/plans#buy' } })
+            setInfoModal({ title: t('points.short.title'), message: errText(data.error, 'points.short.message'), actionLabel: t('points.card.buy'), onAction: () => { window.location.href = '/plans#buy' } })
           } else if (res.status === 409) {
-            setInfoModal({ title: 'Unable to Confirm', message: data.error || 'This time slot has been taken and the invitation was cancelled.' })
+            setInfoModal({ title: t('dash.partner.confirmFailTitle'), message: errText(data.error, 'dash.partner.slotGone') })
           } else {
-            setInfoModal({ title: 'Confirmation Failed', message: data.error || 'Please try again later.' })
+            setInfoModal({ title: t('dash.partner.confirmFailTitle'), message: errText(data.error, 'err.generic') })
           }
           await fetchAll()
           setConfirmingId(null)
@@ -1746,12 +1752,20 @@ export default function DashboardPage() {
 
   async function cancelBooking(bookingId: string) {
     setCancellingId(bookingId)
-    // Cancel via server API (also cancels partner booking and refunds credit)
-    await fetch('/api/bookings/cancel-with-partner', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ booking_id: bookingId })
-    })
+    // Cancel via server API (also cancels partner booking and refunds credit).
+    // The result used to be ignored: a refused cancel just left the lesson on
+    // the list with no word about why.
+    try {
+      const res = await fetch('/api/bookings/cancel-with-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId })
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setNotice(errText(j.error, 'dash.cancelFailed'))
+      }
+    } catch { setNotice(t('dash.pend.network')) }
     await fetchAll()
     setCancellingId(null)
   }
@@ -2128,6 +2142,7 @@ export default function DashboardPage() {
                 setRescheduleActionModal(null)
                 const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
                 if (res.ok) await fetchAll()
+                else { const j = await res.json().catch(() => ({})); setNotice(errText(j.error, 'err.generic')) }
               }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('dash.resAction.confirm')}</button>
             </div>
           </div>
@@ -2525,7 +2540,7 @@ export default function DashboardPage() {
                               setReschedulingId(booking.id)
                               const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               const json = await res.json()
-                              if (!res.ok) setNotice(json.error || t('dash.resAction.failed'))
+                              if (!res.ok) setNotice(errText(json.error, 'dash.resAction.failed'))
                               await fetchAll()
                               setReschedulingId(null)
                             }}
@@ -2574,7 +2589,7 @@ export default function DashboardPage() {
                                   const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'link', booking_id: booking.id }) })
                                   const j = await res.json().catch(() => ({}))
                                   if (res.ok && j.url) { window.location.href = j.url; return }
-                                  setPendingPayMsg(j.error || t('dash.pend.linkFailed'))
+                                  setPendingPayMsg(errText(j.error, 'dash.pend.linkFailed'))
                                 } catch { setPendingPayMsg(t('dash.pend.network')) }
                                 setPendingPayBusy(null)
                               }}
@@ -2611,7 +2626,7 @@ export default function DashboardPage() {
                                         const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', booking_id: booking.id }) })
                                         const j = await res.json().catch(() => ({}))
                                         if (res.ok) { window.location.reload(); return }
-                                        setPendingPayMsg(j.error || t('dash.pend.cancelFailed'))
+                                        setPendingPayMsg(errText(j.error, 'dash.pend.cancelFailed'))
                                       } catch { setPendingPayMsg(t('dash.pend.network')) }
                                       setPendingPayBusy(null); setPendingCancelConfirm(null)
                                     }}
