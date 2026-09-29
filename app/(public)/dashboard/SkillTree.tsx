@@ -335,7 +335,20 @@ export default function SkillTree({
       for (const r of (preRows || []) as any[]) {
         (need[String(r.skill_id)] ||= []).push(String(r.requires_id))
       }
-      const pctOf = (id: string) => (allPassed ? 100 : percentBySkillId[id] ?? 0)
+      /* A skill in a level below the swimmer's counts as passed when nothing is
+         on file: the swimmer was placed or promoted past it. Without this, a
+         child the assessment put straight into L2 had no L1 records, every L2
+         skill whose prerequisite sits in L1 read as locked, and 水母漂 stayed
+         padlocked beside a 100% 憋氣 5 秒. The tiles already drew those L1
+         skills as done; the gate now agrees with the picture. */
+      const skillLevel: Record<string, number> = {}
+      for (const s of skRows as any[]) skillLevel[String(s.id)] = levelOf[String(s.level_id)] || 0
+      const pctOf = (id: string) => {
+        if (allPassed) return 100
+        const rec = percentBySkillId[id]
+        if (rec == null && (skillLevel[id] || 0) < currentLevel) return 100
+        return rec ?? 0
+      }
       const ready = (id: string) =>
         (need[id] || []).every(q => masteryOf(pctOf(q)) >= UNLOCK_LEVEL)
 
@@ -350,7 +363,13 @@ export default function SkillTree({
            IS it scheduled -- has the school reached this level and stage? */
         const canStart = ready(id)
         const stage = Number(s.stage) || 1
-        const scheduled = level < currentLevel || (level === currentLevel && stage <= currentStage)
+        /* Any stage of the swimmer's own level counts as on the plan (owner,
+           2026-09-29): stages keep the order of teaching and the ribbons, but
+           a coach may start a later-stage skill as soon as its prerequisites
+           are there -- 憋氣 5 秒 learnt means 水母漂 can be tried, without
+           waiting for the rest of stage 1. 'ready' is left for skills in a
+           level the swimmer has not reached. */
+        const scheduled = level <= currentLevel
         let percent = 0
         let state: NodeState
         if (rec != null && masteryOf(rec) > 0) {

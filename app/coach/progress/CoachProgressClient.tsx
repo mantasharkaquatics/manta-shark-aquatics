@@ -402,19 +402,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 const done = inStage.filter(k => (localProgress[k.id] ?? 0) >= 100).length
                                 const curStage = Number(data.student.current_stage || 1)
                                 const isCurrent = curStage === st
-                                // A stage the swimmer has not reached cannot be marked, so the
-                                // order of the curriculum is real rather than advisory. Stages
-                                // already passed stay open: locking them would make a mistyped
-                                // 100% unfixable, and there is no admin screen that edits a
-                                // single skill.
-                                /* Every stage of the level the swimmer is in is recordable. Stages still
-                                   order the teaching -- the one they are on stays highlighted and the
-                                   later ones sit dimmed -- but a coach who watched a swimmer do
-                                   something may now write it down, whatever stage it happens to sit in.
-                                   Refusing the entry did not slow the swimmer down, it only lost the
-                                   observation. The API agrees: it accepts any skill in the current level. */
+                                /* Every stage of the level the swimmer is in is recordable, and a
+                                   later stage is no longer dimmed or marked with a padlock (owner,
+                                   2026-09-29): stages keep the order of teaching and the ribbons,
+                                   but when the coach judges a swimmer ready for a later-stage skill
+                                   they score it. The API accepts any skill in the current level. */
                                 const stageOpen = true
-                                const stageAhead = st > curStage
                                 const expanded = (openStageMap[s.entryKey] ?? curStage) === st
                                 const allDone = done === inStage.length
                                 return (
@@ -423,7 +416,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                   type="button"
                                   onClick={() => setOpenStageMap(prev => ({ ...prev, [s.entryKey]: expanded ? 0 : st }))}
                                   aria-expanded={expanded}
-                                  className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${stageAhead ? 'opacity-60' : ''}`}
+                                  className="w-full flex items-center gap-2 pt-1 flex-wrap text-left"
                                 >
                                   {/* The stage's ribbon, lit on the same test the
                                       coach is marking against: every skill in the
@@ -439,12 +432,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                     ? <span className="text-[10px] text-[#c9a84c] font-semibold">{t('coach.stage.current')}</span>
                                     : st < curStage
                                       ? <span className="text-[10px] text-gray-500">{allDone ? '🎊 ' + t('coach.stage.done') : t('coach.stage.passedEditable')}</span>
-                                      : <span className="text-[10px] text-gray-500">🔒 {t('coach.stage.finishFirst', { n: curStage })}</span>}
+                                      : <span className="text-[10px] text-gray-400">{t('coach.stage.scoreAhead')}</span>}
                                   <span className="text-[10px] text-gray-500 ml-auto font-mono">{done}/{inStage.length}</span>
                                   <span className="text-[10px] text-gray-500 w-3 text-right">{expanded ? '▴' : '▾'}</span>
                                 </button>
                                 {expanded && (
-                                <div className={`space-y-3 ${stageAhead ? 'opacity-75' : ''}`}>
+                                <div className="space-y-3">
                               {inStage.map(skill => {
                                 const pct = localProgress[skill.id] ?? 0
                                 const color = barColor(pct)

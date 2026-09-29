@@ -302,7 +302,7 @@ export default function CoachDashboardClient({
                       type="button"
                       onClick={() => setOpenStage(expanded ? 0 : st)}
                       aria-expanded={expanded}
-                      className={`w-full flex items-center gap-2 pt-1 flex-wrap text-left ${st <= curStage ? '' : 'opacity-40'}`}
+                      className="w-full flex items-center gap-2 pt-1 flex-wrap text-left"
                     >
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isCurrent ? 'bg-[#c9a84c] text-[#1a2744]' : 'bg-white/5 text-gray-500'}`}>{t('coach.stage', { n: st })}</span>
                       {isCurrent
@@ -314,7 +314,7 @@ export default function CoachDashboardClient({
                       <span className="text-[10px] text-gray-500 w-3 text-right">{expanded ? '▴' : '▾'}</span>
                     </button>
                   ), ...(expanded ? inStage : []).map(skill => (
-                  <div key={skill.id} className={st <= curStage ? '' : 'opacity-40'}>
+                  <div key={skill.id}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-300 text-sm">{tDb(locale, 'skills', skill.id, skill.name)}</span>
                       <span className={`text-sm font-semibold ${skill.progress === 100 ? 'text-[#c9a84c]' : 'text-gray-400'}`}>
