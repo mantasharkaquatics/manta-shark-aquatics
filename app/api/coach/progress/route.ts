@@ -85,6 +85,10 @@ export async function GET(req: NextRequest) {
     // standard in front of them, not in a handbook they would have to go and open.
     .select('id, name, sort_order, stage, pass_criteria')
     .eq('level_id', levelData.id)
+    // A retired skill is not taught or scored any more. The parent's view and
+    // the save below both leave it out; the recorder has to as well, or the
+    // coach scores something the save then quietly drops.
+    .eq('is_active', true)
     .order('stage')
     .order('sort_order')
 
