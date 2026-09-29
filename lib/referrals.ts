@@ -137,9 +137,15 @@ export async function referralSummary(svc: Svc, parentId: string) {
     ? await svc.from('parents').select('id, last_name').in('id', ids)
     : { data: [] as any[] }
   const nameOf = new Map((families || []).map((f: any) => [f.id, familyName(f)]))
+  // This family's own reward, when it signed up through someone else's code.
+  // No referrer name: a phone-number match must not reveal who the customer
+  // is, and the row does not record how it was matched.
+  const { data: mine } = await svc.from('referrals')
+    .select('status').eq('referred_parent_id', parentId).neq('status', 'void').maybeSingle()
   return {
     code,
     points: REFERRAL_POINTS,
+    mine: mine ? { status: mine.status as 'pending' | 'awarded' } : null,
     referrals: (rows || []).map((r: any) => ({
       family: nameOf.get(r.referred_parent_id) ?? '—',
       status: r.status as 'pending' | 'awarded',

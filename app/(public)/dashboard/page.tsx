@@ -856,7 +856,7 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
  */
 function ReferralCard({ focus }: { focus: boolean }) {
   const t = useT()
-  const [data, setData] = useState<{ code: string; link: string; points: number; referrals: { family: string; status: 'pending' | 'awarded' }[] } | null>(null)
+  const [data, setData] = useState<{ code: string; link: string; points: number; mine?: { status: 'pending' | 'awarded' } | null; referrals: { family: string; status: 'pending' | 'awarded' }[] } | null>(null)
   const [copied, setCopied] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -884,6 +884,19 @@ function ReferralCard({ focus }: { focus: boolean }) {
 
   return (
     <div ref={ref} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #b7e0cc', padding: '18px 20px', scrollMarginTop: '12px' }}>
+      {/* A family that signed up through a friend sees its own reward here,
+          waiting and then received, so the promise made at registration
+          stays visible (owner, 2026-09-29). */}
+      {data.mine && (
+        <div style={{ background: '#effaf3', border: '1px solid #9fd8b8', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 800, color: '#14683f' }}>
+            <span aria-hidden="true" style={{ marginRight: '6px' }}>{'\u{1F381}'}</span>{data.mine.status === 'awarded' ? t('ref.mine.awardedTitle', { n: data.points }) : t('ref.mine.pendingTitle')}
+          </div>
+          <div style={{ fontSize: '12.5px', color: '#2f5a44', lineHeight: 1.6, marginTop: '4px' }}>
+            {data.mine.status === 'awarded' ? t('ref.mine.awardedBody') : t('ref.mine.pendingBody', { n: data.points })}
+          </div>
+        </div>
+      )}
       <div style={{ fontSize: '15px', fontWeight: 700, color: '#16294a', marginBottom: '4px' }}>{t('ref.title', { n: data.points })}</div>
       <div style={{ fontSize: '12px', color: '#56647d', lineHeight: 1.6, marginBottom: '12px' }}>{t('ref.desc', { n: data.points })}</div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
