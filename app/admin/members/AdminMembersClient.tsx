@@ -60,9 +60,17 @@ type Booking = {
 
 
 
+/* A birthday is a date with no time. new Date('2020-01-15') is midnight UTC,
+   which in California is still the 14th -- the list showed every birthday a
+   day early. Read the parts, build a local date. */
+function localDate(ymd: string): Date {
+  const [y, m, d] = ymd.slice(0, 10).split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1)
+}
+
 function calcAge(dob: string | null): string {
   if (!dob) return '—'
-  const birth = new Date(dob)
+  const birth = localDate(dob)
   const today = new Date()
   let age = today.getFullYear() - birth.getFullYear()
   const m = today.getMonth() - birth.getMonth()
@@ -803,7 +811,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   <p className="text-white text-sm truncate">{student.full_name}</p>
                                   <p className="text-gray-500 text-xs">
                                     {student.date_of_birth
-                                      ? `${new Date(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`
+                                      ? `${localDate(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`
                                       : 'No birthday on file'
                                     }
                                   </p>
