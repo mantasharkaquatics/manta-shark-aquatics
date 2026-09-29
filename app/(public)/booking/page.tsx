@@ -586,6 +586,9 @@ export default function BookingPage() {
       .eq('coach_id', selectedCoach.id)
       .eq('session_date', dateStr)
       .eq('course_type_id', selectedCourse.id)
+      // A cancelled session and its replacement can share a start time; only
+      // the live one says how full the class is.
+      .neq('status', 'cancelled')
 
     for (const cs of coachBookings || []) {
       const t = cs.start_time.slice(0, 5)

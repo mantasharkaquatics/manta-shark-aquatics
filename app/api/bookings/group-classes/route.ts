@@ -25,7 +25,10 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
   const [effList, blocksAll, { data: allSess }] = await Promise.all([
     Promise.all(coachIds.map((id: string) => getEffectiveZones(s, id, date))),
     getCoachBlocks(s, coachIds, date),
-    s.from('class_sessions').select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status').eq('session_date', date),
+    // Cancelled sessions stay out: a slot whose lesson was cancelled gets a new
+    // session when it is booked again, and find() below would otherwise pick
+    // the dead one and report "4 seats left" for a class with a swimmer in it.
+    s.from('class_sessions').select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status').eq('session_date', date).neq('status', 'cancelled'),
   ])
   const sess = allSess || []
   // A busy session blocks every slot it overlaps, not just one starting at the same minute
@@ -125,7 +128,7 @@ export async function GET(req: NextRequest) {
       s.from('coach_time_off').select('coach_id, date, start_time, end_time, block_type')
         .in('coach_id', coachIds).gte('date', startStr).lte('date', endStr),
       s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
-        .gte('session_date', startStr).lte('session_date', endStr),
+        .gte('session_date', startStr).lte('session_date', endStr).neq('status', 'cancelled'),
       s.from('bookings').select('class_session_id').eq('student_id', student_id)
         .not('status', 'in', '("cancelled","pending_partner")'),
     ])
