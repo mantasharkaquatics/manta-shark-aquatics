@@ -14,7 +14,5 @@ export async function POST(req: NextRequest) {
   const svc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const owner = await lookupReferrer(svc, (body as any).code)
   if (!owner) return NextResponse.json({ valid: false })
-  // Matched by phone: say only that it matched (see lookupReferrer).
-  if (owner.byPhone) return NextResponse.json({ valid: true, byPhone: true })
   return NextResponse.json({ valid: true, referrer: owner.display })
 }

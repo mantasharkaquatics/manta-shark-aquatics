@@ -856,7 +856,7 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
  */
 function ReferralCard({ focus }: { focus: boolean }) {
   const t = useT()
-  const [data, setData] = useState<{ code: string; link: string; points: number; mine?: { status: 'pending' | 'awarded' } | null; referrals: { family: string; status: 'pending' | 'awarded' }[] } | null>(null)
+  const [data, setData] = useState<{ code: string; link: string; points: number; mine?: { status: 'pending' | 'awarded'; referrer?: string } | null; referrals: { family: string; status: 'pending' | 'awarded' }[] } | null>(null)
   const [copied, setCopied] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -893,7 +893,9 @@ function ReferralCard({ focus }: { focus: boolean }) {
             <span aria-hidden="true" style={{ marginRight: '6px' }}>{'\u{1F381}'}</span>{data.mine.status === 'awarded' ? t('ref.mine.awardedTitle', { n: data.points }) : t('ref.mine.pendingTitle')}
           </div>
           <div style={{ fontSize: '12.5px', color: '#2f5a44', lineHeight: 1.6, marginTop: '4px' }}>
-            {data.mine.status === 'awarded' ? t('ref.mine.awardedBody') : t('ref.mine.pendingBody', { n: data.points })}
+            {data.mine.status === 'awarded'
+              ? t('ref.mine.awardedBody', { name: data.mine.referrer || t('ref.mine.aFriend') })
+              : t('ref.mine.pendingBody', { n: data.points, name: data.mine.referrer || t('ref.mine.aFriend') })}
           </div>
         </div>
       )}

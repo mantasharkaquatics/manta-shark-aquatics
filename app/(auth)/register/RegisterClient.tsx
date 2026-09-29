@@ -149,7 +149,7 @@ export default function RegisterClient() {
   // friend's link sees at once that the invitation is applied and what it
   // earns, instead of discovering it -- or not -- on step 2.
   const [referralCode, setReferralCode] = useState('')
-  const [referral, setReferral] = useState<{ valid: boolean; referrer?: string; byPhone?: boolean } | null>(null)
+  const [referral, setReferral] = useState<{ valid: boolean; referrer?: string } | null>(null)
   const [referralChecking, setReferralChecking] = useState(false)
   // The input is hidden until asked for: most families have no referrer, and a
   // family whose link already applied one only needs it to change it.
@@ -160,12 +160,9 @@ export default function RegisterClient() {
   const referralFromLinkRef = useRef(false)
   // "Applied automatically" only while the code is the one the link brought.
   const [referralAuto, setReferralAuto] = useState(false)
-  // The field takes the friend's code or the friend's phone number: letters
-  // mean a code (6 characters), otherwise it is read as a phone number.
-  const referralIsCode = /[A-Za-z]/.test(referralCode)
-  const cleanReferral = (v: string) => /[A-Za-z]/.test(v)
-    ? v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
-    : v.replace(/[^0-9+()\-\s]/g, '').slice(0, 20)
+  // The field takes the friend's 6-character code only. A phone number used
+  // to work too; the owner removed that on 2026-09-29.
+  const cleanReferral = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('ref')
     const code = ref ? ref.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) : readRememberedReferral()
@@ -176,7 +173,7 @@ export default function RegisterClient() {
     const code = referralCode.trim()
     setReferralChecking(false)
     if (!code) { setReferral(null); return }
-    const ready = /[A-Za-z]/.test(code) ? code.length === 6 : code.replace(/\D/g, '').length >= 10
+    const ready = code.length === 6
     if (!ready) { setReferral(null); return }
     setReferralChecking(true)
     const timer = setTimeout(async () => {
@@ -187,8 +184,8 @@ export default function RegisterClient() {
         const r = await res.json()
         setReferral(r)
         if (!r?.valid && referralFromLinkRef.current) {
-          // A dead link: forget it, and open the field so a phone number can
-          // be typed instead.
+          // A dead link: forget it, and open the field so the code can be
+          // typed instead.
           forgetReferral(); setReferralLinkBad(true); setReferralOpen(true)
         }
       } catch { setReferral(null) }
@@ -412,9 +409,9 @@ export default function RegisterClient() {
             {referral?.valid ? (
               <div className="rounded-xl border border-[#9fd8b8] bg-[#effaf3] px-4 py-3.5">
                 <p className="font-bold text-[15px] text-[#14683f]">
-                  <span aria-hidden="true" className="mr-1.5">{'\u{1F381}'}</span>{referral.byPhone || !referral.referrer ? t('register.ref.found') : t('register.ref.invitedBy', { name: referral.referrer })}
+                  <span aria-hidden="true" className="mr-1.5">{'\u{1F381}'}</span>{!referral.referrer ? t('register.ref.found') : t('register.ref.invitedBy', { name: referral.referrer })}
                 </p>
-                {referralIsCode && (
+                {referralCode && (
                   <p className="text-[13px] text-[#2f5a44] mt-1.5">
                     {t(referralAuto ? 'register.ref.applied' : 'register.ref.code')}{' '}
                     <span className="font-mono font-bold tracking-[0.2em] bg-white border border-dashed border-[#7cc49c] rounded px-2 py-0.5 text-[#14683f]">{referralCode}</span>
@@ -440,7 +437,7 @@ export default function RegisterClient() {
                 <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.referral')}</label>
                 <input value={referralCode} onChange={e => { setReferralLinkBad(false); setReferralAuto(false); setReferralCode(cleanReferral(e.target.value)) }}
                   placeholder={t('register.referralPlaceholder')} autoCapitalize="characters" autoComplete="off"
-                  className={`w-full bg-white border text-[#16294a] placeholder-gray-400 focus:outline-none rounded-lg px-3 py-2.5 text-sm ${referralIsCode ? 'tracking-[0.2em]' : ''} ${referral?.valid ? 'border-green-600' : referral && !referral.valid ? 'border-red-500' : 'border-[#d5e0ef] focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15'}`} />
+                  className={`w-full bg-white border text-[#16294a] placeholder-gray-400 focus:outline-none rounded-lg px-3 py-2.5 text-sm tracking-[0.2em] ${referral?.valid ? 'border-green-600' : referral && !referral.valid ? 'border-red-500' : 'border-[#d5e0ef] focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15'}`} />
                 {referralLinkBad ? (
                   <p className="text-xs text-red-600 mt-1.5">{t('register.ref.linkBad')}</p>
                 ) : referral && !referral.valid ? (

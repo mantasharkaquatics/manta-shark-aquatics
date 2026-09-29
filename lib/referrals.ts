@@ -71,24 +71,12 @@ export async function lookupCode(svc: Svc, rawCode: unknown) {
   return { parentId: data.id as string, code, display: `${data.first_name || ''}${initial ? ' ' + initial + '.' : ''}`.trim() }
 }
 
-/** The register page's referrer field takes either the family's code or the
- *  phone number they registered with (owner's choice, 2026-09-28: a code has
- *  to be looked up, a friend's number is already in your phone). Found by
- *  phone, the name is NOT returned -- otherwise typing numbers at random would
- *  tell anyone who our customers are. */
+/** The register page's referrer field. Codes only: the phone-number match
+ *  (added 2026-09-28) was removed by the owner on 2026-09-29 -- the only way
+ *  to name a referrer is the code the system gave them. */
 export async function lookupReferrer(svc: Svc, raw: unknown) {
-  const s = String(raw ?? '').trim()
-  const digits = s.replace(/\D/g, '')
-  if (/[A-Za-z]/.test(s) || digits.length < 10) {
-    const owner = await lookupCode(svc, s)
-    return owner ? { ...owner, byPhone: false } : null
-  }
-  // Stored formats vary, so match on the last ten digits like everywhere else.
-  const last10 = digits.slice(-10)
-  const { data } = await svc.from('parents').select('id').like('phone', `%${last10}`).limit(2)
-  if (!data || data.length !== 1) return null
-  const code = await getOrCreateCode(svc, data[0].id)
-  return { parentId: data[0].id as string, code, display: '', byPhone: true }
+  const owner = await lookupCode(svc, raw)
+  return owner ? { ...owner, byPhone: false } : null
 }
 
 export type ClaimResult =
@@ -137,15 +125,20 @@ export async function referralSummary(svc: Svc, parentId: string) {
     ? await svc.from('parents').select('id, last_name').in('id', ids)
     : { data: [] as any[] }
   const nameOf = new Map((families || []).map((f: any) => [f.id, familyName(f)]))
-  // This family's own reward, when it signed up through someone else's code.
-  // No referrer name: a phone-number match must not reveal who the customer
-  // is, and the row does not record how it was matched.
+  // This family's own reward, when it signed up through someone else's code,
+  // with the referrer shown the way the register page showed them ("Shane C.").
   const { data: mine } = await svc.from('referrals')
-    .select('status').eq('referred_parent_id', parentId).neq('status', 'void').maybeSingle()
+    .select('status, referrer_parent_id').eq('referred_parent_id', parentId).neq('status', 'void').maybeSingle()
+  let mineBy = ''
+  if (mine) {
+    const { data: r } = await svc.from('parents').select('first_name, last_name').eq('id', mine.referrer_parent_id).maybeSingle()
+    const initial = String(r?.last_name || '').trim().charAt(0)
+    mineBy = `${r?.first_name || ''}${initial ? ' ' + initial + '.' : ''}`.trim()
+  }
   return {
     code,
     points: REFERRAL_POINTS,
-    mine: mine ? { status: mine.status as 'pending' | 'awarded' } : null,
+    mine: mine ? { status: mine.status as 'pending' | 'awarded', referrer: mineBy } : null,
     referrals: (rows || []).map((r: any) => ({
       family: nameOf.get(r.referred_parent_id) ?? '—',
       status: r.status as 'pending' | 'awarded',
