@@ -199,6 +199,10 @@ export default function Navbar() {
   const navRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
+    const urlNamesLocale = () => {
+      const seg = (window.location.pathname.split('/')[1] || '')
+      return isLocale(seg) && seg !== 'en'
+    }
     async function applyUser(userId: string | undefined) {
       if (!userId) { setIsLoggedIn(false); setFirstName(''); setFullName(''); return }
       setIsLoggedIn(true)
@@ -216,7 +220,11 @@ export default function Navbar() {
         setLocale(chosen)
         clearExplicitLocale()
         await supabase.from('parents').update({ preferred_language: chosen }).eq('id', parent.id)
-      } else if (isLocale(parent.preferred_language)) {
+      } else if (isLocale(parent.preferred_language) && !urlNamesLocale()) {
+        // A /zh-Hant/... or /zh-Hans/... address says which language it is,
+        // and the page renders that on the server. Swapping in the account's
+        // language afterwards left a Simplified title over Traditional text.
+        // Owner's rule (2026-09-29): the address wins; bare paths follow the account.
         setLocale(parent.preferred_language)
       }
     }
