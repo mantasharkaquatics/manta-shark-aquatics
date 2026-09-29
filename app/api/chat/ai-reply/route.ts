@@ -115,7 +115,7 @@ const TOOLS = [
   },
   {
     name: 'get_upcoming_lessons',
-    description: "Get the parent's upcoming booked lessons. Always call this before cancelling or rescheduling so you have real booking ids.",
+    description: "Get the parent's upcoming booked lessons, plus any lesson earlier today (started: true -- it has begun or already happened today). Always call this before cancelling or rescheduling so you have real booking ids.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
   async function fetchLessonRows(pastNotFuture: boolean) {
     const { data: bookings } = await svc
       .from('bookings')
-      .select('id, student_id, class_session_id, status, partner_booking_id, points_charged')
+      .select('id, student_id, class_session_id, status, partner_booking_id, points_charged, is_trial')
       .eq('parent_id', parent!.id)
       .neq('status', 'cancelled')
       .neq('status', 'pending_partner')
@@ -318,21 +318,29 @@ export async function POST(req: NextRequest) {
       const s: any = sMap.get(b.class_session_id)
       if (!s) continue
       const mins = minutesUntilSession(s.session_date, s.start_time)
-      if (pastNotFuture ? mins >= 0 : mins < 0) continue
+      // Today's lesson that has already started is still "today" to a parent
+      // asking what is on today. It was in neither list, so the assistant
+      // answered "no lessons today" on a morning with one. It rides with the
+      // upcoming list, flagged, and never counts as cancellable.
+      const earlierToday = mins < 0 && s.session_date === getTodayLA()
+      if (pastNotFuture ? (mins >= 0 || earlierToday) : (mins < 0 && !earlierToday)) continue
       const coach: any = cMap.get(s.coach_id)
       const ct: any = ctMap.get(s.course_type_id)
       const stu: any = stuMap.get(b.student_id)
       out.push({
         booking_id: b.id,
         student: stu?.full_name || 'Unknown',
-        course: ct?.name || 'Lesson',
-        course_slug: ct?.slug || '',
+        // An assessment sits on a 1-on-1 course type; without this the
+        // assistant told a parent their Swim Assessment was a private lesson.
+        course: b.is_trial ? 'Swim Assessment' : (ct?.name || 'Lesson'),
+        course_slug: b.is_trial ? 'assessment' : (ct?.slug || ''),
         coach: coach ? `${coach.first_name} ${coach.last_name}` : 'TBD',
         date: s.session_date,
         time: `${formatTime12h(s.start_time.slice(0, 5))} - ${formatTime12h(s.end_time.slice(0, 5))}`,
         status: b.status,
         minutes_until: mins,
-        cancellable_online: mins > CANCEL_LOCK_MINUTES,
+        ...(earlierToday ? { started: true } : {}),
+        cancellable_online: mins > CANCEL_LOCK_MINUTES && !b.is_trial,
         _session: s,
         _booking: b,
       })
@@ -378,6 +386,10 @@ export async function POST(req: NextRequest) {
     if (name === 'cancel_booking') {
       const row = await loadOwnedUpcoming(String(input.booking_id || ''))
       if (!row) return { error: 'Booking not found among your upcoming lessons.' }
+      if (row.course_slug === 'assessment') {
+        escalate = true
+        return { error: "A Swim Assessment can't be cancelled online. The conversation has been flagged for a team member." }
+      }
       if (!row.cancellable_online) {
         escalate = true
         return { error: 'This lesson starts within 24 hours and cannot be cancelled online. The conversation has been flagged for a team member.' }
@@ -422,6 +434,10 @@ export async function POST(req: NextRequest) {
     if (name === 'get_reschedule_link') {
       const row = await loadOwnedUpcoming(String(input.booking_id || ''))
       if (!row) return { error: 'Booking not found among your upcoming lessons.' }
+      if (row.course_slug === 'assessment') {
+        escalate = true
+        return { error: "A Swim Assessment can't be moved online. The conversation has been flagged for a team member." }
+      }
       if (!row.cancellable_online) {
         escalate = true
         return { error: 'This lesson starts within 24 hours and cannot be rescheduled online. The conversation has been flagged for a team member.' }
