@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
 import AlertModal from '@/components/AlertModal'
@@ -603,7 +603,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     p.students.some(s => s.full_name.toLowerCase().includes(search.toLowerCase()))
   )
 
-  const sortedFiltered = [...filtered].sort((a, b) => {
+  const byActivity = (a: Parent, b: Parent) => {
     const aUnread = isUnread(a)
     const bUnread = isUnread(b)
     if (aUnread && !bUnread) return -1
@@ -612,7 +612,15 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       return new Date(b.last_activity_at || 0).getTime() - new Date(a.last_activity_at || 0).getTime()
     }
     return a.first_name.localeCompare(b.first_name)
-  })
+  }
+  // Unread families go first -- but only as the page opened. Opening one marks
+  // it read, and re-sorting on that moved the family the admin had just clicked
+  // out from under the pointer. The order is fixed for the visit; a family
+  // that becomes unread meanwhile keeps its place and shows its dot.
+  const orderRef = useRef<Map<string, number> | null>(null)
+  if (!orderRef.current) orderRef.current = new Map([...parents].sort(byActivity).map((p, i) => [p.id, i]))
+  const rank = (p: Parent) => orderRef.current!.get(p.id) ?? Number.MAX_SAFE_INTEGER
+  const sortedFiltered = [...filtered].sort((a, b) => rank(a) - rank(b) || byActivity(a, b))
 
   async function loadAllStudentsForParent(students: Student[]) {
     for (const s of students) {

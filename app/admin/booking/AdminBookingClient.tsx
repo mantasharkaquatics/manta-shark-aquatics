@@ -1672,7 +1672,7 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { 
           const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
           return st ? (
             <span key={b.id} className="text-sm font-semibold truncate w-full leading-tight block text-left" style={{ color: hasTrial ? 'rgba(26,39,68,0.85)' : 'rgba(255,255,255,0.9)' }}>
-              -{pa ? `${pa.first_name} ${pa.last_name}` : ''} ({st.full_name})
+              {pa ? `${pa.first_name} ${pa.last_name} · ` : ''}{st.full_name}
             </span>
           ) : null
         })}
