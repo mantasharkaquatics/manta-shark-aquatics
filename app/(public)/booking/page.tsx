@@ -781,6 +781,21 @@ export default function BookingPage() {
     for (const list of Object.values(day)) for (const id of list) if (coachFilter === 'any' || id === coachFilter) ids.add(id)
     return [...ids]
   }
+  // The openings are 30-minute cells on the 35-minute grid. A coach free in a
+  // cell and in the next one has the whole hour, so those days carry a dot in
+  // 60-minute mode too. A hint only: the hour list for the day is what decides,
+  // so a day without a dot stays clickable.
+  function coachesOnForHour(ds: string): string[] {
+    const day = openings?.days[ds]
+    if (!day) return []
+    const next = (t: string) => { const [h, m] = t.split(':').map(Number); const x = h * 60 + m + 35; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}` }
+    const ids = new Set<string>()
+    for (const [t, list] of Object.entries(day)) {
+      const later = day[next(t)] || []
+      for (const id of list) if ((coachFilter === 'any' || id === coachFilter) && later.includes(id)) ids.add(id)
+    }
+    return [...ids]
+  }
   function pickFilter(id: string) {
     setCoachFilter(id)
     setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
@@ -1608,6 +1623,7 @@ export default function BookingPage() {
                   const dsC = formatDateLA(date)
                   const openHere = privateFlow && openings && lessonLength === 30 ? coachesOn(dsC) : null
                   const available = isDateAvailable(date) && (openHere == null || openHere.length > 0)
+                  const dotsHere = openHere ?? (privateFlow && openings && lessonLength === 60 ? coachesOnForHour(dsC) : null)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isTodayDate = date.toDateString() === today.toDateString()
                   // This calendar has no per-slot cells to mark, so the day itself
@@ -1635,9 +1651,9 @@ export default function BookingPage() {
                         cursor: available ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px',
                       }}
-                    ><span>{i + 1}</span>{openHere && openHere.length > 0 && isDateAvailable(date) && !isSelected && (
+                    ><span>{i + 1}</span>{dotsHere && dotsHere.length > 0 && isDateAvailable(date) && !isSelected && (
                       <span style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
-                        {openHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
+                        {dotsHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
                       </span>
                     )}{groupFlow && groupDates.includes(formatDateLA(date)) && !isSelected && (
                       <span style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', margin: '2px auto 0', backgroundColor: myBandColor }} />
