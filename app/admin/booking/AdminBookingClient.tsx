@@ -1715,7 +1715,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const [cancelError, setCancelError] = useState('')
   // Cancelling ONE swimmer, not the lesson. Which row is asking, and the answer.
   const [oneCancel, setOneCancel] = useState<string | null>(null)
-  const [oneBusy, setOneBusy] = useState(false)
+  const [oneBusy, setOneBusy] = useState<'refund' | 'keep' | null>(null)
   const [oneMsg, setOneMsg] = useState('')
   const [band, setBand] = useState<{ min: number; max: number } | null>(null)
   // Every load of the roster stamps a sequence number. Adding two students
@@ -1784,7 +1784,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   }, [session.id]) // eslint-disable-line
 
   async function cancelOne(bookingId: string, refund: boolean) {
-    setOneBusy(true); setOneMsg('')
+    setOneBusy(refund ? 'refund' : 'keep'); setOneMsg('')
     try {
       const res = await fetch('/api/admin/cancel-booking', {
         method: 'POST',
@@ -1801,7 +1801,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
       onRefresh()
     } catch {
       setOneMsg('Could not reach the server. Nothing was changed.')
-    } finally { setOneBusy(false) }
+    } finally { setOneBusy(null) }
   }
 
   async function cancelSession() {
@@ -1893,15 +1893,15 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                           Everyone else in this lesson keeps their place.{b.lesson_group_id ? ' Both halves of this 60-minute lesson are cancelled for this swimmer.' : ''} The parent is emailed either way.
                         </p>
                         <div className="flex flex-wrap gap-2 mt-3">
-                          <button disabled={oneBusy} onClick={() => cancelOne(b.id, true)}
+                          <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, true)}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 bg-red-500 text-white disabled:opacity-50">
-                            {oneBusy ? 'Working…' : 'Cancel · refund points'}
+                            {oneBusy === 'refund' ? 'Working…' : 'Cancel · refund points'}
                           </button>
-                          <button disabled={oneBusy} onClick={() => cancelOne(b.id, false)}
+                          <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, false)}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 border border-red-400/50 text-red-200 disabled:opacity-50">
-                            Late cancel · keep points
+                            {oneBusy === 'keep' ? 'Working…' : 'Late cancel · keep points'}
                           </button>
-                          <button disabled={oneBusy} onClick={() => { setOneCancel(null); setOneMsg('') }}
+                          <button disabled={!!oneBusy} onClick={() => { setOneCancel(null); setOneMsg('') }}
                             className="text-xs rounded-lg px-3 py-2 text-white/60 hover:text-white">
                             Back
                           </button>

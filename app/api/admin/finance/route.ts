@@ -66,12 +66,15 @@ export async function GET() {
     // did not know about) would silently drop points out of the total. The
     // points_charged filter is what makes it safe -- a row with no points
     // against it is nothing owed.
-    // Cancelled rows come too: a late cancellation the desk makes without a
-    // refund (admin cancel-booking, refund:false) keeps the points, and those
-    // are earned exactly like a no-show's. What a row still holds is
-    // points_charged - points_refunded; a normal cancellation nets to zero.
+    // Cancelled rows come too, for ONE case: a late cancellation the desk
+    // makes without a refund (admin cancel-booking, refund:false) keeps the
+    // points, and those are earned exactly like a no-show's. That route marks
+    // it cancelled_by 'admin' + cancellation_reason 'cancelled_by_parent'.
+    // Every other cancelled row must stay out: a rescheduled lesson's old row
+    // is cancelled with its points unrefunded ON PURPOSE -- they moved to the
+    // new row -- and counting it booked the same lesson twice.
     svc.from('bookings')
-      .select('points_charged, points_refunded, status, class_session_id')
+      .select('points_charged, points_refunded, status, cancelled_by, cancellation_reason, class_session_id')
       .not('points_charged', 'is', null),
     // What Stripe kept. Read from the payments themselves rather than derived
     // from a rate: ACH is capped, cards carry extras, Terminal differs again.
@@ -98,6 +101,7 @@ export async function GET() {
   let unearnedBooked = 0
   const earnedByMonth: Record<string, number> = {}
   for (const b of (bookings || []) as any[]) {
+    if (b.status === 'cancelled' && !(b.cancelled_by === 'admin' && b.cancellation_reason === 'cancelled_by_parent')) continue
     const date = dateById[b.class_session_id]
     if (!date) continue
     const pts = (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0)
