@@ -363,6 +363,61 @@ function SdpPanel({ student }: { student: Student }) {
   )
 }
 
+/* Staff can add a swimmer to any family, with no limit -- the three-swimmer
+   cap is only for what a parent adds themselves (owner, 2026-09-29). */
+function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: Student) => void }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [dob, setDob] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+
+  async function save() {
+    if (!name.trim() || saving) return
+    setSaving(true); setError(null)
+    const res = await fetch('/api/admin/students/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_id: parentId, full_name: name.trim(), date_of_birth: dob || null }),
+    }).catch(() => null)
+    const data = res ? await res.json().catch(() => ({})) : {}
+    setSaving(false)
+    if (!res || !res.ok || !data.student) {
+      setError(!res ? 'Could not reach the server. Check your connection and try again.' : data.error || 'The student was not added.')
+      return
+    }
+    onAdded(data.student)
+    setName(''); setDob(''); setOpen(false)
+  }
+
+  if (!open) return (
+    <button type="button" onClick={() => setOpen(true)}
+      className="mt-2 w-full py-2 rounded-lg border border-dashed border-[#1e3a6e] text-gray-400 text-xs font-semibold hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all">
+      + Add student
+    </button>
+  )
+  return (
+    <div className="mt-2 bg-[#0d1529] rounded-lg p-3 space-y-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" maxLength={80}
+          className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
+        <input type="date" value={dob} max={today} onChange={e => setDob(e.target.value)} aria-label="Date of birth"
+          className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
+      </div>
+      <p className="text-gray-500 text-[11px]">Starts with no level: book their Swim Assessment to place them.</p>
+      {error && <p className="text-red-400 text-xs">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => { setOpen(false); setError(null) }} disabled={saving}
+          className="px-3 py-2 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs">Cancel</button>
+        <button type="button" onClick={save} disabled={!name.trim() || saving}
+          className="flex-1 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] text-xs font-semibold disabled:opacity-50">
+          {saving ? 'Adding...' : 'Add student'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   function handleCopy() {
@@ -844,6 +899,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                         )
                       })}
                     </div>
+                    <AddStudentForm parentId={parent.id} onAdded={st => setParents(prev => prev.map(p => p.id === parent.id ? { ...p, students: [...p.students, st] } : p))} />
                   </div>
                 </div>
               )}
