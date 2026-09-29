@@ -1068,7 +1068,7 @@
   "plans.team.spotsLeft": "剩 {n} 個名額",
   "plans.team.stageWord": "階段",
   "plans.team.title": "泳隊",
-  "points.assess.body": "我們還沒見過您的孩子。游泳評估是 30 分鐘的一對一課程，上完後會給孩子一個級別——系統要先有級別，才能預約後面的課程。每位學員一次，{price}，刷卡付款。",
+  "points.assess.body": "我們還沒見過您的孩子。游泳評估是 30 分鐘的一對一課程，上完後會給孩子一個級別——系統要先有級別，才能預約後面的課程。每位學員一次，{price}。",
   "points.buy.busy": "正在前往付款頁面…",
   "points.buy.countsNote": "點數不綁課別——一對一、一對二、團體班都用同一份。",
   "points.buy.cta": "前往付款",

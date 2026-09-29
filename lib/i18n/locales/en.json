@@ -1068,7 +1068,7 @@
   "plans.team.spotsLeft": "{n} spots left",
   "plans.team.stageWord": "Stage",
   "plans.team.title": "Swim Team",
-  "points.assess.body": "We haven't met your swimmer yet. The Swim Assessment is a 30-minute one-on-one lesson that gives your child a level — and the calendar needs that level before it will let you book anything. One per swimmer, {price}, paid by card.",
+  "points.assess.body": "We haven't met your swimmer yet. The Swim Assessment is a 30-minute one-on-one lesson that gives your child a level — and the calendar needs that level before it will let you book anything. One per swimmer, {price}.",
   "points.buy.busy": "Opening checkout…",
   "points.buy.countsNote": "Points are not tied to a course type — private, semi-private and group lessons all come out of the same balance.",
   "points.buy.cta": "Continue to payment",
