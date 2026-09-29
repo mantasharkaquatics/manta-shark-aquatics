@@ -606,6 +606,13 @@ type WalletSummary = {
   lessonsPerForgiveness: number
   history?: LedgerRow[]
 }
+const SYSTEM_ONLY_NOTES = new Set([
+  'Lesson cancelled by the school',
+  'booking insert failed', 'second swimmer could not be booked',
+  'the time filled up', 'the time slot could not be created', 'the booking could not be written',
+  'the partner invitation could not be written', 'a booking row could not be written',
+])
+
 type LedgerRow = {
   id: string
   at: string
@@ -616,6 +623,8 @@ type LedgerRow = {
   note: string | null
   amountCents: number | null
   invoice?: { id: string; number: string } | null
+  /** The lesson a booking or refund line was about, when the server knows it. */
+  lesson?: { student: string | null; date: string; time: string | null; count: number } | null
   /** A dollar payment that bought no points -- the Swim Assessment. */
   payment?: boolean
 }
@@ -643,6 +652,28 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
   const pageRows = history.slice(page * HIST_PER_PAGE, (page + 1) * HIST_PER_PAGE)
   const goPage = (n: number) => setHistPage(Math.min(pageCount - 1, Math.max(0, n)))
 
+  // Notes the system itself writes are English sentences; these are the ones a
+  // family can see. A note a staff member typed is shown as they typed it.
+  const noteText = (n: string) => {
+    let m: RegExpMatchArray | null
+    if ((m = n.match(/^(\d+) lessons? booked$/)) || (m = n.match(/^Cart: (\d+) lessons?$/))) {
+      // The lesson detail beside it already says how many; one lesson needs no note.
+      return Number(m[1]) === 1 ? '' : t('points.note.lessons', { n: m[1] })
+    }
+    // Already said by the line's own label ("cancelled by the school", "booking
+    // failed, returned"), or written for staff rather than for the family.
+    if (SYSTEM_ONLY_NOTES.has(n)) return ''
+    if (n === 'rescheduled into a new 1-on-2 invitation') return t('points.note.movedTo1on2')
+    if (n === 'the other family cancelled this 1-on-2') return t('points.note.partnerCancelled')
+    if ((m = n.match(/^Bonus on a \$([\d,]+) desk purchase$/))) return t('points.note.deskBonus', { amount: '$' + m[1] })
+    if ((m = n.match(/^Refund of \$([\d.,]+) could not be delivered$/))) return t('points.note.refundUndelivered', { amount: '$' + m[1] })
+    return n
+  }
+  const lessonText = (l: NonNullable<LedgerRow['lesson']>) => {
+    const d = new Date(l.date + 'T12:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'numeric', day: 'numeric' })
+    const when = l.count > 1 ? t('points.lesson.many', { date: d, n: l.count }) : (l.time ? `${d} ${formatTime(l.time)}` : d)
+    return l.student ? `${l.student} ${when}` : when
+  }
   const reasonLabel = (r: string) => {
     const key = 'points.reason.' + r
     const v = t(key)
@@ -759,7 +790,8 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                     <div style={{ fontSize: '12px', color: '#56647d' }}>{reasonLabel(row.reason)}</div>
                     <div style={{ fontSize: '10px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
                       {new Date(row.at).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
-                      {row.note ? ' · ' + row.note : ''}
+                      {row.lesson ? ' · ' + lessonText(row.lesson) : ''}
+                      {row.note && noteText(row.note) ? ' · ' + noteText(row.note) : ''}
                     </div>
                     {/* The receipt for the money, on the line that spent it. */}
                     {row.invoice && (

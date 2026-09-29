@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, Math.floor(want)))
     const { data: rows } = await ctx.svc
       .from('point_ledger')
-      .select('id, created_at, delta_purchased, delta_granted, balance_purchased_after, balance_granted_after, reason, note, amount_cents, booking_id, stripe_session_id')
+      .select('id, created_at, delta_purchased, delta_granted, balance_purchased_after, balance_granted_after, reason, note, amount_cents, booking_id, stripe_session_id, pricing')
       .eq('parent_id', ctx.parent.id)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -46,6 +46,46 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Which lesson a line was about. "Booked" and "cancelled" lines were
+    // anonymous, so a family with several swimmers could not tell whose points
+    // moved. A refund carries its booking; a batch booking carries its dates
+    // in the pricing it was charged at.
+    const bookingIds = [...new Set((rows || []).map((r: any) => r.booking_id).filter(Boolean))] as string[]
+    const lessonOfBooking = new Map<string, { student: string | null; date: string; time: string | null }>()
+    if (bookingIds.length) {
+      const { data: bks } = await ctx.svc.from('bookings')
+        .select('id, student_id, class_session_id').in('id', bookingIds)
+      const sIds = [...new Set((bks || []).map((b: any) => b.student_id).filter(Boolean))]
+      const cIds = [...new Set((bks || []).map((b: any) => b.class_session_id).filter(Boolean))]
+      const [{ data: sts }, { data: cs }] = await Promise.all([
+        sIds.length ? ctx.svc.from('students').select('id, full_name').in('id', sIds) : Promise.resolve({ data: [] as any[] }),
+        cIds.length ? ctx.svc.from('class_sessions').select('id, session_date, start_time').in('id', cIds) : Promise.resolve({ data: [] as any[] }),
+      ])
+      const nm = new Map((sts || []).map((x: any) => [x.id, x.full_name]))
+      const sess = new Map((cs || []).map((x: any) => [x.id, x]))
+      for (const b of bks || []) {
+        const se: any = sess.get(b.class_session_id)
+        if (!se) continue
+        lessonOfBooking.set(b.id, { student: nm.get(b.student_id) ?? null, date: se.session_date, time: String(se.start_time || '').slice(0, 5) || null })
+      }
+    }
+    const lessonOf = (r: any) => {
+      if (r.booking_id && lessonOfBooking.has(r.booking_id)) {
+        const l = lessonOfBooking.get(r.booking_id)!
+        return { student: l.student, date: l.date, time: l.time, count: 1 }
+      }
+      const pr = r.pricing
+      if (pr?.kind === 'weekly_term' && Array.isArray(pr.dates) && pr.dates.length) {
+        const ds = pr.dates.map((d: any) => String(d.date)).sort()
+        return { student: null, date: ds[0], time: pr.startTime ? String(pr.startTime).slice(0, 5) : null, count: ds.length }
+      }
+      if (pr?.kind === 'multi_slot' && Array.isArray(pr.slots) && pr.slots.length) {
+        const sl = [...pr.slots].sort((a: any, b: any) => String(a.date + a.startTime).localeCompare(String(b.date + b.startTime)))
+        return { student: null, date: String(sl[0].date), time: sl.length === 1 ? String(sl[0].startTime).slice(0, 5) : null, count: sl.length }
+      }
+      return null
+    }
+
     // The parent sees one balance, so the statement shows one delta. The split
     // between purchased and granted matters only to a refund, and a refund is
     // not something this screen does.
@@ -58,6 +98,7 @@ export async function GET(req: NextRequest) {
       note: r.note,
       amountCents: r.amount_cents,
       bookingId: r.booking_id,
+      lesson: lessonOf(r),
       invoice: (r.reason === 'purchase' && r.stripe_session_id)
         ? invoiceBySession.get(r.stripe_session_id) ?? null
         : null,
