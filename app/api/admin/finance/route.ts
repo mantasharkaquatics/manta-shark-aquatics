@@ -39,6 +39,13 @@ function monthKeyLA(iso: string): string {
   }).format(new Date(iso)).slice(0, 7)
 }
 
+// Ledger reasons that move purchased points without being a lesson taken or
+// given back: money in or out, reversals, and hand adjustments by staff.
+const NOT_LESSON_TRAFFIC = new Set([
+  'purchase', 'cash_refund', 'payment_failed', 'chargeback',
+  'admin_grant', 'admin_deduct', 'referral_bonus', 'grant_expired',
+])
+
 export async function GET() {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -95,13 +102,20 @@ export async function GET() {
     else earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts
   }
 
-  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; cashInCents: number; feeCents: number; feePending: number }> = {}
-  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0, cashInCents: 0, feeCents: 0, feePending: 0 })
+  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; cashInCents: number; feeCents: number; feePending: number; sold: number; usedNet: number }> = {}
+  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0, cashInCents: 0, feeCents: 0, feePending: 0, sold: 0, usedNet: 0 })
   for (const r of (ledger || []) as Row[]) {
     const m = bucket(monthKeyLA(r.created_at))
     const dp = Number(r.delta_purchased) || 0
     if (dp >= 0) m.purchasedIn += dp
     else m.purchasedOut += -dp
+    // purchasedIn/Out are raw ledger movement and reconcile to the wallets, but
+    // they are NOT "sold" and "spent": a cancelled lesson adds its points to both
+    // sides, so every cancellation inflated the two figures the accountant reads.
+    // Sold is what was paid for; used is lesson traffic netted against its own
+    // refunds. Money movements and manual adjustments are neither.
+    if (r.reason === 'purchase') m.sold += dp
+    else if (!NOT_LESSON_TRAFFIC.has(r.reason)) m.usedNet -= dp
     m.granted += Number(r.delta_granted) || 0
     if (r.reason === 'purchase') m.topUpCash += Number(r.amount_cents) || 0
     if (r.reason === 'cash_refund') m.refundCash += Number(r.amount_cents) || 0
@@ -169,6 +183,8 @@ export async function GET() {
       refundCash: months[k]?.refundCash || 0,
       purchasedIn: months[k]?.purchasedIn || 0,
       purchasedOut: months[k]?.purchasedOut || 0,
+      sold: months[k]?.sold || 0,
+      usedNet: months[k]?.usedNet || 0,
       granted: months[k]?.granted || 0,
       cashIn: months[k]?.cashInCents || 0,
       feeCents: months[k]?.feeCents || 0,

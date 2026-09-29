@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react'
 type Month = {
   month: string; earned: number; topUpCash: number; refundCash: number
   purchasedIn: number; purchasedOut: number; granted: number
-  feeCents: number; netCash: number; feePending: number
+  cashIn: number; feeCents: number; netCash: number; feePending: number
+  sold: number; usedNet: number
 }
 type Data = {
   today: string
@@ -126,7 +127,7 @@ export default function AdminFinanceClient() {
               <th style={th}>Net cash</th>
               <th style={th}>Cash refunded</th>
               <th style={th}>Points sold</th>
-              <th style={th}>Points spent</th>
+              <th style={th}>Points used (net)</th>
             </tr>
           </thead>
           <tbody>
@@ -137,7 +138,7 @@ export default function AdminFinanceClient() {
               <tr key={m.month}>
                 <td style={{ ...td, textAlign: 'left', fontWeight: 600, color: '#fff' }}>{m.month}</td>
                 <td style={{ ...td, color: GOLD, fontWeight: 700 }}>{pts(m.earned)}</td>
-                <td style={td}>{money(m.topUpCash)}</td>
+                <td style={td}>{m.cashIn ? money(m.cashIn) : '—'}</td>
                 <td style={{ ...td, color: 'rgba(255,160,150,0.85)' }}>
                   {m.feeCents ? '−' + money(m.feeCents) : '—'}
                   {m.feePending > 0 && (
@@ -145,10 +146,10 @@ export default function AdminFinanceClient() {
                       style={{ marginLeft: 5, color: 'rgba(255,255,255,0.35)' }}>*</span>
                   )}
                 </td>
-                <td style={{ ...td, fontWeight: 600 }}>{m.topUpCash ? money(m.netCash) : '—'}</td>
+                <td style={{ ...td, fontWeight: 600 }}>{m.cashIn ? money(m.netCash) : '—'}</td>
                 <td style={td}>{m.refundCash ? money(m.refundCash) : '—'}</td>
-                <td style={td}>{pts(m.purchasedIn)}</td>
-                <td style={td}>{pts(m.purchasedOut)}</td>
+                <td style={td}>{pts(m.sold)}</td>
+                <td style={td}>{pts(m.usedNet)}</td>
               </tr>
             ))}
           </tbody>
@@ -162,6 +163,8 @@ export default function AdminFinanceClient() {
         settled through Stripe or the desk that month — if the business files on a cash basis, that
         is the column that matters. It counts every payment, Swim Assessments included, which is why it
         can differ from the points sold beside it: an assessment is money in that never became points.
+        &ldquo;Points used (net)&rdquo; is purchased points taken for lessons minus the ones given back when a
+        lesson was cancelled, so a booking that was later cancelled counts as nothing.
         Swim Team subscriptions are billed separately and are not in this table. One point is one dollar
         throughout. Points given as a grant are excluded from the liability: they were never cash and
         can never be refunded as cash.
