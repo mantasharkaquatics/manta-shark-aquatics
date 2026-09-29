@@ -227,6 +227,10 @@ export default function BookingPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
+  // True while a day's times are being fetched. Without it the empty list read
+  // as "no times this day" for the two to four seconds the fetch takes.
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const slotsSeq = useRef(0)
   const [trialEligible, setTrialEligible] = useState(false)
   const [trialHasCredit, setTrialHasCredit] = useState(false)
   const [lockedStudent, setLockedStudent] = useState(false)
@@ -511,6 +515,13 @@ export default function BookingPage() {
 
   async function loadTimeSlots() {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
+    const seq = ++slotsSeq.current
+    setSlotsLoading(true)
+    try { await buildTimeSlots(seq) } finally { if (seq === slotsSeq.current) setSlotsLoading(false) }
+  }
+
+  async function buildTimeSlots(seq: number) {
+    if (!selectedDate || !selectedCoach || !selectedCourse) return
 
     const dateStr = formatDateLA(selectedDate)
 
@@ -539,6 +550,7 @@ export default function BookingPage() {
         allSlots.push(...generateSlots(a.start_time, a.end_time))
       }
     }
+    if (seq !== slotsSeq.current) return
     if (allSlots.length === 0) { setTimeSlots([]); return }
 
     const sameTypeSessions: Record<string, any> = {}
@@ -617,6 +629,9 @@ export default function BookingPage() {
     })
 
     for (const sl of slots) sl.fill = fillByTime[sl.time]
+    // A slower answer for a day the parent has already clicked away from must
+    // not overwrite the day they are looking at.
+    if (seq !== slotsSeq.current) return
     setTimeSlots(slots)
   }
 
@@ -1573,7 +1588,11 @@ export default function BookingPage() {
                   const hasGhost = batchFlow && !hasPick && [...ghost.keys()].some(k => k.startsWith(dsX + '|'))
                   return (
                     <button key={i}
-                      onClick={() => { if (available) { setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]) } }}
+                      onClick={() => {
+                        // Re-clicking the day already open would clear its times and never refetch them.
+                        if (!available || (selectedDate && selectedDate.getTime() === date.getTime())) return
+                        setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]); setSlotsLoading(true)
+                      }}
                       style={{
                         padding: '10px 4px', minHeight: '48px', borderRadius: '10px',
                         border: hasPick ? `2px solid ${GOLD}` : hasGhost ? `2px dashed ${GOLD}99` : '2px solid transparent',
@@ -1870,7 +1889,7 @@ export default function BookingPage() {
                   )
                 })()) : timeSlots.length === 0 ? (
                   <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed #e3ebf6' }}>
-                    <p style={{ color: '#56647d', fontSize: '15px' }}>{t('booking.noSlots')}</p>
+                    <p style={{ color: '#56647d', fontSize: '15px' }}>{slotsLoading ? t('booking.loading') : t('booking.noSlots')}</p>
                   </div>
                 ) : (
                   <>
