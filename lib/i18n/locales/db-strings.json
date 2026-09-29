@@ -554,18 +554,18 @@
   "course_types": {
     "cb380ad9-6142-495e-8a62-3cdb7d85889c": {
       "en": "1-on-1 Private",
-      "zh-Hant": "1 對 1 個人班",
-      "zh-Hans": "1 对 1 个人班"
+      "zh-Hant": "一對一個人班",
+      "zh-Hans": "一对一个人班"
     },
     "d963831d-aad2-4ad9-9310-d01efae9e5a3": {
       "en": "1-on-2 Semi-Private",
-      "zh-Hant": "1 對 2 半私人班",
-      "zh-Hans": "1 对 2 半私人班"
+      "zh-Hant": "一對二半私人班",
+      "zh-Hans": "一对二半私人班"
     },
     "2b65ca6b-d07c-4fb1-9878-c520cfb2de5d": {
       "en": "1-on-4 Group",
-      "zh-Hant": "1 對 4 團體班",
-      "zh-Hans": "1 对 4 团体班"
+      "zh-Hant": "一對四團體班",
+      "zh-Hans": "一对四团体班"
     },
     "c6320884-c262-4274-89d8-a12bedd76a06": {
       "en": "Swim Team",
