@@ -140,7 +140,47 @@ export async function GET(req: NextRequest) {
         payment: true,
       }))
     }
-    const merged = [...history, ...payments]
+    /* A late cancellation the desk makes without a refund keeps the points,
+       and it moves nothing in the ledger -- the points left the wallet when the
+       lesson was booked. Without a line of its own, the lesson just vanished
+       from "upcoming" and the family was left with a bare "booked -40" to puzzle
+       over. It joins the statement as an information line: which lesson, and
+       how many points were not returned. Admin cancel-booking with refund:false
+       is the only writer of cancelled_by 'admin' + reason 'cancelled_by_parent'. */
+    const { data: lateRows } = await ctx.svc.from('bookings')
+      .select('id, student_id, class_session_id, cancelled_at, points_charged, points_refunded')
+      .eq('parent_id', ctx.parent.id).eq('status', 'cancelled')
+      .eq('cancelled_by', 'admin').eq('cancellation_reason', 'cancelled_by_parent')
+      .order('cancelled_at', { ascending: false }).limit(limit)
+    const kept = (lateRows || []).filter((b: any) => (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0) > 0)
+    let lateLines: any[] = []
+    if (kept.length) {
+      const sIds = [...new Set(kept.map((b: any) => b.student_id).filter(Boolean))]
+      const cIds = [...new Set(kept.map((b: any) => b.class_session_id).filter(Boolean))]
+      const [{ data: sts }, { data: cs }] = await Promise.all([
+        sIds.length ? ctx.svc.from('students').select('id, full_name').in('id', sIds) : Promise.resolve({ data: [] as any[] }),
+        cIds.length ? ctx.svc.from('class_sessions').select('id, session_date, start_time').in('id', cIds) : Promise.resolve({ data: [] as any[] }),
+      ])
+      const nm = new Map((sts || []).map((x: any) => [x.id, x.full_name]))
+      const sess = new Map((cs || []).map((x: any) => [x.id, x]))
+      lateLines = kept.map((b: any) => {
+        const se: any = sess.get(b.class_session_id)
+        return {
+          id: 'late-' + b.id,
+          at: b.cancelled_at,
+          points: 0,
+          balanceAfter: null,
+          reason: 'late_cancel',
+          note: null,
+          amountCents: null,
+          bookingId: b.id,
+          lesson: se ? { student: nm.get(b.student_id) ?? null, date: se.session_date, time: String(se.start_time || '').slice(0, 5) || null, count: 1 } : null,
+          invoice: null,
+          kept: (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0),
+        }
+      })
+    }
+    const merged = [...history, ...payments, ...lateLines]
       .sort((a, b) => String(b.at).localeCompare(String(a.at)))
       .slice(0, limit)
     return NextResponse.json({ ...summary, history: merged })

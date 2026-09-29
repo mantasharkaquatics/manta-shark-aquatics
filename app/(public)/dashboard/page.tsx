@@ -627,6 +627,8 @@ type LedgerRow = {
   lesson?: { student: string | null; date: string; time: string | null; count: number } | null
   /** A dollar payment that bought no points -- the Swim Assessment. */
   payment?: boolean
+  /** A late cancellation's information line: points that were not returned. */
+  kept?: number
 }
 
 /** The wallet, as one card. */
@@ -803,7 +805,12 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                     )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                    {row.payment ? (
+                    {row.kept != null ? (
+                      // Nothing moved today: the points left with the booking.
+                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#c2621a' }}>
+                        {t('points.card.kept', { n: row.kept.toLocaleString() })}
+                      </div>
+                    ) : row.payment ? (
                       <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#16294a' }}>
                         ${((row.amountCents || 0) / 100).toFixed(2)}
                       </div>
