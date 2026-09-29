@@ -209,7 +209,7 @@
   "booking.cancelBack": "← 取消",
   "booking.change": "更改",
   "booking.changeStudent": "不是 {name}？更換學員",
-  "booking.coachPicked": "已幫您選 {name}，想換就點別人。",
+  "booking.coachPicked": "已幫您選 {name}，或點選其他教練。",
   "booking.coachRole": "游泳教練",
   "booking.coachesAt": "{time} 可以上的教練",
   "booking.confirmBooking": "確認預約 ✓",
