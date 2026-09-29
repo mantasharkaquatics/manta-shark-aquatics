@@ -1713,6 +1713,10 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const [confirmAddId, setConfirmAddId] = useState<string | null>(null)
   const [bookingsLoaded, setBookingsLoaded] = useState(false)
   const [cancelError, setCancelError] = useState('')
+  // Cancelling ONE swimmer, not the lesson. Which row is asking, and the answer.
+  const [oneCancel, setOneCancel] = useState<string | null>(null)
+  const [oneBusy, setOneBusy] = useState(false)
+  const [oneMsg, setOneMsg] = useState('')
   const [band, setBand] = useState<{ min: number; max: number } | null>(null)
   // Every load of the roster stamps a sequence number. Adding two students
   // quickly leaves two reads in flight, and the slower one can land last and
@@ -1778,6 +1782,27 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
       .then(d => setBand(d?.band ?? null))
       .catch(() => {})
   }, [session.id]) // eslint-disable-line
+
+  async function cancelOne(bookingId: string, refund: boolean) {
+    setOneBusy(true); setOneMsg('')
+    try {
+      const res = await fetch('/api/admin/cancel-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId, refund }),
+      })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok) { setOneMsg(data.error || 'Cancel failed. Nothing was changed.'); return }
+      setOneCancel(null)
+      setOneMsg(refund
+        ? `Cancelled. ${data.pointsRefunded || 0} points returned; the parent has been emailed.`
+        : 'Cancelled as a late cancellation. Points kept; the parent has been emailed.')
+      await loadBookings()
+      onRefresh()
+    } catch {
+      setOneMsg('Could not reach the server. Nothing was changed.')
+    } finally { setOneBusy(false) }
+  }
 
   async function cancelSession() {
     // This used to await the fetch and throw the response away: whatever came
@@ -1851,9 +1876,38 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="text-xs text-white/40">Lv.{student?.current_level} · {parent?.first_name} {parent?.last_name}</span>
-
+                      {/* An assessment is paid by card, not points, so there is no
+                          refund choice to make: the whole-lesson cancel covers it. */}
+                      {!b.is_trial && oneCancel !== b.id && (
+                        <button onClick={() => { setOneCancel(b.id); setOneMsg('') }}
+                          className="text-xs text-red-300/80 hover:text-red-300 border border-red-400/30 rounded px-1.5 py-0.5">
+                          Cancel
+                        </button>
+                      )}
                     </span>
                     </div>
+                    {oneCancel === b.id && (
+                      <div className="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 p-3">
+                        <p className="text-sm text-red-200 font-medium">Cancel {student?.full_name} only?</p>
+                        <p className="text-xs text-white/50 mt-1">
+                          Everyone else in this lesson keeps their place.{b.lesson_group_id ? ' Both halves of this 60-minute lesson are cancelled for this swimmer.' : ''} The parent is emailed either way.
+                        </p>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          <button disabled={oneBusy} onClick={() => cancelOne(b.id, true)}
+                            className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 bg-red-500 text-white disabled:opacity-50">
+                            {oneBusy ? 'Working…' : 'Cancel · refund points'}
+                          </button>
+                          <button disabled={oneBusy} onClick={() => cancelOne(b.id, false)}
+                            className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 border border-red-400/50 text-red-200 disabled:opacity-50">
+                            Late cancel · keep points
+                          </button>
+                          <button disabled={oneBusy} onClick={() => { setOneCancel(null); setOneMsg('') }}
+                            className="text-xs rounded-lg px-3 py-2 text-white/60 hover:text-white">
+                            Back
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {student?.id && (
                       <div className="mt-2">
                         <StudentNotesPanel studentId={student.id} collapsible />
@@ -1864,6 +1918,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
               })}
             </div>
           )}
+          {oneMsg && <p className="text-xs text-white/70 mt-3">{oneMsg}</p>}
           {liveCount < session.max_students && (
             <div className="mt-4 pt-4 border-t border-white/10">
               <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Add student</p>

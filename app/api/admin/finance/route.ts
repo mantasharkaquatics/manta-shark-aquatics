@@ -60,15 +60,18 @@ export async function GET() {
       .select('created_at, delta_purchased, delta_granted, reason, amount_cents')
       .gte('created_at', since)
       .order('created_at', { ascending: true }),
-    // Everything not cancelled that carries points. Deliberately NOT an
+    // Everything that carries points. Deliberately NOT an
     // allow-list of statuses: a liability report must over-include rather than
     // miss an obligation, and a status added later (or one this file's author
     // did not know about) would silently drop points out of the total. The
     // points_charged filter is what makes it safe -- a row with no points
     // against it is nothing owed.
+    // Cancelled rows come too: a late cancellation the desk makes without a
+    // refund (admin cancel-booking, refund:false) keeps the points, and those
+    // are earned exactly like a no-show's. What a row still holds is
+    // points_charged - points_refunded; a normal cancellation nets to zero.
     svc.from('bookings')
-      .select('points_charged, status, class_session_id')
-      .neq('status', 'cancelled')
+      .select('points_charged, points_refunded, status, class_session_id')
       .not('points_charged', 'is', null),
     // What Stripe kept. Read from the payments themselves rather than derived
     // from a rate: ACH is capped, cards carry extras, Terminal differs again.
@@ -97,8 +100,11 @@ export async function GET() {
   for (const b of (bookings || []) as any[]) {
     const date = dateById[b.class_session_id]
     if (!date) continue
-    const pts = Number(b.points_charged) || 0
-    if (date >= today) unearnedBooked += pts
+    const pts = (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0)
+    if (pts <= 0) continue
+    // A forfeited lesson is no longer owed, so it is never part of the
+    // liability; it is earned on the day it would have been taught.
+    if (date >= today && b.status !== 'cancelled') unearnedBooked += pts
     else earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts
   }
 
