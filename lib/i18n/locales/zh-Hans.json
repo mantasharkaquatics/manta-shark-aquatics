@@ -1150,7 +1150,7 @@
   "points.reason.school_cancel": "本校取消，已退回",
   "points.short.message": "您的账户点数不够支付这堂课。",
   "points.short.title": "点数不足",
-  "points.team.notPoints": "泳队是每月刷卡的会员制，不使用点数。",
+  "points.team.notPoints": "泳队是按月付费的会员制，不使用点数。",
   "points.unit": "{n} 点",
   "policies.mediaRelease.desc": "选填：是否同意我们使用孩子的照片与视频。",
   "policies.privacy.desc": "我们收集哪些资料，以及如何使用。",

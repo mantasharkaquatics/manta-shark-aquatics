@@ -1150,7 +1150,7 @@
   "points.reason.school_cancel": "We cancelled — returned",
   "points.short.message": "There aren't enough points in your account for this lesson.",
   "points.short.title": "Not enough points",
-  "points.team.notPoints": "Swim Team is a monthly membership billed to your card. It isn't paid for with points.",
+  "points.team.notPoints": "Swim Team is a monthly membership. It isn't paid for with points.",
   "points.unit": "{n} pts",
   "policies.mediaRelease.desc": "Optional consent for photos and video of your child.",
   "policies.privacy.desc": "What information we collect and how we use it.",
