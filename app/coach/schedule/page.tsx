@@ -58,7 +58,7 @@ export default async function CoachSchedulePage() {
     .select(`
       id, session_date, start_time, end_time, status, enrolled_count, max_students,
       course_types(id, name, slug),
-      bookings!class_session_id(id, status, lesson_group_id, students(id, full_name, current_level))
+      bookings!class_session_id(id, status, is_trial, lesson_group_id, students(id, full_name, current_level))
     `)
     .eq('coach_id', coach.id)
     .gte('session_date', today)
@@ -80,13 +80,15 @@ export default async function CoachSchedulePage() {
     })),
   }))
 
-  // An empty 1-on-1 or 1-on-2 slot is a leftover shell: a session is created when
-  // a lesson is booked but is never removed when that lesson is cancelled or the
-  // invitation expires. A group class with nobody in it is a real scheduled
-  // class, so that one stays visible.
+  // An empty session is a leftover shell: a session is created when a lesson is
+  // booked and is never removed when that lesson is cancelled, the invitation
+  // expires, or a rejected request got as far as creating it. Group classes
+  // used to be kept on the idea that an empty one is a real scheduled class,
+  // but group times come from the coach's zones, not from sessions -- so the
+  // only empty group "class" a coach ever saw was one somebody had booked and
+  // cancelled, while every untouched group time stayed off the list.
   const visible = mergeHourHalves(sessions).filter((s: any) =>
-    s.course_types?.slug === '1on4'
-    || (s.bookings || []).some((b: any) => b.status !== 'cancelled')
+    (s.bookings || []).some((b: any) => b.status !== 'cancelled')
   )
 
   return <CoachScheduleClient coach={coach} sessions={visible} today={today} />

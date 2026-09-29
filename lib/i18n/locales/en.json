@@ -441,6 +441,7 @@
   "coach.schedule.seats": "{n}/{max} students",
   "coach.schedule.subtitle": "Your upcoming classes for the next 30 days",
   "coach.schedule.title": "Schedule",
+  "coach.schedule.today": "Today",
   "coach.signOut": "Sign Out",
   "coach.skillProgress": "Skill Progress",
   "coach.stage": "Stage {n}",

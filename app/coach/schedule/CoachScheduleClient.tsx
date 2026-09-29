@@ -4,7 +4,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 
 type Student = { id: string; full_name: string; current_level: string }
-type Booking = { id: string; status: string; students: Student }
+type Booking = { id: string; status: string; is_trial?: boolean; students: Student }
 type Session = {
   id: string; session_date: string; start_time: string; end_time: string
   status: string; enrolled_count: number; max_students: number
@@ -60,7 +60,7 @@ export default function CoachScheduleClient({
             <div key={date}>
               <div className="flex items-center gap-3 mb-3">
                 <h2 className={`font-semibold text-sm uppercase tracking-wider ${isToday(date) ? 'text-[#c9a84c]' : 'text-gray-400'}`}>
-                  {isToday(date) ? '📍 Today — ' : ''}{formatDate(date)}
+                  {isToday(date) ? '📍 ' + t('coach.schedule.today') + ' — ' : ''}{formatDate(date)}
                 </h2>
                 <div className="flex-1 h-px bg-[#1e3a6e]" />
               </div>
@@ -70,7 +70,11 @@ export default function CoachScheduleClient({
                   <div key={session.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <p className="text-white font-semibold">{session.course_types?.id
+                        {/* An assessment sits on a 1-on-1 slot; the Today tab already
+                            names it, and the schedule said "1-on-1 private". */}
+                        <p className="text-white font-semibold">{activeBookings(session).some(b => b.is_trial)
+                          ? t('common.assessment')
+                          : session.course_types?.id
                           ? tDb(locale, 'course_types', session.course_types.id, session.course_types.name)
                           : session.course_types?.name}</p>
                         <p className="text-[#c9a84c] text-sm mt-0.5">

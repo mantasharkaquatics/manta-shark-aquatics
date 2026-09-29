@@ -53,10 +53,13 @@ export default async function AdminDashboardPage() {
     .eq('status', 'new')
 
   const studentsBySession: Record<string, string[]> = {}
+  // An assessment rides on a 1-on-1 course type, so the course name alone
+  // listed it as "1-on-1 Private".
+  const assessmentSessions = new Set<string>()
   if (todaySessions && todaySessions.length > 0) {
     const { data: sessionBookings } = await supabase
       .from('bookings')
-      .select('class_session_id, student_id, parent_id')
+      .select('class_session_id, student_id, parent_id, is_trial')
       .in('class_session_id', todaySessions.map((s: any) => s.id))
       .eq('status', 'confirmed')
     const studentIds = [...new Set((sessionBookings || []).map((b: any) => b.student_id).filter(Boolean))]
@@ -71,6 +74,7 @@ export default async function AdminDashboardPage() {
       const studentById = new Map((studentRows || []).map((r: any) => [r.id, r]))
       const parentById = new Map((parentRows || []).map((r: any) => [r.id, r]))
       for (const b of (sessionBookings || [])) {
+        if ((b as any).is_trial) assessmentSessions.add(b.class_session_id)
         const st = studentById.get(b.student_id)
         if (!st) continue
         const pa = parentById.get(b.parent_id)
@@ -123,7 +127,7 @@ export default async function AdminDashboardPage() {
               {todaySessions.map((s: any) => (
                 <div key={s.id} className="flex items-center justify-between bg-[#0d1529] rounded-lg p-3">
                   <div>
-                    <p className="text-white text-sm">{s.course_types?.name}</p>
+                    <p className="text-white text-sm">{assessmentSessions.has(s.id) ? 'Swim Assessment' : s.course_types?.name}</p>
                     <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {formatTimeRange(s.start_time, s.end_time)}</p>
                     <p className="text-[#c9a84c] text-xs mt-0.5">{(studentsBySession[s.id] || []).join(' / ')}</p>
                   </div>
