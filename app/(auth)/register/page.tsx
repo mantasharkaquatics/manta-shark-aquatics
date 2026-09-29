@@ -9,7 +9,8 @@ import { REFERRAL_POINTS } from '@/lib/points'
 // Owner's call, 2026-09-29: the preview says a friend invited you, WITHOUT the
 // inviting family's name, and pairs the English school name in the picture
 // with a Chinese invitation.
-const REF_TITLE = '朋友邀請您一起來 Manta Shark Aquatics 學游泳'
+// One line in a Messages bubble; the school's name is already in the picture.
+const REF_TITLE = '朋友邀請您一起來學游泳'
 const REF_DESCRIPTION = `用朋友的連結註冊，上完第一堂課後兩家各得 ${REFERRAL_POINTS} 點。`
 
 export async function generateMetadata(
