@@ -21,11 +21,11 @@ export async function POST(req: NextRequest) {
   const fullName = String(body.full_name || '').trim()
   const dob = body.date_of_birth ? String(body.date_of_birth) : null
   if (!parentId || !fullName) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  // The column is NOT NULL: a swimmer without a birthday cannot be saved.
+  if (!dob) return NextResponse.json({ error: 'Birthday is required' }, { status: 400 })
   if (fullName.length > 80) return NextResponse.json({ error: 'That name is too long' }, { status: 400 })
-  if (dob) {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-    if (!DATE_RE.test(dob) || dob > today) return NextResponse.json({ error: 'Birthday must be a real date, not in the future' }, { status: 400 })
-  }
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  if (!DATE_RE.test(dob) || dob > today) return NextResponse.json({ error: 'Birthday must be a real date, not in the future' }, { status: 400 })
 
   const svc = auth.svc
   const { data: parent } = await svc.from('parents').select('id').eq('id', parentId).maybeSingle()

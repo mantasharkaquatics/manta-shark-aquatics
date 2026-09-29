@@ -374,11 +374,11 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
   async function save() {
-    if (!name.trim() || saving) return
+    if (!name.trim() || !dob || saving) return
     setSaving(true); setError(null)
     const res = await fetch('/api/admin/students/create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent_id: parentId, full_name: name.trim(), date_of_birth: dob || null }),
+      body: JSON.stringify({ parent_id: parentId, full_name: name.trim(), date_of_birth: dob }),
     }).catch(() => null)
     const data = res ? await res.json().catch(() => ({})) : {}
     setSaving(false)
@@ -401,15 +401,15 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" maxLength={80}
           className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
-        <input type="date" value={dob} max={today} onChange={e => setDob(e.target.value)} aria-label="Date of birth"
+        <input type="date" value={dob} max={today} onChange={e => setDob(e.target.value)} aria-label="Date of birth" title="Date of birth (required)"
           className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
       </div>
-      <p className="text-gray-500 text-[11px]">Starts with no level: book their Swim Assessment to place them.</p>
+      <p className="text-gray-500 text-[11px]">Name and birthday are both required. Starts with no level: book their Swim Assessment to place them.</p>
       {error && <p className="text-red-400 text-xs">{error}</p>}
       <div className="flex gap-2">
         <button type="button" onClick={() => { setOpen(false); setError(null) }} disabled={saving}
           className="px-3 py-2 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs">Cancel</button>
-        <button type="button" onClick={save} disabled={!name.trim() || saving}
+        <button type="button" onClick={save} disabled={!name.trim() || !dob || saving}
           className="flex-1 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] text-xs font-semibold disabled:opacity-50">
           {saving ? 'Adding...' : 'Add student'}
         </button>
