@@ -4,6 +4,14 @@ import { refreshNoteTranslations } from '@/lib/ai/translate-note'
 import { readJson, badRequest } from '@/lib/http'
 import { isLevelNumber } from '@/lib/levels'
 import { setStudentLevel } from '@/lib/level-change'
+import {
+  isRecommendedCourse, isWeeklyFrequency, RECOMMENDATION_NOTE_MAX, CREDIT_DAYS,
+  addDays, translateRecommendation,
+} from '@/lib/assessments'
+import { sendEmail } from '@/lib/email'
+
+// Two translations (the note and the recommendation line) can run back to back.
+export const maxDuration = 60
 
 /**
  * Confirms a swimmer's assessment: the level, the skill scores and the lesson
@@ -15,26 +23,37 @@ import { setStudentLevel } from '@/lib/level-change'
  *  1. everything is read and checked first, so a bad request writes nothing;
  *  2. the level moves (history row first, see setStudentLevel);
  *  3. the scores go live, then the note, then the recommendation is closed;
- *  4. the report itself is approved LAST. Reviews lists the card for as long
+ *  4. the family's report is written (course, frequency, the 60-day credit);
+ *  5. the report itself is approved LAST. Reviews lists the card for as long
  *     as the report is pending, so any failure before this point leaves the
  *     card on screen to confirm again -- and a retry is safe: step 2 is skipped
- *     when the swimmer is already at the chosen level, the rest are updates.
+ *     when the swimmer is already at the chosen level, the rest are updates
+ *     (the report row is an upsert on the swimmer, and never resets a credit).
+ *  6. the email telling the family the report is ready, once, best effort.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { history_id, recommendation_id, final_level, updated_snapshot, note_id, note_text } = body
+  const { history_id, recommendation_id, final_level, updated_snapshot, note_id, note_text,
+    recommended_course, weekly_frequency, recommendation_note } = body
   const adminId = auth.admin.id
   const svc = auth.svc
   if (!history_id || !recommendation_id) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   if (!isLevelNumber(final_level)) return NextResponse.json({ error: 'That level does not exist' }, { status: 400 })
   const level = Number(final_level)
+  // The family's report says which course and how often; both are the admin's call.
+  if (!isRecommendedCourse(recommended_course)) return NextResponse.json({ error: 'Pick the course to recommend' }, { status: 400 })
+  if (!isWeeklyFrequency(weekly_frequency)) return NextResponse.json({ error: 'Pick how many lessons a week to recommend' }, { status: 400 })
+  const reasonText = String(recommendation_note ?? '').trim()
+  if (reasonText.length > RECOMMENDATION_NOTE_MAX) {
+    return NextResponse.json({ error: `Keep the recommendation to ${RECOMMENDATION_NOTE_MAX} characters` }, { status: 400 })
+  }
 
   const [{ data: rec }, { data: hist }] = await Promise.all([
     svc.from('level_recommendations').select('id, student_id, recommended_level, status').eq('id', recommendation_id).single(),
-    svc.from('progress_history').select('id, student_id, coach_id, snapshot, status, lesson_key').eq('id', history_id).single(),
+    svc.from('progress_history').select('id, student_id, coach_id, snapshot, status, lesson_key, session_date, class_session_id').eq('id', history_id).single(),
   ])
   if (!rec || !hist) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (rec.student_id !== hist.student_id) return NextResponse.json({ error: 'That level and that report are for different swimmers' }, { status: 400 })
@@ -46,7 +65,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This assessment has already been confirmed' }, { status: 409 })
   }
   const { data: student } = await svc
-    .from('students').select('id, current_level').eq('id', rec.student_id).single()
+    .from('students').select('id, current_level, parent_id, full_name').eq('id', rec.student_id).single()
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
   if (student.current_level && String(student.current_level) !== String(level)) {
     return NextResponse.json({ error: 'This swimmer already has a level. Change it on the Levels page instead.' }, { status: 409 })
@@ -112,7 +131,7 @@ export async function POST(req: NextRequest) {
     await refreshNoteTranslations(svc, note.id)
   }
 
-  // 4. Close the recommendation (a retry finds it closed and leaves it).
+  // 3, last part. Close the recommendation (a retry finds it closed and leaves it).
   const { error: recErr } = rec.status !== 'pending' ? { error: null } : await svc.from('level_recommendations').update({
     status: level === Number(rec.recommended_level) ? 'approved' : 'modified',
     reviewed_by: adminId,
@@ -121,11 +140,66 @@ export async function POST(req: NextRequest) {
   }).eq('id', recommendation_id)
   if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 })
 
+  // 4. The family's report. The assessment booking gives the date the 60 days
+  // run from; the history row's own date stands in if it cannot be found.
+  const sessionId = hist.class_session_id || hist.lesson_key
+  const { data: trial } = sessionId ? await svc.from('bookings')
+    .select('id').eq('student_id', rec.student_id).eq('class_session_id', sessionId).eq('is_trial', true)
+    .neq('status', 'cancelled').limit(1).maybeSingle() : { data: null }
+  const { data: sess } = sessionId
+    ? await svc.from('class_sessions').select('session_date').eq('id', sessionId).maybeSingle()
+    : { data: null }
+  const assessedOn: string = sess?.session_date || hist.session_date || now.slice(0, 10)
+  const { data: existing } = await svc.from('student_assessments')
+    .select('recommendation_note, recommendation_note_i18n, emailed_at').eq('student_id', rec.student_id).maybeSingle()
+  // A retry with the same words does not pay for the translation twice.
+  const i18n = existing && (existing.recommendation_note || '') === reasonText
+    ? (existing.recommendation_note_i18n || {})
+    : await translateRecommendation(svc, reasonText)
+  const { error: reportErr } = await svc.from('student_assessments').upsert({
+    student_id: rec.student_id,
+    parent_id: student.parent_id,
+    booking_id: trial?.id ?? null,
+    progress_history_id: hist.id,
+    lesson_note_id: note?.id ?? null,
+    assessed_on: assessedOn,
+    level_number: level,
+    recommended_course,
+    weekly_frequency,
+    recommendation_note: reasonText || null,
+    recommendation_note_i18n: i18n,
+    confirmed_by: adminId,
+    confirmed_at: now,
+    credit_deadline: addDays(assessedOn, CREDIT_DAYS),
+  }, { onConflict: 'student_id' })
+  if (reportErr) return NextResponse.json({ error: reportErr.message }, { status: 500 })
+
   // 5. The report, last: this is what takes the card out of Reviews.
   const { error: histErr } = await svc.from('progress_history').update({
     status: 'approved', reviewed_by: adminId, reviewed_at: now, snapshot,
   }).eq('id', history_id)
   if (histErr) return NextResponse.json({ error: histErr.message }, { status: 500 })
+
+  // 6. Tell the family, once. Best effort: the report is on the dashboard either way.
+  if (!existing?.emailed_at) {
+    try {
+      const { data: fam } = await svc.from('parents')
+        .select('email, first_name, preferred_language').eq('id', student.parent_id).maybeSingle()
+      if (fam?.email) {
+        const lang = String(fam.preferred_language || 'en')
+        const sent = await sendEmail({
+          type: 'assessment_report', to: fam.email, parentName: fam.first_name || '',
+          studentName: student.full_name || '', lang,
+          level, course: recommended_course, frequency: weekly_frequency,
+          reason: reasonText ? (i18n[lang] || reasonText) : '',
+          creditDeadline: addDays(assessedOn, CREDIT_DAYS),
+        })
+        if (sent) await svc.from('student_assessments').update({ emailed_at: new Date().toISOString() }).eq('student_id', rec.student_id)
+      }
+    } catch (e) {
+      console.error('review-assessment: report saved, email failed:', e)
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

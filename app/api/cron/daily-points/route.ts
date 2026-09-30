@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { expireGrantedPoints } from '@/lib/points-wallet'
 import { awardDueReferrals } from '@/lib/referrals'
+import { settleAssessmentCredits } from '@/lib/assessments'
 
 export const runtime = 'nodejs'
 
@@ -14,6 +15,10 @@ export const runtime = 'nodejs'
 //
 // It also pays referral rewards (lib/referrals): 40 granted points to both
 // families once the new family has taken its first paid lesson.
+//
+// And it settles assessment credits (lib/assessments): 85 granted points once a
+// swimmer has taken 8 lessons within 60 days of the assessment, or the credit
+// closes quietly when the 60 days are over.
 //
 // Safe to run more than once a day, or to miss a day: each run expires only
 // what is due at that moment and what has not already been expired, and a
@@ -54,8 +59,19 @@ export async function GET(req: NextRequest) {
     referrals.failed = -1
   }
 
+  // Also after expiry, for the same reason.
+  let credits = { awarded: 0, expired: 0, failed: 0 }
+  try {
+    credits = await settleAssessmentCredits(svc)
+  } catch (e) {
+    console.error('daily-points: assessment credits failed:', e)
+    credits.failed = -1
+  }
+
   return NextResponse.json({
     checked: (wallets || []).length, expiredFamilies, expiredPoints, failed: failed.length,
     referralsAwarded: referrals.awarded, referralsFailed: referrals.failed,
+    assessmentCreditsAwarded: credits.awarded, assessmentCreditsExpired: credits.expired,
+    assessmentCreditsFailed: credits.failed,
   })
 }

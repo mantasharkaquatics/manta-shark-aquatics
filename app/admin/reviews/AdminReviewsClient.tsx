@@ -5,6 +5,7 @@ import { formatTime12h } from '@/lib/date'
 import AdminLessonNoteReview from '../upgrades/AdminLessonNoteReview'
 import AlertModal from '@/components/AlertModal'
 import NoteTranslationHealth from './NoteTranslationHealth'
+import AssessmentPanel, { type AssessmentRec } from './AssessmentPanel'
 import { LEVEL_NAMES, LEVEL_COLORS, LEVEL_NUMBERS } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, MASTERY_LABEL, masteryOf } from '@/lib/mastery'
 
@@ -66,6 +67,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   const [submittingMissing, setSubmittingMissing] = useState<string | null>(null)
   const [expandedMissing, setExpandedMissing] = useState<Set<string>>(new Set())
   const [overrideLevel, setOverrideLevel] = useState<Record<string, string>>({})
+  const [assessRec, setAssessRec] = useState<Record<string, AssessmentRec>>({})
 
   const waiting = missingProgressList.length + pendingProgressList.length
     + pastPendingProgressList.length + recommendations.length
@@ -102,6 +104,12 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     const edited = editedSnapshots[historyId]
     setReviewingId(historyId)
     const noteText = note ? (editedNotes[historyId] ?? note.note ?? '') : undefined
+    const rec = assessRec[historyId]
+    if (p.assessment && (!rec?.course || !rec?.frequency)) {
+      setAlertMsg('Pick the course and how many lessons a week to recommend. The family sees both on their Assessment report.')
+      setReviewingId(null)
+      return
+    }
     // An assessment confirms its level in the same step; see review-assessment.
     const res = await fetch(p.assessment ? '/api/admin/review-assessment' : '/api/admin/review-progress', {
       method: 'POST',
@@ -113,6 +121,9 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
         updated_snapshot: edited ? { ...(p.snapshot || {}), ...edited } : undefined,
         note_id: note?.id || undefined,
         note_text: noteText,
+        recommended_course: rec?.course,
+        weekly_frequency: rec?.frequency,
+        recommendation_note: rec?.note?.trim() || undefined,
       } : {
         history_id: historyId,
         admin_id: adminId,
@@ -332,28 +343,13 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     </div>
                   </div>
                   {p.assessment && (
-                    <div className="mb-4 rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/5 p-3">
-                      <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider mb-1">
-                        Swim Assessment · Coach recommends L{p.assessment.recommended_level} · {LEVEL_NAMES[String(p.assessment.recommended_level)]}
-                      </p>
-                      <p className="text-gray-500 text-xs mb-2">The level, the note and the skills below publish together. Skills were scored against L{p.assessment.recommended_level}.</p>
-                      {overrideLevel[p.id] && overrideLevel[p.id] !== String(p.assessment.recommended_level) && (
-                        <p className="text-amber-400 text-xs mb-2">Placing them in L{overrideLevel[p.id]} instead: the family will see L{overrideLevel[p.id]}&apos;s skills at 0 until their next lesson is scored.</p>
-                      )}
-                      <div className="flex flex-wrap gap-1.5">
-                        {LEVEL_NUMBERS.map(n => {
-                          const on = String(overrideLevel[p.id] || p.assessment!.recommended_level) === String(n)
-                          return (
-                            <button key={n}
-                              onClick={() => setOverrideLevel(prev => ({ ...prev, [p.id]: String(n) }))}
-                              className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${on
-                                ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]'
-                                : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
-                            >L{n}</button>
-                          )
-                        })}
-                      </div>
-                    </div>
+                    <AssessmentPanel
+                      recommendedLevel={p.assessment.recommended_level}
+                      level={overrideLevel[p.id]}
+                      onLevel={n => setOverrideLevel(prev => ({ ...prev, [p.id]: n }))}
+                      rec={assessRec[p.id] || { note: '' }}
+                      onRec={next => setAssessRec(prev => ({ ...prev, [p.id]: next }))}
+                    />
                   )}
                   {(p as any).note && (
                     <AdminLessonNoteReview
@@ -465,28 +461,13 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     </div>
                   </div>
                   {p.assessment && (
-                    <div className="mb-4 rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/5 p-3">
-                      <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider mb-1">
-                        Swim Assessment · Coach recommends L{p.assessment.recommended_level} · {LEVEL_NAMES[String(p.assessment.recommended_level)]}
-                      </p>
-                      <p className="text-gray-500 text-xs mb-2">The level, the note and the skills below publish together. Skills were scored against L{p.assessment.recommended_level}.</p>
-                      {overrideLevel[p.id] && overrideLevel[p.id] !== String(p.assessment.recommended_level) && (
-                        <p className="text-amber-400 text-xs mb-2">Placing them in L{overrideLevel[p.id]} instead: the family will see L{overrideLevel[p.id]}&apos;s skills at 0 until their next lesson is scored.</p>
-                      )}
-                      <div className="flex flex-wrap gap-1.5">
-                        {LEVEL_NUMBERS.map(n => {
-                          const on = String(overrideLevel[p.id] || p.assessment!.recommended_level) === String(n)
-                          return (
-                            <button key={n}
-                              onClick={() => setOverrideLevel(prev => ({ ...prev, [p.id]: String(n) }))}
-                              className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${on
-                                ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]'
-                                : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
-                            >L{n}</button>
-                          )
-                        })}
-                      </div>
-                    </div>
+                    <AssessmentPanel
+                      recommendedLevel={p.assessment.recommended_level}
+                      level={overrideLevel[p.id]}
+                      onLevel={n => setOverrideLevel(prev => ({ ...prev, [p.id]: n }))}
+                      rec={assessRec[p.id] || { note: '' }}
+                      onRec={next => setAssessRec(prev => ({ ...prev, [p.id]: next }))}
+                    />
                   )}
                   {(p as any).note && (
                     <AdminLessonNoteReview

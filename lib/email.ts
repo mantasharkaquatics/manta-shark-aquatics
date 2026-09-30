@@ -1,5 +1,8 @@
 import { Resend } from 'resend'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from './plans'
+import { getT, toLocale } from './i18n'
+import { stageNameKey } from './levels'
+import { ASSESSMENT_POINTS as CREDIT_POINTS, ASSESSMENT_CREDIT_LESSONS as CREDIT_LESSONS } from './points'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -29,6 +32,7 @@ export type EmailType =
   | 'payment_reversed'
   | 'refund_issued'
   | 'referral_reward'
+  | 'assessment_report'
 
 export interface EmailPayload {
   type: EmailType
@@ -84,6 +88,13 @@ export interface EmailPayload {
   // language (en / zh-Hant / zh-Hans) -- this one email is written in all three.
   resetUrl?: string
   lang?: string
+  // assessment_report (written in the family's language): the level the
+  // swimmer was placed in, what the school recommends, and the credit deadline.
+  level?: number
+  course?: string
+  frequency?: string
+  reason?: string
+  creditDeadline?: string
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -212,6 +223,22 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       : `Welcome aboard! You joined with the ${payload.otherFamily} family's referral code, and you've now taken your first lesson.`
     subject = `You've received ${pts} bonus points`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">${pts} bonus points for you</h2><p>Hi ${parentName},</p><p>${why}</p><p><strong>${pts} bonus points</strong> have been added to your account${payload.expiresOn ? ` and can be used until <strong>${payload.expiresOn}</strong>` : ''}. Bonus points are used before your purchased points and are not refundable for cash.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Book a Lesson</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+
+  } else if (type === 'assessment_report') {
+    // In the family's language, like the report itself. The email only says
+    // the report is ready and gives the headline; the report lives on the dashboard.
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const lv = Number(payload.level)
+    const dl = payload.creditDeadline
+      ? new Date(payload.creditDeadline + 'T12:00:00Z').toLocaleDateString(L === 'en' ? 'en-US' : L === 'zh-Hans' ? 'zh-CN' : 'zh-TW', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+      : ''
+    const row = (k: string, v: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #56647d; white-space: nowrap; width: 1%; vertical-align: top;">${k}</td><td style="padding: 8px 0; font-weight: 600; color: #16294a;">${v}</td></tr>`
+    const rec = `${t('assess.course.' + payload.course)} · ${t('assess.freq.' + payload.frequency)}`
+      + (payload.reason ? `<div style="font-weight: 400; color: #56647d; margin-top: 4px;">${esc(payload.reason)}</div>` : '')
+    subject = t('assess.email.subject', { name: studentName || '' })
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('assess.report.eyebrow')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('assess.email.body', { student: esc(studentName || '') })}</p><table style="width: 100%; border-collapse: collapse; margin: 8px 0 4px;">${row(t('assess.email.result'), `${t('level.badge', { n: lv, name: t('level.' + lv + '.name') })} · ${t(stageNameKey(lv, 1))}`)}${row(t('assess.report.recTitle'), rec)}</table>${dl ? `<p style="background: #eef8f1; border: 1px solid #bfe3cb; border-radius: 10px; padding: 12px 14px; color: #1f6b43; line-height: 1.6;">🎁 <strong>${t('assess.credit.title')}</strong><br>${t('assess.email.credit', { n: CREDIT_LESSONS, date: dl, points: CREDIT_POINTS })}</p>` : ''}<div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('assess.email.button')}</a></div></div></div>`
 
   } else if (type === 'payment_reversed') {
     // Written to be read by someone who did nothing wrong. The overwhelmingly

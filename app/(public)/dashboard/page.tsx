@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
-import { priceLesson, LESSONS_PER_FORGIVENESS, REFERRAL_POINTS } from '@/lib/points'
+import { priceLesson, LESSONS_PER_FORGIVENESS, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -88,6 +88,24 @@ const MOBILE_CSS = `
 .msa-mcard-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 11.5px; color: rgba(255,255,255,0.7) }
 .msa-mcard-meta b { color: #f7b733 }
 .msa-mcard-btns { display: flex; gap: 8px; margin-top: 14px }
+.msa-mcard-credit { margin-top: 12px; border: 1px solid rgba(94,214,150,0.45); background: rgba(94,214,150,0.12);
+  border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #d6f5e3; line-height: 1.45 }
+.msa-report-hero { background: linear-gradient(135deg, #12254a, #1d3f7a); border-radius: 16px; padding: 18px; color: #fff }
+.msa-report-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: #9fb8e6; text-transform: uppercase }
+.msa-report-name { font-family: var(--font-display), 'PingFang TC', serif; font-size: 26px; font-weight: 900; margin-top: 8px; line-height: 1.15 }
+.msa-report-meta { font-size: 13px; color: rgba(255,255,255,0.75); margin-top: 4px }
+.msa-report-result { margin-top: 14px; background: rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px }
+.msa-report-result b { font-size: 19px; font-weight: 900; color: #f7b733 }
+.msa-report-result span { font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.5 }
+.msa-report-skill { display: grid; grid-template-columns: minmax(0,1fr) 72px auto; align-items: center; gap: 10px }
+.msa-report-skill-name { font-size: 13.5px; color: #16294a; min-width: 0 }
+.msa-report-skill-bar { height: 7px; border-radius: 4px; background: #eef2f8; overflow: hidden }
+.msa-report-skill-bar i { display: block; height: 100%; border-radius: 4px }
+.msa-report-skill-chip { font-size: 11.5px; font-weight: 800; border-radius: 8px; padding: 3px 8px; white-space: nowrap }
+.msa-report-credit { background: #eef8f1; border: 1px solid #bfe3cb; border-radius: 14px; padding: 14px 16px }
+.msa-report-segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin: 12px 0 8px }
+.msa-report-segs i { height: 7px; border-radius: 4px; background: #cfe8d8 }
+.msa-report-segs i.on { background: #2e9d6a }
 .msa-mcard-btns button { flex: 1; border: 0; border-radius: 10px; padding: 10px 6px; background: rgba(255,255,255,0.12);
   color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: background .15s }
 .msa-mcard-btns button:hover { background: rgba(255,255,255,0.2) }
@@ -487,6 +505,149 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
             </button>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** A Swim Assessment report, as the family reads it (lib/assessments). */
+type AssessmentReport = {
+  studentId: string
+  assessedOn: string
+  coachName: string | null
+  level: number
+  scoredLevel: number | null
+  skills: { id: string; name: string; stage: number; sortOrder: number; percent: number }[]
+  note: string | null
+  course: string
+  frequency: string
+  reason: string | null
+  credit: { status: 'pending' | 'awarded' | 'expired'; lessons: number; needed: number; points: number; deadline: string; daysLeft: number }
+}
+
+/** The credit is worth showing while it can still be earned, and once it has been. */
+const creditLive = (r: AssessmentReport) => r.credit.status === 'pending' && r.credit.daysLeft > 0
+
+function AssessmentSheet({ student, report: r, onClose }: { student: Student; report: AssessmentReport; onClose: () => void }) {
+  const t = useT()
+  const locale = useLocale()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const longDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(intlOf(locale), { year: 'numeric', month: 'long', day: 'numeric' })
+  const skillName = (s: { id: string; name: string }) => tDb(locale, 'skills', s.id, s.name)
+  const levelName = t(`level.${r.level}.name`)
+
+  /* Goals come from the scores, not from a writer: every stage-1 skill not yet
+     mastered, aiming at the next milestone -- "on their own" (the step that
+     opens the next skill) and then "mastered". When the admin placed the
+     swimmer in a different level from the one the coach scored, those scores
+     say nothing about the new level, so the goal is simply its first stage. */
+  const goals: string[] = []
+  if (r.scoredLevel == null || r.scoredLevel === r.level) {
+    for (const s of r.skills.filter(x => x.stage === 1 && masteryOf(x.percent) < 5).slice(0, 3)) {
+      const m = masteryOf(s.percent)
+      goals.push(t('assess.report.goalSkill', { skill: skillName(s), from: t(masteryKey(m)), to: t(masteryKey(m < 3 ? 3 : 5)) }))
+    }
+    goals.push(t('assess.report.goalStage'))
+  } else {
+    goals.push(t('assess.report.goalLevel', { n: r.level }))
+  }
+
+  const card: React.CSSProperties = { background: '#fff', border: '1px solid #e3ebf6', borderRadius: '14px', padding: '16px' }
+  const h: React.CSSProperties = { fontSize: '14px', fontWeight: 800, color: '#12254a', margin: '0 0 10px' }
+
+  return (
+    <div className="msa-sheet-back" onClick={onClose}>
+      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
+        aria-label={t('assess.report.sheetTitle', { name: student.full_name })}>
+        <div className="msa-sheet-head">
+          <b>{t('assess.report.sheetTitle', { name: student.full_name })}</b>
+          <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="msa-report-hero">
+            <div className="msa-report-eyebrow">MANTA SHARK AQUATICS · {t('assess.report.eyebrow')}</div>
+            <div className="msa-report-name">{student.full_name}</div>
+            <div className="msa-report-meta">
+              {r.coachName ? t('assess.report.meta', { date: longDate(r.assessedOn), coach: r.coachName }) : longDate(r.assessedOn)}
+            </div>
+            <div className="msa-report-result">
+              <b>{t('level.badge', { n: r.level, name: levelName })}</b>
+              <span>{t('assess.report.startsAt', { stage: t(stageNameKey(r.level, 1)) })}</span>
+            </div>
+          </div>
+
+          {r.skills.length > 0 && (
+            <div style={card}>
+              <p style={h}>{t('assess.report.skillsTitle', { n: r.scoredLevel ?? r.level })}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {r.skills.map(s => {
+                  const m = masteryOf(s.percent)
+                  return (
+                    <div key={s.id} className="msa-report-skill">
+                      <span className="msa-report-skill-name">{skillName(s)}</span>
+                      <span className="msa-report-skill-bar"><i style={{ width: Math.max(s.percent, 4) + '%', background: MASTERY_COLOR[m] }} /></span>
+                      <span className="msa-report-skill-chip" style={{ color: MASTERY_COLOR[m], background: MASTERY_COLOR[m] + '1f' }}>{t(masteryKey(m))}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {r.note && (
+            <div style={card}>
+              <p style={h}>{t('dash.coachNote')}</p>
+              <div style={{ borderLeft: `3px solid ${GOLD}`, background: '#f6f9fd', borderRadius: '0 8px 8px 0', padding: '10px 12px',
+                fontSize: '13.5px', color: '#16294a', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{r.note}</div>
+            </div>
+          )}
+
+          <div style={card}>
+            <p style={h}>{t('assess.report.recTitle')}</p>
+            <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '12px 14px' }}>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#12254a' }}>
+                {t('assess.course.' + r.course)} · {t('assess.freq.' + r.frequency)}
+              </div>
+              {r.reason && <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginTop: '4px' }}>{r.reason}</div>}
+            </div>
+          </div>
+
+          <div style={card}>
+            <p style={h}>{t('assess.report.goalsTitle')}</p>
+            <ul style={{ margin: 0, paddingLeft: '20px', listStyle: 'disc', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13.5px', color: '#16294a', lineHeight: 1.6 }}>
+              {goals.map((g, i) => <li key={i}>{g}</li>)}
+            </ul>
+          </div>
+
+          {creditLive(r) && (
+            <div className="msa-report-credit">
+              <p style={{ ...h, color: '#1f6b43', margin: '0 0 6px' }}>🎁 {t('assess.credit.title')}</p>
+              <p style={{ fontSize: '13px', color: '#2c5a41', lineHeight: 1.6, margin: 0 }}>
+                {t('assess.credit.body', { days: ASSESSMENT_CREDIT_DAYS, n: r.credit.needed, points: r.credit.points })}
+              </p>
+              <p style={{ fontSize: '11.5px', color: '#4d7a61', lineHeight: 1.5, margin: '4px 0 0' }}>{t('assess.credit.rule')}</p>
+              <div className="msa-report-segs" aria-hidden="true">
+                {Array.from({ length: r.credit.needed }, (_, i) => <i key={i} className={i < r.credit.lessons ? 'on' : ''} />)}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12.5px', color: '#2c5a41', fontVariantNumeric: 'tabular-nums' }}>
+                <span>{t('assess.credit.progress', { done: r.credit.lessons, n: r.credit.needed })}</span>
+                <span>{t('assess.credit.deadline', { date: longDate(r.credit.deadline) })}</span>
+              </div>
+            </div>
+          )}
+          {r.credit.status === 'awarded' && (
+            <div className="msa-report-credit">
+              <p style={{ ...h, color: '#1f6b43', margin: 0 }}>🎁 {t('assess.credit.awarded', { points: r.credit.points })}</p>
+            </div>
+          )}
+
+          <p style={{ textAlign: 'center', fontSize: '11.5px', color: '#8592a8', margin: '4px 0 0' }}>{t('assess.report.footer')}</p>
+        </div>
       </div>
     </div>
   )
@@ -1066,6 +1227,18 @@ export default function DashboardPage() {
   const [greeting, setGreeting] = useState('morning')
   const router = useRouter()
 
+  /* Assessment reports come back in the page's language (the coach's note and
+     the recommendation line are translated), so they reload with fetchAll and
+     only the newest load may write -- the same race fetchAll guards against. */
+  async function loadAssessments(latest: () => boolean) {
+    try {
+      const r = await fetch('/api/parent/assessments?lang=' + encodeURIComponent(locale))
+      if (!r.ok) return
+      const j = await r.json()
+      if (latest()) setAssessReports(Object.fromEntries((j.reports || []).map((x: AssessmentReport) => [x.studentId, x])))
+    } catch {}
+  }
+
   async function loadWallet() {
     try {
       const [res, tmRes] = await Promise.all([
@@ -1153,6 +1326,8 @@ export default function DashboardPage() {
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
   // Which stage a family has opened on a student's card, keyed by student id.
   const [recordsFor, setRecordsFor] = useState<Student | null>(null)
+  const [assessReports, setAssessReports] = useState<Record<string, AssessmentReport>>({})
+  const [reportFor, setReportFor] = useState<Student | null>(null)
   const [recordsPage, setRecordsPage] = useState(0)
   const [pointsOpen, setPointsOpen] = useState(false)
   // Opened from the "refer a friend" line: scroll the sheet to that card.
@@ -1291,6 +1466,7 @@ export default function DashboardPage() {
     const seq = ++fetchSeq.current
     const latest = () => seq === fetchSeq.current
     loadWallet()
+    loadAssessments(latest)
     const { data: { user } } = await supabase.auth.getUser()
     // Both of these used to be a bare `return`, which left loading at true and
     // the page on its spinner for ever. A coach or an admin who follows a link
@@ -2055,7 +2231,8 @@ export default function DashboardPage() {
                       : [1, 2, 3].map(n => ({ stage: n as 1 | 2 | 3, percent: 0, complete: false, skillCount: 0 }))
                     const curStage = resolveStage(student.current_stage, stages)
                     const curPct = stages[curStage - 1]?.percent ?? 0
-                    /* One pill, one bar, two buttons. The learning map is one tap
+                    const report = assessReports[student.id]
+                    /* One pill, one bar, two buttons (a third, the assessment report, once one is published). The learning map is one tap
                        away and says the rest properly. */
                     return (
                       <>
@@ -2065,6 +2242,11 @@ export default function DashboardPage() {
                           <span>{t(stageNameKey(lvl, curStage))}</span>
                           <b>{curPct}%</b>
                         </div>
+                        {report && creditLive(report) && (
+                          <div className="msa-mcard-credit">
+                            🎁 {t('assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
+                          </div>
+                        )}
                         <div className="msa-mcard-btns">
                           <button className="tap-auto"
                             onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
@@ -2073,6 +2255,11 @@ export default function DashboardPage() {
                           <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}>
                             {t('dash.records')}
                           </button>
+                          {report && (
+                            <button className="tap-auto" onClick={() => setReportFor(student)}>
+                              {t('assess.report.button')}
+                            </button>
+                          )}
                         </div>
                       </>
                     )
@@ -2822,6 +3009,9 @@ export default function DashboardPage() {
 
       </div>
       <style>{MOBILE_CSS}</style>
+      {reportFor && assessReports[reportFor.id] && (
+        <AssessmentSheet student={reportFor} report={assessReports[reportFor.id]} onClose={() => setReportFor(null)} />
+      )}
       {treeFor && (
         <SkillTree
           studentName={treeFor.name}

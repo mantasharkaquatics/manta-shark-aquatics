@@ -41,9 +41,7 @@ export async function refreshNoteTranslations(supabase: any, noteId: string): Pr
     const targets = SUPPORTED_NOTE_LANGUAGES.filter(l => l !== sourceLang)
     if (targets.length === 0) return { failed }
 
-    const { data: glossaryRows } = await supabase
-      .from('note_glossary').select('term').eq('is_active', true).order('term')
-    const glossary = (glossaryRows || []).map((g: any) => g.term)
+    const glossary = await loadGlossary(supabase)
 
     for (const target of targets) {
       const text = await translateOnce(source, target, glossary)
@@ -61,9 +59,17 @@ export async function refreshNoteTranslations(supabase: any, noteId: string): Pr
   return { failed }
 }
 
+/** The swim terms that stay in English in every language. */
+export async function loadGlossary(supabase: any): Promise<string[]> {
+  const { data } = await supabase
+    .from('note_glossary').select('term').eq('is_active', true).order('term')
+  return (data || []).map((g: any) => g.term)
+}
+
 /** One call to the model. Null on any failure, with the reason logged: an
- *  error response used to come back as an empty text and be skipped silently. */
-async function translateOnce(source: string, target: string, glossary: string[]): Promise<string | null> {
+ *  error response used to come back as an empty text and be skipped silently.
+ *  Also used for the one-line course recommendation on an assessment report. */
+export async function translateOnce(source: string, target: string, glossary: string[]): Promise<string | null> {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

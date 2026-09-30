@@ -27,6 +27,11 @@ export const BASE_POINTS: Record<string, number> = {
 /** The Swim Assessment: one per swimmer, 30 minutes, 1-on-1. */
 export const ASSESSMENT_POINTS = 85
 
+/** The assessment credit (lib/assessments): take this many lessons within this
+ *  many days of the assessment and the fee comes back as granted points. */
+export const ASSESSMENT_CREDIT_LESSONS = 8
+export const ASSESSMENT_CREDIT_DAYS = 60
+
 /** Swim Team is a monthly subscription and never touches points. */
 export const TEAM_SLUG = 'team'
 

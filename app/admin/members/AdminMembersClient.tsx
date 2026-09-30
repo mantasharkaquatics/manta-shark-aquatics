@@ -1026,6 +1026,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
     : r === 'school_cancel' ? 'border-orange-400/50 text-orange-300'
     : r === 'grant_expired' ? 'border-gray-500/50 text-gray-400'
     : r === 'referral_bonus' ? 'border-purple-400/50 text-purple-300'
+    : r === 'assessment_credit' ? 'border-purple-400/50 text-purple-300'
     : 'border-[#c9a84c]/50 text-[#c9a84c]'
 
   return (

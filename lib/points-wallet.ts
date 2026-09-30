@@ -34,7 +34,7 @@ export type LedgerReason =
   | 'purchase' | 'booking' | 'booking_failed' | 'cancel_refund' | 'forgiveness'
   | 'school_cancel' | 'admin_grant' | 'admin_deduct' | 'cash_refund'
   | 'refund_failed' | 'payment_failed' | 'chargeback'
-  | 'grant_expired' | 'referral_bonus'
+  | 'grant_expired' | 'referral_bonus' | 'assessment_credit'
 
 /** The two ways a payment we already credited turns out not to have been paid. */
 export const REVERSAL_REASONS = ['payment_failed', 'chargeback'] as const
