@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { formatTime12h } from '@/lib/date'
 import AdminLessonNoteReview from '../upgrades/AdminLessonNoteReview'
 import AlertModal from '@/components/AlertModal'
+import NoteTranslationHealth from './NoteTranslationHealth'
 import { LEVEL_NAMES, LEVEL_COLORS, LEVEL_NUMBERS } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, MASTERY_LABEL, masteryOf } from '@/lib/mastery'
 
@@ -185,6 +186,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
             : 'Progress records and level requests waiting on you'}
         </p>
       </div>
+
+      <NoteTranslationHealth />
 
       {/* Missing progress notice */}
       {missingProgressList.length > 0 && (
