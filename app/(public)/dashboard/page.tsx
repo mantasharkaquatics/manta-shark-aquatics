@@ -1280,7 +1280,16 @@ export default function DashboardPage() {
      which is the same thing that made the coach portal's switcher look dead. */
   useEffect(() => { fetchAll() }, [locale])
 
+  /* Only the newest fetchAll may write. The page mounts in English and then
+     switches to the reader's language, so two runs are always in flight, and
+     whichever finished LAST won: a Chinese-reading parent was sometimes shown
+     the English translation of a Chinese note (CC, 2026-09-14). A run that
+     has been overtaken now drops its results. */
+  const fetchSeq = useRef(0)
+
   async function fetchAll() {
+    const seq = ++fetchSeq.current
+    const latest = () => seq === fetchSeq.current
     loadWallet()
     const { data: { user } } = await supabase.auth.getUser()
     // Both of these used to be a bare `return`, which left loading at true and
@@ -1300,7 +1309,7 @@ export default function DashboardPage() {
       router.replace('/login')
       return
     }
-    setParent(parentData)
+    if (latest()) setParent(parentData)
 
     const today = getTodayLA()
 
@@ -1376,7 +1385,7 @@ export default function DashboardPage() {
       sessionMap[(s as any).id] = { ...(s as any), ct, coach }
     }
 
-    setStudents(studs || [])
+    if (latest()) setStudents(studs || [])
 
     // pendingRaw / pSessions / pStudents fetched in the Promise.all batches above
 
@@ -1434,7 +1443,7 @@ export default function DashboardPage() {
 
     const studentOrder: Record<string, number> = {}
     ;(studs || []).forEach((s: any, i: number) => { studentOrder[s.id] = i })
-    setPendingPartnerBookings((pendingRaw || []).map((b: any) => ({
+    if (latest()) setPendingPartnerBookings((pendingRaw || []).map((b: any) => ({
       ...b,
       class_sessions: pSessionMap[b.class_session_id] || null,
       students: pStudentMap[b.student_id] || null,
@@ -1553,12 +1562,12 @@ export default function DashboardPage() {
       }
     }
 
-    setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
+    if (latest()) setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
 
     const allPastWithCheckin = allPast.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     // No display cap: the history list already paginates at 10 per page, and the
     // Month view reads this same array — capping it made older months lose lessons.
-    setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date) || (b.start_time || '').localeCompare(a.start_time || '')))
+    if (latest()) setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date) || (b.start_time || '').localeCompare(a.start_time || '')))
     // Fetch each student's latest approved progress_history
     const studentIdList = (studs || []).map((s: any) => s.id)
     if (studentIdList.length > 0) {
@@ -1737,7 +1746,7 @@ export default function DashboardPage() {
               })),
             }
           }
-          setStudentProgressMap(progressMap)
+          if (latest()) setStudentProgressMap(progressMap)
         }
       } else {
         // Fallback when level info is missing
@@ -1766,11 +1775,11 @@ export default function DashboardPage() {
           }))
           progressMap[sid] = { student_id: sid, records, stages: [], stageSkills: [], allPercents: {} }
         }
-        setStudentProgressMap(progressMap)
+        if (latest()) setStudentProgressMap(progressMap)
       }
     }
 
-    setLoading(false)
+    if (latest()) setLoading(false)
   }
 
   async function confirmPartnerBooking(bookingId: string) {
