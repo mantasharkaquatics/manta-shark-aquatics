@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
-import { getTodayLA, getNowMinutesLA, formatDateLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
+import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
+import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
@@ -149,9 +149,8 @@ export async function POST(req: NextRequest) {
     const nowMin = getNowMinutesLA()
     if (session_date < today || minutesUntil(session_date, start_time, today, nowMin) < LEAD_TIME_MINUTES)
       return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts. Please pick a later time.' }, { status: 400 })
-    const maxDate = formatDateLA(new Date(Date.now() + 60 * 86400000))
-    if (session_date > maxDate)
-      return NextResponse.json({ error: 'Bookings can only be made up to 60 days in advance.' }, { status: 400 })
+    if (session_date > singleMaxDate())
+      return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
 
     // Cart size limit
     const { data: cartRows } = await svc

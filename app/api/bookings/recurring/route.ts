@@ -3,7 +3,7 @@ import { requireParent } from '@/lib/api-auth'
 import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
+import { LEAD_TIME_MINUTES, FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
@@ -11,10 +11,15 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletS
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
 //
-// preview: ?action=preview  student_id, coach_id, start_time, start_date, fallback?
-//   → every weekly date from start_date through Dec 31 of the current year with status
-// commit:  ?action=commit   student_id, coach_id, slots[{date, start_time, coach_id?}]
-//   → re-validates each slot; books the still-ok ones, skips the rest, reports both
+// preview: ?action=preview  student_id, coach_id, start_time, start_date, weeks?
+//   → the next `weeks` weekly dates from start_date (default 26) with status --
+//     the fixed-class grid. One coach throughout: no substitutes.
+// commit:  ?action=commit   student_id, coach_id, slots[{date, start_time, coach_id?, fixed?}]
+//   → re-validates each slot; books the still-ok ones, skips the rest, reports both.
+//     Slots sharing a `fixed` key are one fixed class (one weekday, time and
+//     coach, at least ten lessons; docs/fixed-class-spec.md). If any class
+//     would end up under ten, nothing is booked. A slot with no `fixed` key is
+//     a single lesson and must fall inside the 14-day window.
 //
 // commit takes a LIST OF SLOTS, not a weekday rule. A family who wants Monday
 // afternoons and Wednesday mornings is describing one set of lessons, not two
@@ -33,6 +38,10 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletS
 // one lesson at a time on purpose.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+// How many weeks the fixed-class grid shows at a time; "show more" asks again
+// with a larger number. MAX_WEEKS only keeps one request a sane size.
+const DEFAULT_WEEKS = 26
+const MAX_WEEKS = 260
 const TIME_RE = /^\d{2}:\d{2}$/
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 const minToTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
@@ -43,16 +52,17 @@ const addDays = (ds: string, n: number) => {
 
 type Cand = { date: string; status: 'ok' | 'full' | 'booked' | 'time_off' | 'no_class' | 'conflict' | 'too_soon'; spots: number }
 
-async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number): Promise<Cand[]> {
+async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number, weeks: number = DEFAULT_WEEKS): Promise<Cand[]> {
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
-  // Horizon follows the START DATE's year, not today's: the calendar allows
-  // dates up to 60 days out, so a November booking for a January start would
-  // otherwise get a horizon already in the past and an empty candidate list.
-  const yearEnd = `${startDate.slice(0, 4)}-12-31`
+  // A fixed class has no end date (owner, 2026-10-01: "you have the points,
+  // keep booking"), so the horizon is a number of weeks from the start, not
+  // the end of the year -- which had stopped anyone starting a ten-lesson
+  // class after late October.
   const dates: string[] = []
-  for (let ds = startDate; ds <= yearEnd; ds = addDays(ds, 7)) dates.push(ds)
+  for (let i = 0, ds = startDate; i < weeks; i++, ds = addDays(ds, 7)) dates.push(ds)
   if (dates.length === 0) return []
+  const lastDate = dates[dates.length - 1]
 
   const startMin = toMin(startTime)
   const endMin = startMin + minutes
@@ -66,13 +76,13 @@ async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: s
     svc.from('coach_availability_zones')
       .select('zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
       .eq('coach_id', coachId)
-      .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startDate},override_date.lte.${yearEnd})`),
+      .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startDate},override_date.lte.${lastDate})`),
     svc.from('coach_time_off')
       .select('coach_id, date, start_time, end_time, block_type')
-      .eq('coach_id', coachId).in('date', dates),
+      .eq('coach_id', coachId).gte('date', startDate).lte('date', lastDate),
     svc.from('class_sessions')
       .select('id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
-      .eq('coach_id', coachId).in('session_date', dates).in('status', ['open', 'full']),
+      .eq('coach_id', coachId).gte('session_date', startDate).lte('session_date', lastDate).in('status', ['open', 'full']),
   ])
   // A coach with no zone rows at all is on the old availability model, and
   // create/route.ts lets those through without a zone check. Refusing them here
@@ -155,7 +165,9 @@ function priceDates(slug: string, dates: string[], startTime: string, minutes: n
   return { perDate, total }
 }
 
-type Slot = { date: string; time: string; coach?: string }
+// `fixed` names the fixed class a slot belongs to (any string the client
+// chose, shared by that class's dates); a slot without one is a single lesson.
+type Slot = { date: string; time: string; coach?: string; fixed?: string }
 const slotKey = (s: Slot) => `${s.date}|${s.time}${s.coach ? `|${s.coach}` : ''}`
 
 /**
@@ -251,28 +263,13 @@ export async function POST(req: NextRequest) {
     const { start_date } = body
     if (!start_date || !DATE_RE.test(start_date) || start_date < today)
       return NextResponse.json({ error: 'Invalid start date' }, { status: 400 })
-    const candidates: (Cand & { coach_id?: string; coach_name?: string; substitute?: boolean })[] =
-      await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats)
+    const weeks = Math.min(MAX_WEEKS, Math.max(1, Math.floor(Number(body.weeks) || DEFAULT_WEEKS)))
+    // The grid is the fixed class, and a fixed class is one coach (owner,
+    // 2026-10-01). A week that coach cannot teach is shown as such and left
+    // out -- it is not offered with someone else, and it is not charged.
+    const candidates: (Cand & { coach_id?: string })[] =
+      await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats, weeks)
     for (const c of candidates) c.coach_id = coach_id
-    // "Same coach where possible": a week the chosen coach cannot do is offered
-    // with another coach who can, marked as a substitute, instead of being
-    // dropped. Private lessons only -- a group class belongs to its coach.
-    const SUBSTITUTABLE = new Set(['no_class', 'time_off', 'conflict', 'full'])
-    if (body.fallback === true && ct.slug !== '1on4' && candidates.some(c => SUBSTITUTABLE.has(c.status))) {
-      const { data: others } = await svc.from('coaches').select('id, first_name')
-        .eq('is_active', true).neq('id', coach_id).order('first_name')
-      for (const o of (others || []) as { id: string; first_name: string }[]) {
-        if (!candidates.some(c => SUBSTITUTABLE.has(c.status))) break
-        const alt = await buildCandidates(svc, o.id, ct, studentIds, level, start_time, start_date, minutes, seats)
-        const okAlt = new Set(alt.filter(a => a.status === 'ok').map(a => a.date))
-        for (const c of candidates) {
-          if (SUBSTITUTABLE.has(c.status) && okAlt.has(c.date)) {
-            c.status = 'ok'; c.coach_id = o.id; c.coach_name = o.first_name; c.substitute = true
-            c.spots = alt.find(a => a.date === c.date)?.spots ?? 0
-          }
-        }
-      }
-    }
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
     // the parent ticks dates rather than quoting one figure and charging another.
@@ -288,8 +285,9 @@ export async function POST(req: NextRequest) {
     const raw: any[] = Array.isArray(body.slots)
       ? body.slots
       : (Array.isArray(body.dates) ? body.dates.map((d: any) => ({ date: d, start_time })) : [])
-    if (raw.length < 1 || raw.length > 60)
+    if (raw.length < 1 || raw.length > MAX_WEEKS * 2)
       return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
+    const singleMax = singleMaxDate(today)
 
     const seen = new Set<string>()
     const wanted: Slot[] = []
@@ -300,12 +298,40 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
       if (typeof time !== 'string' || !TIME_RE.test(time))
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
+      const fixed = typeof r?.fixed === 'string' && r.fixed ? r.fixed.slice(0, 80) : undefined
+      // Only a fixed class books past the single-lesson window.
+      if (!fixed && date > singleMax)
+        return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
       const k = `${date}|${time}|${coach}`
       if (seen.has(k)) continue
       seen.add(k)
-      wanted.push({ date, time, coach })
+      wanted.push({ date, time, coach, fixed })
     }
     wanted.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+
+    // A fixed class is one weekday, one time, one coach, and at least ten
+    // lessons. The client builds it that way; this is the server not taking
+    // its word for it.
+    const weekdayOf = (d: string) => new Date(d + 'T00:00:00').getDay()
+    const groups = new Map<string, Slot[]>()
+    for (const w of wanted) if (w.fixed) groups.set(w.fixed, [...(groups.get(w.fixed) || []), w])
+    for (const [, g] of groups) {
+      const f = g[0]
+      if (g.some(x => x.time !== f.time || x.coach !== f.coach || weekdayOf(x.date) !== weekdayOf(f.date)))
+        return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
+      if (g.length < FIXED_CLASS_MIN_LESSONS)
+        return NextResponse.json({ error: 'FIXED_TOO_FEW', need: FIXED_CLASS_MIN_LESSONS, have: g.length }, { status: 400 })
+    }
+    // Every class still has its ten after the lessons that could not be booked
+    // have dropped out -- or nothing is booked and nothing is charged. Half a
+    // fixed class is not a smaller fixed class, it is a broken promise.
+    const shortGroup = (slots: Slot[]) => {
+      for (const [key] of groups) {
+        const have = slots.filter(x => x.fixed === key).length
+        if (have < FIXED_CLASS_MIN_LESSONS) return { have }
+      }
+      return null
+    }
 
     const coachIds = [...new Set(wanted.map(w => w.coach!))]
     const { data: coachRows } = await svc.from('coaches').select('id, first_name, last_name, is_active').in('id', coachIds)
@@ -322,8 +348,10 @@ export async function POST(req: NextRequest) {
       for (const t of times) {
         const mine = wanted.filter(w => w.time === t && w.coach === cid)
         if (mine.length === 0) continue
-        const first = mine.map(w => w.date).sort()[0]
-        const cands = await buildCandidates(svc, cid, ct, studentIds, level, t, first, minutes, seats)
+        const ds = mine.map(w => w.date).sort()
+        const first = ds[0]
+        const span = Math.round((Date.parse(ds[ds.length - 1]) - Date.parse(first)) / 86400000 / 7) + 1
+        const cands = await buildCandidates(svc, cid, ct, studentIds, level, t, first, minutes, seats, Math.min(MAX_WEEKS, span))
         for (const c of cands) statusByKey.set(`${c.date}|${t}|${cid}`, c.status)
       }
     }
@@ -334,6 +362,10 @@ export async function POST(req: NextRequest) {
       const st = statusByKey.get(slotKey(w))
       if (st === 'ok') okSlots.push(w)
       else skipped.push({ date: w.date, start_time: w.time, reason: st || 'out_of_range' })
+    }
+    {
+      const short = shortGroup(okSlots)
+      if (short) return NextResponse.json({ error: 'FIXED_TOO_FEW', need: FIXED_CLASS_MIN_LESSONS, have: short.have, skipped }, { status: 409 })
     }
     if (okSlots.length === 0)
       return NextResponse.json({ ok: true, booked: 0, booked_slots: [], booked_dates: [], skipped })
@@ -395,8 +427,36 @@ export async function POST(req: NextRequest) {
     }
 
     const booked = okSlots.filter(s2 => sessionIdByKey.has(slotKey(s2)))
+    {
+      const short = shortGroup(booked)
+      if (short) return NextResponse.json({ error: 'FIXED_TOO_FEW', need: FIXED_CLASS_MIN_LESSONS, have: short.have, skipped }, { status: 409 })
+    }
     if (booked.length === 0)
       return NextResponse.json({ ok: true, booked: 0, booked_slots: [], booked_dates: [], skipped })
+
+    // The fixed classes themselves, before any points move: if this fails,
+    // nothing has been charged and nothing needs undoing.
+    const fixedIdByKey = new Map<string, string>()
+    if (groups.size > 0) {
+      const keys = [...groups.keys()]
+      const { data: fcRows, error: fcErr } = await svc.from('fixed_classes')
+        .insert(keys.map(k => {
+          const f = groups.get(k)![0]
+          return {
+            parent_id: parent.id, student_id: student.id, student2_id: student2?.id ?? null,
+            course_type_id: ct.id, minutes, coach_id: f.coach, weekday: weekdayOf(f.date), start_time: f.time,
+          }
+        }))
+        .select('id')
+      if (fcErr || !fcRows || fcRows.length !== keys.length)
+        return NextResponse.json({ error: `Failed to set up the fixed class: ${fcErr?.message || 'unknown'}` }, { status: 500 })
+      keys.forEach((k, i) => fixedIdByKey.set(k, (fcRows as { id: string }[])[i].id))
+    }
+    const dropFixed = async () => {
+      if (fixedIdByKey.size === 0) return
+      const { error } = await svc.from('fixed_classes').delete().in('id', [...fixedIdByKey.values()])
+      if (error) console.error('fixed class rollback failed:', error)
+    }
 
     // Slots can drop out between the quote and here -- a class filling up is the
     // ordinary case -- so the charge is rebuilt from what is actually being
@@ -424,6 +484,7 @@ export async function POST(req: NextRequest) {
         note: `${booked.length} lessons booked`,
       })
     } catch (e: any) {
+      await dropFixed()
       if (e instanceof WalletInArrears)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
       if (e instanceof InsufficientPoints)
@@ -453,9 +514,11 @@ export async function POST(req: NextRequest) {
         points_charged: points, status: 'confirmed',
         points_granted: rowGranted[i],
         points_granted_expires_at: rowGranted[i] > 0 ? paid.grantedExpiresAt : null,
+        fixed_class_id: s2.fixed ? fixedIdByKey.get(s2.fixed) ?? null : null,
       })))
     if (bookErr) {
       await refundBatch('the lessons could not be booked')
+      await dropFixed()
       return NextResponse.json({ error: `Failed to book the lessons: ${bookErr.message}` }, { status: 500 })
     }
 
@@ -484,6 +547,7 @@ export async function POST(req: NextRequest) {
       booked_dates: booked.map(s2 => s2.date),
       skipped,
       points_charged: charge.total,
+      fixed_classes: fixedIdByKey.size,
     })
   }
 

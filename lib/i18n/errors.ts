@@ -40,6 +40,8 @@ const MAP: readonly (readonly [string, string])[] = [
   ['No squad matches this swim level.', 'err.noSquad'],
   ['WALLET_IN_ARREARS', 'err.walletInArrears'],
   ['NOT_ENOUGH_POINTS', 'err.notEnoughPoints'],
+  ['FIXED_TOO_FEW', 'err.fixedTooFew'],
+  ['Single lessons can be booked up to', 'err.singleTooFar'],
   ['no longer has enough points', 'err.partnerNotEnoughPoints'],
   ['NO_FORGIVENESS_LEFT', 'err.noForgivenessLeft'],
   ['Trial already used', 'err.trialUsed'],

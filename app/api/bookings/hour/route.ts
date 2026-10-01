@@ -4,7 +4,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
-import { LEAD_TIME_MINUTES, isWithin24Hours } from '@/lib/booking-time'
+import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
@@ -124,6 +124,9 @@ export async function POST(req: NextRequest) {
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
   if (session_date < today) return NextResponse.json({ error: 'That date has passed.' }, { status: 400 })
+  // A 60-minute lesson booked here is a single lesson, and so is the date a
+  // reschedule moves one to.
+  if (session_date > singleMaxDate(today)) return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
 
   const day = await loadDay(svc, session_date, ct.id)
   const nameOf = (id: string) => { const c = day.coaches.find((x: any) => x.id === id); return c ? c.first_name : '' }
