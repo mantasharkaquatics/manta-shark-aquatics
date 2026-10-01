@@ -5,6 +5,9 @@ import { awardDueReferrals } from '@/lib/referrals'
 import { settleAssessmentCredits } from '@/lib/assessments'
 import { sweepVouchers } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
+import { sendRenewalNotices, HOLD_RELEASE_DAYS } from '@/lib/fixed-classes'
+import { addDaysStr } from '@/lib/vouchers'
+import { formatTime12h } from '@/lib/date'
 
 export const runtime = 'nodejs'
 
@@ -24,6 +27,9 @@ export const runtime = 'nodejs'
 //
 // And it looks after make-up vouchers (lib/vouchers): past their date they
 // expire, and a family gets one email a week before one runs out.
+//
+// And it asks about renewing (lib/fixed-classes): one email per fixed class,
+// three weeks before its last lesson, while its slot is still held for them.
 //
 // Safe to run more than once a day, or to miss a day: each run expires only
 // what is due at that moment and what has not already been expired, and a
@@ -94,7 +100,30 @@ export async function GET(req: NextRequest) {
     vouchers.failed = -1
   }
 
+  let renewals = { sent: 0, failed: 0 }
+  try {
+    renewals = await sendRenewalNotices(svc, async (fc, last) => {
+      const [{ data: p }, { data: kids }, { data: coach }] = await Promise.all([
+        svc.from('parents').select('first_name, email, preferred_language').eq('id', fc.parent_id).single(),
+        svc.from('students').select('full_name').in('id', [fc.student_id, fc.student2_id].filter(Boolean) as string[]),
+        svc.from('coaches').select('first_name').eq('id', fc.coach_id).maybeSingle(),
+      ])
+      if (!p?.email) return false
+      return sendEmail({
+        type: 'fixed_class_renewal', to: p.email, parentName: p.first_name || '',
+        lang: p.preferred_language || 'en', studentNames: (kids || []).map((k: any) => k.full_name),
+        weekday: fc.weekday, time: formatTime12h(String(fc.start_time).slice(0, 5)), coachName: coach?.first_name || '',
+        date: last, expiresOn: addDaysStr(last, -HOLD_RELEASE_DAYS),
+        linkUrl: `https://www.mantasharkaquatics.net/dashboard/fixed-class/${fc.id}?renew=1`,
+      })
+    })
+  } catch (e) {
+    console.error('daily-points: renewal notices failed:', e)
+    renewals.failed = -1
+  }
+
   return NextResponse.json({
+    renewalsSent: renewals.sent, renewalsFailed: renewals.failed,
     vouchersExpired: vouchers.expired, vouchersReminded: vouchers.reminded, vouchersFailed: vouchers.failed,
     checked: (wallets || []).length, expiredFamilies, expiredPoints, failed: failed.length,
     referralsAwarded: referrals.awarded, referralsFailed: referrals.failed,

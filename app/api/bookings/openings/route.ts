@@ -3,6 +3,7 @@ import { requireParent } from '@/lib/api-auth'
 import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { meetsLeadTime } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
+import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 
 // Every coach's open private-lesson times over the booking window, in one call.
 //
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
   const coachIds = coaches.map(c => c.id)
   if (coachIds.length === 0) return NextResponse.json({ coaches: [], preferred: null, days: {} })
 
-  const [{ data: zrows }, { data: zoned }, { data: legacyRows }, { data: offRows }, { data: sessRows }, myRes] = await Promise.all([
+  const [{ data: zrows }, { data: zoned }, { data: legacyRows }, { data: offRows }, { data: sessRows }, myRes, holds] = await Promise.all([
     svc.from('coach_availability_zones')
       .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time')
       .in('coach_id', coachIds)
@@ -105,9 +106,11 @@ export async function GET(req: NextRequest) {
       .in('status', ['open', 'full']),
     // The student's own lessons come with their session in the same read.
     svc.from('bookings')
-      .select('class_session_id, class_sessions(coach_id, session_date, start_time, end_time, course_type_id)')
+      .select('class_session_id, class_sessions!bookings_class_session_id_fkey(coach_id, session_date, start_time, end_time, course_type_id)')
       .in('student_id', studentIds)
       .not('status', 'in', '("cancelled","pending_partner")'),
+    // Other families' renewal holds (lib/fixed-classes): a held slot is taken.
+    renewalHolds(svc, from, to, parent.id),
   ])
 
   const zonesByCoach = new Map<string, any[]>()
@@ -193,6 +196,7 @@ export async function GET(req: NextRequest) {
           if (ds === from && !meetsLeadTime(ds, t)) continue
           if (isBlocked(blocks, c.id, t, toTime(end))) continue
           if (busy.some(iv => m < iv.e && end > iv.s)) continue
+          if (heldSeats(holds, c.id, ds, m, end, ct.id) > 0) continue
           // A lesson of this kind already at this time has room or it does not.
           const same = sess.find((s: any) => s.course_type_id === ct.id && toMin(s.start_time) === m)
           if (same) {

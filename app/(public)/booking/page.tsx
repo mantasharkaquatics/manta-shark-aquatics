@@ -717,6 +717,13 @@ export default function BookingPage() {
   // basket when the toggle moves is worse than not offering it).
   const batchFlow = !isTrial && !isReschedule
     && (groupFlow || ((selectedCourse?.slug === '1on1' || siblingPair) && !isHourLesson))
+  // A 60-minute fixed class (owner, 2026-10-01): the hour list picks the slot
+  // and the same fixed-class panel takes it from there. A batch is one length,
+  // so the length switch is locked while the basket holds anything.
+  const hourFixedFlow = !isTrial && !isReschedule && !makeUp && isHourLesson
+    && (selectedCourse?.slug === '1on1' || siblingPair)
+  const fixedFlow = batchFlow || hourFixedFlow
+  const planMinutes: 30 | 60 = isHourLesson ? 60 : 30
 
   const balance = wallet?.balance ?? 0
 
@@ -895,7 +902,7 @@ export default function BookingPage() {
           action: 'preview', student_id: selectedStudent.id, coach_id: coachId,
           student2_id: siblingPair ? selectedStudent2!.id : null,
           start_time: time, start_date: startDate, weeks,
-          course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
+          course_slug: selectedCourse?.slug ?? '1on4', minutes: planMinutes,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -966,7 +973,7 @@ export default function BookingPage() {
   // breakdown -- "Lesson dates (1)" and "Book 1 lesson" read as if there were more.
   const planOne = recurPlan.length === 1 ? recurPlan[0] : null
   const planMany = recurPlan.length > 1
-  const onePrice = planOne ? priceAt(planOne.date, planOne.time, 30) : null
+  const onePrice = planOne ? priceAt(planOne.date, planOne.time, planMinutes) : null
   const bookingPriceSingle = bookingPrice
   const bookingCostSingle = bookingCost
   const basketCoaches = new Set(basket.map(x => x.coachId))
@@ -997,7 +1004,7 @@ export default function BookingPage() {
   const recurTotal = recurPlan.reduce((a, x) => a + x.points, 0)
   // The undiscounted figure, so the batch can show what the discounts took off.
   const recurBase = recurPlan.reduce((a, x) => {
-    const pr = priceAt(x.date, x.time, 30)
+    const pr = priceAt(x.date, x.time, planMinutes)
     return a + (pr ? pr.base * pr.seats : x.points)
   }, 0)
 
@@ -1108,7 +1115,7 @@ export default function BookingPage() {
         body: JSON.stringify({
           action: 'commit', student_id: selectedStudent.id, coach_id: recurPlan[0]?.coachId || selectedCoach.id,
           student2_id: siblingPair ? selectedStudent2!.id : null,
-          course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
+          course_slug: selectedCourse?.slug ?? '1on4', minutes: planMinutes,
           slots: recurPlan.map(x => ({ date: x.date, start_time: x.time, coach_id: x.coachId, fixed: x.fixed })),
           voucher_id: makeUp?.id ?? null,
         }),
@@ -1849,7 +1856,9 @@ export default function BookingPage() {
                     || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
                     <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (
-                        <button key={v} onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null) }}
+                        <button key={v} disabled={recurSel.size > 0 && lessonLength !== v}
+                          title={recurSel.size > 0 && lessonLength !== v ? t('booking.lenLocked') : undefined}
+                          onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false) }}
                           style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer',
                             background: lessonLength === v ? NAVY : '#fff', color: lessonLength === v ? '#fff' : '#56647d' }}>
                           {t('booking.lenMin', { n: v })}</button>
@@ -2442,7 +2451,7 @@ export default function BookingPage() {
 
                 {/* The basket. Without it, picking a second weekday looks like
                     it replaced the first, and the family books twice. */}
-                {batchFlow && recurSel.size > 0 && !recurOpen && (
+                {fixedFlow && recurSel.size > 0 && !recurOpen && (
                   <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                       {/* The sticky bar carries the total; this line carries
@@ -2488,14 +2497,14 @@ export default function BookingPage() {
                 {recurMsg && (
                   <div style={{ marginTop: '10px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', padding: '12px 16px', color: '#1f7a57', fontSize: '14px', fontWeight: 600 }}>{recurMsg}</div>
                 )}
-                {batchFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && !makeUp && (
+                {fixedFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && !makeUp && (
                   <button disabled={recurBusy}
                     onClick={() => { setFixedOnly(false); openFixed(formatDateLA(selectedDate), selectedSlot.time, selectedCoach.id) }}
                     style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
                     {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                   </button>
                 )}
-                {batchFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
+                {fixedFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
                   <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '16px', boxShadow: '0 12px 30px rgba(18,37,74,0.12)' }}>
                     <div style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
                       {t('booking.recur.everyWeekday', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
@@ -2641,7 +2650,7 @@ export default function BookingPage() {
               // content scrolls under it; a white slab here looked like a box.
               background: PAGE_TINT, borderTop: '1px solid #d6e0ee',
             }}>
-              {batchFlow && recurSel.size > 0 && (
+              {fixedFlow && recurSel.size > 0 && (
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
                   <span style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
                     {t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
@@ -2689,8 +2698,8 @@ export default function BookingPage() {
                 { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
                 { label: t('booking.sum.coach'), value: planOne.coachName || selectedCoach?.first_name },
                 { label: t('booking.sum.date'), value: new Date(planOne.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
-                { label: t('booking.sum.time'), value: (() => { const [h, m] = planOne.time.split(':').map(Number); const e = h * 60 + m + 30; return `${formatTime(planOne.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
-                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: 30 }) },
+                { label: t('booking.sum.time'), value: (() => { const [h, m] = planOne.time.split(':').map(Number); const e = h * 60 + m + planMinutes; return `${formatTime(planOne.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
+                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: planMinutes }) },
               ] : recurPlan.length > 0 ? [
                 { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
@@ -2699,7 +2708,7 @@ export default function BookingPage() {
                 // Naming one hour above a batch that spans two of them tells the
                 // family the wrong time for half their lessons.
                 { label: t('booking.sum.time'), value: planTimes.size > 1 ? t('booking.sum.timeMultiple', { n: planTimes.size }) : recurPlan[0]?.label },
-                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedCourse?.duration_minutes ?? 0 }) },
+                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: groupFlow ? (selectedCourse?.duration_minutes ?? 0) : planMinutes }) },
                 { label: t('booking.sum.pointsUsed'), value: t('points.unit', { n: recurTotal }) },
               ] : [
                 ...(isReschedule && rescheduleFrom ? [{

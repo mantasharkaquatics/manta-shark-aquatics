@@ -9,6 +9,7 @@ import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
 import { attachVoucher, claimVoucher, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
+import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 
 export const runtime = 'nodejs'
 
@@ -29,7 +30,7 @@ const toT = (m: number) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + S
 
 type Iv = { s: number; e: number }
 
-async function loadDay(svc: any, date: string, courseTypeId: string) {
+async function loadDay(svc: any, date: string, courseTypeId: string, parentId: string) {
   const [{ data: coaches }, { data: sessions }] = await Promise.all([
     svc.from('coaches').select('id, first_name, last_name').eq('is_active', true),
     svc.from('class_sessions')
@@ -38,6 +39,9 @@ async function loadDay(svc: any, date: string, courseTypeId: string) {
   ])
   const ids = (coaches || []).map((c: any) => c.id)
   const blocks = await getCoachBlocks(svc, ids, date)
+  // Other families' renewal holds (lib/fixed-classes). Only a make-up can
+  // reach that far ahead, but it must not land in someone's held slot.
+  const holds = await renewalHolds(svc, date, date, parentId)
   const zones = new Map<string, any>()
   await Promise.all(ids.map(async (id: string) => { zones.set(id, await getEffectiveZones(svc, id, date)) }))
   const busy = new Map<string, Iv[]>()
@@ -48,7 +52,7 @@ async function loadDay(svc: any, date: string, courseTypeId: string) {
     if (!busy.has(s.coach_id)) busy.set(s.coach_id, [])
     busy.get(s.coach_id)!.push({ s: st, e: en })
   }
-  return { coaches: coaches || [], sessions: sessions || [], blocks, zones, busy }
+  return { coaches: coaches || [], sessions: sessions || [], blocks, zones, busy, holds, date, courseTypeId }
 }
 
 function coachFree(day: any, coachId: string, startMin: number, endMin: number) {
@@ -59,6 +63,7 @@ function coachFree(day: any, coachId: string, startMin: number, endMin: number) 
     if (!inZone) return false
   }
   if (isBlocked(day.blocks, coachId, toT(startMin), toT(endMin))) return false
+  if (heldSeats(day.holds, coachId, day.date, startMin, endMin, day.courseTypeId) > 0) return false
   return !(day.busy.get(coachId) || []).some((iv: Iv) => startMin < iv.e && endMin > iv.s)
 }
 
@@ -144,7 +149,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
   }
 
-  const day = await loadDay(svc, session_date, ct.id)
+  const day = await loadDay(svc, session_date, ct.id, parent.id)
   const nameOf = (id: string) => { const c = day.coaches.find((x: any) => x.id === id); return c ? c.first_name : '' }
 
   // Rescheduling: the lesson's OWN two sessions must not count as conflicts —

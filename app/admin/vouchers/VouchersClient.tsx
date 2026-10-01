@@ -11,7 +11,7 @@ type V = {
 type Family = { id: string; name: string; students: { id: string; name: string }[] }
 
 const KIND: Record<string, string> = { '1on1': '1-on-1', '1on2': '1-on-2', '1on4': '1-on-4' }
-const REASON: Record<string, string> = { leave: 'Leave (24h+ notice)', grace: 'Monthly grace', admin: 'Front desk', end_of_term: 'Fixed class ended' }
+const REASON: Record<string, string> = { leave: 'Leave (24h+ notice)', grace: 'Monthly grace', admin: 'Front desk', end_of_term: 'Fixed class ended', moved: 'Changed slot (no room)' }
 const STATUS_STYLE: Record<string, string> = {
   active: 'border-emerald-500/40 text-emerald-300', used: 'border-sky-500/40 text-sky-300',
   expired: 'border-gray-600 text-gray-400', void: 'border-red-500/40 text-red-300',

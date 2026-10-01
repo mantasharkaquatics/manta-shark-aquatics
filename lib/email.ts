@@ -36,6 +36,8 @@ export type EmailType =
   | 'monthly_report'
   | 'voucher_expiring'
   | 'fixed_class_ended'
+  | 'fixed_class_renewal'
+  | 'fixed_class_moved'
 
 export interface EmailPayload {
   type: EmailType
@@ -106,6 +108,11 @@ export interface EmailPayload {
   reportId?: string
   // voucher_expiring: which lesson the voucher is for (course slug, minutes).
   minutes?: number
+  // fixed_class_renewal / fixed_class_moved: the class's weekday (0 = Sunday),
+  // where the renewal button goes, and where each moved lesson landed.
+  weekday?: number
+  linkUrl?: string
+  moveItems?: { date: string; kind: string; coach: string }[]
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -295,6 +302,35 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       : ''
     subject = `Fixed class ended – ${courseName}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Fixed class ended</h2><p>Hi ${parentName},</p><p>As we agreed, ${studentName}'s fixed ${courseName} class has ended. The ${n} remaining lesson${n === 1 ? ' has' : 's have'} been cancelled. ${what}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+
+  } else if (type === 'fixed_class_renewal' || type === 'fixed_class_moved') {
+    // Both in the family's language. date = the class's last lesson (renewal),
+    // expiresOn = the day the held slot opens to other families.
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    const loc = L === 'en' ? 'en-US' : L === 'zh-Hans' ? 'zh-CN' : 'zh-TW'
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const day = (d?: string) => d ? new Date(d + 'T12:00:00Z').toLocaleDateString(loc, { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' }) : ''
+    // 2026-01-04 was a Sunday, so +weekday lands on the right day name.
+    const weekdayName = new Date(`2026-01-${String(4 + Number(payload.weekday ?? 0)).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(loc, { weekday: 'long', timeZone: 'UTC' })
+    const names = (payload.studentNames || []).map(esc).join(L === 'en' ? ' & ' : '、')
+    const vars = { names, weekday: weekdayName, time: time || '', coach: esc(coachName || ''), date: day(date), hold: day(payload.expiresOn) }
+    const shell = (title: string, inner: string, btnHref: string, btn: string) => `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${title}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p>${inner}<div style="text-align:center; margin: 28px 0 8px;"><a href="${btnHref}" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${btn}</a></div></div></div>`
+    if (type === 'fixed_class_renewal') {
+      subject = t('fixed.email.renew.subject', vars)
+      html = shell(t('fixed.email.renew.title'), `<p style="color: #16294a; line-height: 1.6;">${t('fixed.email.renew.body', vars)}</p>`,
+        payload.linkUrl || 'https://www.mantasharkaquatics.net/dashboard', t('fixed.email.renew.button'))
+    } else {
+      const items = payload.moveItems || []
+      const rows = items.map(i => `<tr><td style="padding: 6px 0; font-weight: 600; color: #16294a;">${day(i.date)}</td><td style="padding: 6px 0; color: #56647d;">${i.kind === 'later' ? t('fixed.email.move.later') : i.kind === 'other_coach' ? t('fixed.email.move.other', { coach: esc(i.coach) }) : ''}</td></tr>`).join('')
+      const n = Number(amount ?? 0)
+      subject = t('fixed.email.move.subject', vars)
+      html = shell(t('fixed.email.move.title'),
+        `<p style="color: #16294a; line-height: 1.6;">${t('fixed.email.move.body', vars)}</p>`
+        + (rows ? `<h3 style="color: #12254a; margin: 18px 0 6px; font-size: 15px;">${t('fixed.email.move.dates', { n: items.length })}</h3><table style="width: 100%; border-collapse: collapse;">${rows}</table>` : '')
+        + (n > 0 ? `<p style="background: #fdf3e1; border: 1px solid #f3dcae; border-radius: 10px; padding: 12px 14px; color: #7a4b00; line-height: 1.6;">${t('fixed.email.move.vouchers', { n })}</p>` : ''),
+        'https://www.mantasharkaquatics.net/dashboard', t('fixed.email.move.button'))
+    }
 
   } else if (type === 'payment_reversed') {
     // Written to be read by someone who did nothing wrong. The overwhelmingly

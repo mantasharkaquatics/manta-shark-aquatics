@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
-import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
@@ -1659,6 +1659,13 @@ export default function DashboardPage() {
     } catch {}
   }, [])
   useEffect(() => { loadVouchers() }, [loadVouchers])
+  // Fixed classes with lessons to come: one line each, opening the class page
+  // (renew / change slot).
+  const [fixedClasses, setFixedClasses] = useState<{ id: string; weekday: number; time: string; coachName: string; left: number; last: string | null; renewOpen: boolean; studentNames: string[] }[]>([])
+  useEffect(() => {
+    fetch('/api/parent/fixed-classes').then(r => r.ok ? r.json() : null)
+      .then(j => setFixedClasses(j?.classes || [])).catch(() => {})
+  }, [])
   // The reminder email's button lands here with ?vouchers=1.
   useEffect(() => {
     if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('vouchers') !== '1') return
@@ -2753,6 +2760,16 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
+          {/* Fixed classes: one line each, opening the class page. */}
+          {fixedClasses.map(f => (
+            <p key={f.id} className="msa-partner">
+              📌 {students.length > 1 ? `${f.studentNames.join(' & ')} · ` : ''}{t('fixed.line', {
+                weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
+                time: formatTime12h(f.time), coach: f.coachName, n: f.left, date: f.last ? shortDate(f.last) : '—',
+              })}{' '}
+              <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`}>{f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›</Link>
+            </p>
+          ))}
           {/* Make-up vouchers: one line while there are any, opening the list. */}
           {vouchers.length > 0 && (
             <p className="msa-partner">

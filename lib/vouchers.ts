@@ -13,6 +13,8 @@
 //   admin        issued by the front desk
 //   end_of_term  the front desk ended a fixed class and turned what was left
 //                into vouchers
+//   moved        a fixed class changed slot and a lesson could not be placed
+//                on the new one, nor with another coach (lib/fixed-move)
 //
 // The database does the counting that must not race: one grace voucher per
 // child per month, one voucher per missed lesson (two unique indexes).
@@ -25,7 +27,7 @@ type Svc = SupabaseClient
 export const VOUCHER_DAYS = 28
 export const VOUCHER_REMIND_DAYS = 7
 
-export type VoucherReason = 'leave' | 'grace' | 'admin' | 'end_of_term'
+export type VoucherReason = 'leave' | 'grace' | 'admin' | 'end_of_term' | 'moved'
 export type Voucher = {
   id: string
   parent_id: string

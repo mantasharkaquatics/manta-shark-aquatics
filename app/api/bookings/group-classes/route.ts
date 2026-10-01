@@ -4,6 +4,7 @@ import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { bandKey } from '@/lib/zone-colors'
+import { renewalHolds, heldSeats, type Hold } from '@/lib/fixed-classes'
 
 // Parent 1on4 class-based booking (cross-coach).
 // GET ?student_id&date=YYYY-MM-DD          → that day's matching-band classes across all coaches
@@ -20,7 +21,7 @@ function bandMatches(z: { group_level_min?: number | null; group_level_max?: num
   return level >= z.group_level_min && level <= z.group_level_max
 }
 
-async function dayClasses(s: any, date: string, level: number, student_id: string, ct: any, coaches: any[], coachName: Record<string, string>) {
+async function dayClasses(s: any, date: string, level: number, student_id: string, ct: any, coaches: any[], coachName: Record<string, string>, holds: Hold[] = []) {
   const coachIds = (coaches || []).map((c: any) => c.id)
   const [effList, blocksAll, { data: allSess }] = await Promise.all([
     Promise.all(coachIds.map((id: string) => getEffectiveZones(s, id, date))),
@@ -55,8 +56,12 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
         if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
         const clash = sess.find((x: any) => x.coach_id === cid && x.course_type_id !== ct.id && x.enrolled_count > 0 && m < sEnd(x) && m + ct.duration_minutes > sStart(x))
         if (clash) continue
+        // A renewal hold (lib/fixed-classes): a private class's slot is taken
+        // outright, a 1-on-4 class keeps its own seat(s).
+        const held = heldSeats(holds, cid, date, m, m + ct.duration_minutes, ct.id)
+        if (held === Infinity) continue
         const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
-        const enrolled = own ? own.enrolled_count : 0
+        const enrolled = (own ? own.enrolled_count : 0) + held
         classes.push({
           time: t, end_time: idxTime(m + ct.duration_minutes),
           coach_id: cid, coach_name: coachName[cid] || '',
@@ -82,7 +87,7 @@ export async function GET(req: NextRequest) {
 
   const s = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  const { data: student } = await s.from('students').select('id, current_level').eq('id', student_id).single()
+  const { data: student } = await s.from('students').select('id, parent_id, current_level').eq('id', student_id).single()
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
   const level = student.current_level == null ? null : Number(student.current_level)
   const myBand = level == null ? null : (() => { const b = BANDS.find(([a, z]) => level >= a && level <= z); return b ? { min: b[0], max: b[1] } : null })()
@@ -98,7 +103,8 @@ export async function GET(req: NextRequest) {
 
   // ── Day shape ──────────────────────────────────────────────────────
   if (date) {
-    const classes = await dayClasses(s, date, level, student_id, ct, coaches || [], coachName)
+    const holds = await renewalHolds(s, date, date, student.parent_id)
+    const classes = await dayClasses(s, date, level, student_id, ct, coaches || [], coachName, holds)
     return NextResponse.json({ band: myBand, classes })
   }
 
@@ -117,6 +123,7 @@ export async function GET(req: NextRequest) {
     // dayClasses runs two queries per coach plus three more -- about nine round
     // trips a day, over three hundred for six weeks, which is what made the
     // group calendar sit empty for seconds.
+    const holds = await renewalHolds(s, startStr, endStr, student.parent_id)
     const coachList = (coaches || []) as { id: string }[]
     const coachIds = coachList.map(c => c.id)
     const [{ data: zAll }, { data: zAny }, { data: offRows }, { data: sessRows }, { data: myB }] = await Promise.all([
@@ -169,8 +176,10 @@ export async function GET(req: NextRequest) {
             if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
             const clash = sess.find((x: any) => x.coach_id === cid && x.course_type_id !== ct.id && x.enrolled_count > 0 && m < sEnd(x) && m + ct.duration_minutes > sStart(x))
             if (clash) continue
+            const held = heldSeats(holds, cid, ds, m, m + ct.duration_minutes, ct.id)
+            if (held === Infinity) continue
             const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
-            const enrolled = own ? own.enrolled_count : 0
+            const enrolled = (own ? own.enrolled_count : 0) + held
             classes.push({
               time: t, end_time: idxTime(m + ct.duration_minutes),
               coach_id: cid, coach_name: coachName[cid] || '',

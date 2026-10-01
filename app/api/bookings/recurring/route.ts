@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
-import { isBlocked, type CoachBlock } from '@/lib/availability'
-import { zoneTypeForSlug } from '@/lib/zones'
-import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES, FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
+import { randomUUID } from 'crypto'
+import { renewalHolds, weeklyCandidates, lessonsOf, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
+import { getTodayLA, formatTime12h } from '@/lib/date'
+import { FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
 import { attachVoucher, claimVoucher, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
@@ -21,6 +21,9 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletS
 //     coach, at least ten lessons; docs/fixed-class-spec.md). If any class
 //     would end up under ten, nothing is booked. A slot with no `fixed` key is
 //     a single lesson and must fall inside the 14-day window.
+//     renew_fixed_class_id adds the dates to that class instead (a renewal:
+//     same slot, after its last lesson, ten or more). minutes 60 books each
+//     lesson as two halves sharing a lesson_group_id.
 //
 // commit takes a LIST OF SLOTS, not a weekday rule. A family who wants Monday
 // afternoons and Wednesday mornings is describing one set of lessons, not two
@@ -51,97 +54,17 @@ const addDays = (ds: string, n: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-type Cand = { date: string; status: 'ok' | 'full' | 'booked' | 'time_off' | 'no_class' | 'conflict' | 'too_soon'; spots: number }
+type Cand = WeekCand
 
-async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number, weeks: number = DEFAULT_WEEKS): Promise<Cand[]> {
-  const today = getTodayLA()
-  const nowMin = getNowMinutesLA()
-  // A fixed class has no end date (owner, 2026-10-01: "you have the points,
-  // keep booking"), so the horizon is a number of weeks from the start, not
-  // the end of the year -- which had stopped anyone starting a ten-lesson
-  // class after late October.
-  const dates: string[] = []
-  for (let i = 0, ds = startDate; i < weeks; i++, ds = addDays(ds, 7)) dates.push(ds)
-  if (dates.length === 0) return []
-  const lastDate = dates[dates.length - 1]
-
-  const startMin = toMin(startTime)
-  const endMin = startMin + minutes
-  const endTime = minToTime(endMin)
-  // Which kind of zone has to cover this slot. A private lesson asked against
-  // the group zone would be refused on every date the coach teaches privately,
-  // which is every date it should have been offered on.
-  const zoneType = zoneTypeForSlug(ct.slug)
-
-  const [{ data: zrows }, { data: offRows }, { data: sessRows }] = await Promise.all([
-    svc.from('coach_availability_zones')
-      .select('zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
-      .eq('coach_id', coachId)
-      .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startDate},override_date.lte.${lastDate})`),
-    svc.from('coach_time_off')
-      .select('coach_id, date, start_time, end_time, block_type')
-      .eq('coach_id', coachId).gte('date', startDate).lte('date', lastDate),
-    svc.from('class_sessions')
-      .select('id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
-      .eq('coach_id', coachId).gte('session_date', startDate).lte('session_date', lastDate).in('status', ['open', 'full']),
-  ])
-  // A coach with no zone rows at all is on the old availability model, and
-  // create/route.ts lets those through without a zone check. Refusing them here
-  // would have hidden every date for a coach whose calendar is perfectly fine.
-  const legacyCoach = !zrows || zrows.length === 0
-
-  const offByDate: Record<string, CoachBlock[]> = {}
-  for (const b of offRows || []) (offByDate[b.date] ||= []).push(b as CoachBlock)
-  const sessByDate: Record<string, any[]> = {}
-  for (const s of sessRows || []) (sessByDate[s.session_date] ||= []).push(s)
-
-  const matchingSessIds: string[] = []
-  for (const ds of dates) {
-    for (const s of sessByDate[ds] || []) {
-      if (toMin(s.start_time) === startMin && s.course_type_id === ct.id) matchingSessIds.push(s.id)
-    }
-  }
-  let bookedSessIds = new Set<string>()
-  if (matchingSessIds.length > 0) {
-    const { data: myB } = await svc.from('bookings').select('class_session_id')
-      .in('class_session_id', matchingSessIds).in('student_id', studentIds)
-      .in('status', ['confirmed', 'completed', 'pending_payment', 'in_cart'])
-    bookedSessIds = new Set((myB || []).map((b: any) => b.class_session_id))
-  }
-
-  return dates.map(ds => {
-    if (ds === today && minutesUntil(ds, startTime, today, nowMin) < LEAD_TIME_MINUTES) return { date: ds, status: 'too_soon' as const, spots: 0 }
-    const dow = new Date(ds + 'T00:00:00').getDay()
-    const dateRows = (zrows || []).filter((r: any) => r.kind === 'date' && r.override_date === ds)
-    const picked = dateRows.length > 0 ? dateRows : (zrows || []).filter((r: any) => r.kind === 'weekly' && r.weekday === dow)
-    if (!legacyCoach) {
-      if (picked.some((r: any) => r.zone_type === 'closed')) return { date: ds, status: 'no_class' as const, spots: 0 }
-      const z = picked.find((r: any) => r.zone_type === zoneType && toMin(r.start_time) <= startMin && endMin <= toMin(r.end_time))
-      if (!z) return { date: ds, status: 'no_class' as const, spots: 0 }
-      // The level band belongs to group zones; a private zone has no band and
-      // must not be judged against one.
-      if (zoneType === 'group' && z.group_level_min != null && z.group_level_max != null
-          && (level < z.group_level_min || level > z.group_level_max)) return { date: ds, status: 'no_class' as const, spots: 0 }
-    }
-    if (isBlocked(offByDate[ds] || [], coachId, startTime, endTime)) return { date: ds, status: 'time_off' as const, spots: 0 }
-    const daySess = sessByDate[ds] || []
-    const sameSlot = daySess.filter((s: any) => toMin(s.start_time) === startMin)
-    const foreign = daySess.find((s: any) => {
-      if (s.course_type_id === ct.id || s.enrolled_count <= 0) return false
-      const os = toMin(String(s.start_time).slice(0, 5))
-      const oe = s.end_time ? toMin(String(s.end_time).slice(0, 5)) : os + 30
-      return startMin < oe && endMin > os
-    })
-    if (foreign) return { date: ds, status: 'conflict' as const, spots: 0 }
-    const own = sameSlot.find((s: any) => s.course_type_id === ct.id)
-    if (own && bookedSessIds.has(own.id)) return { date: ds, status: 'booked' as const, spots: Math.max(0, own.max_students - own.enrolled_count) }
-    const enrolled = own ? own.enrolled_count : 0
-    // Two siblings in a 1-on-2 need both seats on the SAME date, so a class
-    // with one seat left is full for them even though it is open for someone
-    // booking alone.
-    if (enrolled + seats > ct.max_students) return { date: ds, status: 'full' as const, spots: Math.max(0, ct.max_students - enrolled) }
-    return { date: ds, status: 'ok' as const, spots: ct.max_students - enrolled }
-  })
+/**
+ * The fixed-class grid for one coach, time and length (lib/fixed-classes).
+ * Other families' renewal holds count as taken; this family's own do not, so
+ * a renewal can always see its own slot.
+ */
+async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number, weeks: number = DEFAULT_WEEKS, parentId?: string): Promise<Cand[]> {
+  const lastDate = addDays(startDate, 7 * (weeks - 1))
+  const holds = await renewalHolds(svc, startDate, lastDate, parentId ?? null)
+  return weeklyCandidates(svc, { coachId, ct, studentIds, level, startTime, startDate, minutes, seats, weeks, holds })
 }
 
 /**
@@ -229,8 +152,10 @@ export async function POST(req: NextRequest) {
     .select('id, name, slug, duration_minutes, max_students').eq('slug', course_slug).single()
   if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
 
-  // 1-on-1 runs 30 or 60; a group class is whatever the course type says.
-  const minutes = course_slug === '1on1' && Number(body.minutes) === 60 ? 60 : ct.duration_minutes
+  // A private lesson (1-on-1, or two siblings in a 1-on-2) runs 30 or 60; a
+  // group class is whatever the course type says. An hour is booked as two
+  // 30-minute halves sharing a lesson_group_id, as the hour route does.
+  const minutes = (course_slug === '1on1' || course_slug === '1on2') && Number(body.minutes) === 60 ? 60 : ct.duration_minutes
   if (![30, 60].includes(minutes))
     return NextResponse.json({ error: 'Unsupported lesson length' }, { status: 400 })
 
@@ -269,7 +194,7 @@ export async function POST(req: NextRequest) {
     // 2026-10-01). A week that coach cannot teach is shown as such and left
     // out -- it is not offered with someone else, and it is not charged.
     const candidates: (Cand & { coach_id?: string })[] =
-      await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats, weeks)
+      await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats, weeks, parent.id)
     for (const c of candidates) c.coach_id = coach_id
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
@@ -306,6 +231,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'This make-up voucher is for a different lesson.' }, { status: 400 })
       if (raw.length !== 1 || raw[0]?.fixed)
         return NextResponse.json({ error: 'A make-up voucher books one lesson.' }, { status: 400 })
+      if (minutes !== 30)
+        return NextResponse.json({ error: 'This make-up voucher is for a different lesson.' }, { status: 400 })
       if (typeof raw[0]?.date === 'string' && raw[0].date > voucher.expires_on)
         return NextResponse.json({ error: 'That date is after this make-up voucher expires.' }, { status: 400 })
     }
@@ -354,6 +281,30 @@ export async function POST(req: NextRequest) {
       return null
     }
 
+    // A renewal (docs/fixed-class-spec.md section 5) adds its lessons to the
+    // class it renews rather than starting a new one: same swimmers, same
+    // course and length, same weekday, time and coach, every date after the
+    // class's last lesson, and ten or more of them.
+    let renewFc: FixedClass | null = null
+    if (typeof body.renew_fixed_class_id === 'string' && body.renew_fixed_class_id) {
+      const { data: fcRow } = await svc.from('fixed_classes').select(FC_COLUMNS).eq('id', body.renew_fixed_class_id).maybeSingle()
+      const fc = fcRow as FixedClass | null
+      if (!fc || fc.parent_id !== parent.id || fc.status !== 'active' || voucher)
+        return NextResponse.json({ error: 'This fixed class cannot be renewed.' }, { status: 404 })
+      const want = new Set(studentIds)
+      const has = new Set([fc.student_id, fc.student2_id].filter(Boolean) as string[])
+      if (fc.course_type_id !== ct.id || fc.minutes !== minutes || want.size !== has.size
+          || [...want].some(id => !has.has(id)) || groups.size !== 1 || wanted.some(w => !w.fixed))
+        return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
+      const f0 = [...groups.values()][0][0]
+      if (f0.coach !== fc.coach_id || f0.time !== String(fc.start_time).slice(0, 5) || weekdayOf(f0.date) !== fc.weekday)
+        return NextResponse.json({ error: 'A renewal keeps the same weekday, time and coach.' }, { status: 400 })
+      const { last } = classState((await lessonsOf(svc, [fc.id])).get(fc.id))
+      if (last && f0.date <= last)
+        return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
+      renewFc = fc
+    }
+
     const coachIds = [...new Set(wanted.map(w => w.coach!))]
     const { data: coachRows } = await svc.from('coaches').select('id, first_name, last_name, is_active').in('id', coachIds)
     const coachById = new Map<string, any>((coachRows || []).map((c: any) => [c.id, c]))
@@ -372,7 +323,7 @@ export async function POST(req: NextRequest) {
         const ds = mine.map(w => w.date).sort()
         const first = ds[0]
         const span = Math.round((Date.parse(ds[ds.length - 1]) - Date.parse(first)) / 86400000 / 7) + 1
-        const cands = await buildCandidates(svc, cid, ct, studentIds, level, t, first, minutes, seats, Math.min(MAX_WEEKS, span))
+        const cands = await buildCandidates(svc, cid, ct, studentIds, level, t, first, minutes, seats, Math.min(MAX_WEEKS, span), parent.id)
         for (const c of cands) statusByKey.set(`${c.date}|${t}|${cid}`, c.status)
       }
     }
@@ -405,6 +356,9 @@ export async function POST(req: NextRequest) {
     }
 
     const endOf = (t: string) => minToTime(toMin(t) + minutes)
+    // The sessions each lesson sits in: one, or two halves for an hour.
+    const partsOf = (s2: Slot) => halvesOf(toMin(s2.time), minutes, ct.slug)
+      .map(h => ({ ...h, key: `${s2.date}|${h.start}|${s2.coach}` }))
 
     // Up to 60 slots. Done one at a time -- look up the session, create it,
     // settle the points, write the booking -- that is four round trips each, and
@@ -413,7 +367,7 @@ export async function POST(req: NextRequest) {
     const { data: existingRows } = await svc.from('class_sessions')
       .select('id, coach_id, session_date, start_time, enrolled_count, max_students')
       .in('coach_id', coachIds).eq('course_type_id', ct.id)
-      .in('start_time', times)
+      .in('start_time', [...new Set(okSlots.flatMap(s2 => partsOf(s2).map(p => p.start)))])
       .in('session_date', [...new Set(okSlots.map(s2 => s2.date))])
       .in('status', ['open', 'full'])
     const existingByKey = new Map<string, SessionRow>()
@@ -425,19 +379,24 @@ export async function POST(req: NextRequest) {
     // this read and the insert below is still the database's problem to catch,
     // as it always was.
     const sessionIdByKey = new Map<string, string>()
-    const needSession: Slot[] = []
+    const needSession: { date: string; coach: string; start: string; end: string }[] = []
     for (const s2 of okSlots) {
-      const ex = existingByKey.get(slotKey(s2))
-      if (!ex) { needSession.push(s2); continue }
-      if (ex.enrolled_count + seats > ex.max_students) { skipped.push({ date: s2.date, start_time: s2.time, reason: 'full' }); continue }
-      sessionIdByKey.set(slotKey(s2), ex.id)
+      const parts = partsOf(s2)
+      if (parts.some(p => { const ex = existingByKey.get(p.key); return !!ex && ex.enrolled_count + seats > ex.max_students })) {
+        skipped.push({ date: s2.date, start_time: s2.time, reason: 'full' }); continue
+      }
+      for (const p of parts) {
+        const ex = existingByKey.get(p.key)
+        if (ex) sessionIdByKey.set(p.key, ex.id)
+        else needSession.push({ date: s2.date, coach: s2.coach!, start: p.start, end: p.end })
+      }
     }
 
     if (needSession.length > 0) {
       const { data: newSessions, error: sessErr } = await svc.from('class_sessions')
-        .insert(needSession.map(s2 => ({
-          coach_id: s2.coach, course_type_id: ct.id, session_date: s2.date,
-          start_time: s2.time, end_time: endOf(s2.time),
+        .insert(needSession.map(n => ({
+          coach_id: n.coach, course_type_id: ct.id, session_date: n.date,
+          start_time: n.start, end_time: n.end,
           max_students: ct.max_students, enrolled_count: 0, status: 'open',
         })))
         .select('id, coach_id, session_date, start_time')
@@ -449,7 +408,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const booked = okSlots.filter(s2 => sessionIdByKey.has(slotKey(s2)))
+    const booked = okSlots.filter(s2 => partsOf(s2).every(p => sessionIdByKey.has(p.key)))
     {
       const short = shortGroup(booked)
       if (short) return NextResponse.json({ error: 'FIXED_TOO_FEW', need: FIXED_CLASS_MIN_LESSONS, have: short.have, skipped }, { status: 409 })
@@ -460,7 +419,10 @@ export async function POST(req: NextRequest) {
     // The fixed classes themselves, before any points move: if this fails,
     // nothing has been charged and nothing needs undoing.
     const fixedIdByKey = new Map<string, string>()
-    if (groups.size > 0) {
+    const createdFixed: string[] = []
+    if (renewFc) {
+      for (const k of groups.keys()) fixedIdByKey.set(k, renewFc.id)
+    } else if (groups.size > 0) {
       const keys = [...groups.keys()]
       const { data: fcRows, error: fcErr } = await svc.from('fixed_classes')
         .insert(keys.map(k => {
@@ -473,11 +435,12 @@ export async function POST(req: NextRequest) {
         .select('id')
       if (fcErr || !fcRows || fcRows.length !== keys.length)
         return NextResponse.json({ error: `Failed to set up the fixed class: ${fcErr?.message || 'unknown'}` }, { status: 500 })
-      keys.forEach((k, i) => fixedIdByKey.set(k, (fcRows as { id: string }[])[i].id))
+      keys.forEach((k, i) => { fixedIdByKey.set(k, (fcRows as { id: string }[])[i].id); createdFixed.push((fcRows as { id: string }[])[i].id) })
     }
+    // Only a class this request created is taken back; a renewed one stays.
     const dropFixed = async () => {
-      if (fixedIdByKey.size === 0) return
-      const { error } = await svc.from('fixed_classes').delete().in('id', [...fixedIdByKey.values()])
+      if (createdFixed.length === 0) return
+      const { error } = await svc.from('fixed_classes').delete().in('id', createdFixed)
       if (error) console.error('fixed class rollback failed:', error)
     }
 
@@ -561,15 +524,25 @@ export async function POST(req: NextRequest) {
 
     // The rows, in lesson order, and each one's share of any granted points
     // the debit used -- the earliest lessons take them first.
-    const rowSpecs = booked.flatMap(s2 => studentIds.map(sid => ({ s2, sid, points: charge.perSeat.get(slotKey(s2))! })))
+    // An hour is two rows per swimmer, one per half, each carrying half the
+    // hour's points and sharing a lesson_group_id -- the shape the hour route
+    // writes, so cancelling and the dashboard treat it the same way.
+    const rowSpecs = booked.flatMap(s2 => {
+      const parts = partsOf(s2)
+      const group = parts.length > 1 ? randomUUID() : null
+      return parts.flatMap(p => studentIds.map(sid => ({
+        s2, sid, sess: sessionIdByKey.get(p.key)!, group,
+        points: charge.perSeat.get(slotKey(s2))! / parts.length,
+      })))
+    })
     const rowGranted = splitGranted(paid.grantedTaken, rowSpecs.map(r => r.points))
 
     // One row per swimmer per lesson. Both seats were paid in the single debit
     // above, but each row carries its own seat's points so cancelling one
     // sibling's lesson refunds that seat and leaves the other standing.
     const { error: bookErr } = await svc.from('bookings')
-      .insert(rowSpecs.map(({ s2, sid, points }, i) => ({
-        class_session_id: sessionIdByKey.get(slotKey(s2))!, parent_id: parent.id,
+      .insert(rowSpecs.map(({ s2, sid, sess, group, points }, i) => ({
+        class_session_id: sess, parent_id: parent.id, lesson_group_id: group,
         student_id: sid, lesson_credit_id: null,
         points_charged: points, status: 'confirmed',
         points_granted: rowGranted[i],
@@ -581,6 +554,11 @@ export async function POST(req: NextRequest) {
       await dropFixed()
       return NextResponse.json({ error: `Failed to book the lessons: ${bookErr.message}` }, { status: 500 })
     }
+    // Renewed: the next renewal notice is about the new last lesson.
+    if (renewFc) {
+      const { error: rnErr } = await svc.from('fixed_classes').update({ renewal_notified_at: null }).eq('id', renewFc.id)
+      if (rnErr) console.error('renewal: notice flag not reset:', rnErr.message)
+    }
 
     try {
       const bookedCoaches = [...new Set(booked.map(s2 => s2.coach!))].map(id => coachById.get(id)).filter(Boolean)
@@ -588,7 +566,8 @@ export async function POST(req: NextRequest) {
       if (p2?.email) {
         await sendEmail({
           type: 'booking_series_confirmed', to: p2.email, parentName: p2.first_name,
-          studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name, courseName: ct.name,
+          studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name,
+          courseName: minutes === 60 ? `${ct.name} (60 min)` : ct.name,
           coachName: bookedCoaches.map((c: any) => `${c.first_name} ${c.last_name || ''}`.trim()).join(' / '),
           dates: booked.map(s2 => s2.date),
           // With one time the email keeps its single Time row; with several it
