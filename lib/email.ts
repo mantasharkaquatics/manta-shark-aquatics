@@ -33,6 +33,7 @@ export type EmailType =
   | 'refund_issued'
   | 'referral_reward'
   | 'assessment_report'
+  | 'monthly_report'
 
 export interface EmailPayload {
   type: EmailType
@@ -95,6 +96,11 @@ export interface EmailPayload {
   frequency?: string
   reason?: string
   creditDeadline?: string
+  // monthly_report: the month ('2026-09-01'), whose reports, and the one the
+  // button opens (the dashboard opens the right report from ?report=).
+  month?: string
+  studentNames?: string[]
+  reportId?: string
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -239,6 +245,19 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       + (payload.reason ? `<div style="font-weight: 400; color: #56647d; margin-top: 4px;">${esc(payload.reason)}</div>` : '')
     subject = t('assess.email.subject', { name: studentName || '' })
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('assess.report.eyebrow')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('assess.email.body', { student: esc(studentName || '') })}</p><table style="width: 100%; border-collapse: collapse; margin: 8px 0 4px;">${row(t('assess.email.result'), `${t('level.badge', { n: lv, name: t('level.' + lv + '.name') })} · ${t(stageNameKey(lv, 1))}`)}${row(t('assess.report.recTitle'), rec)}</table>${dl ? `<p style="background: #eef8f1; border: 1px solid #bfe3cb; border-radius: 10px; padding: 12px 14px; color: #1f6b43; line-height: 1.6;">🎁 <strong>${t('assess.credit.title')}</strong><br>${t('assess.email.credit', { n: CREDIT_LESSONS, date: dl, points: CREDIT_POINTS })}</p>` : ''}<div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('assess.email.button')}</a></div></div></div>`
+
+  } else if (type === 'monthly_report') {
+    // One email per family, in their language, however many swimmers they have.
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const monthLabel = payload.month
+      ? new Date(payload.month + 'T12:00:00Z').toLocaleDateString(L === 'en' ? 'en-US' : L === 'zh-Hans' ? 'zh-CN' : 'zh-TW', { year: 'numeric', month: 'long', timeZone: 'UTC' })
+      : ''
+    const names = (payload.studentNames || []).map(esc).join(L === 'en' ? ', ' : '、')
+    const url = 'https://www.mantasharkaquatics.net/dashboard' + (payload.reportId ? '?report=' + encodeURIComponent(payload.reportId) : '')
+    subject = t('monthly.email.subject', { month: monthLabel })
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('monthly.email.title', { month: monthLabel })}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('monthly.email.body', { names, month: monthLabel })}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="${url}" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('monthly.email.button')}</a></div></div></div>`
 
   } else if (type === 'payment_reversed') {
     // Written to be read by someone who did nothing wrong. The overwhelmingly

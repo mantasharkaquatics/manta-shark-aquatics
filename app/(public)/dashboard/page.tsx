@@ -102,6 +102,20 @@ const MOBILE_CSS = `
 .msa-report-skill-bar { height: 7px; border-radius: 4px; background: #eef2f8; overflow: hidden }
 .msa-report-skill-bar i { display: block; height: 100%; border-radius: 4px }
 .msa-report-skill-chip { font-size: 11.5px; font-weight: 800; border-radius: 8px; padding: 3px 8px; white-space: nowrap }
+.msa-mcard-report { display: block; width: 100%; margin-top: 12px; border: 1px solid rgba(159,184,230,0.45); background: rgba(159,184,230,0.14);
+  border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: #e6eeff; text-align: left; cursor: pointer }
+.msa-mcard-report:hover { background: rgba(159,184,230,0.22) }
+.msa-report-pill { display: inline-block; margin-top: 12px; background: rgba(255,255,255,0.12); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 800; color: #fff }
+.msa-report-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px }
+.msa-report-stats div { background: #f3f7fd; border-radius: 12px; padding: 12px 6px; text-align: center; display: flex; flex-direction: column; gap: 4px }
+.msa-report-stats b { font-size: 22px; font-weight: 900; color: #12254a; font-variant-numeric: tabular-nums }
+.msa-report-stats span { font-size: 12px; color: #56647d }
+.msa-report-up { display: inline-block; margin-left: 6px; font-style: normal; font-size: 11px; font-weight: 800; color: #1f7a57; background: #e4f5ea; border-radius: 6px; padding: 1px 6px }
+.msa-month-tabs { display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding-bottom: 2px }
+.msa-month-tabs button { flex-shrink: 0; border: 1px solid #d5deeb; background: #fff; color: #56647d; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer }
+.msa-month-tabs button.on { background: #12254a; border-color: #12254a; color: #fff }
+.msa-fb { width: 56px; height: 48px; border-radius: 12px; border: 1px solid #d5deeb; background: #fff; font-size: 22px; cursor: pointer }
+.msa-fb.on { border-color: #f09800; background: #fff6e5 }
 .msa-report-credit { background: #eef8f1; border: 1px solid #bfe3cb; border-radius: 14px; padding: 14px 16px }
 .msa-report-segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin: 12px 0 8px }
 .msa-report-segs i { height: 7px; border-radius: 4px; background: #cfe8d8 }
@@ -647,6 +661,216 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
           )}
 
           <p style={{ textAlign: 'center', fontSize: '11.5px', color: '#8592a8', margin: '4px 0 0' }}>{t('assess.report.footer')}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** A monthly progress report, as the family reads it (lib/monthly-reports). */
+type MonthlyReport = {
+  id: string
+  studentId: string
+  month: string
+  data: {
+    studentName: string; level: number | null; stage: 1 | 2 | 3 | null; coachName: string | null
+    lessons: { key: string; date: string; start: string | null; courseTypeId: string | null; courseName: string; isTrial: boolean; attended: boolean }[]
+    attended: number
+    stages: { stage: number; percent: number; complete: boolean; skillCount: number }[]
+    stageSkills: { id: string; name: string; start: number; end: number }[]
+    mastered: number
+  }
+  summary: string
+  focus: string[]
+  notes: { date: string; coachName: string | null; text: string }[]
+  feedback: 'up' | 'down' | null
+  feedbackComment: string | null
+}
+
+function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }: {
+  student: Student
+  reports: MonthlyReport[]
+  initialId: string
+  onClose: () => void
+  onFeedback: (id: string, feedback: 'up' | 'down', comment: string) => void
+}) {
+  const t = useT()
+  const locale = useLocale()
+  const [id, setId] = useState(initialId)
+  const [fb, setFb] = useState<'up' | 'down' | null>(null)
+  const [comment, setComment] = useState('')
+  const [fbState, setFbState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const r = reports.find(x => x.id === id) || reports[0]
+  if (!r) return null
+  const d = r.data
+
+  const loc = intlOf(locale)
+  const monthName = (m: string, withYear = true) => new Date(m + 'T12:00:00Z').toLocaleDateString(loc, withYear ? { year: 'numeric', month: 'long', timeZone: 'UTC' } : { month: 'long', timeZone: 'UTC' })
+  const shortDate = (dt: string) => new Date(dt + 'T12:00:00Z').toLocaleDateString(loc, { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
+  const next = (() => { const x = new Date(r.month + 'T12:00:00Z'); x.setUTCMonth(x.getUTCMonth() + 2, 1); return x.toLocaleDateString(loc, { month: 'long', day: 'numeric', timeZone: 'UTC' }) })()
+  const stageNow = d.stages.find(s => s.stage === d.stage)
+  const card: React.CSSProperties = { background: '#fff', border: '1px solid #e3ebf6', borderRadius: '14px', padding: '16px' }
+  const h: React.CSSProperties = { fontSize: '14px', fontWeight: 800, color: '#12254a', margin: '0 0 10px' }
+  const answered = fbState === 'done' || (!!r.feedback && fbState === 'idle' && !fb)
+
+  async function send() {
+    if (!fb) return
+    setFbState('sending')
+    const res = await fetch('/api/parent/monthly-reports', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: r.id, feedback: fb, comment }),
+    }).catch(() => null)
+    if (res && res.ok) { setFbState('done'); onFeedback(r.id, fb, comment) } else setFbState('error')
+  }
+
+  return (
+    <div className="msa-sheet-back" onClick={onClose}>
+      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
+        aria-label={t('monthly.sheetTitle', { name: student.full_name, month: monthName(r.month, false) })}>
+        <div className="msa-sheet-head">
+          <b>{t('monthly.sheetTitle', { name: student.full_name, month: monthName(r.month, false) })}</b>
+          <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
+        </div>
+        {reports.length > 1 && (
+          <div className="msa-month-tabs" role="tablist">
+            {reports.map(x => (
+              <button key={x.id} role="tab" aria-selected={x.id === r.id} className={'tap-auto' + (x.id === r.id ? ' on' : '')} onClick={() => { setId(x.id); setFb(null); setComment(''); setFbState('idle') }}>
+                {monthName(x.month)}
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="msa-report-hero">
+            <div className="msa-report-eyebrow">MANTA SHARK · {t('monthly.eyebrow')}</div>
+            <div className="msa-report-name">{student.full_name}</div>
+            <div className="msa-report-meta">{d.coachName ? t('monthly.meta', { month: monthName(r.month), coach: d.coachName }) : monthName(r.month)}</div>
+            {d.level && (
+              <span className="msa-report-pill">{t('level.badge', { n: d.level, name: t(`level.${d.level}.name`) })} · {t('dash.stageN', { n: d.stage || 1 })}</span>
+            )}
+          </div>
+
+          <div style={card}>
+            <p style={h}>{t('monthly.overview')}</p>
+            <div className="msa-report-stats">
+              <div><b>{d.attended}</b><span>{t('monthly.statLessons')}</span></div>
+              {d.level && <div><b>{d.mastered}</b><span>{t('monthly.statMastered')}</span></div>}
+              {d.level && stageNow && <div><b>{stageNow.percent}%</b><span>{t('monthly.statStage', { n: stageNow.stage })}</span></div>}
+            </div>
+            {r.summary && <p style={{ fontSize: '14px', color: '#16294a', lineHeight: 1.75, margin: '12px 0 0', whiteSpace: 'pre-wrap' }}>{r.summary}</p>}
+          </div>
+
+          {d.level && d.stages.length === 3 && (
+            <div style={card}>
+              <p style={h}>{t('monthly.levelProgress', { n: d.level })}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {d.stages.map(s => (
+                  <div key={s.stage}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#56647d', marginBottom: '4px' }}>
+                      <span>{t('dash.stageN', { n: s.stage })}</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{s.complete ? '🎊 ' + t('monthly.stageDone') : s.percent === 0 && s.stage !== d.stage ? t('monthly.notStarted') : s.percent + '%'}</span>
+                    </div>
+                    <div className="msa-report-skill-bar"><i style={{ width: s.percent + '%', background: s.complete ? '#4caf72' : '#f0a020' }} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {d.stageSkills.length > 0 && (
+            <div style={card}>
+              <p style={h}>{t('monthly.stageSkills', { n: d.stage || 1 })}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {d.stageSkills.map(s => {
+                  const m = masteryOf(s.end)
+                  const up = masteryOf(s.end) > masteryOf(s.start)
+                  return (
+                    <div key={s.id} className="msa-report-skill">
+                      <span className="msa-report-skill-name">
+                        {tDb(locale, 'skills', s.id, s.name)}
+                        {up && <em className="msa-report-up">↑ {t('monthly.improved')}</em>}
+                      </span>
+                      <span className="msa-report-skill-bar"><i style={{ width: Math.max(s.end, m === 0 ? 0 : 4) + '%', background: MASTERY_COLOR[m] }} /></span>
+                      <span className="msa-report-skill-chip" style={{ color: MASTERY_COLOR[m], background: MASTERY_COLOR[m] + '1f' }}>{t(masteryKey(m))}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {r.notes.length > 0 && (
+            <div style={card}>
+              <p style={h}>{t('monthly.notes')}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {r.notes.map((n, i) => (
+                  <div key={i} style={{ borderLeft: `3px solid ${GOLD}`, background: '#f6f9fd', borderRadius: '0 8px 8px 0', padding: '10px 12px' }}>
+                    <div style={{ fontSize: '13.5px', color: '#16294a', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{n.text}</div>
+                    <div style={{ fontSize: '12px', color: '#8592a8', marginTop: '4px' }}>{n.coachName ? t('monthly.noteBy', { date: shortDate(n.date), coach: n.coachName }) : shortDate(n.date)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={card}>
+            <p style={h}>{t('monthly.lessons')}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {d.lessons.map(l => (
+                <div key={l.key} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '13px', color: '#16294a' }}>
+                  <span>{shortDate(l.date)}{l.start ? ' ' + formatTime(l.start) : ''} · {l.isTrial ? t('common.assessment') : l.courseTypeId ? tDb(locale, 'course_types', l.courseTypeId, l.courseName) : l.courseName}</span>
+                  <span style={{ flexShrink: 0, fontWeight: 700, color: l.attended ? '#1f7a57' : '#c0563f' }}>{l.attended ? t('monthly.attended') : t('monthly.absent')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {r.focus.length > 0 && (
+            <div style={card}>
+              <p style={h}>{t('monthly.focus')}</p>
+              <ul style={{ margin: 0, paddingLeft: '20px', listStyle: 'disc', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13.5px', color: '#16294a', lineHeight: 1.6 }}>
+                {r.focus.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            </div>
+          )}
+
+          <div style={{ ...card, textAlign: 'center' }}>
+            {answered ? (
+              <p style={{ margin: 0, fontSize: '13.5px', color: '#1f7a57', fontWeight: 700 }}>
+                {(fbState === 'done' ? fb : r.feedback) === 'up' ? '👍 ' : '👎 '}{t('monthly.fb.thanks')}
+              </p>
+            ) : (<>
+              <p style={{ ...h, margin: '0 0 10px' }}>{t('monthly.fb.q')}</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                {(['up', 'down'] as const).map(v => (
+                  <button key={v} className={'msa-fb' + (fb === v ? ' on' : '')} onClick={() => setFb(v)}
+                    aria-pressed={fb === v} aria-label={t(v === 'up' ? 'monthly.fb.up' : 'monthly.fb.down')}>
+                    {v === 'up' ? '👍' : '👎'}
+                  </button>
+                ))}
+              </div>
+              {fb && (<>
+                <textarea value={comment} onChange={e => setComment(e.target.value.slice(0, 1000))} rows={3}
+                  placeholder={t('monthly.fb.placeholder')} aria-label={t('monthly.fb.placeholder')}
+                  style={{ width: '100%', marginTop: '12px', borderRadius: '10px', border: '1px solid #d5deeb', padding: '10px 12px', fontSize: '16px', fontFamily: 'inherit', color: '#16294a', resize: 'vertical', boxSizing: 'border-box' }} />
+                <button onClick={send} disabled={fbState === 'sending'}
+                  style={{ marginTop: '10px', border: 0, borderRadius: '10px', padding: '11px 22px', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t('monthly.fb.send')}
+                </button>
+                {fbState === 'error' && <p style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#c0563f' }}>{t('monthly.fb.error')}</p>}
+              </>)}
+              <p style={{ margin: '10px 0 0', fontSize: '11.5px', color: '#8592a8' }}>{t('monthly.fb.note')}</p>
+            </>)}
+          </div>
+
+          <p style={{ textAlign: 'center', fontSize: '11.5px', color: '#8592a8', margin: '4px 0 0', lineHeight: 1.6 }}>
+            {t('monthly.footer')}<br />{t('monthly.next', { date: next })}
+          </p>
         </div>
       </div>
     </div>
@@ -1239,6 +1463,16 @@ export default function DashboardPage() {
     } catch {}
   }
 
+  /* Monthly reports, also in the page's language, under the same guard. */
+  async function loadMonthlyReports(latest: () => boolean) {
+    try {
+      const r = await fetch('/api/parent/monthly-reports?lang=' + encodeURIComponent(locale))
+      if (!r.ok) return
+      const j = await r.json()
+      if (latest()) setMonthlyReports(j.reports || [])
+    } catch {}
+  }
+
   async function loadWallet() {
     try {
       const [res, tmRes] = await Promise.all([
@@ -1328,6 +1562,19 @@ export default function DashboardPage() {
   const [recordsFor, setRecordsFor] = useState<Student | null>(null)
   const [assessReports, setAssessReports] = useState<Record<string, AssessmentReport>>({})
   const [reportFor, setReportFor] = useState<Student | null>(null)
+  const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([])
+  const [monthlyFor, setMonthlyFor] = useState<{ student: Student; id: string } | null>(null)
+  // The email's button opens the dashboard on its report (?report=<id>), once.
+  const reportLink = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('report') : null)
+  useEffect(() => {
+    const want = reportLink.current
+    if (!want || monthlyReports.length === 0 || students.length === 0) return
+    reportLink.current = null
+    const r = monthlyReports.find(x => x.id === want)
+    const st = r ? students.find(x => x.id === r.studentId) : undefined
+    if (r && st) setMonthlyFor({ student: st, id: r.id })
+    try { const u = new URL(window.location.href); u.searchParams.delete('report'); window.history.replaceState(null, '', u.toString()) } catch {}
+  }, [monthlyReports, students])
   const [recordsPage, setRecordsPage] = useState(0)
   const [pointsOpen, setPointsOpen] = useState(false)
   // Opened from the "refer a friend" line: scroll the sheet to that card.
@@ -1467,6 +1714,7 @@ export default function DashboardPage() {
     const latest = () => seq === fetchSeq.current
     loadWallet()
     loadAssessments(latest)
+    loadMonthlyReports(latest)
     const { data: { user } } = await supabase.auth.getUser()
     // Both of these used to be a bare `return`, which left loading at true and
     // the page on its spinner for ever. A coach or an admin who follows a link
@@ -2194,6 +2442,14 @@ export default function DashboardPage() {
               const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
               const age = student.date_of_birth ? getAge(student.date_of_birth) : null
               const ageMonths = student.date_of_birth && age === 0 ? getAgeMonths(student.date_of_birth) : null
+              /* The newest monthly report sits on the card as one line; the
+                 sheet it opens has the earlier months. */
+              const monthly = monthlyReports.filter(m => m.studentId === student.id)
+              const monthlyLine = monthly.length > 0 && (
+                <button className="tap-auto msa-mcard-report" onClick={() => setMonthlyFor({ student, id: monthly[0].id })}>
+                  📊 {t('monthly.cardLine', { month: new Date(monthly[0].month + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'long', timeZone: 'UTC' }) })}
+                </button>
+              )
               const ageLabel = age === null ? t('dash.ageUnknown') : age >= 1 ? t('dash.age', { n: age }) : ageMonths !== null && ageMonths >= 1 ? t(ageMonths === 1 ? 'dash.ageMonth' : 'dash.ageMonths', { n: ageMonths }) : t('dash.ageNewborn')
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
@@ -2215,6 +2471,7 @@ export default function DashboardPage() {
                   {!hasLevel && (
                     <>
                       <span className="msa-mcard-lv"><i />{t('dash.pendingAssessment')}</span>
+                      {monthlyLine}
                       {pastBookings.some(b => b.student_id === student.id) && (
                         <div className="msa-mcard-btns">
                           <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}>{t('dash.records')}</button>
@@ -2242,6 +2499,7 @@ export default function DashboardPage() {
                           <span>{t(stageNameKey(lvl, curStage))}</span>
                           <b>{curPct}%</b>
                         </div>
+                        {monthlyLine}
                         {report && creditLive(report) && (
                           <div className="msa-mcard-credit">
                             🎁 {t('assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
@@ -3009,6 +3267,12 @@ export default function DashboardPage() {
 
       </div>
       <style>{MOBILE_CSS}</style>
+      {monthlyFor && (
+        <MonthlyReportSheet student={monthlyFor.student} initialId={monthlyFor.id}
+          reports={monthlyReports.filter(m => m.studentId === monthlyFor.student.id)}
+          onClose={() => setMonthlyFor(null)}
+          onFeedback={(id, feedback, comment) => setMonthlyReports(list => list.map(m => m.id === id ? { ...m, feedback, feedbackComment: comment || null } : m))} />
+      )}
       {reportFor && assessReports[reportFor.id] && (
         <AssessmentSheet student={reportFor} report={assessReports[reportFor.id]} onClose={() => setReportFor(null)} />
       )}
