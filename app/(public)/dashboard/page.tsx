@@ -896,6 +896,56 @@ function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }
   )
 }
 
+/** The suggestion box: one optional message to the managers, any time. */
+function SuggestionSheet({ onClose }: { onClose: () => void }) {
+  const t = useT()
+  const [text, setText] = useState('')
+  const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error' | 'many'>('idle')
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  async function send() {
+    if (!text.trim()) return
+    setState('sending')
+    const r = await fetch('/api/parent/suggestions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text }),
+    }).catch(() => null)
+    setState(r && r.ok ? 'done' : r && r.status === 429 ? 'many' : 'error')
+  }
+  return (
+    <div className="msa-sheet-back" onClick={onClose}>
+      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('suggest.title')}>
+        <div className="msa-sheet-head">
+          <b>{t('suggest.title')}</b>
+          <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
+        </div>
+        {state === 'done' ? (
+          <div style={{ textAlign: 'center', padding: '18px 0 8px' }}>
+            <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1f7a57' }}>{t('suggest.thanks')}</p>
+            <button onClick={onClose} style={{ marginTop: '16px', border: 0, borderRadius: '10px', padding: '11px 26px', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              {t('common.close')}
+            </button>
+          </div>
+        ) : (<>
+          <p style={{ margin: '0 0 10px', fontSize: '13.5px', color: '#56647d', lineHeight: 1.6 }}>{t('suggest.intro')}</p>
+          <textarea value={text} onChange={e => setText(e.target.value.slice(0, 2000))} rows={6} autoFocus
+            placeholder={t('suggest.placeholder')} aria-label={t('suggest.title')}
+            style={{ width: '100%', borderRadius: '12px', border: '1px solid #d5deeb', padding: '12px', fontSize: '16px', fontFamily: 'inherit', color: '#16294a', resize: 'vertical', boxSizing: 'border-box', background: '#fff' }} />
+          {state === 'error' && <p style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#c0563f' }}>{t('suggest.error')}</p>}
+          {state === 'many' && <p style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#c0563f' }}>{t('suggest.tooMany')}</p>}
+          <button onClick={send} disabled={!text.trim() || state === 'sending'}
+            style={{ marginTop: '12px', width: '100%', border: 0, borderRadius: '12px', padding: '13px', background: text.trim() ? AMBER : '#e3ebf6', color: text.trim() ? NAVY : '#8592a8', fontWeight: 800, fontSize: '15px', cursor: text.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+            {state === 'sending' ? t('suggest.sending') : t('suggest.send')}
+          </button>
+          <p style={{ margin: '10px 0 0', textAlign: 'center', fontSize: '11.5px', color: '#8592a8' }}>{t('suggest.note')}</p>
+        </>)}
+      </div>
+    </div>
+  )
+}
+
 function QRModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -1583,6 +1633,7 @@ export default function DashboardPage() {
   const [reportFor, setReportFor] = useState<Student | null>(null)
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([])
   const [monthlyFor, setMonthlyFor] = useState<{ student: Student; id: string } | null>(null)
+  const [suggestOpen, setSuggestOpen] = useState(false)
   // The email's button opens the dashboard on its report (?report=<id>), once.
   const reportLink = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('report') : null)
   useEffect(() => {
@@ -2601,6 +2652,11 @@ export default function DashboardPage() {
               <a href="#" onClick={e => { e.preventDefault(); setReferralFocus(true); setPointsOpen(true) }}>{t('ref.promptLink', { n: REFERRAL_POINTS })} ›</a>
             </p>
           )}
+          {/* The suggestion box (owner, 2026-09-30): optional, any time, managers only. */}
+          <p className="msa-partner msa-refer">
+            {t('suggest.prompt')}{' '}
+            <a href="#" onClick={e => { e.preventDefault(); setSuggestOpen(true) }}>{t('suggest.link')} ›</a>
+          </p>
         </section>
 
         {/* Pending partner bookings notice */}
@@ -3286,6 +3342,7 @@ export default function DashboardPage() {
 
       </div>
       <style>{MOBILE_CSS}</style>
+      {suggestOpen && <SuggestionSheet onClose={() => setSuggestOpen(false)} />}
       {monthlyFor && (
         <MonthlyReportSheet student={monthlyFor.student} initialId={monthlyFor.id}
           reports={monthlyReports.filter(m => m.studentId === monthlyFor.student.id)}

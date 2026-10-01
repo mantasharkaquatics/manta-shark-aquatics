@@ -40,6 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/finance', label: 'Deferred revenue', desc: 'What you owe in lessons', icon: <svg {...S}><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" /><rect x="12" y="8" width="3" height="10" /><rect x="17" y="5" width="3" height="13" /></svg> },
       { href: '/admin/pos', label: 'POS', desc: 'Sell at the desk', icon: <svg {...S}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg> },
       { href: '/admin/messages', label: 'Messages', desc: 'Parent conversations', icon: <svg {...S}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
+      { href: '/admin/suggestions', label: 'Suggestions', desc: 'From the suggestion box', icon: <svg {...S}><path d="M4 4h16v12H8l-4 4z" /><path d="M9 9h6M9 12h4" /></svg> },
     ],
   },
   {
