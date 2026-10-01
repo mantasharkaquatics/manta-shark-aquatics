@@ -11,7 +11,7 @@ type Month = {
 type Data = {
   today: string
   liability: {
-    refundable: number; unearnedBooked: number; deferredTotal: number
+    refundable: number; unearnedBooked: number; voucherOwed: number; vouchersOutstanding: number; deferredTotal: number
     granted: number; paidCents: number; refundedCents: number
     feeCents: number; feePending: number
   }
@@ -92,6 +92,8 @@ export default function AdminFinanceClient() {
           note="Refundable in cash on request, with no deadline. Do not spend it as if it were yours." />
         <Card label="— booked, not yet taught" value={pts(L.unearnedBooked)}
           note="Already deducted from a wallet, but the lesson has not happened. Still owed." />
+        <Card label="— make-up vouchers not yet used" value={pts(L.voucherOwed)}
+          note={`${L.vouchersOutstanding} voucher${L.vouchersOutstanding === 1 ? '' : 's'}. Paid lessons the family gave notice for: earned when the make-up is taught, or when the voucher expires or is voided.`} />
         <Card label="Granted points outstanding" value={pts(L.granted)}
           note="Given, never sold. Not a refund liability and never cash — a discount, not deferred revenue." />
       </div>
@@ -159,7 +161,9 @@ export default function AdminFinanceClient() {
       <div style={{ marginTop: 20, padding: '14px 16px', borderRadius: 10, background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.22)', fontSize: 12.5, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', maxWidth: 820 }}>
         <strong style={{ color: '#fff' }}>For the accountant.</strong> &ldquo;Revenue earned&rdquo; is on an accrual
         basis: a lesson counts in the month it was taught, no-shows included, because a no-show
-        consumes the lesson and the points are not returned. &ldquo;Cash in&rdquo; is what actually
+        consumes the lesson and the points are not returned. A lesson exchanged for a make-up voucher
+        stays deferred until the voucher ends: it is earned on the make-up lesson&rsquo;s date, or on the day
+        the voucher expires or is voided. &ldquo;Cash in&rdquo; is what actually
         settled through Stripe or the desk that month — if the business files on a cash basis, that
         is the column that matters. It counts every payment, Swim Assessments included, which is why it
         can differ from the points sold beside it: an assessment is money in that never became points.

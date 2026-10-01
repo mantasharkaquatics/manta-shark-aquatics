@@ -9,11 +9,16 @@ export const POLICIES = `
 - Closed on public holidays and special dates; closures are announced in advance by email.
 
 === CANCEL / RESCHEDULE ===
-- More than 24 hours before the lesson starts: cancel for a FULL return of the points, or reschedule as often as they like. Either can be done by the parent online or by contacting the team.
+- TWO KINDS OF BOOKING (docs/fixed-class-spec.md, owner 2026-10-01): SINGLE lessons, and FIXED CLASSES (固定班). A single lesson can only be booked up to 14 days ahead (the Swim Assessment and make-up lessons are exempt). A fixed class is the same student (or two siblings in a 1-on-2), same weekday, time, course, length and coach every week, at least 10 lessons, no upper limit, all paid for when booked, same price as singles (no discount). Available for 1-on-1 (30 or 60 min), 1-on-4, and same-family 1-on-2. A week the coach is away is skipped and not charged; if the coach is later off that week, that lesson's points are refunded. Parents book a fixed class on the booking page: pick a time, then the "Fixed class" button under it.
+- SINGLE LESSON, more than 24 hours before it starts: cancel for a FULL return of the points, or reschedule as often as they like. Either can be done by the parent online or by contacting the team.
 - A rescheduled lesson keeps the points already charged for it. It is NOT re-priced.${OFF_PEAK_ENABLED ? ' Not up if the new time is peak, not down if it is off-peak. Say so plainly if a parent asks whether moving a lesson to a cheaper time saves them points: it does not.' : ''}
-- Within 24 hours of the start time, lessons cannot be RESCHEDULED online, and the points are NOT returned, because the coach's time is already reserved. Deliver this politely and with empathy: acknowledge the inconvenience, explain the reserved time, and then explain the late-cancellation allowance below, which is the thing that CAN be done.
-- LATE-CANCELLATION ALLOWANCE: a family earns one for every 10 lessons they COMPLETE (not purchase). Spending one returns the full points for a lesson cancelled inside 24 hours. The parent chooses whether to use one at the moment they cancel; the system never spends one on their behalf. Allowances accumulate and are never reset. The dashboard shows how many they have. When none remain, a lesson inside 24 hours cannot be cancelled online; explain that and offer to escalate.
-- 1-on-2 lessons are EXCLUDED from online late cancellation: a 1-on-2 starting within 24 hours cannot be cancelled online at all, because two families share the slot - the parent must contact the team and staff handle it by hand.
+- FIXED-CLASS LESSON, more than 24 hours before it starts: the parent takes LEAVE (請假). The points are NOT returned; the lesson becomes a MAKE-UP VOUCHER, unlimited times. Fixed-class and make-up lessons can NOT be rescheduled online (never offer a reschedule link for them).
+- WITHIN 24 HOURS (any lesson): it cannot be rescheduled online and the points are NOT returned, because the coach's time is already reserved. Deliver this politely and with empathy, then explain the MONTHLY GRACE, which is the thing that CAN be done: each CHILD has ONE grace per calendar month (Pacific time), counted per child separately, not carried over. Using it cancels the lesson and gives a make-up voucher (NOT points back). The parent chooses it at the moment they cancel. Once that child's grace for the month is used, a lesson inside 24 hours cannot be cancelled online; explain that and offer to escalate. The old "one late-cancellation allowance per 10 lessons" NO LONGER EXISTS - never mention it.
+- MAKE-UP VOUCHERS (補課券): one voucher books ONE lesson of the SAME kind (1-on-1 30 min, 1-on-1 60 min, 1-on-2, or 1-on-4) for the same child(ren), any open time, any coach (not guaranteed the same coach), no points. 1-on-4 make-ups must be in a class for the child's current level band. A same-family 1-on-2 voucher is issued only when BOTH children miss. Valid for 4 weeks from the missed lesson; it can be booked up to that date even beyond the 14-day window. Families get an email one week before it expires. On the dashboard: the voucher line -> "View" -> "Book with voucher". A make-up cancelled more than 24h ahead returns the voucher (same expiry); inside 24h the voucher is used and the grace does not apply. A make-up cannot be turned into another voucher. Vouchers have no cash value and expire without refund.
+- RENEWAL: three weeks before a fixed class's last lesson the family gets an email asking whether to continue. The same weekday/time/coach for the next 10 weeks is HELD for them until 14 days before the last lesson (other families see it as full; for 1-on-4 only the child's own seat is held). Renewal is the same slot only, at least 10 lessons, from the email button or the fixed-class line on the dashboard ("Manage").
+- CHANGE OF SLOT (換時段): on the dashboard, fixed-class line -> "Manage" -> "Change slot": pick a new weekday, time and coach (same course and length). Every lesson more than 24h away moves in order, points unchanged, no penalty. A week the new slot is full goes on the end; if it still cannot be placed it may be with another coach, or else becomes a make-up voucher. The parent sees the whole plan before confirming.
+- ENDING A FIXED CLASS EARLY (e.g. moving away) cannot be done online: escalate to a human; the front desk decides whether the remaining lessons are refunded or turned into vouchers.
+- A 1-on-2 SHARED WITH ANOTHER FAMILY is EXCLUDED from online late cancellation: one starting within 24 hours cannot be cancelled online at all, because two families share the slot - the parent must contact the team and staff handle it by hand.
 - No-show without cancelling: the lesson counts as taken and the points are used. A plain no-show has NO exceptions and NO compensation of any kind - no doctor's note changes this. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
 
 === POINTS (HOW LESSONS ARE PAID FOR) ===
@@ -21,9 +26,9 @@ export const POLICIES = `
 - A family adds points by choosing a dollar amount (any whole dollar from $50 to $10,000). There is NO bulk discount on the purchase - do not imply that adding more is cheaper per point, because it is not.
 - Unused points that were PAID FOR can be refunded in cash at $1 per point at any time, with no deadline and no fee. See REFUNDS.
 - Points the school ADDS without payment - a promotion, a goodwill adjustment, a negotiated programme rate - book lessons exactly like any other point but cannot be cashed out. Never promise a cash refund on bonus points.
-- There are no lesson packages any more, and no make-up tokens. If a parent asks about buying 10/20/30/50 lessons, a package, credits, or tokens, explain the points balance instead. Never quote a package price and never say a token can be issued.
+- There are no lesson packages any more and no tokens. If a parent asks about buying 10/20/30/50 lessons, a package, credits, or tokens, explain the points balance (and the fixed class, if they want a regular weekly time) instead. Never quote a package price. Make-up vouchers exist only as described under CANCEL / RESCHEDULE; the AI never issues one itself.
 - Two things are NOT paid for with points: the Swim Assessment ($85, charged to the card) and Swim Team (a monthly membership).
-- The parent's dashboard shows the balance, the lessons completed, the late-cancellation allowances, and a full points history with a reason on every line.
+- The parent's dashboard shows the balance, the lessons completed, any make-up vouchers, and a full points history with a reason on every line.
 
 === WHAT A LESSON COSTS ===
 - Every lesson has a base price in points, per swimmer, per 30 minutes. A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 booked for two swimmers on the SAME account is charged for both seats; when two different families share a 1-on-2, each family pays for its own swimmer.
@@ -39,20 +44,20 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 
 === ILLNESS / EMERGENCY EXCEPTION ===
 - This exception applies ONLY when the parent contacts us and tells us the absence is due to illness or emergency. It is never an automatic exemption, and it does not apply to plain no-shows. When it applies, the team handles it manually (escalate to a human). Compensation policy the AI may explain:
-  - With a doctor's note: excused without limit; the points for the missed lesson are returned by staff after review, without spending a late-cancellation allowance.
+  - With a doctor's note: excused without limit; the points for the missed lesson are returned by staff after review, and the child's monthly grace is not used.
   - Without a doctor's note: excused ONE time per student total, on the same terms.
 - The AI must never return points itself; it explains the policy and escalates to a human.
 
 === REFUNDS ===
 - Unused points that the family PAID FOR are refundable in cash at $1 per point, at any time, with no deadline, no minimum and no fee. This is simple and generous; say it plainly.
-- Points already spent on lessons are not refundable - that includes completed lessons, no-shows, and cancellations made inside 24 hours where no allowance was used.
+- Points already spent on lessons are not refundable - that includes completed lessons, no-shows, lessons cancelled inside 24 hours, and lessons exchanged for a make-up voucher. Vouchers have no cash value.
 - Points the school added without payment cannot be cashed out.
 - The Swim Assessment fee is not refundable once the assessment has taken place.
 - Process: the parent contacts the team through this chat (a human will take over) or at the front desk. The AI never processes refunds and never promises a specific amount or timeline; it explains the rule and escalates.
 
 === WEATHER / SCHOOL-INITIATED CANCELLATIONS ===
 - In extreme weather or when California disaster alerts are issued, lessons are paused. Management notifies all families by email and SMS.
-- If the school cancels a lesson, the points go back to the family's balance in FULL and automatically, whatever the notice period, and no late-cancellation allowance is spent. The family can rebook online or contact us for help.
+- If the school cancels a lesson, the points go back to the family's balance in FULL and automatically, whatever the notice period, and the monthly grace is not used. If it was a make-up booked with a voucher, the voucher comes back instead, valid at least 4 weeks from the cancelled lesson. The family can rebook online or contact us for help.
 
 === LATE ARRIVAL ===
 - A student who arrives late can still join for the remainder of the lesson time, but the missed minutes are not made up and the lesson counts as one full session. Deliver this politely: acknowledge the inconvenience, note that the coach's time was reserved for them.
@@ -86,7 +91,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 
 === BOOKING & COACHES ===
 - Bookings can be made online up until 30 minutes before the lesson start time. There is no earlier same-day or next-day cutoff.
-- Families can request a fixed weekly time slot: we pre-book the recurring slot in the system so it is reserved; unreserved slots may be taken by other families.
+- A family who wants the same weekly time and coach books a FIXED CLASS (see CANCEL / RESCHEDULE). Single lessons are only bookable 14 days ahead, so a regular slot is only kept by a fixed class.
 - Parents may choose or request a specific coach for 1-on-1 and 1-on-2 lessons, either when booking online or by asking the team.
 - Students are welcome to try lessons with different coaches; parents can simply book a different coach's time slot online.
 

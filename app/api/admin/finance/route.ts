@@ -18,6 +18,13 @@ export const runtime = 'nodejs'
  * owed. Revenue is recognised on the session DATE, no-shows included -- a
  * no-show consumes the lesson and the points are not returned, so it is earned.
  *
+ * MAKE-UP VOUCHERS (docs/fixed-class-spec.md section 7). A lesson turned into a
+ * voucher keeps its points, but nothing has been taught yet: the family is
+ * still owed a lesson. So its points stay DEFERRED while the voucher is active,
+ * and become revenue when the voucher ends -- on the make-up lesson's date if
+ * it is used, on the expiry date if it runs out, on the day the desk voids it
+ * (owner, 2026-10-01). The make-up booking itself carries no points.
+ *
  * GRANTED points are deliberately outside the liability. They were never cash,
  * so there is no revenue to defer; they are a discount, and they can never be
  * refunded for money. Reported separately so nobody wonders where they went.
@@ -33,6 +40,13 @@ type Row = { created_at: string; delta_purchased: number; delta_granted: number;
 /** 'YYYY-MM' in LA. Month boundaries are a local-calendar question and the
  *  server is UTC in production, so a December 31st evening top-up must not land
  *  in January. */
+/** 'YYYY-MM-DD' in LA, for a timestamp. */
+function monthDayLA(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(iso))
+}
+
 function monthKeyLA(iso: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit',
@@ -54,7 +68,7 @@ export async function GET() {
   const today = getTodayLA()
   const since = new Date(Date.now() - MONTHS_BACK * 31 * 86_400_000).toISOString()
 
-  const [{ data: wallets }, { data: ledger }, { data: bookings }, { data: purchases, error: purchasesErr }] = await Promise.all([
+  const [{ data: wallets }, { data: ledger }, { data: bookings }, { data: purchases, error: purchasesErr }, { data: vouchers }] = await Promise.all([
     svc.from('point_wallets').select('balance_purchased, balance_granted, total_paid_cents, total_refunded_cents'),
     svc.from('point_ledger')
       .select('created_at, delta_purchased, delta_granted, reason, amount_cents')
@@ -74,7 +88,7 @@ export async function GET() {
     // is cancelled with its points unrefunded ON PURPOSE -- they moved to the
     // new row -- and counting it booked the same lesson twice.
     svc.from('bookings')
-      .select('points_charged, points_refunded, status, cancelled_by, cancellation_reason, class_session_id')
+      .select('id, points_charged, points_refunded, status, cancelled_by, cancellation_reason, class_session_id, student_id, lesson_group_id')
       .not('points_charged', 'is', null),
     // What Stripe kept. Read from the payments themselves rather than derived
     // from a rate: ACH is capped, cards carry extras, Terminal differs again.
@@ -86,6 +100,11 @@ export async function GET() {
       .eq('status', 'paid')
       .is('reversed_at', null)
       .gte('paid_at', since),
+    // Vouchers that replaced a lesson someone paid for. One issued by hand
+    // (no source lesson) defers nothing: no points were taken for it.
+    svc.from('make_up_vouchers')
+      .select('id, status, source_booking_id, student_id, student2_id, used_booking_id, voided_at, expires_on')
+      .not('source_booking_id', 'is', null),
   ])
 
   // Session dates come in a second query on purpose: a nested join here has
@@ -98,18 +117,60 @@ export async function GET() {
     for (const r of rows || []) dateById[r.id] = r.session_date
   }
 
+  // Which voucher, if any, a cancelled row's points now wait on. A voucher
+  // names one source row, but the lesson it replaced may be several rows: the
+  // two halves of an hour (lesson_group_id) or both seats of a sibling 1-on-2
+  // (same session, the voucher's two students).
+  const rowById = new Map<string, any>((bookings || []).map((b: any) => [b.id, b]))
+  const voucherByGroup = new Map<string, any>()
+  const voucherBySeat = new Map<string, any>()
+  for (const v of (vouchers || []) as any[]) {
+    const src = rowById.get(v.source_booking_id)
+    if (!src) continue
+    if (src.lesson_group_id) voucherByGroup.set(src.lesson_group_id, v)
+    for (const sid of [v.student_id, v.student2_id].filter(Boolean)) voucherBySeat.set(`${src.class_session_id}|${sid}`, v)
+  }
+  const voucherFor = (b: any) => (b.lesson_group_id && voucherByGroup.get(b.lesson_group_id)) || voucherBySeat.get(`${b.class_session_id}|${b.student_id}`) || null
+  /** The day a voucher's lesson is earned, or null while it is still owed. */
+  const voucherEarnedOn = (v: any): string | null => {
+    if (v.status === 'used') {
+      const used = v.used_booking_id ? rowById.get(v.used_booking_id) : null
+      const d = used ? dateById[used.class_session_id] : null
+      // Used but its make-up lesson cannot be found: count it when it was
+      // claimed rather than lose it -- the family has had what it was owed.
+      if (!d) return today
+      return d < today ? d : null
+    }
+    if (v.status === 'expired') return v.expires_on < today ? v.expires_on : today
+    if (v.status === 'void') return v.voided_at ? monthDayLA(v.voided_at) : today
+    return null
+  }
+
   let unearnedBooked = 0
+  let voucherOwed = 0
+  const voucherOwedIds = new Set<string>()
   const earnedByMonth: Record<string, number> = {}
+  const earn = (date: string, pts: number) => { earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts }
   for (const b of (bookings || []) as any[]) {
-    if (b.status === 'cancelled' && !(b.cancelled_by === 'admin' && b.cancellation_reason === 'cancelled_by_parent')) continue
-    const date = dateById[b.class_session_id]
-    if (!date) continue
     const pts = (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0)
     if (pts <= 0) continue
+    if (b.status === 'cancelled') {
+      // A lesson given up for a voucher: owed until the voucher ends.
+      const v = b.cancellation_reason !== 'rescheduled' ? voucherFor(b) : null
+      if (v) {
+        const on = voucherEarnedOn(v)
+        if (on) earn(on, pts)
+        else { voucherOwed += pts; voucherOwedIds.add(v.id) }
+        continue
+      }
+      if (!(b.cancelled_by === 'admin' && b.cancellation_reason === 'cancelled_by_parent')) continue
+    }
+    const date = dateById[b.class_session_id]
+    if (!date) continue
     // A forfeited lesson is no longer owed, so it is never part of the
     // liability; it is earned on the day it would have been taught.
     if (date >= today && b.status !== 'cancelled') unearnedBooked += pts
-    else earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts
+    else earn(date, pts)
   }
 
   const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; cashInCents: number; feeCents: number; feePending: number; sold: number; usedNet: number }> = {}
@@ -170,7 +231,9 @@ export async function GET() {
     liability: {
       refundable: walletPurchased,
       unearnedBooked,
-      deferredTotal: walletPurchased + unearnedBooked,
+      voucherOwed,
+      vouchersOutstanding: voucherOwedIds.size,
+      deferredTotal: walletPurchased + unearnedBooked + voucherOwed,
       granted: walletGranted,
       paidCents,
       refundedCents,

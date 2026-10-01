@@ -1057,7 +1057,6 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                 <span className="text-gray-400 text-xs">
                   {w.lessonsCompleted} lessons completed
                 </span>
-                <span className="text-gray-400 text-xs">{w.forgiveness} late-cancel allowance{w.forgiveness === 1 ? '' : 's'}</span>
               </div>
               {w.referral && (w.referral.referredBy || w.referral.referred.length > 0) && (
                 <p className="text-gray-500 text-xs">

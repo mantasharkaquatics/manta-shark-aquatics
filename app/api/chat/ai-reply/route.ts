@@ -110,7 +110,7 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
 const TOOLS = [
   {
     name: 'get_my_points',
-    description: "Get the parent's points balance, lessons completed, and how many late-cancellation allowances they have.",
+    description: "Get the parent's points balance and lessons completed. (Late-cancellation allowances no longer exist; any such field in the result is obsolete and must not be mentioned.)",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {

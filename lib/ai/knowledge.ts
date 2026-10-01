@@ -1,6 +1,6 @@
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import {
-  ASSESSMENT_POINTS, BASE_POINTS, LESSONS_PER_FORGIVENESS,
+  ASSESSMENT_POINTS, BASE_POINTS,
   OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, REFERRAL_POINTS, TOPUP_PRESETS, presetLessons,
 } from '@/lib/points'
 import { FAQ_IDS } from '@/lib/faq'
@@ -59,7 +59,7 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
       ? `Off-peak discount: ${Math.round(OFF_PEAK_DISCOUNT * 100)}% off, judged on the time the lesson starts. Mon-Fri 6:00-12:00 and 19:30-21:00; Sat-Sun 6:00-10:00 and 19:30-21:00. The booking calendar marks these slots.`
       : 'There is no off-peak or time-of-day discount; every time of day costs the same.',
     ...(OFF_PEAK_ENABLED ? ['The discounted price is rounded down, so the remainder always favours the family.'] : []),
-    `Cancelling more than 24 hours ahead returns the points in full. Within 24 hours the points are not returned, unless the family spends a late-cancellation allowance — they earn one for every ${LESSONS_PER_FORGIVENESS} lessons completed, and they choose whether to use it.`,
+    'Single lessons: bookable up to 14 days ahead; cancelling more than 24 hours ahead returns the points in full. Fixed classes (same slot and coach weekly, 10+ lessons): leave taken 24 hours ahead becomes a make-up voucher. Within 24 hours the points are not returned; each child has one grace a month that turns the lesson into a make-up voucher.',
   ]
 
   return [
