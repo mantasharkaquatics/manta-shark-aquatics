@@ -26,6 +26,7 @@ export default function FixedClassesClient() {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
+  const [doneMsg, setDoneMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const r = await fetch('/api/admin/fixed-classes').catch(() => null)
@@ -42,7 +43,7 @@ export default function FixedClassesClient() {
     setBusy(false)
     if (!r || !r.ok) { setAlertMsg(j.error || 'That did not save. Please try again.'); return }
     setEnding(null)
-    setAlertMsg(`Ended. ${j.lessons || 0} booking row(s) cancelled${mode === 'refund' ? `, ${j.refunded || 0} points refunded` : mode === 'voucher' ? `, ${j.vouchers || 0} voucher(s) issued` : ''}. The family has been emailed.`)
+    setDoneMsg(`Ended. ${j.lessons || 0} booking row(s) cancelled${mode === 'refund' ? `, ${j.refunded || 0} points refunded` : mode === 'voucher' ? `, ${j.vouchers || 0} voucher(s) issued` : ''}. The family has been emailed.`)
     await load()
   }
 
@@ -51,6 +52,7 @@ export default function FixedClassesClient() {
   return (
     <div className="p-6 md:p-8 max-w-5xl">
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
+      <AlertModal title="Done" message={doneMsg} onClose={() => setDoneMsg(null)} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Fixed Classes</h1>
         <p className="text-gray-400 text-sm mt-1">Same weekday, time and coach every week, ten lessons or more. Families take leave online (it becomes a make-up voucher); ending a class part-way is done here.</p>
