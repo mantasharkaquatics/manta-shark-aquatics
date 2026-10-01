@@ -4,7 +4,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA } from '@/lib/date'
 import {
   generateMonth, approveReport, sendReadyMonths, lessonsByStudent,
-  isMonth, monthOf, previousMonth, nextMonth,
+  isMonth, monthOf, monthEnd, previousMonth, nextMonth,
 } from '@/lib/monthly-reports'
 
 export const runtime = 'nodejs'
@@ -20,7 +20,13 @@ export async function GET(req: NextRequest) {
   const svc = auth.svc
   const today = getTodayLA()
   const asked = req.nextUrl.searchParams.get('month')
-  const month = isMonth(asked) ? asked : previousMonth(monthOf(today))
+  // Unless one is asked for: the newest month with reports, else the month
+  // being written tonight (last day) or the one just finished.
+  let month = isMonth(asked) ? asked : ''
+  if (!month) {
+    const { data: newest } = await svc.from('monthly_reports').select('month').order('month', { ascending: false }).limit(1)
+    month = newest?.[0]?.month || (monthEnd(monthOf(today)) === today ? monthOf(today) : previousMonth(monthOf(today)))
+  }
 
   const [{ data: rows }, { data: allMonths }, eligible] = await Promise.all([
     svc.from('monthly_reports')
@@ -72,7 +78,7 @@ export async function POST(req: NextRequest) {
   if (action === 'generate') {
     if (!isMonth(body.month)) return NextResponse.json({ error: 'Pick a month' }, { status: 400 })
     if (body.month > monthOf(getTodayLA())) return NextResponse.json({ error: 'That month has not started yet' }, { status: 400 })
-    return NextResponse.json(await generateMonth(svc, body.month, { budgetMs: 40_000 }))
+    return NextResponse.json(await generateMonth(svc, body.month, { budgetMs: 25_000 }))
   }
 
   const id = String(body.id || '')
@@ -81,7 +87,7 @@ export async function POST(req: NextRequest) {
   if (row.status === 'sent') return NextResponse.json({ error: 'This report has already been sent to the family' }, { status: 409 })
 
   if (action === 'regenerate') {
-    const r = await generateMonth(svc, row.month, { budgetMs: 50_000, studentIds: [row.student_id] })
+    const r = await generateMonth(svc, row.month, { budgetMs: 25_000, studentIds: [row.student_id] })
     if (r.written !== 1) return NextResponse.json({ error: 'The report could not be rewritten. Try again in a minute.' }, { status: 502 })
     return NextResponse.json({ ok: true })
   }
@@ -105,8 +111,9 @@ export async function POST(req: NextRequest) {
 
   if (action === 'approve') {
     if (!summary) return NextResponse.json({ error: 'Write the summary before approving' }, { status: 400 })
-    const ok = await approveReport(svc, id, auth.admin.id, summary, focus)
-    if (!ok) return NextResponse.json({ error: 'This report has already been sent to the family' }, { status: 409 })
+    const result = await approveReport(svc, id, auth.admin.id, summary, focus)
+    if (result === 'sent') return NextResponse.json({ error: 'This report has already been sent to the family' }, { status: 409 })
+    if (result === 'translation') return NextResponse.json({ error: 'The translation did not come back, so nothing was approved. Try again in a minute.' }, { status: 502 })
     // The last approval of a finished month sends the whole month.
     const sent = await sendReadyMonths(svc).catch(e => { console.error('monthly reports: send after approve failed', e); return [] })
     return NextResponse.json({ ok: true, sent })

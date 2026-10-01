@@ -58,10 +58,19 @@ export default function MonthlyReportsClient() {
     if (!month) return
     setBusy('generate')
     let total = 0
-    for (let round = 0; round < 30; round++) {
+    let misses = 0
+    for (let round = 0; round < 40; round++) {
       setProgress(`Writing reports… ${total} done`)
-      const j = await post({ action: 'generate', month })
-      if (!j) break
+      // A dropped connection mid-batch is retried: what was written stays written.
+      const r = await fetch('/api/admin/monthly-reports', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate', month }),
+      }).catch(() => null)
+      const j = r && r.ok ? await r.json().catch(() => null) : null
+      if (!j) {
+        if (++misses <= 2) continue
+        setAlertMsg('Writing stopped partway. Press Generate again to finish the rest.')
+        break
+      }
       total += j.written
       if (j.remaining === 0 || j.written + j.failed === 0) {
         if (j.failed) setAlertMsg(`${j.failed} report(s) could not be written. Press Generate again to retry them.`)

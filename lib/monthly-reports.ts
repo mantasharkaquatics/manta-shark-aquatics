@@ -18,10 +18,10 @@
 // Everything runs with the service client; monthly_reports has RLS on and no
 // policy.
 
-import { POLISH_MODEL, SUPPORTED_NOTE_LANGUAGES } from '@/lib/ai/models'
-import { loadGlossary, translateOnce } from '@/lib/ai/translate-note'
-import { getTodayLA } from '@/lib/date'
-import { getT } from '@/lib/i18n'
+import { POLISH_MODEL, SUPPORTED_NOTE_LANGUAGES, LANGUAGE_NAMES } from '@/lib/ai/models'
+import { loadGlossary } from '@/lib/ai/translate-note'
+import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { getT, tDb, type Locale } from '@/lib/i18n'
 import { stageProgress, stageNameKey, type StageProgress } from '@/lib/levels'
 import { masteryOf, MASTERY_LABEL } from '@/lib/mastery'
 import { TEAM_SLUG } from '@/lib/points'
@@ -102,13 +102,22 @@ export type ReportData = {
 
 type Booking = { id: string; student_id: string; parent_id: string; class_session_id: string; lesson_group_id: string | null; is_trial: boolean }
 
-/** Every swimmer with at least one lesson in the month (up to `upTo`), with their bookings. */
-export async function lessonsByStudent(svc: Svc, month: string, upTo = getTodayLA()) {
-  const last = monthEnd(month) < upTo ? monthEnd(month) : upTo
-  const { data: sessions } = await svc.from('class_sessions')
+const toMin = (t: string | null | undefined) => { const [h, m] = String(t || '00:00').slice(0, 5).split(':').map(Number); return h * 60 + m }
+
+/**
+ * Every swimmer with at least one lesson in the month, with their bookings.
+ * Only lessons that have already ended count: a report written mid-afternoon
+ * must not list this evening's lesson as missed. A swimmer whose only lesson
+ * was the Swim Assessment gets no monthly report -- the assessment report
+ * already covers that lesson.
+ */
+export async function lessonsByStudent(svc: Svc, month: string, today = getTodayLA(), nowMin = getNowMinutesLA()) {
+  const last = monthEnd(month) < today ? monthEnd(month) : today
+  const { data: allSessions } = await svc.from('class_sessions')
     .select('id, session_date, start_time, end_time, coach_id, course_type_id')
     .gte('session_date', month).lte('session_date', last)
-  const sessionById = new Map<string, any>((sessions || []).map((s: any) => [s.id, s]))
+  const sessions = (allSessions || []).filter((s: any) => s.session_date < today || toMin(s.end_time) <= nowMin)
+  const sessionById = new Map<string, any>(sessions.map((s: any) => [s.id, s]))
   if (sessionById.size === 0) return { byStudent: new Map<string, Booking[]>(), sessionById }
 
   const ids = [...sessionById.keys()]
@@ -121,7 +130,7 @@ export async function lessonsByStudent(svc: Svc, month: string, upTo = getTodayL
     bookings.push(...(data || []))
   }
 
-  const typeIds = [...new Set((sessions || []).map((s: any) => s.course_type_id).filter(Boolean))]
+  const typeIds = [...new Set(sessions.map((s: any) => s.course_type_id).filter(Boolean))]
   const { data: types } = typeIds.length
     ? await svc.from('course_types').select('id, slug').in('id', typeIds)
     : { data: [] as any[] }
@@ -135,6 +144,7 @@ export async function lessonsByStudent(svc: Svc, month: string, upTo = getTodayL
     list.push(b)
     byStudent.set(b.student_id, list)
   }
+  for (const [id, list] of byStudent) if (list.every(b => b.is_trial)) byStudent.delete(id)
   return { byStudent, sessionById }
 }
 
@@ -164,6 +174,12 @@ export async function buildReportData(
     typeIds.length ? svc.from('course_types').select('id, name').in('id', typeIds) : { data: [] },
     svc.from('attendance').select('booking_id').in('booking_id', bookings.map(b => b.id)),
   ])
+  // Present when checked in, or when the coach filed a report for the lesson --
+  // not every lesson is checked in at the desk, and a report means they swam.
+  const lessonKeys = [...new Set(bookings.map(b => b.lesson_group_id || b.class_session_id))]
+  const { data: reported } = await svc.from('progress_history')
+    .select('lesson_key').eq('student_id', studentId).in('lesson_key', lessonKeys).neq('status', 'rejected')
+  const reportedKeys = new Set((reported || []).map((r: any) => r.lesson_key))
   const coachName = new Map<string, string>((coaches || []).map((c: any) => [c.id, c.first_name]))
   const typeName = new Map<string, string>((types || []).map((t: any) => [t.id, t.name]))
   const attended = new Set((att || []).map((a: any) => a.booking_id))
@@ -184,7 +200,7 @@ export async function buildReportData(
       if (s.start_time && (!lesson.start || s.start_time < lesson.start)) lesson.start = s.start_time
       if (s.end_time && (!lesson.end || s.end_time > lesson.end)) lesson.end = s.end_time
     }
-    if (attended.has(b.id)) lesson.attended = true
+    if (attended.has(b.id) || reportedKeys.has(key)) lesson.attended = true
     byKey.set(key, lesson)
   }
   const lessons = [...byKey.values()].sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')))
@@ -332,10 +348,19 @@ export async function writeText(data: ReportData, notes: { date: string; text: s
  */
 export async function generateMonth(svc: Svc, month: string, opts: { budgetMs?: number; studentIds?: string[] } = {}) {
   const started = Date.now()
-  const budget = opts.budgetMs ?? 40_000
+  // Each report is roughly ten seconds (most of it the model); stop starting new
+  // ones well before the function's 60-second limit.
+  const budget = opts.budgetMs ?? 25_000
   const { byStudent, sessionById } = await lessonsByStudent(svc, month)
   const { data: existing } = await svc.from('monthly_reports').select('student_id, status').eq('month', month)
   const status = new Map<string, string>((existing || []).map((r: any) => [r.student_id, r.status]))
+
+  // A report nobody has sent yet, for a swimmer who no longer qualifies (the
+  // lesson was cancelled, or it turned out to be only the assessment), goes.
+  const stale = [...status.entries()].filter(([id, st]) => st !== 'sent' && !byStudent.has(id)).map(([id]) => id)
+  if (stale.length && !opts.studentIds) {
+    await svc.from('monthly_reports').delete().eq('month', month).in('student_id', stale).neq('status', 'sent')
+  }
 
   // Rewriting: only reports nobody has sent yet.
   const todo = opts.studentIds
@@ -368,29 +393,81 @@ export async function generateMonth(svc: Svc, month: string, opts: { budgetMs?: 
   return { eligible: byStudent.size, written, failed: failed.length, remaining: Math.max(0, todo.length - done) }
 }
 
-/** The English text in all three languages; English is the source. */
-async function translateText(svc: Svc, summary: string, focus: string) {
+/**
+ * The names a family already sees on the site, so a translated report says
+ * 「岸上打水」 where the dashboard says 「岸上打水」 rather than the model's own
+ * rendering of "Flutter Kick on Deck".
+ */
+function namesFor(data: ReportData, lang: Locale): { en: string; local: string }[] {
+  const en = getT('en'), t = getT(lang)
+  const out: { en: string; local: string }[] = []
+  const add = (a: string, b: string) => { if (a && b && a !== b) out.push({ en: a, local: b }) }
+  if (data.level) {
+    add(en('level.' + data.level + '.name'), t('level.' + data.level + '.name'))
+    for (const st of [1, 2, 3]) add(en(stageNameKey(data.level, st)), t(stageNameKey(data.level, st)))
+    add(`Level ${data.level}`, t('level.badge', { n: data.level, name: '' }).replace(/[\s·]+$/, ''))
+  }
+  for (const st of [1, 2, 3]) add(`Stage ${st}`, t('dash.stageN', { n: st }))
+  for (const s of data.stageSkills) add(s.name, tDb(lang, 'skills', s.id, s.name))
+  for (const l of data.lessons) if (l.courseTypeId) add(l.courseName, tDb(lang, 'course_types', l.courseTypeId, l.courseName))
+  add('Swim Assessment', t('common.assessment'))
+  for (const m of [0, 1, 2, 3, 4, 5] as const) add(MASTERY_LABEL[m], t('mastery.' + m))
+  return out
+}
+
+async function translateReportText(text: string, lang: Locale, names: { en: string; local: string }[], glossary: string[]): Promise<string | null> {
+  if (!text.trim()) return ''
+  const system = [
+    `Translate this part of a swim school's monthly progress report for a swimmer's family into ${LANGUAGE_NAMES[lang]}.`,
+    names.length ? `Use exactly these names wherever the English appears: ${names.map(n => `"${n.en}" = "${n.local}"`).join('; ')}.` : '',
+    glossary.length ? `Keep these swim terms in English exactly as written: ${glossary.join(', ')}.` : '',
+    'Keep the line breaks. Say only what the text says. Add nothing, drop nothing.',
+    'Return the translation alone, with no preamble.',
+  ].filter(Boolean).join('\n')
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: POLISH_MODEL, max_tokens: 800, system, messages: [{ role: 'user', content: text }] }),
+      })
+      if (!res.ok) { console.error('monthly report: translation error', res.status, (await res.text()).slice(0, 300)); continue }
+      const json = await res.json()
+      const out = (json?.content || []).map((c: any) => c.text || '').join('').trim()
+      if (out) return out
+    } catch (e) {
+      console.error('monthly report: translation failed', e)
+    }
+  }
+  return null
+}
+
+/** The manager's approval: their text, translated. A failed translation blocks
+ *  the approval rather than sending a family English they did not choose. */
+export async function approveReport(svc: Svc, id: string, adminId: string, summary: string, focus: string): Promise<'ok' | 'sent' | 'translation'> {
+  const { data: row } = await svc.from('monthly_reports').select('data, status').eq('id', id).maybeSingle()
+  if (!row || row.status === 'sent') return 'sent'
   const glossary = await loadGlossary(svc).catch(() => [] as string[])
   const s: Record<string, string> = { en: summary }
   const f: Record<string, string> = { en: focus }
   for (const lang of SUPPORTED_NOTE_LANGUAGES) {
     if (lang === 'en') continue
-    s[lang] = (await translateOnce(summary, lang, glossary)) ?? (await translateOnce(summary, lang, glossary)) ?? summary
-    if (focus) f[lang] = (await translateOnce(focus, lang, glossary)) ?? (await translateOnce(focus, lang, glossary)) ?? focus
+    const names = namesFor(row.data as ReportData, lang as Locale)
+    const [ts, tf] = await Promise.all([
+      translateReportText(summary, lang as Locale, names, glossary),
+      translateReportText(focus, lang as Locale, names, glossary),
+    ])
+    if (ts == null || tf == null) return 'translation'
+    s[lang] = ts
+    f[lang] = tf
   }
-  return { s, f }
-}
-
-/** The manager's approval: their text, translated. */
-export async function approveReport(svc: Svc, id: string, adminId: string, summary: string, focus: string) {
-  const { s, f } = await translateText(svc, summary, focus)
   const now = new Date().toISOString()
   const { data, error } = await svc.from('monthly_reports').update({
     summary, focus, summary_i18n: s, focus_i18n: f,
     status: 'approved', approved_by: adminId, approved_at: now, edited_by: adminId, edited_at: now,
   }).eq('id', id).neq('status', 'sent').select('id')
   if (error) throw new Error(error.message)
-  return (data || []).length > 0
+  return (data || []).length > 0 ? 'ok' : 'sent'
 }
 
 // ---- Sending ---------------------------------------------------------------------
