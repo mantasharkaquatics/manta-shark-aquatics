@@ -114,7 +114,7 @@ const MOBILE_CSS = `
 .msa-month-tabs { display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding-bottom: 2px }
 .msa-month-tabs button { flex-shrink: 0; border: 1px solid #d5deeb; background: #fff; color: #56647d; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer }
 .msa-month-tabs button.on { background: #12254a; border-color: #12254a; color: #fff }
-.msa-fb { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 88px; padding: 8px 12px; border-radius: 12px; border: 1px solid #d5deeb; background: #fff; font-size: 24px; line-height: 1.1; cursor: pointer; font-family: inherit }
+.msa-fb { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 96px; padding: 10px 12px; border-radius: 12px; border: 1px solid #d5deeb; background: #fff; line-height: 1.1; cursor: pointer; font-family: inherit }
 .msa-fb span { font-size: 12px; font-weight: 700; color: #56647d }
 .msa-fb.on { border-color: #f09800; background: #fff6e5 }
 .msa-report-credit { background: #eef8f1; border: 1px solid #bfe3cb; border-radius: 14px; padding: 14px 16px }
@@ -688,9 +688,24 @@ type MonthlyReport = {
   feedbackComment: string | null
 }
 
-/* The family's answer is 👍 ("clear") or 🤔 ("I have a question") -- the owner
-   swapped the thumbs-down for a question on 2026-09-30, so a family with a
-   doubt says so instead of grading us. Stored as 'up' / 'down'. */
+/* Option A, chosen by the owner 2026-09-30: line icons drawn here rather than
+   emoji, so every phone shows the same thumb and the same question mark. */
+const FbIcon = ({ kind, size = 30 }: { kind: 'up' | 'down'; size?: number }) => kind === 'up' ? (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#1f7a57" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3z" />
+    <path d="M7 10l4-7a2.5 2.5 0 0 1 2.5 2.8L13 9h5.6a2 2 0 0 1 2 2.4l-1.5 7.6a2.5 2.5 0 0 1-2.5 2H7" />
+  </svg>
+) : (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2050a0" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9.5" />
+    <path d="M9.3 9.2a2.8 2.8 0 1 1 3.9 2.6c-.8.4-1.2.9-1.2 1.8v.6" />
+    <circle cx="12" cy="17.2" r=".6" fill="#2050a0" />
+  </svg>
+)
+
+/* The family's answer is "clear" or "I have a question" -- the owner swapped the
+   thumbs-down for a question on 2026-09-30, so a family with a doubt says so
+   instead of grading us. Stored as 'up' / 'down'. */
 function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }: {
   student: Student
   reports: MonthlyReport[]
@@ -845,8 +860,8 @@ function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }
 
           <div style={{ ...card, textAlign: 'center' }}>
             {answered ? (
-              <p style={{ margin: 0, fontSize: '13.5px', color: '#1f7a57', fontWeight: 700 }}>
-                {(fbState === 'done' ? fb : r.feedback) === 'up' ? '👍 ' : '🤔 '}{t('monthly.fb.thanks')}
+              <p style={{ margin: 0, fontSize: '13.5px', color: '#1f7a57', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <FbIcon kind={(fbState === 'done' ? fb : r.feedback) === 'up' ? 'up' : 'down'} size={22} />{t('monthly.fb.thanks')}
               </p>
             ) : (<>
               <p style={{ ...h, margin: '0 0 10px' }}>{t('monthly.fb.q')}</p>
@@ -854,7 +869,7 @@ function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }
                 {(['up', 'down'] as const).map(v => (
                   <button key={v} className={'msa-fb' + (fb === v ? ' on' : '')} onClick={() => setFb(v)}
                     aria-pressed={fb === v}>
-                    {v === 'up' ? '👍' : '🤔'}<span>{t(v === 'up' ? 'monthly.fb.up' : 'monthly.fb.down')}</span>
+                    <FbIcon kind={v} /><span>{t(v === 'up' ? 'monthly.fb.up' : 'monthly.fb.down')}</span>
                   </button>
                 ))}
               </div>
