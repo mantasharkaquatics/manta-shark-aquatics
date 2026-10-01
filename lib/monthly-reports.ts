@@ -82,6 +82,8 @@ export type ReportLesson = {
 export type ReportData = {
   version: 1
   studentName: string
+  /** 'male' | 'female' as the family entered it; only used to pick he/she. */
+  gender?: string | null
   level: number | null
   stage: 1 | 2 | 3 | null
   coachName: string | null
@@ -174,7 +176,7 @@ export async function buildReportData(
 ): Promise<{ data: ReportData; parentId: string; noteTexts: { date: string; text: string }[] }> {
   const end = monthEnd(month)
   const { data: student } = await svc.from('students')
-    .select('id, full_name, parent_id, current_level, current_stage').eq('id', studentId).single()
+    .select('id, full_name, parent_id, current_level, current_stage, gender').eq('id', studentId).single()
 
   // Lessons: the two halves of a 60-minute lesson are one lesson here.
   const coachIds = [...new Set(bookings.map(b => sessionById.get(b.class_session_id)?.coach_id).filter(Boolean))]
@@ -263,6 +265,7 @@ export async function buildReportData(
     data: {
       version: 1,
       studentName: student?.full_name || '',
+      gender: student?.gender || null,
       level, stage,
       coachName: mainCoach,
       lessons,
@@ -282,6 +285,7 @@ const SYSTEM_PROMPT = [
   'Use ONLY the facts in the data. Never invent a skill, a time, a distance, an achievement or a plan the data does not support.',
   'Never mention prices, points, payments or policies, and never promise an outcome or a date.',
   'Lessons the swimmer did not attend are only mentioned as a count, without judgement.',
+  'Refer to the swimmer as he or she only when the data says boy or girl; otherwise use their name, never a guessed pronoun.',
   'Skill progress uses these steps, lowest to highest: Not taught, Trying it, Needs help, On their own, Getting solid, Mastered.',
   'Return JSON only, no preamble: {"summary": string, "focus": string[]}',
   '- summary: 2 to 4 sentences, under 90 words, about this month: lessons taken, what changed in their skills, where they are in the current stage.',
@@ -292,7 +296,7 @@ function promptFor(data: ReportData, notes: { date: string; text: string }[]): s
   const t = getT('en')
   const first = data.studentName.split(' ')[0] || data.studentName
   const lines: string[] = []
-  lines.push(`Swimmer: ${first}`)
+  lines.push(`Swimmer: ${first}${data.gender === 'male' ? ' (boy)' : data.gender === 'female' ? ' (girl)' : ''}`)
   if (data.level) {
     lines.push(`Level ${data.level} (${t('level.' + data.level + '.name')}), currently Stage ${data.stage} (${t(stageNameKey(data.level, data.stage || 1))})`)
     lines.push(`Stage progress at month end: ${data.stages.map(s => `Stage ${s.stage} ${s.percent}%`).join(', ')}`)
