@@ -1,8 +1,9 @@
 // The monthly progress report (owner's rules, 2026-09-30).
 //
-//  - One report per swimmer per month, for every swimmer who had at least one
-//    lesson that month -- even a single lesson. Swim Team is not part of it
-//    (practices are not bookings, and a 'team' course is skipped anyway).
+//  - One report per swimmer per month, for every swimmer who actually took at
+//    least one lesson that month (checked in) -- even a single lesson. Not when
+//    no lesson took place, and not for the Swim Assessment alone. Swim Team is
+//    not part of it (practices are not bookings, and a 'team' course is skipped).
 //  - Written on the last day of the month by the hourly cron (after 11 PM Los
 //    Angeles time), or on demand from /admin/monthly-reports ("Generate now").
 //  - The numbers, the stage bars, the skills and the lesson list come straight
@@ -107,9 +108,10 @@ const toMin = (t: string | null | undefined) => { const [h, m] = String(t || '00
 /**
  * Every swimmer with at least one lesson in the month, with their bookings.
  * Only lessons that have already ended count: a report written mid-afternoon
- * must not list this evening's lesson as missed. A swimmer whose only lesson
- * was the Swim Assessment gets no monthly report -- the assessment report
- * already covers that lesson.
+ * must not list this evening's lesson as missed. A swimmer gets a report only
+ * if at least one ordinary lesson actually took place -- checked in, which is
+ * also what lets the coach file the lesson report (owner, 2026-09-30). The
+ * Swim Assessment alone does not count: its own report covers it.
  */
 export async function lessonsByStudent(svc: Svc, month: string, today = getTodayLA(), nowMin = getNowMinutesLA()) {
   const last = monthEnd(month) < today ? monthEnd(month) : today
@@ -144,7 +146,15 @@ export async function lessonsByStudent(svc: Svc, month: string, today = getToday
     list.push(b)
     byStudent.set(b.student_id, list)
   }
-  for (const [id, list] of byStudent) if (list.every(b => b.is_trial)) byStudent.delete(id)
+  const regular = bookings.filter(b => !b.is_trial && byStudent.has(b.student_id))
+  const present = new Set<string>()
+  for (let i = 0; i < regular.length; i += 300) {
+    const { data } = await svc.from('attendance').select('booking_id').in('booking_id', regular.slice(i, i + 300).map(b => b.id))
+    for (const a of data || []) present.add(a.booking_id)
+  }
+  for (const [id, list] of byStudent) {
+    if (!list.some(b => !b.is_trial && present.has(b.id))) byStudent.delete(id)
+  }
   return { byStudent, sessionById }
 }
 
@@ -174,12 +184,6 @@ export async function buildReportData(
     typeIds.length ? svc.from('course_types').select('id, name').in('id', typeIds) : { data: [] },
     svc.from('attendance').select('booking_id').in('booking_id', bookings.map(b => b.id)),
   ])
-  // Present when checked in, or when the coach filed a report for the lesson --
-  // not every lesson is checked in at the desk, and a report means they swam.
-  const lessonKeys = [...new Set(bookings.map(b => b.lesson_group_id || b.class_session_id))]
-  const { data: reported } = await svc.from('progress_history')
-    .select('lesson_key').eq('student_id', studentId).in('lesson_key', lessonKeys).neq('status', 'rejected')
-  const reportedKeys = new Set((reported || []).map((r: any) => r.lesson_key))
   const coachName = new Map<string, string>((coaches || []).map((c: any) => [c.id, c.first_name]))
   const typeName = new Map<string, string>((types || []).map((t: any) => [t.id, t.name]))
   const attended = new Set((att || []).map((a: any) => a.booking_id))
@@ -200,7 +204,7 @@ export async function buildReportData(
       if (s.start_time && (!lesson.start || s.start_time < lesson.start)) lesson.start = s.start_time
       if (s.end_time && (!lesson.end || s.end_time > lesson.end)) lesson.end = s.end_time
     }
-    if (attended.has(b.id) || reportedKeys.has(key)) lesson.attended = true
+    if (attended.has(b.id)) lesson.attended = true
     byKey.set(key, lesson)
   }
   const lessons = [...byKey.values()].sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')))
