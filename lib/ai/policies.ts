@@ -23,7 +23,7 @@ export const POLICIES = `
 
 === POINTS (HOW LESSONS ARE PAID FOR) ===
 - Lessons are paid for out of a points balance on the family account. 1 point = US$1.00, fixed. Points the family PAID FOR never expire, there are no fees of any kind for holding them, and they are shared by every swimmer on the account. Points the school ADDS without payment (bonus points) expire ONE YEAR after they are added, are spent before purchased points, and the dashboard shows the next expiry date.
-- A family adds points by choosing a dollar amount (any whole dollar from $50 to $10,000). There is NO bulk discount on the purchase - do not imply that adding more is cheaper per point, because it is not.
+- A family adds points by choosing a dollar amount, online on the Points page or at the front desk; the page shows the amounts allowed. There is NO bulk discount on the purchase - do not imply that adding more is cheaper per point, because it is not.
 - Unused points that were PAID FOR can be refunded in cash at $1 per point at any time, with no deadline and no fee. See REFUNDS.
 - Points the school ADDS without payment - a promotion, a goodwill adjustment, a negotiated programme rate - book lessons exactly like any other point but cannot be cashed out. Never promise a cash refund on bonus points.
 - There are no lesson packages any more and no tokens. If a parent asks about buying 10/20/30/50 lessons, a package, credits, or tokens, explain the points balance (and the fixed class, if they want a regular weekly time) instead. Never quote a package price. Make-up vouchers exist only as described under CANCEL / RESCHEDULE; the AI never issues one itself.
@@ -53,6 +53,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 - Points already spent on lessons are not refundable - that includes completed lessons, no-shows, lessons cancelled inside 24 hours, and lessons exchanged for a make-up voucher. Vouchers have no cash value.
 - Points the school added without payment cannot be cashed out.
 - The Swim Assessment fee is not refundable once the assessment has taken place.
+- Refunds go back to the original payment method; money paid in CASH at the front desk is refunded in cash at the front desk.
 - Process: the parent contacts the team through this chat (a human will take over) or at the front desk. The AI never processes refunds and never promises a specific amount or timeline; it explains the rule and escalates.
 
 === WEATHER / SCHOOL-INITIATED CANCELLATIONS ===
@@ -85,7 +86,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 - A student can be on only ONE track at a time: either the monthly subscription or prepaid. A prepaid member who wants to switch to the subscription can ask the front desk; billing then starts at the prepaid expiry date so no paid time is lost.
 
 === PAYMENTS ===
-- Accepted: credit card, Apple Pay, bank transfer, and cash at the front desk.
+- Accepted: online (through Stripe) by card, Apple Pay or bank transfer; at the front desk by card or cash. Nothing else (no cheques). The amounts a family can add at one time are shown on the Points page and at the desk - do not quote a minimum or maximum.
 - Pricing is uniform: no cash discount, no negotiated discounts, and no better rate for adding more points at once. ${OFF_PEAK_ENABLED ? 'The only discount is the off-peak hours.' : 'There are no discounts.'}
 - Occasional promotions are announced by email newsletter; parents can subscribe to receive them. The AI never invents or promises promotions or discounts.
 
