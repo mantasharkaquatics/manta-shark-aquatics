@@ -1625,5 +1625,6 @@
   "err.voucherAfterExpiry": "这一天已经超过补课券的到期日。",
   "err.fixedNoReschedule": "固定班和补课的课不能改期。请在 24 小时前请假，会换成一张补课券，再用券预约其他时间。",
   "dash.cancelDone.title": "完成了",
-  "dash.cancelModal.eyebrowLeave": "请假"
+  "dash.cancelModal.eyebrowLeave": "请假",
+  "fixed.line": "每周{weekday} {time} · {coach} 教练 · 还有 {n} 堂（到 {date}）"
 }

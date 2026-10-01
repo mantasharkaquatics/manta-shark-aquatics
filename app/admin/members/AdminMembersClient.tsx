@@ -750,7 +750,15 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                     </div>
                   </div>
 
-                  <MemberEditPanel parent={parent} />
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* What this family sees on their home page: cards, points,
+                        make-up vouchers, fixed classes, upcoming lessons. */}
+                    <a href={`/admin/members/${parent.id}`}
+                      className="text-xs font-semibold rounded-lg px-3 py-1.5 bg-[#c9a84c] text-[#111d38] hover:opacity-90">
+                      Parent view ›
+                    </a>
+                    <MemberEditPanel parent={parent} />
+                  </div>
 
                   {/* Row 2: Registered, Terms Accepted, Photo Release, Newsletter */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-[#1e3a6e]/40 pt-4">

@@ -1625,5 +1625,6 @@
   "err.voucherAfterExpiry": "That date is after this make-up voucher expires.",
   "err.fixedNoReschedule": "Fixed-class and make-up lessons can't be rescheduled. Take leave at least 24 hours before instead — it becomes a make-up voucher you can book another time with.",
   "dash.cancelDone.title": "Done",
-  "dash.cancelModal.eyebrowLeave": "Take leave"
+  "dash.cancelModal.eyebrowLeave": "Take leave",
+  "fixed.line": "{weekday}s {time} · {coach} · {n} lessons left (until {date})"
 }
