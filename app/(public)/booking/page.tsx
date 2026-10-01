@@ -2383,7 +2383,7 @@ export default function BookingPage() {
                   </button>
                 )}
                 {batchFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
-                  <div style={{ marginTop: '10px', background: '#16243f', border: `1px solid ${GOLD}73`, borderRadius: '12px', padding: '16px', boxShadow: '0 18px 40px rgba(0,0,0,0.45)' }}>
+                  <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '16px', boxShadow: '0 12px 30px rgba(18,37,74,0.12)' }}>
                     <div style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
                       {t('booking.recur.everyWeekday', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                     </div>
