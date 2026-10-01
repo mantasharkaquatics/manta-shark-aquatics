@@ -290,6 +290,8 @@ const SYSTEM_PROMPT = [
   'Return JSON only, no preamble: {"summary": string, "focus": string[]}',
   '- summary: 2 to 4 sentences, under 90 words, about this month: lessons taken, what changed in their skills, where they are in the current stage.',
   '- focus: 1 or 2 short items for next month, each under 20 words, grounded in skills not yet mastered.',
+  '  Write each item as what the swimmer will do, the way a parent would say it: "Start learning <skill>", "Keep practising <skill>".',
+  '  Never use teacher-side verbs such as introduce, teach, drill or assess.',
 ].join('\n')
 
 function promptFor(data: ReportData, notes: { date: string; text: string }[]): string {
@@ -430,6 +432,7 @@ async function translateReportText(text: string, lang: Locale, names: { en: stri
     names.length ? `Use exactly these names wherever the English appears: ${names.map(n => `"${n.en}" = "${n.local}"`).join('; ')}.` : '',
     glossary.length ? `Keep these swim terms in English exactly as written: ${glossary.join(', ')}.` : '',
     'Keep the line breaks. Say only what the text says. Add nothing, drop nothing.',
+    `Write it the way a parent in that language would naturally say it, not word for word${lang === 'en' ? '' : `: "Start learning X" is ${lang === 'zh-Hans' ? '开始学X' : '開始學X'}`}.`,
     'Return the translation alone, with no preamble.',
   ].filter(Boolean).join('\n')
   for (let attempt = 0; attempt < 2; attempt++) {
