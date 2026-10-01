@@ -2379,7 +2379,10 @@ export default function BookingPage() {
                   <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '8px' }}>
                     {myGroupBand ? t('booking.group.showingBand', { name: selectedStudent?.full_name || '', min: myGroupBand.min, max: myGroupBand.max }) : t('booking.group.showing', { name: selectedStudent?.full_name || '' })}
                   </div>
-                  {selectedSlot && selectedDate && selectedCoach && (
+                  {/* "Ready" only for a lesson that can be booked as a single;
+                      a date past the window is being set up as a fixed class
+                      in the panel below, and nothing is ready yet. */}
+                  {selectedSlot && selectedDate && selectedCoach && !fixedOnly && (
                     <div style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '14px', fontWeight: 600, color: '#16294a' }}>
                         {selectedDate.toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })} · {selectedSlot.label}
