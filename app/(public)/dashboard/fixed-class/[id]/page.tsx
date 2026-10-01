@@ -346,7 +346,7 @@ export default function FixedClassPage() {
                     <div className="fc-plan">
                       {plan.items.map(i => (
                         <div key={i.from} className={i.to ? '' : 'v'}>
-                          <span>{day(i.from, { month: 'short', day: 'numeric' })} → {i.to ? day(i.to) : '—'}</span>
+                          <span>{day(i.from, { month: 'short', day: 'numeric' })} {formatTime12h(fc.time)} → {i.to ? `${day(i.to)} ${formatTime12h(pick.time)}` : '—'}</span>
                           <span className="tag">
                             {i.kind === 'later' ? t('fixedPage.move.later') : i.kind === 'other_coach' ? t('fixedPage.move.other', { coach: optCoaches.get(i.coachId || '') || '' }) : i.kind === 'voucher' ? t('fixedPage.move.voucher') : ''}
                           </span>

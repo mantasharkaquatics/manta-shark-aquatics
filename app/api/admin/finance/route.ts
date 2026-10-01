@@ -60,6 +60,23 @@ const NOT_LESSON_TRAFFIC = new Set([
   'admin_grant', 'admin_deduct', 'referral_bonus', 'grant_expired',
 ])
 
+/**
+ * Every row a query matches, a page at a time. The API hands back at most
+ * 1,000 rows per request, and a report that silently stopped at the first
+ * thousand bookings would understate the liability without saying so. Each
+ * query must be ordered by something unique so the pages do not overlap.
+ */
+async function allRows(make: () => any): Promise<{ data: any[]; error: any }> {
+  const PAGE = 1000
+  const out: any[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await make().range(from, from + PAGE - 1)
+    if (error) return { data: out, error }
+    out.push(...(data || []))
+    if (!data || data.length < PAGE) return { data: out, error: null }
+  }
+}
+
 export async function GET() {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -69,11 +86,11 @@ export async function GET() {
   const since = new Date(Date.now() - MONTHS_BACK * 31 * 86_400_000).toISOString()
 
   const [{ data: wallets }, { data: ledger }, { data: bookings }, { data: purchases, error: purchasesErr }, { data: vouchers }] = await Promise.all([
-    svc.from('point_wallets').select('balance_purchased, balance_granted, total_paid_cents, total_refunded_cents'),
-    svc.from('point_ledger')
+    allRows(() => svc.from('point_wallets').select('balance_purchased, balance_granted, total_paid_cents, total_refunded_cents').order('parent_id')),
+    allRows(() => svc.from('point_ledger')
       .select('created_at, delta_purchased, delta_granted, reason, amount_cents')
       .gte('created_at', since)
-      .order('created_at', { ascending: true }),
+      .order('created_at', { ascending: true }).order('id', { ascending: true })),
     // Everything that carries points. Deliberately NOT an
     // allow-list of statuses: a liability report must over-include rather than
     // miss an obligation, and a status added later (or one this file's author
@@ -87,24 +104,24 @@ export async function GET() {
     // Every other cancelled row must stay out: a rescheduled lesson's old row
     // is cancelled with its points unrefunded ON PURPOSE -- they moved to the
     // new row -- and counting it booked the same lesson twice.
-    svc.from('bookings')
+    allRows(() => svc.from('bookings')
       .select('id, points_charged, points_refunded, status, cancelled_by, cancellation_reason, class_session_id, student_id, lesson_group_id')
-      .not('points_charged', 'is', null),
+      .not('points_charged', 'is', null).order('id')),
     // What Stripe kept. Read from the payments themselves rather than derived
     // from a rate: ACH is capped, cards carry extras, Terminal differs again.
     // A payment with no fee recorded is either cash at the desk or a bank debit
     // that has not settled -- counted separately so the total is never quietly
     // understated.
-    svc.from('purchases')
+    allRows(() => svc.from('purchases')
       .select('amount_cents, fee_cents, net_cents, fee_captured_at, paid_at, stripe_payment_intent_id, stripe_session_id')
       .eq('status', 'paid')
       .is('reversed_at', null)
-      .gte('paid_at', since),
+      .gte('paid_at', since).order('id')),
     // Vouchers that replaced a lesson someone paid for. One issued by hand
     // (no source lesson) defers nothing: no points were taken for it.
-    svc.from('make_up_vouchers')
+    allRows(() => svc.from('make_up_vouchers')
       .select('id, status, source_booking_id, student_id, student2_id, used_booking_id, voided_at, expires_on')
-      .not('source_booking_id', 'is', null),
+      .not('source_booking_id', 'is', null).order('id')),
   ])
 
   // Session dates come in a second query on purpose: a nested join here has
