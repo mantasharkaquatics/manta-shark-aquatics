@@ -212,7 +212,7 @@ export default function MonthlyReportsClient() {
                 )}
                 {r.status === 'sent' && (
                   <p className="text-sm text-gray-400">
-                    Family&apos;s answer: {r.feedback === 'up' ? '👍' : r.feedback === 'down' ? '👎' : 'none yet'}
+                    Family&apos;s answer: {r.feedback === 'up' ? '👍 Clear' : r.feedback === 'down' ? '🤔 Has a question' : 'none yet'}
                     {r.feedback_comment ? <span className="block text-gray-300 mt-1">“{r.feedback_comment}”</span> : null}
                   </p>
                 )}

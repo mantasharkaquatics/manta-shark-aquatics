@@ -114,7 +114,8 @@ const MOBILE_CSS = `
 .msa-month-tabs { display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding-bottom: 2px }
 .msa-month-tabs button { flex-shrink: 0; border: 1px solid #d5deeb; background: #fff; color: #56647d; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer }
 .msa-month-tabs button.on { background: #12254a; border-color: #12254a; color: #fff }
-.msa-fb { width: 56px; height: 48px; border-radius: 12px; border: 1px solid #d5deeb; background: #fff; font-size: 22px; cursor: pointer }
+.msa-fb { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 88px; padding: 8px 12px; border-radius: 12px; border: 1px solid #d5deeb; background: #fff; font-size: 24px; line-height: 1.1; cursor: pointer; font-family: inherit }
+.msa-fb span { font-size: 12px; font-weight: 700; color: #56647d }
 .msa-fb.on { border-color: #f09800; background: #fff6e5 }
 .msa-report-credit { background: #eef8f1; border: 1px solid #bfe3cb; border-radius: 14px; padding: 14px 16px }
 .msa-report-segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin: 12px 0 8px }
@@ -687,6 +688,9 @@ type MonthlyReport = {
   feedbackComment: string | null
 }
 
+/* The family's answer is 👍 ("clear") or 🤔 ("I have a question") -- the owner
+   swapped the thumbs-down for a question on 2026-09-30, so a family with a
+   doubt says so instead of grading us. Stored as 'up' / 'down'. */
 function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }: {
   student: Student
   reports: MonthlyReport[]
@@ -842,21 +846,21 @@ function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }
           <div style={{ ...card, textAlign: 'center' }}>
             {answered ? (
               <p style={{ margin: 0, fontSize: '13.5px', color: '#1f7a57', fontWeight: 700 }}>
-                {(fbState === 'done' ? fb : r.feedback) === 'up' ? '👍 ' : '👎 '}{t('monthly.fb.thanks')}
+                {(fbState === 'done' ? fb : r.feedback) === 'up' ? '👍 ' : '🤔 '}{t('monthly.fb.thanks')}
               </p>
             ) : (<>
               <p style={{ ...h, margin: '0 0 10px' }}>{t('monthly.fb.q')}</p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
                 {(['up', 'down'] as const).map(v => (
                   <button key={v} className={'msa-fb' + (fb === v ? ' on' : '')} onClick={() => setFb(v)}
-                    aria-pressed={fb === v} aria-label={t(v === 'up' ? 'monthly.fb.up' : 'monthly.fb.down')}>
-                    {v === 'up' ? '👍' : '👎'}
+                    aria-pressed={fb === v}>
+                    {v === 'up' ? '👍' : '🤔'}<span>{t(v === 'up' ? 'monthly.fb.up' : 'monthly.fb.down')}</span>
                   </button>
                 ))}
               </div>
               {fb && (<>
                 <textarea value={comment} onChange={e => setComment(e.target.value.slice(0, 1000))} rows={3}
-                  placeholder={t('monthly.fb.placeholder')} aria-label={t('monthly.fb.placeholder')}
+                  placeholder={t(fb === 'down' ? 'monthly.fb.placeholderQ' : 'monthly.fb.placeholder')} aria-label={t(fb === 'down' ? 'monthly.fb.placeholderQ' : 'monthly.fb.placeholder')}
                   style={{ width: '100%', marginTop: '12px', borderRadius: '10px', border: '1px solid #d5deeb', padding: '10px 12px', fontSize: '16px', fontFamily: 'inherit', color: '#16294a', resize: 'vertical', boxSizing: 'border-box' }} />
                 <button onClick={send} disabled={fbState === 'sending'}
                   style={{ marginTop: '10px', border: 0, borderRadius: '10px', padding: '11px 22px', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
