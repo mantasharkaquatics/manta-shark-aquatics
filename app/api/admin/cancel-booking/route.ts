@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { notifyCancellation, type CancelTarget } from '@/lib/bookings/cancel'
+import { giveBackVouchers, issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 
 // Cancels ONE swimmer's place in a lesson, from the admin calendar.
@@ -26,15 +27,26 @@ export async function POST(req: NextRequest) {
   const body = await readJson(req)
   if (!body) return badRequest()
   const bookingId = String(body.booking_id || '')
-  if (!bookingId || typeof body.refund !== 'boolean')
+  // refund: true | false is the original shape; mode adds the third choice,
+  // turning the lesson into a make-up voucher instead of points (2026-10-01).
+  const mode: 'refund' | 'keep' | 'voucher' =
+    body.mode === 'voucher' ? 'voucher' : body.mode === 'keep' ? 'keep' : body.mode === 'refund' ? 'refund'
+      : body.refund === true ? 'refund' : body.refund === false ? 'keep' : ('' as any)
+  if (!bookingId || !mode)
     return NextResponse.json({ error: 'Missing booking_id or refund choice' }, { status: 400 })
-  const refund: boolean = body.refund
+  const refund = mode === 'refund'
   const svc = auth.svc
 
-  const cols = 'id, status, class_session_id, points_charged, points_refunded, points_granted, points_granted_expires_at, parent_id, student_id, lesson_group_id, is_trial'
+  const cols = 'id, status, class_session_id, points_charged, points_refunded, points_granted, points_granted_expires_at, parent_id, student_id, lesson_group_id, is_trial, fixed_class_id, voucher_id'
   const { data: primary } = await svc.from('bookings').select(cols).eq('id', bookingId).single()
   if (!primary) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
   if (primary.status === 'cancelled') return NextResponse.json({ error: 'This booking is already cancelled.' }, { status: 409 })
+  if (mode === 'voucher') {
+    const { data: s1 } = await svc.from('class_sessions').select('course_types(slug)').eq('id', primary.class_session_id).single()
+    const ct1: any = Array.isArray((s1 as any)?.course_types) ? (s1 as any).course_types[0] : (s1 as any)?.course_types
+    if (!['1on1', '1on4'].includes(ct1?.slug))
+      return NextResponse.json({ error: 'A make-up voucher from here is for 1-on-1 and 1-on-4 lessons. For a 1-on-2, refund it or issue a voucher from the Make-up vouchers page.' }, { status: 400 })
+  }
 
   let rows: any[] = [primary]
   if (primary.lesson_group_id) {
@@ -85,6 +97,29 @@ export async function POST(req: NextRequest) {
   if (cancelled.length === 0)
     return NextResponse.json({ error: 'This booking changed while you were looking at it. Refresh and try again.' }, { status: 409 })
 
+  // A make-up lesson the desk cancels with "refund" gives its voucher back.
+  if (refund) await giveBackVouchers(svc, cancelled)
+
+  // Or the lesson becomes a voucher for this swimmer. One seat of a 1-on-2 is
+  // not offered this (a 1-on-2 voucher is for two children together).
+  let voucherExpires: string | undefined
+  if (mode === 'voucher') {
+    const { data: s0 } = await svc.from('class_sessions').select('session_date, course_types(slug)').eq('id', primary.class_session_id).single()
+    const ctRow: any = Array.isArray((s0 as any)?.course_types) ? (s0 as any).course_types[0] : (s0 as any)?.course_types
+    const r = await issueVoucher(svc, {
+      parentId: primary.parent_id, studentId: primary.student_id,
+      courseSlug: ctRow?.slug || '', minutes: primary.lesson_group_id ? 60 : 30,
+      reason: 'admin', expiresOn: voucherExpiry(s0?.session_date || getTodayLA()),
+      sourceBookingId: primary.id, fixedClassId: primary.fixed_class_id ?? null,
+      createdBy: auth.admin.id, note: 'Front desk cancelled the lesson',
+    })
+    if (!r.voucher) {
+      console.error('admin cancel: voucher not issued', r)
+      return NextResponse.json({ error: 'The lesson was cancelled but the make-up voucher could not be issued. Issue one from the Make-up vouchers page.' }, { status: 500 })
+    }
+    voucherExpires = r.voucher.expires_on
+  }
+
   // A session with nobody left in it is closed, so it stops showing as a
   // lesson anywhere. Sessions that still hold another family stay open.
   for (const sid of new Set(rows.map(r => r.class_session_id))) {
@@ -95,7 +130,8 @@ export async function POST(req: NextRequest) {
 
   const targets: CancelTarget[] = [{
     parent_id: primary.parent_id, student_id: primary.student_id,
-    kind: refundedTotal > 0 ? 'points' : 'none',
+    kind: mode === 'voucher' ? 'voucher' : refundedTotal > 0 ? 'points' : 'none',
+    voucherExpires,
   }]
   await notifyCancellation(svc, { bookingIds: cancelled, targets })
 

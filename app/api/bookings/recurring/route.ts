@@ -4,6 +4,7 @@ import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES, FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
+import { attachVoucher, claimVoucher, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
@@ -289,6 +290,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
     const singleMax = singleMaxDate(today)
 
+    // A make-up lesson: one lesson, paid with a voucher instead of points
+    // (docs/fixed-class-spec.md section 3). Same course, same child (or the
+    // same two children of a sibling 1-on-2), on or before the voucher's date
+    // -- which may be further out than the 14-day window, since the voucher is
+    // the family's to use for four weeks.
+    let voucher: Voucher | null = null
+    if (typeof body.voucher_id === 'string' && body.voucher_id) {
+      voucher = await usableVoucher(svc, body.voucher_id, parent.id, today)
+      if (!voucher) return NextResponse.json({ error: VOUCHER_GONE_ERROR }, { status: 400 })
+      const want = new Set(studentIds)
+      const has = new Set([voucher.student_id, voucher.student2_id].filter(Boolean) as string[])
+      if (voucher.course_slug !== ct.slug || voucher.minutes !== minutes
+          || want.size !== has.size || [...want].some(id => !has.has(id)))
+        return NextResponse.json({ error: 'This make-up voucher is for a different lesson.' }, { status: 400 })
+      if (raw.length !== 1 || raw[0]?.fixed)
+        return NextResponse.json({ error: 'A make-up voucher books one lesson.' }, { status: 400 })
+      if (typeof raw[0]?.date === 'string' && raw[0].date > voucher.expires_on)
+        return NextResponse.json({ error: 'That date is after this make-up voucher expires.' }, { status: 400 })
+    }
+
     const seen = new Set<string>()
     const wanted: Slot[] = []
     for (const r of raw) {
@@ -300,7 +321,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
       const fixed = typeof r?.fixed === 'string' && r.fixed ? r.fixed.slice(0, 80) : undefined
       // Only a fixed class books past the single-lesson window.
-      if (!fixed && date > singleMax)
+      if (!fixed && !voucher && date > singleMax)
         return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
       const k = `${date}|${time}|${coach}`
       if (seen.has(k)) continue
@@ -370,16 +391,18 @@ export async function POST(req: NextRequest) {
     if (okSlots.length === 0)
       return NextResponse.json({ ok: true, booked: 0, booked_slots: [], booked_dates: [], skipped })
 
-    const wallet = await walletSummary(svc, parent.id)
-    // A wallet in arrears can still show a positive total when it holds
-    // granted points, so this has to be asked before the balance question --
-    // otherwise the parent is told to buy more points when what they need to
-    // do is settle a payment that came back.
-    if (wallet.arrears > 0)
-      return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: wallet.arrears }, { status: 402 })
-    const quote = priceSlots(ct.slug, okSlots, minutes, seats)
-    if (wallet.balance < quote.total)
-      return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
+    if (!voucher) {
+      const wallet = await walletSummary(svc, parent.id)
+      // A wallet in arrears can still show a positive total when it holds
+      // granted points, so this has to be asked before the balance question --
+      // otherwise the parent is told to buy more points when what they need to
+      // do is settle a payment that came back.
+      if (wallet.arrears > 0)
+        return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: wallet.arrears }, { status: 402 })
+      const quote = priceSlots(ct.slug, okSlots, minutes, seats)
+      if (wallet.balance < quote.total)
+        return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
+    }
 
     const endOf = (t: string) => minToTime(toMin(t) + minutes)
 
@@ -461,6 +484,43 @@ export async function POST(req: NextRequest) {
     // Slots can drop out between the quote and here -- a class filling up is the
     // ordinary case -- so the charge is rebuilt from what is actually being
     // booked, never from the earlier total.
+    if (voucher) {
+      // The voucher is taken first -- conditionally, so two tabs cannot both
+      // spend it -- and given back if the lesson cannot be written.
+      const claimed = await claimVoucher(svc, voucher.id, parent.id, today)
+      if (!claimed) return NextResponse.json({ error: VOUCHER_GONE_ERROR }, { status: 409 })
+      const s0 = booked[0]
+      const { data: rowsIn, error: vErr } = await svc.from('bookings')
+        .insert(studentIds.map(sid => ({
+          class_session_id: sessionIdByKey.get(slotKey(s0))!, parent_id: parent.id,
+          student_id: sid, lesson_credit_id: null, points_charged: 0, status: 'confirmed',
+          points_granted: 0, voucher_id: voucher!.id,
+        })))
+        .select('id')
+      if (vErr || !rowsIn || rowsIn.length === 0) {
+        await releaseVoucher(svc, voucher.id)
+        return NextResponse.json({ error: `Failed to book the lesson: ${vErr?.message || 'unknown'}` }, { status: 500 })
+      }
+      await attachVoucher(svc, voucher.id, (rowsIn as { id: string }[])[0].id)
+      try {
+        const coach = coachById.get(s0.coach!)
+        const { data: p2 } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
+        if (p2?.email) {
+          await sendEmail({
+            type: 'booking_confirmed', to: p2.email, parentName: p2.first_name,
+            studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name,
+            courseName: ct.name, coachName: coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : '',
+            date: s0.date, time: `${formatTime12h(s0.time)} – ${formatTime12h(endOf(s0.time))}`,
+          })
+        }
+      } catch {}
+      return NextResponse.json({
+        ok: true, booked: 1, make_up: true,
+        booked_slots: [{ date: s0.date, start_time: s0.time, coach_id: s0.coach, points: 0 }],
+        booked_dates: [s0.date], skipped, points_charged: 0,
+      })
+    }
+
     const charge = priceSlots(ct.slug, booked, minutes, seats)
     const uniformTime = times.length === 1 ? times[0] : null
 

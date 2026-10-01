@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { expireGrantedPoints } from '@/lib/points-wallet'
 import { awardDueReferrals } from '@/lib/referrals'
 import { settleAssessmentCredits } from '@/lib/assessments'
+import { sweepVouchers } from '@/lib/vouchers'
+import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
 
@@ -19,6 +21,9 @@ export const runtime = 'nodejs'
 // And it settles assessment credits (lib/assessments): 85 granted points once a
 // swimmer has taken 8 lessons within 60 days of the assessment, or the credit
 // closes quietly when the 60 days are over.
+//
+// And it looks after make-up vouchers (lib/vouchers): past their date they
+// expire, and a family gets one email a week before one runs out.
 //
 // Safe to run more than once a day, or to miss a day: each run expires only
 // what is due at that moment and what has not already been expired, and a
@@ -68,7 +73,29 @@ export async function GET(req: NextRequest) {
     credits.failed = -1
   }
 
+  let vouchers = { expired: 0, reminded: 0, failed: 0 }
+  try {
+    const r = await sweepVouchers(svc, async v => {
+      const [{ data: p }, { data: kids }] = await Promise.all([
+        svc.from('parents').select('first_name, email, preferred_language').eq('id', v.parent_id).single(),
+        svc.from('students').select('full_name').in('id', [v.student_id, v.student2_id].filter(Boolean) as string[]),
+      ])
+      if (!p?.email) return false
+      return sendEmail({
+        type: 'voucher_expiring', to: p.email, parentName: p.first_name || '',
+        lang: p.preferred_language || 'en', expiresOn: v.expires_on,
+        studentNames: (kids || []).map((k: any) => k.full_name),
+        course: v.course_slug, minutes: v.minutes,
+      })
+    })
+    vouchers = { ...r, failed: 0 }
+  } catch (e) {
+    console.error('daily-points: voucher sweep failed:', e)
+    vouchers.failed = -1
+  }
+
   return NextResponse.json({
+    vouchersExpired: vouchers.expired, vouchersReminded: vouchers.reminded, vouchersFailed: vouchers.failed,
     checked: (wallets || []).length, expiredFamilies, expiredPoints, failed: failed.length,
     referralsAwarded: referrals.awarded, referralsFailed: referrals.failed,
     assessmentCreditsAwarded: credits.awarded, assessmentCreditsExpired: credits.expired,

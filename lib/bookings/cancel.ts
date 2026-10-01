@@ -1,14 +1,27 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
-import { walletSummary } from '@/lib/points-wallet'
 import { refundBookingPoints } from '@/lib/bookings/refund'
+import { graceUsedThisMonth, issueVoucher, restoreVoucher, voucherExpiry, type Voucher } from '@/lib/vouchers'
 
 export type CancelTarget = {
   parent_id: string
   student_id: string
-  kind: 'points' | 'none'
+  // points: refunded. voucher: turned into a make-up voucher. none: kept.
+  kind: 'points' | 'voucher' | 'none'
+  voucherExpires?: string
 }
+
+/**
+ * What a parent's cancellation does to the lesson (docs/fixed-class-spec.md):
+ *   refund    a single lesson, 24 hours or more ahead: the points come back
+ *   voucher   a fixed-class lesson 24 hours or more ahead (leave), or any
+ *             lesson inside 24 hours on the child's grace of the month
+ *   restore   a make-up lesson 24 hours or more ahead: its voucher comes back
+ *   keep      a make-up lesson inside 24 hours: the voucher is spent
+ * Admin and system callers always refund.
+ */
+export type CancelOutcome = 'refund' | 'voucher' | 'restore' | 'keep'
 
 export type CancelResult = {
   ok: boolean
@@ -16,7 +29,8 @@ export type CancelResult = {
   error?: string
   cancelledBookingIds: string[]
   pointsRefunded?: number
-  usedForgiveness?: boolean
+  outcome?: CancelOutcome
+  voucher?: Voucher | null
   // Who should be told, and what they got back. The caller keeps these when it
   // is cancelling a 60-minute lesson half by half, so one email can cover the
   // whole hour instead of one per half.
@@ -27,18 +41,11 @@ export type CancelOptions = {
   // Suppress this call's own email. Used when a caller is cancelling several
   // linked bookings and will send a single consolidated message itself.
   skipEmail?: boolean
-  // The late-cancellation allowance for this lesson has already been spent by
-  // an earlier call in the same cancellation.
-  //
-  // A 60-minute lesson is two 30-minute bookings and is cancelled half by
-  // half, so without this each half took an allowance of its own: one lesson,
-  // two spent. Worse at exactly one allowance left -- the second half was
-  // refused for having none, and the hour ended up half cancelled, which is
-  // the one outcome the spec forbids.
-  //
-  // Set on the follow-up halves. They still refund in full; they just do not
-  // pay for the privilege twice.
-  forgivenessAlreadySpent?: boolean
+  // How the first half of this lesson was settled. A 60-minute lesson is two
+  // 30-minute bookings cancelled half by half; the second half must follow the
+  // first -- refunded if it was, and NOT given a voucher (or a second grace)
+  // of its own when the first half already turned the hour into one.
+  settled?: CancelOutcome
 }
 
 // Sends one booking_cancelled email per affected parent. The time range spans
@@ -80,10 +87,10 @@ export async function notifyCancellation(
     for (const s of studs || []) { nameOf[(s as any).id] = (s as any).full_name }
 
     // One message per parent, naming every swimmer of theirs in the lesson.
-    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind'] }>()
+    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind']; expires?: string }>()
     for (const t of opts.targets) {
       if (!t.parent_id) continue
-      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind }
+      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind, expires: t.voucherExpires }
       const n = nameOf[t.student_id]
       if (n && !entry.names.includes(n)) entry.names.push(n)
       // A real refund anywhere in the group outranks 'none'.
@@ -104,6 +111,7 @@ export async function notifyCancellation(
         date: first.session_date,
         time: timeStr,
         refundKind: entry.kind,
+        expiresOn: entry.expires,
       })
     }
   } catch {}
@@ -120,7 +128,7 @@ export async function notifyCancellation(
  * the family their lesson was gone while a coach still had thirty minutes
  * booked and half the points were still spent.
  *
- * The allowance is charged once for the lesson, not once per half.
+ * The lesson is settled once (refund, or one 60-minute voucher), not per half.
  *
  * `remainingBookingIds` is non-empty only when part of an hour survived, which
  * the spec forbids: nothing is un-cancelled, the halves that went are
@@ -143,7 +151,8 @@ export async function cancelLesson(
 
   const cancelled = [...(result.cancelledBookingIds || [])]
   const targets: CancelTarget[] = [...(result.emailTargets || [])]
-  const spentForgiveness = !!result.usedForgiveness
+  // The other half follows the first: same refund, no second voucher or grace.
+  const settled = result.outcome
 
   const { data: siblings } = await svc
     .from('bookings').select('id')
@@ -154,7 +163,7 @@ export async function cancelLesson(
     if (cancelled.includes(sib.id)) continue
     const r = await cancelBookingWithPartner(svc, sib.id, callerParentId, {
       skipEmail: true,
-      forgivenessAlreadySpent: spentForgiveness,
+      settled,
     })
     if (r.ok) {
       cancelled.push(...(r.cancelledBookingIds || [sib.id]))
@@ -200,7 +209,7 @@ export async function cancelBookingWithPartner(
 ): Promise<CancelResult> {
   const { data: booking } = await svc
     .from('bookings')
-    .select('id, class_session_id, points_charged, points_refunded, partner_booking_id, parent_id, student_id, status, is_trial')
+    .select('id, class_session_id, points_charged, points_refunded, partner_booking_id, parent_id, student_id, status, is_trial, fixed_class_id, voucher_id, lesson_group_id')
     .eq('id', bookingId)
     .single()
 
@@ -227,42 +236,53 @@ export async function cancelBookingWithPartner(
     return { ok: false, status: 400, error: "A Swim Assessment can't be cancelled online. Please contact us and we'll take care of it.", cancelledBookingIds: [] }
   }
 
-  // Parent-initiated cancellation inside 24 hours: the points are not returned,
-  // because the coach's time is already reserved -- unless the family still has
-  // a late-cancel forgiveness, which is one for every ten lessons they have
-  // completed. Admin and system callers always refund.
-  //
-  // A 1-on-2 inside 24 hours stays human-handled: a second family shares that
-  // slot, and the two of them are not ours to settle automatically.
-  let useForgiveness = false
-  let refundPoints = true
+  // What the cancellation does (CancelOutcome above). Admin and system
+  // callers always refund; only a parent's own cancellation is judged by the
+  // clock, the kind of lesson, and the child's grace of the month.
+  let outcome: CancelOutcome = 'refund'
+  let voucherReason: 'leave' | 'grace' = 'leave'
+  let sessionDate = ''
+  let ctSlug = ''
   if (callerParentId) {
     const { data: timing } = await svc
       .from('class_sessions')
       .select('session_date, start_time, course_type_id')
       .eq('id', booking.class_session_id)
       .single()
-    if (timing && minutesUntil(timing.session_date, timing.start_time, getTodayLA(), getNowMinutesLA()) < 24 * 60) {
-      const { data: ct } = await svc
-        .from('course_types').select('slug').eq('id', timing.course_type_id).single()
-      if (ct?.slug === '1on2' || booking.partner_booking_id) {
+    const { data: ct } = timing
+      ? await svc.from('course_types').select('slug').eq('id', timing.course_type_id).single()
+      : { data: null as any }
+    sessionDate = timing?.session_date || getTodayLA()
+    ctSlug = ct?.slug || ''
+    const late = !timing || minutesUntil(timing.session_date, timing.start_time, getTodayLA(), getNowMinutesLA()) < 24 * 60
+    if (options.settled) {
+      // The second half of an hour follows the first, whatever it was.
+      outcome = options.settled
+    } else if (booking.voucher_id) {
+      // A make-up lesson: in time, the voucher comes back; inside 24 hours it
+      // is spent. Never a grace -- a make-up is already the second chance.
+      outcome = late ? 'keep' : 'restore'
+    } else if (late) {
+      // A cross-family 1-on-2 inside 24 hours stays with the front desk: a
+      // second family shares the slot, and theirs is not ours to settle.
+      if (booking.partner_booking_id) {
         return { ok: false, status: 400, error: '1-on-2 lessons starting within 24 hours cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
       }
-      if (!options.forgivenessAlreadySpent) {
-        const summary = await walletSummary(svc, booking.parent_id)
-        if (summary.forgiveness <= 0) {
-          // Nothing to spend, so the lesson simply cannot be cancelled online.
-          // The dashboard says so before the parent gets here; this is the
-          // server refusing to be talked past.
-          return { ok: false, status: 400, error: 'NO_FORGIVENESS_LEFT', cancelledBookingIds: [] }
-        }
+      const used = await graceUsedThisMonth(svc, [booking.student_id])
+      if (used.has(booking.student_id)) {
+        // Nothing to spend, so the lesson cannot be cancelled online. The
+        // dashboard says so before the parent gets here; this is the server
+        // refusing to be talked past.
+        return { ok: false, status: 400, error: 'NO_GRACE_LEFT', cancelledBookingIds: [] }
       }
-      // The parent asked to cancel knowing the terms, so the allowance is
-      // spent and the points come back in full. The second half of an hour
-      // refunds on the strength of the allowance the first half already spent.
-      useForgiveness = true
+      outcome = 'voucher'; voucherReason = 'grace'
+    } else {
+      // In time: a fixed-class lesson becomes a make-up voucher (the points
+      // were for a term, not one date); a single lesson is refunded.
+      outcome = booking.fixed_class_id ? 'voucher' : 'refund'
     }
   }
+  const refundPoints = outcome === 'refund'
 
   // Idempotent claim on the primary booking
   const { data: claimed } = await svc
@@ -287,13 +307,11 @@ export async function cancelBookingWithPartner(
     ? await refundBookingPoints(svc, {
         booking,
         parentId: booking.parent_id,
-        reason: useForgiveness ? 'forgiveness' : 'cancel_refund',
+        reason: 'cancel_refund',
         actor: callerParentId ? 'parent' : 'system',
-        // Refund on forgiveness terms, but burn the allowance only once per
-        // lesson -- the follow-up halves of an hour arrive already paid for.
-        consumeForgiveness: useForgiveness && !options.forgivenessAlreadySpent,
       })
     : 0
+  if (outcome === 'restore' && booking.voucher_id) await restoreVoucher(svc, booking.voucher_id, booking.id)
 
   // Same-account 1-on-2 ONLY: cancel sibling bookings on the same session.
   // Other course types (1-on-4 etc.): each booking is independent — no sibling cascade.
@@ -307,7 +325,7 @@ export async function cancelBookingWithPartner(
   if (primaryCt?.slug === '1on2') {
     const { data: spb } = await svc
       .from('bookings')
-      .select('id, points_charged, points_refunded, class_session_id')
+      .select('id, student_id, status, points_charged, points_refunded, class_session_id')
       .eq('parent_id', booking.parent_id)
       .eq('class_session_id', booking.class_session_id)
       .neq('id', bookingId)
@@ -332,10 +350,44 @@ export async function cancelBookingWithPartner(
       await refundBookingPoints(svc, {
         booking: pb,
         parentId: booking.parent_id,
-        reason: useForgiveness ? 'forgiveness' : 'cancel_refund',
+        reason: 'cancel_refund',
         actor: callerParentId ? 'parent' : 'system',
       })
     }
+  }
+
+  // The make-up voucher, once per lesson: not for the second half of an hour
+  // (the first half's voucher is already a 60-minute one), and one voucher for
+  // a sibling 1-on-2 with both children on it. If the database refuses it --
+  // the child's grace was spent by a cancellation that raced this one -- the
+  // lesson is put back rather than lost with nothing to show for it.
+  let voucher: Voucher | null = null
+  let restoredExpiry: string | undefined
+  if (outcome === 'voucher' && !options.settled) {
+    const sibling = sameParentBookings.find((x: any) => cancelledBookingIds.includes(x.id))
+    const r = await issueVoucher(svc, {
+      parentId: booking.parent_id,
+      studentId: booking.student_id,
+      student2Id: ctSlug === '1on2' ? sibling?.student_id ?? null : null,
+      courseSlug: ctSlug,
+      minutes: booking.lesson_group_id ? 60 : 30,
+      reason: voucherReason,
+      expiresOn: voucherExpiry(sessionDate),
+      sourceBookingId: booking.id,
+      fixedClassId: booking.fixed_class_id ?? null,
+    })
+    if (!r.voucher) {
+      await svc.from('bookings')
+        .update({ status: booking.status, cancellation_reason: null, cancelled_by: null, cancelled_at: null })
+        .in('id', cancelledBookingIds)
+      return r.duplicate && voucherReason === 'grace'
+        ? { ok: false, status: 400, error: 'NO_GRACE_LEFT', cancelledBookingIds: [] }
+        : { ok: false, status: 500, error: 'Could not cancel this lesson. Please try again.', cancelledBookingIds: [] }
+    }
+    voucher = r.voucher
+  } else if (outcome === 'restore' && booking.voucher_id) {
+    const { data: v } = await svc.from('make_up_vouchers').select('expires_on').eq('id', booking.voucher_id).maybeSingle()
+    restoredExpiry = v?.expires_on
   }
 
   // Cross-account partner: bookings on any session with same date + time + coach.
@@ -385,7 +437,7 @@ export async function cancelBookingWithPartner(
           cancelledBookingIds.push(pb.id)
           // The OTHER family cancelled and took this one down with it. They
           // did not choose this, so their points come back in full whatever
-          // the clock says, and it costs them no forgiveness -- this was never
+          // the clock says, and it costs them no grace -- this was never
           // their cancellation.
           const partnerBack = await refundBookingPoints(svc, {
             booking: pb,
@@ -407,7 +459,9 @@ export async function cancelBookingWithPartner(
   // Who to tell. Handed back to the caller so a 60-minute cancellation can send
   // one message covering both halves instead of one per half.
   const emailTargets: CancelTarget[] = [
-    { parent_id: booking.parent_id, student_id: booking.student_id, kind: refunded > 0 ? 'points' as const : 'none' as const },
+    outcome === 'voucher' || outcome === 'restore'
+      ? { parent_id: booking.parent_id, student_id: booking.student_id, kind: 'voucher' as const, voucherExpires: voucher?.expires_on || restoredExpiry }
+      : { parent_id: booking.parent_id, student_id: booking.student_id, kind: refunded > 0 ? 'points' as const : 'none' as const },
     ...cancelledPartners,
   ]
 
@@ -415,5 +469,5 @@ export async function cancelBookingWithPartner(
     await notifyCancellation(svc, { bookingIds: cancelledBookingIds, targets: emailTargets })
   }
 
-  return { ok: true, status: 200, cancelledBookingIds, pointsRefunded: refunded, usedForgiveness: useForgiveness, emailTargets }
+  return { ok: true, status: 200, cancelledBookingIds, pointsRefunded: refunded, outcome, voucher, emailTargets }
 }

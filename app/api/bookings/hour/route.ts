@@ -4,10 +4,11 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
-import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
+import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
+import { attachVoucher, claimVoucher, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
 
 export const runtime = 'nodejs'
 
@@ -124,9 +125,24 @@ export async function POST(req: NextRequest) {
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
   if (session_date < today) return NextResponse.json({ error: 'That date has passed.' }, { status: 400 })
-  // A 60-minute lesson booked here is a single lesson, and so is the date a
-  // reschedule moves one to.
-  if (session_date > singleMaxDate(today)) return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
+  // A make-up hour, paid with a voucher: it may be booked up to the voucher's
+  // date. Anything else booked here is a single lesson (and so is the date a
+  // reschedule moves one to), inside the 14-day window.
+  const hourVoucher: Voucher | null = typeof body.voucher_id === 'string' && body.voucher_id
+    ? await usableVoucher(svc, body.voucher_id, parent.id, today) : null
+  if (typeof body.voucher_id === 'string' && body.voucher_id && !hourVoucher)
+    return NextResponse.json({ error: VOUCHER_GONE_ERROR }, { status: 400 })
+  if (hourVoucher) {
+    const want = new Set(students.map((x: any) => x.id))
+    const has = new Set([hourVoucher.student_id, hourVoucher.student2_id].filter(Boolean) as string[])
+    if (isPartnerBooking || hourVoucher.course_slug !== ct.slug || hourVoucher.minutes !== 60
+        || want.size !== has.size || [...want].some(id => !has.has(id)))
+      return NextResponse.json({ error: 'This make-up voucher is for a different lesson.' }, { status: 400 })
+    if (session_date > hourVoucher.expires_on)
+      return NextResponse.json({ error: 'That date is after this make-up voucher expires.' }, { status: 400 })
+  } else if (session_date > singleMaxDate(today)) {
+    return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
+  }
 
   const day = await loadDay(svc, session_date, ct.id)
   const nameOf = (id: string) => { const c = day.coaches.find((x: any) => x.id === id); return c ? c.first_name : '' }
@@ -250,7 +266,13 @@ export async function POST(req: NextRequest) {
     // for its own seat when the second one accepts.
     const seatsToPay = isPartnerBooking ? 1 : students.length
     let price
-    try {
+    if (hourVoucher) {
+      // Nothing is charged; the voucher is the payment. Taken here, before
+      // any row exists, and given back by rollback() below.
+      price = { charged: 0, perHalfHour: 0 } as any
+      if (!(await claimVoucher(svc, hourVoucher.id, parent.id, today)))
+        return NextResponse.json({ error: VOUCHER_GONE_ERROR }, { status: 409 })
+    } else try {
       price = priceLesson({
         courseSlug: ct.slug, minutes: HOUR_MINUTES,
         sessionDate: session_date, startTime: start_time, seats: seatsToPay,
@@ -284,13 +306,14 @@ export async function POST(req: NextRequest) {
       }
       if (createdBookings.length > 0) await svc.from('bookings').delete().in('id', createdBookings)
       if (createdSessions.length > 0) await svc.from('class_sessions').delete().in('id', createdSessions)
+      if (hourVoucher) await releaseVoucher(svc, hourVoucher.id)
     }
 
     // Take the points BEFORE a single row exists, so a family who cannot pay is
     // turned away with nothing to undo. applyPoints is the only arbiter of the
     // balance -- it writes under a guard naming the balance it read, so two
     // concurrent hour bookings cannot both spend the same points.
-    if (!isPartnerBooking) {
+    if (!isPartnerBooking && !hourVoucher) {
       try {
         const paid = await applyPoints(svc, {
           parentId: parent.id, reason: 'booking', points: -price.charged,
@@ -363,7 +386,8 @@ export async function POST(req: NextRequest) {
           .insert({ class_session_id: sessId, parent_id: parent.id, student_id: st.id,
                     lesson_credit_id: null, token_package_id: null,
                     points_charged: price.perHalfHour, status: 'confirmed', lesson_group_id: groupId,
-                    points_granted: g, points_granted_expires_at: g > 0 ? grantedExpires : null })
+                    points_granted: g, points_granted_expires_at: g > 0 ? grantedExpires : null,
+                    voucher_id: hourVoucher?.id ?? null })
           .select('id').single()
         if (bErr || !bk) {
           await rollback('a booking row could not be written')
@@ -378,6 +402,7 @@ export async function POST(req: NextRequest) {
         createdBookings.push(bk.id)
       }
     }
+    if (hourVoucher && createdBookings[0]) await attachVoucher(svc, hourVoucher.id, createdBookings[0])
 
     // Partner mode: invite the other family instead of confirming anything.
     if (isPartnerBooking) try {
@@ -428,9 +453,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts.' }, { status: 400 })
 
     const { data: grp } = await svc.from('bookings')
-      .select('id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
+      .select('id, fixed_class_id, voucher_id').eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
     if ((grp || []).length < 2)
       return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+    if ((grp || []).some((g: any) => g.fixed_class_id || g.voucher_id))
+      return NextResponse.json({ error: FIXED_NO_RESCHEDULE_ERROR }, { status: 400 })
 
     const { data: curSess } = await svc.from('class_sessions')
       // coach_id and end_time come along so a half-done move can be undone.

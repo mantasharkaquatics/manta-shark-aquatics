@@ -1715,7 +1715,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   const [cancelError, setCancelError] = useState('')
   // Cancelling ONE swimmer, not the lesson. Which row is asking, and the answer.
   const [oneCancel, setOneCancel] = useState<string | null>(null)
-  const [oneBusy, setOneBusy] = useState<'refund' | 'keep' | null>(null)
+  const [oneBusy, setOneBusy] = useState<'refund' | 'keep' | 'voucher' | null>(null)
   const [oneMsg, setOneMsg] = useState('')
   const [band, setBand] = useState<{ min: number; max: number } | null>(null)
   // Every load of the roster stamps a sequence number. Adding two students
@@ -1783,19 +1783,21 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
       .catch(() => {})
   }, [session.id]) // eslint-disable-line
 
-  async function cancelOne(bookingId: string, refund: boolean) {
-    setOneBusy(refund ? 'refund' : 'keep'); setOneMsg('')
+  async function cancelOne(bookingId: string, mode: 'refund' | 'keep' | 'voucher') {
+    setOneBusy(mode); setOneMsg('')
     try {
       const res = await fetch('/api/admin/cancel-booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: bookingId, refund }),
+        body: JSON.stringify({ booking_id: bookingId, mode }),
       })
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok) { setOneMsg(data.error || 'Cancel failed. Nothing was changed.'); return }
       setOneCancel(null)
-      setOneMsg(refund
+      setOneMsg(mode === 'refund'
         ? `Cancelled. ${data.pointsRefunded || 0} points returned; the parent has been emailed.`
+        : mode === 'voucher'
+        ? 'Cancelled and turned into a make-up voucher (4 weeks); the parent has been emailed.'
         : 'Cancelled as a late cancellation. Points kept; the parent has been emailed.')
       await loadBookings()
       onRefresh()
@@ -1893,11 +1895,17 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                           Everyone else in this lesson keeps their place.{b.lesson_group_id ? ' Both halves of this 60-minute lesson are cancelled for this swimmer.' : ''} The parent is emailed either way.
                         </p>
                         <div className="flex flex-wrap gap-2 mt-3">
-                          <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, true)}
+                          <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'refund')}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 bg-red-500 text-white disabled:opacity-50">
                             {oneBusy === 'refund' ? 'Working…' : 'Cancel · refund points'}
                           </button>
-                          <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, false)}
+                          {ct.slug !== '1on2' && (
+                            <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'voucher')}
+                              className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 border border-emerald-400/50 text-emerald-200 disabled:opacity-50">
+                              {oneBusy === 'voucher' ? 'Working…' : 'Cancel · make-up voucher'}
+                            </button>
+                          )}
+                          <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'keep')}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 border border-red-400/50 text-red-200 disabled:opacity-50">
                             {oneBusy === 'keep' ? 'Working…' : 'Late cancel · keep points'}
                           </button>

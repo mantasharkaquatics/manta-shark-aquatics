@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
+import { giveBackVouchers } from '@/lib/vouchers'
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -134,6 +135,8 @@ export async function POST(req: NextRequest) {
         booking: b, parentId: b.parent_id, reason: 'school_cancel',
         actor: 'admin', note: 'Coach unavailable',
       })
+      // A make-up lesson cost a voucher, not points: that comes back instead.
+      await giveBackVouchers(svc, [b.id])
       touchedSessions.add(b.class_session_id)
       cancelled++
     }

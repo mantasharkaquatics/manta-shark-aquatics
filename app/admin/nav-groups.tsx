@@ -41,6 +41,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/pos', label: 'POS', desc: 'Sell at the desk', icon: <svg {...S}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg> },
       { href: '/admin/messages', label: 'Messages', desc: 'Parent conversations', icon: <svg {...S}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
       { href: '/admin/suggestions', label: 'Suggestions', desc: 'From the suggestion box', icon: <svg {...S}><path d="M4 4h16v12H8l-4 4z" /><path d="M9 9h6M9 12h4" /></svg> },
+      { href: '/admin/fixed-classes', label: 'Fixed Classes', desc: 'Weekly classes, end one', icon: <svg {...S}><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 2v4M16 2v4" /><path d="M8 14h3" /></svg> },
+      { href: '/admin/vouchers', label: 'Make-up Vouchers', desc: 'Issue, void, expiring', icon: <svg {...S}><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" /><path d="M10 6v12" strokeDasharray="2 2" /></svg> },
     ],
   },
   {

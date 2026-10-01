@@ -365,6 +365,9 @@ export default function BookingPage() {
   const [fixedStart, setFixedStart] = useState('')
   const [fixedWeeks, setFixedWeeks] = useState(FIXED_WEEKS_STEP)
   const [fixedOnly, setFixedOnly] = useState(false)
+  // Booking a make-up with a voucher (/booking?voucher=<id>): one lesson of the
+  // voucher's kind, for its child(ren), on or before its date, no points.
+  const [makeUp, setMakeUp] = useState<{ id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; expiresOn: string } | null>(null)
   const singleMax = singleMaxDate()
   const [recurList, setRecurList] = useState<any[]>([])
   // The basket, keyed date|time. It is keyed by SLOT rather than by date, and it
@@ -435,7 +438,7 @@ export default function BookingPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'options', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
         student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
-        session_date: formatDateLA(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null }),
+        session_date: formatDateLA(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null, voucher_id: makeUp?.id ?? null }),
     }).then(r => r.json())
       .then(d => { setHourSlots(d?.slots || []); setHourBalance(d?.balance ?? 0); setHourRoster(d?.roster || []) })
       .catch(() => setHourSlots([]))
@@ -517,6 +520,27 @@ export default function BookingPage() {
         setLoading(false)
         setStep(3)
         return
+      }
+
+      const vId = params.get('voucher')
+      if (vId) {
+        const vr = await fetch('/api/parent/vouchers').then(r => r.ok ? r.json() : null).catch(() => null)
+        const v = (vr?.vouchers || []).find((x: any) => x.id === vId)
+        const ct = v ? (cts || []).find((c: any) => c.slug === v.courseSlug) : null
+        const s1 = v ? (studs || []).find((x: any) => x.id === v.studentId) : null
+        const s2 = v?.student2Id ? (studs || []).find((x: any) => x.id === v.student2Id) : null
+        if (!v || !ct || !s1 || (v.student2Id && !s2)) {
+          setNotice('err.voucherGone')
+        } else {
+          setMakeUp(v)
+          setSelectedStudent(s1 as any)
+          if (s2) setSelectedStudent2(s2 as any)
+          setSelectedCourse(ct as any)
+          setLessonLength(v.minutes === 60 ? 60 : 30)
+          setLoading(false)
+          setStep(3)
+          return
+        }
       }
 
       setLoading(false)
@@ -699,7 +723,7 @@ export default function BookingPage() {
   /** The price of one lesson at a given date and time, or null if this course
    *  is not paid for with points (Swim Team) or nothing is selected yet. */
   function priceAt(dateStr: string, time: string, minutes: number = isHourLesson ? 60 : 30): PriceBreakdown | null {
-    if (!selectedCourse || isTrial) return null
+    if (!selectedCourse || isTrial || makeUp) return null
     try {
       return priceLesson({
         courseSlug: selectedCourse.slug, minutes,
@@ -723,7 +747,7 @@ export default function BookingPage() {
     return BASE_POINTS[slug] ?? 0
   }
 
-  const canAffordCourse = !selectedCourse || isTrial || isReschedule
+  const canAffordCourse = !selectedCourse || isTrial || isReschedule || !!makeUp
     || balance >= cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)
 
   /* Ready to leave the course step. A 1-on-2 needs its second swimmer, and if
@@ -834,6 +858,11 @@ export default function BookingPage() {
     setSelectedSlot(slot)
     if (!batchFlow) return
     setRecurOpen(false); setRecurMsg('')
+    if (makeUp) {
+      // One lesson, nothing to pay: picking another time replaces it.
+      setRecurSel(new Map([[`${ds}|${slot.time}`, { date: ds, time: slot.time, label: slot.label, points: 0, coachId: coach.id, coachName: coach.first_name }]]))
+      return
+    }
     if (ds > singleMax) { setFixedOnly(true); openFixed(ds, slot.time, coach.id); return }
     setFixedOnly(false)
     const key = `${ds}|${slot.time}`
@@ -1026,6 +1055,10 @@ export default function BookingPage() {
     setSelectedCoach(c)
     setSelectedSlot({ time: sl.time, label: formatTime(sl.time), available: true, enrolled: sl.enrolled, max: sl.max, session_id: sl.session_id, within24h: isWithin24Hours(ds, sl.time) })
     setRecurOpen(false); setRecurMsg('')
+    if (makeUp) {
+      setRecurSel(new Map([[key, { date: ds, time: sl.time, label: formatTime(sl.time), points: 0, coachId: c.id, coachName: c.first_name }]]))
+      return
+    }
     if (ds > singleMax) { setFixedOnly(true); openFixed(ds, sl.time, c.id); return }
     setFixedOnly(false)
     setRecurSel(prev => {
@@ -1077,6 +1110,7 @@ export default function BookingPage() {
           student2_id: siblingPair ? selectedStudent2!.id : null,
           course_slug: selectedCourse?.slug ?? '1on4', minutes: 30,
           slots: recurPlan.map(x => ({ date: x.date, start_time: x.time, coach_id: x.coachId, fixed: x.fixed })),
+          voucher_id: makeUp?.id ?? null,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -1192,7 +1226,7 @@ export default function BookingPage() {
         body: JSON.stringify(rGroup
           ? { action: 'reschedule', course_slug: selectedCourse?.slug, lesson_group_id: rGroup, student_id: selectedStudent.id, session_date: dateStr,
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }
-          : { action: 'book', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
+          : { action: 'book', course_slug: selectedCourse?.slug, student_id: selectedStudent.id, voucher_id: makeUp?.id ?? null,
               student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
               // Cross-account: the other family is INVITED, not charged. Same
               // shape create/route.ts sends for a 30-minute partner booking.
@@ -1308,6 +1342,8 @@ export default function BookingPage() {
     const todayMidnight = new Date(today)
     todayMidnight.setHours(0, 0, 0, 0)
     if (date < todayMidnight) return false
+    // A make-up may be booked up to its voucher's date, wherever that falls.
+    if (makeUp) return formatDateLA(date) <= makeUp.expiresOn
     const maxDate = new Date(today)
     // A batch-capable course shows 60 days, because a fixed class can start on
     // any of them; a date past the single-lesson window then opens the fixed
@@ -1468,7 +1504,7 @@ export default function BookingPage() {
           ← {t('booking.header.dashboard')}
         </Link>
         <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: 'clamp(28px,3vw,36px)', fontWeight: 900, color: NAVY, margin: '12px 0 0', lineHeight: 1.15 }}>
-          {isReschedule ? t('booking.header.reschedule') : t('booking.header.book')}
+          {isReschedule ? t('booking.header.reschedule') : makeUp ? t('booking.header.makeUp') : t('booking.header.book')}
         </h1>
       </div>
 
@@ -1477,6 +1513,15 @@ export default function BookingPage() {
         {isReschedule && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>📅</span> {t('booking.rescheduleBanner')}
+          </div>
+        )}
+        {makeUp && (
+          <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', fontSize: '14px', color: '#1f7a57', lineHeight: 1.6 }}>
+            🎟 {t('booking.makeUp.banner', {
+              names: makeUp.studentNames.join(' & '),
+              kind: t('voucher.kind.' + makeUp.courseSlug + (makeUp.courseSlug === '1on1' ? '.' + (makeUp.minutes === 60 ? 60 : 30) : '')),
+              date: new Date(makeUp.expiresOn + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+            })}
           </div>
         )}
 
@@ -1494,11 +1539,11 @@ export default function BookingPage() {
           <div style={{ marginBottom: '28px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
               value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && selectedStudent2 ? ` ＋ ${selectedStudent2.full_name}` : '')}
-              onChange={isReschedule || students.length <= 1 ? undefined : changeStudent} />
+              onChange={isReschedule || makeUp || students.length <= 1 ? undefined : changeStudent} />
             {step > 1 && selectedCourse && (
               <DoneRow label={t('booking.sum.course')} changeLabel={t('booking.change')}
                 value={isTrial ? t('common.assessment') : tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name)}
-                onChange={isReschedule ? undefined : () => { clearTime(); setStep(1) }} />
+                onChange={isReschedule || makeUp ? undefined : () => { clearTime(); setStep(1) }} />
             )}
           </div>
         )}
@@ -1800,7 +1845,7 @@ export default function BookingPage() {
                   </div>
                   {/* The Swim Assessment is 30 minutes, full stop. It rides on the
                       1-on-1 course type, which is why it used to get this switch. */}
-                  {!isTrial && (selectedCourse?.slug === '1on1'
+                  {!isTrial && !makeUp && (selectedCourse?.slug === '1on1'
                     || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
                     <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (
@@ -1824,7 +1869,7 @@ export default function BookingPage() {
                   // decides whether the family can book an hour at all; when
                   // they cannot, saying so beats a wall of grey buttons.
                   const cheapest = rows.length ? Math.min(...rows.map((h: any) => Number(h.points) || 0)) : 0
-                  const canAffordHour = isReschedule || (rows.length > 0 && hourBalance >= cheapest)
+                  const canAffordHour = isReschedule || !!makeUp || (rows.length > 0 && hourBalance >= cheapest)
                   return (
                     <div style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '10px' }}>
@@ -1850,7 +1895,7 @@ export default function BookingPage() {
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
-                            const affordable = isReschedule || hourBalance >= (Number(h.points) || 0)
+                            const affordable = isReschedule || !!makeUp || hourBalance >= (Number(h.points) || 0)
                             const usable = affordable && !h.is_current
                             const w24 = isWithin24Hours(formatDateLA(selectedDate), h.start_time)
                             return (
@@ -1874,7 +1919,7 @@ export default function BookingPage() {
                                 {/* Start time only, as the 30-minute grid shows it.
                                     The end time is in the summary once one is picked. */}
                                 {formatTime(h.start_time)}
-                                {!isReschedule && h.points != null && (
+                                {!isReschedule && !makeUp && h.points != null && (
                                   <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : '#9aa6ba' }}>
                                     {t('points.unit', { n: h.points })}
                                   </span>
@@ -2443,7 +2488,7 @@ export default function BookingPage() {
                 {recurMsg && (
                   <div style={{ marginTop: '10px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', padding: '12px 16px', color: '#1f7a57', fontSize: '14px', fontWeight: 600 }}>{recurMsg}</div>
                 )}
-                {batchFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && (
+                {batchFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && !makeUp && (
                   <button disabled={recurBusy}
                     onClick={() => { setFixedOnly(false); openFixed(formatDateLA(selectedDate), selectedSlot.time, selectedCoach.id) }}
                     style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
@@ -2687,6 +2732,12 @@ export default function BookingPage() {
                   <span style={{ fontSize: '14px', fontWeight: 600, color: '#16294a' }}>{row.value}</span>
                 </div>
               ))}
+              {makeUp && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #e3ebf6' }}>
+                  <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.makeUp.payLabel')}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#1f7a57' }}>{t('booking.makeUp.pay')}</span>
+                </div>
+              )}
               {/* Every date, spelled out. This is the last screen before the
                   credits are spent, so "3 lessons" is not enough -- a parent has
                   to be able to see that one of them lands on a week they are away. */}
@@ -2772,7 +2823,10 @@ export default function BookingPage() {
             )}
             <div style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6 }}>
-                {isTrial ? t('booking.policy.assessment') : t('booking.policy.points', { n: wallet?.forgiveness ?? 0 })}
+                {isTrial ? t('booking.policy.assessment')
+                  : makeUp ? t('booking.policy.makeUp')
+                  : [planSplit.lines.length > 0 ? t('booking.policy.fixed') : null,
+                     (planSplit.lines.length === 0 || planSplit.singles.length > 0) ? t('booking.policy.single') : null].filter(Boolean).join(' ')}{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   {t('booking.viewTerms')}
                 </a>

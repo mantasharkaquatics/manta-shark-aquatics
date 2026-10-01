@@ -1,14 +1,14 @@
 'use client'
 import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
-import { priceLesson, LESSONS_PER_FORGIVENESS, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
+import { priceLesson, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
@@ -277,7 +277,12 @@ interface Booking {
   new_start_time?: string
   new_end_time?: string
   new_coach_name?: string
+  // Part of a fixed class (leave, not reschedule), or a make-up booked with a voucher.
+  fixed_class_id?: string | null
+  voucher_id?: string | null
 }
+
+type MakeUpVoucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string }
 
 function getAge(dob: string): number {
   const birth = new Date(dob)
@@ -1205,9 +1210,7 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
       <div style={{ fontSize: '11px', color: '#56647d', marginBottom: '4px', lineHeight: 1.5 }}>
         {t('points.card.done', { n: w.lessonsCompleted })}
       </div>
-      <div style={{ fontSize: '11px', color: '#56647d', marginBottom: '14px', lineHeight: 1.5 }}>
-        {t('points.card.forgiveness', { n: w.forgiveness, per: w.lessonsPerForgiveness })}
-      </div>
+      <div style={{ marginBottom: '14px' }} />
 
       <button onClick={onBuy}
         style={{ display: 'block', width: '100%', textAlign: 'center', padding: '9px 0', marginBottom: '12px', background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
@@ -1384,6 +1387,9 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
   const locale = useLocale()
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Good news after a cancellation (a voucher added or given back) -- not an
+  // error, so not the "something went wrong" notice.
+  const [doneMsg, setDoneMsg] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [schedOpen, setSchedOpen] = useState<Record<string, boolean>>({})
   const t = useT()
@@ -1412,6 +1418,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
   return (
     <div style={{ background: '#fff', borderRadius: '14px', border: `1px solid ${RED}55`, padding: '20px' }}>
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
+      <NoticeModal title={t('dash.cancelDone.title')} message={doneMsg} closeLabel={t('common.close')} onClose={() => setDoneMsg(null)} />
       <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: RED, marginBottom: '8px' }}>{t('team.title')}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {memberships.map((m, mi) => (
@@ -1562,13 +1569,16 @@ export default function DashboardPage() {
   const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; slug: string; studentId: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Good news after a cancellation (a voucher added or given back) -- not an
+  // error, so not the "something went wrong" notice.
+  const [doneMsg, setDoneMsg] = useState<string | null>(null)
   // Server errors arrive in English. A known one becomes its translation; the
   // fallback key covers an empty body. Unknown text still shows, on purpose.
   const errText = (raw: string | null | undefined, fallbackKey: string) => {
     const k = errorKey(raw)
     return k ? t(k) : (raw || t(fallbackKey))
   }
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
@@ -1634,6 +1644,50 @@ export default function DashboardPage() {
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([])
   const [monthlyFor, setMonthlyFor] = useState<{ student: Student; id: string } | null>(null)
   const [suggestOpen, setSuggestOpen] = useState(false)
+  // Make-up vouchers, and which children have used this month's grace -- the
+  // two facts every lesson's leave/cancel button depends on.
+  const [vouchers, setVouchers] = useState<MakeUpVoucher[]>([])
+  const [graceUsed, setGraceUsed] = useState<Set<string>>(new Set())
+  const [voucherSheet, setVoucherSheet] = useState(false)
+  const loadVouchers = useCallback(async () => {
+    try {
+      const r = await fetch('/api/parent/vouchers')
+      if (!r.ok) return
+      const j = await r.json()
+      setVouchers(j.vouchers || [])
+      setGraceUsed(new Set(j.graceUsed || []))
+    } catch {}
+  }, [])
+  useEffect(() => { loadVouchers() }, [loadVouchers])
+  // The reminder email's button lands here with ?vouchers=1.
+  useEffect(() => {
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('vouchers') !== '1') return
+    setVoucherSheet(true)
+    try { const u = new URL(window.location.href); u.searchParams.delete('vouchers'); window.history.replaceState(null, '', u.toString()) } catch {}
+  }, [])
+  const voucherKind = (slug?: string | null, minutes?: number) =>
+    t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : ''))
+  const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const plus28 = (d: string) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 28); return x.toISOString().slice(0, 10) }
+  /**
+   * What cancelling this lesson online would do (docs/fixed-class-spec.md):
+   *   refund      a single lesson, 24h+ ahead
+   *   leave       a fixed-class lesson, 24h+ ahead -> make-up voucher
+   *   grace       inside 24h, on this child's grace of the month -> voucher
+   *   makeupBack  a make-up, 24h+ ahead -> its voucher comes back
+   *   makeupLose  a make-up inside 24h -> the voucher is spent
+   *   pair / noGrace  cannot be done online
+   */
+  type CancelKind = 'refund' | 'leave' | 'grace' | 'makeupBack' | 'makeupLose' | 'pair' | 'noGrace'
+  const cancelKindOf = (b: Booking, late: boolean): CancelKind => {
+    if (b.voucher_id) return late ? 'makeupLose' : 'makeupBack'
+    if (late) {
+      if (b.partner_booking_id || b.points_charged == null) return 'pair'
+      if (graceUsed.has(b.student_id || '')) return 'noGrace'
+      return 'grace'
+    }
+    return b.fixed_class_id ? 'leave' : 'refund'
+  }
   // The email's button opens the dashboard on its report (?report=<id>), once.
   const reportLink = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('report') : null)
   useEffect(() => {
@@ -1822,7 +1876,7 @@ export default function DashboardPage() {
     const [{ data: studs }, { data: rawBookings }, { data: pendingRaw }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
       supabase.from('bookings')
-        .select('id, status, student_id, points_charged, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id')
+        .select('id, status, student_id, points_charged, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id, fixed_class_id, voucher_id')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: true }),
@@ -1990,6 +2044,8 @@ export default function DashboardPage() {
           new_start_time: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.start_time : undefined,
           new_end_time: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.end_time : undefined,
           new_coach_name: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.coach?.first_name : undefined,
+          fixed_class_id: b.fixed_class_id ?? null,
+          voucher_id: b.voucher_id ?? null,
         }
       }).filter(b => b.session_date)
 
@@ -2331,12 +2387,17 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: bookingId })
       })
+      const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
         setNotice(errText(j.error, 'dash.cancelFailed'))
+      } else if (j.outcome === 'voucher' && j.voucher_expires) {
+        setDoneMsg(t('dash.cancelDone.voucher', { date: shortDate(j.voucher_expires) }))
+      } else if (j.outcome === 'restore') {
+        setDoneMsg(t('dash.cancelDone.voucherBack'))
       }
     } catch { setNotice(t('dash.pend.network')) }
     await fetchAll()
+    await loadVouchers()
     setCancellingId(null)
   }
 
@@ -2361,13 +2422,35 @@ export default function DashboardPage() {
     </div>
   )
 
+  // The button's name: a fixed-class lesson is taken leave of, not cancelled.
+  const cancelLabel = (b: Booking, late: boolean) =>
+    b.fixed_class_id && !b.voucher_id
+      ? (late ? t('dash.up.leaveLate') : t('dash.up.leave'))
+      : (late ? t('dash.up.cancelLate') : t('dash.up.cancel'))
+  const openCancel = (b: Booking, late: boolean, kind: CancelKind, points: number) =>
+    setCancelTarget({
+      id: b.id, courseName: b.course_name, courseTypeId: b.course_type_id,
+      date: formatDate(b.session_date, intlOf(locale)), time: formatTime(b.start_time),
+      isLate: late, points, kind,
+      studentName: (b.student_name || '').split(',')[0],
+      voucher: voucherKind(b.course_slug, b.lesson_group_id ? 60 : 30),
+      voucherBy: shortDate(plus28(b.session_date)),
+    })
+  // Fixed class / make-up, shown beside the swimmer's name.
+  const LessonTag = ({ b }: { b: Booking }) => (b.voucher_id || b.fixed_class_id) ? (
+    <span style={{ marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.04em', padding: '2px 7px', borderRadius: '999px', verticalAlign: '2px',
+      color: b.voucher_id ? '#1f7a57' : GOLD, background: b.voucher_id ? '#e6f4ee' : `${GOLD}14`, border: `1px solid ${b.voucher_id ? '#b7e0cc' : `${GOLD}40`}` }}>
+      {t(b.voucher_id ? 'dash.tag.makeUp' : 'dash.tag.fixed')}
+    </span>
+  ) : null
+
   // Why a lesson inside 24 hours can't be cancelled online. Silence here reads
   // as a bug -- the button greys out with nothing to explain it -- so the
   // greyed control becomes a "contact us" button carrying the real reason.
-  const lateLockHelp = (b: { course_slug?: string | null; partner_booking_id?: string | null }) =>
-    (b.course_slug === '1on2' || b.partner_booking_id)
+  const lateLockHelp = (b: { course_slug?: string | null; partner_booking_id?: string | null; student_name?: string }) =>
+    b.partner_booking_id
       ? t('dash.up.cancelPairHelp')
-      : t('dash.up.cancelLockedHelp', { per: wallet?.lessonsPerForgiveness ?? LESSONS_PER_FORGIVENESS })
+      : t('dash.up.graceUsedHelp', { name: (b.student_name || '').split(',')[0] })
   // Why a button cannot do its job online, said in words first. It used to
   // open the chat straight away with the reason only in a hover tooltip,
   // which a phone never shows -- the family saw a chat window and no reason.
@@ -2433,12 +2516,39 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Make-up vouchers */}
+      {voucherSheet && (
+        <div onClick={() => setVoucherSheet(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} role="dialog" aria-label={t('voucher.sheetTitle')} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '28px', maxWidth: '420px', width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{t('voucher.sheetTitle')}</div>
+              <button onClick={() => setVoucherSheet(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#56647d', cursor: 'pointer' }}>×</button>
+            </div>
+            <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, margin: '0 0 16px' }}>{t('voucher.sheetHint')}</p>
+            {vouchers.length === 0 && <p style={{ fontSize: '14px', color: '#56647d' }}>{t('voucher.none')}</p>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {vouchers.map(v => (
+                <div key={v.id} style={{ border: '1px solid #e3ebf6', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{v.studentNames.join(' & ')} · {voucherKind(v.courseSlug, v.minutes)}</div>
+                    <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('voucher.useBy', { date: shortDate(v.expiresOn) })}</div>
+                  </div>
+                  <Link href={`/booking?voucher=${v.id}`} style={{ flexShrink: 0, padding: '8px 12px', borderRadius: '9px', background: AMBER, color: NAVY, fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
+                    {t('voucher.book')}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cancel Confirm Modal */}
       {cancelTarget && (
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : 'dash.cancelModal.eyebrowCancel')}</div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : 'dash.cancelModal.titleCancel')}</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : cancelTarget.kind === 'leave' ? 'dash.cancelModal.eyebrowLeave' : 'dash.cancelModal.eyebrowCancel')}</div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : cancelTarget.kind === 'leave' ? 'dash.cancelModal.titleLeave' : 'dash.cancelModal.titleCancel')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{cancelTarget.date} · {cancelTarget.time}</div>
@@ -2446,8 +2556,14 @@ export default function DashboardPage() {
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>
               {cancelTarget.type === 'reject'
                 ? t('dash.cancelModal.bodyReject')
-                : cancelTarget.isLate
-                ? t('dash.cancelModal.bodyLatePoints', { n: cancelTarget.points ?? 0, left: wallet?.forgiveness ?? 0 })
+                : cancelTarget.kind === 'leave'
+                ? t('dash.cancelModal.bodyLeave', { kind: cancelTarget.voucher || '', date: cancelTarget.voucherBy || '' })
+                : cancelTarget.kind === 'grace'
+                ? t('dash.cancelModal.bodyGrace', { name: cancelTarget.studentName || '', kind: cancelTarget.voucher || '', date: cancelTarget.voucherBy || '' })
+                : cancelTarget.kind === 'makeupBack'
+                ? t('dash.cancelModal.bodyMakeupBack')
+                : cancelTarget.kind === 'makeupLose'
+                ? t('dash.cancelModal.bodyMakeupLose')
                 : t('dash.cancelModal.bodyNormalPoints', { n: cancelTarget.points ?? 0 })}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -2455,7 +2571,7 @@ export default function DashboardPage() {
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.keepInvitation' : 'dash.cancelModal.keepLesson')}
               </button>
               <button onClick={async () => { if (cancelTarget.type === 'reject') { await rejectPartnerBooking(cancelTarget.id) } else { await cancelBooking(cancelTarget.id) } setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : 'dash.cancelModal.yesCancel')}
+                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : cancelTarget.kind === 'leave' ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
               </button>
             </div>
           </div>
@@ -2637,6 +2753,13 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
+          {/* Make-up vouchers: one line while there are any, opening the list. */}
+          {vouchers.length > 0 && (
+            <p className="msa-partner">
+              🎟 {t('voucher.line', { n: vouchers.length, date: shortDate(vouchers[0].expiresOn) })}{' '}
+              <a href="#" onClick={e => { e.preventDefault(); setVoucherSheet(true) }}>{t('voucher.lineLink')} ›</a>
+            </p>
+          )}
           {/* Booking with another family is a way of booking, so it sits under
               the booking button. An invitation already surfaces at the top of
               the page when there is one. */}
@@ -2731,6 +2854,7 @@ export default function DashboardPage() {
 
         {/* Reschedule Action Modal */}
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
+      <NoticeModal title={t('dash.cancelDone.title')} message={doneMsg} closeLabel={t('common.close')} onClose={() => setDoneMsg(null)} />
       {rescheduleActionModal && (
         <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
@@ -3015,7 +3139,7 @@ export default function DashboardPage() {
                       </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {!booking._group && booking.student_name && (
-                        <div className="msa-lesson-name" style={{ color: swimmerColor(booking.student_name) }}>{booking.student_name}</div>
+                        <div className="msa-lesson-name" style={{ color: swimmerColor(booking.student_name) }}>{booking.student_name}<LessonTag b={booking} /></div>
                       )}
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
@@ -3033,8 +3157,11 @@ export default function DashboardPage() {
                         <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {booking._group.map((m, mi) => {
                             const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
-                            const lateOk = late && m.points_charged != null && !m.partner_booking_id && m.course_slug !== '1on2' && (wallet?.forgiveness ?? 0) > 0
-                            const cEnabled = (!late || lateOk) && cancellingId !== m.id && m.status !== 'pending_partner'
+                            const ck = cancelKindOf(m, late)
+                            const cEnabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== m.id && m.status !== 'pending_partner'
+                            // A fixed-class lesson or a make-up is not moved: leave
+                            // turns it into a voucher instead.
+                            const noMove = !!(m.fixed_class_id || m.voucher_id)
                             const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
                             // Two siblings in a 1-on-2 are one lesson: cancelling
                             // takes both seats and refunds both. This card groups
@@ -3048,24 +3175,24 @@ export default function DashboardPage() {
                             return (
                               <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid #e3ebf6' : 'none' }}>
                                 <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}</div>
+                                  <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} /></div>
                                   <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
                                     {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}
                                   </div>
                                 </div>
                                 {(m.course_slug === '1on2' && mi > 0) ? null : (
                                   <div className="msa-lesson-actions">
-                                    <button
+                                    {!noMove && <button
                                       onClick={() => setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
                                       disabled={rDis}
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
-                                    </button>
+                                    </button>}
                                     {cEnabled ? (
                                       <button
-                                        onClick={() => setCancelTarget({ id: m.id, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), isLate: late, points: refundPts })}
+                                        onClick={() => openCancel(m, late, ck, refundPts)}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
-                                        {cancellingId === m.id ? '...' : late ? t('dash.up.cancelLate') : t('dash.up.cancel')}
+                                        {cancellingId === m.id ? '...' : cancelLabel(m, late)}
                                       </button>
                                     ) : late ? (
                                       <button
@@ -3256,7 +3383,7 @@ export default function DashboardPage() {
                               treats the move as a regular lesson, and the swimmer has no
                               level yet), so its row offers one "message us" button below.
                               A checked-in lesson is happening: nothing to move. */}
-                          {!booking.is_trial && !booking.checked_in && (
+                          {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && (
                           <button
                             onClick={() => setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
@@ -3281,13 +3408,13 @@ export default function DashboardPage() {
                               </button>
                             )
                             const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
-                            const lateOk = late && booking.points_charged != null && !booking.partner_booking_id && booking.course_slug !== '1on2' && (wallet?.forgiveness ?? 0) > 0
-                            const enabled = (!late || lateOk) && cancellingId !== booking.id && booking.status !== 'pending_partner'
+                            const ck = cancelKindOf(booking, late)
+                            const enabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== booking.id && booking.status !== 'pending_partner'
                             return enabled ? (
                               <button
-                                onClick={() => setCancelTarget({ id: booking.id, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), isLate: late, points: booking.points_charged })}
+                                onClick={() => openCancel(booking, late, ck, booking.points_charged ?? 0)}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {cancellingId === booking.id ? '...' : late ? t('dash.up.cancelLate') : t('dash.up.cancel')}
+                                {cancellingId === booking.id ? '...' : cancelLabel(booking, late)}
                               </button>
                             ) : late ? (
                               <button

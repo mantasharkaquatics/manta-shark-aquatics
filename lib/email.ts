@@ -34,6 +34,8 @@ export type EmailType =
   | 'referral_reward'
   | 'assessment_report'
   | 'monthly_report'
+  | 'voucher_expiring'
+  | 'fixed_class_ended'
 
 export interface EmailPayload {
   type: EmailType
@@ -55,7 +57,8 @@ export interface EmailPayload {
   // One entry per date, when a batch spans more than one time of day. A single
   // Time row would then be wrong for some of the lessons it sits above.
   times?: string[]
-  refundKind?: 'points' | 'none'
+  // voucher: the lesson became a make-up voucher, usable until expiresOn.
+  refundKind?: 'points' | 'voucher' | 'none'
   requesterStudentName?: string
   partnerStudentName?: string
   paymentMethod?: string
@@ -101,6 +104,8 @@ export interface EmailPayload {
   month?: string
   studentNames?: string[]
   reportId?: string
+  // voucher_expiring: which lesson the voucher is for (course slug, minutes).
+  minutes?: number
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -164,11 +169,18 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'booking_cancelled') {
     subject = `Lesson Cancelled – ${courseName} on ${formattedDate}`
     const rk = refundKind || 'credit'
+    const voucherBy = payload.expiresOn
+      ? new Date(payload.expiresOn + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
+      : ''
     const cancelLine = rk === 'none'
       ? 'Your lesson has been cancelled.'
+      : rk === 'voucher'
+      ? 'Your lesson has been cancelled and turned into a make-up voucher.'
       : 'Your lesson has been cancelled and the points have been returned to your account.'
     const readyLine = rk === 'none'
       ? "You're welcome to rebook any available time on your dashboard."
+      : rk === 'voucher'
+      ? `Book your make-up lesson from your dashboard${voucherBy ? ` by ${voucherBy}` : ''}. It costs no points.`
       : 'Your points are back in your wallet and never expire.'
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">❌ Lesson Cancelled</h2><p>Hi ${parentName},</p><p>${cancelLine}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${studentName}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${courseName}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr></table><p style="color: #c9a84c; font-weight: 600;">${readyLine}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
@@ -258,6 +270,31 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const url = 'https://www.mantasharkaquatics.net/dashboard' + (payload.reportId ? '?report=' + encodeURIComponent(payload.reportId) : '')
     subject = t('monthly.email.subject', { month: monthLabel })
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('monthly.email.title', { month: monthLabel })}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('monthly.email.body', { names, month: monthLabel })}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="${url}" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('monthly.email.button')}</a></div></div></div>`
+
+  } else if (type === 'voucher_expiring') {
+    // A make-up voucher runs out in a week. In the family's language, once.
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const by = payload.expiresOn
+      ? new Date(payload.expiresOn + 'T12:00:00Z').toLocaleDateString(L === 'en' ? 'en-US' : L === 'zh-Hans' ? 'zh-CN' : 'zh-TW', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC' })
+      : ''
+    const names = (payload.studentNames || []).map(esc).join(L === 'en' ? ' & ' : '、')
+    const kind = t('voucher.kind.' + (payload.course || '1on1') + (payload.course === '1on1' ? '.' + (payload.minutes === 60 ? 60 : 30) : ''))
+    subject = t('voucher.email.subject', { date: by })
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('voucher.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('voucher.email.body', { names, kind, date: by })}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?vouchers=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('voucher.email.button')}</a></div></div></div>`
+
+  } else if (type === 'fixed_class_ended') {
+    // The front desk ended a fixed class part-way. reason is what the remaining
+    // lessons became: refund (amount = points), voucher (amount = vouchers), keep.
+    const n = Number(payload.lessonsReleased ?? 0)
+    const what = payload.reason === 'refund'
+      ? `${Number(amount ?? 0)} points have been returned to your account.`
+      : payload.reason === 'voucher'
+      ? `They have been turned into ${Number(amount ?? 0)} make-up voucher${Number(amount ?? 0) === 1 ? '' : 's'}, which you can use from your dashboard.`
+      : ''
+    subject = `Fixed class ended – ${courseName}`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Fixed class ended</h2><p>Hi ${parentName},</p><p>As we agreed, ${studentName}'s fixed ${courseName} class has ended. The ${n} remaining lesson${n === 1 ? ' has' : 's have'} been cancelled. ${what}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
   } else if (type === 'payment_reversed') {
     // Written to be read by someone who did nothing wrong. The overwhelmingly

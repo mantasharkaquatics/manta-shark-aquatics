@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
+import { giveBackVouchers } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -88,6 +89,8 @@ export async function POST(req: NextRequest) {
         booking: b, parentId: b.parent_id, reason: 'school_cancel',
         actor: 'admin', note: 'Lesson cancelled by the school',
       })
+      // A make-up lesson cost a voucher, not points: that comes back instead.
+      await giveBackVouchers(svc, [b.id])
       notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: refunded > 0 ? 'points' : 'none' })
     } else {
       // pending_partner etc.: no credits were deducted, cancel without refund

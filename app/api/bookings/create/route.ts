@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
+import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { refundBookingPoints } from '@/lib/bookings/refund'
@@ -175,10 +175,12 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       // points_refunded comes along because the refund below subtracts it:
       // without it a lesson refunded in part would be refunded again in full.
-      .select('id, parent_id, status, points_charged, points_refunded, points_granted, points_granted_expires_at, class_session_id, original_booking_id, partner_booking_id, lesson_group_id')
+      .select('id, parent_id, status, points_charged, points_refunded, points_granted, points_granted_expires_at, class_session_id, original_booking_id, partner_booking_id, lesson_group_id, fixed_class_id, voucher_id')
       .eq('id', reschedule_booking_id).single()
     if (!ob || ob.parent_id !== parent.id)
       return NextResponse.json({ error: 'Booking to reschedule not found' }, { status: 403 })
+    if (ob.fixed_class_id || ob.voucher_id)
+      return NextResponse.json({ error: FIXED_NO_RESCHEDULE_ERROR }, { status: 400 })
     if (ob.status !== 'confirmed')
       return NextResponse.json({ error: 'Only confirmed bookings can be rescheduled' }, { status: 400 })
     const { data: oldSess } = await svc

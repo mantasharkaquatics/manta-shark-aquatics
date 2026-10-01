@@ -370,7 +370,6 @@ export async function POST(req: NextRequest) {
           ? `${w.grantedNextExpiry.points} bonus points expire on ${w.grantedNextExpiry.date.slice(0, 10)}`
           : null,
         lessons_completed: w.lessonsCompleted,
-        late_cancellation_allowances: w.forgiveness,
       }
     }
 
@@ -427,13 +426,25 @@ export async function POST(req: NextRequest) {
         // sibling's seat in a 1-on-2, the other family's seat. Not all of
         // them are partners, so it does not claim they are.
         also_cancelled: result.cancelledBookingIds.length - 1,
-        credit_refunded: true,
+        // What the family got for it (docs/fixed-class-spec.md): points back
+        // for a single lesson, a make-up voucher for a fixed-class lesson or a
+        // late cancellation on the month's grace, or the voucher back for a
+        // make-up lesson.
+        points_refunded: result.pointsRefunded ?? 0,
+        make_up_voucher: result.voucher ? { course: result.voucher.course_slug, minutes: result.voucher.minutes, use_by: result.voucher.expires_on } : null,
+        voucher_returned: result.outcome === 'restore',
       }
     }
 
     if (name === 'get_reschedule_link') {
       const row = await loadOwnedUpcoming(String(input.booking_id || ''))
       if (!row) return { error: 'Booking not found among your upcoming lessons.' }
+      // A fixed-class lesson is not moved: the family takes leave (cancel)
+      // and books the make-up with the voucher that gives them.
+      {
+        const { data: fb } = await svc.from('bookings').select('fixed_class_id').eq('id', row.booking_id).maybeSingle()
+        if (fb?.fixed_class_id) return { error: 'This lesson is part of a fixed weekly class and cannot be rescheduled. Cancelling it at least 24 hours ahead turns it into a make-up voucher, which the family can use to book another time within four weeks.' }
+      }
       if (row.course_slug === 'assessment') {
         escalate = true
         return { error: "A Swim Assessment can't be moved online. The conversation has been flagged for a team member." }

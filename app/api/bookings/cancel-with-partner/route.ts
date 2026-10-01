@@ -44,5 +44,11 @@ export async function POST(req: NextRequest) {
     }, { status: result.status })
   }
 
-  return NextResponse.json({ ok: true, cancelled_booking_ids: result.cancelledBookingIds })
+  return NextResponse.json({
+    ok: true, cancelled_booking_ids: result.cancelledBookingIds,
+    // What the family got for it, so the dashboard can say so.
+    outcome: result.outcome ?? 'refund',
+    points_refunded: result.pointsRefunded ?? 0,
+    voucher_expires: result.voucher?.expires_on ?? null,
+  })
 }

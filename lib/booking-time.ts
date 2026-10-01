@@ -50,3 +50,6 @@ export function singleMaxDate(today: string = getTodayLA()): string {
 }
 
 export const SINGLE_TOO_FAR_ERROR = `Single lessons can be booked up to ${SINGLE_BOOKING_DAYS} days in advance. For later dates, sign up for a fixed weekly class.`
+
+/** A fixed-class lesson, or a make-up, is not moved: leave turns it into a voucher. */
+export const FIXED_NO_RESCHEDULE_ERROR = 'Fixed-class and make-up lessons cannot be rescheduled. Cancel it at least 24 hours ahead to get a make-up voucher, then book another time with it.'
