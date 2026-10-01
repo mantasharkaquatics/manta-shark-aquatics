@@ -5,7 +5,7 @@
 // lesson, ten or more), and changing its slot (換時段). The dashboard line and
 // the renewal email both land here; ?renew=1 opens the renewal straight away.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useLocale, useT } from '@/lib/i18n/provider'
@@ -128,9 +128,15 @@ export default function FixedClassPage() {
     setBusy(false)
   }, [fc, renewStart])
 
+  // ?renew=1 (the email, the dashboard line) opens the renewal once; the
+  // flag is dropped so a reload after renewing does not open it again.
+  const autoRenewed = useRef(false)
   useEffect(() => {
-    if (!fc?.renewOpen || renewOpenUI) return
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('renew') === '1') loadRenew(WEEKS_STEP)
+    if (!fc?.renewOpen || renewOpenUI || autoRenewed.current) return
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('renew') !== '1') return
+    autoRenewed.current = true
+    try { const u = new URL(window.location.href); u.searchParams.delete('renew'); window.history.replaceState(null, '', u.toString()) } catch {}
+    loadRenew(WEEKS_STEP)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fc])
 
