@@ -34,10 +34,36 @@ ${REPORT_SHEET_CSS}
 .msa-addkid:hover { border-color: #2050a0; background: rgba(32,80,160,0.04) }
 .msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
   font-size: 22px; font-weight: 400; background: #12254a; color: #fff }
-.msa-partner { margin: 12px 0 0; text-align: center; font-size: 13px; color: #3f4d66 }
-.msa-partner a { color: #2050a0; font-weight: 700; text-decoration: none; white-space: nowrap }
-.msa-refer { margin-top: 6px }
-.msa-refer a { color: #2050a0 }
+/* 「我的方案」 (owner, 2026-10-02): what the family already holds -- each fixed
+   class and the make-up vouchers -- as small white cards under the booking
+   bar, each with its own button. They used to be centred lines of small type
+   between the bar and the lesson list. */
+.msa-plans-h { margin-top: 28px }
+.msa-plan { display: flex; flex-direction: column; gap: 3px; background: #fff; border: 1px solid #d3deec;
+  border-radius: 16px; padding: 14px 16px; color: #3f4d66; font-size: 13px; line-height: 1.45 }
+.msa-plan-tag { font-size: 11.5px; font-weight: 800; color: #2050a0; letter-spacing: .3px; margin-bottom: 2px;
+  overflow-wrap: anywhere }
+.msa-plan-main { font-size: 16px; font-weight: 900; color: #12254a; font-variant-numeric: tabular-nums }
+.msa-plan-btn { align-self: flex-end; margin-top: auto; padding-top: 10px }
+.msa-plan-btn a, .msa-plan-btn button { display: inline-block; border: 1px solid #c9d8ee; border-radius: 999px;
+  padding: 7px 14px; background: #fff; color: #2050a0; font-family: inherit; font-size: 13px; font-weight: 800;
+  text-decoration: none; cursor: pointer }
+.msa-plan-btn a:hover, .msa-plan-btn button:hover { border-color: #2050a0 }
+.msa-plan-btn .renew { background: #f09800; border-color: #f09800; color: #12254a }
+.msa-plan-btn .renew:hover { background: #d98900; border-color: #d98900 }
+.msa-rail-plans { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)) }
+/* The optional things -- book with another family, refer a friend, the
+   suggestion box -- as one list at the foot of the page. Each row is a
+   single tap target. */
+.msa-more { margin: 8px 0 0; background: #fff; border: 1px solid #d3deec; border-radius: 16px; overflow: hidden }
+.msa-more-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 18px; background: none;
+  border: 0; border-top: 1px solid #e8eef7; font-family: inherit; font-size: 13.5px; color: #3f4d66; text-align: left;
+  text-decoration: none; cursor: pointer }
+.msa-more-row:first-child { border-top: 0 }
+.msa-more-row:hover { background: #f5f8fd }
+.msa-more-ico { width: 22px; text-align: center; flex-shrink: 0 }
+.msa-more-text { flex: 1; min-width: 0 }
+.msa-more-link { color: #2050a0; font-weight: 800; white-space: nowrap }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
 .msa-act-book { background: #f09800; color: #12254a; border: none; border-radius: 999px; padding: 16px;
   font-size: 16px; font-weight: 900; cursor: pointer; transition: background .15s }
@@ -155,6 +181,11 @@ ${REPORT_SHEET_CSS}
               scrollbar-width: none }
   .msa-rail::-webkit-scrollbar { display: none }
   .msa-rail > * { scroll-snap-align: center; flex: 0 0 92% }
+  /* Plan cards are small; showing most of the next one says the row moves. */
+  .msa-rail-plans > * { flex-basis: 80% }
+  .msa-more-row { flex-wrap: wrap; row-gap: 2px }
+  .msa-more-text { flex-basis: calc(100% - 34px) }
+  .msa-more-link { margin-left: 34px }
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
   .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: #b9c6da; transition: width .18s, background .18s }
   .msa-dot-on { width: 18px; border-radius: 3px; background: #2050a0 }
@@ -306,7 +337,7 @@ function getDaysUntil(d: string): number {
 /* A row of cards that becomes a swipeable rail on a phone. The dots are the
    only reason this needs state: they say how many cards there are and which
    one you are on, which a bare overflow-x row cannot. */
-function Rail({ variant, count, children }: { variant: 'students' | 'credits'; count: number; children: React.ReactNode }) {
+function Rail({ variant, count, children }: { variant: 'students' | 'credits' | 'plans'; count: number; children: React.ReactNode }) {
   const [active, setActive] = useState(0)
   return (
     <>
@@ -2504,43 +2535,39 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
-          {/* Fixed classes: one line each, opening the class page. */}
-          {fixedClasses.map(f => (
-            <p key={f.id} className="msa-partner">
-              📌 {students.length > 1 ? `${f.studentNames.join(' & ')} · ` : ''}{t('fixed.line', {
-                weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
-                time: formatTime12h(f.time), coach: f.coachName, n: f.left, date: f.last ? shortDate(f.last) : '—',
-              })}{' '}
-              <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`}>{f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›</Link>
-            </p>
-          ))}
-          {/* Make-up vouchers: one line while there are any, opening the list. */}
-          {vouchers.length > 0 && (
-            <p className="msa-partner">
-              🎟 {t('voucher.line', { n: vouchers.length, date: shortDate(vouchers[0].expiresOn) })}{' '}
-              <a href="#" onClick={e => { e.preventDefault(); setVoucherSheet(true) }}>{t('voucher.lineLink')} ›</a>
-            </p>
+          {(fixedClasses.length > 0 || vouchers.length > 0) && (
+            <>
+              <h2 className="msa-sec-h msa-plans-h">{t('dash.plans.title')}</h2>
+              <Rail variant="plans" count={fixedClasses.length + (vouchers.length > 0 ? 1 : 0)}>
+                {fixedClasses.map(f => (
+                  <div key={f.id} className="msa-plan">
+                    <span className="msa-plan-tag">📌 {t('dash.tag.fixed')} · {f.studentNames.join(' & ')}</span>
+                    <span className="msa-plan-main">{t('dash.plan.when', {
+                      weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
+                      time: formatTime12h(f.time),
+                    })}</span>
+                    <span>{t('dash.up.coach', { name: f.coachName })}</span>
+                    <span>{t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}</span>
+                    <span className="msa-plan-btn">
+                      <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`} className={f.renewOpen ? 'renew' : undefined}>
+                        {f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›
+                      </Link>
+                    </span>
+                  </div>
+                ))}
+                {vouchers.length > 0 && (
+                  <div className="msa-plan">
+                    <span className="msa-plan-tag">🎟 {t('voucher.sheetTitle')}</span>
+                    <span className="msa-plan-main">{t(vouchers.length === 1 ? 'dash.plan.voucher' : 'dash.plan.vouchers', { n: vouchers.length })}</span>
+                    <span>{t('dash.plan.firstExpires', { date: shortDate(vouchers[0].expiresOn) })}</span>
+                    <span className="msa-plan-btn">
+                      <button className="tap-auto" onClick={() => setVoucherSheet(true)}>{t('voucher.lineLink')} ›</button>
+                    </span>
+                  </div>
+                )}
+              </Rail>
+            </>
           )}
-          {/* Booking with another family is a way of booking, so it sits under
-              the booking button. An invitation already surfaces at the top of
-              the page when there is one. */}
-          <p className="msa-partner">
-            {t('dash.partnerPrompt')}{' '}
-            <Link href="/dashboard/partnerships">{t('quick.partnerships')} ›</Link>
-          </p>
-          {/* Refer a friend: one quiet line, opening the points sheet at the
-              referral card. Without it almost nobody would find the offer. */}
-          {wallet && (
-            <p className="msa-partner msa-refer">
-              {t('ref.prompt')}{' '}
-              <a href="#" onClick={e => { e.preventDefault(); setReferralFocus(true); setPointsOpen(true) }}>{t('ref.promptLink', { n: REFERRAL_POINTS })} ›</a>
-            </p>
-          )}
-          {/* The suggestion box (owner, 2026-09-30): optional, any time, managers only. */}
-          <p className="msa-partner msa-refer">
-            {t('suggest.prompt')}{' '}
-            <a href="#" onClick={e => { e.preventDefault(); setSuggestOpen(true) }}>{t('suggest.link')} ›</a>
-          </p>
         </section>
 
         {/* Pending partner bookings notice */}
@@ -3224,6 +3251,30 @@ export default function DashboardPage() {
             )
           })()}
         </section>
+
+        {/* The optional things, at the foot (owner, 2026-10-02). Booking with
+            another family; refer a friend (opens the points sheet at the
+            referral card -- without a visible way in almost nobody finds the
+            offer); the suggestion box (owner, 2026-09-30: any time, managers only). */}
+        <nav className="msa-more" aria-label={t('dash.more.label')}>
+          <Link href="/dashboard/partnerships" className="msa-more-row">
+            <span className="msa-more-ico" aria-hidden="true">👥</span>
+            <span className="msa-more-text">{t('dash.partnerPrompt')}</span>
+            <span className="msa-more-link">{t('quick.partnerships')} ›</span>
+          </Link>
+          {wallet && (
+            <button className="tap-auto msa-more-row" onClick={() => { setReferralFocus(true); setPointsOpen(true) }}>
+              <span className="msa-more-ico" aria-hidden="true">🎁</span>
+              <span className="msa-more-text">{t('ref.prompt')}</span>
+              <span className="msa-more-link">{t('ref.promptLink', { n: REFERRAL_POINTS })} ›</span>
+            </button>
+          )}
+          <button className="tap-auto msa-more-row" onClick={() => setSuggestOpen(true)}>
+            <span className="msa-more-ico" aria-hidden="true">💬</span>
+            <span className="msa-more-text">{t('suggest.prompt')}</span>
+            <span className="msa-more-link">{t('suggest.link')} ›</span>
+          </button>
+        </nav>
 
         {/* PARTNER ACCOUNTS */}
 

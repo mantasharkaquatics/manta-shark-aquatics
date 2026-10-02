@@ -1593,7 +1593,6 @@
   "voucher.email.title": "別忘了補課",
   "voucher.email.body": "{names} 有一張{kind}補課券，將在 {date} 到期。請在那之前從首頁預約補課，不扣點。",
   "voucher.email.button": "預約補課",
-  "voucher.line": "補課券 {n} 張，最早 {date} 到期",
   "voucher.lineLink": "查看",
   "voucher.sheetTitle": "補課券",
   "voucher.sheetHint": "每張補課券可以預約一堂同種類的課，不扣點，要在券上的日期範圍內上完。不保證同一位教練。",
@@ -1638,7 +1637,7 @@
   "err.fixedNoReschedule": "固定班和補課的課不能改期。請在 24 小時前請假，會換成一張補課券，再用券預約其他時間。",
   "dash.cancelDone.title": "完成了",
   "dash.cancelModal.eyebrowLeave": "請假",
-  "fixed.line": "每週{weekday} {time} · {coach} 教練 · 還有 {n} 堂（到 {date}）",
+  "fixed.line": "每{weekday} {time} · {coach} 教練 · 還有 {n} 堂（到 {date}）",
   "fixed.manage": "管理",
   "fixed.renew": "續報",
   "booking.lenLocked": "已選的課都是同一個長度；要換長度，請先清空已選的課。",
@@ -2719,5 +2718,13 @@
   "admin.levels.noteAssessment": "評估",
   "admin.colon": "：",
   "admin.members.fv.deskNote": "（{reason}）",
-  "admin.timeOff.optionalSpaced": "（選填）"
+  "admin.timeOff.optionalSpaced": "（選填）",
+  "dash.plans.title": "我的方案",
+  "dash.plan.when": "每{weekday} {time}",
+  "dash.plan.left": "還有 {n} 堂 · 到 {date}",
+  "dash.plan.leftOne": "還有 {n} 堂 · 到 {date}",
+  "dash.plan.vouchers": "{n} 張",
+  "dash.plan.voucher": "{n} 張",
+  "dash.plan.firstExpires": "最早 {date} 到期",
+  "dash.more.label": "更多"
 }

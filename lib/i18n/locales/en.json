@@ -1593,7 +1593,6 @@
   "voucher.email.title": "Don't forget the make-up lesson",
   "voucher.email.body": "{names} has a {kind} make-up voucher that expires on {date}. Book the make-up lesson from your dashboard before then — it uses no points.",
   "voucher.email.button": "Book the make-up",
-  "voucher.line": "Make-up vouchers: {n} · the first expires {date}",
   "voucher.lineLink": "View",
   "voucher.sheetTitle": "Make-up vouchers",
   "voucher.sheetHint": "Each voucher books one lesson of the same kind, with no points, on a date the voucher covers. The coach may be different.",
@@ -2719,5 +2718,13 @@
   "admin.levels.noteAssessment": "Assessment",
   "admin.colon": ": ",
   "admin.members.fv.deskNote": "({reason})",
-  "admin.timeOff.optionalSpaced": " (optional)"
+  "admin.timeOff.optionalSpaced": " (optional)",
+  "dash.plans.title": "My plans",
+  "dash.plan.when": "Every {weekday} · {time}",
+  "dash.plan.left": "{n} lessons left · until {date}",
+  "dash.plan.leftOne": "{n} lesson left · until {date}",
+  "dash.plan.vouchers": "{n} vouchers",
+  "dash.plan.voucher": "{n} voucher",
+  "dash.plan.firstExpires": "First one expires {date}",
+  "dash.more.label": "More"
 }
