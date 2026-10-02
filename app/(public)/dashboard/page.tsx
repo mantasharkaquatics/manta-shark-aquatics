@@ -38,7 +38,9 @@ ${REPORT_SHEET_CSS}
    class and the make-up vouchers -- as small white cards under the booking
    bar, each with its own button. They used to be centred lines of small type
    between the bar and the lesson list. */
-.msa-plans-h { margin-top: 28px }
+/* Two classes: .msa-sec-h comes later in this sheet and sets margin: 0 0 14px,
+   which a single-class rule here would lose to. */
+.msa-sec-h.msa-plans-h { margin-top: 28px }
 .msa-plan { display: flex; flex-direction: column; gap: 3px; background: #fff; border: 1px solid #d3deec;
   border-radius: 16px; padding: 14px 16px; color: #3f4d66; font-size: 13px; line-height: 1.45 }
 .msa-plan-tag { font-size: 11.5px; font-weight: 800; color: #2050a0; letter-spacing: .3px; margin-bottom: 2px;
