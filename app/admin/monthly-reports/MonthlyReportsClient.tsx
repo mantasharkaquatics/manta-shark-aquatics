@@ -183,6 +183,10 @@ export default function MonthlyReportsClient() {
                     {(d.stageSkills || []).map((s: any) => (
                       <p key={s.id} className="text-gray-300">{s.name}: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{MASTERY_LABEL[masteryOf(s.start)]}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{MASTERY_LABEL[masteryOf(s.end)]}</span></p>
                     ))}
+                    {d.otherSkills?.length > 0 && <p className="text-gray-500 uppercase tracking-wider mt-3 mb-1">Other skills that changed this month</p>}
+                    {(d.otherSkills || []).map((s: any) => (
+                      <p key={s.id} className="text-gray-300">{s.name} <span className="text-gray-500">(Stage {s.stage})</span>: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{MASTERY_LABEL[masteryOf(s.start)]}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{MASTERY_LABEL[masteryOf(s.end)]}</span></p>
+                    ))}
                   </div>
                   <div>
                     <p className="text-gray-500 uppercase tracking-wider mb-1">Coach notes the family sees</p>

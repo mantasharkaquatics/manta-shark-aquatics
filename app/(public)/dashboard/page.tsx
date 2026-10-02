@@ -684,6 +684,7 @@ type MonthlyReport = {
     attended: number
     stages: { stage: number; percent: number; complete: boolean; skillCount: number }[]
     stageSkills: { id: string; name: string; start: number; end: number }[]
+    otherSkills?: { id: string; name: string; stage: number; start: number; end: number }[]
     mastered: number
   }
   summary: string
@@ -817,6 +818,29 @@ function MonthlyReportSheet({ student, reports, initialId, onClose, onFeedback }
                     <div key={s.id} className="msa-report-skill">
                       <span className="msa-report-skill-name">
                         {tDb(locale, 'skills', s.id, s.name)}
+                        {up && <em className="msa-report-up">↑ {t('monthly.improved')}</em>}
+                      </span>
+                      <span className="msa-report-skill-bar"><i style={{ width: Math.max(s.end, m === 0 ? 0 : 4) + '%', background: MASTERY_COLOR[m] }} /></span>
+                      <span className="msa-report-skill-chip" style={{ color: MASTERY_COLOR[m], background: MASTERY_COLOR[m] + '1f' }}>{t(masteryKey(m))}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {(d.otherSkills?.length ?? 0) > 0 && (
+            <div style={card}>
+              <p style={h}>{t('monthly.otherSkills')}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {d.otherSkills!.map(s => {
+                  const m = masteryOf(s.end)
+                  const up = masteryOf(s.end) > masteryOf(s.start)
+                  return (
+                    <div key={s.id} className="msa-report-skill">
+                      <span className="msa-report-skill-name">
+                        {tDb(locale, 'skills', s.id, s.name)}
+                        <em style={{ fontStyle: 'normal', fontSize: '11px', color: '#8592a8', marginLeft: '6px' }}>{t('dash.stageN', { n: s.stage })}</em>
                         {up && <em className="msa-report-up">↑ {t('monthly.improved')}</em>}
                       </span>
                       <span className="msa-report-skill-bar"><i style={{ width: Math.max(s.end, m === 0 ? 0 : 4) + '%', background: MASTERY_COLOR[m] }} /></span>

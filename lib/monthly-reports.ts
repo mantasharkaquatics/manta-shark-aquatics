@@ -93,6 +93,9 @@ export type ReportData = {
   stages: StageProgress[]
   /** The current stage's skills, with where they stood when the month began. */
   stageSkills: { id: string; name: string; start: number; end: number }[]
+  /** Skills of the level's other stages that moved this month (worked on early,
+   *  or an earlier one that slipped). Absent on reports written before 2026-10. */
+  otherSkills?: { id: string; name: string; stage: number; start: number; end: number }[]
   /** Skills of the current level that read "mastered" at the end of the month. */
   mastered: number
   /** Approved coach notes from this month's lessons. */
@@ -220,6 +223,7 @@ export async function buildReportData(
   const level = student?.current_level != null ? Number(student.current_level) : null
   let stages: StageProgress[] = []
   let stageSkills: ReportData['stageSkills'] = []
+  let otherSkills: NonNullable<ReportData['otherSkills']> = []
   let mastered = 0
   let stage: 1 | 2 | 3 | null = null
   if (level) {
@@ -239,6 +243,10 @@ export async function buildReportData(
     stage = (stored === 1 || stored === 2 || stored === 3 ? stored : (stages.find(p => !p.complete)?.stage ?? 3)) as 1 | 2 | 3
     stageSkills = list.filter((s: any) => s.stage === stage).sort((a: any, b: any) => a.sort - b.sort)
       .map((s: any) => ({ id: s.id, name: s.name, start: atStart[s.id] ?? 0, end: atEnd[s.id] ?? 0 }))
+    otherSkills = list.filter((s: any) => s.stage !== stage
+        && masteryOf(atStart[s.id] ?? 0) !== masteryOf(atEnd[s.id] ?? 0))
+      .sort((a: any, b: any) => a.stage - b.stage || a.sort - b.sort)
+      .map((s: any) => ({ id: s.id, name: s.name, stage: s.stage, start: atStart[s.id] ?? 0, end: atEnd[s.id] ?? 0 }))
     mastered = list.filter((s: any) => masteryOf(atEnd[s.id] ?? 0) === 5).length
   }
 
@@ -270,7 +278,7 @@ export async function buildReportData(
       coachName: mainCoach,
       lessons,
       attended: lessons.filter(l => l.attended).length,
-      stages, stageSkills, mastered,
+      stages, stageSkills, otherSkills, mastered,
       notes: noteRows.map((n: any) => ({ id: n.id, date: n.lesson.date, coachName: n.lesson.coachName })),
       pendingReviews: pending ?? 0,
     },
@@ -289,6 +297,7 @@ const SYSTEM_PROMPT = [
   'Skill progress uses these steps, lowest to highest: Not taught, Trying it, Needs help, On their own, Getting solid, Mastered.',
   'Return JSON only, no preamble: {"summary": string, "focus": string[]}',
   '- summary: 2 to 4 sentences, under 90 words, about this month: lessons taken, what changed in their skills, where they are in the current stage.',
+  '  Skills from other stages that changed may be mentioned briefly (e.g. a head start on a later skill); the current stage stays the focus.',
   '- focus: 1 or 2 short items for next month, each under 20 words, grounded in skills not yet mastered.',
   '  Write each item as what the swimmer will do, the way a parent would say it: "Start learning <skill>", "Keep practising <skill>".',
   '  Never use teacher-side verbs such as introduce, teach, drill or assess.',
@@ -306,6 +315,11 @@ function promptFor(data: ReportData, notes: { date: string; text: string }[]): s
     for (const s of data.stageSkills) {
       const a = MASTERY_LABEL[masteryOf(s.start)], b = MASTERY_LABEL[masteryOf(s.end)]
       lines.push(`- ${s.name}: ${a === b ? b + ' (no change this month)' : a + ' -> ' + b}`)
+    }
+    if (data.otherSkills?.length) {
+      lines.push('Skills of other stages of this level that changed this month:')
+      for (const s of data.otherSkills)
+        lines.push(`- ${s.name} (Stage ${s.stage}): ${MASTERY_LABEL[masteryOf(s.start)]} -> ${MASTERY_LABEL[masteryOf(s.end)]}`)
     }
   } else {
     lines.push('No level yet (the assessment is still being reviewed).')
@@ -426,7 +440,7 @@ function namesFor(data: ReportData, lang: Locale): { en: string; local: string }
     add(`Level ${data.level}`, t('level.badge', { n: data.level, name: '' }).replace(/[\s·]+$/, ''))
   }
   for (const st of [1, 2, 3]) add(`Stage ${st}`, t('dash.stageN', { n: st }))
-  for (const s of data.stageSkills) add(s.name, tDb(lang, 'skills', s.id, s.name))
+  for (const s of [...data.stageSkills, ...(data.otherSkills || [])]) add(s.name, tDb(lang, 'skills', s.id, s.name))
   for (const l of data.lessons) if (l.courseTypeId) add(l.courseName, tDb(lang, 'course_types', l.courseTypeId, l.courseName))
   add('Swim Assessment', t('common.assessment'))
   for (const m of [0, 1, 2, 3, 4, 5] as const) add(MASTERY_LABEL[m], t('mastery.' + m))

@@ -1149,6 +1149,7 @@
   "monthly.sheetTitle": "{name}'s {month} report",
   "monthly.stageDone": "Complete",
   "monthly.stageSkills": "Stage {n} skills",
+  "monthly.otherSkills": "Also worked on this month",
   "monthly.statLessons": "Lessons",
   "monthly.statMastered": "Skills mastered",
   "monthly.statStage": "Stage {n} progress",

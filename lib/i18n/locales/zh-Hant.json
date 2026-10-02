@@ -1149,6 +1149,7 @@
   "monthly.sheetTitle": "{name} 的{month}月報",
   "monthly.stageDone": "完成",
   "monthly.stageSkills": "階段 {n} 技能",
+  "monthly.otherSkills": "本月也練習了",
   "monthly.statLessons": "本月上課",
   "monthly.statMastered": "已學會技能",
   "monthly.statStage": "階段 {n} 進度",
