@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { skillLinesFor } from '@/lib/ai/skill-names'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     .from('levels').select('id').eq('level_number', scoredLevel).maybeSingle()
   if (!lvl) return NextResponse.json({ error: 'That level does not exist' }, { status: 400 })
   const { data: levelSkills } = await svc
-    .from('skills').select('id').eq('level_id', lvl.id)
+    .from('skills').select('id, name, is_active').eq('level_id', lvl.id)
   const allowedSkills = new Set((levelSkills || []).map((k: any) => k.id))
   for (const [id, v] of Object.entries(progress)) {
     const n = Number(v)
@@ -178,6 +179,8 @@ export async function POST(req: NextRequest) {
           `You turn a swim coach's spoken remarks into a short lesson note for the swimmer's family.\n`
           + `Write in ${wanted}. Warm, specific, plain: 2 to 4 sentences, no headings, no bullet points, no greeting or sign-off.\n`
           + `Keep these terms in English exactly as written, never translated or transliterated: ${glossary.join(', ')}.\n`
+          + `When the coach refers to one of these curriculum skills, however they phrase it or in whichever language, write the skill's official name exactly as listed first on its line. Skill names win over the English-terms list above:\n`
+          + `${skillLinesFor(language, (levelSkills || []).filter((k: any) => k.is_active !== false))}\n`
           + `Say only what the coach said. Do not invent skills, praise or next steps that were not mentioned.\n`
           + `Return the note text alone, with no preamble.`,
         messages: [{

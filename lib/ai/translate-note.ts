@@ -1,4 +1,5 @@
 import { POLISH_MODEL, SUPPORTED_NOTE_LANGUAGES, LANGUAGE_NAMES, detectNoteLanguage } from './models'
+import { levelSkills, skillPairsFor, type SkillRef } from './skill-names'
 
 // Rewrites a note's stored translations from its CURRENT approved text. Called
 // both when a report is published and when a published one is corrected, so an
@@ -13,7 +14,7 @@ export async function refreshNoteTranslations(supabase: any, noteId: string): Pr
   const failed: string[] = []
   try {
     const { data: noteRow } = await supabase
-      .from('lesson_notes').select('language, note').eq('id', noteId).single()
+      .from('lesson_notes').select('language, note, student_id').eq('id', noteId).single()
     const source = String(noteRow?.note || '').trim()
     if (!source) return { failed }
 
@@ -42,10 +43,12 @@ export async function refreshNoteTranslations(supabase: any, noteId: string): Pr
     if (targets.length === 0) return { failed }
 
     const glossary = await loadGlossary(supabase)
+    const skills = await levelSkills(supabase, { studentId: noteRow?.student_id }).catch(() => [] as SkillRef[])
 
     for (const target of targets) {
-      const text = await translateOnce(source, target, glossary)
-        ?? await translateOnce(source, target, glossary)   // one retry: a busy API is the usual cause
+      const names = skills.length ? skillPairsFor(sourceLang, target, skills) : undefined
+      const text = await translateOnce(source, target, glossary, names)
+        ?? await translateOnce(source, target, glossary, names)   // one retry: a busy API is the usual cause
       if (!text) { failed.push(target); continue }
       const { error } = await supabase.from('lesson_note_translations')
         .upsert({ lesson_note_id: noteId, language: target, text }, { onConflict: 'lesson_note_id,language' })
@@ -69,7 +72,7 @@ export async function loadGlossary(supabase: any): Promise<string[]> {
 /** One call to the model. Null on any failure, with the reason logged: an
  *  error response used to come back as an empty text and be skipped silently.
  *  Also used for the one-line course recommendation on an assessment report. */
-export async function translateOnce(source: string, target: string, glossary: string[]): Promise<string | null> {
+export async function translateOnce(source: string, target: string, glossary: string[], skillNames?: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -84,6 +87,9 @@ export async function translateOnce(source: string, target: string, glossary: st
         system:
           `Translate a swim lesson note for the swimmer's family into ${LANGUAGE_NAMES[target]}.\n`
           + `Keep these terms in English exactly as written, never translated: ${glossary.join(', ')}.\n`
+          + (skillNames
+            ? `These are skills of the swim curriculum and have fixed names. Translate each exactly as shown; this list wins over the English-terms list above:\n${skillNames}\n`
+            : '')
           + `Say only what the note says. Add nothing, drop nothing.\n`
           + `Return the translated note alone, with no preamble.`,
         messages: [{ role: 'user', content: source }],
