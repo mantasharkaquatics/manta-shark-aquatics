@@ -1648,6 +1648,8 @@
   "fixedPage.next": "下一堂",
   "fixedPage.last": "最後一堂",
   "fixedPage.in24h": "24 小時內",
+  "fixedPage.leave.hint": "點日期可以為那堂課請假（開課前 24 小時以上），會換成一張補課券，補課要在那堂課前後 14 天內。",
+  "fixedPage.leave.tap": "請假",
   "fixedPage.notFound": "找不到這個固定班，或它已經沒有接下來的課了。",
   "fixedPage.renew.title": "續報",
   "fixedPage.renew.desc": "從 {date} 起，同樣每週{weekday} {time}，最少 {n} 堂。",

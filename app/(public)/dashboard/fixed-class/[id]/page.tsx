@@ -21,7 +21,7 @@ type FC = {
   coachId: string; coachName: string; weekday: number; time: string
   left: number; next: string | null; last: string | null
   renewOpen: boolean; holdUntil: string | null
-  lessons: { date: string; start: string; coachName: string; within24h: boolean }[]
+  lessons: { date: string; start: string; coachName: string; within24h: boolean; bookingId: string | null }[]
 }
 type Cand = { date: string; status: string; points: number | null }
 type Opt = { weekday: number; time: string; coachId: string; startDate: string; okWeeks: number; weeks: number }
@@ -43,6 +43,20 @@ const PAGE_CSS = `
 .fc-lessons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .fc-lesson { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 7px; background: #eef4fc; color: #16294a; }
 .fc-lesson em { font-style: normal; font-weight: 700; color: #b06a00; margin-left: 4px; }
+button.fc-lesson { font-family: inherit; border: 1px solid transparent; cursor: pointer; }
+button.fc-lesson:hover { border-color: #2050a0; background: #fff; }
+.fc-leave-back { position: fixed; inset: 0; background: rgba(14,29,59,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.fc-leave { background: #fff; border-radius: 20px; border: 1px solid #e3ebf6; padding: 28px; max-width: 380px; width: 100%; }
+.fc-leave .eb { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #c0392b; margin-bottom: 8px; }
+.fc-leave h3 { font-size: 20px; font-weight: 900; color: #16294a; margin: 0 0 14px; }
+.fc-leave .what { background: #f6f9fd; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 14px; font-weight: 600; color: #16294a; }
+.fc-leave .what small { display: block; font-size: 12px; font-weight: 400; color: #56647d; margin-top: 3px; }
+.fc-leave p { font-size: 13px; color: #56647d; line-height: 1.6; margin: 0 0 20px; }
+.fc-leave .row { display: flex; gap: 10px; }
+.fc-leave .row button { flex: 1; padding: 12px; border-radius: 10px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.fc-leave .keep { border: 1px solid #e3ebf6; background: transparent; color: #56647d; }
+.fc-leave .go { border: none; background: #e05a4a; color: #fff; }
+.fc-leave .go:disabled { opacity: .6; cursor: wait; }
 .fc-sum { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #f6f9fd; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
 .fc-sum div { display: flex; justify-content: space-between; gap: 12px; }
 .fc-sum span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -78,6 +92,33 @@ export default function FixedClassPage() {
   const [fc, setFc] = useState<FC | null>(null)
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Leave for any lesson more than 24 hours away -- the home page only lists
+  // the next two weeks, and a family who knows of a trip months ahead takes
+  // leave for it here (owner, 2026-10-02).
+  const [leaveFor, setLeaveFor] = useState<{ date: string; start: string; bookingId: string } | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  async function takeLeave() {
+    if (!leaveFor) return
+    setLeaving(true)
+    const res = await fetch('/api/bookings/cancel-with-partner', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booking_id: leaveFor.bookingId }),
+    }).catch(() => null)
+    const j = res ? await res.json().catch(() => ({})) : {}
+    if (!res || !res.ok) {
+      setMsg({ ok: false, text: tErr((j as any).error, 'dash.cancelFailed') })
+    } else if ((j as any).voucher_expires) {
+      const from = (j as any).voucher_from as string | null
+      setMsg({ ok: true, text: from
+        ? t('dash.cancelDone.voucherWindow', { from: day(from > todayStr ? from : todayStr, { month: 'short', day: 'numeric' }), to: day((j as any).voucher_expires, { month: 'short', day: 'numeric' }) })
+        : t('dash.cancelDone.voucher', { date: day((j as any).voucher_expires, { month: 'short', day: 'numeric' }) }) })
+    }
+    setLeaving(false)
+    setLeaveFor(null)
+    await load()
+  }
 
   const load = useCallback(async () => {
     const r = await fetch('/api/parent/fixed-classes').then(x => x.ok ? x.json() : null).catch(() => null)
@@ -251,7 +292,26 @@ export default function FixedClassPage() {
           )}
         </div>
 
-        {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className="ac-okmsg">✓ {msg.text}</div></div>}
+        {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className={msg.ok ? 'ac-okmsg' : 'fc-warn'}>{msg.ok ? '✓ ' : ''}{msg.text}</div></div>}
+        {leaveFor && fc && (
+          <div className="fc-leave-back" onClick={() => !leaving && setLeaveFor(null)}>
+            <div className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+              <div className="eb">{t('dash.cancelModal.eyebrowLeave')}</div>
+              <h3>{t('dash.cancelModal.titleLeave')}</h3>
+              <div className="what">{tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
+                <small>{day(leaveFor.date)} · {formatTime12h(leaveFor.start)}</small></div>
+              <p>{t('dash.cancelModal.bodyLeaveWindow', {
+                kind: t('voucher.kind.' + fc.courseSlug + (fc.courseSlug === '1on1' ? '.' + (fc.minutes === 60 ? 60 : 30) : '')),
+                from: day(addDays(leaveFor.date, -14) > todayStr ? addDays(leaveFor.date, -14) : todayStr, { month: 'short', day: 'numeric' }),
+                date: day(addDays(leaveFor.date, 14), { month: 'short', day: 'numeric' }),
+              })}</p>
+              <div className="row">
+                <button className="keep" onClick={() => setLeaveFor(null)} disabled={leaving}>{t('dash.cancelModal.keepLesson')}</button>
+                <button className="go" onClick={takeLeave} disabled={leaving}>{leaving ? '…' : t('dash.cancelModal.yesLeave')}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!fc ? (
           <section className="ac-card ac-empty"><b>{t('fixedPage.notFound')}</b></section>
@@ -264,10 +324,16 @@ export default function FixedClassPage() {
                 {fc.last && <div><div className="ac-k">{t('fixedPage.last')}</div><div className="ac-v">{day(fc.last)}</div></div>}
               </div>
               <div className="fc-lessons">
-                {fc.lessons.map(l => (
+                {fc.lessons.map(l => l.within24h || !l.bookingId ? (
                   <span key={l.date} className="fc-lesson">{day(l.date, { month: 'short', day: 'numeric' })}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
+                ) : (
+                  <button key={l.date} className="fc-lesson" title={t('fixedPage.leave.tap')}
+                    onClick={() => { setMsg(null); setLeaveFor({ date: l.date, start: l.start, bookingId: l.bookingId! }) }}>
+                    {day(l.date, { month: 'short', day: 'numeric' })}
+                  </button>
                 ))}
               </div>
+              <p className="ac-desc" style={{ margin: '10px 0 0' }}>{t('fixedPage.leave.hint')}</p>
             </section>
 
             <section className="ac-card">

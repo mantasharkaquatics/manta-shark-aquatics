@@ -1648,6 +1648,8 @@
   "fixedPage.next": "Next lesson",
   "fixedPage.last": "Last lesson",
   "fixedPage.in24h": "within 24h",
+  "fixedPage.leave.hint": "Tap a date to take leave for that lesson (24 hours or more ahead). You get a make-up voucher for a make-up within 14 days either side.",
+  "fixedPage.leave.tap": "Take leave",
   "fixedPage.notFound": "This fixed class wasn't found, or it has no lessons left.",
   "fixedPage.renew.title": "Renew",
   "fixedPage.renew.desc": "Every {weekday} at {time} from {date}, at least {n} lessons.",

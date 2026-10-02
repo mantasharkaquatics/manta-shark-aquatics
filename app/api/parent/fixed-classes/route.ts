@@ -45,6 +45,9 @@ export async function GET() {
         lessons: upcoming.map(l => ({
           date: l.date, start: l.start, coachId: l.coachId, coachName: coach.get(l.coachId) || '',
           within24h: minutesUntil(l.date, l.start, today, nowMin) < 24 * 60,
+          // Any row of the lesson: cancelling one cancels the whole lesson
+          // (both halves of an hour, both seats of a sibling 1-on-2).
+          bookingId: l.rows.find(r => r.status === 'confirmed')?.id ?? null,
         })),
       }
     }).filter(c => c.left > 0)

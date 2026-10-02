@@ -1648,6 +1648,8 @@
   "fixedPage.next": "下一节",
   "fixedPage.last": "最后一节",
   "fixedPage.in24h": "24 小时内",
+  "fixedPage.leave.hint": "点日期可以为那堂课请假（开课前 24 小时以上），会换成一张补课券，补课要在那堂课前后 14 天内。",
+  "fixedPage.leave.tap": "请假",
   "fixedPage.notFound": "找不到这个固定班，或它已经没有接下来的课了。",
   "fixedPage.renew.title": "续报",
   "fixedPage.renew.desc": "从 {date} 起，同样每周{weekday} {time}，最少 {n} 节。",
