@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { NAV_GROUPS } from './nav-groups'
+import { useT } from '@/lib/i18n/provider'
 
 function NavBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
+  const t = useT()
   // Asked for after paint, never during it. Counting the review queues reads
   // every confirmed booking and differences it against recorded progress —
   // roughly a second — and the sidebar is on every admin page. Blocking each
@@ -25,9 +27,9 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
     <>
       <div className="flex-1 space-y-6">
         {NAV_GROUPS.map((group) => (
-          <div key={group.title}>
+          <div key={group.titleKey}>
             <p className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">
-              {group.title}
+              {t(group.titleKey)}
             </p>
             <div className="space-y-0.5">
               {group.items.map((item) => {
@@ -50,7 +52,7 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
                     }
                   >
                     <span className="shrink-0">{item.icon}</span>
-                    <span className="whitespace-nowrap">{item.label}</span>
+                    <span className="whitespace-nowrap">{t(item.labelKey)}</span>
                     {item.href === '/admin/reviews' && reviewCount !== null && reviewCount > 0 && (
                       <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
                         {reviewCount > 99 ? '99+' : reviewCount}
@@ -68,6 +70,7 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AdminMenuButton() {
+  const t = useT()
   const [open, setOpen] = useState(false)
 
   return (
@@ -75,7 +78,7 @@ export function AdminMenuButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open menu"
+        aria-label={t('admin.nav.openMenu')}
         className="lg:hidden text-gray-300 hover:text-white p-2 -ml-2"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">

@@ -73,3 +73,16 @@ export function tDb(locale: Locale, table: DbTable, id: string, fallback: string
   const entry = (dbStrings as DbMap)[table]?.[id];
   return entry?.[locale] ?? entry?.[DEFAULT_LOCALE] ?? fallback;
 }
+
+/**
+ * The BCP 47 tag to hand toLocaleDateString for a DATE in this locale. Dates
+ * follow the reader's language (zh-TW gives 10月2日 週五); clock TIMES never
+ * go through this -- they stay 12-hour `3:35 PM` in every language, matching
+ * SMS and the coach schedule. `en` lets a caller keep the English shape it
+ * already had (en-GB, en-US).
+ */
+export function dateTag(locale: Locale, en = 'en-US'): string {
+  if (locale === 'zh-Hant') return 'zh-TW';
+  if (locale === 'zh-Hans') return 'zh-CN';
+  return en;
+}

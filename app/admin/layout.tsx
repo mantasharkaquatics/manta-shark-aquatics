@@ -2,7 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import AdminSidebar, { AdminMenuButton } from './AdminNav'
-import SignOutButton from './components/SignOutButton'
+import { AdminPortalLabel, AdminSignOut, AdminLangSwitch } from './AdminChrome'
+import { LocaleProvider } from '@/lib/i18n/provider'
+import { getAdminLocale } from '@/lib/i18n/admin-locale'
 import Image from 'next/image'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -17,10 +19,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: admin } = await supabase.from('admins').select('id, first_name, last_name, role').eq('auth_user_id', user.id).single()
   if (!admin) redirect('/dashboard')
 
+  // The back office carries the admin's own language (admins.ui_language), and
+  // persist={false} keeps it off the public site's cookie -- choosing Chinese
+  // here must not switch the parent site for an admin who browses it too.
+  const locale = await getAdminLocale()
 
+  // The shell is exactly one viewport tall on a desktop and the two panes
+  // scroll independently, so nothing in the chrome ever scrolls out of reach.
   return (
-    // The shell is exactly one viewport tall on a desktop and the two panes
-    // scroll independently, so nothing in the chrome ever scrolls out of reach.
+    <LocaleProvider locale={locale} persist={false}>
     <div className="min-h-screen bg-[#0d1529] lg:h-dvh lg:flex lg:flex-col lg:overflow-hidden">
       {/* Sign Out sits top-right on the identity row, which is where the coach
           portal already puts it and where a hand goes looking for it. At the
@@ -34,13 +41,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <AdminMenuButton />
             <Image src="/logo.png" alt="Manta Shark" width={40} height={40} className="shrink-0" />
             <div className="min-w-0">
-              <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest">Admin</p>
+              <AdminPortalLabel />
               <p className="text-white text-sm font-semibold truncate">{admin.first_name} {admin.last_name}</p>
             </div>
           </div>
           {/* SignOutButton is w-full for the sidebar it was written for. */}
-          <div className="shrink-0 [&_button]:w-auto [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:border-[#1e3a6e]">
-            <SignOutButton />
+          <div className="shrink-0 flex items-center gap-2">
+            <AdminLangSwitch />
+            <div className="[&_button]:w-auto [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:border-[#1e3a6e]">
+              <AdminSignOut />
+            </div>
           </div>
         </div>
       </nav>
@@ -49,5 +59,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <main className="flex-1 min-w-0 px-6 py-8 lg:overflow-y-auto lg:overflow-x-auto">{children}</main>
       </div>
     </div>
+    </LocaleProvider>
   )
 }

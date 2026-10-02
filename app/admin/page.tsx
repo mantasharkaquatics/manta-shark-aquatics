@@ -3,6 +3,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { serviceClient } from '@/lib/api-auth'
 import Link from 'next/link'
+import { getT, tDb, dateTag } from '@/lib/i18n'
+import { getAdminLocale } from '@/lib/i18n/admin-locale'
 
 function formatTimeRange(start: string, end: string): string {
   const fmt = (t: string) => {
@@ -29,6 +31,9 @@ export default async function AdminDashboardPage() {
   const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
   if (!admin) redirect('/dashboard')
 
+  const locale = await getAdminLocale()
+  const t = getT(locale)
+
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
   const [
@@ -42,7 +47,7 @@ export default async function AdminDashboardPage() {
     supabase.from('students').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('students').select('id, full_name, current_level, parent_id').eq('upgrade_pending', true).limit(5),
     supabase.from('coach_time_off').select('id, date, reason, coaches(first_name, last_name)').gte('date', today).order('date').limit(5),
-    supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').gt('enrolled_count', 0).order('start_time'),
+    supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(id, name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').gt('enrolled_count', 0).order('start_time'),
   ])
 
   // coach_applications has RLS on with zero policies, so the cookie-scoped
@@ -79,7 +84,7 @@ export default async function AdminDashboardPage() {
         if (!st) continue
         const pa = parentById.get(b.parent_id)
         const parentName = pa ? `${pa.first_name ?? ''} ${pa.last_name ?? ''}`.trim() : ''
-        const level = st.current_level ? ` · Level ${st.current_level}` : ''
+        const level = st.current_level ? ' · ' + t('admin.levelN', { n: st.current_level }) : ''
         const label = parentName ? `${parentName} — ${st.full_name}${level}` : `${st.full_name}${level}`
         if (!studentsBySession[b.class_session_id]) studentsBySession[b.class_session_id] = []
         studentsBySession[b.class_session_id].push(label)
@@ -88,18 +93,18 @@ export default async function AdminDashboardPage() {
   }
 
   const stats = [
-    { label: 'Total Members', value: totalMembers ?? 0, href: '/admin/members', color: 'text-blue-400' },
-    { label: 'Active Students', value: totalStudents ?? 0, href: '/admin/members', color: 'text-green-400' },
-    { label: 'Pending Upgrades', value: pendingUpgrades?.length ?? 0, href: '/admin/reviews', color: 'text-[#c9a84c]' },
-    { label: 'Time Off Requests', value: pendingTimeOff?.length ?? 0, href: '/admin/time-off', color: 'text-purple-400' },
-    { label: 'New Applications', value: newApplications ?? 0, href: '/admin/applications', color: 'text-orange-400' },
+    { label: t('admin.dash.totalMembers'), value: totalMembers ?? 0, href: '/admin/members', color: 'text-blue-400' },
+    { label: t('admin.dash.activeStudents'), value: totalStudents ?? 0, href: '/admin/members', color: 'text-green-400' },
+    { label: t('admin.dash.pendingUpgrades'), value: pendingUpgrades?.length ?? 0, href: '/admin/reviews', color: 'text-[#c9a84c]' },
+    { label: t('admin.dash.timeOffRequests'), value: pendingTimeOff?.length ?? 0, href: '/admin/time-off', color: 'text-purple-400' },
+    { label: t('admin.dash.newApplications'), value: newApplications ?? 0, href: '/admin/applications', color: 'text-orange-400' },
   ]
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Admin Dashboard</h1>
-        <p className="text-gray-400 mt-1">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.dash.title')}</h1>
+        <p className="text-gray-400 mt-1">{new Date().toLocaleDateString(dateTag(locale, 'en-GB'), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
       </div>
 
       {/* Stats */}
@@ -117,18 +122,18 @@ export default async function AdminDashboardPage() {
         {/* Today's schedule */}
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider">Today's Classes</h2>
-            <Link href="/admin/schedule" className="text-gray-400 hover:text-white text-xs transition-colors">View all →</Link>
+            <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider">{t('admin.dash.todayClasses')}</h2>
+            <Link href="/admin/schedule" className="text-gray-400 hover:text-white text-xs transition-colors">{t('admin.dash.viewAll')}</Link>
           </div>
           {!todaySessions || todaySessions.length === 0 ? (
-            <p className="text-gray-400 text-sm">No classes today</p>
+            <p className="text-gray-400 text-sm">{t('admin.dash.noClasses')}</p>
           ) : (
             <div className="space-y-2">
               {todaySessions.map((s: any) => (
                 <div key={s.id} className="flex items-center justify-between bg-[#0d1529] rounded-lg p-3">
                   <div>
-                    <p className="text-white text-sm">{assessmentSessions.has(s.id) ? 'Swim Assessment' : s.course_types?.name}</p>
-                    <p className="text-gray-400 text-xs">Coach {s.coaches?.first_name} · {formatTimeRange(s.start_time, s.end_time)}</p>
+                    <p className="text-white text-sm">{assessmentSessions.has(s.id) ? t('common.assessment') : (s.course_types?.id ? tDb(locale, 'course_types', s.course_types.id, s.course_types.name) : s.course_types?.name)}</p>
+                    <p className="text-gray-400 text-xs">{t('admin.coachName', { name: s.coaches?.first_name ?? '' })} · {formatTimeRange(s.start_time, s.end_time)}</p>
                     <p className="text-[#c9a84c] text-xs mt-0.5">{(studentsBySession[s.id] || []).join(' / ')}</p>
                   </div>
                   <span className="text-gray-400 text-xs">{s.enrolled_count}/{s.max_students}</span>
@@ -141,18 +146,18 @@ export default async function AdminDashboardPage() {
         {/* Pending time off */}
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider">Upcoming Time Off</h2>
-            <Link href="/admin/time-off" className="text-gray-400 hover:text-white text-xs transition-colors">View all →</Link>
+            <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider">{t('admin.dash.upcomingTimeOff')}</h2>
+            <Link href="/admin/time-off" className="text-gray-400 hover:text-white text-xs transition-colors">{t('admin.dash.viewAll')}</Link>
           </div>
           {!pendingTimeOff || pendingTimeOff.length === 0 ? (
-            <p className="text-gray-400 text-sm">No upcoming time off</p>
+            <p className="text-gray-400 text-sm">{t('admin.dash.noTimeOff')}</p>
           ) : (
             <div className="space-y-2">
-              {pendingTimeOff.map((t: any) => (
-                <div key={t.id} className="flex items-center justify-between bg-[#0d1529] rounded-lg p-3">
+              {pendingTimeOff.map((off: any) => (
+                <div key={off.id} className="flex items-center justify-between bg-[#0d1529] rounded-lg p-3">
                   <div>
-                    <p className="text-white text-sm">Coach {t.coaches?.first_name} {t.coaches?.last_name}</p>
-                    <p className="text-gray-400 text-xs">{new Date(t.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reason ? ` · ${t.reason}` : ''}</p>
+                    <p className="text-white text-sm">{t('admin.coachName', { name: `${off.coaches?.first_name ?? ''} ${off.coaches?.last_name ?? ''}`.trim() })}</p>
+                    <p className="text-gray-400 text-xs">{new Date(off.date + 'T12:00:00').toLocaleDateString(dateTag(locale), { month: 'short', day: 'numeric' })}{off.reason ? ` · ${off.reason}` : ''}</p>
                   </div>
                 </div>
               ))}
