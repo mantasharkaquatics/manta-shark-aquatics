@@ -74,6 +74,16 @@ export default function FaqContent() {
     return () => io.disconnect()
   }, [])
 
+  // A link to one question (/faq#faq-q-referral, from the dashboard's referral
+  // card) opens that question and brings it into view.
+  useEffect(() => {
+    const id = window.location.hash.replace(/^#faq-q-/, '')
+    if (!id || id === window.location.hash) return
+    if (!FAQ.some(c => (c.items as readonly string[]).includes(id))) return
+    setOpen(id)
+    requestAnimationFrame(() => document.getElementById('faq-q-' + id)?.scrollIntoView({ block: 'center' }))
+  }, [])
+
   // Everyone gets the chat now, signed in or not (owner, 2026-09-28).
   const askButton = <button type="button" className="b-btn gold" onClick={() => openChat()}>{t('faq.stillChat')}</button>
 
@@ -112,7 +122,7 @@ export default function FaqContent() {
                   {sec.items.map(id => {
                     const isOpen = open === id
                     return (
-                      <div key={id} className="f-item" data-open={isOpen}>
+                      <div key={id} id={'faq-q-' + id} className="f-item" data-open={isOpen}>
                         <button type="button" onClick={() => setOpen(isOpen ? null : id)} aria-expanded={isOpen}>
                           <span>{t('faq.q.' + id)}</span>
                           <span className="f-plus" aria-hidden="true">+</span>

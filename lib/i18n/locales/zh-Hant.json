@@ -2726,5 +2726,7 @@
   "dash.plan.vouchers": "{n} 張",
   "dash.plan.voucher": "{n} 張",
   "dash.plan.firstExpires": "最早 {date} 到期",
-  "dash.more.label": "更多"
+  "dash.more.label": "更多",
+  "ref.fine": "朋友要在註冊時用您的連結或代碼，事後無法補填；游泳評估不算第一堂課。點數會在那堂課的隔天自動入帳。",
+  "ref.rules": "完整規則"
 }

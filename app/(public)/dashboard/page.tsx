@@ -13,6 +13,7 @@ import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
+import { localePath } from '@/lib/i18n/paths'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import SkillTree from './SkillTree'
@@ -1082,6 +1083,7 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
  */
 function ReferralCard({ focus }: { focus: boolean }) {
   const t = useT()
+  const locale = useLocale()
   const [data, setData] = useState<{ code: string; link: string; points: number; mine?: { status: 'pending' | 'awarded'; referrer?: string } | null; referrals: { family: string; status: 'pending' | 'awarded' }[] } | null>(null)
   const [copied, setCopied] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -1126,7 +1128,15 @@ function ReferralCard({ focus }: { focus: boolean }) {
         </div>
       )}
       <div style={{ fontSize: '15px', fontWeight: 700, color: '#16294a', marginBottom: '4px' }}>{t('ref.title', { n: data.points })}</div>
-      <div style={{ fontSize: '12px', color: '#56647d', lineHeight: 1.6, marginBottom: '12px' }}>{t('ref.desc', { n: data.points })}</div>
+      <div style={{ fontSize: '12px', color: '#56647d', lineHeight: 1.6, marginBottom: '6px' }}>{t('ref.desc', { n: data.points })}</div>
+      {/* The two rules that disappoint a family when nobody said them (owner,
+          2026-10-02): the code only counts at sign-up, and the assessment is
+          not the first lesson. The family reading this is the one who tells
+          the friend. The rest is one tap away in the FAQ. */}
+      <div style={{ fontSize: '11.5px', color: '#7a879b', lineHeight: 1.6, marginBottom: '12px' }}>
+        {t('ref.fine')}
+        <a href={localePath('/faq', locale) + '#faq-q-referral'} style={{ marginLeft: '6px', color: '#2050a0', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>{t('ref.rules')} ›</a>
+      </div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
         <span style={{ flex: 1, background: '#fff', border: '1px dashed #c9d8ee', borderRadius: '8px', padding: '9px 12px', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '17px', fontWeight: 700, letterSpacing: '3px', color: GOLD, textAlign: 'center' }}>
           {data.code}
