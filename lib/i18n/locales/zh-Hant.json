@@ -1622,6 +1622,7 @@
   "booking.makeUp.banner": "用補課券預約：{names} · {kind} · {date} 前。不扣點。",
   "booking.makeUp.payLabel": "付款方式",
   "booking.makeUp.pay": "補課券 · 不扣點",
+  "booking.makeUp.outside": "不在補課期間",
   "booking.voucherAuto.use": "使用補課券（可用 {n} 張）",
   "booking.voucherAuto.on": "{n} 堂用補課券，不扣點。先用最早到期的那張。",
   "booking.voucherAuto.off": "這次用點數付款，補課券留著下次用。",
