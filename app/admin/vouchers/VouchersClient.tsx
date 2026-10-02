@@ -5,7 +5,7 @@ import AlertModal from '@/components/AlertModal'
 
 type V = {
   id: string; parent_id: string; course_slug: string; minutes: number; reason: string; status: string
-  expires_on: string; note: string | null; void_reason: string | null; created_at: string
+  expires_on: string; usable_from?: string | null; extended_at?: string | null; note: string | null; void_reason: string | null; created_at: string
   family: string; swimmers: string[]; fromLesson: string | null; usedFor: string | null
 }
 type Family = { id: string; name: string; students: { id: string; name: string }[] }
@@ -79,7 +79,7 @@ export default function VouchersClient() {
           <div key={v.id} className="rounded-xl border border-[#1e3a6e] bg-[#111d38] p-4 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-white text-sm font-semibold">{v.family || 'A family'} <span className="text-gray-400 font-normal">· {v.swimmers.join(' & ')}</span></p>
-              <p className="text-gray-300 text-sm mt-1">{kindOf(v)} · use by <span className={v.status === 'active' && v.expires_on <= weekOut ? 'text-amber-300 font-semibold' : ''}>{v.expires_on}</span></p>
+              <p className="text-gray-300 text-sm mt-1">{kindOf(v)} · {v.usable_from ? `make-up between ${v.usable_from} and ` : 'use by '}<span className={v.status === 'active' && v.expires_on <= weekOut ? 'text-amber-300 font-semibold' : ''}>{v.expires_on}</span>{v.extended_at ? <span className="text-gray-500"> (extended once)</span> : null}</p>
               <p className="text-gray-500 text-xs mt-1">
                 {REASON[v.reason] || v.reason}{v.fromLesson ? ` · from the ${v.fromLesson} lesson` : ''}{v.usedFor ? ` · used for ${v.usedFor}` : ''}
                 {v.note ? ` · “${v.note}”` : ''}{v.void_reason ? ` · voided: ${v.void_reason}` : ''}

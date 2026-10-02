@@ -223,7 +223,7 @@ export default function BookingPage() {
   const [wallet, setWallet] = useState<Wallet | null>(null)
   // The family's make-up vouchers. An ordinary booking uses a matching one by
   // itself (owner, 2026-10-02), unless the family switches to points.
-  const [myVouchers, setMyVouchers] = useState<{ id: string; studentId: string; student2Id: string | null; courseSlug: string; minutes: number; expiresOn: string }[]>([])
+  const [myVouchers, setMyVouchers] = useState<{ id: string; studentId: string; student2Id: string | null; courseSlug: string; minutes: number; expiresOn: string; usableFrom?: string | null }[]>([])
   const [payWithVouchers, setPayWithVouchers] = useState(true)
   const reloadWallet = () => {
     fetch('/api/parent/wallet').then(r => r.ok ? r.json() : null)
@@ -374,7 +374,7 @@ export default function BookingPage() {
   const [fixedOnly, setFixedOnly] = useState(false)
   // Booking a make-up with a voucher (/booking?voucher=<id>): one lesson of the
   // voucher's kind, for its child(ren), on or before its date, no points.
-  const [makeUp, setMakeUp] = useState<{ id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; expiresOn: string } | null>(null)
+  const [makeUp, setMakeUp] = useState<{ id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; expiresOn: string; usableFrom?: string | null } | null>(null)
   const singleMax = singleMaxDate()
   const [recurList, setRecurList] = useState<any[]>([])
   // The basket, keyed date|time. It is keyed by SLOT rather than by date, and it
@@ -540,6 +540,10 @@ export default function BookingPage() {
           setNotice('err.voucherGone')
         } else {
           setMakeUp(v)
+          // Show every month the voucher's dates reach (a leave voucher may be for December).
+          const [ey, em] = String(v.expiresOn).split('-').map(Number)
+          const span = (ey - today.getFullYear()) * 12 + (em - 1 - today.getMonth()) + 1
+          if (span > 2) setMonthsShown(Math.min(6, span))
           setSelectedStudent(s1 as any)
           if (s2) setSelectedStudent2(s2 as any)
           setSelectedCourse(ct as any)
@@ -975,7 +979,7 @@ export default function BookingPage() {
       const has = [v.studentId, v.student2Id].filter(Boolean) as string[]
       return v.courseSlug === selectedCourse.slug && v.minutes === minutes
         && has.length === want.size && has.every(id => want.has(id))
-    }).map(v => ({ ...v, expires_on: v.expiresOn }))
+    }).map(v => ({ ...v, expires_on: v.expiresOn, usable_from: v.usableFrom ?? null }))
   }
   const lessonKey = (x: { date: string; time: string }) => `${x.date}|${x.time}`
   /** Which single lessons the vouchers would pay for -- the same rule the server
@@ -995,7 +999,7 @@ export default function BookingPage() {
   // A 60-minute single (the hour list) takes one voucher for its date.
   const hourDate = selectedDate ? formatDateLA(selectedDate) : ''
   const hourVoucherFits = !!hourDate && !rescheduleGroupIdRef.current
-    && fittingVouchers(60).some(v => v.expiresOn >= hourDate)
+    && fittingVouchers(60).some(v => v.expiresOn >= hourDate && (!v.usableFrom || hourDate >= v.usableFrom))
   const hourCovered = payWithVouchers && hourVoucherFits
 
   // What this booking will actually cost, once a slot is picked. A reschedule
@@ -1398,12 +1402,17 @@ export default function BookingPage() {
   const calSkip = (calYear === today.getFullYear() && calMonth === today.getMonth())
     ? Math.max(0, today.getDate() - today.getDay() - 1) : 0
 
+  /** A make-up's date must sit inside its voucher's dates: up to the expiry,
+   *  and for a leave voucher no earlier than 14 days before the missed lesson. */
+  function makeUpDateOk(ds: string): boolean {
+    return !makeUp || (ds <= makeUp.expiresOn && (!makeUp.usableFrom || ds >= makeUp.usableFrom))
+  }
   function isDateAvailable(date: Date): boolean {
     const todayMidnight = new Date(today)
     todayMidnight.setHours(0, 0, 0, 0)
     if (date < todayMidnight) return false
-    // A make-up may be booked up to its voucher's date, wherever that falls.
-    if (makeUp) return formatDateLA(date) <= makeUp.expiresOn
+    // A make-up may be booked on any date its voucher covers, wherever that falls.
+    if (makeUp) return makeUpDateOk(formatDateLA(date))
     const maxDate = new Date(today)
     // A batch-capable course shows 60 days, because a fixed class can start on
     // any of them; a date past the single-lesson window then opens the fixed
@@ -1577,10 +1586,11 @@ export default function BookingPage() {
         )}
         {makeUp && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', fontSize: '14px', color: '#1f7a57', lineHeight: 1.6 }}>
-            🎟 {t('booking.makeUp.banner', {
+            🎟 {t(makeUp.usableFrom && makeUp.usableFrom > formatDateLA(today) ? 'booking.makeUp.bannerWindow' : 'booking.makeUp.banner', {
               names: makeUp.studentNames.join(' & '),
               kind: t('voucher.kind.' + makeUp.courseSlug + (makeUp.courseSlug === '1on1' ? '.' + (makeUp.minutes === 60 ? 60 : 30) : '')),
               date: new Date(makeUp.expiresOn + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+              from: makeUp.usableFrom ? new Date(makeUp.usableFrom + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '',
             })}
           </div>
         )}
@@ -2394,7 +2404,7 @@ export default function BookingPage() {
                                         const inBasket = recurSel.has(key)
                                         const cost = priceAt(ds, sl.time, 30)?.charged ?? 0
                                         const affordable = inBasket || dueOf([...recurSel.values(), { date: ds, time: sl.time, label: '', points: cost, coachId: '' }], 30) <= balance
-                                        const clickable = !sl.full && !sl.already_booked && affordable
+                                        const clickable = !sl.full && !sl.already_booked && affordable && makeUpDateOk(ds)
                                         const proposed = !inBasket && ghost.has(key)
                                         const cellBorder = inBasket ? GOLD : proposed ? `${GOLD}99` : sl.full || sl.already_booked ? 'rgba(255,255,255,0.06)' : !affordable ? 'rgba(255,255,255,0.10)' : myBandColor + '55'
                                         return (
@@ -2441,7 +2451,7 @@ export default function BookingPage() {
                                       const pr = priceAt(openDay!, sl.time, 30)
                                       const cost = pr?.charged ?? 0
                                       const affordable = inBasket || dueOf([...recurSel.values(), { date: openDay!, time: sl.time, label: '', points: cost, coachId: '' }], 30) <= balance
-                                      const clickable = !sl.full && !sl.already_booked && affordable
+                                      const clickable = !sl.full && !sl.already_booked && affordable && makeUpDateOk(openDay!)
                                       const w24 = isWithin24Hours(openDay!, sl.time)
                                       return (
                                         <button key={sl.coach_id + sl.time}

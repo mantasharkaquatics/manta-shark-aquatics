@@ -16,7 +16,7 @@ export async function GET() {
     const today = getTodayLA()
     const [{ data: vs }, { data: kids }] = await Promise.all([
       svc.from('make_up_vouchers')
-        .select('id, student_id, student2_id, course_slug, minutes, reason, expires_on, created_at')
+        .select('id, student_id, student2_id, course_slug, minutes, reason, expires_on, usable_from, created_at')
         .eq('parent_id', parent.id).eq('status', 'active').gte('expires_on', today)
         .order('expires_on', { ascending: true }),
       svc.from('students').select('id, full_name').eq('parent_id', parent.id),
@@ -27,7 +27,7 @@ export async function GET() {
       vouchers: (vs || []).map((v: any) => ({
         id: v.id, studentId: v.student_id, student2Id: v.student2_id,
         studentNames: [nameOf.get(v.student_id), v.student2_id ? nameOf.get(v.student2_id) : null].filter(Boolean),
-        courseSlug: v.course_slug, minutes: v.minutes, reason: v.reason, expiresOn: v.expires_on,
+        courseSlug: v.course_slug, minutes: v.minutes, reason: v.reason, expiresOn: v.expires_on, usableFrom: v.usable_from ?? null,
       })),
       graceMonth: monthOfDate(today),
       graceUsed: [...used],

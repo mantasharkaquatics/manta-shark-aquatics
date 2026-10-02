@@ -431,7 +431,7 @@ export async function POST(req: NextRequest) {
         // late cancellation on the month's grace, or the voucher back for a
         // make-up lesson.
         points_refunded: result.pointsRefunded ?? 0,
-        make_up_voucher: result.voucher ? { course: result.voucher.course_slug, minutes: result.voucher.minutes, use_by: result.voucher.expires_on } : null,
+        make_up_voucher: result.voucher ? { course: result.voucher.course_slug, minutes: result.voucher.minutes, use_by: result.voucher.expires_on, usable_from: result.voucher.usable_from ?? null } : null,
         voucher_returned: result.outcome === 'restore',
       }
     }

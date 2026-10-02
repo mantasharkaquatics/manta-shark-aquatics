@@ -8,7 +8,7 @@ import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
-import { attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
+import { attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, voucherFitsDate, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 
 export const runtime = 'nodejs'
@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This make-up voucher is for a different lesson.' }, { status: 400 })
     if (session_date > hourVoucher.expires_on)
       return NextResponse.json({ error: 'That date is after this make-up voucher expires.' }, { status: 400 })
+    if (hourVoucher.usable_from && session_date < hourVoucher.usable_from)
+      return NextResponse.json({ error: VOUCHER_TOO_EARLY_ERROR }, { status: 400 })
   } else if (session_date > singleMaxDate(today)) {
     return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
   }
@@ -153,7 +155,7 @@ export async function POST(req: NextRequest) {
   // reschedule (it moves a lesson already paid for) or a cross-account 1-on-2.
   if (!hourVoucher && body.action === 'book' && body.use_vouchers === true && !isPartnerBooking && !lesson_group_id) {
     const mine = await matchingVouchers(svc, parent.id, { slug: ct.slug, minutes: 60, studentIds: students.map((x: any) => x.id) }, today)
-    hourVoucher = mine.find(v => v.expires_on >= session_date) ?? null
+    hourVoucher = mine.find(v => voucherFitsDate(v, session_date)) ?? null
   }
 
   const day = await loadDay(svc, session_date, ct.id, parent.id)

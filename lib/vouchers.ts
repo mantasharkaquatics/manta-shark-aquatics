@@ -18,6 +18,13 @@
 //
 // The database does the counting that must not race: one grace voucher per
 // child per month, one voucher per missed lesson (two unique indexes).
+//
+// When (owner, 2026-10-02): a LEAVE voucher is for a make-up within 14 days
+// either side of the missed lesson (usable_from .. expires_on), so a family
+// who takes leave for a week months away cannot spend it next week. Every
+// other voucher is usable at once and lasts four weeks. A make-up cancelled in
+// time gives the voucher back with its dates -- stretched once to 7 days from
+// the cancellation when fewer are left (restoreVoucher).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getTodayLA } from '@/lib/date'
@@ -26,6 +33,10 @@ type Svc = SupabaseClient
 
 export const VOUCHER_DAYS = 28
 export const VOUCHER_REMIND_DAYS = 7
+/** A leave voucher: this many days either side of the missed lesson. */
+export const LEAVE_WINDOW_DAYS = 14
+/** A returned voucher with fewer days than this left is stretched to it, once. */
+export const RETURN_MIN_DAYS = 7
 
 export type VoucherReason = 'leave' | 'grace' | 'admin' | 'end_of_term' | 'moved'
 export type Voucher = {
@@ -39,6 +50,9 @@ export type Voucher = {
   grace_month: string | null
   status: 'active' | 'used' | 'expired' | 'void'
   expires_on: string
+  /** First date a make-up may be on (leave vouchers); null = at once. */
+  usable_from: string | null
+  extended_at: string | null
   source_booking_id: string | null
   fixed_class_id: string | null
   used_booking_id: string | null
@@ -62,6 +76,19 @@ export function voucherExpiry(sessionDate: string): string {
   return addDaysStr(sessionDate, VOUCHER_DAYS)
 }
 
+/** The dates a new voucher covers: a leave voucher the 14 days either side of
+ *  the missed lesson, anything else from now until four weeks after it. */
+export function voucherWindow(reason: VoucherReason, sessionDate: string): { expiresOn: string; usableFrom: string | null } {
+  return reason === 'leave'
+    ? { expiresOn: addDaysStr(sessionDate, LEAVE_WINDOW_DAYS), usableFrom: addDaysStr(sessionDate, -LEAVE_WINDOW_DAYS) }
+    : { expiresOn: voucherExpiry(sessionDate), usableFrom: null }
+}
+
+/** Can a make-up on this date use this voucher? */
+export function voucherFitsDate(v: { expires_on: string; usable_from?: string | null }, date: string): boolean {
+  return date <= v.expires_on && (!v.usable_from || date >= v.usable_from)
+}
+
 /** Which children have already used this month's grace. */
 export async function graceUsedThisMonth(svc: Svc, studentIds: string[], today: string = getTodayLA()): Promise<Set<string>> {
   if (studentIds.length === 0) return new Set()
@@ -78,6 +105,7 @@ export type IssueInput = {
   minutes: number
   reason: VoucherReason
   expiresOn: string
+  usableFrom?: string | null
   sourceBookingId?: string | null
   fixedClassId?: string | null
   createdBy?: string | null
@@ -98,6 +126,7 @@ export async function issueVoucher(svc: Svc, v: IssueInput): Promise<{ voucher?:
     course_slug: v.courseSlug, minutes, reason: v.reason,
     grace_month: v.reason === 'grace' ? monthOfDate(v.today || getTodayLA()) : null,
     expires_on: v.expiresOn,
+    usable_from: v.usableFrom ?? null,
     source_booking_id: v.sourceBookingId ?? null, fixed_class_id: v.fixedClassId ?? null,
     created_by: v.createdBy ?? null, note: v.note ?? null,
   }
@@ -113,12 +142,23 @@ export async function issueVoucher(svc: Svc, v: IssueInput): Promise<{ voucher?:
 /** A make-up lesson cancelled in time gives its voucher back, expiry unchanged.
  *  Either half of a make-up hour may be the one cancelled first, so this keys
  *  on the voucher, not on which booking row it was attached to. */
-export async function restoreVoucher(svc: Svc, voucherId: string, _bookingId?: string): Promise<boolean> {
+export async function restoreVoucher(svc: Svc, voucherId: string, _bookingId?: string, today: string = getTodayLA()): Promise<boolean> {
   const { data } = await svc.from('make_up_vouchers')
     .update({ status: 'active', used_booking_id: null, used_at: null })
     .eq('id', voucherId).eq('status', 'used')
-    .select('id')
-  return !!data && data.length > 0
+    .select('id, expires_on, extended_at')
+  if (!data || data.length === 0) return false
+  // Back with only a day or two left would be a voucher in name only: it is
+  // stretched to a week from today, once per voucher, so a family can change
+  // a make-up once without losing it -- but not keep pushing it along.
+  const v = data[0] as { expires_on: string; extended_at: string | null }
+  const floor = addDaysStr(today, RETURN_MIN_DAYS)
+  if (!v.extended_at && v.expires_on < floor) {
+    await svc.from('make_up_vouchers')
+      .update({ expires_on: floor, extended_at: new Date().toISOString(), reminded_at: null })
+      .eq('id', voucherId).is('extended_at', null)
+  }
+  return true
 }
 
 /**
@@ -171,13 +211,13 @@ export async function matchingVouchers(svc: Svc, parentId: string,
  * expire first. The booking page runs the same rule to show the family what
  * will happen (assignVoucherKeys below is the shared core).
  */
-export function assignVoucherKeys<V extends { expires_on: string }, L extends { date: string; time: string }>(
+export function assignVoucherKeys<V extends { expires_on: string; usable_from?: string | null }, L extends { date: string; time: string }>(
   lessons: L[], vouchers: V[], keyOf: (l: L) => string): Map<string, V> {
   const out = new Map<string, V>()
   const left = [...vouchers].sort((a, b) => a.expires_on.localeCompare(b.expires_on))
   const ordered = [...lessons].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
   for (const l of ordered) {
-    const i = left.findIndex(v => v.expires_on >= l.date)
+    const i = left.findIndex(v => voucherFitsDate(v, l.date))
     if (i < 0) continue
     out.set(keyOf(l), left[i])
     left.splice(i, 1)
@@ -241,3 +281,4 @@ export async function giveBackVouchers(svc: Svc, bookingIds: string[]): Promise<
 }
 
 export const VOUCHER_GONE_ERROR = 'This make-up voucher has already been used or has expired.'
+export const VOUCHER_TOO_EARLY_ERROR = 'That date is before this make-up voucher can be used.'

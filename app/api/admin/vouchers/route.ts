@@ -14,7 +14,7 @@ export async function GET() {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { svc } = auth
   const { data: vs, error } = await svc.from('make_up_vouchers')
-    .select('id, parent_id, student_id, student2_id, course_slug, minutes, reason, status, expires_on, source_booking_id, used_booking_id, used_at, void_reason, note, created_at')
+    .select('id, parent_id, student_id, student2_id, course_slug, minutes, reason, status, expires_on, usable_from, extended_at, source_booking_id, used_booking_id, used_at, void_reason, note, created_at')
     .order('created_at', { ascending: false }).limit(500)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const rows = vs || []

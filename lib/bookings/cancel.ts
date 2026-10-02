@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
-import { graceUsedThisMonth, issueVoucher, restoreVoucher, voucherExpiry, type Voucher } from '@/lib/vouchers'
+import { graceUsedThisMonth, issueVoucher, restoreVoucher, voucherWindow, type Voucher } from '@/lib/vouchers'
 
 export type CancelTarget = {
   parent_id: string
@@ -10,6 +10,8 @@ export type CancelTarget = {
   // points: refunded. voucher: turned into a make-up voucher. none: kept.
   kind: 'points' | 'voucher' | 'none'
   voucherExpires?: string
+  /** A leave voucher's first usable date (it covers the 14 days either side). */
+  voucherFrom?: string | null
 }
 
 /**
@@ -87,10 +89,10 @@ export async function notifyCancellation(
     for (const s of studs || []) { nameOf[(s as any).id] = (s as any).full_name }
 
     // One message per parent, naming every swimmer of theirs in the lesson.
-    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind']; expires?: string }>()
+    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind']; expires?: string; from?: string | null }>()
     for (const t of opts.targets) {
       if (!t.parent_id) continue
-      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind, expires: t.voucherExpires }
+      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind, expires: t.voucherExpires, from: t.voucherFrom }
       const n = nameOf[t.student_id]
       if (n && !entry.names.includes(n)) entry.names.push(n)
       // A real refund anywhere in the group outranks 'none'.
@@ -112,6 +114,7 @@ export async function notifyCancellation(
         time: timeStr,
         refundKind: entry.kind,
         expiresOn: entry.expires,
+        usableFrom: entry.from ?? undefined,
       })
     }
   } catch {}
@@ -363,6 +366,7 @@ export async function cancelBookingWithPartner(
   // lesson is put back rather than lost with nothing to show for it.
   let voucher: Voucher | null = null
   let restoredExpiry: string | undefined
+  let restoredFrom: string | null = null
   if (outcome === 'voucher' && !options.settled) {
     const sibling = sameParentBookings.find((x: any) => cancelledBookingIds.includes(x.id))
     const r = await issueVoucher(svc, {
@@ -372,7 +376,7 @@ export async function cancelBookingWithPartner(
       courseSlug: ctSlug,
       minutes: booking.lesson_group_id ? 60 : 30,
       reason: voucherReason,
-      expiresOn: voucherExpiry(sessionDate),
+      ...voucherWindow(voucherReason, sessionDate),
       sourceBookingId: booking.id,
       fixedClassId: booking.fixed_class_id ?? null,
     })
@@ -386,8 +390,9 @@ export async function cancelBookingWithPartner(
     }
     voucher = r.voucher
   } else if (outcome === 'restore' && booking.voucher_id) {
-    const { data: v } = await svc.from('make_up_vouchers').select('expires_on').eq('id', booking.voucher_id).maybeSingle()
+    const { data: v } = await svc.from('make_up_vouchers').select('expires_on, usable_from').eq('id', booking.voucher_id).maybeSingle()
     restoredExpiry = v?.expires_on
+    restoredFrom = v?.usable_from ?? null
   }
 
   // Cross-account partner: bookings on any session with same date + time + coach.
@@ -460,7 +465,7 @@ export async function cancelBookingWithPartner(
   // one message covering both halves instead of one per half.
   const emailTargets: CancelTarget[] = [
     outcome === 'voucher' || outcome === 'restore'
-      ? { parent_id: booking.parent_id, student_id: booking.student_id, kind: 'voucher' as const, voucherExpires: voucher?.expires_on || restoredExpiry }
+      ? { parent_id: booking.parent_id, student_id: booking.student_id, kind: 'voucher' as const, voucherExpires: voucher?.expires_on || restoredExpiry, voucherFrom: voucher ? voucher.usable_from : restoredFrom }
       : { parent_id: booking.parent_id, student_id: booking.student_id, kind: refunded > 0 ? 'points' as const : 'none' as const },
     ...cancelledPartners,
   ]

@@ -246,7 +246,7 @@ interface Booking {
   voucher_id?: string | null
 }
 
-type MakeUpVoucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string }
+type MakeUpVoucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string; usableFrom?: string | null }
 
 function getAge(dob: string): number {
   const birth = new Date(dob)
@@ -1314,7 +1314,7 @@ export default function DashboardPage() {
     const k = errorKey(raw)
     return k ? t(k) : (raw || t(fallbackKey))
   }
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
@@ -1412,6 +1412,7 @@ export default function DashboardPage() {
     t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : ''))
   const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
   const plus28 = (d: string) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 28); return x.toISOString().slice(0, 10) }
+  const plusDays = (d: string, n: number) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
   /**
    * What cancelling this lesson online would do (docs/fixed-class-spec.md):
    *   refund      a single lesson, 24h+ ahead
@@ -2134,7 +2135,9 @@ export default function DashboardPage() {
       if (!res.ok) {
         setNotice(errText(j.error, 'dash.cancelFailed'))
       } else if (j.outcome === 'voucher' && j.voucher_expires) {
-        setDoneMsg(t('dash.cancelDone.voucher', { date: shortDate(j.voucher_expires) }))
+        setDoneMsg(j.voucher_from
+          ? t('dash.cancelDone.voucherWindow', { from: shortDate(j.voucher_from), to: shortDate(j.voucher_expires) })
+          : t('dash.cancelDone.voucher', { date: shortDate(j.voucher_expires) }))
       } else if (j.outcome === 'restore') {
         setDoneMsg(t('dash.cancelDone.voucherBack'))
       }
@@ -2178,6 +2181,9 @@ export default function DashboardPage() {
       studentName: (b.student_name || '').split(',')[0],
       voucher: voucherKind(b.course_slug, b.lesson_group_id ? 60 : 30),
       voucherBy: shortDate(plus28(b.session_date)),
+      // Fixed-class leave in time: a make-up within 14 days either side of this lesson.
+      voucherFrom: b.fixed_class_id && !b.voucher_id && !late ? shortDate(plusDays(b.session_date, -14)) : undefined,
+      ...(b.fixed_class_id && !b.voucher_id && !late ? { voucherBy: shortDate(plusDays(b.session_date, 14)) } : {}),
     })
   // Fixed class / make-up, shown beside the swimmer's name.
   const LessonTag = ({ b }: { b: Booking }) => (b.voucher_id || b.fixed_class_id) ? (
@@ -2274,7 +2280,7 @@ export default function DashboardPage() {
                 <div key={v.id} style={{ border: '1px solid #e3ebf6', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{v.studentNames.join(' & ')} · {voucherKind(v.courseSlug, v.minutes)}</div>
-                    <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('voucher.useBy', { date: shortDate(v.expiresOn) })}</div>
+                    <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{v.usableFrom && v.usableFrom > getTodayLA() ? t('voucher.window', { from: shortDate(v.usableFrom), to: shortDate(v.expiresOn) }) : t('voucher.useBy', { date: shortDate(v.expiresOn) })}</div>
                   </div>
                   <Link href={`/booking?voucher=${v.id}`} style={{ flexShrink: 0, padding: '8px 12px', borderRadius: '9px', background: AMBER, color: NAVY, fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
                     {t('voucher.book')}
@@ -2300,7 +2306,7 @@ export default function DashboardPage() {
               {cancelTarget.type === 'reject'
                 ? t('dash.cancelModal.bodyReject')
                 : cancelTarget.kind === 'leave'
-                ? t('dash.cancelModal.bodyLeave', { kind: cancelTarget.voucher || '', date: cancelTarget.voucherBy || '' })
+                ? t('dash.cancelModal.bodyLeaveWindow', { kind: cancelTarget.voucher || '', from: cancelTarget.voucherFrom || '', date: cancelTarget.voucherBy || '' })
                 : cancelTarget.kind === 'grace'
                 ? t('dash.cancelModal.bodyGrace', { name: cancelTarget.studentName || '', kind: cancelTarget.voucher || '', date: cancelTarget.voucherBy || '' })
                 : cancelTarget.kind === 'makeupBack'

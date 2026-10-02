@@ -11,7 +11,7 @@ type View = {
   family: { id: string; name: string; firstName: string | null; email: string | null; phone: string | null; language: string | null }
   cards: { id: string; name: string; dob: string | null; gender: string | null; level: number | null; stage: number | null; percent: number; credit: { lessons: number; needed: number; daysLeft: number } | null; lastReport: string | null }[]
   wallet: { purchased: number; granted: number; arrears: number; grantedNext: { points: number; date: string } | null; lessonsCompleted: number }
-  vouchers: { id: string; swimmers: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string }[]
+  vouchers: { id: string; swimmers: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string; usableFrom?: string | null }[]
   fixedClasses: { id: string; swimmers: string[]; courseSlug: string; courseTypeId: string | null; courseName: string; minutes: number; weekday: number; time: string; coach: string; left: number; last: string | null }[]
   upcoming: { date: string; start: string; end: string; course: string; courseName: string; courseTypeId: string | null; coach: string; swimmers: string[]; status: string; fixed: boolean; makeUp: boolean }[]
 }
@@ -121,7 +121,7 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
               <div key={v.id} className="fv-row">
                 <div>
                   <div className="fv-row-main">{v.swimmers.join(' & ')} · {kind(v.courseSlug, v.minutes)}</div>
-                  <div className="fv-row-sub">{t('voucher.useBy', { date: day(v.expiresOn, { month: 'short', day: 'numeric' }) })} <span className="fv-desk-note">({REASON[v.reason] || v.reason})</span></div>
+                  <div className="fv-row-sub">{v.usableFrom ? t('voucher.window', { from: day(v.usableFrom, { month: 'short', day: 'numeric' }), to: day(v.expiresOn, { month: 'short', day: 'numeric' }) }) : t('voucher.useBy', { date: day(v.expiresOn, { month: 'short', day: 'numeric' }) })} <span className="fv-desk-note">({REASON[v.reason] || v.reason})</span></div>
                 </div>
                 <button disabled={busy === v.id} onClick={() => voidVoucher(v.id)} className="fv-desk">Void</button>
               </div>

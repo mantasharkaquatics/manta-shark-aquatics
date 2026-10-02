@@ -50,5 +50,6 @@ export async function POST(req: NextRequest) {
     outcome: result.outcome ?? 'refund',
     points_refunded: result.pointsRefunded ?? 0,
     voucher_expires: result.voucher?.expires_on ?? null,
+    voucher_from: result.voucher?.usable_from ?? null,
   })
 }

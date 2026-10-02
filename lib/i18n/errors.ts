@@ -54,6 +54,7 @@ const MAP: readonly (readonly [string, string])[] = [
   ['make-up voucher has already been used or has expired', 'err.voucherGone'],
   ['make-up voucher is for a different lesson', 'err.voucherWrongLesson'],
   ['after this make-up voucher expires', 'err.voucherAfterExpiry'],
+  ['before this make-up voucher can be used', 'err.voucherTooEarly'],
   ['Fixed-class and make-up lessons cannot be rescheduled', 'err.fixedNoReschedule'],
   ['Trial already used', 'err.trialUsed'],
   ['NEEDS_ASSESSMENT', 'err.needsAssessment'],

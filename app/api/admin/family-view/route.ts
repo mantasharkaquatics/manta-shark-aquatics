@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       .eq('parent_id', parentId).eq('is_active', true).order('sort_order'),
     walletSummary(svc, parentId),
     assessmentsForParent(svc, parentId, lang).catch(() => []),
-    svc.from('make_up_vouchers').select('id, student_id, student2_id, course_slug, minutes, reason, expires_on, created_at')
+    svc.from('make_up_vouchers').select('id, student_id, student2_id, course_slug, minutes, reason, expires_on, usable_from, created_at')
       .eq('parent_id', parentId).eq('status', 'active').gte('expires_on', today).order('expires_on'),
     svc.from('fixed_classes').select('id, student_id, student2_id, course_type_id, minutes, coach_id, weekday, start_time')
       .eq('parent_id', parentId).eq('status', 'active'),
@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
     },
     vouchers: (vouchers || []).map((v: any) => ({
       id: v.id, swimmers: [nameOf.get(v.student_id), v.student2_id ? nameOf.get(v.student2_id) : null].filter(Boolean),
-      courseSlug: v.course_slug, minutes: v.minutes, reason: v.reason, expiresOn: v.expires_on,
+      courseSlug: v.course_slug, minutes: v.minutes, reason: v.reason, expiresOn: v.expires_on, usableFrom: v.usable_from ?? null,
     })),
     fixedClasses: (fcs || []).map((f: any) => {
       const mine = future.filter((b: any) => b.fixed_class_id === f.id)

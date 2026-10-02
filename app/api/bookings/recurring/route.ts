@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { renewalHolds, weeklyCandidates, lessonsOf, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
 import { getTodayLA, formatTime12h } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
-import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
+import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
@@ -235,6 +235,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'This make-up voucher is for a different lesson.' }, { status: 400 })
       if (typeof raw[0]?.date === 'string' && raw[0].date > voucher.expires_on)
         return NextResponse.json({ error: 'That date is after this make-up voucher expires.' }, { status: 400 })
+      if (typeof raw[0]?.date === 'string' && voucher.usable_from && raw[0].date < voucher.usable_from)
+        return NextResponse.json({ error: VOUCHER_TOO_EARLY_ERROR }, { status: 400 })
     }
 
     const seen = new Set<string>()
