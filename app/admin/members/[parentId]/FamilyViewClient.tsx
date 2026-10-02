@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AlertModal from '@/components/AlertModal'
 import { getT, tDb, type Locale } from '@/lib/i18n'
+import { useT } from '@/lib/i18n/provider'
 import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
 
 type View = {
@@ -17,7 +18,7 @@ type View = {
 }
 
 const INTL: Record<string, string> = { en: 'en-US', 'zh-Hant': 'zh-TW', 'zh-Hans': 'zh-CN' }
-const REASON: Record<string, string> = { leave: 'leave', grace: 'monthly grace', admin: 'front desk', end_of_term: 'fixed class ended' }
+const REASON: Record<string, string> = { leave: 'admin.members.fv.reason.leave', grace: 'admin.members.fv.reason.grace', admin: 'admin.members.fv.reason.admin', end_of_term: 'admin.members.fv.reason.end_of_term' }
 
 /**
  * A family as they see their own home page: the swimmers' cards, points,
@@ -27,6 +28,7 @@ const REASON: Record<string, string> = { leave: 'leave', grace: 'monthly grace',
  * are marked as the desk's, outside the family's picture.
  */
 export default function FamilyViewClient({ parentId }: { parentId: string }) {
+  const t = useT()
   const [view, setView] = useState<View | null>(null)
   const [lang, setLang] = useState<Locale | null>(null)
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
@@ -34,52 +36,56 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
 
   const load = useCallback(async (l?: Locale | null) => {
     const r = await fetch(`/api/admin/family-view?parent_id=${encodeURIComponent(parentId)}${l ? `&lang=${l}` : ''}`).catch(() => null)
-    if (!r || !r.ok) { setAlertMsg('Could not load this family. Refresh the page to try again.'); return }
+    if (!r || !r.ok) { setAlertMsg(t('admin.members.fv.err.load')); return }
     const j = await r.json()
     setView(j); setLang(j.lang)
+    // t is left out on purpose: re-running load on an admin language switch
+    // would reset the family-language preview the admin picked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parentId])
   useEffect(() => { load() }, [load])
 
-  const t = useMemo(() => getT((lang || 'en') as Locale), [lang])
+  // ft: the FAMILY's language (the picture below); t: the admin's own language (the desk chrome).
+  const ft = useMemo(() => getT((lang || 'en') as Locale), [lang])
   const loc = INTL[lang || 'en'] || 'en-US'
   const day = (d: string, o: Intl.DateTimeFormatOptions) => new Date(d + 'T12:00:00Z').toLocaleDateString(loc, { ...o, timeZone: 'UTC' })
   const time = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` }
-  const kind = (slug: string, minutes: number) => t('voucher.kind.' + slug + (slug === '1on1' ? '.' + (minutes === 60 ? 60 : 30) : ''))
+  const kind = (slug: string, minutes: number) => ft('voucher.kind.' + slug + (slug === '1on1' ? '.' + (minutes === 60 ? 60 : 30) : ''))
   const age = (dob: string | null) => {
-    if (!dob) return t('dash.ageUnknown')
+    if (!dob) return ft('dash.ageUnknown')
     const b = new Date(dob + 'T12:00:00Z'), n = new Date()
     let a = n.getFullYear() - b.getUTCFullYear()
     if (n.getMonth() < b.getUTCMonth() || (n.getMonth() === b.getUTCMonth() && n.getDate() < b.getUTCDate())) a--
-    return t('dash.age', { n: a })
+    return ft('dash.age', { n: a })
   }
 
   async function voidVoucher(id: string) {
-    const reason = window.prompt('Why is this voucher being voided? (required)')
+    const reason = window.prompt(t('admin.members.fv.voidPrompt'))
     if (!reason || !reason.trim()) return
     setBusy(id)
     const r = await fetch('/api/admin/vouchers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'void', id, reason }) }).catch(() => null)
     setBusy(null)
-    if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; setAlertMsg(j.error || 'That did not save.'); return }
+    if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; setAlertMsg(j.error || t('admin.members.fv.err.save')); return }
     await load(lang)
   }
 
-  if (!view || !lang) return <div className="p-8 text-gray-400 text-sm">Loading…</div>
+  if (!view || !lang) return <div className="p-8 text-gray-400 text-sm">{t('common.loading')}</div>
   const days = [...new Set(view.upcoming.map(u => u.date))]
 
   return (
     <div className="p-6 md:p-8 max-w-5xl">
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
-      <Link href="/admin/members" className="text-sm text-gray-400 hover:text-[#c9a84c]">← Members</Link>
+      <Link href="/admin/members" className="text-sm text-gray-400 hover:text-[#c9a84c]">{t('admin.members.fv.back')}</Link>
       <div className="flex flex-wrap items-end justify-between gap-4 mt-2 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">{view.family.name} <span className="text-gray-400 font-normal text-lg">· parent view</span></h1>
-          <p className="text-gray-400 text-sm mt-1">What this family sees on their home page — read-only. {view.family.email}{view.family.phone ? ` · ${view.family.phone}` : ''}</p>
+          <h1 className="text-2xl font-bold text-white">{view.family.name} <span className="text-gray-400 font-normal text-lg">{t('admin.members.fv.parentView')}</span></h1>
+          <p className="text-gray-400 text-sm mt-1">{t('admin.members.fv.intro')} {view.family.email}{view.family.phone ? ` · ${view.family.phone}` : ''}</p>
         </div>
-        <div className="flex gap-1.5" aria-label="Language">
+        <div className="flex gap-1.5" aria-label={t('admin.members.fv.language')}>
           {(['zh-Hant', 'zh-Hans', 'en'] as Locale[]).map(l => (
             <button key={l} onClick={() => load(l)}
               className={`px-3 py-1.5 rounded-lg border text-sm ${lang === l ? 'border-[#c9a84c] bg-[#c9a84c]/15 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-400'}`}>
-              {l === 'en' ? 'EN' : l === 'zh-Hant' ? '繁' : '简'}{view.family.language === l ? ' ·' : ''}
+              {t(`admin.members.fv.langShort.${l}`)}{view.family.language === l ? ' ·' : ''}
             </button>
           ))}
         </div>
@@ -96,73 +102,73 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
               <div className="fv-age">{age(c.dob)}{c.gender === 'male' ? ' · 👦' : c.gender === 'female' ? ' · 👧' : ''}</div>
               {c.level && c.stage ? (
                 <>
-                  <span className="fv-lv"><i />{t('level.badge', { n: c.level, name: t(`level.${c.level}.name`) })} · {t('dash.stageN', { n: c.stage })}</span>
+                  <span className="fv-lv"><i />{ft('level.badge', { n: c.level, name: ft(`level.${c.level}.name`) })} · {ft('dash.stageN', { n: c.stage })}</span>
                   <div className="fv-bar"><i style={{ width: c.percent + '%' }} /></div>
-                  <div className="fv-meta"><span>{t(stageNameKey(c.level, c.stage))}</span><b>{c.percent}%</b></div>
+                  <div className="fv-meta"><span>{ft(stageNameKey(c.level, c.stage))}</span><b>{c.percent}%</b></div>
                 </>
-              ) : <span className="fv-lv"><i />{t('dash.pendingAssessment')}</span>}
-              {c.lastReport && <div className="fv-line">📊 {t('monthly.cardLine', { month: day(c.lastReport, { month: 'long' }) })}</div>}
-              {c.credit && <div className="fv-credit">🎁 {t('assess.credit.cardLine', { done: c.credit.lessons, n: c.credit.needed, days: c.credit.daysLeft })}</div>}
+              ) : <span className="fv-lv"><i />{ft('dash.pendingAssessment')}</span>}
+              {c.lastReport && <div className="fv-line">📊 {ft('monthly.cardLine', { month: day(c.lastReport, { month: 'long' }) })}</div>}
+              {c.credit && <div className="fv-credit">🎁 {ft('assess.credit.cardLine', { done: c.credit.lessons, n: c.credit.needed, days: c.credit.daysLeft })}</div>}
             </div>
           ))}
         </div>
 
         <div className="fv-pts">
-          <span><b>{view.wallet.purchased.toLocaleString()}</b> {t('dash.pointsUnit')}</span>
-          {view.wallet.granted > 0 && <span className="fv-gift">{t('dash.pointsGift', { n: view.wallet.granted.toLocaleString() })}</span>}
+          <span><b>{view.wallet.purchased.toLocaleString()}</b> {ft('dash.pointsUnit')}</span>
+          {view.wallet.granted > 0 && <span className="fv-gift">{ft('dash.pointsGift', { n: view.wallet.granted.toLocaleString() })}</span>}
           {view.wallet.grantedNext && <span className="fv-note">{view.wallet.grantedNext.points} · {day(view.wallet.grantedNext.date.slice(0, 10), { month: 'short', day: 'numeric' })}</span>}
           {view.wallet.arrears > 0 && <span className="fv-owe">−{view.wallet.arrears}</span>}
         </div>
 
-        <h2 className="fv-h">🎟 {t('voucher.sheetTitle')}</h2>
-        {view.vouchers.length === 0 ? <p className="fv-empty">{t('voucher.none')}</p> : (
+        <h2 className="fv-h">🎟 {ft('voucher.sheetTitle')}</h2>
+        {view.vouchers.length === 0 ? <p className="fv-empty">{ft('voucher.none')}</p> : (
           <div className="fv-list">
             {view.vouchers.map(v => (
               <div key={v.id} className="fv-row">
                 <div>
                   <div className="fv-row-main">{v.swimmers.join(' & ')} · {kind(v.courseSlug, v.minutes)}</div>
-                  <div className="fv-row-sub">{v.usableFrom ? t('voucher.window', { from: day(v.usableFrom, { month: 'short', day: 'numeric' }), to: day(v.expiresOn, { month: 'short', day: 'numeric' }) }) : t('voucher.useBy', { date: day(v.expiresOn, { month: 'short', day: 'numeric' }) })} <span className="fv-desk-note">({REASON[v.reason] || v.reason})</span></div>
+                  <div className="fv-row-sub">{v.usableFrom ? ft('voucher.window', { from: day(v.usableFrom, { month: 'short', day: 'numeric' }), to: day(v.expiresOn, { month: 'short', day: 'numeric' }) }) : ft('voucher.useBy', { date: day(v.expiresOn, { month: 'short', day: 'numeric' }) })} <span className="fv-desk-note">({REASON[v.reason] ? t(REASON[v.reason]) : v.reason})</span></div>
                 </div>
-                <button disabled={busy === v.id} onClick={() => voidVoucher(v.id)} className="fv-desk">Void</button>
+                <button disabled={busy === v.id} onClick={() => voidVoucher(v.id)} className="fv-desk">{t('admin.members.fv.void')}</button>
               </div>
             ))}
           </div>
         )}
 
-        <h2 className="fv-h">{t('dash.tag.fixed')}</h2>
+        <h2 className="fv-h">{ft('dash.tag.fixed')}</h2>
         {view.fixedClasses.length === 0 ? <p className="fv-empty">—</p> : (
           <div className="fv-list">
             {view.fixedClasses.map(f => (
               <div key={f.id} className="fv-row">
                 <div>
                   <div className="fv-row-main">{f.swimmers.join(' & ')} · {f.courseTypeId ? tDb(lang, 'course_types', f.courseTypeId, f.courseName) : f.courseName}{f.minutes === 60 ? ' · 60' : ''}</div>
-                  <div className="fv-row-sub">{t('fixed.line', { weekday: day(`2026-01-${String(4 + f.weekday).padStart(2, '0')}`, { weekday: 'long' }), time: time(f.time), coach: f.coach, n: f.left, date: f.last ? day(f.last, { month: 'short', day: 'numeric' }) : '—' })}</div>
+                  <div className="fv-row-sub">{ft('fixed.line', { weekday: day(`2026-01-${String(4 + f.weekday).padStart(2, '0')}`, { weekday: 'long' }), time: time(f.time), coach: f.coach, n: f.left, date: f.last ? day(f.last, { month: 'short', day: 'numeric' }) : '—' })}</div>
                 </div>
-                <Link href="/admin/fixed-classes" className="fv-desk">End…</Link>
+                <Link href="/admin/fixed-classes" className="fv-desk">{t('admin.members.fv.end')}</Link>
               </div>
             ))}
           </div>
         )}
 
-        <h2 className="fv-h">{t('dash.upcomingLessons')}</h2>
+        <h2 className="fv-h">{ft('dash.upcomingLessons')}</h2>
         {days.length === 0 ? <p className="fv-empty">—</p> : days.map(d => (
           <div key={d} className="fv-day">
             <div className="fv-day-h">{day(d, { month: 'long', day: 'numeric', weekday: 'long' })}</div>
             {view.upcoming.filter(u => u.date === d).map((u, i) => (
               <div key={i} className="fv-lesson">
                 <div className="fv-lesson-top">
-                  <span>{u.course === 'assessment' ? t('common.assessment') : u.courseTypeId ? tDb(lang, 'course_types', u.courseTypeId, u.courseName) : u.courseName} · {time(u.start)} — {time(u.end)} · {t('dash.up.coach', { name: u.coach })}</span>
-                  <span className="fv-status">{t('dash.status.' + u.status)}</span>
+                  <span>{u.course === 'assessment' ? ft('common.assessment') : u.courseTypeId ? tDb(lang, 'course_types', u.courseTypeId, u.courseName) : u.courseName} · {time(u.start)} — {time(u.end)} · {ft('dash.up.coach', { name: u.coach })}</span>
+                  <span className="fv-status">{ft('dash.status.' + u.status)}</span>
                 </div>
                 <div className="fv-lesson-who">{u.swimmers.join(', ')}
-                  {u.fixed && <span className="fv-tag">{t('dash.tag.fixed')}</span>}
-                  {u.makeUp && <span className="fv-tag fv-tag-mu">{t('dash.tag.makeUp')}</span>}
+                  {u.fixed && <span className="fv-tag">{ft('dash.tag.fixed')}</span>}
+                  {u.makeUp && <span className="fv-tag fv-tag-mu">{ft('dash.tag.makeUp')}</span>}
                 </div>
               </div>
             ))}
           </div>
         ))}
-        <p className="fv-foot">Desk actions (outside the family&apos;s view): <Link href="/admin/vouchers">Issue a voucher</Link> · <Link href="/admin/fixed-classes">Fixed classes</Link></p>
+        <p className="fv-foot">{t('admin.members.fv.deskActions')} <Link href="/admin/vouchers">{t('admin.members.fv.issueVoucher')}</Link> · <Link href="/admin/fixed-classes">{t('admin.members.fv.fixedClasses')}</Link></p>
       </div>
     </div>
   )

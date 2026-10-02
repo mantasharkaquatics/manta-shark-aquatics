@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag } from '@/lib/i18n'
 
 type Note = { id: string; content: string; pinned: boolean; created_at: string; author: string }
 
@@ -9,6 +11,8 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
   collapsible?: boolean
   onCountChange?: (count: number) => void
 }) {
+  const t = useT()
+  const locale = useLocale()
   const [notes, setNotes] = useState<Note[] | null>(null)
   const [open, setOpen] = useState(!collapsible)
   const [composing, setComposing] = useState(false)
@@ -78,7 +82,7 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
       {collapsible && (
         <button onClick={() => setOpen(o => !o)}
           className={`text-xs px-2 py-1 rounded-full border transition-all ${open ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300' : count > 0 ? 'border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10' : 'border-white/10 text-gray-500 hover:border-emerald-400/40'}`}>
-          📝 Notes{notes === null ? '' : ` (${count})`}
+          📝 {t('admin.notes.notes')}{notes === null ? '' : ` (${count})`}
         </button>
       )}
       {open && (
@@ -87,23 +91,23 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
             <div className="mb-2 bg-[#0d1529] border border-[#c9a84c]/40 rounded-lg p-3">
               <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2} autoFocus
                 onBlur={() => { if (!draft.trim()) { setComposing(false); setDraft('') } }}
-                placeholder="Write a note (visible to admins only)..."
+                placeholder={t('admin.notes.placeholder')}
                 className="w-full bg-transparent text-sm text-white placeholder-gray-600 resize-none focus:outline-none" />
               <div className="flex items-center gap-3 mt-2">
                 <button onClick={addNote} disabled={busy || !draft.trim()}
-                  className="px-4 py-1.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold disabled:opacity-40 transition-all">Done</button>
+                  className="px-4 py-1.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold disabled:opacity-40 transition-all">{t('admin.notes.done')}</button>
                 <button onClick={() => { setComposing(false); setDraft('') }}
-                  className="px-4 py-1.5 rounded-lg border border-white/15 text-gray-400 hover:text-white hover:border-white/30 text-sm transition-all">Cancel</button>
+                  className="px-4 py-1.5 rounded-lg border border-white/15 text-gray-400 hover:text-white hover:border-white/30 text-sm transition-all">{t('common.cancel')}</button>
               </div>
             </div>
           ) : (
             <button onClick={() => { setComposing(true); setDraft('') }}
-              className="mb-2 text-sm text-[#c9a84c] hover:text-[#b8963e] font-semibold transition-colors">+ Add Note</button>
+              className="mb-2 text-sm text-[#c9a84c] hover:text-[#b8963e] font-semibold transition-colors">{t('admin.notes.add')}</button>
           )}
           {notes === null ? (
-            <p className="text-gray-500 text-xs py-1">Loading...</p>
+            <p className="text-gray-500 text-xs py-1">{t('admin.notes.loading')}</p>
           ) : notes.length === 0 ? (
-            <p className="text-gray-600 text-xs py-1">No notes yet.</p>
+            <p className="text-gray-600 text-xs py-1">{t('admin.notes.empty')}</p>
           ) : (
             <div className="space-y-1.5">
               {notes.map(n => (
@@ -115,15 +119,15 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
                           className="w-full bg-transparent text-sm text-white resize-none focus:outline-none" />
                         <div className="flex items-center gap-3 mt-2">
                           <button onClick={() => saveNote(n.id)} disabled={busy || !editDraft.trim()}
-                            className="px-4 py-1.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold disabled:opacity-40 transition-all">Save</button>
+                            className="px-4 py-1.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold disabled:opacity-40 transition-all">{t('common.save')}</button>
                           <button onClick={() => setEditingId(null)}
-                            className="px-4 py-1.5 rounded-lg border border-white/15 text-gray-400 hover:text-white hover:border-white/30 text-sm transition-all">Cancel</button>
+                            className="px-4 py-1.5 rounded-lg border border-white/15 text-gray-400 hover:text-white hover:border-white/30 text-sm transition-all">{t('common.cancel')}</button>
                         </div>
                       </div>
                     ) : (
                       <>
                         <p className="text-gray-200 text-sm whitespace-pre-wrap">{n.pinned && <span className="mr-1">📌</span>}{n.content}</p>
-                        <p className="text-gray-500 text-xs mt-1">{new Date(n.created_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })} · {n.author}</p>
+                        <p className="text-gray-500 text-xs mt-1">{new Date(n.created_at).toLocaleDateString(dateTag(locale, 'en-US'), { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}{locale === 'en' ? ', ' : ' '}{new Date(n.created_at).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} · {n.author}</p>
                       </>
                     )}
                   </div>
@@ -131,19 +135,19 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
                     <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       {deletingId === n.id ? (
                         <>
-                          <span className="text-gray-400 text-xs">Delete?</span>
+                          <span className="text-gray-400 text-xs">{t('admin.notes.deleteQ')}</span>
                           <button onClick={() => deleteNote(n.id)} disabled={busy}
-                            className="px-2 py-0.5 rounded-full border border-red-400 bg-red-500/20 text-red-300 text-xs font-semibold">Yes</button>
+                            className="px-2 py-0.5 rounded-full border border-red-400 bg-red-500/20 text-red-300 text-xs font-semibold">{t('admin.notes.yes')}</button>
                           <button onClick={() => setDeletingId(null)}
-                            className="px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 text-xs font-semibold">No</button>
+                            className="px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 text-xs font-semibold">{t('admin.notes.no')}</button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => togglePin(n.id, n.pinned)} title={n.pinned ? 'Unpin' : 'Pin'}
+                          <button onClick={() => togglePin(n.id, n.pinned)} title={n.pinned ? t('admin.notes.unpin') : t('admin.notes.pin')}
                             className={`px-2 py-1 rounded text-base transition-colors ${n.pinned ? 'text-[#c9a84c]' : 'text-gray-500 hover:text-[#c9a84c]'}`}>📌</button>
-                          <button onClick={() => { setEditingId(n.id); setEditDraft(n.content); setDeletingId(null) }} title="Edit"
+                          <button onClick={() => { setEditingId(n.id); setEditDraft(n.content); setDeletingId(null) }} title={t('admin.notes.edit')}
                             className="px-2 py-1 rounded text-base text-gray-500 hover:text-[#c9a84c] transition-colors">✏️</button>
-                          <button onClick={() => setDeletingId(n.id)} title="Delete"
+                          <button onClick={() => setDeletingId(n.id)} title={t('admin.notes.delete')}
                             className="px-2 py-1 rounded text-base text-gray-500 hover:text-red-400 transition-colors">🗑</button>
                         </>
                       )}

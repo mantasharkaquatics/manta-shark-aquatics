@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag, type Locale } from '@/lib/i18n'
 
 
 interface Student {
@@ -19,12 +21,19 @@ interface AttendanceRecord {
   detail?: string
 }
 
-function formatDateTime(iso: string): string {
+// Date follows the admin's language; the clock time stays 12-hour English.
+// Joined with ', ' so the English render is unchanged from the old single
+// toLocaleString call.
+function formatDateTime(iso: string, locale: Locale): string {
   const d = new Date(iso)
-  return d.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })
+  const date = d.toLocaleDateString(dateTag(locale, 'en-US'), { timeZone: 'America/Los_Angeles', month: '2-digit', day: '2-digit' })
+  const time = d.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', hour12: true })
+  return date + ', ' + time
 }
 
 export default function AdminCheckinClient({ students }: { students: Student[] }) {
+  const t = useT()
+  const locale = useLocale()
   const [query, setQuery] = useState('')
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const [loading, setLoading] = useState('')
@@ -75,10 +84,11 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       })
       const data = await res.json()
       if (!res.ok) {
-        setResult({ success: false, message: data.error || 'Check-in failed' })
+        setResult({ success: false, message: data.error || t('admin.checkin.err.failed') })
       } else {
         const times = (data.lesson_times || []).join(', ')
-        setResult({ success: true, message: 'Checked in ' + data.student_name + ' for ' + data.checked_in_count + ' lesson(s)' + (times ? ': ' + times : '') })
+        const vars = { name: data.student_name ?? '', n: data.checked_in_count ?? '', times }
+        setResult({ success: true, message: times ? t('admin.checkin.doneWithTimes', vars) : t('admin.checkin.done', vars) })
         setPage(1)
         loadRecords(1)
         /* No level-picker here any more. The desk used to be offered "First
@@ -88,7 +98,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
            report, and an admin confirms it in Reviews. */
       }
     } catch (e: any) {
-      setResult({ success: false, message: 'Check-in failed: ' + e.message })
+      setResult({ success: false, message: t('admin.checkin.err.failedWith', { msg: e.message ?? '' }) })
     }
   }
 
@@ -119,7 +129,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   function stopCamera() {
     if (videoRef.current?.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
-      tracks.forEach(t => t.stop())
+      tracks.forEach(track => track.stop())
       videoRef.current.srcObject = null
     }
     if (intervalRef.current) clearInterval(intervalRef.current)
@@ -163,7 +173,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     setResult(null)
     const studentId = decodeQRPayload(raw)
     if (!studentId) {
-      setResult({ success: false, message: 'Invalid QR code. Please scan again.' })
+      setResult({ success: false, message: t('admin.checkin.err.invalidQr') })
       setScanLoading(false)
       return
     }
@@ -177,8 +187,8 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     <div className="min-h-screen bg-[#0d1529] px-4 py-12">
       <div className="w-full max-w-2xl mx-auto">
         <p className="text-xs font-semibold text-[#c9a84c] tracking-widest uppercase text-center mb-2">Manta Shark Aquatics</p>
-        <h1 className="text-3xl font-bold text-white text-center mb-1" style={{ fontFamily: 'Playfair Display, serif' }}>Check-in</h1>
-        <p className="text-white/40 text-center text-sm mb-8">Scan a QR code or search by name. Check-in opens 30 min before class and closes at class end.</p>
+        <h1 className="text-3xl font-bold text-white text-center mb-1" style={{ fontFamily: 'Playfair Display, serif' }}>{t('admin.checkin.title')}</h1>
+        <p className="text-white/40 text-center text-sm mb-8">{t('admin.checkin.intro')}</p>
 
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="bg-[#111d38] rounded-2xl p-6">
@@ -186,15 +196,15 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
             {scanning ? (
               <div>
                 <video ref={videoRef} className="w-full rounded-xl bg-black" muted playsInline />
-                <button onClick={stopCamera} className="mt-3 w-full py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white text-sm transition-colors">Cancel</button>
-                {cameraError && <p className="text-red-400 text-xs text-center mt-2">Camera unavailable. Please use name search below.</p>}
+                <button onClick={stopCamera} className="mt-3 w-full py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white text-sm transition-colors">{t('common.cancel')}</button>
+                {cameraError && <p className="text-red-400 text-xs text-center mt-2">{t('admin.checkin.cameraUnavailable')}</p>}
               </div>
             ) : (
               <div className="text-center">
                 <div className="text-4xl mb-3">📷</div>
-                <p className="text-white/50 text-sm mb-4">{scanLoading ? 'Processing...' : 'Scan student QR code'}</p>
+                <p className="text-white/50 text-sm mb-4">{scanLoading ? t('admin.checkin.processing') : t('admin.checkin.scanPrompt')}</p>
                 <button onClick={startCamera} disabled={scanLoading} className="w-full py-3 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold text-sm disabled:opacity-50">
-                  Start Scan
+                  {t('admin.checkin.startScan')}
                 </button>
               </div>
             )}
@@ -205,7 +215,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               type="text"
               value={query}
               onChange={e => { setQuery(e.target.value); setResult(null) }}
-              placeholder="Search by student or parent name..."
+              placeholder={t('admin.checkin.searchPlaceholder')}
               className="w-full bg-[#1a2744] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#c9a84c] text-sm transition-colors"
             />
             {filtered.length > 0 && (
@@ -224,7 +234,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                         <p className="text-white/40 text-xs">{parent?.first_name} {parent?.last_name}</p>
                       </div>
                       <span className="text-[#c9a84c] text-sm font-semibold">
-                        {loading === s.id ? 'Processing...' : 'Check-in'}
+                        {loading === s.id ? t('admin.checkin.processing') : t('admin.checkin.checkinBtn')}
                       </span>
                     </button>
                   )
@@ -232,7 +242,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               </div>
             )}
             {query.trim().length >= 1 && filtered.length === 0 && (
-              <p className="text-white/30 text-sm text-center mt-4">No matching students found</p>
+              <p className="text-white/30 text-sm text-center mt-4">{t('admin.checkin.noMatch')}</p>
             )}
           </div>
         </div>
@@ -245,7 +255,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
 
         <div className="bg-[#111d38] rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-white/10">
-            <h2 className="text-white font-semibold text-sm">Check-in Records</h2>
+            <h2 className="text-white font-semibold text-sm">{t('admin.checkin.records')}</h2>
           </div>
           {/* The card around this table is overflow-hidden for its rounded corners, so on
               a narrow screen the last columns were being clipped away entirely -- no
@@ -255,32 +265,32 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
             <table className="w-full min-w-[620px] text-sm">
             <thead>
               <tr className="text-white/40 text-xs uppercase tracking-wider">
-                <th className="text-left px-6 py-2">Student</th>
-                <th className="text-left px-6 py-2">Parent</th>
-                <th className="text-left px-6 py-2">Method</th>
-                <th className="text-left px-6 py-2">Check-in Time</th>
+                <th className="text-left px-6 py-2">{t('admin.checkin.col.student')}</th>
+                <th className="text-left px-6 py-2">{t('admin.checkin.col.parent')}</th>
+                <th className="text-left px-6 py-2">{t('admin.checkin.col.method')}</th>
+                <th className="text-left px-6 py-2">{t('admin.checkin.col.time')}</th>
               </tr>
             </thead>
             <tbody>
               {recordsLoading ? (
-                <tr><td colSpan={4} className="text-center text-white/30 py-6">Loading...</td></tr>
+                <tr><td colSpan={4} className="text-center text-white/30 py-6">{t('admin.checkin.loading')}</td></tr>
               ) : records.length === 0 ? (
-                <tr><td colSpan={4} className="text-center text-white/30 py-6">No check-in records yet</td></tr>
+                <tr><td colSpan={4} className="text-center text-white/30 py-6">{t('admin.checkin.noRecords')}</td></tr>
               ) : records.map(r => (
                 <tr key={r.id} className="border-t border-white/5">
                   <td className="px-6 py-3 text-white">{r.student_name}{r.detail && <div className="text-[#c9a84c] text-xs mt-0.5">{r.detail}</div>}</td>
                   <td className="px-6 py-3 text-white/60">{r.parent_name}</td>
-                  <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr' ? 'QR' : r.check_in_method === 'self' ? 'Parent (at pool)' : 'Manual'}</td>
-                  <td className="px-6 py-3 text-white/60">{formatDateTime(r.checked_in_at)}</td>
+                  <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr' ? t('admin.checkin.method.qr') : r.check_in_method === 'self' ? t('admin.checkin.method.self') : t('admin.checkin.method.manual')}</td>
+                  <td className="px-6 py-3 text-white/60">{formatDateTime(r.checked_in_at, locale)}</td>
                 </tr>
               ))}
             </tbody>
             </table>
           </div>
           <div className="flex items-center justify-between px-6 py-4 border-t border-white/10">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="text-white/50 text-xs disabled:opacity-30">← Previous</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="text-white/50 text-xs disabled:opacity-30">{t('admin.checkin.prev')}</button>
             <span className="text-white/40 text-xs">{page} / {totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="text-white/50 text-xs disabled:opacity-30">Next →</button>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="text-white/50 text-xs disabled:opacity-30">{t('admin.checkin.next')}</button>
           </div>
         </div>
       </div>
@@ -292,17 +302,17 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               <div className="w-16 h-16 rounded-full bg-[#c9a84c]/20 flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">✓</span>
               </div>
-              <h2 className="text-lg font-bold text-white mb-1">Confirm Check-in</h2>
+              <h2 className="text-lg font-bold text-white mb-1">{t('admin.checkin.confirmTitle')}</h2>
               <p className="text-white/60 text-sm">
-                Check in <span className="text-white font-semibold">{confirmStudent.full_name}</span>?
+                {t('admin.checkin.confirmPre')}<span className="text-white font-semibold">{confirmStudent.full_name}</span>{t('admin.checkin.confirmPost')}
               </p>
               {confirmParent && (
-                <p className="text-white/40 text-xs mt-1">Parent: {confirmParent.first_name} {confirmParent.last_name}</p>
+                <p className="text-white/40 text-xs mt-1">{t('admin.checkin.confirmParent', { name: confirmParent.first_name + ' ' + confirmParent.last_name })}</p>
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmStudent(null)} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">Cancel</button>
-              <button onClick={() => checkin(confirmStudent)} className="flex-1 py-2.5 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold hover:bg-[#d4b86a] transition-colors text-sm">Confirm Check-in</button>
+              <button onClick={() => setConfirmStudent(null)} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">{t('common.cancel')}</button>
+              <button onClick={() => checkin(confirmStudent)} className="flex-1 py-2.5 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold hover:bg-[#d4b86a] transition-colors text-sm">{t('admin.checkin.confirmTitle')}</button>
             </div>
           </div>
         </div>

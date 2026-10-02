@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
       student_name: stu?.full_name || '',
       parent_name: par ? `${par.first_name} ${par.last_name || ''}`.trim() : '',
       course_name: (ctMap.get(s?.course_type_id) as any)?.name || '',
+      course_type_id: s?.course_type_id || null,
       date: s?.session_date || '',
       time: s ? `${formatTime12h(s.start_time)} \u2013 ${formatTime12h(s.end_time)}` : '',
     }

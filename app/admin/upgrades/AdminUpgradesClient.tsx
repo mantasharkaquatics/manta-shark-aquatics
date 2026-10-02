@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react'
 import AlertModal from '@/components/AlertModal'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb, dateTag } from '@/lib/i18n'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string; stage: number | null }
@@ -30,6 +32,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   skills: Skill[]
   students: Student[]
 }) {
+  const t = useT()
+  const locale = useLocale()
+  /** A curriculum level's name in the admin's language; '' for a retired level. */
+  const levelName = (n: string | number | null | undefined) => LEVEL_NAMES[String(n)] ? t(`level.${n}.name`) : ''
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
   const [search, setSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
@@ -75,10 +81,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       })
     }).catch(() => null)
     if (!res) {
-      setAssignError('Could not reach the server. Check your connection and try again.')
+      setAssignError(t('admin.reviews.err.offline'))
     } else if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      setAssignError(j.error || 'The level was not changed. Please try again.')
+      setAssignError(j.error || t('admin.levels.err.assignFailed'))
     }
     if (res?.ok) {
       const record = await res.json()
@@ -95,17 +101,17 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Levels</h1>
-        <p className="text-gray-400 mt-1">Assign a swim level, and see what each one teaches</p>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.levels.title')}</h1>
+        <p className="text-gray-400 mt-1">{t('admin.levels.subtitle')}</p>
       </div>
 
       {/* Assign Level */}
       <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5 mb-8">
-        <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">Assign Level to Student</h2>
+        <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">{t('admin.levels.assignHeading')}</h2>
         {!selectedStudent ? (
           <div>
             <input
-              type="text" placeholder="Search student by name or parent..."
+              type="text" placeholder={t('admin.levels.searchPlaceholder')}
               value={search}
               onChange={e => { setSearch(e.target.value); setShowSearch(true) }}
               onFocus={() => setShowSearch(true)}
@@ -125,13 +131,13 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     <span className="text-xs px-2 py-1 rounded-full" style={{
                       backgroundColor: (LEVEL_COLORS[s.current_level || ''] || '#374151') + '33',
                       color: LEVEL_COLORS[s.current_level || ''] || '#9ca3af'
-                    }}>{s.current_level ? `L${s.current_level}·S${s.current_stage ?? 1}` : 'No Level'}</span>
+                    }}>{s.current_level ? `L${s.current_level}·S${s.current_stage ?? 1}` : t('admin.levels.noLevel')}</span>
                   </button>
                 ))}
               </div>
             )}
             {showSearch && search.length >= 2 && filteredStudents.length === 0 && (
-              <p className="text-gray-500 text-sm mt-2 px-1">No students found</p>
+              <p className="text-gray-500 text-sm mt-2 px-1">{t('admin.levels.noStudents')}</p>
             )}
           </div>
         ) : (
@@ -144,15 +150,15 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 <div>
                   <p className="text-white font-medium text-sm">{selectedStudent.full_name}</p>
                   <p className="text-gray-500 text-xs">
-                    Current: {selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]} · Stage ${selectedStudent.current_stage ?? 1}` : 'No Level'}
+                    {t('admin.levels.current', { level: selectedStudent.current_level ? `${t('admin.levelN', { n: selectedStudent.current_level })} · ${levelName(selectedStudent.current_level)} · ${t('admin.levels.stageN', { n: selectedStudent.current_stage ?? 1 })}` : t('admin.levels.noLevel') })}
                   </p>
                 </div>
               </div>
               <button onClick={() => { setSelectedStudent(null); setSelectedLevel(''); setNotes('') }}
-                className="text-gray-500 hover:text-gray-300 text-xs">✕ Change</button>
+                className="text-gray-500 hover:text-gray-300 text-xs">{t('admin.levels.change')}</button>
             </div>
             <div>
-              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Assign Level</p>
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">{t('admin.levels.assignLevel')}</p>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                 {levels.map(l => (
                   <button key={l.id} onClick={() => setSelectedLevel(String(l.level_number))}
@@ -163,12 +169,12 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                     }`}
                   >
                     <div className="text-xs">L{l.level_number}</div>
-                    <div className="text-xs opacity-70">{LEVEL_NAMES[String(l.level_number)]}</div>
+                    <div className="text-xs opacity-70">{levelName(l.level_number)}</div>
                   </button>
                 ))}
               </div>
             </div>
-            <input type="text" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)}
+            <input type="text" placeholder={t('admin.levels.notesPlaceholder')} value={notes} onChange={e => setNotes(e.target.value)}
               className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors placeholder-gray-600"
             />
             <button onClick={() => setShowConfirm(true)} disabled={!selectedLevel || saving}
@@ -178,7 +184,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 'bg-gray-700 text-gray-500 cursor-not-allowed'
               }`}
             >
-              {saving ? 'Saving...' : saved ? '✓ Level Assigned' : `Assign Level ${selectedLevel}${selectedLevel ? ' · ' + LEVEL_NAMES[selectedLevel] : ''}`}
+              {saving ? t('admin.progress.saving') : saved ? t('admin.levels.assigned') : selectedLevel ? t('admin.levels.assignLevelNamed', { n: selectedLevel, name: levelName(selectedLevel) }) : t('admin.levels.assignLevelN', { n: selectedLevel })}
             </button>
             {assignError && <p className="text-red-400 text-xs">{assignError}</p>}
           </div>
@@ -187,7 +193,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
 
       {/* Level Skills Reference */}
       <div className="mb-8">
-        <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">Level Skills Reference</h2>
+        <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">{t('admin.levels.skillsReference')}</h2>
         <div className="space-y-2">
           {levels.map(l => {
             const lvlSkills = skillsByLevel[l.id] || []
@@ -202,8 +208,8 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       backgroundColor: (LEVEL_COLORS[String(l.level_number)] || '#374151') + '33',
                       color: LEVEL_COLORS[String(l.level_number)] || '#9ca3af'
                     }}>L{l.level_number}</span>
-                    <span className="text-white text-sm font-medium">{LEVEL_NAMES[String(l.level_number)]}</span>
-                    <span className="text-gray-500 text-xs">{lvlSkills.length} skills</span>
+                    <span className="text-white text-sm font-medium">{levelName(l.level_number)}</span>
+                    <span className="text-gray-500 text-xs">{t('admin.levels.skillCount', { n: lvlSkills.length })}</span>
                   </div>
                   <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
                 </button>
@@ -218,14 +224,14 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                       return (
                         <div key={st}>
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-gray-400">Stage {st}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-gray-400">{t('admin.levels.stageN', { n: st })}</span>
                             <span className="text-[10px] text-gray-600 font-mono">{inStage.length}</span>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                             {inStage.map((sk, i) => (
                               <div key={sk.id} className="flex items-center gap-2 text-sm text-gray-300">
                                 <span className="text-gray-600 text-xs w-5 text-right">{i + 1}.</span>
-                                {sk.name}
+                                {tDb(locale, 'skills', sk.id, sk.name)}
                               </div>
                             ))}
                           </div>
@@ -242,10 +248,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
 
       {/* History */}
       <div>
-        <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">Assignment History</h2>
+        <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4">{t('admin.levels.history')}</h2>
         {upgradeHistory.length === 0 ? (
           <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center">
-            <p className="text-gray-400">No level assignments yet</p>
+            <p className="text-gray-400">{t('admin.levels.historyEmpty')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -260,28 +266,28 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                   <p className="text-gray-400 text-xs mt-0.5">
                     {String(h.from_level) === String(h.to_level) && h.from_stage && h.to_stage ? (
                       <>
-                        L{h.to_level} · Stage {h.from_stage} → <span className="text-[#c9a84c]">Stage {h.to_stage}</span>
+                        L{h.to_level} · {t('admin.levels.stageN', { n: h.from_stage })} → <span className="text-[#c9a84c]">{t('admin.levels.stageN', { n: h.to_stage })}</span>
                       </>
                     ) : (
                       <>
-                        {h.from_level ? `L${h.from_level} → ` : 'Unassigned → '}
+                        {h.from_level ? `L${h.from_level} → ` : `${t('admin.levels.unassigned')} → `}
                         <span className="text-[#c9a84c]">
-                          L{h.to_level}{LEVEL_NAMES[h.to_level] ? ` (${LEVEL_NAMES[h.to_level]})` : ''}
+                          L{h.to_level}{LEVEL_NAMES[h.to_level] ? ` (${levelName(h.to_level)})` : ''}
                         </span>
-                        {h.to_stage ? ` · Stage ${h.to_stage}` : ''}
+                        {h.to_stage ? ` · ${t('admin.levels.stageN', { n: h.to_stage })}` : ''}
                       </>
                     )}
                     {h.notes && ` · ${h.notes}`}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-gray-500 text-xs">{new Date(h.upgraded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                  <p className="text-gray-500 text-xs">{new Date(h.upgraded_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                   {/* No name resolved means the row predates this or the
                        person has been deleted -- print nothing rather than a
                        dangling "by". */}
                   {h.by && (
                     <p className="text-gray-600 text-xs">
-                      by {h.by.role === 'coach' ? 'Coach ' : ''}{h.by.first_name} {h.by.last_name || ''}
+                      {t('admin.levels.by', { name: h.by.role === 'coach' ? t('admin.coachName', { name: `${h.by.first_name} ${h.by.last_name || ''}` }) : `${h.by.first_name} ${h.by.last_name || ''}` })}
                     </p>
                   )}
                 </div>
@@ -297,27 +303,27 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       {showConfirm && selectedStudent && selectedLevel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-white font-bold text-lg mb-1">Confirm Level Assignment</h3>
-            <p className="text-gray-400 text-sm mb-5">Please confirm the following:</p>
+            <h3 className="text-white font-bold text-lg mb-1">{t('admin.levels.confirmTitle')}</h3>
+            <p className="text-gray-400 text-sm mb-5">{t('admin.levels.confirmHint')}</p>
             <div className="bg-[#0d1529] rounded-xl p-4 mb-5 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Student</span>
+                <span className="text-gray-400">{t('admin.levels.student')}</span>
                 <span className="text-white font-medium">{selectedStudent.full_name}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Current Level</span>
-                <span className="text-gray-300">{selectedStudent.current_level ? `Level ${selectedStudent.current_level} · ${LEVEL_NAMES[selectedStudent.current_level]}` : 'Not assigned'}</span>
+                <span className="text-gray-400">{t('admin.levels.currentLevel')}</span>
+                <span className="text-gray-300">{selectedStudent.current_level ? `${t('admin.levelN', { n: selectedStudent.current_level })} · ${levelName(selectedStudent.current_level)}` : t('admin.levels.notAssigned')}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Assign to</span>
-                <span className="text-[#c9a84c] font-semibold">Level {selectedLevel} · {LEVEL_NAMES[selectedLevel]}</span>
+                <span className="text-gray-400">{t('admin.levels.assignTo')}</span>
+                <span className="text-[#c9a84c] font-semibold">{t('admin.levelN', { n: selectedLevel })} · {levelName(selectedLevel)}</span>
               </div>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all">Cancel</button>
+                className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all">{t('common.cancel')}</button>
               <button onClick={() => { setShowConfirm(false); handleAssign() }}
-                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all">Confirm Assignment</button>
+                className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all">{t('admin.levels.confirmAssign')}</button>
             </div>
           </div>
         </div>

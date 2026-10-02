@@ -1,5 +1,8 @@
 'use client'
 
+import { LANGUAGE_LABELS } from '@/lib/ai/models'
+import { useT } from '@/lib/i18n/provider'
+
 export type PairedNote = {
   id: string
   transcript: string
@@ -19,20 +22,21 @@ export default function AdminLessonNoteReview({
   value: string
   onChange: (v: string) => void
 }) {
+  const t = useT()
   return (
     <div className="mt-4 pt-4 border-t border-[#1e3a6e] space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">Lesson Note</p>
+        <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider">{t('admin.levels.lessonNote')}</p>
         <span className="text-gray-500 text-xs">
-          recorded in {LANGUAGE_LABELS[note.language] || note.language}
-          {note.audio_seconds ? ` · ${note.audio_seconds}s` : ''}
+          {t('admin.progress.recordedIn', { lang: LANGUAGE_LABELS[note.language] ? t(`admin.progress.lang.${note.language}`) : note.language })}
+          {note.audio_seconds ? ` · ${t('admin.progress.seconds', { n: note.audio_seconds })}` : ''}
         </span>
       </div>
 
       {note.audio_url && <audio controls src={note.audio_url} className="w-full" />}
 
       <div>
-        <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">What the coach said</p>
+        <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{t('admin.progress.coachSaid')}</p>
         {/* Read-only: this is the record of what was actually spoken, and the
             thing to compare against when the written note reads oddly. */}
         <div className="bg-[#0d1529] rounded-lg p-3 border border-[#1e3a6e]">
@@ -41,7 +45,7 @@ export default function AdminLessonNoteReview({
       </div>
 
       <div>
-        <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">What the family will read</p>
+        <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{t('admin.levels.familyWillRead')}</p>
         <textarea
           value={value}
           onChange={e => onChange(e.target.value)}
@@ -49,10 +53,10 @@ export default function AdminLessonNoteReview({
           className="w-full bg-[#0d1529] text-white text-xs rounded-lg p-3 border border-[#1e3a6e] focus:border-[#c9a84c] outline-none resize-y"
         />
         <p className="text-gray-600 text-[10px] mt-1">
-          Anything the coach did not actually say is worth cutting.
+          {t('admin.levels.cutHint')}
         </p>
       </div>
     </div>
   )
-}import { LANGUAGE_LABELS } from '@/lib/ai/models'
+}
 

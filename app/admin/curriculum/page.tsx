@@ -12,8 +12,13 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import CurriculumMapClient, { type SkillNotes } from './CurriculumMapClient'
+import { getT } from '@/lib/i18n'
+import { getAdminLocale } from '@/lib/i18n/admin-locale'
 
-export const metadata = { title: 'Curriculum Map' }
+export async function generateMetadata() {
+  const t = getT(await getAdminLocale())
+  return { title: t('admin.curriculum.title') }
+}
 
 export default function AdminCurriculumPage() {
   const raw = JSON.parse(

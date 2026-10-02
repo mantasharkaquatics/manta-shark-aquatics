@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag, tDb } from '@/lib/i18n'
 
 type Coach = { id: string; first_name: string; last_name: string }
 type Item = {
@@ -10,7 +12,7 @@ type Item = {
 }
 type ImpactItem = {
   booking_id: string; status: string; notice_sent_at: string | null
-  student_name: string; parent_name: string; course_name: string; date: string; time: string
+  student_name: string; parent_name: string; course_name: string; course_type_id?: string | null; date: string; time: string
 }
 
 export default function AdminTimeOffClient({ coaches, initialList, pastList, impactStats, today }: {
@@ -20,6 +22,8 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   impactStats: Record<string, { pending: number; notified: number; handled: number }>
   today: string
 }) {
+  const t = useT()
+  const locale = useLocale()
   const [list, setList] = useState<Item[]>(initialList)
   const [coachId, setCoachId] = useState('')
   const [date, setDate] = useState('')
@@ -36,7 +40,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   const [acting, setActing] = useState<string | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ kind: 'cancel' | 'delete'; id: string; count?: number } | null>(null)
 
-  const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })
+  const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { weekday: 'short', month: 'long', day: 'numeric' })
   const fmt12 = (t: string) => {
     const [h, m] = t.slice(0, 5).split(':').map(Number)
     const ap = h >= 12 ? 'PM' : 'AM'
@@ -53,7 +57,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setImpact(prev => ({ ...prev, [blockId]: { loading: false, items: [], error: data.error || 'Failed to load' } }))
+      setImpact(prev => ({ ...prev, [blockId]: { loading: false, items: [], error: data.error || t('admin.timeOff.err.loadFailed') } }))
     } else {
       setImpact(prev => ({ ...prev, [blockId]: { loading: false, items: data.items || [], error: '' } }))
     }
@@ -92,9 +96,9 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   const handleSubmit = async () => {
     setError('')
     setSuccess('')
-    if (!coachId) { setError('Please select a coach.'); return }
-    if (!date) { setError('Please select a date.'); return }
-    if (!allDay && (!startTime || !endTime)) { setError('Please select start and end times.'); return }
+    if (!coachId) { setError(t('admin.timeOff.err.selectCoach')); return }
+    if (!date) { setError(t('admin.timeOff.err.selectDate')); return }
+    if (!allDay && (!startTime || !endTime)) { setError(t('admin.timeOff.err.selectTimes')); return }
     setSubmitting(true)
     const res = await fetch('/api/admin/time-off', {
       method: 'POST',
@@ -103,7 +107,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setError(data.error || 'Failed to create block.')
+      setError(data.error || t('admin.timeOff.err.createFailed'))
     } else {
       const coach = coaches.find(c => c.id === coachId) || null
       setList(prev => [...prev, { ...data.block, coaches: coach ? { first_name: coach.first_name, last_name: coach.last_name } : null }]
@@ -113,7 +117,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
       setStartTime('')
       setEndTime('')
       setReason('')
-      setSuccess('Block created.')
+      setSuccess(t('admin.timeOff.blockCreated'))
     }
     setSubmitting(false)
   }
@@ -125,7 +129,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
-    if (res.ok) setList(prev => prev.filter(t => t.id !== id))
+    if (res.ok) setList(prev => prev.filter(row => row.id !== id))
     setDeleting(null)
   }
 
@@ -146,22 +150,22 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
             </div>
             <div>
               <p className="text-white font-medium flex items-center flex-wrap gap-2">
-                <span>Coach {item.coaches?.first_name} {item.coaches?.last_name}</span>
+                <span>{t('admin.coachName', { name: `${item.coaches?.first_name ?? ''} ${item.coaches?.last_name ?? ''}` })}</span>
                 {(() => {
                   const st = impactStats[item.id]
                   if (!st || (st.pending === 0 && st.notified === 0 && st.handled === 0)) return null
-                  if (st.pending > 0) return <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">⚠️ {st.pending + st.notified} affected</span>
-                  if (st.notified > 0) return <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded whitespace-nowrap font-normal">📧 Notified · awaiting cancel</span>
-                  return <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">✓ Handled ({st.handled})</span>
+                  if (st.pending > 0) return <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">{t('admin.timeOff.affectedCount', { n: st.pending + st.notified })}</span>
+                  if (st.notified > 0) return <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded whitespace-nowrap font-normal">{t('admin.timeOff.notifiedAwaiting')}</span>
+                  return <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded whitespace-nowrap font-normal">{t('admin.timeOff.handledCount', { n: st.handled })}</span>
                 })()}
               </p>
               <p className="text-[#c9a84c] text-sm">
                 {formatDate(item.date)}
-                <span className="text-gray-400"> · {item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : 'All day'}</span>
+                <span className="text-gray-400"> · {item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</span>
               </p>
               {(item.block_type === 'admin_block' || item.reason) && (
                 <p className="text-xs mt-1 flex items-center flex-wrap gap-2">
-                  {item.block_type === 'admin_block' && <span className="bg-red-500/15 text-red-400 px-2 py-0.5 rounded whitespace-nowrap">Admin Block</span>}
+                  {item.block_type === 'admin_block' && <span className="bg-red-500/15 text-red-400 px-2 py-0.5 rounded whitespace-nowrap">{t('admin.timeOff.adminBlock')}</span>}
                   {item.reason && <span className="text-gray-400">{item.reason}</span>}
                 </p>
               )}
@@ -170,12 +174,12 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
           <div className="flex items-center gap-4 ml-4 flex-shrink-0">
             <button onClick={() => toggleExpand(item.id)}
               className="text-xs px-2.5 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-[#c9a84c] hover:border-[#c9a84c]/50 transition-colors">
-              {isOpen ? '▲ Hide' : '▼ Affected lessons'}
+              {isOpen ? t('admin.timeOff.hide') : t('admin.timeOff.affectedLessons')}
             </button>
             {removable && (
               <button onClick={() => setConfirmAction({ kind: 'delete', id: item.id })} disabled={deleting === item.id}
                 className="text-gray-500 hover:text-red-400 transition-colors text-sm disabled:opacity-50">
-                {deleting === item.id ? 'Removing...' : 'Remove'}
+                {deleting === item.id ? t('admin.timeOff.removing') : t('admin.timeOff.remove')}
               </button>
             )}
           </div>
@@ -183,11 +187,11 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
         {isOpen && (
           <div className="border-t border-[#1e3a6e] p-5 space-y-3">
             {imp?.loading ? (
-              <p className="text-gray-400 text-sm">Loading affected lessons...</p>
+              <p className="text-gray-400 text-sm">{t('admin.timeOff.loadingAffected')}</p>
             ) : imp?.error ? (
               <p className="text-red-400 text-sm">{imp.error}</p>
             ) : !imp || imp.items.length === 0 ? (
-              <p className="text-gray-400 text-sm">✓ No lessons affected by this block.</p>
+              <p className="text-gray-400 text-sm">{t('admin.timeOff.noneAffected')}</p>
             ) : (
               <>
                 <div className="space-y-2">
@@ -195,14 +199,14 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                     <div key={i.booking_id} className="flex items-center justify-between bg-[#0d1529] rounded-lg px-4 py-2.5">
                       <div>
                         <p className="text-white text-sm font-medium">{i.student_name} <span className="text-gray-500 font-normal">({i.parent_name})</span></p>
-                        <p className="text-gray-400 text-xs">{i.course_name} · {i.time}</p>
+                        <p className="text-gray-400 text-xs">{i.course_type_id ? tDb(locale, 'course_types', i.course_type_id, i.course_name) : i.course_name} · {i.time}</p>
                       </div>
                       {i.status === 'cancelled' ? (
-                        <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">✓ Cancelled · refunded</span>
+                        <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">{t('admin.timeOff.cancelledRefunded')}</span>
                       ) : i.notice_sent_at ? (
-                        <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-1 rounded">📧 Notified · awaiting cancel</span>
+                        <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-1 rounded">{t('admin.timeOff.notifiedAwaiting')}</span>
                       ) : (
-                        <span className="text-xs bg-red-500/10 text-red-400 px-2 py-1 rounded">⚠️ Awaiting notice</span>
+                        <span className="text-xs bg-red-500/10 text-red-400 px-2 py-1 rounded">{t('admin.timeOff.awaitingNotice')}</span>
                       )}
                     </div>
                   ))}
@@ -212,20 +216,20 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                     <button onClick={() => handleNotify(item.id)}
                       disabled={acting === item.id || confirmedNoNotice.length === 0}
                       className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold text-sm disabled:opacity-40 transition-all">
-                      {acting === item.id ? 'Working...' : `📧 Send cancellation notices (${confirmedNoNotice.length})`}
+                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.sendNotices', { n: confirmedNoNotice.length })}
                     </button>
                     <button onClick={() => setConfirmAction({ kind: 'cancel', id: item.id, count: confirmedNotified.length })}
                       disabled={acting === item.id || confirmedNotified.length === 0}
                       className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-40 transition-all"
                       style={{ backgroundColor: '#ef4444', color: '#fff' }}>
-                      {acting === item.id ? 'Working...' : `Cancel & refund (${confirmedNotified.length})`}
+                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.cancelRefundCount', { n: confirmedNotified.length })}
                     </button>
                   </div>
                 )}
                 {confirmedNoNotice.length === 0 && confirmedNotified.length === 0 && cancelledItems.length > 0 && (
-                  <p className="text-gray-500 text-xs">All affected lessons have been cancelled and refunds issued.</p>
+                  <p className="text-gray-500 text-xs">{t('admin.timeOff.allHandled')}</p>
                 )}
-                <p className="text-gray-500 text-xs">Cancel is only enabled for lessons whose notice has been sent — parents are always informed first.</p>
+                <p className="text-gray-500 text-xs">{t('admin.timeOff.cancelHint')}</p>
               </>
             )}
           </div>
@@ -237,65 +241,65 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Coach Time Off &amp; Blocks</h1>
-        <p className="text-gray-400 mt-1">Coach requests and admin schedule blocks</p>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.timeOff.title')}</h1>
+        <p className="text-gray-400 mt-1">{t('admin.timeOff.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 h-fit">
-          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">New Admin Block</h2>
+          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">{t('admin.timeOff.newBlock')}</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-gray-400 text-sm mb-2">Coach</label>
+              <label className="block text-gray-400 text-sm mb-2">{t('admin.timeOff.coach')}</label>
               <select value={coachId} onChange={e => setCoachId(e.target.value)} className={inputCls}>
-                <option value="">Select a coach...</option>
+                <option value="">{t('admin.timeOff.selectCoach')}</option>
                 {coaches.map(c => (
                   <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-gray-400 text-sm mb-2">Date</label>
+              <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.date')}</label>
               <input type="date" value={date} min={today} onChange={e => setDate(e.target.value)} className={inputCls} />
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="adminAllDay" checked={allDay} onChange={e => setAllDay(e.target.checked)} className="w-4 h-4 accent-[#c9a84c]" />
-              <label htmlFor="adminAllDay" className="text-gray-400 text-sm select-none">All day</label>
+              <label htmlFor="adminAllDay" className="text-gray-400 text-sm select-none">{t('coach.timeOff.allDay')}</label>
             </div>
             {!allDay && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-400 text-sm mb-2">From</label>
+                  <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.from')}</label>
                   <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-gray-400 text-sm mb-2">To</label>
+                  <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.to')}</label>
                   <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className={inputCls} />
                 </div>
               </div>
             )}
             <div>
-              <label className="block text-gray-400 text-sm mb-2">Reason <span className="text-gray-600">(optional)</span></label>
+              <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.reason')} <span className="text-gray-600">{t('admin.timeOff.optional')}</span></label>
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
-                placeholder="e.g. Facility maintenance, Private event..."
+                placeholder={t('admin.timeOff.reasonPlaceholder')}
                 className={inputCls + " resize-none placeholder-gray-600"} />
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             {success && <p className="text-green-400 text-sm">✓ {success}</p>}
             <button onClick={handleSubmit} disabled={submitting}
               className="w-full bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] font-semibold py-3 rounded-lg transition-all">
-              {submitting ? 'Creating...' : 'Create Block'}
+              {submitting ? t('admin.timeOff.creating') : t('admin.timeOff.createBlock')}
             </button>
-            <p className="text-gray-500 text-xs">Blocks stop all self-serve booking (booking page, cart, AI assistant). Existing confirmed lessons are not changed.</p>
+            <p className="text-gray-500 text-xs">{t('admin.timeOff.blockHint')}</p>
           </div>
         </div>
 
         <div className="space-y-8">
           <div>
-            <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">Upcoming</h2>
+            <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">{t('admin.timeOff.upcoming')}</h2>
             {list.length === 0 ? (
               <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-12 text-center">
-                <p className="text-gray-400">No upcoming time off or blocks</p>
+                <p className="text-gray-400">{t('admin.timeOff.noUpcoming')}</p>
               </div>
             ) : (
               <div className="space-y-3">{list.map(item => renderCard(item, true))}</div>
@@ -307,17 +311,17 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
               onClick={e => { if (e.target === e.currentTarget) setConfirmAction(null) }}>
               <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
-                  {confirmAction.kind === 'cancel' ? 'Cancel affected lessons?' : 'Remove this block?'}
+                  {confirmAction.kind === 'cancel' ? t('admin.timeOff.confirmCancelTitle') : t('admin.timeOff.confirmRemoveTitle')}
                 </h3>
                 <p className="text-sm text-gray-400">
                   {confirmAction.kind === 'cancel'
-                    ? `${confirmAction.count} notified lesson${(confirmAction.count || 0) > 1 ? 's' : ''} will be cancelled and credits or tokens returned to the parents. This cannot be undone.`
-                    : 'This time off / block will be removed. Already-cancelled lessons are not restored.'}
+                    ? ((confirmAction.count || 0) > 1 ? t('admin.timeOff.confirmCancelBodyPlural', { n: confirmAction.count ?? 0 }) : t('admin.timeOff.confirmCancelBody', { n: confirmAction.count ?? 0 }))
+                    : t('admin.timeOff.confirmRemoveBody')}
                 </p>
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => setConfirmAction(null)}
                     className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">
-                    Keep
+                    {t('admin.timeOff.keep')}
                   </button>
                   <button onClick={() => {
                       const a = confirmAction
@@ -327,7 +331,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                     }}
                     className="flex-1 py-2.5 rounded-lg font-semibold text-sm"
                     style={{ backgroundColor: '#ef4444', color: '#fff' }}>
-                    {confirmAction.kind === 'cancel' ? 'Cancel & refund' : 'Remove'}
+                    {confirmAction.kind === 'cancel' ? t('admin.timeOff.cancelRefund') : t('admin.timeOff.remove')}
                   </button>
                 </div>
               </div>
@@ -335,10 +339,10 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
           )}
 
           <div>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-5">Past (last 20)</h2>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-5">{t('admin.timeOff.past')}</h2>
             {pastList.length === 0 ? (
               <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center">
-                <p className="text-gray-500">No past records</p>
+                <p className="text-gray-500">{t('admin.timeOff.noPast')}</p>
               </div>
             ) : (
               <div className="space-y-3 opacity-80">{pastList.map(item => renderCard(item, false))}</div>

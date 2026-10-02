@@ -8,6 +8,9 @@ import StudentNotesPanel from '@/components/StudentNotesPanel'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb, dateTag } from '@/lib/i18n'
+import type { Locale } from '@/lib/i18n'
 
 interface Coach {
   id: string
@@ -167,13 +170,22 @@ const COURSE_COLORS: Record<string, string> = {
   'team': '#ea580c',
 }
 
-const WEEKDAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+// Weekday initials and short month names follow the admin's language
+// (S M T W T F S / Sep in English; the zh-TW narrow weekdays and N-month in Chinese).
+// 2023-01-01 was a Sunday.
+function weekdayHeaders(locale: Locale): string[] {
+  return Array.from({ length: 7 }, (_, i) => new Date(2023, 0, 1 + i).toLocaleDateString(dateTag(locale), { weekday: 'narrow' }))
+}
+function monthShort(d: Date, locale: Locale): string {
+  return d.toLocaleDateString(dateTag(locale), { month: 'short' })
+}
 
 // ══════════════════════════════════════════════════════════════════════
 // Mini Calendar (left sidebar)
 // ══════════════════════════════════════════════════════════════════════
 function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Date) => void }) {
+  const t = useT()
+  const locale = useLocale()
   const [mini, setMini] = useState(new Date(selected.getFullYear(), selected.getMonth(), 1))
   const dates = getMonthDates(mini)
   const todayStr = toDateStr(new Date())
@@ -187,17 +199,17 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
     <div className="hidden lg:block w-56 flex-shrink-0 bg-[#111d38] rounded-xl p-3 self-start sticky top-4">
       {/* Mini header */}
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() - 1, 1))} aria-label="Previous month"
+        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() - 1, 1))} aria-label={t('admin.booking.prevMonth')}
           className="tap-auto w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">‹</button>
         <span className="text-xs font-semibold text-white/70">
-          {mini.getFullYear()} {MONTH_NAMES[mini.getMonth()]}
+          {t('admin.booking.yearMonth', { year: mini.getFullYear(), month: monthShort(mini, locale) })}
         </span>
-        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() + 1, 1))} aria-label="Next month"
+        <button onClick={() => setMini(new Date(mini.getFullYear(), mini.getMonth() + 1, 1))} aria-label={t('admin.booking.nextMonth')}
           className="tap-auto w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors text-sm">›</button>
       </div>
       {/* Weekday labels */}
       <div className="grid grid-cols-7 mb-1">
-        {WEEKDAY_HEADERS.map((d, di) => (
+        {weekdayHeaders(locale).map((d, di) => (
           <div key={di} className="text-center text-[9px] text-white/20 py-0.5">{d}</div>
         ))}
       </div>
@@ -230,14 +242,14 @@ function MiniCalendar({ selected, onSelect }: { selected: Date; onSelect: (d: Da
       {/* Today button */}
       <button
         onClick={() => {
-          const t = new Date()
-          const today = new Date(t.getFullYear(), t.getMonth(), t.getDate())
+          const now = new Date()
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
           setMini(new Date(today.getFullYear(), today.getMonth(), 1))
           onSelect(today)
         }}
         className="mt-2 w-full text-[10px] text-white/30 hover:text-[#c9a84c] transition-colors text-center py-1"
       >
-        Back to today
+        {t('admin.booking.backToToday')}
       </button>
     </div>
   )
@@ -252,6 +264,7 @@ function StudentSearch({ students, value, onChange, parentBalances }: {
   onChange: (id: string) => void
   parentBalances: Record<string, number>
 }) {
+  const t = useT()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -300,7 +313,7 @@ function StudentSearch({ students, value, onChange, parentBalances }: {
           })()) : query}
           onChange={e => { setQuery(e.target.value); setOpen(true); if (!e.target.value) onChange('') }}
           onFocus={() => { setOpen(true); if (selected) setQuery('') }}
-          placeholder="Search student, parent name or email..."
+          placeholder={t('admin.booking.search.placeholder')}
           className="w-full bg-[#111d38] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#c9a84c] transition-colors pr-8"
         />
         {(query || selected) && (
@@ -321,8 +334,8 @@ function StudentSearch({ students, value, onChange, parentBalances }: {
                   <p className="text-sm text-white font-medium">{s.full_name}</p>
                   <p className="text-xs text-white/40">{parent?.first_name} {parent?.last_name} · {parent?.email}</p>
                 </div>
-                <span className="text-xs ml-2 flex-shrink-0" style={{ color: s.current_level == null ? '#fbbf24' : 'rgba(255,255,255,0.3)' }}>{s.current_level == null ? '⚠ Not assessed' : `Lv.${s.current_level}`}</span>
-                {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentBalances[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {rem.toLocaleString()} pts</span> : null })()}
+                <span className="text-xs ml-2 flex-shrink-0" style={{ color: s.current_level == null ? '#fbbf24' : 'rgba(255,255,255,0.3)' }}>{s.current_level == null ? t('admin.booking.notAssessed') : t('admin.booking.lv', { n: s.current_level })}</span>
+                {(() => { const p = Array.isArray(s.parents) ? s.parents[0] : s.parents; const rem = p?.id ? parentBalances[p.id] : undefined; return rem !== undefined ? <span className="text-xs text-white/50 ml-1">· {t('points.unit', { n: rem.toLocaleString() })}</span> : null })()}
               </button>
             )
           })}
@@ -330,7 +343,7 @@ function StudentSearch({ students, value, onChange, parentBalances }: {
       )}
       {open && query.trim().length >= 1 && filtered.length === 0 && (
         <div className="absolute z-50 top-full mt-1 w-full bg-[#1a2744] border border-white/10 rounded-xl shadow-2xl px-3 py-3">
-          <p className="text-sm text-white/30 text-center">No matching students</p>
+          <p className="text-sm text-white/30 text-center">{t('admin.booking.noMatch')}</p>
         </div>
       )}
     </div>
@@ -341,6 +354,8 @@ function StudentSearch({ students, value, onChange, parentBalances }: {
 // Main Component
 // ══════════════════════════════════════════════════════════════════════
 export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions }: Props) {
+  const t = useT()
+  const locale = useLocale()
   const supabase = createClient()
   const [view, setView] = useState<'month' | 'day'>('month')
   const [anchor, setAnchor] = useState(() => {
@@ -387,8 +402,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [unblocking, setUnblocking] = useState(false)
   const [unblockErr, setUnblockErr] = useState('')
 
-  const fmtBlk = (t: string) => {
-    const [h, m] = t.slice(0, 5).split(':').map(Number)
+  const fmtBlk = (tm: string) => {
+    const [h, m] = tm.slice(0, 5).split(':').map(Number)
     const ap = h >= 12 ? 'PM' : 'AM'
     const hh = h % 12 === 0 ? 12 : h % 12
     return `${hh}:${String(m).padStart(2, '0')} ${ap}`
@@ -405,7 +420,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         setBlocks(prev => prev.filter(b => b.id !== viewingBlock.id))
         setViewingBlock(null)
       } else {
-        setUnblockErr(data.error || 'Failed to remove block')
+        setUnblockErr(data.error || t('admin.booking.err.removeBlock'))
       }
     } finally { setUnblocking(false) }
   }
@@ -429,7 +444,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   async function saveBlockEdit() {
     if (!viewingBlock || savingBlock) return
-    if (!editAllDay && (!editStart || !editEnd || editStart >= editEnd)) { setUnblockErr('Please select a valid time range'); return }
+    if (!editAllDay && (!editStart || !editEnd || editStart >= editEnd)) { setUnblockErr(t('admin.booking.err.timeRange')); return }
     setSavingBlock(true); setUnblockErr('')
     try {
       const res = await fetch('/api/admin/time-off', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: viewingBlock.id, all_day: editAllDay, start_time: editStart, end_time: editEnd, reason: editReason }) })
@@ -439,7 +454,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         setEditingBlock(false)
         setViewingBlock(null)
       } else {
-        setUnblockErr(data.error || 'Failed to update block')
+        setUnblockErr(data.error || t('admin.booking.err.updateBlock'))
       }
     } finally { setSavingBlock(false) }
   }
@@ -468,7 +483,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   async function handleCreateBlock() {
     if (!selectedSlot) return
     if (!blockAllDay && (!blockStart || !blockEnd || blockStart >= blockEnd)) {
-      setBlockError('Please select a valid time range')
+      setBlockError(t('admin.booking.err.timeRange'))
       return
     }
     setBlockSaving(true)
@@ -487,7 +502,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setBlockError(data.error || 'Failed to create block')
+      setBlockError(data.error || t('admin.booking.err.createBlock'))
       setBlockSaving(false)
       return
     }
@@ -497,7 +512,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   }
 
   async function fetchRecurPreview(skips: string[]) {
-    if (!selectedSlot || !formCourse || !formStudent) { setError('Please select a course type and student first'); return }
+    if (!selectedSlot || !formCourse || !formStudent) { setError(t('admin.booking.err.pickCourseStudentFirst')); return }
     setRecurLoading(true)
     setError('')
     try {
@@ -517,16 +532,16 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Preview failed'); setRecurPreview(null) }
+      if (!res.ok) { setError(data.error || t('admin.booking.err.previewFailed')); setRecurPreview(null) }
       else setRecurPreview(data)
-    } catch { setError('Preview failed, please try again') }
+    } catch { setError(t('admin.booking.err.previewRetry')) }
     setRecurLoading(false)
   }
 
   async function handleRecurCommit() {
     if (!selectedSlot || !recurPreview) return
     const okDates = recurPreview.candidates.filter(c => c.status === 'ok').map(c => c.date)
-    if (okDates.length === 0) { setError('No bookable dates'); return }
+    if (okDates.length === 0) { setError(t('admin.booking.err.noBookableDates')); return }
     setSaving(true)
     setError('')
     try {
@@ -544,13 +559,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Creation failed') }
+      if (!res.ok) { setError(data.error || t('admin.booking.err.createFailed')) }
       else {
-        setSuccess(`Created ${okDates.length} lessons!`)
+        setSuccess(t('admin.booking.ok.createdN', { n: okDates.length }))
         await loadSessions()
         setTimeout(() => { setModal(null); setSuccess(''); setRecurPreview(null) }, 1500)
       }
-    } catch { setError('Creation failed, please try again') }
+    } catch { setError(t('admin.booking.err.createRetry')) }
     setSaving(false)
   }
 
@@ -600,7 +615,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     })
     const data = await res.json()
     setDragMoving(false)
-    if (!res.ok) { setDragMoveError(data.error || 'Reschedule failed'); return }
+    if (!res.ok) { setDragMoveError(data.error || t('admin.booking.err.rescheduleFailed')); return }
     setDragMove(null)
     loadSessions()
   }
@@ -718,11 +733,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     const is1on2 = ct?.slug === '1on2'
 
     if (!formStudent || !formCourse || !selectedSlot) {
-      setError('Please select a student and course type')
+      setError(t('admin.booking.err.pickStudentCourse'))
       return
     }
     if (is1on2 && !formStudent2) {
-      setError('1-on-2 lessons require two students')
+      setError(t('admin.booking.err.needTwo'))
       return
     }
     setSaving(true)
@@ -752,17 +767,17 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to create booking')
+        setError(data.error || t('admin.booking.err.createBooking'))
         setSaving(false)
         return
       }
     } catch (e: any) {
-      setError('Failed to create booking: ' + (e?.message || 'please try again'))
+      setError(t('admin.booking.err.createBookingWith', { msg: e?.message || t('admin.booking.err.tryAgain') }))
       setSaving(false)
       return
     }
 
-    setSuccess('Booking created!')
+    setSuccess(t('admin.booking.ok.booked'))
     await loadSessions()
     setTimeout(() => { setModal(null); setSuccess('') }, 1500)
     setSaving(false)
@@ -770,7 +785,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   async function handleTrialBook() {
     if (!formStudent || !selectedSlot) {
-      setError('Please select a student')
+      setError(t('admin.booking.err.pickStudent'))
       return
     }
     setTrialSaving(true)
@@ -790,21 +805,21 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to create assessment payment link')
+        setError(data.error || t('admin.booking.err.payLink'))
         setTrialSaving(false)
         return
       }
       setTrialUrl(data.url)
       await loadSessions()
     } catch (e: any) {
-      setError('Failed to create assessment payment link: ' + e.message)
+      setError(t('admin.booking.err.payLinkWith', { msg: String(e?.message) }))
     }
     setTrialSaving(false)
   }
 
   async function handleTrialCreditBook() {
     if (!formStudent || !selectedSlot) {
-      setError('Please select a student')
+      setError(t('admin.booking.err.pickStudent'))
       return
     }
     setSaving(true)
@@ -822,16 +837,16 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to create booking')
+        setError(data.error || t('admin.booking.err.createBooking'))
         setSaving(false)
         return
       }
     } catch (e: any) {
-      setError('Failed to create booking: ' + e.message)
+      setError(t('admin.booking.err.createBookingWith', { msg: String(e?.message) }))
       setSaving(false)
       return
     }
-    setSuccess('Booked using the prepaid single lesson!')
+    setSuccess(t('admin.booking.ok.prepaidBooked'))
     await loadSessions()
     setTimeout(() => { setModal(null); setSuccess('') }, 1500)
     setSaving(false)
@@ -875,22 +890,22 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const currentMonth = anchor.getMonth()
 
   const headerLabel = view === 'month'
-    ? `${anchor.getFullYear()} ${MONTH_NAMES[anchor.getMonth()]}`
-    : anchor.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+    ? t('admin.booking.yearMonth', { year: anchor.getFullYear(), month: monthShort(anchor, locale) })
+    : anchor.toLocaleDateString(dateTag(locale, 'en-US'), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
   return (
     <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
-          Booking Calendar
+          {t('admin.booking.title')}
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex rounded-lg overflow-hidden border border-white/20">
             {(['month', 'day'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-4 min-h-11 text-sm transition-colors ${view === v ? 'bg-[#c9a84c] text-[#0d1529] font-semibold' : 'text-white/60 hover:text-white'}`}>
-                {v === 'month' ? 'Month' : 'Day'}
+                {v === 'month' ? t('admin.booking.view.month') : t('admin.booking.view.day')}
               </button>
             ))}
           </div>
@@ -898,21 +913,21 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             {/* These two arrows are the only way to leave the current month, and at
                 18x30 they were the smallest controls on the page. Same fix already
                 applied to the parent-facing booking calendar. */}
-            <button onClick={() => navigate(-1)} aria-label="Previous"
+            <button onClick={() => navigate(-1)} aria-label={t('admin.booking.prev')}
               className="w-11 h-11 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">‹</button>
             <span className="text-sm text-white/80 min-w-[150px] sm:min-w-[200px] text-center">{headerLabel}</span>
-            <button onClick={() => navigate(1)} aria-label="Next"
+            <button onClick={() => navigate(1)} aria-label={t('admin.booking.next')}
               className="w-11 h-11 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white text-lg leading-none transition-colors">›</button>
             <button
               onClick={() => {
-                const t = new Date()
-                setAnchor(new Date(t.getFullYear(), t.getMonth(), t.getDate()))
+                const now = new Date()
+                setAnchor(new Date(now.getFullYear(), now.getMonth(), now.getDate()))
                 setView('month')
               }}
               className="px-3 min-h-11 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-            >Today</button>
+            >{t('admin.booking.today')}</button>
           </div>
-          {loading && <span className="text-xs text-white/40 animate-pulse">Loading...</span>}
+          {loading && <span className="text-xs text-white/40 animate-pulse">{t('admin.booking.loading')}</span>}
         </div>
       </div>
 
@@ -957,23 +972,23 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           onClick={(e) => { if (e.target === e.currentTarget && !dragMoving) setDragMove(null) }}>
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl p-6">
-            <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>Confirm Reschedule</h2>
+            <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>{t('admin.booking.move.confirm')}</h2>
             <div className="rounded-lg bg-[#111d38] p-4 mb-4 space-y-1.5">
               <p className="text-sm text-white font-medium">{dragMove.student_names} · {dragMove.course_name}</p>
               <p className="text-xs text-white/50">{dragMove.from_date} {formatTime12h(dragMove.from_time)} → {dragMove.to_date} {formatTime12h(dragMove.to_time)}</p>
-              <p className="text-xs text-white/50">New coach: {(() => { const c = coaches.find(cc => cc.id === dragMove.to_coach_id); return c ? c.first_name + ' ' + c.last_name : '' })()}</p>
-              <p className="text-xs text-white/40 pt-1">The whole session moves together; on confirm, reschedule notices are emailed to all affected parents. Credits carry over unchanged.</p>
+              <p className="text-xs text-white/50">{t('admin.booking.move.newCoach', { name: (() => { const c = coaches.find(cc => cc.id === dragMove.to_coach_id); return c ? c.first_name + ' ' + c.last_name : '' })() })}</p>
+              <p className="text-xs text-white/40 pt-1">{t('admin.booking.move.note')}</p>
             </div>
             {dragMoveError && <p className="text-xs text-red-300 mb-3">{dragMoveError}</p>}
             <div className="flex gap-3">
               <button onClick={confirmDragMove} disabled={dragMoving}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
                 style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
-                {dragMoving ? 'Working...' : 'Confirm Reschedule'}
+                {dragMoving ? t('admin.booking.working') : t('admin.booking.move.confirm')}
               </button>
               <button onClick={() => setDragMove(null)} disabled={dragMoving}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-sm text-white disabled:opacity-50">
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -987,11 +1002,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
             <div className="p-6 border-b border-white/10 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>New Booking</h2>
+                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>{t('admin.booking.book.title')}</h2>
                 <p className="text-sm text-white/50 mt-1">
-                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}
+                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'long', day: 'numeric', weekday: 'long' })}
                   {' · '}{formatTime(selectedSlot.time)}
-                  {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
+                  {' · '}{t('admin.coachName', { name: coaches.find(c => c.id === selectedSlot.coachId)?.first_name ?? '' })}
                 </p>
               </div>
               <button onClick={() => setModal(null)} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
@@ -999,7 +1014,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             <div className="p-6 space-y-4">
               {trialUrl ? (
                 <div className="space-y-3">
-                  <p className="text-sm text-white/60">Payment link created — copy it and send it to the parent:</p>
+                  <p className="text-sm text-white/60">{t('admin.booking.trial.linkCreated')}</p>
                   <div className="flex gap-2">
                     <input readOnly value={trialUrl}
                       className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
@@ -1010,21 +1025,21 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                         setTimeout(() => setTrialCopied(false), 1500)
                       }}
                       className="px-3 py-2 rounded-lg bg-[#c9a84c] text-[#0d1529] text-xs font-semibold min-w-[64px]">
-                      {trialCopied ? 'Copied ✓' : 'Copy'}
+                      {trialCopied ? t('admin.booking.copied') : t('admin.booking.copy')}
                     </button>
                   </div>
-                  <p className="text-xs text-white/30">The booking auto-confirms once payment completes; the slot is released automatically if the link expires.</p>
+                  <p className="text-xs text-white/30">{t('admin.booking.trial.autoConfirm')}</p>
                 </div>
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => { setBookMode('single'); setRecurPreview(null) }}
                       className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'single' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
-                      Single Booking
+                      {t('admin.booking.mode.single')}
                     </button>
                     <button onClick={() => { setBookMode('recurring'); setIsTrial(false) }}
                       className={`px-3 py-2 rounded-lg border text-sm transition-all ${bookMode === 'recurring' ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]' : 'border-white/10 text-white/60 hover:border-white/30'}`}>
-                      Recurring (weekly, same time)
+                      {t('admin.booking.mode.recurring')}
                     </button>
                     <button onClick={() => {
                         setBlockAllDay(false)
@@ -1035,7 +1050,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                         setModal('block')
                       }}
                       className="col-span-2 px-3 py-2 rounded-lg border text-sm transition-all border-white/10 text-white/60 hover:border-red-400/50 hover:text-red-300">
-                      🚫 Block this coach slot (not bookable by parents)
+                      {t('admin.booking.blockSlotBtn')}
                     </button>
                   </div>
                   {bookMode === 'single' && <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5">
@@ -1050,11 +1065,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       }}
                       className="w-4 h-4" />
                     <label htmlFor="isTrialCheckbox" className="text-sm text-white/80 cursor-pointer">
-                      Swim Assessment ({'$'}{TRIAL_PRICE_CENTS / 100}, 1-on-1 only, parent pays online)
+                      {t('admin.booking.trial.checkbox', { price: TRIAL_PRICE_CENTS / 100 })}
                     </label>
                   </div>}
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">Course type</label>
+                    <label className="block text-sm text-white/60 mb-2">{t('admin.booking.courseType')}</label>
                     <div className="grid grid-cols-2 gap-2">
                       {courseTypes.map(ct => (
                         <button key={ct.id}
@@ -1065,75 +1080,75 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                               ? 'border-[#c9a84c] bg-[#c9a84c]/10 text-[#c9a84c]'
                               : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
                           } ${(isTrial && ct.slug !== '1on1') || (lockedSlug && ct.slug !== lockedSlug) ? 'opacity-30 cursor-not-allowed' : ''}`}>
-                          <span className="block font-medium">{ct.name}</span>
-                          <span className="block text-xs opacity-60 mt-0.5">{ct.duration_minutes} min · up to {ct.max_students} students</span>
+                          <span className="block font-medium">{tDb(locale, 'course_types', ct.id, ct.name)}</span>
+                          <span className="block text-xs opacity-60 mt-0.5">{t('admin.booking.courseMeta', { n: ct.duration_minutes, max: ct.max_students })}</span>
                         </button>
                       ))}
                     </div>
                   </div>
                   {!isTrial && courseTypes.find(c => c.id === formCourse)?.slug === '1on1' && (
                     <div className="flex items-center flex-wrap gap-2 text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2">
-                      <span className="text-white/50">Lesson length</span>
+                      <span className="text-white/50">{t('admin.booking.lessonLength')}</span>
                       {([30, 60] as const).map(v => (
                         <button key={v} type="button" onClick={() => setHourMode(v === 60)}
                           className={`px-3 py-1 rounded-full border text-[11px] font-semibold transition-colors ${(v === 60) === hourMode ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-white/20 text-white/50 hover:text-white/80'}`}>
-                          {v} min
+                          {t('booking.lenMin', { n: v })}
                         </button>
                       ))}
-                      <span className="text-white/30">One continuous hour · costs twice a half hour</span>
+                      <span className="text-white/30">{t('admin.booking.hourHint')}</span>
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">Select student</label>
+                    <label className="block text-sm text-white/60 mb-2">{t('admin.booking.selectStudent')}</label>
                     <StudentSearch students={students} value={formStudent} onChange={setFormStudent} parentBalances={parentBalances} />
                 {courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && (
                   <div className="mt-2">
-                    <label className="block text-sm text-white/60 mb-2">Select student 2</label>
+                    <label className="block text-sm text-white/60 mb-2">{t('admin.booking.selectStudent2')}</label>
                     <StudentSearch students={students.filter(s => s.id !== formStudent)} value={formStudent2} onChange={setFormStudent2} parentBalances={parentBalances} />
                   </div>
                 )}
                     {isTrial && trialCreditStatus === 'available' && (
-                      <p className="text-xs text-[#c9a84c] mt-2">✓ This student has a paid, unused single assessment — book directly, no extra payment needed</p>
+                      <p className="text-xs text-[#c9a84c] mt-2">{t('admin.booking.trial.creditAvailable')}</p>
                     )}
                     {isTrial && trialCreditStatus === 'active' && (
-                      <p className="text-xs text-red-400 mt-2">This student already has an active single-lesson booking. Cancel it first to rebook.</p>
+                      <p className="text-xs text-red-400 mt-2">{t('admin.booking.trial.creditActive')}</p>
                     )}
                   </div>
                   {bookMode === 'recurring' && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <label className="text-sm text-white/60">Sessions</label>
+                        <label className="text-sm text-white/60">{t('admin.booking.recur.sessions')}</label>
                         <input type="number" min={1} max={50} value={recurCount}
                           onChange={(e) => { setRecurCount(Math.max(1, Math.min(50, Number(e.target.value) || 1))); setRecurPreview(null) }}
                           className="w-20 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm" />
                         <button onClick={() => fetchRecurPreview(recurSkips)} disabled={recurLoading}
                           className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm hover:bg-white/15 disabled:opacity-50">
-                          {recurLoading ? 'Calculating...' : 'Generate date preview'}
+                          {recurLoading ? t('admin.booking.recur.calculating') : t('admin.booking.recur.generate')}
                         </button>
                       </div>
                       {recurPreview && (
                         <div className="border border-white/10 rounded-lg overflow-hidden">
                           <div className="max-h-56 overflow-y-auto divide-y divide-white/5">
                             {recurPreview.candidates.map((c, idx) => {
-                              const label = c.status === 'ok' ? '✓ Available'
-                                : c.status === 'past' ? 'Past'
-                                : c.status === 'coach_time_off' ? 'Coach time off'
-                                : c.status === 'conflict' ? 'Time conflict'
-                                : c.status === 'full' ? 'Full'
-                                : 'Skipped'
+                              const label = c.status === 'ok' ? t('admin.booking.recur.status.ok')
+                                : c.status === 'past' ? t('admin.booking.recur.status.past')
+                                : c.status === 'coach_time_off' ? t('admin.booking.recur.status.timeOff')
+                                : c.status === 'conflict' ? t('admin.booking.recur.status.conflict')
+                                : c.status === 'full' ? t('admin.booking.recur.status.full')
+                                : t('admin.booking.recur.status.skipped')
                               const okIndex = recurPreview.candidates.slice(0, idx + 1).filter(x => x.status === 'ok').length
                               return (
                                 <div key={c.date} className="flex items-center justify-between px-3 py-2 text-sm">
                                   <span className={c.status === 'ok' ? 'text-white' : 'text-white/35'}>
-                                    {c.status === 'ok' ? `Lesson ${okIndex} · ` : ''}
-                                    {new Date(c.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', weekday: 'short' })}
+                                    {c.status === 'ok' ? t('admin.booking.recur.lessonN', { n: okIndex }) + ' · ' : ''}
+                                    {new Date(c.date + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'numeric', day: 'numeric', weekday: 'short' })}
                                   </span>
                                   <span className="flex items-center gap-2">
                                     <span className={`text-xs ${c.status === 'ok' ? 'text-green-400' : c.status === 'skipped' ? 'text-white/40' : 'text-amber-400'}`}>{label}</span>
                                     {(c.status === 'ok' || c.status === 'skipped') && (
                                       <button onClick={() => toggleRecurSkip(c.date)} disabled={recurLoading}
                                         className="text-xs px-2 py-1 rounded border border-white/15 text-white/50 hover:text-white hover:border-white/40">
-                                        {c.status === 'skipped' ? 'Restore' : 'Skip'}
+                                        {c.status === 'skipped' ? t('admin.booking.recur.restore') : t('admin.booking.recur.skip')}
                                       </button>
                                     )}
                                   </span>
@@ -1145,11 +1160,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                             {(() => {
                               const cr = recurPreview.points
                               if (!cr) return null
-                              const n1 = cr.parent1_name || 'Parent 1'
-                              const n2 = cr.parent2_name || 'Parent 2'
-                              const p1 = `${n1} has ${(cr.parent1_balance ?? 0).toLocaleString()} pts (needs ${(cr.parent1_needed ?? 0).toLocaleString()})`
-                              const p2 = cr.parent2_needed != null ? ` · ${n2} has ${(cr.parent2_balance ?? 0).toLocaleString()} pts (needs ${(cr.parent2_needed ?? 0).toLocaleString()})` : ''
-                              return (cr.sufficient ? '✓ ' : '⚠ Not enough points · ') + p1 + p2
+                              const n1 = cr.parent1_name || t('admin.booking.recur.parentN', { n: 1 })
+                              const n2 = cr.parent2_name || t('admin.booking.recur.parentN', { n: 2 })
+                              const p1 = t('admin.booking.recur.hasNeeds', { name: n1, have: (cr.parent1_balance ?? 0).toLocaleString(), need: (cr.parent1_needed ?? 0).toLocaleString() })
+                              const p2 = cr.parent2_needed != null ? ' · ' + t('admin.booking.recur.hasNeeds', { name: n2, have: (cr.parent2_balance ?? 0).toLocaleString(), need: (cr.parent2_needed ?? 0).toLocaleString() }) : ''
+                              return (cr.sufficient ? '✓ ' : t('admin.booking.recur.notEnough') + ' · ') + p1 + p2
                             })()}
                           </div>
                         </div>
@@ -1157,7 +1172,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                     </div>
                   )}
                   {(() => { const st = students.find(s => s.id === formStudent); return st && st.current_level == null && !isTrial ? (
-                    <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">⚠️ This student has not completed the Swim Assessment (no level assigned). Admins may still book directly, but please confirm you want to schedule this lesson without an assessment.</p>
+                    <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">{t('admin.booking.noAssessmentWarn')}</p>
                   ) : null })()}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
@@ -1166,7 +1181,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             </div>
             <div className="p-6 pt-0 flex gap-3">
               <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">
-                {trialUrl ? 'Done' : 'Cancel'}
+                {trialUrl ? t('admin.booking.done') : t('common.cancel')}
               </button>
               {!trialUrl && (
                 <button
@@ -1174,12 +1189,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.points?.sufficient || recurLoading))}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                   {bookMode === 'recurring'
-                    ? (saving ? 'Creating...' : recurPreview ? `Confirm ${recurPreview.candidates.filter(c => c.status === 'ok').length} lessons` : 'Generate the date preview first')
+                    ? (saving ? t('admin.booking.creating') : recurPreview ? t('admin.booking.recur.confirmN', { n: recurPreview.candidates.filter(c => c.status === 'ok').length }) : t('admin.booking.recur.previewFirst'))
                     : isTrial
                     ? (trialCreditStatus === 'available'
-                        ? (saving ? 'Creating...' : 'Use prepaid single lesson')
-                        : (trialSaving ? 'Creating payment link...' : 'Create payment link'))
-                    : (saving ? 'Creating...' : 'Confirm Booking')}
+                        ? (saving ? t('admin.booking.creating') : t('admin.booking.trial.usePrepaid'))
+                        : (trialSaving ? t('admin.booking.trial.creatingLink') : t('admin.booking.trial.createLink')))
+                    : (saving ? t('admin.booking.creating') : t('admin.booking.confirmBooking'))}
                 </button>
               )}
             </div>
@@ -1194,10 +1209,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-md shadow-2xl">
             <div className="p-6 border-b border-white/10 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>Block Time Slot</h2>
+                <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>{t('admin.booking.block.title')}</h2>
                 <p className="text-sm text-white/50 mt-1">
-                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}
-                  {' · '}Coach {coaches.find(c => c.id === selectedSlot.coachId)?.first_name}
+                  {new Date(selectedSlot.date + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'long', day: 'numeric', weekday: 'long' })}
+                  {' · '}{t('admin.coachName', { name: coaches.find(c => c.id === selectedSlot.coachId)?.first_name ?? '' })}
                 </p>
               </div>
               <button onClick={() => setModal(null)} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
@@ -1205,12 +1220,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             <div className="p-6 space-y-4">
               <label className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5 cursor-pointer">
                 <input type="checkbox" checked={blockAllDay} onChange={e => setBlockAllDay(e.target.checked)} className="w-4 h-4" />
-                <span className="text-sm text-white/80">Block all day</span>
+                <span className="text-sm text-white/80">{t('admin.booking.block.allDay')}</span>
               </label>
               {!blockAllDay && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">Start</label>
+                    <label className="block text-sm text-white/60 mb-2">{t('admin.booking.block.start')}</label>
                     <select value={blockStart}
                       onChange={e => {
                         const v = e.target.value
@@ -1218,37 +1233,37 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                         if (blockEnd <= v) setBlockEnd(minutesToTime(timeToMinutes(v) + SLOT_MINUTES))
                       }}
                       className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-                      {TIME_SLOTS.map(t => (
-                        <option key={t} value={t}>{formatTime(t)}</option>
+                      {TIME_SLOTS.map(tm => (
+                        <option key={tm} value={tm}>{formatTime(tm)}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-white/60 mb-2">End</label>
+                    <label className="block text-sm text-white/60 mb-2">{t('admin.booking.block.end')}</label>
                     <select value={blockEnd} onChange={e => setBlockEnd(e.target.value)}
                       className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-                      {[...TIME_SLOTS.slice(1), minutesToTime(WORK_END * 60)].filter(t => t > blockStart).map(t => (
-                        <option key={t} value={t}>{formatTime(t)}</option>
+                      {[...TIME_SLOTS.slice(1), minutesToTime(WORK_END * 60)].filter(tm => tm > blockStart).map(tm => (
+                        <option key={tm} value={tm}>{formatTime(tm)}</option>
                       ))}
                     </select>
                   </div>
                 </div>
               )}
               <div>
-                <label className="block text-sm text-white/60 mb-2">Reason (optional)</label>
+                <label className="block text-sm text-white/60 mb-2">{t('admin.booking.block.reasonOptional')}</label>
                 <textarea value={blockReason} onChange={e => setBlockReason(e.target.value)} rows={2}
-                  placeholder="e.g. Facility maintenance, private event..."
+                  placeholder={t('admin.booking.block.reasonPlaceholder')}
                   className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c] resize-none placeholder-white/20" />
               </div>
-              <p className="text-xs text-white/30">Once blocked, parents cannot book this window (booking page, cart, AI assistant). Existing confirmed lessons are unaffected; admins can still schedule manually.</p>
+              <p className="text-xs text-white/30">{t('admin.booking.block.note')}</p>
               {blockError && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{blockError}</p>}
             </div>
             <div className="p-6 pt-0 flex gap-3">
-              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">Cancel</button>
+              <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-lg border border-white/20 text-white/60 hover:text-white transition-colors text-sm">{t('common.cancel')}</button>
               <button onClick={handleCreateBlock} disabled={blockSaving}
                 className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50"
                 style={{ backgroundColor: '#ef4444', color: '#fff' }}>
-                {blockSaving ? 'Blocking...' : 'Confirm Block'}
+                {blockSaving ? t('admin.booking.block.blocking') : t('admin.booking.block.confirm')}
               </button>
             </div>
           </div>
@@ -1271,41 +1286,41 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           onClick={() => { if (!unblocking) setViewingBlock(null) }}>
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-semibold" style={{ fontFamily: 'Playfair Display, serif' }}>
-              {viewingBlock.block_type === 'admin_block' ? 'Blocked Slot' : 'Coach Time Off'}
+              {viewingBlock.block_type === 'admin_block' ? t('admin.booking.block.blockedSlot') : t('admin.booking.block.coachTimeOff')}
             </h2>
             <div className="space-y-1 text-sm text-white/80">
-              <p>{new Date(viewingBlock.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}</p>
-              <p>{viewingBlock.start_time == null ? 'All day' : `${fmtBlk(viewingBlock.start_time)} – ${fmtBlk(viewingBlock.end_time || '')}`}</p>
-              {viewingBlock.reason && <p className="text-white/60">Reason: {viewingBlock.reason}</p>}
+              <p>{new Date(viewingBlock.date + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'long', day: 'numeric', weekday: 'long' })}</p>
+              <p>{viewingBlock.start_time == null ? t('admin.booking.block.allDayText') : `${fmtBlk(viewingBlock.start_time)} – ${fmtBlk(viewingBlock.end_time || '')}`}</p>
+              {viewingBlock.reason && <p className="text-white/60">{t('admin.booking.block.reason', { reason: viewingBlock.reason })}</p>}
             </div>
             {viewingBlock.block_type === 'admin_block' ? (
               editingBlock ? (
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5 cursor-pointer">
                     <input type="checkbox" checked={editAllDay} onChange={e => setEditAllDay(e.target.checked)} className="w-4 h-4" />
-                    <span className="text-sm text-white/80">Block all day</span>
+                    <span className="text-sm text-white/80">{t('admin.booking.block.allDay')}</span>
                   </label>
                   {!editAllDay && (
                     <div className="grid grid-cols-2 gap-3">
                       <select value={editStart} onChange={e => { const v = e.target.value; setEditStart(v); if (editEnd <= v) setEditEnd(minutesToTime(timeToMinutes(v) + SLOT_MINUTES)) }}
                         className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm">
-                        {TIME_SLOTS.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+                        {TIME_SLOTS.map(tm => <option key={tm} value={tm}>{formatTime(tm)}</option>)}
                       </select>
                       <select value={editEnd} onChange={e => setEditEnd(e.target.value)}
                         className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm">
-                        {[...TIME_SLOTS.slice(1), minutesToTime(WORK_END * 60)].filter(t => t > editStart).map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+                        {[...TIME_SLOTS.slice(1), minutesToTime(WORK_END * 60)].filter(tm => tm > editStart).map(tm => <option key={tm} value={tm}>{formatTime(tm)}</option>)}
                       </select>
                     </div>
                   )}
-                  <textarea value={editReason} onChange={e => setEditReason(e.target.value)} rows={2} placeholder="Reason (optional)"
+                  <textarea value={editReason} onChange={e => setEditReason(e.target.value)} rows={2} placeholder={t('admin.booking.block.reasonOptional')}
                     className="w-full bg-[#0d1529] border border-white/10 rounded-lg px-3 py-2 text-white text-sm resize-none placeholder-white/20" />
                   {unblockErr && <p className="text-red-400 text-xs">{unblockErr}</p>}
                   <div className="flex gap-3">
                     <button onClick={() => { setEditingBlock(false); setUnblockErr('') }} disabled={savingBlock}
-                      className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">Back</button>
+                      className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">{t('admin.booking.back')}</button>
                     <button onClick={saveBlockEdit} disabled={savingBlock}
                       className="flex-1 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-all"
-                      style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>{savingBlock ? 'Saving...' : 'Save Changes'}</button>
+                      style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>{savingBlock ? t('admin.booking.saving') : t('admin.booking.saveChanges')}</button>
                   </div>
                 </div>
               ) : (
@@ -1313,20 +1328,20 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                 {unblockErr && <p className="text-red-400 text-xs">{unblockErr}</p>}
                 <div className="flex gap-3">
                   <button onClick={() => setViewingBlock(null)} disabled={unblocking}
-                    className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">Close</button>
+                    className="flex-1 py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all disabled:opacity-50">{t('common.close')}</button>
                   <button onClick={startEditBlock} disabled={unblocking}
-                    className="flex-1 py-2.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 text-sm transition-all disabled:opacity-50">Edit</button>
+                    className="flex-1 py-2.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 text-sm transition-all disabled:opacity-50">{t('admin.booking.edit')}</button>
                   <button onClick={removeViewingBlock} disabled={unblocking}
                     className="flex-1 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50 transition-all"
-                    style={{ backgroundColor: '#ef4444', color: '#fff' }}>{unblocking ? 'Removing...' : 'Remove Block'}</button>
+                    style={{ backgroundColor: '#ef4444', color: '#fff' }}>{unblocking ? t('admin.booking.block.removing') : t('admin.booking.block.remove')}</button>
                 </div>
               </>
               )
             ) : (
               <>
-                <p className="text-xs text-white/40">Coach time off is created by the coach; to adjust or remove it, use the Time Off page.</p>
+                <p className="text-xs text-white/40">{t('admin.booking.block.timeOffNote')}</p>
                 <button onClick={() => setViewingBlock(null)}
-                  className="w-full py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all">Close</button>
+                  className="w-full py-2.5 rounded-lg border border-white/15 text-gray-300 hover:border-white/30 text-sm transition-all">{t('common.close')}</button>
               </>
             )}
           </div>
@@ -1346,10 +1361,12 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
   getSessionsOnDate: (date: string) => Session[]
   onDayClick: (date: Date) => void
 }) {
+  const t = useT()
+  const locale = useLocale()
   return (
     <div>
       <div className="grid grid-cols-7 mb-1">
-        {WEEKDAY_HEADERS.map((d, di) => (
+        {weekdayHeaders(locale).map((d, di) => (
           <div key={di} className="text-center text-xs text-white/30 py-2 font-medium">{d}</div>
         ))}
       </div>
@@ -1386,7 +1403,7 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                     </div>
                   )
                 })}
-                {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">+{daySessions.filter(s => s.enrolled_count > 0).length - 3} more</p>}
+                {daySessions.filter(s => s.enrolled_count > 0).length > 3 && <p className="text-[9px] text-white/30 pl-1">{t('admin.booking.moreN', { n: daySessions.filter(s => s.enrolled_count > 0).length - 3 })}</p>}
               </div>
             </button>
           )
@@ -1457,6 +1474,8 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
   onBookingDrop: (payload: any, date: string, time: string, coachId: string) => void
   crossAccountSessionIds: Set<string>
 }) {
+  const t = useT()
+  const locale = useLocale()
   const ds = toDateStr(date)
   const [overKey, setOverKey] = useState<string | null>(null)
   const [zoneMap, setZoneMap] = useState<Record<string, any[] | null>>({})
@@ -1471,6 +1490,10 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
       .catch(() => {})
     return () => { alive = false }
   }, [ds])
+  // Swim Team tier names come from the database; route them through tDb so
+  // they follow the admin's language. 'Team' when the tier is unknown.
+  const tierLabel = (id: string | null | undefined): string =>
+    id && tierNames[id] ? tDb(locale, 'team_tiers', id, tierNames[id]) : t('admin.booking.team')
   return (
     <div className="relative">
       <NowLine ds={ds} />
@@ -1485,7 +1508,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
           <div className="h-14" />
           {coaches.map(coach => (
             <div key={coach.id} className="h-14 flex flex-col items-center justify-center border-l border-white/5">
-              <span className="text-sm font-semibold text-white/80">{coach.first_name}{ovrMap[coach.id] && <span title="Schedule modified for this date (zone override)" className="ml-1.5 rounded-full border border-purple-400/50 bg-purple-400/10 px-1.5 py-0.5 text-[9px] font-bold text-purple-300 align-middle">Modified</span>}</span>
+              <span className="text-sm font-semibold text-white/80">{coach.first_name}{ovrMap[coach.id] && <span title={t('admin.booking.modifiedTitle')} className="ml-1.5 rounded-full border border-purple-400/50 bg-purple-400/10 px-1.5 py-0.5 text-[9px] font-bold text-purple-300 align-middle">{t('admin.booking.modified')}</span>}</span>
               <span className="text-xs text-white/30">{coach.last_name}</span>
             </div>
           ))}
@@ -1547,8 +1570,8 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                     const fill = z ? zoneFill(z, tierOrder) : null
                     if (!fill) return null
                     const zoneLabel = z.zone_type === 'team'
-                      ? (String(z.start_time).slice(0, 5) === time ? ((z.team_tier_id && tierNames[z.team_tier_id]) || 'Team') : null)
-                      : (z.group_level_min != null ? `L${bandRange(z.group_level_min, z.group_level_max ?? z.group_level_min)} Group` : 'Group')
+                      ? (String(z.start_time).slice(0, 5) === time ? tierLabel(z.team_tier_id) : null)
+                      : (z.group_level_min != null ? t('admin.booking.groupBand', { range: bandRange(z.group_level_min, z.group_level_max ?? z.group_level_min) }) : t('admin.booking.group'))
                     return (
                       <>
                         <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 0 ${((Math.max(timeToMinutes(String(z.start_time).slice(0, 5)), cs) - cs) / Math.max(1, ce - cs)) * 100}%, ${fill}2b ${((Math.max(timeToMinutes(String(z.start_time).slice(0, 5)), cs) - cs) / Math.max(1, ce - cs)) * 100}% ${((Math.min(timeToMinutes(String(z.end_time).slice(0, 5)), ce) - cs) / Math.max(1, ce - cs)) * 100}%, transparent ${((Math.min(timeToMinutes(String(z.end_time).slice(0, 5)), ce) - cs) / Math.max(1, ce - cs)) * 100}% 100%)` }} />
@@ -1560,11 +1583,11 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                   })()}
                   {teamStartsHere && teamIv && (
                     <div
-                      title={`${tierNames[teamIv.team_tier_id] || 'Team'} practice ${String(teamIv.start_time).slice(0, 5)}–${String(teamIv.end_time).slice(0, 5)}`}
+                      title={t('admin.booking.teamPractice', { name: tierLabel(teamIv.team_tier_id), start: String(teamIv.start_time).slice(0, 5), end: String(teamIv.end_time).slice(0, 5) })}
                       className="absolute left-0.5 right-0.5 z-[3] rounded text-left flex flex-col items-start justify-start"
                       style={{ top: teamTop, height: Math.max(0, teamH - 2), backgroundColor: teamColor + '3d', border: `1px dashed ${teamColor}aa` }}>
                       <span className="block text-[10px] font-bold px-1.5 pt-0.5" style={{ color: teamColor }}>
-                        {tierNames[teamIv.team_tier_id] || 'Team'} · {formatTime(String(teamIv.start_time).slice(0, 5))}
+                        {tierLabel(teamIv.team_tier_id)} · {formatTime(String(teamIv.start_time).slice(0, 5))}
                       </span>
                     </div>
                   )}
@@ -1572,7 +1595,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                     <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} spanPx={hourSpanPx} />
                   ) : covered ? (
                     <button onClick={() => onSessionClick(covered)}
-                      title="Part of a 60-minute lesson"
+                      title={t('admin.booking.hourPart')}
                       className="absolute inset-0 cursor-pointer" />
                   ) : teamIv ? null : available ? (
                     <button onClick={() => onSlotClick(ds, time, coach.id, (zoneMap[coach.id] || []).find((zz: any) => zz.zone_type === 'group' && timeToMinutes(String(zz.start_time).slice(0, 5)) <= timeToMinutes(time) && timeToMinutes(time) < timeToMinutes(String(zz.end_time).slice(0, 5))) ? '1on4' : undefined)}
@@ -1587,7 +1610,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                       }}
                       className={`absolute inset-0 transition-colors group flex items-center justify-center ${overKey === `${coach.id}-${time}` ? 'bg-[#c9a84c]/20 ring-2 ring-[#c9a84c] ring-inset' : 'hover:bg-[#c9a84c]/10'}`}>
                       <span className="hidden group-hover:flex items-center gap-1 text-xs text-[#c9a84c]">
-                        <span className="text-base leading-none">+</span> Book
+                        <span className="text-base leading-none">+</span> {t('admin.booking.book')}
                       </span>
                     </button>
                   ) : (
@@ -1605,7 +1628,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                             color: blk.block_type === 'admin_block' ? '#f87171' : 'rgba(255,255,255,0.8)',
                             borderColor: blk.block_type === 'admin_block' ? 'rgba(248,113,113,0.5)' : 'rgba(255,255,255,0.3)',
                           }}>
-                          {blk.block_type === 'admin_block' ? '🚫 Blocked' : 'Time off'}{blk.start_time == null ? ' (all day)' : ''}{blk.reason ? ` · ${blk.reason}` : ''}
+                          {(() => { const lbl = blk.block_type === 'admin_block' ? t('admin.booking.blk.blocked') : t('admin.booking.blk.timeOff'); return blk.start_time == null ? t('admin.booking.blk.allDay', { label: lbl }) : lbl })()}{blk.reason ? ` · ${blk.reason}` : ''}
                         </button>
                       )}
                     </>
@@ -1617,7 +1640,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
               <>
                 <div className="flex items-center justify-end pr-3 text-[9px] font-semibold text-white/30 leading-none"
                   style={{ height: STRIP_PX[ri] }}>
-                  {STRIP_MIN[ri] >= 10 ? `${STRIP_MIN[ri]}m` : ''}
+                  {STRIP_MIN[ri] >= 10 ? t('admin.booking.breakMin', { n: STRIP_MIN[ri] }) : ''}
                 </div>
                 {coaches.map(c => (
                   <div key={`strip-${c.id}-${time}`} className="border-l border-white/5"
@@ -1636,8 +1659,11 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
 // Session Chip
 // ══════════════════════════════════════════════════════════════════════
 function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { session: Session; onClick: () => void; isCrossAccount?: boolean; shiftDown?: boolean; spanPx?: number }) {
+  const t = useT()
+  const locale = useLocale()
   if (session.enrolled_count === 0) return null
   const ct = getSessionCourseType(session)
+  const ctName = tDb(locale, 'course_types', session.course_type_id, ct.name)
   const colorClass = COURSE_COLORS[ct.slug] || '#6b7280'
   const isFull = session.enrolled_count >= session.max_students
   const hasTrial = !!session.bookings?.some(b => b.is_trial)
@@ -1660,13 +1686,13 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { 
             student_names: names,
             from_date: session.session_date,
             from_time: session.start_time,
-            course_name: hasTrial ? 'Swim Assessment' : ct.name,
+            course_name: hasTrial ? t('common.assessment') : ctName,
           }))
           e.dataTransfer.effectAllowed = 'move'
         }}
         className={`absolute left-0.5 right-0.5 z-[2] ${spanPx ? '' : 'bottom-0.5'} ${shiftDown ? 'top-8' : 'top-0.5'} rounded flex flex-col items-start justify-start p-1.5 overflow-hidden ${isFull ? 'opacity-50' : ''} ${dragOk ? 'cursor-grab active:cursor-grabbing' : ''}`}
         style={{ backgroundColor: hasTrial ? '#c9a84c' : colorClass, height: spanPx ? spanPx - 4 : undefined }}>
-        <span className="text-sm font-bold leading-tight truncate w-full text-left" style={{ color: hasTrial ? '#1a2744' : '#ffffff' }}>{hasTrial ? 'Swim Assessment' : ct.name}</span>
+        <span className="text-sm font-bold leading-tight truncate w-full text-left" style={{ color: hasTrial ? '#1a2744' : '#ffffff' }}>{hasTrial ? t('common.assessment') : ctName}</span>
         {session.bookings && session.bookings.filter(b => b.status !== 'cancelled' && b.status !== 'pending_partner').map(b => {
           const st = Array.isArray(b.students) ? b.students[0] : b.students
           const pa = Array.isArray(b.parents) ? b.parents[0] : b.parents
@@ -1680,7 +1706,7 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { 
       {isCrossAccount && (
         <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none z-10"
           style={{ backgroundColor: '#6366f1', color: '#fff' }}>
-          Linked
+          {t('booking.linked')}
         </span>
       )}
     </>
@@ -1698,6 +1724,8 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   supabase: ReturnType<typeof createClient>
   onRefresh: () => void
 }) {
+  const t = useT()
+  const locale = useLocale()
   const [bookings, setBookings] = useState<any[]>([])
   const [cancelling, setCancelling] = useState(false)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
@@ -1747,7 +1775,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
     })
     const data = await res.json().catch(() => ({}))
     setAdding(null)
-    if (!res.ok) { setAddError(data.error || 'Add failed'); return }
+    if (!res.ok) { setAddError(data.error || t('admin.booking.err.addFailed')); return }
     setAddQuery('')
     await loadBookings()
     onRefresh()
@@ -1763,7 +1791,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
     })
     const data = await res.json().catch(() => ({} as any))
     setRescheduling(false)
-    if (!res.ok) { setRescheduleError(data.error || 'Reschedule failed'); return }
+    if (!res.ok) { setRescheduleError(data.error || t('admin.booking.err.rescheduleFailed')); return }
     onRefresh(); onClose()
   }
   const ct = getSessionCourseType(session)
@@ -1792,17 +1820,17 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
         body: JSON.stringify({ booking_id: bookingId, mode }),
       })
       const data = await res.json().catch(() => ({} as any))
-      if (!res.ok) { setOneMsg(data.error || 'Cancel failed. Nothing was changed.'); return }
+      if (!res.ok) { setOneMsg(data.error || t('admin.booking.err.cancelOneFailed')); return }
       setOneCancel(null)
       setOneMsg(mode === 'refund'
-        ? `Cancelled. ${data.pointsRefunded || 0} points returned; the parent has been emailed.`
+        ? t('admin.booking.one.doneRefund', { n: data.pointsRefunded || 0 })
         : mode === 'voucher'
-        ? 'Cancelled and turned into a make-up voucher (4 weeks); the parent has been emailed.'
-        : 'Cancelled as a late cancellation. Points kept; the parent has been emailed.')
+        ? t('admin.booking.one.doneVoucher')
+        : t('admin.booking.one.doneKeep'))
       await loadBookings()
       onRefresh()
     } catch {
-      setOneMsg('Could not reach the server. Nothing was changed.')
+      setOneMsg(t('admin.booking.err.unreachable'))
     } finally { setOneBusy(null) }
   }
 
@@ -1824,13 +1852,13 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
       })
     } catch {
       setCancelling(false)
-      setCancelError('Could not reach the server. The lesson has NOT been cancelled.')
+      setCancelError(t('admin.booking.err.unreachableSession'))
       return
     }
     if (!res.ok) {
       const data = await res.json().catch(() => ({} as any))
       setCancelling(false)
-      setCancelError(data.error || 'Cancel failed. The lesson has NOT been cancelled.')
+      setCancelError(data.error || t('admin.booking.err.cancelSessionFailed'))
       return
     }
     onRefresh()
@@ -1844,24 +1872,24 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
         <div className="p-6 border-b border-white/10 flex items-start justify-between">
           <div>
             <div className="inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2" style={{ backgroundColor: modalHasTrial ? '#c9a84c' : (COURSE_COLORS[ct.slug] || '#6b7280'), color: modalHasTrial ? '#1a2744' : '#ffffff' }}>
-              {modalHasTrial ? 'Swim Assessment' : ct.name}
+              {modalHasTrial ? t('common.assessment') : tDb(locale, 'course_types', session.course_type_id, ct.name)}
             </div>
             <p className="text-white font-medium">
-              {new Date(session.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', weekday: 'long' })}
+              {new Date(session.session_date + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'long', day: 'numeric', weekday: 'long' })}
             </p>
             <p className="text-sm text-white/50 mt-0.5">
               {formatTime((bookings[0] as any)?.group_start_time || session.start_time)} – {formatTime((bookings[0] as any)?.group_end_time || session.end_time)}
-              {' · '}Coach {coach?.first_name} {coach?.last_name}
+              {' · '}{t('admin.coachName', { name: `${coach?.first_name ?? ''} ${coach?.last_name ?? ''}` })}
             </p>
           </div>
           <button onClick={onClose} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>
         </div>
         <div className="p-6">
           <p className="text-xs text-white/40 uppercase tracking-wider mb-3">
-            Booked students ({liveCount}/{session.max_students})
+            {t('admin.booking.detail.booked', { n: liveCount, max: session.max_students })}
           </p>
           {bookings.length === 0 ? (
-            <p className="text-sm text-white/30 italic">No students booked yet</p>
+            <p className="text-sm text-white/30 italic">{t('admin.booking.detail.none')}</p>
           ) : (
             <div className="space-y-2">
               {bookings.map(b => {
@@ -1873,45 +1901,45 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                     <span className="text-sm text-white font-medium flex items-center gap-1.5">
                       {student?.full_name}
                       {b.is_trial && (
-                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>Assessment</span>
+                        <span className="px-1 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>{t('admin.booking.detail.assessment')}</span>
                       )}
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="text-xs text-white/40">{student?.current_level != null ? `Lv.${student.current_level} · ` : ''}{parent?.first_name} {parent?.last_name}</span>
+                      <span className="text-xs text-white/40">{student?.current_level != null ? t('admin.booking.lv', { n: student.current_level }) + ' · ' : ''}{parent?.first_name} {parent?.last_name}</span>
                       {/* An assessment is paid by card, not points, so there is no
                           refund choice to make: the whole-lesson cancel covers it. */}
                       {!b.is_trial && oneCancel !== b.id && (
                         <button onClick={() => { setOneCancel(b.id); setOneMsg('') }}
                           className="text-xs text-red-300/80 hover:text-red-300 border border-red-400/30 rounded px-1.5 py-0.5">
-                          Cancel
+                          {t('common.cancel')}
                         </button>
                       )}
                     </span>
                     </div>
                     {oneCancel === b.id && (
                       <div className="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 p-3">
-                        <p className="text-sm text-red-200 font-medium">Cancel {student?.full_name} only?</p>
+                        <p className="text-sm text-red-200 font-medium">{t('admin.booking.one.title', { name: student?.full_name ?? '' })}</p>
                         <p className="text-xs text-white/50 mt-1">
-                          Everyone else in this lesson keeps their place.{b.lesson_group_id ? ' Both halves of this 60-minute lesson are cancelled for this swimmer.' : ''} The parent is emailed either way.
+                          {b.lesson_group_id ? t('admin.booking.one.bodyHour') : t('admin.booking.one.body')}
                         </p>
                         <div className="flex flex-wrap gap-2 mt-3">
                           <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'refund')}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 bg-red-500 text-white disabled:opacity-50">
-                            {oneBusy === 'refund' ? 'Working…' : 'Cancel · refund points'}
+                            {oneBusy === 'refund' ? t('admin.booking.workingEllipsis') : t('admin.booking.one.refund')}
                           </button>
                           {ct.slug !== '1on2' && (
                             <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'voucher')}
                               className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 border border-emerald-400/50 text-emerald-200 disabled:opacity-50">
-                              {oneBusy === 'voucher' ? 'Working…' : 'Cancel · make-up voucher'}
+                              {oneBusy === 'voucher' ? t('admin.booking.workingEllipsis') : t('admin.booking.one.voucher')}
                             </button>
                           )}
                           <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'keep')}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 border border-red-400/50 text-red-200 disabled:opacity-50">
-                            {oneBusy === 'keep' ? 'Working…' : 'Late cancel · keep points'}
+                            {oneBusy === 'keep' ? t('admin.booking.workingEllipsis') : t('admin.booking.one.keep')}
                           </button>
                           <button disabled={!!oneBusy} onClick={() => { setOneCancel(null); setOneMsg('') }}
                             className="text-xs rounded-lg px-3 py-2 text-white/60 hover:text-white">
-                            Back
+                            {t('admin.booking.back')}
                           </button>
                         </div>
                       </div>
@@ -1929,8 +1957,8 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
           {oneMsg && <p className="text-xs text-white/70 mt-3">{oneMsg}</p>}
           {liveCount < session.max_students && (
             <div className="mt-4 pt-4 border-t border-white/10">
-              <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Add student</p>
-              <input value={addQuery} onChange={e => { setAddQuery(e.target.value); setAddError(''); setConfirmAddId(null) }} placeholder="Search by student or parent name..."
+              <p className="text-xs text-white/40 uppercase tracking-wider mb-2">{t('admin.booking.add.title')}</p>
+              <input value={addQuery} onChange={e => { setAddQuery(e.target.value); setAddError(''); setConfirmAddId(null) }} placeholder={t('admin.booking.add.placeholder')}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" />
               {addError && <p className="text-xs text-red-300 mt-2">{addError}</p>}
               {addQuery.trim().length >= 1 && (
@@ -1942,16 +1970,16 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                       const par = Array.isArray(s.parents) ? s.parents[0] : s.parents
                       return !bookedNames.has(s.full_name) && (s.full_name.toLowerCase().includes(q) || ((par?.first_name + ' ' + par?.last_name).toLowerCase().includes(q)))
                     }).slice(0, 6)
-                    if (matches.length === 0) return <p className="text-xs text-white/30 italic">No matching students</p>
+                    if (matches.length === 0) return <p className="text-xs text-white/30 italic">{t('admin.booking.noMatch')}</p>
                     return matches.map((s: any) => {
                       const par = Array.isArray(s.parents) ? s.parents[0] : s.parents
                       return (
                         <div key={s.id} className="flex items-center justify-between bg-[#111d38] rounded-lg px-3 py-2">
-                          <span className="text-sm text-white">{s.full_name} <span className="text-xs text-white/40">Lv.{s.current_level ?? '—'} · {par?.first_name} {par?.last_name}</span>{band && s.current_level != null && (Number(s.current_level) < band.min || Number(s.current_level) > band.max) && <span className="text-xs ml-1.5 font-medium" style={{ color: '#fb923c' }}>⚠ L{band.min}–{band.max} class</span>}</span>
+                          <span className="text-sm text-white">{s.full_name} <span className="text-xs text-white/40">{t('admin.booking.lv', { n: s.current_level ?? '—' })} · {par?.first_name} {par?.last_name}</span>{band && s.current_level != null && (Number(s.current_level) < band.min || Number(s.current_level) > band.max) && <span className="text-xs ml-1.5 font-medium" style={{ color: '#fb923c' }}>{t('admin.booking.add.bandWarn', { min: band.min, max: band.max })}</span>}</span>
                           <button onClick={() => confirmAddId === s.id ? addStudent(s.id) : setConfirmAddId(s.id)} disabled={adding !== null}
                             className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50"
                             style={confirmAddId === s.id ? { backgroundColor: '#e05a4a', color: '#fff' } : { backgroundColor: '#c9a84c', color: '#1a2744' }}>
-                            {adding === s.id ? '...' : confirmAddId === s.id ? 'Confirm?' : 'Add'}
+                            {adding === s.id ? '...' : confirmAddId === s.id ? t('admin.booking.add.confirm') : t('admin.booking.add.add')}
                           </button>
                         </div>
                       )
@@ -1965,7 +1993,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
         {showReschedule ? (
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-white/15 bg-white/5 p-4 mb-3 space-y-3">
-              <p className="text-sm text-white font-medium">Rescheduling this lesson ({bookings.length} student{bookings.length === 1 ? '' : 's'})</p>
+              <p className="text-sm text-white font-medium">{t(bookings.length === 1 ? 'admin.booking.resched.titleOne' : 'admin.booking.resched.titleMany', { n: bookings.length })}</p>
               <select value={newCoachId} onChange={e => setNewCoachId(e.target.value)}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10">
                 {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
@@ -1974,38 +2002,38 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10" style={{ colorScheme: 'dark' }} />
               <select value={newTime} onChange={e => setNewTime(e.target.value)}
                 className="w-full bg-[#111d38] text-white text-sm rounded-lg px-3 py-2 border border-white/10">
-                {TIME_SLOTS.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+                {TIME_SLOTS.map(tm => <option key={tm} value={tm}>{formatTime(tm)}</option>)}
               </select>
               {rescheduleError && <p className="text-xs text-red-300">{rescheduleError}</p>}
-              <p className="text-xs text-white/40">The whole session moves together — all booked students stay paired. Reschedule notices will be emailed to all affected parents; nobody is re-priced.</p>
+              <p className="text-xs text-white/40">{t('admin.booking.resched.note')}</p>
             </div>
             <div className="flex gap-3">
               <button onClick={submitReschedule} disabled={rescheduling}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
                 style={{ backgroundColor: '#c9a84c', color: '#1a2744' }}>
-                {rescheduling ? 'Working...' : 'Confirm Reschedule'}
+                {rescheduling ? t('admin.booking.working') : t('admin.booking.move.confirm')}
               </button>
               <button onClick={() => { setShowReschedule(false); setRescheduleError('') }} disabled={rescheduling}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
-                Back
+                {t('admin.booking.back')}
               </button>
             </div>
           </div>
         ) : confirmingCancel ? (
           <div className="p-6 pt-0">
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 mb-3">
-              <p className="text-sm text-red-300 font-medium">Cancel this lesson?</p>
-              <p className="text-xs text-red-300/70 mt-1">All bookings in this session will be cancelled together, every family's points will be returned in full, and cancellation notices will be emailed to the parents.</p>
+              <p className="text-sm text-red-300 font-medium">{t('admin.booking.cancelLesson.title')}</p>
+              <p className="text-xs text-red-300/70 mt-1">{t('admin.booking.cancelLesson.body')}</p>
             </div>
             {cancelError && <p className="text-xs text-red-300 mb-3">{cancelError}</p>}
             <div className="flex gap-3">
               <button onClick={cancelSession} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-lg bg-red-500/80 hover:bg-red-500 transition-colors text-sm text-white font-medium disabled:opacity-50">
-                {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                {cancelling ? t('admin.booking.cancelling') : t('admin.booking.yesCancel')}
               </button>
               <button onClick={() => setConfirmingCancel(false)} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white disabled:opacity-50">
-                Back
+                {t('admin.booking.back')}
               </button>
             </div>
           </div>
@@ -2013,16 +2041,16 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
           <div className="p-6 pt-0 flex gap-3">
             <button onClick={() => { setConfirmingCancel(true); setCancelError('') }}
               className="flex-1 py-2.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors text-sm">
-              Cancel this lesson
+              {t('admin.booking.cancelLesson.btn')}
             </button>
             {bookings.length > 0 && (
               <button onClick={() => { setShowReschedule(true); setNewCoachId(session.coach_id); setNewDate(session.session_date); setNewTime((session.start_time || '').slice(0, 5)); setRescheduleError('') }}
                 className="flex-1 py-2.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 transition-colors text-sm">
-                Reschedule this lesson
+                {t('admin.booking.resched.btn')}
               </button>
             )}
             <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm text-white">
-              Close
+              {t('common.close')}
             </button>
           </div>
         )}

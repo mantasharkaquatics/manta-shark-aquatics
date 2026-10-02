@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getTodayLA, getNowMinutesLA, minutesUntil, formatTime12h } from '@/lib/date'
+import { getT, tDb, dateTag } from '@/lib/i18n'
+import { getAdminLocale } from '@/lib/i18n/admin-locale'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +19,7 @@ export default async function AdminSchedulePage() {
   if (!user) redirect('/login')
   const { data: admin } = await supabaseAuth.from('admins').select('id').eq('auth_user_id', user.id).single()
   if (!admin) redirect('/dashboard')
+  const locale = await getAdminLocale(); const t = getT(locale)
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -74,7 +77,7 @@ export default async function AdminSchedulePage() {
   // Step 3: fetch separately
   const [{ data: sessionsData }, { data: studentsData }, { data: parentsData }] = await Promise.all([
     allSessionIds.length > 0
-      ? supabase.from('class_sessions').select('id, session_date, start_time, course_types(name), coaches(first_name)').in('id', allSessionIds)
+      ? supabase.from('class_sessions').select('id, session_date, start_time, course_types(id, name), coaches(first_name)').in('id', allSessionIds)
       : Promise.resolve({ data: [] }),
     studentIds.length > 0
       ? supabase.from('students').select('id, full_name').in('id', studentIds)
@@ -122,8 +125,15 @@ export default async function AdminSchedulePage() {
 
   const n = (x: any) => Array.isArray(x) ? x[0] : x
   const fTime = formatTime12h
-  const fDate = (d: string) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
-  const fDT = (iso: string) => iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''
+  const fDate = (d: string) => d ? new Date(d + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { weekday: 'short', month: 'short', day: 'numeric' }) : ''
+  // Date follows the language, time stays 12-hour English. en-US joined them with ', '
+  const fDT = (iso: string) => iso
+    ? new Date(iso).toLocaleDateString(dateTag(locale, 'en-US'), { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric' })
+      + (locale === 'en' ? ', ' : ' ')
+      + new Date(iso).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })
+    : ''
+  const ctName = (cs: any): string | undefined => cs?.ct ? tDb(locale, 'course_types', cs.ct.id ?? '', cs.ct.name) : undefined
+  const coachLabel = (cs: any) => t('admin.coachName', { name: cs?.coach?.first_name ?? '' })
   const minsLeft = (exp: string) => Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 60000))
 
   const mergedRescheduleCount = (() => {
@@ -147,13 +157,13 @@ export default async function AdminSchedulePage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Activity Monitor</h1>
-          <p className="text-gray-400 mt-1">A live view of everything pending and every recent change</p>
+          <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.schedule.title')}</h1>
+          <p className="text-gray-400 mt-1">{t('admin.schedule.subtitle')}</p>
         </div>
         {pendingCount > 0 && (
           <div className="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/40 rounded-xl px-4 py-2">
             <div className="w-2 h-2 rounded-full bg-yellow-400" />
-            <span className="text-yellow-400 text-sm font-semibold">{pendingCount} pending</span>
+            <span className="text-yellow-400 text-sm font-semibold">{t('admin.schedule.pendingCount', { n: pendingCount })}</span>
           </div>
         )}
       </div>
@@ -161,12 +171,12 @@ export default async function AdminSchedulePage() {
       <div className="space-y-8">
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-purple-400">⏳ Pending Invitations</h2>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-purple-400">{t('admin.schedule.pendingInvitations')}</h2>
             {rawInvites && rawInvites.length > 0 && <span className="bg-purple-900/40 text-purple-400 text-xs px-2 py-0.5 rounded-full font-semibold">{rawInvites.length}</span>}
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {!rawInvites || rawInvites.length === 0 ? (
-            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">No pending invitations</div>
+            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">{t('admin.schedule.noPendingInvitations')}</div>
           ) : (
             <div className="space-y-3">
               {rawInvites.map((b: any) => {
@@ -176,10 +186,10 @@ export default async function AdminSchedulePage() {
                   <div key={b.id} className="bg-[#111d38] rounded-xl border border-purple-800/40 p-5 flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-purple-400 text-xs font-bold uppercase tracking-wide">1-on-2 invitation pending</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>{mins} min left</span>
+                        <span className="text-purple-400 text-xs font-bold uppercase tracking-wide">{t('admin.schedule.invitationPending')}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>{t('admin.schedule.minLeft', { n: mins })}</span>
                       </div>
-                      <p className="text-[#c9a84c] text-sm mb-2">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
+                      <p className="text-[#c9a84c] text-sm mb-2">{ctName(cs)} · {coachLabel(cs)} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
                       <div className="flex flex-col gap-1">
                         {(() => {
                           const initiatorParent = b.partner_parent_id ? partnerParentMap[b.partner_parent_id] : null
@@ -187,12 +197,12 @@ export default async function AdminSchedulePage() {
                           const initiatorStudent = initiatorStudentId ? studentMap[initiatorStudentId] : null
                           return (<>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-yellow-400 font-semibold w-14 shrink-0">Initiator</span>
+                              <span className="text-xs text-yellow-400 font-semibold w-14 shrink-0">{t('admin.schedule.initiator')}</span>
                               <span className="text-white text-sm font-semibold">{initiatorStudent?.full_name || '—'}</span>
                               <span className="text-gray-400 text-xs">({initiatorParent?.first_name} {initiatorParent?.last_name})</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-purple-400 font-semibold w-14 shrink-0">Invited</span>
+                              <span className="text-xs text-purple-400 font-semibold w-14 shrink-0">{t('admin.schedule.invited')}</span>
                               <span className="text-white text-sm font-semibold">{student?.full_name}</span>
                               <span className="text-gray-400 text-xs">({parent?.first_name} {parent?.last_name})</span>
                             </div>
@@ -209,12 +219,12 @@ export default async function AdminSchedulePage() {
 
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-yellow-400">🔄 Pending Reschedules</h2>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-yellow-400">{t('admin.schedule.pendingReschedules')}</h2>
             {mergedRescheduleCount > 0 && <span className="bg-yellow-900/40 text-yellow-400 text-xs px-2 py-0.5 rounded-full font-semibold">{mergedRescheduleCount}</span>}
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {!rawReschedules || rawReschedules.length === 0 ? (
-            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">No pending reschedules</div>
+            <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">{t('admin.schedule.noPendingReschedules')}</div>
           ) : (
             <div className="space-y-3">
               {(() => {
@@ -237,26 +247,26 @@ export default async function AdminSchedulePage() {
                   return (
                     <div key={initiator.id} className="bg-[#111d38] rounded-xl border border-yellow-800/30 p-5">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">Reschedule pending</span>
+                        <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">{t('admin.schedule.reschedulePending')}</span>
                         {initiator.pending_expires_at && (() => {
                           const mins = Math.max(0, Math.floor((new Date(initiator.pending_expires_at).getTime() - Date.now()) / 60000))
-                          return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>{mins} min left</span>
+                          return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>{t('admin.schedule.minLeft', { n: mins })}</span>
                         })()}
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap mb-3">
-                        <span className="text-gray-500 text-sm line-through">{cs?.ct?.name} · Coach {cs?.coach?.first_name} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
+                        <span className="text-gray-500 text-sm line-through">{ctName(cs)} · {coachLabel(cs)} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
                         <span className="text-gray-500">→</span>
-                        <span className="text-[#c9a84c] text-sm">{newCs?.ct?.name || cs?.ct?.name} · Coach {newCs?.coach?.first_name || cs?.coach?.first_name} · {fDate(newCs?.session_date)} {fTime(newCs?.start_time)}</span>
+                        <span className="text-[#c9a84c] text-sm">{ctName(newCs) || ctName(cs)} · {t('admin.coachName', { name: newCs?.coach?.first_name || cs?.coach?.first_name || '' })} · {fDate(newCs?.session_date)} {fTime(newCs?.start_time)}</span>
                       </div>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-yellow-400 font-semibold w-16 shrink-0">Initiator</span>
+                          <span className="text-xs text-yellow-400 font-semibold w-16 shrink-0">{t('admin.schedule.initiator')}</span>
                           <span className="text-white text-sm font-semibold">{iStudent?.full_name}</span>
                           <span className="text-gray-400 text-xs">({iParent?.first_name} {iParent?.last_name})</span>
                         </div>
                         {rStudent && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-purple-400 font-semibold w-16 shrink-0">Pending</span>
+                            <span className="text-xs text-purple-400 font-semibold w-16 shrink-0">{t('admin.schedule.pending')}</span>
                             <span className="text-white text-sm font-semibold">{rStudent?.full_name}</span>
                             <span className="text-gray-400 text-xs">({rParent?.first_name} {rParent?.last_name})</span>
                           </div>
@@ -273,8 +283,8 @@ export default async function AdminSchedulePage() {
 
         <section>
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">📋 Recent Activity</h2>
-            <span className="text-gray-600 text-xs">Last 30 days</span>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">{t('admin.schedule.recentActivity')}</h2>
+            <span className="text-gray-600 text-xs">{t('admin.schedule.last30Days')}</span>
             <div className="flex-1 h-px bg-[#1e3a6e]" />
           </div>
           {(() => {
@@ -389,7 +399,7 @@ export default async function AdminSchedulePage() {
             })
             filteredItems.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
-            if (filteredItems.length === 0) return <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">No activity in the last 30 days</div>
+            if (filteredItems.length === 0) return <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-6 text-center text-gray-500 text-sm">{t('admin.schedule.noActivity')}</div>
 
             return (
               <div className="space-y-2">
@@ -397,26 +407,26 @@ export default async function AdminSchedulePage() {
                   <div key={item.key} className={`bg-[#111d38] rounded-xl border p-4 flex items-start justify-between gap-4 ${item.type === 'cancelled' ? 'border-red-900/25' : 'border-green-900/25'}`}>
                     <div className="flex items-start gap-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 mt-0.5 ${item.type === 'cancelled' ? 'bg-red-900/30 text-red-400' : item.type === 'new' ? 'bg-blue-900/30 text-blue-400' : 'bg-green-900/30 text-green-400'}`}>
-                        {item.type === 'cancelled' ? 'Cancelled' : item.type === 'new' ? 'New Booking' : 'Rescheduled'}
+                        {item.type === 'cancelled' ? t('admin.schedule.typeCancelled') : item.type === 'new' ? t('admin.schedule.typeNew') : t('admin.schedule.typeRescheduled')}
                       </span>
                       <div>
-                        <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">Linked</span>}</p>
+                        <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">{t('admin.schedule.linked')}</span>}</p>
                         {item.type === 'new' ? (
-                          <p className="text-blue-400 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
+                          <p className="text-blue-400 text-xs mt-0.5">{ctName(item.cs)} · {coachLabel(item.cs)} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : item.type === 'cancelled' ? (
-                          <p className="text-gray-500 text-xs mt-0.5">{item.cs?.ct?.name} · Coach {item.cs?.coach?.first_name} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
+                          <p className="text-gray-500 text-xs mt-0.5">{ctName(item.cs)} · {coachLabel(item.cs)} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : (
                           <div className="mt-0.5">
-                            <span className="text-gray-500 text-xs">{item.cs?.ct?.name}</span>
+                            <span className="text-gray-500 text-xs">{ctName(item.cs)}</span>
                             <div className="flex flex-col gap-0.5 mt-1">
                               {(item.steps || []).map((step, i) => {
                                 const isLast = i === (item.steps?.length || 0) - 1
                                 return (
                                   <div key={i} className="flex items-center gap-2 flex-wrap">
                                     <span className="text-gray-600 text-xs w-4 shrink-0">{i + 1}.</span>
-                                    <span className="text-[#c9a84c] text-xs">{fDate(step.fromCs?.session_date)} {fTime(step.fromCs?.start_time)} Coach {step.fromCs?.coach?.first_name}</span>
+                                    <span className="text-[#c9a84c] text-xs">{fDate(step.fromCs?.session_date)} {fTime(step.fromCs?.start_time)} {coachLabel(step.fromCs)}</span>
                                     <span className="text-gray-500 text-xs">→</span>
-                                    <span className={`text-xs ${isLast ? 'text-green-400' : 'text-[#c9a84c]'}`}>{fDate(step.toCs?.session_date)} {fTime(step.toCs?.start_time)} Coach {step.toCs?.coach?.first_name}</span>
+                                    <span className={`text-xs ${isLast ? 'text-green-400' : 'text-[#c9a84c]'}`}>{fDate(step.toCs?.session_date)} {fTime(step.toCs?.start_time)} {coachLabel(step.toCs)}</span>
                                     <span className="text-gray-600 text-xs">({fDT(step.updatedAt)})</span>
                                   </div>
                                 )

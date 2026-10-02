@@ -64,7 +64,7 @@ export async function GET() {
         id: f.id, status: f.status, endedAt: f.ended_at, endedReason: f.ended_reason,
         family: pName.get(f.parent_id) || '',
         swimmers: [sName.get(f.student_id), f.student2_id ? sName.get(f.student2_id) : null].filter(Boolean),
-        course: ct?.name || '', courseSlug: ct?.slug || '', minutes: f.minutes,
+        course: ct?.name || '', courseTypeId: f.course_type_id, courseSlug: ct?.slug || '', minutes: f.minutes,
         coach: cName.get(f.coach_id) || '', weekday: f.weekday, time: String(f.start_time).slice(0, 5),
         lessonsTotal: f.minutes === 60 ? Math.round(total / 2) : total,
         lessonsLeft,

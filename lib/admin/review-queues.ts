@@ -89,11 +89,11 @@ export async function loadReviewQueues(
     if (ppSessionIds.length > 0) {
       const { data: ppSessions } = await svc
         .from('class_sessions')
-        .select('id, start_time, end_time, course_types(name)')
+        .select('id, start_time, end_time, course_types(id, name)')
         .in('id', ppSessionIds)
       for (const s of ppSessions || []) {
         const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
-        ppSessionMap[s.id] = { start_time: s.start_time, end_time: s.end_time, course_name: ct?.name || '' }
+        ppSessionMap[s.id] = { start_time: s.start_time, end_time: s.end_time, course_name: ct?.name || '', course_type_id: ct?.id || null }
       }
     }
     const enriched = allPendingProgress.map((p: any) => ({
@@ -188,7 +188,7 @@ export async function loadReviewQueues(
     const bSessionIds = [...new Set(pastBookings.map((b: any) => b.class_session_id).filter(Boolean))]
     const { data: pastSessions } = await svc
       .from('class_sessions')
-      .select('id, session_date, coach_id, start_time, end_time, course_types(name), coaches(first_name)')
+      .select('id, session_date, coach_id, start_time, end_time, course_types(id, name), coaches(first_name)')
       .in('id', bSessionIds)
       .lte('session_date', todayDate)
 

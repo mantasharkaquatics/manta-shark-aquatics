@@ -123,8 +123,10 @@ second slower to load. The numbers are in commit 3a692da.
 # Who reads which language
 
 Owner's rule, 2026-08-27: **anything a customer can see must be translatable.**
-Legal documents are the exception, and the admin and coach screens are English
-on purpose.
+Legal documents are the exception. Staff screens have their own switch: the
+coach portal and the admin back office each read English or Traditional Chinese
+from the staff member's own account (`coaches.ui_language`, `admins.ui_language`;
+owner, 2026-10-02 for admin).
 
 - Parent-facing (`app/(public)/**`, the components they render): every string
   goes through `t()`. Not only text -- `placeholder`, `title`, `alt` and
@@ -133,9 +135,13 @@ on purpose.
 - Legal pages stay English: `terms`, `privacy-policy`, `waiver`,
   `media-release`, `sms-terms`, `policies`. Translating them creates two texts
   that can disagree, and then a question about which one governs.
-- Admin and coach screens stay English throughout. `StudentNotesPanel` lives in
-  `components/` but renders only in `/admin`, so it is English -- location in
-  the tree does not decide this, the audience does.
+- Admin and coach screens go through `t()` too, but offer only `en` and
+  `zh-Hant` (no 简中). Server components there use `getAdminLocale()` +
+  `getT()`; client components use `useT()` as everywhere else. Dates follow
+  the language via `dateTag()`; clock times stay 12-hour `3:35 PM`. What the
+  desk sends OUT -- SMS/email text, invoice and receipt content, CSV exports,
+  Stripe descriptions -- stays English, and so does anything typed by a person
+  or written by the AI.
 - Not everything English is a miss: `MSA-XXXXXX` is a code format, and `alt`
   text that is the company name is the company name.
 - The AI assistant answers in whatever language the parent wrote in

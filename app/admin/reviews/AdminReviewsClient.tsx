@@ -7,7 +7,9 @@ import AlertModal from '@/components/AlertModal'
 import NoteTranslationHealth from './NoteTranslationHealth'
 import AssessmentPanel, { type AssessmentRec } from './AssessmentPanel'
 import { LEVEL_NAMES, LEVEL_COLORS, LEVEL_NUMBERS } from '@/lib/levels'
-import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, MASTERY_LABEL, masteryOf } from '@/lib/mastery'
+import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey, type Mastery } from '@/lib/mastery'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
@@ -16,7 +18,7 @@ type PendingProgress = {
   student: { id: string; full_name: string; current_level: string | null }
   coach: { first_name: string }
   skills: { id: string; name: string; sort_order: number; level_id: string }[]
-  session_info: { start_time: string; end_time: string; course_name: string } | null
+  session_info: { start_time: string; end_time: string; course_name: string; course_type_id?: string | null } | null
   /** Set when this report is a swimmer's assessment: the level arrives with it. */
   assessment?: { recommendation_id: string; recommended_level: number }
 }
@@ -31,8 +33,21 @@ type MissingProgress = {
   student_id: string
   full_name: string
   current_level: string | null
-  session: { id: string; session_date: string; start_time: string; end_time: string; coach_id: string; ct: { name: string } | null; coach: { first_name: string } | null } | null
+  session: { id: string; session_date: string; start_time: string; end_time: string; coach_id: string; ct: { id?: string; name: string } | null; coach: { first_name: string } | null } | null
   existingProgress: Record<string, number>
+}
+
+/** Mastery chip text. Step 0 reads "Not taught" here, not the parent site's "Not taught yet". */
+function masteryLabel(t: TFunction, m: Mastery): string {
+  return m === 0 ? t('admin.progress.mastery0') : t(masteryKey(m))
+}
+
+/** "Oct 2, 03:35 PM": the date in the admin's language, the clock time kept as 12-hour English. */
+function dateTimeLabel(iso: string, locale: Locale): string {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return date + (locale === 'en' ? ', ' : ' ') + time
 }
 
 /**
@@ -54,6 +69,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   pastPendingProgressList: PendingProgress[]
   missingProgressList: MissingProgress[]
 }) {
+  const t = useT()
+  const locale = useLocale()
   const [recommendations, setRecommendations] = useState(initialRecs)
   const [pendingProgressList, setPendingProgressList] = useState(initialPending)
   const [pastPendingProgressList, setPastPendingProgressList] = useState(initialPastPending)
@@ -83,13 +100,13 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       body: JSON.stringify({ recommendation_id: rec.id, action, final_level: finalLevel, admin_id: adminId })
     }).catch(() => null)
     if (!res) {
-      setAlertMsg('Could not reach the server. Check your connection and try again.')
+      setAlertMsg(t('admin.reviews.err.offline'))
       setReviewingId(null)
       return
     }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setAlertMsg(data.error || 'Failed to record the review. Please try again.')
+      setAlertMsg(data.error || t('admin.reviews.err.reviewFailed'))
       setReviewingId(null)
       return
     }
@@ -106,7 +123,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     const noteText = note ? (editedNotes[historyId] ?? note.note ?? '') : undefined
     const rec = assessRec[historyId]
     if (p.assessment && (!rec?.course || !rec?.frequency)) {
-      setAlertMsg('Pick the course and how many lessons a week to recommend. The family sees both on their Assessment report.')
+      setAlertMsg(t('admin.reviews.err.pickRecommendation'))
       setReviewingId(null)
       return
     }
@@ -138,8 +155,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     // and reloaded, and the admin believed it had been published.
     if (!res || !res.ok) {
       const data = res ? await res.json().catch(() => ({})) : {}
-      setAlertMsg(!res ? 'Could not reach the server. Check your connection and try again.'
-        : (data as any).error || 'Could not publish this report. Please try again.')
+      setAlertMsg(!res ? t('admin.reviews.err.offline')
+        : (data as any).error || t('admin.reviews.err.publishFailed'))
       setReviewingId(null)
       return
     }
@@ -176,7 +193,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       })
     }).catch(() => null)
     if (!res) {
-      setAlertMsg('Could not reach the server. Check your connection and try again.')
+      setAlertMsg(t('admin.reviews.err.offline'))
       setSubmittingMissing(null)
       return
     }
@@ -185,7 +202,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       window.location.reload()
     } else {
       const data = await res.json().catch(() => ({}))
-      setAlertMsg(data.error || 'Failed to submit progress. Please try again.')
+      setAlertMsg(data.error || t('admin.reviews.err.submitFailed'))
     }
     setSubmittingMissing(null)
   }
@@ -193,11 +210,11 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Reviews</h1>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.reviews.title')}</h1>
         <p className="text-gray-400 mt-1">
           {waiting > 0
-            ? `${waiting} ${waiting === 1 ? 'item is' : 'items are'} waiting on you`
-            : 'Progress records and level requests waiting on you'}
+            ? t(waiting === 1 ? 'admin.reviews.waitingOne' : 'admin.reviews.waitingMany', { n: waiting })
+            : t('admin.reviews.subtitle')}
         </p>
       </div>
 
@@ -207,9 +224,9 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       {missingProgressList.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            ⚠️ Missing Progress
+            {t('admin.reviews.missing.heading')}
             <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{missingProgressList.length}</span>
-            <span className="text-gray-500 normal-case font-normal text-xs">(includes past sessions, as of {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })})</span>
+            <span className="text-gray-500 normal-case font-normal text-xs">{t('admin.reviews.missing.asOf', { date: new Date().toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' }) })}</span>
           </h2>
           <div className="space-y-4">
             {missingProgressList.map(s => {
@@ -229,12 +246,12 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                         <span className="text-gray-500 text-xs">{expandedMissing.has(s.id) ? '▲' : '▼'}</span>
                       </p>
                       <p className="text-gray-400 text-xs">
-                        {s.session?.session_date ? `${new Date(s.session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })} · ` : ''}
+                        {s.session?.session_date ? `${new Date(s.session.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })} · ` : ''}
                         {s.session?.session_date === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) && (
-                          <span className="text-[#c9a84c] font-semibold">(Today) · </span>
+                          <span className="text-[#c9a84c] font-semibold">{t('admin.reviews.today')} · </span>
                         )}
-                        {s.session ? `Coach ${s.session.coach?.first_name} · ${s.session.ct?.name} · ${formatTime12h(s.session.start_time)}–${formatTime12h(s.session.end_time)}` : 'Scheduled'}
-                        {s.current_level ? ` · Level ${s.current_level}` : ''}
+                        {s.session ? `${t('admin.coachName', { name: s.session.coach?.first_name ?? '' })} · ${s.session.ct?.id ? tDb(locale, 'course_types', s.session.ct.id, s.session.ct.name) : s.session.ct?.name} · ${formatTime12h(s.session.start_time)}–${formatTime12h(s.session.end_time)}` : t('admin.reviews.scheduled')}
+                        {s.current_level ? ` · ${t('admin.levelN', { n: s.current_level })}` : ''}
                       </p>
                     </div>
                     {/* No level means this was the assessment. Its report carries
@@ -242,14 +259,14 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                         Progress page. Once the day has gone that page no longer
                         lists it, so the way out is a level set by hand first. */}
                     {!s.current_level ? (
-                      <span className="text-xs text-gray-500 text-right max-w-[260px]">Assessment · the coach files it on the day from their Progress page. Missed it? Set a level on the Levels page, then fill it here.</span>
+                      <span className="text-xs text-gray-500 text-right max-w-[260px]">{t('admin.reviews.missing.assessmentHint')}</span>
                     ) : (
                     <button
                       onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null, s.session?.id || null, s.existingProgress || {}) }}
                       disabled={submittingMissing === s.id}
                       className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
                     >
-                      {submittingMissing === s.id ? 'Saving...' : 'Fill & Submit for Review'}
+                      {submittingMissing === s.id ? t('admin.progress.saving') : t('admin.reviews.missing.fillSubmit')}
                     </button>
                     )}
                   </div>
@@ -261,8 +278,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                         return (
                           <div key={sk.id}>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-gray-300 text-xs">{sk.name}</span>
-                              <span className="text-xs font-semibold" style={{ color: MASTERY_COLOR[masteryOf(pct)] }}>{MASTERY_LABEL[masteryOf(pct)]}</span>
+                              <span className="text-gray-300 text-xs">{tDb(locale, 'skills', sk.id, sk.name)}</span>
+                              <span className="text-xs font-semibold" style={{ color: MASTERY_COLOR[masteryOf(pct)] }}>{masteryLabel(t, masteryOf(pct))}</span>
                             </div>
                             <div className="flex gap-1">
                               {options.map(v => (
@@ -276,7 +293,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                                       ? 'bg-[#c9a84c] text-[#111d38]'
                                       : 'bg-[#0d1529] border border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'
                                   }`}
-                                >{MASTERY_LABEL[masteryOf(v)]}</button>
+                                >{masteryLabel(t, masteryOf(v))}</button>
                               ))}
                             </div>
                           </div>
@@ -295,14 +312,14 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       {pendingProgressList.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4 flex items-center gap-2">
-            Today's Pending Progress
+            {t('admin.reviews.todayPending')}
             <span className="bg-[#c9a84c] text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pendingProgressList.length}</span>
           </h2>
           <div className="space-y-4">
             {pendingProgressList.map(p => {
               const lvl = p.student?.current_level || ''
               const skillMap: Record<string, string> = {}
-              for (const sk of p.skills) skillMap[sk.id] = sk.name
+              for (const sk of p.skills) skillMap[sk.id] = tDb(locale, 'skills', sk.id, sk.name)
               // Show all skills (incl. missing from snapshot); snapshot values as defaults
               // An assessment's scores are for the level the coach recommends.
               const scoredLevel = p.assessment ? String(p.assessment.recommended_level) : String(p.student?.current_level)
@@ -323,8 +340,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     <div>
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">
-                        {p.session_info ? `${p.assessment ? 'Swim Assessment' : p.session_info.course_name} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)} · ` : ''}
-                        Coach {p.coach?.first_name} · {lvl ? `Level ${lvl}` : 'No level yet'} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        {p.session_info ? `${p.assessment ? t('common.assessment') : (p.session_info.course_type_id ? tDb(locale, 'course_types', p.session_info.course_type_id, p.session_info.course_name) : p.session_info.course_name)} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)} · ` : ''}
+                        {t('admin.coachName', { name: p.coach?.first_name ?? '' })} · {lvl ? t('admin.levelN', { n: lvl }) : t('admin.reviews.noLevelYet')} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -332,16 +349,16 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                         onClick={() => setEditingPendingId(isEditing ? null : p.id)}
                         className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
                       >
-                        {isEditing ? 'Done Editing' : 'Edit'}
+                        {isEditing ? t('admin.reviews.doneEditing') : t('admin.progress.edit')}
                       </button>
                       <button
                         onClick={() => reviewProgress(p)}
                         disabled={reviewingId === p.id}
                         className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
                       >
-                        {reviewingId === p.id ? 'Publishing...'
-                          : p.assessment ? `Confirm L${overrideLevel[p.id] || p.assessment.recommended_level} → Publish to Parent`
-                          : 'Confirm → Publish to Parent'}
+                        {reviewingId === p.id ? t('admin.reviews.publishing')
+                          : p.assessment ? t('admin.reviews.confirmLevelPublish', { n: overrideLevel[p.id] || p.assessment.recommended_level })
+                          : t('admin.reviews.confirmPublish')}
                       </button>
                     </div>
                   </div>
@@ -375,7 +392,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                                   key={b}
                                   onClick={() => setEditedPct(p.id, skillId, MASTERY_VALUE[b])}
                                   className={`px-2 py-1 rounded text-[10px] border transition-all ${masteryOf(p2) === b ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >{MASTERY_LABEL[b]}</button>
+                                >{masteryLabel(t, b)}</button>
                               ))}
                             </div>
                           </div>
@@ -395,7 +412,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                             <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p2)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p2)] }} />
                             </div>
-                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{MASTERY_LABEL[masteryOf(p2)]}</span>
+                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{masteryLabel(t, masteryOf(p2))}</span>
                           </div>
                         )
                       })}
@@ -412,14 +429,14 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       {pastPendingProgressList.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            Past Pending Progress
+            {t('admin.reviews.pastPending')}
             <span className="bg-orange-500 text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pastPendingProgressList.length}</span>
           </h2>
           <div className="space-y-4">
             {pastPendingProgressList.map(p => {
               const lvl = p.student?.current_level || ''
               const skillMap: Record<string, string> = {}
-              for (const sk of p.skills) skillMap[sk.id] = sk.name
+              for (const sk of p.skills) skillMap[sk.id] = tDb(locale, 'skills', sk.id, sk.name)
               // Show all skills (incl. missing from snapshot); snapshot values as defaults
               // An assessment's scores are for the level the coach recommends.
               const scoredLevel = p.assessment ? String(p.assessment.recommended_level) : String(p.student?.current_level)
@@ -440,9 +457,9 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     <div>
                       <p className="text-white font-semibold">{p.student?.full_name}</p>
                       <p className="text-gray-400 text-xs">
-                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}
-                        {p.session_info ? ` · ${p.assessment ? 'Swim Assessment' : p.session_info.course_name} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)}` : ''}
-                        {` · Coach ${p.coach?.first_name} · ${lvl ? `Level ${lvl}` : 'No level yet'}`}
+                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })}
+                        {p.session_info ? ` · ${p.assessment ? t('common.assessment') : (p.session_info.course_type_id ? tDb(locale, 'course_types', p.session_info.course_type_id, p.session_info.course_name) : p.session_info.course_name)} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)}` : ''}
+                        {` · ${t('admin.coachName', { name: p.coach?.first_name ?? '' })} · ${lvl ? t('admin.levelN', { n: lvl }) : t('admin.reviews.noLevelYet')}`}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -450,16 +467,16 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                         onClick={() => setEditingPendingId(isEditing ? null : p.id)}
                         className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
                       >
-                        {isEditing ? 'Done Editing' : 'Edit'}
+                        {isEditing ? t('admin.reviews.doneEditing') : t('admin.progress.edit')}
                       </button>
                       <button
                         onClick={() => reviewProgress(p)}
                         disabled={reviewingId === p.id}
                         className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
                       >
-                        {reviewingId === p.id ? 'Publishing...'
-                          : p.assessment ? `Confirm L${overrideLevel[p.id] || p.assessment.recommended_level} → Publish to Parent`
-                          : 'Confirm → Publish to Parent'}
+                        {reviewingId === p.id ? t('admin.reviews.publishing')
+                          : p.assessment ? t('admin.reviews.confirmLevelPublish', { n: overrideLevel[p.id] || p.assessment.recommended_level })
+                          : t('admin.reviews.confirmPublish')}
                       </button>
                     </div>
                   </div>
@@ -493,7 +510,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                                   key={b}
                                   onClick={() => setEditedPct(p.id, skillId, MASTERY_VALUE[b])}
                                   className={`px-2 py-1 rounded text-[10px] border transition-all ${masteryOf(p2) === b ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >{MASTERY_LABEL[b]}</button>
+                                >{masteryLabel(t, b)}</button>
                               ))}
                             </div>
                           </div>
@@ -513,7 +530,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                             <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p2)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p2)] }} />
                             </div>
-                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{MASTERY_LABEL[masteryOf(p2)]}</span>
+                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{masteryLabel(t, masteryOf(p2))}</span>
                           </div>
                         )
                       })}
@@ -530,7 +547,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       {recommendations.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-4 flex items-center gap-2">
-            Pending Level Recommendations
+            {t('admin.reviews.pendingRecs')}
             <span className="bg-[#c9a84c] text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{recommendations.length}</span>
           </h2>
           <div className="space-y-3">
@@ -544,24 +561,24 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     <div>
                       <p className="text-white font-semibold">{rec.student.full_name}</p>
                       <p className="text-gray-400 text-xs mt-0.5">
-                        Coach {rec.coach.first_name} recommends ·{' '}
-                        {new Date(rec.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {t('admin.reviews.coachRecommends', { name: rec.coach.first_name ?? '' })}{' '}
+                        {dateTimeLabel(rec.created_at, locale)}
                       </p>
                       {rec.history && rec.history.length > 1 && (
                       <div className="mt-2 space-y-1">
-                        <p className="text-gray-600 text-xs uppercase tracking-wider">Change History</p>
+                        <p className="text-gray-600 text-xs uppercase tracking-wider">{t('admin.reviews.changeHistory')}</p>
                         {rec.history.map((h: any, i: number) => {
-                          const t = new Date(h.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                          const when = dateTimeLabel(h.created_at, locale)
                           if (i === 0) return (
                             <p key={i} className="text-gray-500 text-xs flex items-center gap-1.5">
-                              <span className="text-gray-600">{t}</span>
-                              <span>Submitted L{h.recommended_level}</span>
+                              <span className="text-gray-600">{when}</span>
+                              <span>{t('admin.reviews.submittedLevel', { n: h.recommended_level })}</span>
                             </p>
                           )
                           return (
                             <p key={i} className="text-amber-400/80 text-xs flex items-center gap-1.5">
-                              <span className="text-gray-600">{t}</span>
-                              <span>Changed</span>
+                              <span className="text-gray-600">{when}</span>
+                              <span>{t('admin.reviews.changed')}</span>
                               <span className="line-through text-gray-500">L{h.previous_recommended_level}</span>
                               <span>→</span>
                               <span className="text-amber-400 font-medium">L{h.recommended_level}</span>
@@ -570,16 +587,16 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                         })}
                       </div>
                     )}
-                    {rec.notes && <p className="text-gray-500 text-xs mt-1">Notes: {rec.notes}</p>}
+                    {rec.notes && <p className="text-gray-500 text-xs mt-1">{t('admin.reviews.notes', { notes: rec.notes })}</p>}
                     </div>
                     <span className="text-sm px-3 py-1 rounded-full font-semibold" style={{ backgroundColor: color + '33', color }}>
-                      Recommended L{lvl} · {LEVEL_NAMES[String(lvl)]}
+                      {t('admin.reviews.recommendedLevel', { n: lvl, name: LEVEL_NAMES[String(lvl)] ? t(`level.${lvl}.name`) : '' })}
                     </span>
                   </div>
 
                   {/* Admin can override level */}
                   <div className="mb-3">
-                    <p className="text-gray-500 text-xs mb-2">Admin may adjust level:</p>
+                    <p className="text-gray-500 text-xs mb-2">{t('admin.reviews.adminAdjust')}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {LEVEL_NUMBERS.map(n => (
                         <button key={n}
@@ -600,14 +617,14 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                       disabled={reviewingId === rec.id}
                       className="flex-1 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
                     >
-                      {reviewingId === rec.id ? 'Processing...' : override !== String(lvl) ? `Confirm Change to L${override}` : `Confirm L${lvl}`}
+                      {reviewingId === rec.id ? t('admin.reviews.processing') : override !== String(lvl) ? t('admin.reviews.confirmChangeTo', { n: override }) : t('admin.reviews.confirmLevel', { n: lvl })}
                     </button>
                     <button
                       onClick={() => handleReview(rec, 'rejected')}
                       disabled={reviewingId === rec.id}
                       className="px-4 py-2 rounded-lg border border-red-500/40 text-red-400 text-sm hover:bg-red-500/10 transition-all"
                     >
-                      Reject
+                      {t('admin.reviews.reject')}
                     </button>
                   </div>
                 </div>
@@ -619,8 +636,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       {waiting === 0 && (
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-10 text-center">
           <p className="text-3xl mb-2">✓</p>
-          <p className="text-white font-semibold">Nothing waiting</p>
-          <p className="text-gray-500 text-sm mt-1">Every lesson has a progress record and every request has been answered.</p>
+          <p className="text-white font-semibold">{t('admin.reviews.nothingWaiting')}</p>
+          <p className="text-gray-500 text-sm mt-1">{t('admin.reviews.allClear')}</p>
         </div>
       )}
 

@@ -7,6 +7,9 @@ import AlertModal from '@/components/AlertModal'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
 import { LEVEL_NAMES, LEVEL_BADGE_CLASSES as LEVEL_COLORS } from '@/lib/levels'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb, dateTag } from '@/lib/i18n'
+import type { TFunction, Locale } from '@/lib/i18n'
 
 type Student = {
   id: string
@@ -51,6 +54,7 @@ type Booking = {
   start_time: string
   end_time: string
   course_name: string
+  course_type_id?: string | null
   coach_name: string
   status: string
   student_id?: string
@@ -68,27 +72,33 @@ function localDate(ymd: string): Date {
   return new Date(y, (m || 1) - 1, d || 1)
 }
 
-function calcAge(dob: string | null): string {
+function calcAge(dob: string | null, t: TFunction): string {
   if (!dob) return '—'
   const birth = localDate(dob)
   const today = new Date()
   let age = today.getFullYear() - birth.getFullYear()
   const m = today.getMonth() - birth.getMonth()
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
-  if (age >= 1) return `${age} yrs`
+  if (age >= 1) return t('admin.members.ageYrs', { n: age })
   let mo = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth())
   if (today.getDate() < birth.getDate()) mo--
-  return mo >= 1 ? `${mo} mo` : '<1 mo'
+  return mo >= 1 ? t('admin.members.ageMo', { n: mo }) : t('admin.members.ageUnderMo')
 }
 
-function formatDate(ts: string | null): string {
+function formatDate(ts: string | null, locale: Locale): string {
   if (!ts) return '—'
-  return new Date(ts).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  return new Date(ts).toLocaleDateString(dateTag(locale, 'en-US'), { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function formatDateTime(ts: string | null): string {
+/* Date follows the language, time stays 12-hour English. English keeps the
+   exact "Oct 2, 2026, 03:35 PM" it always showed. */
+function dateAndTime(d: Date, locale: Locale, dateOpts: Intl.DateTimeFormatOptions, timeOpts: Intl.DateTimeFormatOptions): string {
+  return d.toLocaleDateString(dateTag(locale, 'en-US'), dateOpts) + (locale === 'en' ? ', ' : ' ') + d.toLocaleTimeString('en-US', timeOpts)
+}
+
+function formatDateTime(ts: string | null, locale: Locale): string {
   if (!ts) return '—'
-  return new Date(ts).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return dateAndTime(new Date(ts), locale, { year: 'numeric', month: 'short', day: 'numeric' }, { hour: '2-digit', minute: '2-digit' })
 }
 
 function isOnline(p: Parent): boolean {
@@ -96,16 +106,16 @@ function isOnline(p: Parent): boolean {
   return Date.now() - new Date(p.last_activity_at).getTime() < 5 * 60 * 1000
 }
 
-function timeAgo(ts: string | null): string {
-  if (!ts) return 'Never'
+function timeAgo(ts: string | null, t: TFunction, locale: Locale): string {
+  if (!ts) return t('admin.members.never')
   const mins = Math.floor((Date.now() - new Date(ts).getTime()) / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t('admin.members.justNow')
+  if (mins < 60) return t('admin.members.minsAgo', { n: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('admin.members.hoursAgo', { n: hours })
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (days < 30) return t('admin.members.daysAgo', { n: days })
+  return new Date(ts).toLocaleDateString(dateTag(locale, 'en-GB'), { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function isUnread(p: Parent): boolean {
@@ -115,6 +125,7 @@ function isUnread(p: Parent): boolean {
 }
 
 function MemberEditPanel({ parent }: { parent: any }) {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -155,12 +166,12 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(false)
     if (!ok) {
       if (j.error === 'no_channel') { setErr(j.message); setForceField(field) }
-      else setErr(j.error || 'Could not send the code.')
+      else setErr(j.error || t('admin.members.err.sendCode'))
       return
     }
     setPending({ id: j.request_id, field, sent_to: j.sent_to })
     setCode('')
-    flash(`Code sent to ${j.sent_to}${j.delivered ? '' : ' (delivery may be delayed)'}`)
+    flash(j.delivered ? t('admin.members.codeSentFlash', { to: j.sent_to ?? '' }) : t('admin.members.codeSentFlashDelayed', { to: j.sent_to ?? '' }))
   }
 
   const confirmCode = async () => {
@@ -168,11 +179,11 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'confirm', request_id: pending.id, code })
     setBusy(false)
-    if (!ok) { setErr(j.error + (j.attempts_left != null ? ` ${j.attempts_left} attempts left.` : '')); return }
+    if (!ok) { setErr(j.error + (j.attempts_left != null ? ' ' + t('admin.members.attemptsLeft', { n: j.attempts_left }) : '')); return }
     if (pending.field === 'email') { parent.email = j.new_value; setEmailVal(j.new_value) }
     else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
     setPending(null); setCode('')
-    flash(`${pending.field === 'email' ? 'Email' : 'Phone'} updated. Notifications sent.`)
+    flash(pending.field === 'email' ? t('admin.members.emailUpdated') : t('admin.members.phoneUpdated'))
     router.refresh()
   }
 
@@ -181,11 +192,11 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'force_update', parent_id: parent.id, field: forceField, new_value: forceField === 'email' ? emailVal : phoneVal, reason })
     setBusy(false)
-    if (!ok) { setErr(j.error || 'Override failed.'); return }
+    if (!ok) { setErr(j.error || t('admin.members.err.overrideFailed')); return }
     if (forceField === 'email') { parent.email = j.new_value; setEmailVal(j.new_value) }
     else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
     setForceField(null); setReason('')
-    flash('Updated by override — reason recorded.')
+    flash(t('admin.members.overrideDone'))
     router.refresh()
   }
 
@@ -193,10 +204,10 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'direct_update', target: 'parent', id: parent.id, fields: { address_line1: a1, address_line2: a2, city, state: stateV, zip_code: zip } })
     setBusy(false)
-    if (!ok) { setErr(j.error || 'Save failed.'); return }
+    if (!ok) { setErr(j.error || t('admin.members.err.saveFailed')); return }
     parent.address_line1 = a1.trim() || null; parent.address_line2 = a2.trim() || null
     parent.city = city.trim() || null; parent.state = stateV.trim() || null; parent.zip_code = zip.trim() || null
-    flash('Address saved.')
+    flash(t('admin.members.addressSaved'))
     router.refresh()
   }
 
@@ -205,9 +216,9 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'direct_update', target: 'student', id: s.id, fields: { full_name: e.name, date_of_birth: e.dob } })
     setBusy(false)
-    if (!ok) { setErr(j.error || 'Save failed.'); return }
+    if (!ok) { setErr(j.error || t('admin.members.err.saveFailed')); return }
     s.full_name = e.name.trim(); s.date_of_birth = e.dob || null
-    flash(`${e.name.trim()} saved.`)
+    flash(t('admin.members.studentSaved', { name: e.name.trim() }))
     router.refresh()
   }
 
@@ -218,80 +229,80 @@ function MemberEditPanel({ parent }: { parent: any }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-xs text-gray-400 hover:text-[#c9a84c]">&#9998; Edit details</button>
+      <button onClick={() => setOpen(true)} className="text-xs text-gray-400 hover:text-[#c9a84c]">&#9998; {t('admin.members.editDetails')}</button>
     )
   }
 
   return (
     <div className="border border-[#1e3a6e] rounded-lg p-4 space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-[#c9a84c] text-xs uppercase tracking-wider font-bold">Edit details</p>
-        <button onClick={() => { setOpen(false); setPending(null); setForceField(null); setErr(null) }} className="text-xs text-gray-400">Close</button>
+        <p className="text-[#c9a84c] text-xs uppercase tracking-wider font-bold">{t('admin.members.editDetails')}</p>
+        <button onClick={() => { setOpen(false); setPending(null); setForceField(null); setErr(null) }} className="text-xs text-gray-400">{t('common.close')}</button>
       </div>
       {msg && <p className="text-green-400 text-xs">{msg}</p>}
       {err && <p className="text-red-400 text-xs">{err}</p>}
 
       <div className="space-y-3">
-        <p className="text-gray-400 text-xs">Email and phone need the family to confirm a code sent to their other contact method.</p>
+        <p className="text-gray-400 text-xs">{t('admin.members.contactHint')}</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <p className={label}>Email (login)</p>
+            <p className={label}>{t('admin.members.emailLogin')}</p>
             <div className="flex gap-2">
               <input className={inputCls} value={emailVal} onChange={e => setEmailVal(e.target.value)} />
-              <button className={ghostBtn} disabled={busy || emailVal === parent.email} onClick={() => requestCode('email')}>Send code</button>
+              <button className={ghostBtn} disabled={busy || emailVal === parent.email} onClick={() => requestCode('email')}>{t('admin.members.sendCode')}</button>
             </div>
-            <p className="text-gray-500 text-[11px] mt-1">Code goes to their phone by SMS.</p>
+            <p className="text-gray-500 text-[11px] mt-1">{t('admin.members.codeBySms')}</p>
           </div>
           <div>
-            <p className={label}>Phone</p>
+            <p className={label}>{t('admin.members.phone')}</p>
             <div className="flex gap-2">
               <input className={inputCls} value={phoneVal} onChange={e => setPhoneVal(e.target.value)} />
-              <button className={ghostBtn} disabled={busy || phoneVal === parent.phone} onClick={() => requestCode('phone')}>Send code</button>
+              <button className={ghostBtn} disabled={busy || phoneVal === parent.phone} onClick={() => requestCode('phone')}>{t('admin.members.sendCode')}</button>
             </div>
-            <p className="text-gray-500 text-[11px] mt-1">Code goes to their email.</p>
+            <p className="text-gray-500 text-[11px] mt-1">{t('admin.members.codeByEmail')}</p>
           </div>
         </div>
 
         {pending && (
           <div className="border border-[#c9a84c]/40 rounded p-3 space-y-2">
-            <p className="text-gray-300 text-xs">Code sent to <span className="text-[#c9a84c]">{pending.sent_to}</span> — ask the family to read it back.</p>
+            <p className="text-gray-300 text-xs">{t('admin.members.codeSentPre')} <span className="text-[#c9a84c]">{pending.sent_to}</span> {t('admin.members.codeSentPost')}</p>
             <div className="flex gap-2 items-center">
               <input className={inputCls + ' max-w-[160px] tracking-[4px] text-center'} value={code} onChange={e => setCode(e.target.value)} placeholder="000000" maxLength={6} />
-              <button className={goldBtn} disabled={busy || code.length < 6} onClick={confirmCode}>Confirm change</button>
-              <button className={ghostBtn} disabled={busy} onClick={() => requestCode(pending.field)}>Resend</button>
-              <button className={ghostBtn} onClick={() => { setPending(null); setCode('') }}>Cancel</button>
+              <button className={goldBtn} disabled={busy || code.length < 6} onClick={confirmCode}>{t('admin.members.confirmChange')}</button>
+              <button className={ghostBtn} disabled={busy} onClick={() => requestCode(pending.field)}>{t('admin.members.resend')}</button>
+              <button className={ghostBtn} onClick={() => { setPending(null); setCode('') }}>{t('common.cancel')}</button>
             </div>
           </div>
         )}
 
         {forceField && (
           <div className="border border-red-500/40 rounded p-3 space-y-2">
-            <p className="text-red-300 text-xs font-semibold">Override without verification</p>
-            <p className="text-gray-400 text-[11px]">Only after checking ID in person. The reason is recorded.</p>
-            <textarea className={inputCls} rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Parent at front desk with photo ID, old phone disconnected" />
+            <p className="text-red-300 text-xs font-semibold">{t('admin.members.overrideTitle')}</p>
+            <p className="text-gray-400 text-[11px]">{t('admin.members.overrideHint')}</p>
+            <textarea className={inputCls} rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder={t('admin.members.overridePlaceholder')} />
             <div className="flex gap-2">
-              <button className={goldBtn} disabled={busy || reason.trim().length < 10} onClick={forceUpdate}>Apply override</button>
-              <button className={ghostBtn} onClick={() => { setForceField(null); setReason('') }}>Cancel</button>
+              <button className={goldBtn} disabled={busy || reason.trim().length < 10} onClick={forceUpdate}>{t('admin.members.applyOverride')}</button>
+              <button className={ghostBtn} onClick={() => { setForceField(null); setReason('') }}>{t('common.cancel')}</button>
             </div>
           </div>
         )}
       </div>
 
       <div className="border-t border-[#1e3a6e] pt-4 space-y-2">
-        <p className={label}>Address</p>
-        <input className={inputCls} value={a1} onChange={e => setA1(e.target.value)} placeholder="Address line 1" />
-        <input className={inputCls} value={a2} onChange={e => setA2(e.target.value)} placeholder="Address line 2" />
+        <p className={label}>{t('admin.members.address')}</p>
+        <input className={inputCls} value={a1} onChange={e => setA1(e.target.value)} placeholder={t('admin.members.addressLine1')} />
+        <input className={inputCls} value={a2} onChange={e => setA2(e.target.value)} placeholder={t('admin.members.addressLine2')} />
         <div className="grid grid-cols-3 gap-2">
-          <input className={inputCls} value={city} onChange={e => setCity(e.target.value)} placeholder="City" />
-          <input className={inputCls} value={stateV} onChange={e => setStateV(e.target.value)} placeholder="State" />
+          <input className={inputCls} value={city} onChange={e => setCity(e.target.value)} placeholder={t('admin.members.city')} />
+          <input className={inputCls} value={stateV} onChange={e => setStateV(e.target.value)} placeholder={t('admin.members.state')} />
           <input className={inputCls} value={zip} onChange={e => setZip(e.target.value)} placeholder="ZIP" />
         </div>
-        <button className={goldBtn} disabled={busy} onClick={saveAddress}>Save address</button>
+        <button className={goldBtn} disabled={busy} onClick={saveAddress}>{t('admin.members.saveAddress')}</button>
       </div>
 
       {(parent.students || []).length > 0 && (
         <div className="border-t border-[#1e3a6e] pt-4 space-y-3">
-          <p className={label}>Swimmers</p>
+          <p className={label}>{t('admin.members.swimmers')}</p>
           {(parent.students || []).map((s: any) => (
             <div key={s.id} className="flex flex-wrap gap-2 items-center">
               <input className={inputCls + ' max-w-[220px]'} value={studentEdits[s.id]?.name || ''}
@@ -299,7 +310,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
               <input type="date" className={inputCls + ' max-w-[170px]'} value={studentEdits[s.id]?.dob || ''}
                 max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                 onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], dob: e.target.value } }))} />
-              <button className={goldBtn} disabled={busy} onClick={() => saveStudent(s)}>Save</button>
+              <button className={goldBtn} disabled={busy} onClick={() => saveStudent(s)}>{t('common.save')}</button>
             </div>
           ))}
         </div>
@@ -309,6 +320,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
 }
 
 function SdpPanel({ student }: { student: Student }) {
+  const t = useT()
   const [legalName, setLegalName] = useState(student.legal_full_name || '')
   const [uci, setUci] = useState(student.uci_number || '')
   const [code, setCode] = useState(student.service_code || '')
@@ -342,30 +354,30 @@ function SdpPanel({ student }: { student: Student }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-gray-500 text-xs">SDP / Regional Center billing info. Leave UCI empty for non-SDP students — invoices stay standard.</p>
+      <p className="text-gray-500 text-xs">{t('admin.members.sdp.hint')}</p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
-          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Legal Full Name</p>
-          <input value={legalName} onChange={e => setLegalName(e.target.value)} placeholder="As registered with RC"
+          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{t('admin.members.sdp.legalName')}</p>
+          <input value={legalName} onChange={e => setLegalName(e.target.value)} placeholder={t('admin.members.sdp.legalNamePlaceholder')}
             className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]" />
         </div>
         <div>
-          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">UCI Number</p>
-          <input value={uci} onChange={e => setUci(e.target.value)} placeholder="e.g. 1234567"
+          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{t('admin.members.sdp.uci')}</p>
+          <input value={uci} onChange={e => setUci(e.target.value)} placeholder={t('admin.members.sdp.uciPlaceholder')}
             className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]" />
         </div>
         <div>
-          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Service Code</p>
-          <input value={code} onChange={e => setCode(e.target.value)} placeholder="331 (default when UCI set)"
+          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{t('admin.members.sdp.serviceCode')}</p>
+          <input value={code} onChange={e => setCode(e.target.value)} placeholder={t('admin.members.sdp.serviceCodePlaceholder')}
             className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]" />
         </div>
       </div>
       <div className="flex items-center gap-3">
         <button onClick={save} disabled={saving}
           className="bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] text-xs font-semibold px-4 py-2 rounded-lg transition-all">
-          {saving ? 'Saving...' : 'Save SDP Info'}
+          {saving ? t('admin.members.sdp.saving') : t('admin.members.sdp.save')}
         </button>
-        {msg && <span className={`text-xs ${msg === 'Saved' ? 'text-green-400' : 'text-red-400'}`}>{msg}</span>}
+        {msg && <span className={`text-xs ${msg === 'Saved' ? 'text-green-400' : 'text-red-400'}`}>{msg === 'Saved' ? t('admin.members.sdp.saved') : t('admin.members.sdp.saveFailed')}</span>}
       </div>
     </div>
   )
@@ -374,6 +386,7 @@ function SdpPanel({ student }: { student: Student }) {
 /* Staff can add a swimmer to any family, with no limit -- the three-swimmer
    cap is only for what a parent adds themselves (owner, 2026-09-29). */
 function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: Student) => void }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [dob, setDob] = useState('')
@@ -391,7 +404,7 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
     const data = res ? await res.json().catch(() => ({})) : {}
     setSaving(false)
     if (!res || !res.ok || !data.student) {
-      setError(!res ? 'Could not reach the server. Check your connection and try again.' : data.error || 'The student was not added.')
+      setError(!res ? t('admin.members.err.network') : data.error || t('admin.members.err.notAdded'))
       return
     }
     onAdded(data.student)
@@ -401,25 +414,25 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
   if (!open) return (
     <button type="button" onClick={() => setOpen(true)}
       className="mt-2 w-full py-2 rounded-lg border border-dashed border-[#1e3a6e] text-gray-400 text-xs font-semibold hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all">
-      + Add student
+      + {t('admin.members.addStudent')}
     </button>
   )
   return (
     <div className="mt-2 bg-[#0d1529] rounded-lg p-3 space-y-2">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" maxLength={80}
+        <input value={name} onChange={e => setName(e.target.value)} placeholder={t('admin.members.fullName')} maxLength={80}
           className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
-        <input type="date" value={dob} max={today} onChange={e => setDob(e.target.value)} aria-label="Date of birth" title="Date of birth (required)"
+        <input type="date" value={dob} max={today} onChange={e => setDob(e.target.value)} aria-label={t('admin.members.dob')} title={t('admin.members.dobRequired')}
           className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
       </div>
-      <p className="text-gray-500 text-[11px]">Name and birthday are both required. Starts with no level: book their Swim Assessment to place them.</p>
+      <p className="text-gray-500 text-[11px]">{t('admin.members.addStudentHint')}</p>
       {error && <p className="text-red-400 text-xs">{error}</p>}
       <div className="flex gap-2">
         <button type="button" onClick={() => { setOpen(false); setError(null) }} disabled={saving}
-          className="px-3 py-2 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs">Cancel</button>
+          className="px-3 py-2 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs">{t('common.cancel')}</button>
         <button type="button" onClick={save} disabled={!name.trim() || !dob || saving}
           className="flex-1 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] text-xs font-semibold disabled:opacity-50">
-          {saving ? 'Adding...' : 'Add student'}
+          {saving ? t('admin.members.adding') : t('admin.members.addStudent')}
         </button>
       </div>
     </div>
@@ -427,6 +440,7 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
 }
 
 function CopyButton({ value }: { value: string }) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   function handleCopy() {
     navigator.clipboard.writeText(value).then(() => {
@@ -438,7 +452,7 @@ function CopyButton({ value }: { value: string }) {
     <button
       onClick={handleCopy}
       className="tap-auto ml-2 p-1.5 -m-1.5 ml-1 inline-flex items-center justify-center text-gray-500 hover:text-[#c9a84c] transition-colors flex-shrink-0"
-      title="Copy"
+      title={t('admin.members.copy')}
     >
       {copied
         ? <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clipRule="evenodd" /></svg>
@@ -449,6 +463,8 @@ function CopyButton({ value }: { value: string }) {
 }
 
 export default function AdminMembersClient({ parents: initialParents }: { parents: Parent[] }) {
+  const t = useT()
+  const locale = useLocale()
   const supabase = createClient()
   const [search, setSearch] = useState('')
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
@@ -492,7 +508,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     const sessionIds = rawBookings.map((b: any) => b.class_session_id).filter(Boolean)
     const { data: sessions } = await supabase
       .from('class_sessions')
-      .select('id, session_date, start_time, end_time, course_types(name), coaches(first_name)')
+      .select('id, session_date, start_time, end_time, course_types(id, name), coaches(first_name)')
       .in('id', sessionIds)
     const sessionMap: Record<string, any> = {}
     for (const s of sessions || []) {
@@ -504,7 +520,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       .map((b: any) => {
         const cs = sessionMap[b.class_session_id]
         if (!cs) return null
-        return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', coach_name: cs.coach?.first_name || '', status: b.status, student_id: b.student_id, class_session_id: b.class_session_id, lesson_group_id: b.lesson_group_id }
+        return { id: b.id, session_date: cs.session_date, start_time: cs.start_time, end_time: cs.end_time, course_name: cs.ct?.name || '', course_type_id: cs.ct?.id || null, coach_name: cs.coach?.first_name || '', status: b.status, student_id: b.student_id, class_session_id: b.class_session_id, lesson_group_id: b.lesson_group_id }
       })
       .filter(Boolean) as Booking[]
     // A 60-minute lesson is two linked bookings. Every other screen shows it as
@@ -567,7 +583,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setAlertMsg((checkedIn ? 'Could not mark this student as checked in. ' : 'Could not mark this student as absent. ') + (data.error || res.statusText))
+      setAlertMsg((checkedIn ? t('admin.members.err.markCheckedIn') : t('admin.members.err.markAbsent')) + ' ' + (data.error || res.statusText))
       return
     }
     setStudentBookings(prev => {
@@ -642,16 +658,16 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     <div>
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Members</h1>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.nav.members')}</h1>
         <p className="text-gray-400 mt-1">
-          {parents.length} families · {parents.reduce((a, p) => a + p.students.filter(s => s.is_active !== false).length, 0)} students
+          {t('admin.members.summary', { families: parents.length, students: parents.reduce((a, p) => a + p.students.filter(s => s.is_active !== false).length, 0) })}
         </p>
       </div>
 
       <div className="mb-6">
         <input
           type="text"
-          placeholder="Search by name or email..."
+          placeholder={t('admin.members.searchPlaceholder')}
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full max-w-md bg-[#111d38] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors placeholder-gray-500"
@@ -690,7 +706,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   <div className="relative w-10 h-10 rounded-full bg-[#1e3a6e] flex items-center justify-center flex-shrink-0">
                     <span className="text-[#c9a84c] font-bold">{parent.first_name.charAt(0)}</span>
                     {isOnline(parent) && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-[#111d38]" title="Online now" />
+                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-[#111d38]" title={t('admin.members.onlineNow')} />
                     )}
                   </div>
                   <div className="min-w-0">
@@ -700,13 +716,13 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                   {isUnread(parent) && (
-                    <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="New activity" />
+                    <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title={t('admin.members.newActivity')} />
                   )}
-                  <span className={`hidden sm:inline text-xs ${isOnline(parent) ? 'text-green-400' : 'text-gray-500'}`}>{isOnline(parent) ? 'Online' : timeAgo(parent.last_activity_at)}</span>
+                  <span className={`hidden sm:inline text-xs ${isOnline(parent) ? 'text-green-400' : 'text-gray-500'}`}>{isOnline(parent) ? t('admin.members.online') : timeAgo(parent.last_activity_at, t, locale)}</span>
                   <span className="text-gray-500 text-sm whitespace-nowrap">{(() => {
                     const on = parent.students.filter(s => s.is_active !== false).length
                     const off = parent.students.length - on
-                    return `${on} student${on !== 1 ? 's' : ''}${off ? ` · ${off} inactive` : ''}`
+                    return (on !== 1 ? t('admin.members.studentCountPlural', { n: on }) : t('admin.members.studentCount', { n: on })) + (off ? ' · ' + t('admin.members.inactiveCount', { n: off }) : '')
                   })()}</span>
                   <span className="text-gray-500">{expanded === parent.id ? '▲' : '▼'}</span>
                 </div>
@@ -718,21 +734,21 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   {/* Row 1: Email, Phone, Address */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Email</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.email')}</p>
                       <div className="flex items-center">
                         <p className="text-gray-300 text-sm">{parent.email}</p>
                         <CopyButton value={parent.email} />
                       </div>
                     </div>
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Phone</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.phone')}</p>
                       <div className="flex items-center">
                         <p className="text-gray-300 text-sm">{parent.phone || '—'}</p>
                         {parent.phone && <CopyButton value={parent.phone} />}
                       </div>
                     </div>
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Address</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.address')}</p>
                       {addressText ? (
                         <div className="flex items-start">
                           <p className="text-gray-300 text-sm leading-relaxed min-w-0 break-words">
@@ -745,8 +761,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                       )}
                     </div>
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Last Login</p>
-                      <p className="text-gray-300 text-sm">{formatDateTime(parent.last_login_at)}</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.lastLogin')}</p>
+                      <p className="text-gray-300 text-sm">{formatDateTime(parent.last_login_at, locale)}</p>
                     </div>
                   </div>
 
@@ -755,7 +771,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                         make-up vouchers, fixed classes, upcoming lessons. */}
                     <a href={`/admin/members/${parent.id}`}
                       className="text-xs font-semibold rounded-lg px-3 py-1.5 bg-[#c9a84c] text-[#111d38] hover:opacity-90">
-                      Parent view ›
+                      {t('admin.members.parentView')}
                     </a>
                     <MemberEditPanel parent={parent} />
                   </div>
@@ -763,29 +779,29 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   {/* Row 2: Registered, Terms Accepted, Photo Release, Newsletter */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-[#1e3a6e]/40 pt-4">
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Registered</p>
-                      <p className="text-gray-300 text-sm">{formatDate(parent.registered_at)}</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.registered')}</p>
+                      <p className="text-gray-300 text-sm">{formatDate(parent.registered_at, locale)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Terms Accepted</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.termsAccepted')}</p>
                       <p className="text-sm">
                         {parent.terms_accepted_at
-                          ? <span className="text-green-400">✓ {formatDateTime(parent.terms_accepted_at)}</span>
-                          : <span className="text-red-400">✗ Not accepted</span>
+                          ? <span className="text-green-400">✓ {formatDateTime(parent.terms_accepted_at, locale)}</span>
+                          : <span className="text-red-400">✗ {t('admin.members.notAccepted')}</span>
                         }
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Photo Release</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.photoRelease')}</p>
                       <p className="text-gray-300 text-sm">
                         {parent.media_release_accepted
-                          ? <span className="text-green-400">✓ {formatDateTime(parent.media_release_at)}</span>
-                          : <span className="text-red-400">✗ Not accepted</span>
+                          ? <span className="text-green-400">✓ {formatDateTime(parent.media_release_at, locale)}</span>
+                          : <span className="text-red-400">✗ {t('admin.members.notAccepted')}</span>
                         }
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Newsletter</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.newsletter')}</p>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => toggleNewsletter(parent.id, parent.newsletter_subscribed)}
@@ -798,7 +814,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                           }`} />
                         </button>
                         <span className="text-sm text-gray-400">
-                          {parent.newsletter_subscribed ? 'Subscribed' : 'Not subscribed'}
+                          {parent.newsletter_subscribed ? t('admin.members.subscribed') : t('admin.members.notSubscribed')}
                         </span>
                       </div>
                     </div>
@@ -809,7 +825,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
 
                   {/* Students */}
                   <div>
-                    <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">Students</p>
+                    <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">{t('admin.members.students')}</p>
                     <div className="space-y-2">
                       {parent.students.map(student => {
                         const sb = studentBookings[student.id]
@@ -833,38 +849,38 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                     {/* A deactivated swimmer is hidden from the parent's pages but was
                                         listed here exactly like an active one. */}
                                     {student.is_active === false && (
-                                      <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-400/30">Inactive</span>
+                                      <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-400/30">{t('admin.members.inactive')}</span>
                                     )}
                                   </p>
                                   <p className="text-gray-500 text-xs">
                                     {student.date_of_birth
-                                      ? `${localDate(student.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth)}`
-                                      : 'No birthday on file'
+                                      ? `${localDate(student.date_of_birth).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', year: 'numeric' })} · ${calcAge(student.date_of_birth, t)}`
+                                      : t('admin.members.noBirthday')
                                     }
                                   </p>
                                   {student.added_by_parent && (
                                     <p className="text-[#c9a84c] text-[10px] mt-0.5">
-                                      Added by parent{student.created_at ? ' · ' + formatDate(student.created_at) : ''}
+                                      {t('admin.members.addedByParent')}{student.created_at ? ' · ' + formatDate(student.created_at, locale) : ''}
                                     </p>
                                   )}
                                 </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-2 sm:ml-4">
                                 <span className={`text-xs px-2 py-1 rounded-full ${student.current_level ? (LEVEL_COLORS[student.current_level] || 'bg-gray-700 text-gray-300') : 'bg-gray-700/50 text-gray-400 italic'}`}>
-                                  {student.current_level ? `L${student.current_level} ${LEVEL_NAMES[student.current_level] || ''}` : 'Pending Assessment'}
+                                  {student.current_level ? `L${student.current_level} ${LEVEL_NAMES[student.current_level] ? t(`level.${student.current_level}.name`) : ''}` : t('dash.pendingAssessment')}
                                 </span>
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'upcoming')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'upcoming' ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >Upcoming {sb?.loaded ? `(${sb.upcoming.length})` : ''}</button>
+                                >{t('admin.members.upcoming')} {sb?.loaded ? `(${sb.upcoming.length})` : ''}</button>
                                 <button
                                   onClick={() => toggleStudentBookings(student.id, 'past')}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'past' ? 'border-blue-400 bg-blue-400/20 text-blue-400' : 'border-[#1e3a6e] text-gray-500 hover:border-blue-400/40'}`}
-                                >History {sb?.loaded ? `(${sb.past.length})` : ''}</button>
+                                >{t('admin.members.history')} {sb?.loaded ? `(${sb.past.length})` : ''}</button>
                                 <button
                                   onClick={() => toggleStudentNotes(student.id)}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'notes' ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300' : 'border-[#1e3a6e] text-gray-500 hover:border-emerald-400/40'}`}
-                                >📝 Notes{noteCounts[student.id] ? ` (${noteCounts[student.id]})` : ''}</button>
+                                >📝 {t('admin.notes.notes')}{noteCounts[student.id] ? ` (${noteCounts[student.id]})` : ''}</button>
                                 <button
                                   onClick={() => setExpandedBookings(prev => ({ ...prev, [student.id]: prev[student.id] === 'sdp' ? null : 'sdp' }))}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'sdp' ? 'border-purple-400 bg-purple-400/20 text-purple-300' : student.uci_number ? 'border-[#c9a84c]/60 text-[#c9a84c] hover:border-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-purple-400/40'}`}
@@ -884,40 +900,40 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                             {(expandedType === 'upcoming' || expandedType === 'past') && (
                               <div className="border-t border-[#1e3a6e]/50 px-3 pb-3 pt-2">
                                 {!sb?.loaded ? (
-                                  <p className="text-gray-500 text-xs py-2">Loading...</p>
+                                  <p className="text-gray-500 text-xs py-2">{t('admin.members.loading')}</p>
                                 ) : displayList && displayList.length > 0 ? (
                                   <div className="space-y-1.5">
                                     {displayList.map(b => (
                                       <div key={b.id} className="flex items-center gap-3 text-xs">
-                                        <span className="text-gray-400 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                        <span className="text-gray-400 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                         <span className="text-gray-500 flex-shrink-0">{formatTime12h(b.start_time)}–{formatTime12h(b.end_time)}</span>
-                                        <span className="text-gray-300">{b.course_name}</span>
-                                        {b.is_hour && <span className="px-1.5 py-0.5 rounded border border-[#c9a84c]/50 text-[#c9a84c] text-[10px] font-semibold flex-shrink-0">60 min</span>}
-                                        <span className="text-gray-500">Coach {b.coach_name}</span>
+                                        <span className="text-gray-300">{b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name}</span>
+                                        {b.is_hour && <span className="px-1.5 py-0.5 rounded border border-[#c9a84c]/50 text-[#c9a84c] text-[10px] font-semibold flex-shrink-0">{t('admin.members.min60')}</span>}
+                                        <span className="text-gray-500">{t('admin.coachName', { name: b.coach_name })}</span>
                                         {expandedType === 'past' && (
                                           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
                                             {confirmingBookingId === b.id ? (
                                               <>
-                                                <span className="text-gray-400 text-[10px]">Confirm?</span>
+                                                <span className="text-gray-400 text-[10px]">{t('admin.members.confirmQ')}</span>
                                                 <button
                                                   onClick={() => setAttendance(student.id, b, !b.checked_in)}
                                                   className="px-2 py-0.5 rounded-full border border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c] text-[10px] font-semibold"
-                                                >Yes</button>
+                                                >{t('admin.members.yes')}</button>
                                                 <button
                                                   onClick={() => setConfirmingBookingId(null)}
                                                   className="px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 text-[10px] font-semibold"
-                                                >No</button>
+                                                >{t('admin.members.no')}</button>
                                               </>
                                             ) : (
                                               <>
                                                 <button
                                                   onClick={() => setConfirmingBookingId(b.id)}
                                                   className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${b.checked_in ? 'bg-green-500/25 border-green-400 text-green-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-green-400/40'}`}
-                                                >Checked In</button>
+                                                >{t('admin.members.checkedIn')}</button>
                                                 <button
                                                   onClick={() => setConfirmingBookingId(b.id)}
                                                   className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${!b.checked_in ? 'bg-red-500/25 border-red-400 text-red-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-red-400/40'}`}
-                                                >Absent</button>
+                                                >{t('admin.members.absent')}</button>
                                               </>
                                             )}
                                           </div>
@@ -926,7 +942,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-gray-600 text-xs py-2">No records</p>
+                                  <p className="text-gray-600 text-xs py-2">{t('admin.members.noRecords')}</p>
                                 )}
                               </div>
                             )}
@@ -943,7 +959,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         })}
 
         {sortedFiltered.length === 0 && (
-          <div className="text-center py-12 text-gray-400">No members found</div>
+          <div className="text-center py-12 text-gray-400">{t('admin.members.noMembers')}</div>
         )}
       </div>
     </div>
@@ -985,7 +1001,12 @@ type WalletView = {
  * they book lessons like any other point but cannot be refunded for cash,
  * because no cash came in for them.
  */
+const LEDGER_REASONS = new Set(['purchase', 'booking', 'booking_failed', 'cancel_refund', 'forgiveness', 'school_cancel', 'admin_grant', 'admin_deduct', 'cash_refund', 'refund_failed', 'payment_failed', 'chargeback', 'grant_expired', 'referral_bonus', 'assessment_credit'])
+const REFERRAL_STATUSES = new Set(['pending', 'awarded', 'void'])
+
 function ParentPointsSection({ parentId }: { parentId: string }) {
+  const t = useT()
+  const locale = useLocale()
   const [open, setOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [w, setW] = useState<WalletView | null>(null)
@@ -998,7 +1019,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
   async function load() {
     setErr(null)
     const res = await fetch('/api/admin/points?parent_id=' + parentId)
-    if (!res.ok) { setErr('Failed to load points'); return }
+    if (!res.ok) { setErr(t('admin.members.pts.err.load')); return }
     setW(await res.json())
     setLoaded(true)
   }
@@ -1021,7 +1042,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
       body: JSON.stringify({ parent_id: parentId, points: n, note: note.trim() }),
     })
     setBusy(false)
-    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || 'Adjustment failed'); return }
+    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || t('admin.members.pts.err.adjust')); return }
     setAmount(''); setNote('')
     load()
   }
@@ -1036,56 +1057,57 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
     : r === 'referral_bonus' ? 'border-purple-400/50 text-purple-300'
     : r === 'assessment_credit' ? 'border-purple-400/50 text-purple-300'
     : 'border-[#c9a84c]/50 text-[#c9a84c]'
+  const refStatus = (st: string) => REFERRAL_STATUSES.has(st) ? t(`admin.members.pts.refStatus.${st}`) : st
 
   return (
     <div className="border-t border-[#1e3a6e]/40 pt-4">
       <button onClick={toggle} className="text-gray-500 text-xs uppercase tracking-wider mb-1 hover:text-[#c9a84c] transition-colors">
-        Points {open ? '▾' : '▸'}
+        {t('admin.members.pts.title')} {open ? '▾' : '▸'}
       </button>
       {open && (
         <div className="mt-2 space-y-3">
           {err && <p className="text-red-400 text-xs">{err}</p>}
-          {!loaded && !err && <p className="text-gray-500 text-xs">Loading…</p>}
+          {!loaded && !err && <p className="text-gray-500 text-xs">{t('common.loading')}</p>}
 
           {loaded && w && (
             <>
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
                 <span className="text-[#c9a84c] text-xl font-semibold tabular-nums">{w.balance.toLocaleString()}</span>
                 <span className="text-gray-500 text-xs">
-                  {w.balancePurchased.toLocaleString()} purchased · {w.balanceGranted.toLocaleString()} granted
+                  {t('admin.members.pts.split', { purchased: w.balancePurchased.toLocaleString(), granted: w.balanceGranted.toLocaleString() })}
                 </span>
                 <span className="text-gray-400 text-xs">
-                  {w.lessonsCompleted} lessons completed
+                  {t('admin.members.pts.lessonsCompleted', { n: w.lessonsCompleted })}
                 </span>
               </div>
               {w.referral && (w.referral.referredBy || w.referral.referred.length > 0) && (
                 <p className="text-gray-500 text-xs">
-                  {w.referral.referredBy && <>Referred by {w.referral.referredBy.name} ({w.referral.referredBy.status}). </>}
-                  {w.referral.referred.length > 0 && <>Referred {w.referral.referred.map(r => `${r.name} (${r.status})`).join(', ')}.</>}
+                  {w.referral.referredBy && <>{t('admin.members.pts.referredBy', { name: w.referral.referredBy.name, status: refStatus(w.referral.referredBy.status) })} </>}
+                  {w.referral.referred.length > 0 && <>{t('admin.members.pts.referred', { list: w.referral.referred.map(r => `${r.name} (${refStatus(r.status)})`).join(', ') })}</>}
                 </p>
               )}
               {/* Refundable is the purchased side only — spelled out here so the
                   figure is never worked out in someone's head at the counter. */}
               <p className="text-gray-500 text-xs">
-                Cash refundable today: ${w.balancePurchased.toLocaleString()}. Granted points are not refundable.
-                {w.grantedNextExpiry && ` Next expiry: ${w.grantedNextExpiry.points.toLocaleString()} granted points on ${new Date(w.grantedNextExpiry.date).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric' })}.`}
+                {t('admin.members.pts.refundable', { amount: w.balancePurchased.toLocaleString() })}
+                {w.grantedNextExpiry && ' ' + t('admin.members.pts.nextExpiry', { n: w.grantedNextExpiry.points.toLocaleString(), date: new Date(w.grantedNextExpiry.date).toLocaleDateString(dateTag(locale, 'en-US'), { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric' }) })}
               </p>
 
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <input type="number" placeholder="± points" value={amount} onChange={e => setAmount(e.target.value)}
+                <input type="number" placeholder={t('admin.members.pts.amountPlaceholder')} value={amount} onChange={e => setAmount(e.target.value)}
                   className="w-24 bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
-                <input type="text" placeholder="Reason (the parent sees this)" value={note} onChange={e => setNote(e.target.value)}
+                <input type="text" placeholder={t('admin.members.pts.reasonPlaceholder')} value={note} onChange={e => setNote(e.target.value)}
                   className="flex-1 min-w-[180px] bg-transparent border border-[#1e3a6e] rounded px-2 py-1 text-gray-300 text-xs" />
                 <button onClick={() => valid && setConfirming(true)} disabled={busy || !valid}
                   className="text-xs px-3 py-1 rounded border border-purple-400/50 text-purple-300 hover:bg-purple-400/10 disabled:opacity-40">
-                  Adjust
+                  {t('admin.members.pts.adjust')}
                 </button>
               </div>
 
-              {w.ledger.length === 0 && <p className="text-gray-500 text-xs">No movements yet</p>}
+              {w.ledger.length === 0 && <p className="text-gray-500 text-xs">{t('admin.members.pts.noMovements')}</p>}
               {w.ledger.map(row => (
                 <div key={row.id} className="flex flex-wrap items-center gap-3 text-sm border border-[#1e3a6e] rounded-lg px-3 py-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${reasonStyle(row.reason)}`}>{row.reason.replace(/_/g, ' ')}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${reasonStyle(row.reason)}`}>{LEDGER_REASONS.has(row.reason) ? t(`admin.members.pts.reason.${row.reason}`) : row.reason.replace(/_/g, ' ')}</span>
                   <span className={`tabular-nums font-semibold ${row.points >= 0 ? 'text-emerald-300' : 'text-gray-300'}`}>
                     {row.points >= 0 ? '+' : '−'}{Math.abs(row.points).toLocaleString()}
                   </span>
@@ -1093,7 +1115,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                   {row.amountCents ? <span className="text-gray-500 text-xs">${(row.amountCents / 100).toLocaleString()}</span> : null}
                   {row.note && <span className="text-gray-400 text-xs truncate max-w-[260px]" title={row.note}>{row.note}</span>}
                   <span className="text-gray-600 text-xs ml-auto">
-                    {new Date(row.at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    {dateAndTime(new Date(row.at), locale, { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric' }, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}
                     {row.actor && row.actor !== 'system' && row.actor !== 'parent' ? ` · ${row.actor}` : ''}
                   </span>
                 </div>
@@ -1106,23 +1128,23 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setConfirming(false)}>
           <div className="bg-[#1a2744] border border-[#1e3a6e] rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <p className="text-xs text-purple-300 font-semibold tracking-wide mb-2">POINTS ADJUSTMENT</p>
-            <h3 className="text-white font-semibold text-lg mb-3">{n > 0 ? `Add ${n.toLocaleString()} points?` : `Take back ${Math.abs(n).toLocaleString()} points?`}</h3>
+            <p className="text-xs text-purple-300 font-semibold tracking-wide mb-2">{t('admin.members.pts.confirmEyebrow')}</p>
+            <h3 className="text-white font-semibold text-lg mb-3">{n > 0 ? t('admin.members.pts.confirmAdd', { n: n.toLocaleString() }) : t('admin.members.pts.confirmTake', { n: Math.abs(n).toLocaleString() })}</h3>
             <div className="text-sm text-gray-300 space-y-1 mb-4">
-              <p className="text-gray-400 text-xs">Reason: {note.trim()}</p>
+              <p className="text-gray-400 text-xs">{t('admin.members.pts.reasonLine', { note: note.trim() })}</p>
               <p className="text-gray-400 text-xs">
-                New balance: {((w?.balance ?? 0) + n).toLocaleString()} points
+                {t('admin.members.pts.newBalance', { n: ((w?.balance ?? 0) + n).toLocaleString() })}
               </p>
             </div>
             <p className="text-gray-500 text-xs mb-4">
               {n > 0
-                ? 'These are granted points: they book lessons like any other point, are not refundable for cash, and expire one year from today.'
-                : 'Granted points are taken back first, then purchased ones.'}
-              {' '}The reason above appears on the parent’s own points history.
+                ? t('admin.members.pts.grantExplain')
+                : t('admin.members.pts.deductExplain')}
+              {' '}{t('admin.members.pts.reasonAppears')}
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setConfirming(false)} className="text-xs px-4 py-2 rounded border border-[#1e3a6e] text-gray-300 hover:bg-white/5">Cancel</button>
-              <button onClick={submit} className="text-xs px-4 py-2 rounded bg-purple-500/80 text-white font-semibold hover:bg-purple-500">Confirm</button>
+              <button onClick={() => setConfirming(false)} className="text-xs px-4 py-2 rounded border border-[#1e3a6e] text-gray-300 hover:bg-white/5">{t('common.cancel')}</button>
+              <button onClick={submit} className="text-xs px-4 py-2 rounded bg-purple-500/80 text-white font-semibold hover:bg-purple-500">{t('admin.members.pts.confirm')}</button>
             </div>
           </div>
         </div>

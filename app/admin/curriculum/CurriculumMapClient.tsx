@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { LocaleProvider } from '@/lib/i18n/provider'
+import { LocaleProvider, useT } from '@/lib/i18n/provider'
+import { getT } from '@/lib/i18n'
 import SkillTree from '@/app/(public)/dashboard/SkillTree'
 import { MAX_LEVEL } from '@/lib/levels'
 
@@ -20,17 +21,15 @@ export type SkillNotes = Record<string, {
  *  a skill added after the page had loaded was missing from this page's list
  *  and came back unpassed on a page where everything is meant to be passed. */
 export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
+  const t = useT()
   const [loc, setLoc] = useState<'zh-Hant' | 'en'>('zh-Hant')
   const [open, setOpen] = useState(false)
 
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-2xl font-bold text-white">Curriculum Map</h1>
+      <h1 className="text-2xl font-bold text-white">{t('admin.curriculum.title')}</h1>
       <p className="mt-2 text-sm text-white/60 leading-relaxed">
-        每一個級別、每一個技能、以及誰要等誰。這裡的每一格都畫成「已通過」，
-        因為這頁講的是課程本身，不是任何一個學生的進度——這裡不會讀到、也不會
-        改到任何人的成績。點一個技能會看到通過標準、前置技能、教學重點和最常
-        見的錯誤。
+        {t('admin.curriculum.intro')}
       </p>
 
       <div className="mt-5 flex items-center gap-3">
@@ -38,14 +37,15 @@ export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
           onClick={() => setOpen(true)}
           className="rounded-lg bg-[#c9a84c] px-4 py-2.5 text-sm font-semibold text-[#0b1428]"
         >
-          {`打開課程地圖（${MAX_LEVEL} 個級別）`}
+          {t('admin.curriculum.open', { n: MAX_LEVEL })}
         </button>
         <div className="flex overflow-hidden rounded-lg border border-[#1e3a6e]">
           {(['zh-Hant', 'en'] as const).map(l => (
             <button key={l} onClick={() => setLoc(l)}
               className={'px-3 py-2 text-xs font-semibold ' +
                 (loc === l ? 'bg-[#1e3a6e] text-white' : 'text-white/50')}>
-              {l === 'zh-Hant' ? '中文' : 'EN'}
+              {/* The map's own language switch: each side named in itself. */}
+              {l === 'zh-Hant' ? t('locale.zh-Hant.native') : 'EN'}
             </button>
           ))}
         </div>
@@ -54,7 +54,7 @@ export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
       {open && (
         <LocaleProvider locale={loc} persist={false}>
           <SkillTree
-            studentName={loc === 'en' ? 'The whole programme' : '全部課程'}
+            studentName={getT(loc)('admin.curriculum.wholeProgramme')}
             currentLevel={MAX_LEVEL}
             currentStage={3}
             percentBySkillId={NO_RECORDS}

@@ -1,18 +1,40 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag, type Locale } from '@/lib/i18n'
 
 const PAGE_SIZE = 20
 
 const PAYMENT_METHODS = [
-  { value: 'All', label: 'All' },
-  { value: 'stripe', label: 'Stripe Online' },
-  { value: 'Credit Card (Terminal)', label: 'Credit Card (Terminal)' },
-  { value: 'cash', label: 'Cash' },
+  { value: 'All', labelKey: 'admin.sales.all' },
+  { value: 'stripe', labelKey: 'admin.sales.pm.stripe' },
+  { value: 'Credit Card (Terminal)', labelKey: 'admin.sales.pm.terminal' },
+  { value: 'cash', labelKey: 'admin.sales.pm.cash' },
 ]
 
-function fDate(s: string) {
+// Sale-type filter: value is matched in the filter logic, label is shown.
+const SALE_TYPES = [
+  { value: 'All', labelKey: 'admin.sales.all' },
+  { value: 'Points', labelKey: 'admin.sales.type.points' },
+  { value: 'Swim Team', labelKey: 'admin.sales.type.team' },
+  { value: 'Other', labelKey: 'admin.sales.type.other' },
+]
+
+// The Payment column prints invoices.payment_method as stored. Known values get
+// a label whose English is the stored value itself, so the English page is
+// unchanged; anything else is shown raw.
+const PM_RAW_KEYS: Record<string, string> = {
+  stripe: 'admin.sales.pmRaw.stripe',
+  'Credit Card (Terminal)': 'admin.sales.pm.terminal',
+  stripe_terminal: 'admin.sales.pmRaw.stripeTerminal',
+  card: 'admin.sales.pmRaw.card',
+  cash: 'admin.sales.pmRaw.cash',
+}
+
+// locale is 'en' for the CSV export, which stays English for the accountant.
+function fDate(s: string, locale: Locale) {
   if (!s) return '—'
-  return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })
+  return new Date(s).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })
 }
 function fTime(s: string) {
   if (!s) return ''
@@ -20,6 +42,8 @@ function fTime(s: string) {
 }
 
 export default function SalesClient({ invoices, parentMap }: { invoices: any[], parentMap: Record<string, any> }) {
+  const t = useT()
+  const locale = useLocale()
   const [search, setSearch] = useState('')
   const [planGroup, setPlanGroup] = useState('All')
   const [payMethod, setPayMethod] = useState('All')
@@ -89,7 +113,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
         planName,
         inv.payment_method || '—',
         `$${(inv.amount || 0).toFixed(2)}`,
-        inv.issued_at ? `${fDate(inv.issued_at)} ${fTime(inv.issued_at)}` : '—',
+        inv.issued_at ? `${fDate(inv.issued_at, 'en')} ${fTime(inv.issued_at)}` : '—',
       ])
     }
     const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
@@ -111,18 +135,18 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-white font-serif">Sales</h1>
-          <p className="text-gray-400 mt-1">Every purchase: points, memberships and programme sales</p>
+          <h1 className="text-2xl font-bold text-white font-serif">{t('admin.sales.title')}</h1>
+          <p className="text-gray-400 mt-1">{t('admin.sales.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl px-6 py-4 text-right">
             <p className="text-gray-400 text-xs uppercase tracking-wider">
-              {hasFilter ? `Filtered (${filtered.length})` : `Total (${invoices.length})`}
+              {hasFilter ? t('admin.sales.filteredCount', { n: filtered.length }) : t('admin.sales.totalCount', { n: invoices.length })}
             </p>
             <p className="text-[#c9a84c] text-2xl font-bold">${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
           </div>
           <button onClick={exportCSV} className="bg-[#c9a84c] hover:bg-[#b8973b] text-[#1a2744] text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-            ↓ Export CSV
+            {t('admin.sales.exportCsv')}
           </button>
         </div>
       </div>
@@ -131,43 +155,43 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
         {/* Search */}
         <div className="flex-1 min-w-[200px]">
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Search Customer</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">{t('admin.sales.searchCustomer')}</label>
           <input
             type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Name or email..."
+            placeholder={t('admin.sales.searchPlaceholder')}
             className="w-full bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]"
           />
         </div>
         {/* Package type */}
         <div>
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Sale Type</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">{t('admin.sales.saleType')}</label>
           <select value={planGroup} onChange={e => { setPlanGroup(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-            {['All', 'Points', 'Swim Team', 'Other'].map(g => <option key={g} value={g}>{g}</option>)}
+            {SALE_TYPES.map(g => <option key={g.value} value={g.value}>{t(g.labelKey)}</option>)}
           </select>
         </div>
         {/* Payment method */}
         <div>
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Payment Method</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">{t('admin.sales.paymentMethod')}</label>
           <select value={payMethod} onChange={e => { setPayMethod(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-            {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{t(m.labelKey)}</option>)}
           </select>
         </div>
         {/* Date range */}
         <div>
-          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Date Range</label>
+          <label className="text-gray-500 text-xs uppercase tracking-wider block mb-1">{t('admin.sales.dateRange')}</label>
           <select value={dateRange} onChange={e => { setDateRange(e.target.value); setPage(1) }}
             className="bg-[#0d1829] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]">
-            <option value="All">All Time</option>
-            <option value="Week">Last 7 Days</option>
-            <option value="Month">This Month</option>
-            <option value="Quarter">This Quarter</option>
+            <option value="All">{t('admin.sales.range.all')}</option>
+            <option value="Week">{t('admin.sales.range.week')}</option>
+            <option value="Month">{t('admin.sales.range.month')}</option>
+            <option value="Quarter">{t('admin.sales.range.quarter')}</option>
           </select>
         </div>
         {hasFilter && (
           <button onClick={resetFilters} className="text-gray-400 hover:text-white text-sm px-3 py-2 border border-[#1e3a6e] rounded-lg transition-colors">
-            Clear Filters
+            {t('admin.sales.clearFilters')}
           </button>
         )}
       </div>
@@ -175,7 +199,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       {/* Table */}
       {paged.length === 0 ? (
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-12 text-center">
-          <p className="text-gray-400">No purchases match the filters</p>
+          <p className="text-gray-400">{t('admin.sales.empty')}</p>
         </div>
       ) : (
         <>
@@ -188,12 +212,12 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
               <table className="w-full min-w-[820px]">
               <thead>
                 <tr className="border-b border-[#1e3a6e]">
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Invoice #</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Customer</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Plan</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Payment</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Amount</th>
-                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">Purchased At</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">{t('admin.sales.col.invoice')}</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">{t('admin.sales.col.customer')}</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">{t('admin.sales.col.plan')}</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">{t('admin.sales.col.payment')}</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">{t('admin.sales.col.amount')}</th>
+                  <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-5 py-3">{t('admin.sales.col.purchasedAt')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -208,10 +232,10 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                         <p className="text-gray-500 text-xs">{parent?.email}</p>
                       </td>
                       <td className="px-5 py-4 text-gray-300 text-sm">{planName}</td>
-                      <td className="px-5 py-4 text-gray-400 text-xs">{inv.payment_method || '—'}</td>
+                      <td className="px-5 py-4 text-gray-400 text-xs">{inv.payment_method ? (PM_RAW_KEYS[inv.payment_method] ? t(PM_RAW_KEYS[inv.payment_method]) : inv.payment_method) : '—'}</td>
                       <td className="px-5 py-4 text-white text-sm font-medium">${(inv.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-5 py-4 text-gray-400 text-sm">
-                        {fDate(inv.issued_at)}<br/>
+                        {fDate(inv.issued_at, locale)}<br/>
                         <span className="text-xs text-gray-600">{fTime(inv.issued_at)}</span>
                       </td>
                     </tr>
@@ -224,16 +248,16 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
 
           {/* Pagination */}
           <div className="flex items-center justify-between text-sm text-gray-400">
-            <span>Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+            <span>{t('admin.sales.showing', { from: (page-1)*PAGE_SIZE+1, to: Math.min(page*PAGE_SIZE, filtered.length), total: filtered.length })}</span>
             <div className="flex gap-2">
               <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
                 className="px-3 py-1.5 rounded-lg border border-[#1e3a6e] disabled:opacity-30 hover:border-[#c9a84c] transition-colors">
-                ← Previous
+                {t('admin.sales.prev')}
               </button>
               <span className="px-3 py-1.5 text-white">{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
                 className="px-3 py-1.5 rounded-lg border border-[#1e3a6e] disabled:opacity-30 hover:border-[#c9a84c] transition-colors">
-                Next →
+                {t('admin.sales.next')}
               </button>
             </div>
           </div>

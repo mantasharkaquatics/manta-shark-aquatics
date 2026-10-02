@@ -3,8 +3,9 @@
 import { useState, useEffect, Fragment } from 'react'
 import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS, bandColorOf, bandRange } from '@/lib/zone-colors'
 import { daySlots, SLOT_STEP_MINUTES } from '@/lib/date'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb, dateTag } from '@/lib/i18n'
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DAY_SLOTS = daySlots()
 const SLOTS = DAY_SLOTS.length
 
@@ -39,6 +40,10 @@ const slotsInRange = (start: string, end: string) => {
 const contiguous = (a: number, b: number) => toMin(DAY_SLOTS[b].start) - toMin(DAY_SLOTS[a].start) === SLOT_STEP_MINUTES
 
 export default function ZonesEditorPage() {
+  const t = useT()
+  const locale = useLocale()
+  // 2024-01-07 is a Sunday, so day index 0..6 maps to Sun..Sat
+  const dayName = (d: number) => new Date(2024, 0, 7 + d).toLocaleDateString(dateTag(locale), { weekday: 'short' })
   const [coaches, setCoaches] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [coachId, setCoachId] = useState('')
   const [tiers, setTiers] = useState<{ id: string; name: string }[]>([])
@@ -138,8 +143,8 @@ export default function ZonesEditorPage() {
   }
 
   function paint(day: number, idx: number) {
-    if (teamAt(day, idx)) { setMsg({ ok: false, text: 'That slot sits inside a team practice block.' }); return }
-    if (brush === 'team') { setMsg({ ok: false, text: 'Team practices are managed separately — they are not painted on the lesson grid.' }); return }
+    if (teamAt(day, idx)) { setMsg({ ok: false, text: t('admin.zones.err.insideTeam') }); return }
+    if (brush === 'team') { setMsg({ ok: false, text: t('admin.zones.err.teamSeparate') }); return }
     setGrid(prev => {
       const g = prev.map(row => [...row])
       g[day][idx] = brush === 'erase' ? null : { t: brush, tier: undefined, band: brush === 'group' && brushBand ? brushBand : undefined }
@@ -176,7 +181,7 @@ export default function ZonesEditorPage() {
     for (const z of zones) {
       if (z.zone_type === 'team') {
         const dur = toMin(z.end_time) - toMin(z.start_time)
-        if (dur % 90 !== 0) return `Team block ${DAY_NAMES[z.weekday]} ${z.start_time}–${z.end_time} must be a multiple of 90 minutes`
+        if (dur % 90 !== 0) return t('admin.zones.err.teamMultiple', { day: dayName(z.weekday), start: z.start_time, end: z.end_time })
       }
     }
     return null
@@ -194,11 +199,11 @@ export default function ZonesEditorPage() {
       })
       const data = await res.json()
       setSaving(false)
-      if (!res.ok) { setMsg({ ok: false, text: data.error || 'Save failed' }); return }
+      if (!res.ok) { setMsg({ ok: false, text: data.error || t('admin.zones.err.saveFailed') }); return }
       setWeeklyRows(zones)
       setDirty(false); setHasZones(zones.length > 0)
       const w = data.warnings || []
-      setMsg({ ok: true, warn: w.length > 0, text: `Saved weekly template (${data.count} block(s))` + (w.length ? ` — ⚠ ${w.length} existing booking(s) now fall outside the zones: ${w.join('; ')}. These lessons still happen; only new bookings are limited.` : '') })
+      setMsg({ ok: true, warn: w.length > 0, text: t('admin.zones.msg.savedWeekly', { n: data.count }) + (w.length ? t('admin.zones.msg.warnOutside', { n: w.length, list: w.join('; ') }) : '') })
       return
     }
     const painted = compress([ovDow])
@@ -214,11 +219,11 @@ export default function ZonesEditorPage() {
     })
     const data = await res.json()
     setSaving(false)
-    if (!res.ok) { setMsg({ ok: false, text: data.error || 'Save failed' }); return }
+    if (!res.ok) { setMsg({ ok: false, text: data.error || t('admin.zones.err.saveFailed') }); return }
     setDirty(false); setHasOverride(true)
     setOvDates(prev => { const rest = prev.filter(o => o.date !== ovDate); return [...rest, { date: ovDate, closed: data.mode === 'closed' }].sort((a, b) => a.date.localeCompare(b.date)) })
     const w = data.warnings || []
-    setMsg({ ok: true, warn: w.length > 0, text: (data.mode === 'closed' ? `${ovDate} closed for this coach` : `Override saved for ${ovDate}`) + (w.length ? ` — ⚠ ${w.length} existing booking(s) affected: ${w.join('; ')}. These lessons still happen; only new bookings are limited.` : '') })
+    setMsg({ ok: true, warn: w.length > 0, text: (data.mode === 'closed' ? t('admin.zones.msg.dateClosed', { date: ovDate }) : t('admin.zones.msg.overrideSaved', { date: ovDate })) + (w.length ? t('admin.zones.msg.warnAffected', { n: w.length, list: w.join('; ') }) : '') })
   }
 
   function closeDay() {
@@ -233,10 +238,10 @@ export default function ZonesEditorPage() {
       body: JSON.stringify({ coach_id: coachId, date: ovDate, clear: true }),
     })
     setSaving(false)
-    if (!res.ok) { setMsg({ ok: false, text: 'Clear failed' }); return }
+    if (!res.ok) { setMsg({ ok: false, text: t('admin.zones.err.clearFailed') }); return }
     setHasOverride(false); setReload(x => x + 1)
     setOvDates(prev => prev.filter(o => o.date !== ovDate))
-    setMsg({ ok: true, text: `Override cleared — ${ovDate} follows the weekly template` })
+    setMsg({ ok: true, text: t('admin.zones.msg.overrideCleared', { date: ovDate }) })
   }
 
   // Team practices are 90 minutes and do not align to the 35-minute lesson
@@ -247,8 +252,8 @@ export default function ZonesEditorPage() {
   const [newTeamDow, setNewTeamDow] = useState(1)
   const [newTeamStart, setNewTeamStart] = useState('16:00')
   function addTeamBlock() {
-    if (!/^\d{2}:\d{2}$/.test(newTeamStart)) { setMsg({ ok: false, text: 'Start time must be HH:MM' }); return }
-    if (tiers.length === 0) { setMsg({ ok: false, text: 'No swim team tiers exist yet' }); return }
+    if (!/^\d{2}:\d{2}$/.test(newTeamStart)) { setMsg({ ok: false, text: t('admin.zones.err.startFormat') }); return }
+    if (tiers.length === 0) { setMsg({ ok: false, text: t('admin.zones.err.noTiers') }); return }
     const end = idxSafeEnd(newTeamStart)
     const row: any = { zone_type: 'team', start_time: newTeamStart, end_time: end, team_tier_id: brushTier || tiers[0].id }
     if (mode === 'date') { setOvTeamRows(prev => [...prev, row]) }
@@ -265,20 +270,20 @@ export default function ZonesEditorPage() {
     return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
   }
 
-  const tierName = (id?: string) => tiers.find(t => t.id === id)?.name || ''
-  const tierColor = (id?: string) => { const i = tiers.findIndex(t => t.id === id); return TEAM_COLORS[i >= 0 ? i % TEAM_COLORS.length : 0] }
-  const cellLabel = (c: Cell) => !c ? '' : c.t === 'team' ? tierName(c.tier) : c.t === 'group' ? (c.band ? 'L' + bandRange(...(c.band.split('-') as [string, string])) : 'Group') : 'Private'
+  const tierName = (id?: string) => { const tier = tiers.find(tr => tr.id === id); return tier ? tDb(locale, 'team_tiers', tier.id, tier.name) : '' }
+  const tierColor = (id?: string) => { const i = tiers.findIndex(tr => tr.id === id); return TEAM_COLORS[i >= 0 ? i % TEAM_COLORS.length : 0] }
+  const cellLabel = (c: Cell) => !c ? '' : c.t === 'team' ? tierName(c.tier) : c.t === 'group' ? (c.band ? 'L' + bandRange(...(c.band.split('-') as [string, string])) : t('admin.zones.group')) : t('admin.zones.private')
   const accent = mode === 'date' ? PURPLE : '#c9a84c'
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px' }}>
-      <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 4 }}>Availability Zones</h1>
-      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>Paint each coach's weekly template: which times are open for which course types. Unpainted time is closed for booking.</p>
+      <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 4 }}>{t('admin.zones.title')}</h1>
+      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>{t('admin.zones.subtitle')}</p>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
         <select value={coachId} onChange={e => setCoachId(e.target.value)}
           style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10, padding: '10px 14px', fontSize: 14 }}>
-          <option value="">Select coach…</option>
+          <option value="">{t('admin.zones.selectCoach')}</option>
           {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
         </select>
         {coachId && (
@@ -286,7 +291,7 @@ export default function ZonesEditorPage() {
             {(['weekly', 'date'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
                 style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: mode === m ? `2px solid ${m === 'date' ? PURPLE : '#c9a84c'}` : '1px solid rgba(255,255,255,0.15)', background: mode === m ? (m === 'date' ? 'rgba(167,139,250,0.12)' : 'rgba(201,168,76,0.12)') : 'transparent', color: m === 'date' ? PURPLE : '#c9a84c' }}>
-                {m === 'weekly' ? 'Weekly Template' : 'Date Override'}
+                {m === 'weekly' ? t('admin.zones.weeklyTemplate') : t('admin.zones.dateOverride')}
               </button>
             ))}
             {mode === 'date' && (
@@ -297,12 +302,12 @@ export default function ZonesEditorPage() {
         )}
         {coachId && mode === 'weekly' && hasZones && !hasWeekly && (
           <span style={{ fontSize: 12, color: '#e8883a' }}>
-            No weekly template yet, so this coach is closed on every date except the ones with an override.
+            {t('admin.zones.noWeeklyTemplate')}
           </span>
         )}
         {coachId && mode === 'weekly' && !hasZones && (
           <span style={{ fontSize: 12, color: '#e8883a' }}>
-            This coach is on the legacy hours table (all course types).{legacy.length > 0 && <> <button onClick={loadLegacyAsPrivate} style={{ color: '#c9a84c', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textDecoration: 'underline', padding: 0 }}>Copy current hours as Private zones</button></>}
+            {t('admin.zones.legacyHours')}{legacy.length > 0 && <> <button onClick={loadLegacyAsPrivate} style={{ color: '#c9a84c', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textDecoration: 'underline', padding: 0 }}>{t('admin.zones.copyLegacy')}</button></>}
           </span>
         )}
       </div>
@@ -313,11 +318,11 @@ export default function ZonesEditorPage() {
         if (upcoming.length === 0) return null
         return (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: PURPLE }}>Overrides:</span>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: PURPLE }}>{t('admin.zones.overrides')}</span>
             {upcoming.map(o => (
               <button key={o.date} onClick={() => { setMode('date'); setOvDate(o.date) }}
                 style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: o.closed ? '1px solid rgba(224,90,74,0.5)' : `1px solid ${PURPLE}66`, background: mode === 'date' && ovDate === o.date ? (o.closed ? 'rgba(224,90,74,0.18)' : 'rgba(167,139,250,0.18)') : 'transparent', color: o.closed ? '#e05a4a' : PURPLE }}>
-                {o.date.slice(5).replace('-', '/')}{o.closed ? ' ✕ closed' : ''}
+                {o.date.slice(5).replace('-', '/')}{o.closed ? ' ✕ ' + t('admin.zones.closed') : ''}
               </button>
             ))}
           </div>
@@ -328,19 +333,19 @@ export default function ZonesEditorPage() {
         <>
           <div style={{ border: '1px solid rgba(224,90,74,0.35)', background: 'rgba(224,90,74,0.06)', borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#e05a4a', marginBottom: 8 }}>
-              Swim team practices · 90 minutes each{mode === 'date' ? ' · this date only' : ' · weekly'}
+              {t('admin.zones.teamHeader')}{' · '}{mode === 'date' ? t('admin.zones.thisDateOnly') : t('admin.zones.weekly')}
             </div>
             {(mode === 'date' ? ovTeamRows : teamRows.slice().sort((a: any, b: any) => (a.weekday - b.weekday) || String(a.start_time).localeCompare(String(b.start_time)))).length === 0 ? (
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>No practices set for this coach yet.</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>{t('admin.zones.noPractices')}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                 {(mode === 'date' ? ovTeamRows : teamRows).map((z: any, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
-                    <span style={{ fontWeight: 700, minWidth: 90 }}>{mode === 'date' ? 'This date' : DAY_NAMES[z.weekday]}</span>
+                    <span style={{ fontWeight: 700, minWidth: 90 }}>{mode === 'date' ? t('admin.zones.thisDate') : dayName(z.weekday)}</span>
                     <span>{String(z.start_time).slice(0, 5)} – {String(z.end_time).slice(0, 5)}</span>
-                    <span style={{ color: '#e05a4a', fontWeight: 700 }}>{tierName(z.team_tier_id) || 'Team'}</span>
+                    <span style={{ color: '#e05a4a', fontWeight: 700 }}>{tierName(z.team_tier_id) || t('admin.zones.team')}</span>
                     <button onClick={() => removeTeamBlock(i)}
-                      style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.5)', background: 'transparent', color: '#e05a4a' }}>Remove</button>
+                      style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.5)', background: 'transparent', color: '#e05a4a' }}>{t('admin.zones.remove')}</button>
                   </div>
                 ))}
               </div>
@@ -349,7 +354,7 @@ export default function ZonesEditorPage() {
               {mode === 'weekly' && (
                 <select value={newTeamDow} onChange={e => setNewTeamDow(Number(e.target.value))}
                   style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>
-                  {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  {[0, 1, 2, 3, 4, 5, 6].map(i => <option key={i} value={i}>{dayName(i)}</option>)}
                 </select>
               )}
               <input type="time" value={newTeamStart} onChange={e => setNewTeamStart(e.target.value)}
@@ -357,17 +362,17 @@ export default function ZonesEditorPage() {
               <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>→ {idxSafeEnd(newTeamStart)}</span>
               <select value={brushTier} onChange={e => setBrushTier(e.target.value)}
                 style={{ background: '#1a2744', color: '#e05a4a', border: '1px solid rgba(224,90,74,0.4)', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700 }}>
-                {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {tiers.map(tr => <option key={tr.id} value={tr.id}>{tDb(locale, 'team_tiers', tr.id, tr.name)}</option>)}
               </select>
               <button onClick={addTeamBlock}
-                style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.6)', background: 'rgba(224,90,74,0.15)', color: '#e05a4a' }}>+ Add practice</button>
+                style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.6)', background: 'rgba(224,90,74,0.15)', color: '#e05a4a' }}>{t('admin.zones.addPractice')}</button>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
             {(['private', 'group'] as const).map(b => (
               <button key={b} onClick={() => setBrush(b)}
                 style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', border: brush === b ? `2px solid ${COLORS[b]}` : '1px solid rgba(255,255,255,0.15)', background: brush === b ? `${COLORS[b]}22` : 'transparent', color: COLORS[b] }}>
-                {b === 'private' ? 'Private (1-on-1 / 1-on-2)' : b === 'group' ? 'Group (1-on-4)' : 'Team'}
+                {b === 'private' ? t('admin.zones.brushPrivate') : b === 'group' ? t('admin.zones.brushGroup') : t('admin.zones.team')}
               </button>
             ))}
             {brush === 'group' && (
@@ -377,26 +382,26 @@ export default function ZonesEditorPage() {
               </select>
             )}
             <button onClick={() => setBrush('erase')}
-              style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: brush === 'erase' ? '2px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.15)', background: brush === 'erase' ? 'rgba(255,255,255,0.1)' : 'transparent', color: 'rgba(255,255,255,0.7)' }}>Eraser</button>
+              style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: brush === 'erase' ? '2px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.15)', background: brush === 'erase' ? 'rgba(255,255,255,0.1)' : 'transparent', color: 'rgba(255,255,255,0.7)' }}>{t('admin.zones.eraser')}</button>
             {mode === 'date' && (
               <>
-                <button onClick={closeDay} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.4)', background: dayClosed ? 'rgba(224,90,74,0.15)' : 'transparent', color: '#e05a4a' }}>{dayClosed ? 'Day marked closed' : 'Close this day'}</button>
-                {hasOverride && <button onClick={clearOverride} disabled={saving} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)' }}>Clear override</button>}
+                <button onClick={closeDay} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.4)', background: dayClosed ? 'rgba(224,90,74,0.15)' : 'transparent', color: '#e05a4a' }}>{dayClosed ? t('admin.zones.dayMarkedClosed') : t('admin.zones.closeDay')}</button>
+                {hasOverride && <button onClick={clearOverride} disabled={saving} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.6)' }}>{t('admin.zones.clearOverride')}</button>}
               </>
             )}
             <div style={{ flex: 1 }} />
             <button onClick={save} disabled={!dirty || saving}
               style={{ padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: dirty ? 'pointer' : 'not-allowed', border: 'none', background: dirty ? accent : 'rgba(255,255,255,0.1)', color: dirty ? '#0d1529' : 'rgba(255,255,255,0.3)' }}>
-              {saving ? 'Saving…' : mode === 'weekly' ? 'Save Template' : 'Save Override'}
+              {saving ? t('admin.zones.saving') : mode === 'weekly' ? t('admin.zones.saveTemplate') : t('admin.zones.saveOverride')}
             </button>
           </div>
 
           {msg && <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, fontSize: 13, background: msg.warn ? 'rgba(232,136,58,0.1)' : msg.ok ? 'rgba(134,239,172,0.1)' : 'rgba(224,90,74,0.1)', border: msg.warn ? '1px solid rgba(232,136,58,0.4)' : msg.ok ? '1px solid rgba(134,239,172,0.3)' : '1px solid rgba(224,90,74,0.4)', color: msg.warn ? '#e8883a' : msg.ok ? '#86efac' : '#e05a4a' }}>{msg.text}</div>}
-          {mode === 'date' && ovDate && <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 10, fontSize: 12, background: 'rgba(167,139,250,0.08)', border: `1px solid ${PURPLE}44`, color: PURPLE }}>Editing {ovDate} ({DAY_NAMES[ovDow]}) only — this override replaces the weekly template for that date.{!hasOverride && !dirty ? ' Currently showing the weekly template as a starting point.' : ''}</div>}
+          {mode === 'date' && ovDate && <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 10, fontSize: 12, background: 'rgba(167,139,250,0.08)', border: `1px solid ${PURPLE}44`, color: PURPLE }}>{t('admin.zones.editingDate', { date: ovDate, day: dayName(ovDow) })}{!hasOverride && !dirty ? (locale === 'en' ? ' ' : '') + t('admin.zones.showingWeekly') : ''}</div>}
 
           <div style={{ display: 'grid', gridTemplateColumns: `52px repeat(${visDays.length}, 1fr)`, gap: 2, userSelect: 'none', border: mode === 'date' ? `1px solid ${PURPLE}44` : 'none', borderRadius: 8, padding: mode === 'date' ? 6 : 0 }}>
             <div />
-            {visDays.map(d => <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: mode === 'date' ? PURPLE : 'rgba(255,255,255,0.5)', padding: '4px 0' }}>{mode === 'date' ? `${ovDate} · ${DAY_NAMES[d]}` : DAY_NAMES[d]}</div>)}
+            {visDays.map(d => <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: mode === 'date' ? PURPLE : 'rgba(255,255,255,0.5)', padding: '4px 0' }}>{mode === 'date' ? `${ovDate} · ${dayName(d)}` : dayName(d)}</div>)}
             {Array.from({ length: SLOTS }, (_, i) => {
               const gap = i < SLOTS - 1 ? toMin(DAY_SLOTS[i + 1].start) - toMin(DAY_SLOTS[i].end) : 0
               const gapH = gap >= 10 ? 14 : 7
@@ -417,7 +422,7 @@ export default function ZonesEditorPage() {
                     const hhmm = (m: number) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
                     const startsHere = th.s >= ss && th.s < se
                     return (
-                      <div key={`c${d}-${i}`} title={`${tierName(th.tier)} practice ${hhmm(th.s)}–${hhmm(th.e)} · not bookable for lessons`}
+                      <div key={`c${d}-${i}`} title={t('admin.zones.tip.practice', { tier: tierName(th.tier), start: hhmm(th.s), end: hhmm(th.e) })}
                         style={{ height: 20, borderRadius: 3, cursor: 'not-allowed', background: `linear-gradient(to bottom, transparent 0 ${pctA}%, ${col}55 ${pctA}% ${pctB}%, transparent ${pctB}% 100%)`, border: `1px dashed ${col}66`, overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: 'rgba(255,255,255,0.8)' }}>{startsHere ? hhmm(th.s) : ''}</div>
                     )
                   }
@@ -425,25 +430,25 @@ export default function ZonesEditorPage() {
                     <div key={`c${d}-${i}`}
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
                       onMouseEnter={() => { if (painting) paint(d, i) }}
-                      title={(c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? 'group L' + c.band : c.t) + ' · ' : '') + idxToTime(i) + '–' + idxToEnd(i)}
+                      title={(c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? t('admin.zones.tip.groupBand', { band: c.band }) : c.t === 'group' ? t('admin.zones.tip.group') : t('admin.zones.tip.private')) + ' · ' : '') + idxToTime(i) + '–' + idxToEnd(i)}
                       style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${bandColorOf(...(c.band.split('-') as [string, string])) || BAND_GREENS['1-2']}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
                   )
                 })}
-                {gap > 0 && <div key={`bt${i}`} style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', textAlign: 'right', paddingRight: 6, lineHeight: `${gapH}px` }}>{gap >= 10 ? `${gap}m` : ''}</div>}
+                {gap > 0 && <div key={`bt${i}`} style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', textAlign: 'right', paddingRight: 6, lineHeight: `${gapH}px` }}>{gap >= 10 ? t('admin.zones.gapMin', { n: gap }) : ''}</div>}
                 {gap > 0 && visDays.map(d => {
                   // A turnover strip that sits INSIDE a practice gets tinted too,
                   // or the block reads as several separate pieces.
                   const gs = toMin(DAY_SLOTS[i].end), ge = toMin(DAY_SLOTS[i + 1].start)
                   const tiv = teamIvs(d).find(iv => gs < iv.e && ge > iv.s)
                   return (
-                    <div key={`b${d}-${i}`} title={tiv ? 'team practice' : `${gap}-minute turnover`} style={{ height: gapH, borderRadius: 2, background: tiv ? `${tierColor(tiv.tier)}55` : gap >= 10 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.035)' }} />
+                    <div key={`b${d}-${i}`} title={tiv ? t('admin.zones.tip.teamPractice') : t('admin.zones.tip.turnover', { n: gap })} style={{ height: gapH, borderRadius: 2, background: tiv ? `${tierColor(tiv.tier)}55` : gap >= 10 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.035)' }} />
                   )
                 })}
               </Fragment>
               )
             })}
           </div>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 12 }}>Click or drag to paint. Each row is one 30-minute lesson; the thin strip below it is the turnover (5 min, or 10 min after 4:05 PM). A 60-minute booking runs straight through one turnover and leaves the coach 10 minutes afterwards. Team practices are managed separately. Saving replaces the {mode === 'weekly' ? "coach's whole weekly template" : 'selected date'}; existing bookings are never affected.</p>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 12 }}>{t('admin.zones.hint', { target: mode === 'weekly' ? t('admin.zones.hintWeekly') : t('admin.zones.hintDate') })}</p>
         </>
       )}
     </div>

@@ -1,8 +1,10 @@
 'use client'
 
 import { LANGUAGE_LABELS } from '@/lib/ai/models'
-import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, MASTERY_LABEL, masteryOf, UNLOCK_LEVEL } from '@/lib/mastery'
+import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey, UNLOCK_LEVEL, type Mastery } from '@/lib/mastery'
 import { useState, useMemo } from 'react'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
 
 type Record_ = {
   id: string
@@ -32,6 +34,24 @@ type Record_ = {
 }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
 
+/** Mastery chip text. Step 0 reads "Not taught" here, not the parent site's "Not taught yet". */
+function masteryLabel(t: TFunction, m: Mastery): string {
+  return m === 0 ? t('admin.progress.mastery0') : t(masteryKey(m))
+}
+
+/** The language a note was recorded in, in the admin's language. */
+function languageLabel(t: TFunction, code: string): string {
+  return LANGUAGE_LABELS[code] ? t(`admin.progress.lang.${code}`) : code
+}
+
+/** A date in the admin's language with the clock time kept as 12-hour English. */
+function dateTimeLabel(iso: string, locale: Locale): string {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return date + (locale === 'en' ? ', ' : ' ') + time
+}
+
 function barColor(pct: number): string {
   if (pct >= 70) return '#3ecf8e'
   if (pct >= 30) return '#f5a623'
@@ -43,6 +63,8 @@ export default function AdminProgressHistoryClient({ records, skills }: {
   records: Record_[]
   skills: Skill[]
 }) {
+  const t = useT()
+  const locale = useLocale()
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -76,19 +98,19 @@ export default function AdminProgressHistoryClient({ records, skills }: {
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Could not save the changes')
+      if (!res.ok) throw new Error(data?.error || t('admin.progress.err.saveFailed'))
       window.location.reload()
     } catch (err: any) {
-      setEditError(err.message || 'Could not save the changes')
+      setEditError(err.message || t('admin.progress.err.saveFailed'))
       setSaving(false)
     }
   }
 
   const skillMap = useMemo(() => {
     const m: Record<string, string> = {}
-    for (const s of skills) m[s.id] = s.name
+    for (const s of skills) m[s.id] = tDb(locale, 'skills', s.id, s.name)
     return m
-  }, [skills])
+  }, [skills, locale])
 
   const filtered = useMemo(() => {
     if (!search || search.length < 2) return records
@@ -110,14 +132,14 @@ export default function AdminProgressHistoryClient({ records, skills }: {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Progress History</h1>
-        <p className="text-gray-400 mt-1">All approved progress records</p>
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.progress.title')}</h1>
+        <p className="text-gray-400 mt-1">{t('admin.progress.subtitle')}</p>
       </div>
 
       <div className="mb-6">
         <input
           type="text"
-          placeholder="Search by student name..."
+          placeholder={t('admin.progress.searchPlaceholder')}
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full max-w-md bg-[#111d38] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors placeholder-gray-500"
@@ -126,7 +148,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
 
       {grouped.length === 0 ? (
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center text-gray-400">
-          {search.length >= 2 ? 'No records found' : 'No approved records yet'}
+          {search.length >= 2 ? t('admin.progress.noMatches') : t('admin.progress.empty')}
         </div>
       ) : (
         <div className="space-y-6">
@@ -140,7 +162,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                   </div>
                   <div>
                     <p className="text-white font-semibold">{student?.full_name}</p>
-                    <p className="text-gray-500 text-xs">{group.length} sessions recorded</p>
+                    <p className="text-gray-500 text-xs">{t('admin.progress.sessionsRecorded', { n: group.length })}</p>
                   </div>
                 </div>
 
@@ -161,7 +183,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                             <div>
                               <p className="text-white text-sm font-medium">{rec.session_date}</p>
                               <p className="text-gray-500 text-xs">
-                                Coach {rec.coach?.first_name} · Reviewed by: {rec.reviewer?.first_name} {rec.reviewer?.last_name}
+                                {t('admin.coachName', { name: rec.coach?.first_name ?? '' })} · {t('admin.progress.reviewedBy', { name: `${rec.reviewer?.first_name ?? ''} ${rec.reviewer?.last_name ?? ''}` })}
                               </p>
                             </div>
                           </div>
@@ -180,16 +202,16 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                           <div className="border-t border-[#1e3a6e] px-5 py-4 space-y-2">
                             <div className="flex items-center justify-between pb-1">
                               <span className="text-[11px] text-gray-500">
-                                {rec.edits.length > 0 && `Edited \u00b7 ${new Date(rec.edits[0].edited_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                                {rec.edits.length > 0 && t('admin.progress.editedOn', { date: new Date(rec.edits[0].edited_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', year: 'numeric' }) })}
                               </span>
                               <span className="flex gap-2">
                                 {editingId === rec.id ? (
                                   <>
-                                    <button onClick={() => setEditingId(null)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Cancel</button>
-                                    <button onClick={() => saveEdit(rec)} disabled={saving} className="px-3 py-1 rounded-lg bg-[#c9a84c] text-[#0b1526] text-xs font-semibold disabled:opacity-40">{saving ? 'Saving...' : 'Save changes'}</button>
+                                    <button onClick={() => setEditingId(null)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">{t('common.cancel')}</button>
+                                    <button onClick={() => saveEdit(rec)} disabled={saving} className="px-3 py-1 rounded-lg bg-[#c9a84c] text-[#0b1526] text-xs font-semibold disabled:opacity-40">{saving ? t('admin.progress.saving') : t('admin.progress.saveChanges')}</button>
                                   </>
                                 ) : (
-                                  <button onClick={() => startEdit(rec)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">Edit</button>
+                                  <button onClick={() => startEdit(rec)} className="px-3 py-1 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs hover:text-white transition-colors">{t('admin.progress.edit')}</button>
                                 )}
                               </span>
                             </div>
@@ -199,10 +221,10 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                             {rec.note && (
                               <div className="mb-4 pb-4 border-b border-[#1e3a6e] space-y-3">
                                 <div className="flex items-center justify-between">
-                                  <p className="text-[#c9a84c] text-xs font-semibold tracking-wide">LESSON NOTE</p>
+                                  <p className="text-[#c9a84c] text-xs font-semibold tracking-wide">{t('admin.progress.lessonNote')}</p>
                                   <p className="text-gray-500 text-xs">
-                                    recorded in {LANGUAGE_LABELS[rec.note.language] || rec.note.language}
-                                    {rec.note.audio_seconds ? ` \u00b7 ${rec.note.audio_seconds}s` : ''}
+                                    {t('admin.progress.recordedIn', { lang: languageLabel(t, rec.note.language) })}
+                                    {rec.note.audio_seconds ? ` \u00b7 ${t('admin.progress.seconds', { n: rec.note.audio_seconds })}` : ''}
                                   </p>
                                 </div>
                                 {rec.note.audio_url && (
@@ -210,13 +232,13 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                 )}
                                 {rec.note.transcript && (
                                   <div>
-                                    <p className="text-gray-500 text-xs mb-1">What the coach said</p>
+                                    <p className="text-gray-500 text-xs mb-1">{t('admin.progress.coachSaid')}</p>
                                     <p className="text-gray-300 text-xs leading-relaxed">{rec.note.transcript}</p>
                                   </div>
                                 )}
                                 {rec.note.note && (
                                   <div>
-                                    <p className="text-gray-500 text-xs mb-1">What the family read</p>
+                                    <p className="text-gray-500 text-xs mb-1">{t('admin.progress.familyRead')}</p>
                                     {editingId === rec.id ? (
                                       <textarea
                                         value={editNote}
@@ -251,7 +273,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                             borderColor: on ? MASTERY_COLOR[b] : 'rgba(255,255,255,0.12)',
                                             color: on ? MASTERY_COLOR[b] : 'rgba(255,255,255,0.45)',
                                           }}
-                                        >{MASTERY_LABEL[b]}</button>
+                                        >{masteryLabel(t, b)}</button>
                                         )
                                       })}
                                     </div>
@@ -260,7 +282,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                       <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                                         <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p)] }} />
                                       </div>
-                                      <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p)] }}>{MASTERY_LABEL[masteryOf(p)]}</span>
+                                      <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p)] }}>{masteryLabel(t, masteryOf(p))}</span>
                                     </>
                                   )}
                                 </div>
@@ -273,15 +295,15 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                                   className="text-gray-500 text-xs hover:text-gray-300 transition-colors"
                                 >
                                   {openHistory === rec.id
-                                    ? 'Hide previous versions'
-                                    : `Show ${rec.edits.length} previous version${rec.edits.length === 1 ? '' : 's'}`}
+                                    ? t('admin.progress.hideVersions')
+                                    : t(rec.edits.length === 1 ? 'admin.progress.showVersion' : 'admin.progress.showVersions', { n: rec.edits.length })}
                                 </button>
                                 {openHistory === rec.id && (
                                   <div className="mt-2 space-y-3">
                                     {rec.edits.map(ed => (
                                       <div key={ed.id} className="border-l-2 border-[#1e3a6e] pl-3">
                                         <p className="text-gray-500 text-xs">
-                                          Before {new Date(ed.edited_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                          {t('admin.progress.before', { date: dateTimeLabel(ed.edited_at, locale) })}
                                           {ed.editor ? ` \u00b7 ${ed.editor.first_name} ${ed.editor.last_name || ''}`.trimEnd() : ''}
                                         </p>
                                         {ed.prev_note && (
@@ -299,7 +321,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
                               </div>
                             )}
                             <p className="text-gray-600 text-xs pt-2">
-                              Reviewed at: {new Date(rec.reviewed_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              {t('admin.progress.reviewedAt', { date: dateTimeLabel(rec.reviewed_at, locale) })}
                             </p>
                           </div>
                         )}

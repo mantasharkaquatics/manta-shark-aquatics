@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import AlertModal from '@/components/AlertModal'
 import { formatTime12h } from '@/lib/date'
-import { MASTERY_LABEL, MASTERY_COLOR, masteryOf } from '@/lib/mastery'
+import { MASTERY_COLOR, masteryOf, masteryKey, type Mastery } from '@/lib/mastery'
 import { LEVEL_NAMES } from '@/lib/levels'
 import { FONT_BODY } from '@/lib/brand'
-import type { Locale } from '@/lib/i18n'
+import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
+import { useT, useLocale } from '@/lib/i18n/provider'
 import MonthlyReportSheet, { REPORT_SHEET_CSS, type MonthlyReport } from '@/app/(public)/dashboard/MonthlyReportSheet'
 
 type Report = {
@@ -19,13 +20,26 @@ type Report = {
   noteTexts: { date: string; coachName: string | null; text: string }[]
   previewNotes: { date: string; coachName: string | null; text: string; language: string; translations: Record<string, string> }[]
 }
-const PREVIEW_LANGS: { lang: Locale; label: string }[] = [
-  { lang: 'en', label: 'English' }, { lang: 'zh-Hant', label: '繁中' }, { lang: 'zh-Hans', label: '简中' },
+// Each language is named in itself, whatever the admin's own language is.
+const PREVIEW_LANGS: { lang: Locale; labelKey: string }[] = [
+  { lang: 'en', labelKey: 'locale.en.native' }, { lang: 'zh-Hant', labelKey: 'locale.zh-Hant.native' }, { lang: 'zh-Hans', labelKey: 'locale.zh-Hans.native' },
 ]
 type Payload = { month: string; months: string[]; today: string; reports: Report[]; eligible: number | null; sendsFrom: string }
 
-const monthLabel = (m: string) => new Date(m + 'T12:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', timeZone: 'UTC' })
-const dayLabel = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
+const monthLabel = (m: string, locale: Locale) => new Date(m + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { year: 'numeric', month: 'long', timeZone: 'UTC' })
+const dayLabel = (d: string, locale: Locale) => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
+
+/** Mastery chip text. Step 0 reads "Not taught" here, not the parent site's "Not taught yet". */
+function masteryLabel(t: TFunction, m: Mastery): string {
+  return m === 0 ? t('admin.progress.mastery0') : t(masteryKey(m))
+}
+
+/** A translated line whose {n} is shown in bold, e.g. "<b>3</b> approved". The
+ *  {n} placeholder is left unfilled by t() and split on here. */
+function withBold(text: string, n: number, className?: string) {
+  const [before, ...rest] = text.split('{n}')
+  return <>{before}<b className={className}>{n}</b>{rest.join('{n}')}</>
+}
 
 /**
  * Every family's monthly report, written by the model in English and read here
@@ -33,6 +47,8 @@ const dayLabel = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString('e
  * approved and the month is over; the last approval sends them all.
  */
 export default function MonthlyReportsClient() {
+  const t = useT()
+  const locale = useLocale()
   const [month, setMonth] = useState<string | null>(null)
   const [data, setData] = useState<Payload | null>(null)
   const [edits, setEdits] = useState<Record<string, { summary: string; focus: string }>>({})
@@ -62,11 +78,12 @@ export default function MonthlyReportsClient() {
 
   const load = useCallback(async (m: string | null) => {
     const r = await fetch('/api/admin/monthly-reports' + (m ? '?month=' + m : '')).catch(() => null)
-    if (!r || !r.ok) { setAlertMsg('Could not load the reports. Refresh the page to try again.'); return }
+    if (!r || !r.ok) { setAlertMsg(t('admin.monthly.err.load')); return }
     const j: Payload = await r.json()
     setData(j)
     setMonth(j.month)
     setEdits({})
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t only words the alert; a language switch must not reload and drop unsaved edits
   }, [])
   useEffect(() => { load(null) }, [load])
 
@@ -74,9 +91,9 @@ export default function MonthlyReportsClient() {
     const r = await fetch('/api/admin/monthly-reports', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     }).catch(() => null)
-    if (!r) { setAlertMsg('Could not reach the server. Check your connection and try again.'); return null }
+    if (!r) { setAlertMsg(t('admin.reviews.err.offline')); return null }
     const j = await r.json().catch(() => ({}))
-    if (!r.ok) { setAlertMsg(j.error || 'That did not work. Please try again.'); return null }
+    if (!r.ok) { setAlertMsg(j.error || t('admin.monthly.err.generic')); return null }
     return j
   }
 
@@ -86,7 +103,7 @@ export default function MonthlyReportsClient() {
     let total = 0
     let misses = 0
     for (let round = 0; round < 40; round++) {
-      setProgress(`Writing reports… ${total} done`)
+      setProgress(t('admin.monthly.writing', { n: total }))
       // A dropped connection mid-batch is retried: what was written stays written.
       const r = await fetch('/api/admin/monthly-reports', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate', month }),
@@ -94,12 +111,12 @@ export default function MonthlyReportsClient() {
       const j = r && r.ok ? await r.json().catch(() => null) : null
       if (!j) {
         if (++misses <= 2) continue
-        setAlertMsg('Writing stopped partway. Press Generate again to finish the rest.')
+        setAlertMsg(t('admin.monthly.err.stopped'))
         break
       }
       total += j.written
       if (j.remaining === 0 || j.written + j.failed === 0) {
-        if (j.failed) setAlertMsg(`${j.failed} report(s) could not be written. Press Generate again to retry them.`)
+        if (j.failed) setAlertMsg(t('admin.monthly.err.someFailed', { n: j.failed }))
         break
       }
     }
@@ -114,12 +131,12 @@ export default function MonthlyReportsClient() {
     const j = await post({ action, id: r.id, summary: e.summary, focus: e.focus })
     setBusy(null)
     if (j) {
-      if (action === 'approve' && j.sent?.some((s: any) => s.sent > 0)) setNotice('That was the last one: the whole month has been sent to the families.')
+      if (action === 'approve' && j.sent?.some((s: any) => s.sent > 0)) setNotice(t('admin.monthly.allSent'))
       await load(month)
     }
   }
 
-  if (!data) return <div className="p-8 text-gray-400 text-sm">Loading…</div>
+  if (!data) return <div className="p-8 text-gray-400 text-sm">{t('common.loading')}</div>
 
   const reports = data.reports
   const drafts = reports.filter(r => r.status === 'draft').length
@@ -134,34 +151,34 @@ export default function MonthlyReportsClient() {
   return (
     <div className="p-6 md:p-8 max-w-5xl">
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
-      <AlertModal title="Sent" message={notice} onClose={() => setNotice(null)} />
+      <AlertModal title={t('admin.monthly.sentTitle')} message={notice} onClose={() => setNotice(null)} />
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Monthly Reports</h1>
-          <p className="text-gray-400 text-sm mt-1">Written on the last night of the month. Nothing reaches a family until every report is approved.</p>
+          <h1 className="text-2xl font-bold text-white">{t('admin.monthly.title')}</h1>
+          <p className="text-gray-400 text-sm mt-1">{t('admin.monthly.subtitle')}</p>
         </div>
         <select value={month || ''} onChange={e => { setMonth(e.target.value); load(e.target.value) }}
           className="bg-[#111d38] border border-[#1e3a6e] text-white text-sm rounded-lg px-3 py-2">
-          {data.months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          {data.months.map(m => <option key={m} value={m}>{monthLabel(m, locale)}</option>)}
         </select>
       </div>
 
       <div className="rounded-xl border border-[#1e3a6e] bg-[#111d38] p-4 mb-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-        <span className="text-sm text-gray-300"><b className="text-white">{reports.length}</b> written{data.eligible != null ? ` of ${data.eligible} swimmers with lessons` : ''}</span>
-        <span className="text-sm text-amber-300"><b>{drafts}</b> waiting for approval</span>
-        <span className="text-sm text-emerald-300"><b>{approved}</b> approved</span>
-        <span className="text-sm text-sky-300"><b>{sent}</b> sent</span>
+        <span className="text-sm text-gray-300">{withBold(data.eligible != null ? t('admin.monthly.stat.writtenOf', { total: data.eligible }) : t('admin.monthly.stat.written'), reports.length, 'text-white')}</span>
+        <span className="text-sm text-amber-300">{withBold(t('admin.monthly.stat.waiting'), drafts)}</span>
+        <span className="text-sm text-emerald-300">{withBold(t('admin.monthly.stat.approved'), approved)}</span>
+        <span className="text-sm text-sky-300">{withBold(t('admin.monthly.stat.sent'), sent)}</span>
         {missing > 0 && (
           <button onClick={generate} disabled={!!busy}
             className="ml-auto px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm disabled:opacity-50">
-            {progress || `Generate now (${missing})`}
+            {progress || t('admin.monthly.generateNow', { n: missing })}
           </button>
         )}
         <p className="basis-full text-xs text-gray-400">
-          {sent > 0 && drafts + approved === 0 ? `Sent to the families${reports[0]?.sent_at ? ' on ' + new Date(reports[0].sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}.`
-            : drafts > 0 ? `${drafts} not yet approved. The month goes out once all of them are${monthOver ? '' : `, on or after ${dayLabel(data.sendsFrom)}`}.`
-            : reports.length > 0 && !monthOver ? `All approved. They go out on ${dayLabel(data.sendsFrom)}.`
-            : reports.length === 0 ? 'No reports for this month yet.' : ''}
+          {sent > 0 && drafts + approved === 0 ? (reports[0]?.sent_at ? t('admin.monthly.status.sentOn', { date: new Date(reports[0].sent_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric' }) }) : t('admin.monthly.status.sent'))
+            : drafts > 0 ? (monthOver ? t('admin.monthly.status.drafts', { n: drafts }) : t('admin.monthly.status.draftsFrom', { n: drafts, date: dayLabel(data.sendsFrom, locale) }))
+            : reports.length > 0 && !monthOver ? t('admin.monthly.status.allApproved', { date: dayLabel(data.sendsFrom, locale) })
+            : reports.length === 0 ? t('admin.monthly.status.none') : ''}
         </p>
       </div>
 
@@ -176,95 +193,95 @@ export default function MonthlyReportsClient() {
             <div key={r.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
               <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                 <div>
-                  <p className="text-white font-semibold">{r.studentName} <span className={`ml-2 text-[11px] px-2 py-0.5 rounded-full ${chip}`}>{r.status === 'draft' ? 'Draft' : r.status === 'approved' ? 'Approved' : 'Sent'}</span></p>
+                  <p className="text-white font-semibold">{r.studentName} <span className={`ml-2 text-[11px] px-2 py-0.5 rounded-full ${chip}`}>{r.status === 'draft' ? t('admin.monthly.chip.draft') : r.status === 'approved' ? t('admin.monthly.chip.approved') : t('admin.monthly.chip.sent')}</span></p>
                   <p className="text-gray-400 text-xs mt-0.5">
-                    {r.parentName} · {d.lessons?.length || 0} lesson{d.lessons?.length === 1 ? '' : 's'} ({d.attended || 0} attended)
-                    {d.level ? ` · L${d.level} ${LEVEL_NAMES[String(d.level)] || ''} · Stage ${d.stage}${stageNow ? ` ${stageNow.percent}%` : ''}` : ' · No level yet'}
-                    {d.coachName ? ` · Coach ${d.coachName}` : ''}
+                    {r.parentName} · {t(d.lessons?.length === 1 ? 'admin.monthly.lessonsOne' : 'admin.monthly.lessonsMany', { n: d.lessons?.length || 0, m: d.attended || 0 })}
+                    {d.level ? ` · L${d.level} ${LEVEL_NAMES[String(d.level)] ? t(`level.${d.level}.name`) : ''} · ${t('admin.monthly.stageN', { n: d.stage ?? '' })}${stageNow ? ` ${stageNow.percent}%` : ''}` : ` · ${t('admin.reviews.noLevelYet')}`}
+                    {d.coachName ? ` · ${t('admin.coachName', { name: d.coachName })}` : ''}
                   </p>
                 </div>
                 <button onClick={() => setOpen(o => ({ ...o, [r.id]: !o[r.id] }))} className="text-xs text-gray-400 hover:text-[#c9a84c]">
-                  {open[r.id] ? 'Hide the data ▴' : 'Show the data ▾'}
+                  {open[r.id] ? t('admin.monthly.hideData') : t('admin.monthly.showData')}
                 </button>
               </div>
 
               {d.pendingReviews > 0 && r.status === 'draft' && (
-                <p className="text-amber-300 text-xs mb-3">⚠ {d.pendingReviews} lesson report(s) from this month were still waiting in Reviews when this was written. Approve them there, then press Rewrite.</p>
+                <p className="text-amber-300 text-xs mb-3">{t('admin.monthly.pendingReviews', { n: d.pendingReviews })}</p>
               )}
               {r.status !== 'sent' && r.generated_at && writtenOn(r.generated_at) < lastDay && (
-                <p className="text-amber-300 text-xs mb-3">Written on {dayLabel(writtenOn(r.generated_at))}, before the month was over, so it covers only the lessons up to then. It is written again from the whole month on the last night, and needs approving after that.</p>
+                <p className="text-amber-300 text-xs mb-3">{t('admin.monthly.writtenEarly', { date: dayLabel(writtenOn(r.generated_at), locale) })}</p>
               )}
               {d.aiFailed && r.status === 'draft' && (
-                <p className="text-red-300 text-xs mb-3">The text could not be written automatically. Write it below, or press Rewrite.</p>
+                <p className="text-red-300 text-xs mb-3">{t('admin.monthly.aiFailed')}</p>
               )}
 
               {open[r.id] && (
                 <div className="mb-4 grid md:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <p className="text-gray-500 uppercase tracking-wider mb-1">Lessons</p>
+                    <p className="text-gray-500 uppercase tracking-wider mb-1">{t('admin.monthly.lessons')}</p>
                     {(d.lessons || []).map((l: any) => (
-                      <p key={l.key} className="text-gray-300">{dayLabel(l.date)} {l.start ? formatTime12h(l.start) : ''} · {l.isTrial ? 'Swim Assessment' : l.courseName} · <span className={l.attended ? 'text-emerald-300' : 'text-red-300'}>{l.attended ? 'attended' : 'absent'}</span></p>
+                      <p key={l.key} className="text-gray-300">{dayLabel(l.date, locale)} {l.start ? formatTime12h(l.start) : ''} · {l.isTrial ? t('common.assessment') : l.courseTypeId ? tDb(locale, 'course_types', l.courseTypeId, l.courseName) : l.courseName} · <span className={l.attended ? 'text-emerald-300' : 'text-red-300'}>{l.attended ? t('admin.monthly.attended') : t('admin.monthly.absent')}</span></p>
                     ))}
-                    {d.stageSkills?.length > 0 && <p className="text-gray-500 uppercase tracking-wider mt-3 mb-1">Stage {d.stage} skills (start → end of month)</p>}
+                    {d.stageSkills?.length > 0 && <p className="text-gray-500 uppercase tracking-wider mt-3 mb-1">{t('admin.monthly.stageSkills', { n: d.stage ?? '' })}</p>}
                     {(d.stageSkills || []).map((s: any) => (
-                      <p key={s.id} className="text-gray-300">{s.name}: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{MASTERY_LABEL[masteryOf(s.start)]}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{MASTERY_LABEL[masteryOf(s.end)]}</span></p>
+                      <p key={s.id} className="text-gray-300">{tDb(locale, 'skills', s.id, s.name)}: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{masteryLabel(t, masteryOf(s.start))}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{masteryLabel(t, masteryOf(s.end))}</span></p>
                     ))}
-                    {d.otherSkills?.length > 0 && <p className="text-gray-500 uppercase tracking-wider mt-3 mb-1">Other skills that changed this month</p>}
+                    {d.otherSkills?.length > 0 && <p className="text-gray-500 uppercase tracking-wider mt-3 mb-1">{t('admin.monthly.otherSkills')}</p>}
                     {(d.otherSkills || []).map((s: any) => (
-                      <p key={s.id} className="text-gray-300">{s.name} <span className="text-gray-500">(Stage {s.stage})</span>: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{MASTERY_LABEL[masteryOf(s.start)]}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{MASTERY_LABEL[masteryOf(s.end)]}</span></p>
+                      <p key={s.id} className="text-gray-300">{tDb(locale, 'skills', s.id, s.name)} <span className="text-gray-500">{t('admin.monthly.stageParen', { n: s.stage })}</span>: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{masteryLabel(t, masteryOf(s.start))}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{masteryLabel(t, masteryOf(s.end))}</span></p>
                     ))}
                   </div>
                   <div>
-                    <p className="text-gray-500 uppercase tracking-wider mb-1">Coach notes the family sees</p>
-                    {r.noteTexts.length === 0 && <p className="text-gray-500">None this month.</p>}
-                    {r.noteTexts.map((n, i) => <p key={i} className="text-gray-300 mb-2">{dayLabel(n.date)}{n.coachName ? ` · ${n.coachName}` : ''}: {n.text}</p>)}
+                    <p className="text-gray-500 uppercase tracking-wider mb-1">{t('admin.monthly.coachNotes')}</p>
+                    {r.noteTexts.length === 0 && <p className="text-gray-500">{t('admin.monthly.noneThisMonth')}</p>}
+                    {r.noteTexts.map((n, i) => <p key={i} className="text-gray-300 mb-2">{dayLabel(n.date, locale)}{n.coachName ? ` · ${n.coachName}` : ''}: {n.text}</p>)}
                   </div>
                 </div>
               )}
 
-              <label className="block text-gray-500 text-xs uppercase tracking-wider mb-1">Summary</label>
+              <label className="block text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.monthly.summary')}</label>
               <textarea value={e.summary} disabled={locked} rows={4}
                 onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...e, summary: ev.target.value } }))}
                 className="w-full rounded-lg bg-[#0a1428] border border-[#1e3a6e] text-gray-200 text-sm px-3 py-2 disabled:opacity-70 focus:outline-none focus:border-[#c9a84c]/60" />
-              <label className="block text-gray-500 text-xs uppercase tracking-wider mt-3 mb-1">Next month&apos;s focus · one per line</label>
+              <label className="block text-gray-500 text-xs uppercase tracking-wider mt-3 mb-1">{t('admin.monthly.focusLabel')}</label>
               <textarea value={e.focus} disabled={locked} rows={2}
                 onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...e, focus: ev.target.value } }))}
                 className="w-full rounded-lg bg-[#0a1428] border border-[#1e3a6e] text-gray-200 text-sm px-3 py-2 disabled:opacity-70 focus:outline-none focus:border-[#c9a84c]/60" />
-              <p className="text-gray-600 text-[11px] mt-1">Written in English; the family reads it in their language once approved.</p>
+              <p className="text-gray-600 text-[11px] mt-1">{t('admin.monthly.writtenInEnglish')}</p>
 
               <div className="flex flex-wrap gap-2 mt-3">
                 {r.status === 'draft' && (<>
                   <button onClick={() => act(r, 'approve')} disabled={!!busy}
                     className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm disabled:opacity-50">
-                    {busy === r.id + 'approve' ? 'Approving…' : 'Approve'}
+                    {busy === r.id + 'approve' ? t('admin.monthly.approving') : t('admin.monthly.approve')}
                   </button>
                   {edits[r.id] && (
                     <button onClick={() => act(r, 'save')} disabled={!!busy}
                       className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm disabled:opacity-50">
-                      {busy === r.id + 'save' ? 'Saving…' : 'Save draft'}
+                      {busy === r.id + 'save' ? t('admin.monthly.saving') : t('admin.monthly.saveDraft')}
                     </button>
                   )}
                   <button onClick={() => act(r, 'regenerate')} disabled={!!busy}
                     className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm disabled:opacity-50">
-                    {busy === r.id + 'regenerate' ? 'Rewriting…' : 'Rewrite'}
+                    {busy === r.id + 'regenerate' ? t('admin.monthly.rewriting') : t('admin.monthly.rewrite')}
                   </button>
                 </>)}
                 {r.status === 'approved' && (
                   <button onClick={() => act(r, 'unapprove')} disabled={!!busy}
                     className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm disabled:opacity-50">
-                    {busy === r.id + 'unapprove' ? '…' : 'Edit again'}
+                    {busy === r.id + 'unapprove' ? '…' : t('admin.monthly.editAgain')}
                   </button>
                 )}
                 <span className="flex items-center gap-1 text-xs text-gray-500 ml-auto">
-                  Preview as family:
+                  {t('admin.monthly.previewAs')}
                   {PREVIEW_LANGS.map(p => (
                     <button key={p.lang} onClick={() => setPreview({ id: r.id, lang: p.lang })}
-                      className="px-2 py-1 rounded border border-gray-700 text-gray-300 hover:border-[#c9a84c]/60 hover:text-[#c9a84c]">{p.label}</button>
+                      className="px-2 py-1 rounded border border-gray-700 text-gray-300 hover:border-[#c9a84c]/60 hover:text-[#c9a84c]">{t(p.labelKey)}</button>
                   ))}
                 </span>
                 {r.status === 'sent' && (
                   <p className="text-sm text-gray-400">
-                    Family&apos;s answer: {r.feedback === 'up' ? 'Good' : r.feedback === 'down' ? 'Has a question' : 'none yet'}
+                    {t('admin.monthly.familyAnswer', { answer: r.feedback === 'up' ? t('admin.monthly.fb.good') : r.feedback === 'down' ? t('admin.monthly.fb.question') : t('admin.monthly.fb.none') })}
                     {r.feedback_comment ? <span className="block text-gray-300 mt-1">“{r.feedback_comment}”</span> : null}
                   </p>
                 )}
@@ -281,7 +298,7 @@ export default function MonthlyReportsClient() {
             <style>{REPORT_SHEET_CSS}</style>
             {r.status === 'draft' && preview.lang !== 'en' && (
               <p style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1001, margin: 0, background: '#12254a', color: '#fff', fontSize: 12, padding: '6px 12px', borderRadius: 8 }}>
-                Not approved yet: the summary and focus show in English. Approving translates them.
+                {t('admin.monthly.previewDraftNote')}
               </p>
             )}
             <MonthlyReportSheet key={r.id + preview.lang} studentName={r.studentName} reports={[asFamily(r, preview.lang)]}

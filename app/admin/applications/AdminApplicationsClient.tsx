@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag, type Locale } from '@/lib/i18n'
 
 type Application = {
   id: string
@@ -50,15 +52,16 @@ const STATUS_COLOR: Record<string, string> = {
   archived: '#94a3b8',
 }
 
+// Values are dictionary keys; the object keys are the stored role_applied enum.
 const ROLE_LABEL: Record<string, string> = {
-  swim_coach: 'Swim coach',
-  front_desk: 'Front desk',
-  lifeguard: 'Lifeguard',
-  other: 'Other',
+  swim_coach: 'admin.applications.role.swimCoach',
+  front_desk: 'admin.applications.role.frontDesk',
+  lifeguard: 'admin.applications.role.lifeguard',
+  other: 'admin.applications.role.other',
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
+function fmtDate(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleDateString(dateTag(locale, 'en-US'), {
     month: 'short', day: 'numeric', year: 'numeric',
   })
 }
@@ -74,6 +77,13 @@ function Row({ label, value }: { label: string; value: string | null }) {
 }
 
 export default function AdminApplicationsClient({ applications }: { applications: Application[] }) {
+  const t = useT()
+  const locale = useLocale()
+  // Display label for a status enum; an unknown value from the database shows as stored.
+  const statusLabel = (s: string) => (STATUSES.includes(s) ? t(`admin.applications.status.${s}`) : s)
+  const filterLabel = (f: string) =>
+    f === 'open' ? t('admin.applications.filter.open') : f === 'all' ? t('admin.applications.filter.all') : statusLabel(f)
+  const roleLabel = (r: string) => (ROLE_LABEL[r] ? t(ROLE_LABEL[r]) : r)
   const [rows, setRows] = useState(applications)
   const [selectedId, setSelectedId] = useState<string | null>(applications[0]?.id ?? null)
   const [filter, setFilter] = useState('open')
@@ -107,7 +117,7 @@ export default function AdminApplicationsClient({ applications }: { applications
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      notify(data.error || 'Could not save.')
+      notify(data.error || t('admin.applications.err.saveFailed'))
       return false
     }
     return true
@@ -127,7 +137,7 @@ export default function AdminApplicationsClient({ applications }: { applications
     const ok = await patch(selected.id, { adminNotes: notes })
     if (ok) {
       setRows((rs) => rs.map((r) => (r.id === selected.id ? { ...r, admin_notes: notes } : r)))
-      notify('Notes saved.', 'ok')
+      notify(t('admin.applications.notesSaved'), 'ok')
     }
     setSavingNotes(false)
   }
@@ -137,7 +147,7 @@ export default function AdminApplicationsClient({ applications }: { applications
     const res = await fetch(`/api/admin/applications/resume?id=${encodeURIComponent(id)}`)
     const data = await res.json().catch(() => ({}))
     if (!res.ok || !data.url) {
-      notify(data.error || 'Could not open the résumé.')
+      notify(data.error || t('admin.applications.err.resumeFailed'))
       return
     }
     window.open(data.url, '_blank', 'noopener')
@@ -152,10 +162,10 @@ export default function AdminApplicationsClient({ applications }: { applications
       <style>{`@media (max-width: 900px) { .apps-grid { grid-template-columns: 1fr !important } }`}</style>
 
       <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '28px', fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>
-        Applications
+        {t('admin.applications.title')}
       </h1>
       <p style={{ fontSize: '14px', color: MUTED, margin: '0 0 20px' }}>
-        {rows.length} total · {rows.filter((r) => r.status === 'new').length} new
+        {t('admin.applications.summary', { total: rows.length, newCount: rows.filter((r) => r.status === 'new').length })}
       </p>
 
       <div style={{ display: 'flex', gap: '8px', margin: '0 0 18px', flexWrap: 'wrap' }}>
@@ -169,7 +179,7 @@ export default function AdminApplicationsClient({ applications }: { applications
               fontWeight: filter === f ? 700 : 500,
               cursor: 'pointer', textTransform: 'capitalize',
             }}>
-            {f}
+            {filterLabel(f)}
           </button>
         ))}
       </div>
@@ -182,13 +192,13 @@ export default function AdminApplicationsClient({ applications }: { applications
       ) : null}
 
       {rows.length === 0 ? (
-        <p style={{ color: MUTED }}>No applications yet.</p>
+        <p style={{ color: MUTED }}>{t('admin.applications.empty')}</p>
       ) : (
         <div className="apps-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) 1fr', gap: '20px', alignItems: 'start' }}>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {visible.length === 0 ? (
-              <p style={{ color: MUTED, fontSize: '14px' }}>Nothing in this filter.</p>
+              <p style={{ color: MUTED, fontSize: '14px' }}>{t('admin.applications.emptyFilter')}</p>
             ) : visible.map((app) => (
               <button key={app.id} onClick={() => select(app)}
                 style={{
@@ -204,10 +214,10 @@ export default function AdminApplicationsClient({ applications }: { applications
                     color: STATUS_COLOR[app.status] || '#94a3b8',
                     fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px',
                     textTransform: 'capitalize',
-                  }}>{app.status}</span>
+                  }}>{statusLabel(app.status)}</span>
                 </div>
                 <div style={{ fontSize: '13px', color: MUTED, marginTop: '4px' }}>
-                  {ROLE_LABEL[app.role_applied] || app.role_applied} · {fmtDate(app.created_at)}
+                  {roleLabel(app.role_applied)} · {fmtDate(app.created_at, locale)}
                 </div>
               </button>
             ))}
@@ -221,8 +231,8 @@ export default function AdminApplicationsClient({ applications }: { applications
                     {selected.full_name}
                   </h2>
                   <div style={{ fontSize: '14px', color: MUTED }}>
-                    {ROLE_LABEL[selected.role_applied] || selected.role_applied}
-                    {selected.city ? ' · ' + selected.city : ''} · applied {fmtDate(selected.created_at)}
+                    {roleLabel(selected.role_applied)}
+                    {selected.city ? ' · ' + selected.city : ''} · {t('admin.applications.appliedOn', { date: fmtDate(selected.created_at, locale) })}
                   </div>
                 </div>
                 {/* colorScheme tells the browser to render the native option list
@@ -231,7 +241,7 @@ export default function AdminApplicationsClient({ applications }: { applications
                   style={{ border: '1px solid ' + BORDER, borderRadius: '8px', padding: '7px 10px',
                     fontSize: '14px', textTransform: 'capitalize', background: INSET,
                     color: '#fff', colorScheme: 'dark' }}>
-                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
                 </select>
               </div>
 
@@ -247,10 +257,10 @@ export default function AdminApplicationsClient({ applications }: { applications
 
               <div style={{ display: 'flex', gap: '14px', marginBottom: '20px', fontSize: '13px' }}>
                 <span style={{ color: selected.is_18_or_over ? '#4ade80' : '#f87171' }}>
-                  {selected.is_18_or_over ? '✓' : '✗'} 18 or older
+                  {selected.is_18_or_over ? '✓' : '✗'} {t('admin.applications.over18')}
                 </span>
                 <span style={{ color: selected.work_authorized ? '#4ade80' : '#f87171' }}>
-                  {selected.work_authorized ? '✓' : '✗'} Authorized to work
+                  {selected.work_authorized ? '✓' : '✗'} {t('admin.applications.workAuthorized')}
                 </span>
               </div>
 
@@ -259,23 +269,23 @@ export default function AdminApplicationsClient({ applications }: { applications
                   style={{ background: GOLD, color: PANEL, border: 'none', borderRadius: '8px',
                     padding: '9px 16px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
                     marginBottom: '20px' }}>
-                  Open résumé
+                  {t('admin.applications.openResume')}
                 </button>
               ) : (
-                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', marginBottom: '20px' }}>No résumé uploaded.</p>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', marginBottom: '20px' }}>{t('admin.applications.noResume')}</p>
               )}
 
-              <Row label="Swimming experience" value={selected.swim_experience} />
-              <Row label="Certifications" value={selected.certifications} />
-              <Row label="Availability" value={selected.availability} />
-              <Row label="Hours per week" value={selected.weekly_hours} />
-              <Row label="Earliest start" value={selected.earliest_start} />
-              <Row label="Heard about us via" value={selected.referral_source} />
-              <Row label="Message" value={selected.message} />
+              <Row label={t('admin.applications.field.swimExperience')} value={selected.swim_experience} />
+              <Row label={t('admin.applications.field.certifications')} value={selected.certifications} />
+              <Row label={t('admin.applications.field.availability')} value={selected.availability} />
+              <Row label={t('admin.applications.field.weeklyHours')} value={selected.weekly_hours} />
+              <Row label={t('admin.applications.field.earliestStart')} value={selected.earliest_start} />
+              <Row label={t('admin.applications.field.referralSource')} value={selected.referral_source} />
+              <Row label={t('admin.applications.field.message')} value={selected.message} />
 
               <div style={{ borderTop: '1px solid ' + BORDER, paddingTop: '18px', marginTop: '4px' }}>
                 <div style={{ fontSize: '12px', color: MUTED, fontWeight: 600, marginBottom: '6px' }}>
-                  Internal notes
+                  {t('admin.applications.internalNotes')}
                 </div>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
                   style={{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
@@ -288,12 +298,12 @@ export default function AdminApplicationsClient({ applications }: { applications
                     fontSize: '14px', fontWeight: 600,
                     opacity: savingNotes ? 0.5 : 1,
                     cursor: savingNotes ? 'not-allowed' : 'pointer' }}>
-                  {savingNotes ? 'Saving…' : 'Save notes'}
+                  {savingNotes ? t('admin.applications.saving') : t('admin.applications.saveNotes')}
                 </button>
               </div>
             </div>
           ) : (
-            <p style={{ color: MUTED }}>Select an application.</p>
+            <p style={{ color: MUTED }}>{t('admin.applications.selectPrompt')}</p>
           )}
         </div>
       )}

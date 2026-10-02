@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useT } from '@/lib/i18n/provider'
 
 type Coach = {
   id: string
@@ -24,6 +25,7 @@ for (let h = 6; h <= 21; h++) {
 type DayRow = { enabled: boolean; start: string; end: string }
 
 function SchedulePanel({ coachId }: { coachId: string }) {
+  const t = useT()
   const [days, setDays] = useState<DayRow[]>(Array.from({ length: 7 }, () => ({ enabled: false, start: '09:00', end: '18:00' })))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -59,51 +61,52 @@ function SchedulePanel({ coachId }: { coachId: string }) {
     })
     const data = await res.json()
     setSaving(false)
-    setMsg(res.ok ? 'Saved' : (data.error || 'Save failed'))
+    setMsg(res.ok ? t('admin.coaches.saved') : (data.error || t('admin.coaches.err.saveFailed')))
     if (res.ok) setTimeout(() => setMsg(null), 2000)
   }
 
   const upd = (i: number, patch: Partial<DayRow>) => setDays(prev => prev.map((d, idx) => idx === i ? { ...d, ...patch } : d))
   const selCls = "bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#c9a84c]"
 
-  if (loading) return <p className="text-gray-500 text-sm py-2">Loading schedule...</p>
+  if (loading) return <p className="text-gray-500 text-sm py-2">{t('admin.coaches.loadingSchedule')}</p>
   return (
     <div className="space-y-2">
-      <p className="text-gray-500 text-xs">Weekly working hours. Parents can only book within these windows. Unchecked days are unavailable.</p>
+      <p className="text-gray-500 text-xs">{t('admin.coaches.scheduleHint')}</p>
       {DAY_NAMES.map((name, i) => (
         <div key={name} className="flex items-center gap-3">
           <label className="flex items-center gap-2 w-32 cursor-pointer">
             <input type="checkbox" checked={days[i].enabled} onChange={e => upd(i, { enabled: e.target.checked })}
               className="w-4 h-4 accent-[#c9a84c]" />
-            <span className={`text-sm ${days[i].enabled ? 'text-white' : 'text-gray-500'}`}>{name}</span>
+            <span className={`text-sm ${days[i].enabled ? 'text-white' : 'text-gray-500'}`}>{t(`date.weekday.${i}`)}</span>
           </label>
           {days[i].enabled ? (
             <div className="flex items-center gap-2">
               <select value={days[i].start} onChange={e => upd(i, { start: e.target.value })} className={selCls}>
-                {TIME_OPTS.map(t => <option key={t} value={t}>{t}</option>)}
+                {TIME_OPTS.map(tm => <option key={tm} value={tm}>{tm}</option>)}
               </select>
-              <span className="text-gray-500 text-sm">to</span>
+              <span className="text-gray-500 text-sm">{t('admin.coaches.to')}</span>
               <select value={days[i].end} onChange={e => upd(i, { end: e.target.value })} className={selCls}>
-                {TIME_OPTS.filter(t => t > days[i].start).map(t => <option key={t} value={t}>{t}</option>)}
+                {TIME_OPTS.filter(tm => tm > days[i].start).map(tm => <option key={tm} value={tm}>{tm}</option>)}
               </select>
             </div>
           ) : (
-            <span className="text-gray-600 text-sm">Unavailable</span>
+            <span className="text-gray-600 text-sm">{t('admin.coaches.unavailable')}</span>
           )}
         </div>
       ))}
       <div className="flex items-center gap-3 pt-2">
         <button onClick={save} disabled={saving}
           className="bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] text-xs font-semibold px-4 py-2 rounded-lg transition-all">
-          {saving ? 'Saving...' : 'Save Schedule'}
+          {saving ? t('admin.coaches.saving') : t('admin.coaches.saveSchedule')}
         </button>
-        {msg && <span className={`text-xs ${msg === 'Saved' ? 'text-green-400' : 'text-red-400'}`}>{msg}</span>}
+        {msg && <span className={`text-xs ${msg === t('admin.coaches.saved') ? 'text-green-400' : 'text-red-400'}`}>{msg}</span>}
       </div>
     </div>
   )
 }
 
 export default function AdminCoachesPage() {
+  const t = useT()
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -130,7 +133,7 @@ export default function AdminCoachesPage() {
     })
     const data = await res.json()
     setSaving(false)
-    if (!res.ok) { setError(data.error || 'Failed'); return }
+    if (!res.ok) { setError(data.error || t('admin.coaches.err.failed')); return }
     setForm({ first_name: '', last_name: '', email: '', pin: '' })
     setShowAdd(false)
     load()
@@ -151,7 +154,7 @@ export default function AdminCoachesPage() {
       body: JSON.stringify({ id, pin: editPin }),
     })
     const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Failed'); return }
+    if (!res.ok) { setError(data.error || t('admin.coaches.err.failed')); return }
     setEditPinId(null); setEditPin('')
   }
 
@@ -159,36 +162,36 @@ export default function AdminCoachesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">Coaches</h1>
-          <p className="text-gray-400 text-sm mt-1">{coaches.filter(c => c.is_active).length} active · {coaches.length} total</p>
+          <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.coaches.title')}</h1>
+          <p className="text-gray-400 text-sm mt-1">{t('admin.coaches.summary', { active: coaches.filter(c => c.is_active).length, total: coaches.length })}</p>
         </div>
         <button onClick={() => { setShowAdd(!showAdd); setError(null) }}
           className="bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold px-4 py-2 rounded-lg text-sm transition-all">
-          {showAdd ? 'Cancel' : '+ Add Coach'}
+          {showAdd ? t('common.cancel') : t('admin.coaches.addCoach')}
         </button>
       </div>
 
       {showAdd && (
         <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl p-5 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-            <input placeholder="First name *" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} className={inputCls} />
-            <input placeholder="Last name" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} className={inputCls} />
-            <input placeholder="Email * (for login)" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inputCls} />
-            <input placeholder="PIN * (8 digits)" value={form.pin} maxLength={8} onChange={e => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })} className={inputCls} />
+            <input placeholder={t('admin.coaches.ph.firstName')} value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} className={inputCls} />
+            <input placeholder={t('admin.coaches.ph.lastName')} value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} className={inputCls} />
+            <input placeholder={t('admin.coaches.ph.email')} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inputCls} />
+            <input placeholder={t('admin.coaches.ph.pin')} value={form.pin} maxLength={8} onChange={e => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })} className={inputCls} />
           </div>
           {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
           <button onClick={addCoach} disabled={saving}
             className="bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] font-semibold px-5 py-2 rounded-lg text-sm transition-all">
-            {saving ? 'Creating...' : 'Create Coach'}
+            {saving ? t('admin.coaches.creating') : t('admin.coaches.createCoach')}
           </button>
         </div>
       )}
 
       {loading ? (
-        <p className="text-gray-400">Loading...</p>
+        <p className="text-gray-400">{t('admin.coaches.loading')}</p>
       ) : coaches.length === 0 ? (
         <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl p-10 text-center">
-          <p className="text-gray-400">No coaches yet. Add your first coach to enable scheduling.</p>
+          <p className="text-gray-400">{t('admin.coaches.empty')}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -201,7 +204,7 @@ export default function AdminCoachesPage() {
                 </div>
                 <div>
                   <p className="text-white font-medium">{c.first_name} {c.last_name || ''}
-                    {!c.is_active && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">Inactive</span>}
+                    {!c.is_active && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">{t('admin.coaches.inactive')}</span>}
                   </p>
                   <p className="text-gray-500 text-xs">{c.email}</p>
                 </div>
@@ -209,25 +212,25 @@ export default function AdminCoachesPage() {
               <div className="flex items-center gap-2">
                 <button onClick={() => setScheduleId(scheduleId === c.id ? null : c.id)}
                   className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${scheduleId === c.id ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-400 hover:border-[#c9a84c]/50 hover:text-[#c9a84c]'}`}>
-                  Schedule
+                  {t('admin.coaches.schedule')}
                 </button>
                 {editPinId === c.id ? (
                   <>
-                    <input placeholder="New PIN (8 digits)" value={editPin} maxLength={8}
+                    <input placeholder={t('admin.coaches.ph.newPin')} value={editPin} maxLength={8}
                       onChange={e => setEditPin(e.target.value.replace(/\D/g, ''))}
                       className="bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-3 py-1.5 text-sm text-white w-44 focus:outline-none focus:border-[#c9a84c]" />
-                    <button onClick={() => savePin(c.id)} className="text-xs px-3 py-1.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold">Save</button>
-                    <button onClick={() => { setEditPinId(null); setEditPin(''); setError(null) }} className="text-xs px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400">Cancel</button>
+                    <button onClick={() => savePin(c.id)} className="text-xs px-3 py-1.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold">{t('common.save')}</button>
+                    <button onClick={() => { setEditPinId(null); setEditPin(''); setError(null) }} className="text-xs px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400">{t('common.cancel')}</button>
                   </>
                 ) : (
                   <button onClick={() => { setEditPinId(c.id); setEditPin(''); setError(null) }}
                     className="text-xs px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400 hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all">
-                    Change PIN
+                    {t('admin.coaches.changePin')}
                   </button>
                 )}
                 <button onClick={() => toggleActive(c)}
                   className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${c.is_active ? 'border-red-400/40 text-red-300 hover:bg-red-400/10' : 'border-green-400/40 text-green-300 hover:bg-green-400/10'}`}>
-                  {c.is_active ? 'Deactivate' : 'Activate'}
+                  {c.is_active ? t('admin.coaches.deactivate') : t('admin.coaches.activate')}
                 </button>
               </div>
             </div>
@@ -235,8 +238,8 @@ export default function AdminCoachesPage() {
               <div className="border-t border-[#1e3a6e]/50 px-4 pb-4 pt-3">
                 {c.zoned ? (
                   <div className="flex items-center gap-3 py-2">
-                    <p className="text-sm text-gray-400">Availability for this coach is managed by <span className="text-white font-medium">Zones</span>. Legacy weekly hours below no longer apply.</p>
-                    <a href="/admin/zones" className="text-xs px-3 py-1.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 whitespace-nowrap transition-all">Open Zones →</a>
+                    <p className="text-sm text-gray-400">{t('admin.coaches.zonedBefore')}<span className="text-white font-medium">{t('admin.coaches.zonedZones')}</span>{t('admin.coaches.zonedAfter')}</p>
+                    <a href="/admin/zones" className="text-xs px-3 py-1.5 rounded-lg border border-[#c9a84c]/50 text-[#c9a84c] hover:bg-[#c9a84c]/10 whitespace-nowrap transition-all">{t('admin.coaches.openZones')}</a>
                   </div>
                 ) : (
                   <SchedulePanel coachId={c.id} />

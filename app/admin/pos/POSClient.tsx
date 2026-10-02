@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/points'
 import { tierFor, tierBandLabel, TEAM_SQUAD_CAP, type TierBand } from '@/lib/team-tiers'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
 
 const NAVY = '#1a2744'
 const GOLD = '#c9a84c'
@@ -32,6 +34,8 @@ const sel0: React.CSSProperties = {
 }
 
 export default function POSClient() {
+  const t = useT()
+  const locale = useLocale()
   const [step, setStep] = useState<Step>('select')
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<Parent[]>([])
@@ -86,7 +90,7 @@ export default function POSClient() {
         const mod = await import('@stripe/terminal-js')
         const StripeTerminal = await mod.loadStripeTerminal()
         if (!StripeTerminal || !mounted) return
-        const t = StripeTerminal.create({
+        const term = StripeTerminal.create({
           onFetchConnectionToken: async () => {
             const res = await fetch('/api/stripe/terminal/connection-token', { method: 'POST' })
             const data = await res.json()
@@ -96,11 +100,11 @@ export default function POSClient() {
           onUnexpectedReaderDisconnect: () => { if (mounted) setReaderStatus('none') },
         })
         if (!mounted) return
-        setTerminal(t)
-        const dr = await t.discoverReaders({ simulated: true }) as any
+        setTerminal(term)
+        const dr = await term.discoverReaders({ simulated: true }) as any
         if (!mounted) return
         if (dr.discoveredReaders?.length > 0) {
-          const cr = await t.connectReader(dr.discoveredReaders[0]) as any
+          const cr = await term.connectReader(dr.discoveredReaders[0]) as any
           setReaderStatus(cr.error ? 'none' : 'connected')
         } else { setReaderStatus('none') }
       } catch { if (mounted) setReaderStatus('none') }
@@ -111,12 +115,12 @@ export default function POSClient() {
 
   useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return }
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       const { data } = await supabase.from('parents').select('id, first_name, last_name, email')
         .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`).limit(6)
       setSearchResults(data || [])
     }, 300)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [search])
 
   useEffect(() => {
@@ -155,10 +159,15 @@ export default function POSClient() {
   const sdpQty = Math.max(0, Math.round(Number(sdpSessions) || 0))
   const sdpUnitCents = Math.max(0, Math.round((Number(sdpUnitPrice) || 0) * 100))
   const sdpAmountCents = sdpQty * sdpUnitCents
-  const teamTier = teamTiers.find(t => t.id === teamTierId) || null
+  const teamTier = teamTiers.find(tier => tier.id === teamTierId) || null
   const teamM = Math.max(1, Math.min(12, Math.round(Number(teamMonths) || 1)))
   const teamAmountCents = (teamTier?.monthly_price_cents ?? 39900) * teamM
+  // teamLabel is the Stripe PaymentIntent description and stays English;
+  // teamLabelUi is the same line for the screen, in the admin's language.
   const teamLabel = `${teamTier?.name || 'Swim Team'} · Prepaid · ${teamM} month${teamM > 1 ? 's' : ''}`
+  const teamTierName = teamTier ? tDb(locale, 'team_tiers', teamTier.id, teamTier.name) : ''
+  const teamLabelUi = t(teamM > 1 ? 'admin.pos.teamLabelPlural' : 'admin.pos.teamLabel', { tier: teamTierName || t('admin.pos.swimTeam'), n: teamM })
+  const pointsLine = t('admin.pos.pointsN', { n: topup.toLocaleString() }) + (bonus > 0 ? t('admin.pos.bonusSuffix', { n: bonus.toLocaleString() }) : '')
   const chargeAmount = isTeam ? teamAmountCents : isSdp ? sdpAmountCents : isTrial ? TRIAL_CENTS : topup * 100
 
   const canCharge = !processing && (
@@ -186,10 +195,10 @@ export default function POSClient() {
   const teamRecommended = teamStudent ? tierFor(teamTiers, teamStudent.current_level, teamStudent.current_stage) : null
   const teamOverrideReasons: string[] = []
   if (isTeam && teamStudent && teamTier) {
-    if (teamStudent.current_level == null) teamOverrideReasons.push(`${teamStudent.full_name} has no swim assessment on file`)
-    else if (!teamRecommended) teamOverrideReasons.push(`Level ${teamStudent.current_level} is below the team minimum of Level 4`)
-    else if (teamRecommended.id !== teamTier.id) teamOverrideReasons.push(`this swimmer's level places them in ${teamRecommended.name}`)
-    if (teamTier.spots_left <= 0) teamOverrideReasons.push(`${teamTier.name} is full at ${TEAM_SQUAD_CAP}`)
+    if (teamStudent.current_level == null) teamOverrideReasons.push(t('admin.pos.override.noAssessment', { name: teamStudent.full_name }))
+    else if (!teamRecommended) teamOverrideReasons.push(t('admin.pos.override.belowMin', { n: teamStudent.current_level }))
+    else if (teamRecommended.id !== teamTier.id) teamOverrideReasons.push(t('admin.pos.override.placesIn', { tier: tDb(locale, 'team_tiers', teamRecommended.id, teamRecommended.name) }))
+    if (teamTier.spots_left <= 0) teamOverrideReasons.push(t('admin.pos.override.full', { tier: teamTierName, cap: TEAM_SQUAD_CAP }))
   }
   const teamOverrideRef = useRef(false)
   const [showTeamOverride, setShowTeamOverride] = useState(false)
@@ -214,17 +223,17 @@ export default function POSClient() {
     setProcessing(true)
     try {
       if (isTeam) {
-        if (!selectedStudentId) throw new Error('Please select a student')
-        if (!teamTierId) throw new Error('Please select a tier')
+        if (!selectedStudentId) throw new Error(t('admin.pos.err.selectStudent'))
+        if (!teamTierId) throw new Error(t('admin.pos.err.selectTier'))
         let paymentIntentId: string | undefined
         if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error('Card reader not connected')
+          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
           const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amountCents: teamAmountCents, description: teamLabel }),
           })
           const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || 'PaymentIntent failed')
+          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
           const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
           if (ce) throw new Error(ce.message)
           const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
@@ -241,19 +250,19 @@ export default function POSClient() {
           }),
         })
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Failed')
+        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
         setStep('success')
       } else if (isSdp) {
-        if (!sdpStudentId) throw new Error('Please select a student')
+        if (!sdpStudentId) throw new Error(t('admin.pos.err.selectStudent'))
         let paymentIntentId: string | undefined
         if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error('Card reader not connected')
+          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
           const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amountCents: sdpAmountCents, description: sdpDesc }),
           })
           const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || 'PaymentIntent failed')
+          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
           const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
           if (ce) throw new Error(ce.message)
           const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
@@ -270,16 +279,16 @@ export default function POSClient() {
           }),
         })
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Failed')
+        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
         setStep('success')
       } else if (isTrial) {
-        if (!selectedStudentId) throw new Error('Please select a student')
+        if (!selectedStudentId) throw new Error(t('admin.pos.err.selectStudent'))
         let paymentIntentId: string | undefined
         if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error('Card reader not connected')
+          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
           const piRes = await fetch('/api/stripe/terminal/create-trial-payment-intent', { method: 'POST' })
           const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || 'PaymentIntent failed')
+          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
           const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
           if (ce) throw new Error(ce.message)
           const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
@@ -291,19 +300,19 @@ export default function POSClient() {
           body: JSON.stringify({ parentId: selectedParent.id, studentId: selectedStudentId, paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash', ...(paymentIntentId ? { paymentIntentId } : {}) }),
         })
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Failed')
+        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
         setStep('success')
       } else {
         if (!topupValid) return
         let paymentIntentId: string | undefined
         if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error('Card reader not connected')
+          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
           const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amountCents: topup * 100, kind: 'points', description: `${topup} lesson points`, parentId: selectedParent.id }),
           })
           const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || 'PaymentIntent failed')
+          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
           const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
           if (ce) throw new Error(ce.message)
           const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
@@ -321,11 +330,11 @@ export default function POSClient() {
           }),
         })
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Failed')
+        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
         setStep('success')
       }
     } catch (err: any) {
-      setError(err.message || 'Payment failed.')
+      setError(err.message || t('admin.pos.err.paymentFailed'))
     } finally { setProcessing(false) }
   }
   const reset = () => {
@@ -337,7 +346,7 @@ export default function POSClient() {
   }
 
   const readerDot = readerStatus === 'connected' ? '#10b981' : readerStatus === 'init' ? '#f59e0b' : '#6b7280'
-  const readerLabel = readerStatus === 'connected' ? 'Reader Connected' : readerStatus === 'init' ? 'Initializing...' : 'No Reader'
+  const readerLabel = readerStatus === 'connected' ? t('admin.pos.reader.connected') : readerStatus === 'init' ? t('admin.pos.reader.init') : t('admin.pos.reader.none')
 
   // Cash confirmation modal
   if (cashConfirmOpen) {
@@ -347,23 +356,23 @@ export default function POSClient() {
       <div style={{ minHeight: '100vh', backgroundColor: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>💵</div>
-          <h2 style={{ color: 'white', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Confirm Cash Payment</h2>
+          <h2 style={{ color: 'white', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{t('admin.pos.cash.confirmTitle')}</h2>
           <p style={{ color: '#9ca3af', fontSize: 15, marginBottom: 4 }}>{customerName}</p>
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 4 }}>{amount}</p>
           <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 28 }}>
-            {isTrial ? 'Swim Assessment · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : isTeam ? teamLabel : `${topup.toLocaleString()} points${bonus > 0 ? ` + ${bonus.toLocaleString()} bonus` : ''}`}
+            {isTrial ? t('common.assessment') + ' · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : isTeam ? teamLabelUi : pointsLine}
           </p>
-          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>Please confirm you have received the cash before proceeding.</p>
+          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>{t('admin.pos.cash.confirmHint')}</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <button
               onClick={() => setCashConfirmOpen(false)}
               style={{ padding: '12px', borderRadius: 10, border: '1px solid #1e3a6e', backgroundColor: '#0d1829', color: '#9ca3af', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={async () => { setCashConfirmOpen(false); await doCharge() }}
               style={{ padding: '12px', borderRadius: 10, border: 'none', backgroundColor: GOLD, color: NAVY, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              Confirm Payment
+              {t('admin.pos.cash.confirmPayment')}
             </button>
           </div>
         </div>
@@ -376,19 +385,19 @@ export default function POSClient() {
       <div style={{ minHeight: '100vh', backgroundColor: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', padding: 40 }}>
           <div style={{ width: 96, height: 96, borderRadius: '50%', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 48 }}>✓</div>
-          <h2 style={{ color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{isTrial ? 'Assessment Credit Added!' : 'Payment Complete'}</h2>
+          <h2 style={{ color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{isTrial ? t('admin.pos.success.assessment') : t('admin.pos.success.payment')}</h2>
           <p style={{ color: '#9ca3af', fontSize: 18, marginBottom: 4 }}>{selectedParent?.first_name} {selectedParent?.last_name}</p>
           {isTrial ? (
             <>
-              <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Swim Assessment · {selectedStudent?.full_name}</p>
-              <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 8 }}>Credit issued — schedule it from the Booking page, or the parent can book from their dashboard.</p>
+              <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t('common.assessment')} · {selectedStudent?.full_name}</p>
+              <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 8 }}>{t('admin.pos.success.assessmentHint')}</p>
             </>
           ) : (
-            <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{isTeam ? teamLabel : `${topup.toLocaleString()} points${bonus > 0 ? ` + ${bonus.toLocaleString()} bonus` : ''}`}</p>
+            <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{isTeam ? teamLabelUi : pointsLine}</p>
           )}
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 8 }}>${(chargeAmount / 100).toLocaleString()}</p>
-          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 32 }}>{payMethod === 'cash' ? '💵 Cash' : '💳 Card'}</p>
-          <button onClick={reset} style={{ backgroundColor: GOLD, color: NAVY, padding: '14px 40px', borderRadius: 10, fontWeight: 700, fontSize: 16, cursor: 'pointer', border: 'none' }}>New Transaction</button>
+          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 32 }}>{payMethod === 'cash' ? t('admin.pos.pm.cash') : t('admin.pos.pm.card')}</p>
+          <button onClick={reset} style={{ backgroundColor: GOLD, color: NAVY, padding: '14px 40px', borderRadius: 10, fontWeight: 700, fontSize: 16, cursor: 'pointer', border: 'none' }}>{t('admin.pos.success.newTransaction')}</button>
         </div>
       </div>
     )
@@ -400,20 +409,20 @@ export default function POSClient() {
       {showTeamOverride && (
         <div onClick={() => setShowTeamOverride(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#111d38', border: '1px solid #b45309', borderRadius: 16, padding: 32, maxWidth: 420, width: '100%' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#fbbf24', marginBottom: 8 }}>Level Override</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>Sell {teamTier?.name} anyway?</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#fbbf24', marginBottom: 8 }}>{t('admin.pos.override.eyebrow')}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>{t('admin.pos.override.title', { tier: teamTierName })}</div>
             <ul style={{ margin: '0 0 16px', padding: '0 0 0 18px', color: '#fbbf24', fontSize: 13, lineHeight: 1.7 }}>
               {teamOverrideReasons.map(r => <li key={r}>{r}</li>)}
             </ul>
             <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 20px', lineHeight: 1.6 }}>
-              The sale will go through and the reason above will be written onto the invoice with your name.
+              {t('admin.pos.override.hint')}
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowTeamOverride(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #1e3a6e', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                Cancel
+                {t('common.cancel')}
               </button>
               <button onClick={async () => { setShowTeamOverride(false); await handleCharge(true) }} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: '#b45309', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                Override &amp; charge
+                {t('admin.pos.override.confirm')}
               </button>
             </div>
           </div>
@@ -422,14 +431,14 @@ export default function POSClient() {
       {showCashConfirm && (
         <div onClick={() => setShowCashConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#111d38', border: '1px solid #1e3a6e', borderRadius: 16, padding: 32, maxWidth: 380, width: '100%' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Cash Payment Confirmation</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>Confirm cash received?</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>{t('admin.pos.cash.eyebrow')}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>{t('admin.pos.cash.received')}</div>
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 4 }}>
                 {selectedParent?.first_name} {selectedParent?.last_name}
               </div>
               <div style={{ fontSize: 13, color: '#9ca3af' }}>
-                {isTrial ? 'Swim Assessment' : isTeam ? teamLabel : `${topup.toLocaleString()} points${bonus > 0 ? ` + ${bonus.toLocaleString()} bonus` : ''}`}
+                {isTrial ? t('common.assessment') : isTeam ? teamLabelUi : pointsLine}
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, color: GOLD, marginTop: 8 }}>
                 ${(chargeAmount / 100).toLocaleString()}
@@ -437,10 +446,10 @@ export default function POSClient() {
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowCashConfirm(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #1e3a6e', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                Cancel
+                {t('common.cancel')}
               </button>
               <button onClick={async () => { setShowCashConfirm(false); await doCharge() }} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: GOLD, color: NAVY, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                💵 Confirm Charge ${(chargeAmount / 100).toLocaleString()}
+                {t('admin.pos.cash.confirmCharge', { amount: '$' + (chargeAmount / 100).toLocaleString() })}
               </button>
             </div>
           </div>
@@ -448,8 +457,8 @@ export default function POSClient() {
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ color: 'white', fontSize: 24, fontWeight: 700, fontFamily: 'Playfair Display, serif', margin: 0 }}>Point of Sale</h1>
-          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 4, marginBottom: 0 }}>In-person package purchase</p>
+          <h1 style={{ color: 'white', fontSize: 24, fontWeight: 700, fontFamily: 'Playfair Display, serif', margin: 0 }}>{t('admin.pos.title')}</h1>
+          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 4, marginBottom: 0 }}>{t('admin.pos.subtitle')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: readerDot }} />
@@ -465,7 +474,7 @@ export default function POSClient() {
         <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: 20 }}>
           <h2 style={{ color: 'white', fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 16px' }}>
             <span style={{ backgroundColor: selectedParent ? '#10b981' : GOLD, color: NAVY, borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
-            Customer
+            {t('admin.pos.customer')}
           </h2>
           {selectedParent ? (
             <div style={{ backgroundColor: '#1e3a6e', borderRadius: 8, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -474,11 +483,11 @@ export default function POSClient() {
                 <p style={{ color: '#9ca3af', fontSize: 13, margin: '2px 0 0' }}>{selectedParent.email}</p>
               </div>
               <button onClick={() => { setSelectedParent(null); setSearch(''); setStudents([]); setSelectedStudentId(null) }}
-                style={{ color: '#9ca3af', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>Change</button>
+                style={{ color: '#9ca3af', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>{t('admin.pos.change')}</button>
             </div>
           ) : (
             <div>
-              <input type="text" placeholder="Search name or email..." value={search} onChange={e => setSearch(e.target.value)}
+              <input type="text" placeholder={t('admin.pos.searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)}
                 style={{ ...sel0, padding: '10px 12px' }} />
               {searchResults.length > 0 && (
                 <div style={{ marginTop: 6, border: '1px solid #1e3a6e', borderRadius: 8, overflow: 'hidden' }}>
@@ -497,24 +506,24 @@ export default function POSClient() {
         <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: 20 }}>
           <h2 style={{ color: 'white', fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 16px' }}>
             <span style={{ backgroundColor: (topupValid || isTrial) ? '#10b981' : GOLD, color: NAVY, borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
-            Package
+            {t('admin.pos.package')}
           </h2>
           <div style={{ maxHeight: 660, overflowY: 'auto' }}>
             <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
-              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Swim Assessment</p>
+              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{t('common.assessment')}</p>
               <button onClick={() => { setIsTrial(!isTrial); setIsTeam(false) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isTrial ? GOLD : '#1e3a6e'}`, backgroundColor: isTrial ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
-                <p style={{ color: isTrial ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>1-on-1 · once per student</p>
+                <p style={{ color: isTrial ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>{t('admin.pos.assessment.sub')}</p>
                 <p style={{ color: isTrial ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>$85.00</p>
               </button>
               {isTrial && (
                 <div style={{ marginTop: 12, padding: 14, backgroundColor: '#0d1829', borderRadius: 8, border: '1px solid #1e3a6e' }}>
                   <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Student</p>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.student')}</p>
                     {!selectedParent ? (
-                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>Select a customer first</p>
+                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>{t('admin.pos.selectCustomerFirst')}</p>
                     ) : students.length === 0 ? (
-                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>No eligible students</p>
+                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>{t('admin.pos.noEligible')}</p>
                     ) : (
                       <select value={selectedStudentId || ''} onChange={e => setSelectedStudentId(e.target.value)} style={sel0}>
                         {students.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
@@ -525,20 +534,20 @@ export default function POSClient() {
               )}
             </div>
             <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
-              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>SDP / Regional Center</p>
+              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{t('admin.pos.sdp.eyebrow')}</p>
               <button onClick={() => { setIsSdp(!isSdp); setIsTrial(false); setIsTeam(false) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isSdp ? GOLD : '#1e3a6e'}`, backgroundColor: isSdp ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
-                <p style={{ color: isSdp ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>Custom sale · UCI students only</p>
-                <p style={{ color: isSdp ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>Custom Amount</p>
+                <p style={{ color: isSdp ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>{t('admin.pos.sdp.sub')}</p>
+                <p style={{ color: isSdp ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>{t('admin.pos.sdp.customAmount')}</p>
               </button>
               {isSdp && (
                 <div style={{ marginTop: 12, padding: 14, backgroundColor: '#0d1829', borderRadius: 8, border: '1px solid #1e3a6e' }}>
                   <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Student (SDP)</p>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.sdp.student')}</p>
                     {!selectedParent ? (
-                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>Select a customer first</p>
+                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>{t('admin.pos.selectCustomerFirst')}</p>
                     ) : sdpStudents.length === 0 ? (
-                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>No students with UCI on file — add UCI in Members first</p>
+                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>{t('admin.pos.sdp.noUci')}</p>
                     ) : (
                       <select value={sdpStudentId || ''} onChange={e => setSdpStudentId(e.target.value)} style={sel0}>
                         {sdpStudents.map(s => <option key={s.id} value={s.id}>{s.full_name} · UCI {s.uci_number}</option>)}
@@ -546,22 +555,22 @@ export default function POSClient() {
                     )}
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Course Type</p>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.sdp.courseType')}</p>
                     <select value={sdpCourseTypeId || ''} onChange={e => setSdpCourseTypeId(e.target.value)} style={sel0}>
-                      {sdpCourseTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                      {sdpCourseTypes.map(ct => <option key={ct.id} value={ct.id}>{tDb(locale, 'course_types', ct.id, ct.name)}</option>)}
                     </select>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Note (shown on invoice)</p>
-                    <input value={sdpDesc} onChange={e => setSdpDesc(e.target.value)} placeholder="e.g. July 2026 Swim Lessons" style={sel0} />
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.sdp.note')}</p>
+                    <input value={sdpDesc} onChange={e => setSdpDesc(e.target.value)} placeholder={t('admin.pos.sdp.notePlaceholder')} style={sel0} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <div>
-                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Sessions</p>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.sessions')}</p>
                       <input type="number" min="1" value={sdpSessions} onChange={e => setSdpSessions(e.target.value)} style={sel0} />
                     </div>
                     <div>
-                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Unit Price ($)</p>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.sdp.unitPrice')}</p>
                       <input type="number" min="1" step="0.01" value={sdpUnitPrice} onChange={e => setSdpUnitPrice(e.target.value)} style={sel0} />
                     </div>
                   </div>
@@ -569,36 +578,36 @@ export default function POSClient() {
               )}
             </div>
             <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
-              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Swim Team · Prepaid</p>
+              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{t('admin.pos.team.eyebrow')}</p>
               <button onClick={() => { setIsTeam(!isTeam); setIsTrial(false); setIsSdp(false) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isTeam ? GOLD : '#1e3a6e'}`, backgroundColor: isTeam ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
-                <p style={{ color: isTeam ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>Monthly membership · pay upfront · cash or card</p>
-                <p style={{ color: isTeam ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>{teamTier ? `$${(teamTier.monthly_price_cents / 100).toLocaleString()}/mo` : '$399/mo'}</p>
+                <p style={{ color: isTeam ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>{t('admin.pos.team.sub')}</p>
+                <p style={{ color: isTeam ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>{t('admin.pos.perMonth', { price: teamTier ? `$${(teamTier.monthly_price_cents / 100).toLocaleString()}` : '$399' })}</p>
               </button>
               {isTeam && (
                 <div style={{ marginTop: 12, padding: 14, backgroundColor: '#0d1829', borderRadius: 8, border: '1px solid #1e3a6e' }}>
                   <div style={{ marginBottom: 10 }}>
-                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Student</p>
+                    <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.student')}</p>
                     {!selectedParent ? (
-                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>Select a customer first</p>
+                      <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>{t('admin.pos.selectCustomerFirst')}</p>
                     ) : students.length === 0 ? (
-                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>No students on file</p>
+                      <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>{t('admin.pos.team.noStudents')}</p>
                     ) : (
                       <select value={selectedStudentId || ''} onChange={e => setSelectedStudentId(e.target.value)} style={sel0}>
-                        <option value="">Select student...</option>
+                        <option value="">{t('admin.pos.team.selectStudent')}</option>
                         {students.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
                       </select>
                     )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <div>
-                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Tier</p>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.team.tier')}</p>
                       <select value={teamTierId || ''} onChange={e => setTeamTierId(e.target.value)} style={sel0}>
-                        {teamTiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        {teamTiers.map(tier => <option key={tier.id} value={tier.id}>{tDb(locale, 'team_tiers', tier.id, tier.name)}</option>)}
                       </select>
                     </div>
                     <div>
-                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Months</p>
+                      <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.team.months')}</p>
                       <input type="number" min="1" max="12" value={teamMonths} onChange={e => setTeamMonths(e.target.value)} style={sel0} />
                     </div>
                   </div>
@@ -606,15 +615,15 @@ export default function POSClient() {
                     <p style={{ fontSize: 11, margin: '8px 0 0', color: teamOverrideReasons.length > 0 ? '#fbbf24' : '#10b981' }}>
                       {teamOverrideReasons.length > 0
                         ? `\u26a0 ${teamOverrideReasons.join(' · ')}`
-                        : `\u2713 Matches this swimmer's level (${tierBandLabel(teamTier)})`}
+                        : t('admin.pos.team.matches', { band: tierBandLabel(teamTier, t('plans.team.stageWord')) })}
                     </p>
                   )}
-                  <p style={{ color: '#6b7280', fontSize: 11, margin: '10px 0 0' }}>Extends from current expiry if the student already has an active prepaid membership. Blocked if the student has an active subscription.</p>
+                  <p style={{ color: '#6b7280', fontSize: 11, margin: '10px 0 0' }}>{t('admin.pos.team.extendsHint')}</p>
                 </div>
               )}
             </div>
             <div style={{ opacity: (isTrial || isSdp || isTeam) ? 0.35 : 1, transition: 'opacity 0.2s', pointerEvents: (isTrial || isSdp || isTeam) ? 'none' : 'auto' }}>
-              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Points</p>
+              <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{t('admin.pos.points')}</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
                 {TOPUP_PRESETS.map(preset => {
                   const sel = topup === preset
@@ -622,97 +631,97 @@ export default function POSClient() {
                     <button key={preset} onClick={() => { setTopupDollars(String(preset)); setIsTrial(false); setIsTeam(false) }}
                       style={{ padding: '10px 8px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `1px solid ${sel ? GOLD : '#1e3a6e'}`, backgroundColor: sel ? GOLD : '#0d1829' }}>
                       <p style={{ color: sel ? NAVY : 'white', fontSize: 15, fontWeight: 700, margin: 0 }}>${preset.toLocaleString()}</p>
-                      <p style={{ color: sel ? NAVY : '#9ca3af', fontSize: 11, margin: 0 }}>{preset.toLocaleString()} pts</p>
+                      <p style={{ color: sel ? NAVY : '#9ca3af', fontSize: 11, margin: 0 }}>{t('admin.pos.ptsN', { n: preset.toLocaleString() })}</p>
                     </button>
                   )
                 })}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
-                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Amount paid ($)</p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.amountPaid')}</p>
                   <input type="number" min={MIN_TOPUP_DOLLARS} max={MAX_TOPUP_DOLLARS} value={topupDollars}
                     onChange={e => setTopupDollars(e.target.value)} style={sel0} />
                 </div>
                 <div>
-                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>Bonus points (optional)</p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.bonusPoints')}</p>
                   <input type="number" min="0" value={bonusPoints} placeholder="0"
                     onChange={e => setBonusPoints(e.target.value)} style={sel0} />
                 </div>
               </div>
               <p style={{ color: topupValid ? '#6b7280' : '#fbbf24', fontSize: 11, margin: '8px 0 0' }}>
                 {topupValid
-                  ? `Wallet receives ${(topup + bonus).toLocaleString()} points. ${bonus > 0 ? `${bonus.toLocaleString()} of them are a bonus: not refundable for cash, and they expire in one year.` : 'Refundable at $1 per point.'}`
-                  : `Amount must be $${MIN_TOPUP_DOLLARS}\u2013$${MAX_TOPUP_DOLLARS.toLocaleString()}, and the bonus cannot exceed it.`}
+                  ? t('admin.pos.walletReceives', { n: (topup + bonus).toLocaleString() }) + (bonus > 0 ? t('admin.pos.bonusNote', { n: bonus.toLocaleString() }) : t('admin.pos.refundable'))
+                  : t('admin.pos.amountRange', { min: `$${MIN_TOPUP_DOLLARS}`, max: `$${MAX_TOPUP_DOLLARS.toLocaleString()}` })}
               </p>
             </div>
 
           </div>
         </div>
         <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 12, padding: 20 }}>
-          <h2 style={{ color: 'white', fontWeight: 600, fontSize: 15, margin: '0 0 16px' }}>Order Summary</h2>
+          <h2 style={{ color: 'white', fontWeight: 600, fontSize: 15, margin: '0 0 16px' }}>{t('admin.pos.summary')}</h2>
           <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ color: '#9ca3af', fontSize: 13 }}>Customer</span>
+              <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('admin.pos.customer')}</span>
               <span style={{ color: 'white', fontSize: 13, fontWeight: 500 }}>{selectedParent ? `${selectedParent.first_name} ${selectedParent.last_name}` : '\u2014'}</span>
             </div>
             {isTeam ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('admin.pos.student')}</span>
                   <span style={{ color: 'white', fontSize: 13 }}>{selectedStudent?.full_name || '—'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Membership</span>
-                  <span style={{ color: 'white', fontSize: 13 }}>{teamTier?.name || '—'} × {teamM} mo</span>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('admin.pos.membership')}</span>
+                  <span style={{ color: 'white', fontSize: 13 }}>{teamTierName || '—'} × {t('admin.pos.monthsShort', { n: teamM })}</span>
                 </div>
               </>
             ) : isSdp ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('admin.pos.student')}</span>
                   <span style={{ color: 'white', fontSize: 13 }}>{sdpStudents.find(s => s.id === sdpStudentId)?.full_name || '\u2014'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Sessions</span>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('admin.pos.sessions')}</span>
                   <span style={{ color: 'white', fontSize: 13 }}>{sdpQty || '\u2014'} \u00d7 ${(sdpUnitCents / 100).toFixed(2)}</span>
                 </div>
               </>
             ) : isTrial ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Student</span>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('admin.pos.student')}</span>
                   <span style={{ color: 'white', fontSize: 13 }}>{selectedStudent?.full_name || '\u2014'}</span>
                 </div>
               </>
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#9ca3af', fontSize: 13 }}>Points</span>
-                <span style={{ color: 'white', fontSize: 13 }}>{topupValid ? `${(topup + bonus).toLocaleString()} pts${bonus > 0 ? ` (incl. ${bonus.toLocaleString()} bonus)` : ''}` : '\u2014'}</span>
+                <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('admin.pos.points')}</span>
+                <span style={{ color: 'white', fontSize: 13 }}>{topupValid ? t('admin.pos.ptsN', { n: (topup + bonus).toLocaleString() }) + (bonus > 0 ? t('admin.pos.inclBonus', { n: bonus.toLocaleString() }) : '') : '\u2014'}</span>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <span style={{ color: '#9ca3af' }}>Total</span>
+            <span style={{ color: '#9ca3af' }}>{t('admin.pos.total')}</span>
             <span style={{ color: 'white', fontSize: 28, fontWeight: 700 }}>
               {isTeam ? `$${(teamAmountCents / 100).toLocaleString()}` : isSdp ? `$${(sdpAmountCents / 100).toLocaleString()}` : isTrial ? '$85' : topupValid ? `$${topup.toLocaleString()}` : '$\u2014'}
             </span>
           </div>
-          <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Payment Method</p>
+          <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>{t('admin.pos.paymentMethod')}</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
             {(['card', 'cash'] as const).map(m => (
               <button key={m} onClick={() => setPayMethod(m)}
                 style={{ padding: '10px', borderRadius: 8, border: `1px solid ${payMethod === m ? GOLD : '#1e3a6e'}`, backgroundColor: payMethod === m ? GOLD : '#0d1829', color: payMethod === m ? NAVY : 'white', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-                {m === 'card' ? '\ud83d\udcb3 Card' : '\ud83d\udcb5 Cash'}
+                {m === 'card' ? t('admin.pos.pm.card') : t('admin.pos.pm.cash')}
               </button>
             ))}
           </div>
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
           <button onClick={() => handleCharge()} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
-            {processing ? 'Processing...' : canCharge ? `Charge $${(chargeAmount / 100).toLocaleString()}` : isTeam ? 'Complete team details' : isSdp ? 'Complete SDP details' : isTrial ? 'Select a student' : !selectedParent ? 'Select a customer' : 'Enter an amount'}
+            {processing ? t('admin.pos.processing') : canCharge ? t('admin.pos.charge', { amount: `$${(chargeAmount / 100).toLocaleString()}` }) : isTeam ? t('admin.pos.cta.team') : isSdp ? t('admin.pos.cta.sdp') : isTrial ? t('admin.pos.cta.student') : !selectedParent ? t('admin.pos.cta.customer') : t('admin.pos.cta.amount')}
           </button>
-          {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{'\u26a0'} No card reader connected</p>}
-          {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>\u2713 Reader ready</p>}
+          {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('admin.pos.noReader')}</p>}
+          {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('admin.pos.readerReady')}</p>}
         </div>
       </div>
     </div>

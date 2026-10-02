@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag } from '@/lib/i18n'
 
 const NAVY = '#1a2744'
 const DARKER = '#0d1529'
@@ -9,6 +11,8 @@ const GOLD = '#c9a84c'
 const RED = '#ef4444'
 
 export default function AdminMessagesClient({ adminId, adminName }: { adminId: string; adminName: string }) {
+  const t = useT()
+  const locale = useLocale()
   const supabase = createClient()
   const [threads, setThreads] = useState<any[]>([])
   const [selectedThread, setSelectedThread] = useState<any>(null)
@@ -24,7 +28,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
       const res = await fetch('/api/admin/chat-handoff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_id: selectedThread.id, mode }) })
       if (res.ok) {
         setSelectedThread((prev: any) => prev ? { ...prev, mode, ...(mode === 'ai' ? { escalation_summary: null } : {}) } : prev)
-        setThreads(prev => prev.map(t => t.id === selectedThread.id ? { ...t, mode } : t))
+        setThreads(prev => prev.map(th => th.id === selectedThread.id ? { ...th, mode } : th))
       }
     } finally { setSwitchingMode(false) }
   }
@@ -47,7 +51,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
         if (current && msg.thread_id === current.id) {
           setMessages(prev => [...prev, msg])
           // New message received: mark unread (whether or not this thread is open)
-          setThreads(prev => prev.map(t => t.id === current.id ? { ...t, unread_by_admin: msg.sender_type === 'parent' ? true : t.unread_by_admin, last_message_preview: msg.body } : t))
+          setThreads(prev => prev.map(th => th.id === current.id ? { ...th, unread_by_admin: msg.sender_type === 'parent' ? true : th.unread_by_admin, last_message_preview: msg.body } : th))
         } else {
           loadThreads()
         }
@@ -85,13 +89,13 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
 
   async function markRead(threadId: string) {
     await supabase.from('chat_threads').update({ unread_by_admin: false }).eq('id', threadId)
-    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, unread_by_admin: false } : t))
+    setThreads(prev => prev.map(th => th.id === threadId ? { ...th, unread_by_admin: false } : th))
   }
 
   async function handleChatClick() {
     const current = selectedThreadRef.current
     if (!current) return
-    const thread = threads.find(t => t.id === current.id)
+    const thread = threads.find(th => th.id === current.id)
     if (thread?.unread_by_admin) {
       await markRead(current.id)
     }
@@ -110,7 +114,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
   }
 
   const isMobile = useIsMobile()
-  const unreadCount = threads.filter(t => t.unread_by_admin).length
+  const unreadCount = threads.filter(th => th.unread_by_admin).length
 
   return (
     // Fixed so the thread list and the conversation each scroll on their own.
@@ -130,7 +134,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
     }}>
       <style>{`@media (min-width: 1024px) { .admin-msg-shell { left: 13rem !important; } }`}</style>
       <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", color: '#fff', fontSize: '24px', fontWeight: 900, margin: 0 }}>Messages</h1>
+        <h1 style={{ fontFamily: "'Playfair Display', serif", color: '#fff', fontSize: '24px', fontWeight: 900, margin: 0 }}>{t('admin.nav.messages')}</h1>
         {unreadCount > 0 && (
           <span style={{ background: RED, color: '#fff', borderRadius: '999px', fontSize: '12px', fontWeight: 700, padding: '2px 8px' }}>{unreadCount}</span>
         )}
@@ -145,7 +149,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
           overflowY: 'auto',
         }}>
           {threads.length === 0 && (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>No messages yet</div>
+            <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>{t('admin.messages.empty')}</div>
           )}
           {threads.map(thread => (
             <div key={thread.id} onClick={() => selectThread(thread)} style={{
@@ -155,13 +159,13 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#fff', fontSize: '14px' }}>
-                  {thread.parents ? `${thread.parents.first_name} ${thread.parents.last_name || ''}` : 'Guest (not signed up)'}
+                  {thread.parents ? `${thread.parents.first_name} ${thread.parents.last_name || ''}` : t('admin.messages.guest')}
                   {thread.unread_by_admin && (
                     <span style={{ background: RED, borderRadius: '50%', width: '8px', height: '8px', display: 'inline-block', flexShrink: 0 }} />
                   )}
                 </div>
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
-                  {thread.last_message_at ? new Date(thread.last_message_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                  {thread.last_message_at ? new Date(thread.last_message_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric' }) : ''}
                 </div>
               </div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -176,7 +180,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
           style={{ flex: 1, display: isMobile && mobileView === 'list' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!selectedThread ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
-              Select a conversation
+              {t('admin.messages.selectConversation')}
             </div>
           ) : (
             <>
@@ -185,23 +189,23 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   <button onClick={(e) => { e.stopPropagation(); setMobileView('list') }} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '20px', cursor: 'pointer' }}>←</button>
                 )}
                 <div>
-                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents ? `${selectedThread.parents.first_name} ${selectedThread.parents.last_name || ''}` : 'Guest (not signed up)'}</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{selectedThread.parents ? selectedThread.parents.email : 'A website visitor. They see your reply the next time the chat is open; it moves into their account if they sign up.'}</div>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents ? `${selectedThread.parents.first_name} ${selectedThread.parents.last_name || ''}` : t('admin.messages.guest')}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{selectedThread.parents ? selectedThread.parents.email : t('admin.messages.guestHint')}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
                     {selectedThread.mode === 'human' ? (
                       <>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.12)', borderRadius: '999px', padding: '2px 10px' }}>👤 Human Agent Active</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#4ade80', background: 'rgba(74,222,128,0.12)', borderRadius: '999px', padding: '2px 10px' }}>{t('admin.messages.humanActive')}</span>
                         <button onClick={() => setThreadMode('ai')} disabled={switchingMode}
                           style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'transparent', border: `1px solid ${GOLD}66`, borderRadius: '8px', padding: '3px 10px', cursor: 'pointer' }}>
-                          {switchingMode ? '...' : 'Hand back to AI'}
+                          {switchingMode ? '...' : t('admin.messages.handBack')}
                         </button>
                       </>
                     ) : (
                       <>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'rgba(201,168,76,0.12)', borderRadius: '999px', padding: '2px 10px' }}>🤖 AI Responding</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: GOLD, background: 'rgba(201,168,76,0.12)', borderRadius: '999px', padding: '2px 10px' }}>{t('admin.messages.aiResponding')}</span>
                         <button onClick={() => setThreadMode('human')} disabled={switchingMode}
                           style={{ fontSize: '11px', fontWeight: 700, color: '#fff', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '3px 10px', cursor: 'pointer' }}>
-                          {switchingMode ? '...' : 'Take Over'}
+                          {switchingMode ? '...' : t('admin.messages.takeOver')}
                         </button>
                       </>
                     )}
@@ -209,11 +213,11 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   {selectedThread.escalation_summary && (
                     <div style={{ marginTop: '8px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '10px 12px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px' }}>⚠️ Pending Issues (AI Escalations)</div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px' }}>{t('admin.messages.escalations')}</div>
                         <button onClick={async () => {
                           await supabase.from('chat_threads').update({ escalation_summary: null }).eq('id', selectedThread.id)
                           setSelectedThread((prev: any) => prev ? { ...prev, escalation_summary: null } : prev)
-                        }} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>✓ Resolved, clear</button>
+                        }} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>{t('admin.messages.resolvedClear')}</button>
                       </div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selectedThread.escalation_summary}</div>
                     </div>
@@ -233,7 +237,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                       border: msg.sender_type === 'ai' ? '1px solid rgba(201,168,76,0.35)' : 'none',
                     }}>
                       {msg.sender_type === 'ai' && (
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>AI ASSISTANT</div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromAi')}</div>
                       )}
                       {msg.body}
                       <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
@@ -251,7 +255,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                   onClick={e => e.stopPropagation()}
-                  placeholder="Reply..."
+                  placeholder={t('admin.messages.replyPlaceholder')}
                   style={{
                     flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none',
@@ -263,7 +267,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                   cursor: input.trim() ? 'pointer' : 'not-allowed',
                   color: input.trim() ? NAVY : 'rgba(255,255,255,0.3)',
                   fontWeight: 700, fontSize: '13px',
-                }}>Send</button>
+                }}>{t('admin.messages.send')}</button>
               </div>
             </>
           )}
