@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: rows }, { data: allMonths }, eligible] = await Promise.all([
     svc.from('monthly_reports')
-      .select('id, student_id, parent_id, month, status, data, summary, focus, generated_at, approved_at, sent_at, emailed_at, feedback, feedback_comment, feedback_at')
+      .select('id, student_id, parent_id, month, status, data, summary, focus, summary_i18n, focus_i18n, generated_at, approved_at, sent_at, emailed_at, feedback, feedback_comment, feedback_at')
       .eq('month', month),
     svc.from('monthly_reports').select('month'),
     lessonsByStudent(svc, month).then(r => r.byStudent.size).catch(() => null),
@@ -38,20 +38,29 @@ export async function GET(req: NextRequest) {
   const studentIds = (rows || []).map((r: any) => r.student_id)
   const parentIds = [...new Set((rows || []).map((r: any) => r.parent_id))]
   const noteIds = (rows || []).flatMap((r: any) => (r.data?.notes || []).map((n: any) => n.id))
-  const [{ data: students }, { data: parents }, { data: notes }] = await Promise.all([
+  const [{ data: students }, { data: parents }, { data: notes }, { data: noteTrans }] = await Promise.all([
     studentIds.length ? svc.from('students').select('id, full_name').in('id', studentIds) : { data: [] },
     parentIds.length ? svc.from('parents').select('id, first_name, last_name').in('id', parentIds) : { data: [] },
-    noteIds.length ? svc.from('lesson_notes').select('id, note').in('id', noteIds) : { data: [] },
+    noteIds.length ? svc.from('lesson_notes').select('id, note, language').in('id', noteIds) : { data: [] },
+    noteIds.length ? svc.from('lesson_note_translations').select('lesson_note_id, language, text').in('lesson_note_id', noteIds) : { data: [] },
   ])
   const studentName = new Map((students || []).map((s: any) => [s.id, s.full_name]))
   const parentName = new Map((parents || []).map((p: any) => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim()]))
   const noteText = new Map((notes || []).map((n: any) => [n.id, n.note]))
+  const noteLang = new Map((notes || []).map((n: any) => [n.id, n.language]))
+  const trans = new Map<string, Record<string, string>>()
+  for (const t of (noteTrans || []) as any[]) trans.set(t.lesson_note_id, { ...(trans.get(t.lesson_note_id) || {}), [t.language]: t.text })
 
   const reports = (rows || []).map((r: any) => ({
     ...r,
     studentName: studentName.get(r.student_id) || r.data?.studentName || '',
     parentName: parentName.get(r.parent_id) || '',
     noteTexts: (r.data?.notes || []).map((n: any) => ({ date: n.date, coachName: n.coachName, text: noteText.get(n.id) || '' })),
+    // For "Preview as family": each note in the language it was recorded in, and its translations.
+    previewNotes: (r.data?.notes || []).map((n: any) => ({
+      date: n.date, coachName: n.coachName, text: noteText.get(n.id) || '',
+      language: noteLang.get(n.id) || 'en', translations: trans.get(n.id) || {},
+    })),
   })).sort((a: any, b: any) => a.studentName.localeCompare(b.studentName))
 
   const months = [...new Set([

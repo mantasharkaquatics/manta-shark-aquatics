@@ -5,15 +5,23 @@ import AlertModal from '@/components/AlertModal'
 import { formatTime12h } from '@/lib/date'
 import { MASTERY_LABEL, MASTERY_COLOR, masteryOf } from '@/lib/mastery'
 import { LEVEL_NAMES } from '@/lib/levels'
+import { FONT_BODY } from '@/lib/brand'
+import type { Locale } from '@/lib/i18n'
+import MonthlyReportSheet, { REPORT_SHEET_CSS, type MonthlyReport } from '@/app/(public)/dashboard/MonthlyReportSheet'
 
 type Report = {
   id: string; student_id: string; month: string; status: 'draft' | 'approved' | 'sent'
   data: any; summary: string; focus: string
+  summary_i18n: Record<string, string> | null; focus_i18n: Record<string, string> | null
   generated_at: string; approved_at: string | null; sent_at: string | null; emailed_at: string | null
   feedback: 'up' | 'down' | null; feedback_comment: string | null; feedback_at: string | null
   studentName: string; parentName: string
   noteTexts: { date: string; coachName: string | null; text: string }[]
+  previewNotes: { date: string; coachName: string | null; text: string; language: string; translations: Record<string, string> }[]
 }
+const PREVIEW_LANGS: { lang: Locale; label: string }[] = [
+  { lang: 'en', label: 'English' }, { lang: 'zh-Hant', label: '繁中' }, { lang: 'zh-Hans', label: '简中' },
+]
 type Payload = { month: string; months: string[]; today: string; reports: Report[]; eligible: number | null; sendsFrom: string }
 
 const monthLabel = (m: string) => new Date(m + 'T12:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', timeZone: 'UTC' })
@@ -33,6 +41,24 @@ export default function MonthlyReportsClient() {
   const [progress, setProgress] = useState<string | null>(null)
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{ id: string; lang: Locale } | null>(null)
+
+  /** The report as the family's dashboard receives it, in one language. Until
+   *  approval there is no translation, so the (edited) English stands in. */
+  function asFamily(r: Report, lang: Locale): MonthlyReport {
+    const e = edits[r.id]
+    const summary = (lang !== 'en' && r.summary_i18n?.[lang]) || (e?.summary ?? r.summary)
+    const focus = (lang !== 'en' && r.focus_i18n?.[lang]) || (e?.focus ?? r.focus)
+    return {
+      id: r.id, studentId: r.student_id, month: r.month, data: r.data,
+      summary, focus: String(focus || '').split('\n').map(l => l.trim()).filter(Boolean),
+      notes: (r.previewNotes || []).map(n => ({
+        date: n.date, coachName: n.coachName,
+        text: String((n.language === lang ? n.text : (n.translations[lang] || n.text)) || '').trim(),
+      })).filter(n => n.text),
+      feedback: r.feedback, feedbackComment: r.feedback_comment,
+    }
+  }
 
   const load = useCallback(async (m: string | null) => {
     const r = await fetch('/api/admin/monthly-reports' + (m ? '?month=' + m : '')).catch(() => null)
@@ -229,6 +255,13 @@ export default function MonthlyReportsClient() {
                     {busy === r.id + 'unapprove' ? '…' : 'Edit again'}
                   </button>
                 )}
+                <span className="flex items-center gap-1 text-xs text-gray-500 ml-auto">
+                  Preview as family:
+                  {PREVIEW_LANGS.map(p => (
+                    <button key={p.lang} onClick={() => setPreview({ id: r.id, lang: p.lang })}
+                      className="px-2 py-1 rounded border border-gray-700 text-gray-300 hover:border-[#c9a84c]/60 hover:text-[#c9a84c]">{p.label}</button>
+                  ))}
+                </span>
                 {r.status === 'sent' && (
                   <p className="text-sm text-gray-400">
                     Family&apos;s answer: {r.feedback === 'up' ? 'Good' : r.feedback === 'down' ? 'Has a question' : 'none yet'}
@@ -240,6 +273,22 @@ export default function MonthlyReportsClient() {
           )
         })}
       </div>
+      {preview && (() => {
+        const r = reports.find(x => x.id === preview.id)
+        if (!r) return null
+        return (
+          <div style={{ fontFamily: FONT_BODY }}>
+            <style>{REPORT_SHEET_CSS}</style>
+            {r.status === 'draft' && preview.lang !== 'en' && (
+              <p style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1001, margin: 0, background: '#12254a', color: '#fff', fontSize: 12, padding: '6px 12px', borderRadius: 8 }}>
+                Not approved yet: the summary and focus show in English. Approving translates them.
+              </p>
+            )}
+            <MonthlyReportSheet key={r.id + preview.lang} studentName={r.studentName} reports={[asFamily(r, preview.lang)]}
+              initialId={r.id} previewLang={preview.lang} onClose={() => setPreview(null)} />
+          </div>
+        )
+      })()}
     </div>
   )
 }
