@@ -224,17 +224,17 @@ export default function MonthlyReportsClient() {
                     ))}
                     {d.stageSkills?.length > 0 && <p className="text-gray-500 uppercase tracking-wider mt-3 mb-1">{t('admin.monthly.stageSkills', { n: d.stage ?? '' })}</p>}
                     {(d.stageSkills || []).map((s: any) => (
-                      <p key={s.id} className="text-gray-300">{tDb(locale, 'skills', s.id, s.name)}: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{masteryLabel(t, masteryOf(s.start))}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{masteryLabel(t, masteryOf(s.end))}</span></p>
+                      <p key={s.id} className="text-gray-300">{tDb(locale, 'skills', s.id, s.name)}{t('admin.colon')}<span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{masteryLabel(t, masteryOf(s.start))}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{masteryLabel(t, masteryOf(s.end))}</span></p>
                     ))}
                     {d.otherSkills?.length > 0 && <p className="text-gray-500 uppercase tracking-wider mt-3 mb-1">{t('admin.monthly.otherSkills')}</p>}
                     {(d.otherSkills || []).map((s: any) => (
-                      <p key={s.id} className="text-gray-300">{tDb(locale, 'skills', s.id, s.name)} <span className="text-gray-500">{t('admin.monthly.stageParen', { n: s.stage })}</span>: <span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{masteryLabel(t, masteryOf(s.start))}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{masteryLabel(t, masteryOf(s.end))}</span></p>
+                      <p key={s.id} className="text-gray-300">{tDb(locale, 'skills', s.id, s.name)}<span className="text-gray-500">{t('admin.monthly.stageParen', { n: s.stage })}</span>{t('admin.colon')}<span style={{ color: MASTERY_COLOR[masteryOf(s.start)] }}>{masteryLabel(t, masteryOf(s.start))}</span> → <span style={{ color: MASTERY_COLOR[masteryOf(s.end)] }}>{masteryLabel(t, masteryOf(s.end))}</span></p>
                     ))}
                   </div>
                   <div>
                     <p className="text-gray-500 uppercase tracking-wider mb-1">{t('admin.monthly.coachNotes')}</p>
                     {r.noteTexts.length === 0 && <p className="text-gray-500">{t('admin.monthly.noneThisMonth')}</p>}
-                    {r.noteTexts.map((n, i) => <p key={i} className="text-gray-300 mb-2">{dayLabel(n.date, locale)}{n.coachName ? ` · ${n.coachName}` : ''}: {n.text}</p>)}
+                    {r.noteTexts.map((n, i) => <p key={i} className="text-gray-300 mb-2">{dayLabel(n.date, locale)}{n.coachName ? ` · ${n.coachName}` : ''}{t('admin.colon')}{n.text}</p>)}
                   </div>
                 </div>
               )}

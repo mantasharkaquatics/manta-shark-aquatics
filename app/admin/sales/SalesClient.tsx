@@ -43,6 +43,16 @@ function fTime(s: string) {
 
 export default function SalesClient({ invoices, parentMap }: { invoices: any[], parentMap: Record<string, any> }) {
   const t = useT()
+  // The plan column prints the invoice's own item name, which is written in
+  // English when the invoice is made. The two shapes the system writes are
+  // shown in the admin's language; anything else (SDP notes, team lines) as is.
+  const planLabel = (name: string) => {
+    const pts = /^([\d,]+) lesson points$/.exec(name)
+    if (pts) return t('admin.sales.plan.points', { n: pts[1] })
+    const assess = /^Swim Assessment - (.+)$/.exec(name)
+    if (assess) return t('admin.sales.plan.assessment', { name: assess[1] })
+    return name
+  }
   const locale = useLocale()
   const [search, setSearch] = useState('')
   const [planGroup, setPlanGroup] = useState('All')
@@ -231,7 +241,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                         <p className="text-white text-sm">{parent ? `${parent.first_name} ${parent.last_name}` : '—'}</p>
                         <p className="text-gray-500 text-xs">{parent?.email}</p>
                       </td>
-                      <td className="px-5 py-4 text-gray-300 text-sm">{planName}</td>
+                      <td className="px-5 py-4 text-gray-300 text-sm">{planLabel(planName)}</td>
                       <td className="px-5 py-4 text-gray-400 text-xs">{inv.payment_method ? (PM_RAW_KEYS[inv.payment_method] ? t(PM_RAW_KEYS[inv.payment_method]) : inv.payment_method) : '—'}</td>
                       <td className="px-5 py-4 text-white text-sm font-medium">${(inv.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-5 py-4 text-gray-400 text-sm">

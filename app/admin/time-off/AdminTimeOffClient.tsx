@@ -279,7 +279,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
               </div>
             )}
             <div>
-              <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.reason')} <span className="text-gray-600">{t('admin.timeOff.optional')}</span></label>
+              <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.reason')}<span className="text-gray-600">{t('admin.timeOff.optionalSpaced')}</span></label>
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
                 placeholder={t('admin.timeOff.reasonPlaceholder')}
                 className={inputCls + " resize-none placeholder-gray-600"} />

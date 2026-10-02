@@ -133,7 +133,8 @@ export default async function AdminSchedulePage() {
       + new Date(iso).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })
     : ''
   const ctName = (cs: any): string | undefined => cs?.ct ? tDb(locale, 'course_types', cs.ct.id ?? '', cs.ct.name) : undefined
-  const coachLabel = (cs: any) => t('admin.coachName', { name: cs?.coach?.first_name ?? '' })
+  // A move with no destination coach (e.g. a fixed-class slot change) used to print a bare "Coach".
+  const coachLabel = (cs: any) => cs?.coach?.first_name ? t('admin.coachName', { name: cs.coach.first_name }) : ''
   const minsLeft = (exp: string) => Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 60000))
 
   const mergedRescheduleCount = (() => {

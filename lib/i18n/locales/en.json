@@ -2432,7 +2432,6 @@
   "admin.timeOff.newBlock": "New Admin Block",
   "admin.timeOff.coach": "Coach",
   "admin.timeOff.selectCoach": "Select a coach...",
-  "admin.timeOff.optional": "(optional)",
   "admin.timeOff.reasonPlaceholder": "e.g. Facility maintenance, Private event...",
   "admin.timeOff.creating": "Creating...",
   "admin.timeOff.createBlock": "Create Block",
@@ -2661,7 +2660,7 @@
   "admin.monthly.absent": "absent",
   "admin.monthly.stageSkills": "Stage {n} skills (start → end of month)",
   "admin.monthly.otherSkills": "Other skills that changed this month",
-  "admin.monthly.stageParen": "(Stage {n})",
+  "admin.monthly.stageParen": " (Stage {n})",
   "admin.monthly.coachNotes": "Coach notes the family sees",
   "admin.monthly.noneThisMonth": "None this month.",
   "admin.monthly.summary": "Summary",
@@ -2714,5 +2713,11 @@
   "admin.levels.confirmAssign": "Confirm Assignment",
   "admin.members.fv.langShort.en": "EN",
   "admin.members.fv.langShort.zh-Hant": "繁",
-  "admin.members.fv.langShort.zh-Hans": "简"
+  "admin.members.fv.langShort.zh-Hans": "简",
+  "admin.sales.plan.points": "{n} lesson points",
+  "admin.sales.plan.assessment": "Swim Assessment - {name}",
+  "admin.levels.noteAssessment": "Assessment",
+  "admin.colon": ": ",
+  "admin.members.fv.deskNote": "({reason})",
+  "admin.timeOff.optionalSpaced": " (optional)"
 }

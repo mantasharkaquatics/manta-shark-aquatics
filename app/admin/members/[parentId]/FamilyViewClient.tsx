@@ -127,7 +127,7 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
               <div key={v.id} className="fv-row">
                 <div>
                   <div className="fv-row-main">{v.swimmers.join(' & ')} · {kind(v.courseSlug, v.minutes)}</div>
-                  <div className="fv-row-sub">{v.usableFrom ? ft('voucher.window', { from: day(v.usableFrom, { month: 'short', day: 'numeric' }), to: day(v.expiresOn, { month: 'short', day: 'numeric' }) }) : ft('voucher.useBy', { date: day(v.expiresOn, { month: 'short', day: 'numeric' }) })} <span className="fv-desk-note">({REASON[v.reason] ? t(REASON[v.reason]) : v.reason})</span></div>
+                  <div className="fv-row-sub">{v.usableFrom ? ft('voucher.window', { from: day(v.usableFrom, { month: 'short', day: 'numeric' }), to: day(v.expiresOn, { month: 'short', day: 'numeric' }) }) : ft('voucher.useBy', { date: day(v.expiresOn, { month: 'short', day: 'numeric' }) })} <span className="fv-desk-note">{t('admin.members.fv.deskNote', { reason: REASON[v.reason] ? t(REASON[v.reason]) : v.reason })}</span></div>
                 </div>
                 <button disabled={busy === v.id} onClick={() => voidVoucher(v.id)} className="fv-desk">{t('admin.members.fv.void')}</button>
               </div>
@@ -141,7 +141,7 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
             {view.fixedClasses.map(f => (
               <div key={f.id} className="fv-row">
                 <div>
-                  <div className="fv-row-main">{f.swimmers.join(' & ')} · {f.courseTypeId ? tDb(lang, 'course_types', f.courseTypeId, f.courseName) : f.courseName}{f.minutes === 60 ? ' · 60' : ''}</div>
+                  <div className="fv-row-main">{f.swimmers.join(' & ')} · {f.courseTypeId ? tDb(lang, 'course_types', f.courseTypeId, f.courseName) : f.courseName}{f.minutes === 60 ? ' · ' + ft('booking.lenMin', { n: 60 }) : ''}</div>
                   <div className="fv-row-sub">{ft('fixed.line', { weekday: day(`2026-01-${String(4 + f.weekday).padStart(2, '0')}`, { weekday: 'long' }), time: time(f.time), coach: f.coach, n: f.left, date: f.last ? day(f.last, { month: 'short', day: 'numeric' }) : '—' })}</div>
                 </div>
                 <Link href="/admin/fixed-classes" className="fv-desk">{t('admin.members.fv.end')}</Link>

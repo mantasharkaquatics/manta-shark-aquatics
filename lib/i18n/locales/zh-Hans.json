@@ -2432,7 +2432,6 @@
   "admin.timeOff.newBlock": "新增主管封锁时段",
   "admin.timeOff.coach": "教练",
   "admin.timeOff.selectCoach": "选择教练…",
-  "admin.timeOff.optional": "（选填）",
   "admin.timeOff.reasonPlaceholder": "例如：场地维修、包场活动…",
   "admin.timeOff.creating": "建立中…",
   "admin.timeOff.createBlock": "建立封锁时段",
@@ -2714,5 +2713,11 @@
   "admin.levels.confirmAssign": "确认指定",
   "admin.members.fv.langShort.en": "EN",
   "admin.members.fv.langShort.zh-Hant": "繁",
-  "admin.members.fv.langShort.zh-Hans": "简"
+  "admin.members.fv.langShort.zh-Hans": "简",
+  "admin.sales.plan.points": "{n} 点",
+  "admin.sales.plan.assessment": "游泳评估 - {name}",
+  "admin.levels.noteAssessment": "评估",
+  "admin.colon": "：",
+  "admin.members.fv.deskNote": "（{reason}）",
+  "admin.timeOff.optionalSpaced": "（选填）"
 }

@@ -277,7 +277,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                         {h.to_stage ? ` · ${t('admin.levels.stageN', { n: h.to_stage })}` : ''}
                       </>
                     )}
-                    {h.notes && ` · ${h.notes}`}
+                    {h.notes && ` · ${h.notes === 'Assessment' ? t('admin.levels.noteAssessment') : h.notes}`}
                   </p>
                 </div>
                 <div className="text-right">
