@@ -362,8 +362,16 @@ export async function generateMonth(svc: Svc, month: string, opts: { budgetMs?: 
   // ones well before the function's 60-second limit.
   const budget = opts.budgetMs ?? 25_000
   const { byStudent, sessionById } = await lessonsByStudent(svc, month)
-  const { data: existing } = await svc.from('monthly_reports').select('student_id, status').eq('month', month)
+  const { data: existing } = await svc.from('monthly_reports').select('student_id, status, generated_at').eq('month', month)
   const status = new Map<string, string>((existing || []).map((r: any) => [r.student_id, r.status]))
+  // A report written before the month's last day (Generate pressed mid-month)
+  // was written from part of the month. The month-end run writes it again from
+  // the whole month; one written on the last day or later is left alone.
+  const last = monthEnd(month)
+  const early = new Set<string>((existing || [])
+    .filter((r: any) => r.status !== 'sent' && r.generated_at
+      && new Date(r.generated_at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) < last)
+    .map((r: any) => r.student_id))
 
   // A report nobody has sent yet, for a swimmer who no longer qualifies (the
   // lesson was cancelled, or it turned out to be only the assessment), goes.
@@ -375,7 +383,7 @@ export async function generateMonth(svc: Svc, month: string, opts: { budgetMs?: 
   // Rewriting: only reports nobody has sent yet.
   const todo = opts.studentIds
     ? opts.studentIds.filter(id => byStudent.has(id) && status.get(id) !== 'sent')
-    : [...byStudent.keys()].filter(id => !status.has(id))
+    : [...byStudent.keys()].filter(id => !status.has(id) || (early.has(id) && getTodayLA() >= last))
 
   let written = 0
   const failed: string[] = []

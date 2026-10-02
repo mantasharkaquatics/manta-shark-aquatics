@@ -128,7 +128,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
         history_id: historyId,
         admin_id: adminId,
         student_id: p.student_id,
-        updated_snapshot: edited || undefined,
+        updated_snapshot: edited ? { ...(p.snapshot || {}), ...edited } : undefined,
         // Approved as one thing: the family sees the skills and the note together.
         note_id: note?.id || undefined,
         note_text: noteText,
@@ -157,9 +157,12 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     }))
   }
 
-  async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null, classSessionId: string | null) {
+  async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null, classSessionId: string | null, shown: Record<string, number>) {
     setSubmittingMissing(listId)
-    const prog = missingProgress[listId] || {}
+    // What the card shows: the marks made on it, else the swimmer's skills as
+    // they stand. Sending only the marks sent nothing when the card was never
+    // opened, and the record that went for review was blank.
+    const prog = missingProgress[listId] || shown
     const res = await fetch('/api/coach/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -242,7 +245,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                       <span className="text-xs text-gray-500 text-right max-w-[260px]">Assessment · the coach files it on the day from their Progress page. Missed it? Set a level on the Levels page, then fill it here.</span>
                     ) : (
                     <button
-                      onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null, s.session?.id || null) }}
+                      onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null, s.session?.id || null, s.existingProgress || {}) }}
                       disabled={submittingMissing === s.id}
                       className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
                     >
@@ -384,7 +387,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     <div className="space-y-2 mt-2">
                       {allEntries.map(([skillId, pct]) => {
                         const skillName = skillMap[skillId] || skillId
-                        const p2 = pct as number
+                        const p2 = (edited[skillId] ?? pct) as number
                         const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
                         return (
                           <div key={skillId} className="flex items-center gap-3">
@@ -502,7 +505,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     <div className="space-y-2 mt-2">
                       {allEntries.map(([skillId, pct]) => {
                         const skillName = skillMap[skillId] || skillId
-                        const p2 = pct as number
+                        const p2 = (edited[skillId] ?? pct) as number
                         const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
                         return (
                           <div key={skillId} className="flex items-center gap-3">

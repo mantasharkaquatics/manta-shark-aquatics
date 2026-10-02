@@ -221,10 +221,16 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // The skills of the level nobody touched this time are recorded as they
+  // stand, so the record is a complete picture of the level (and a card sent
+  // without a mark is "no change", not a blank).
+  const snapshot: Record<string, number> = { ...accepted }
+  if (allowed) for (const id of allowed) if (!(id in snapshot)) snapshot[id] = stored[id] ?? 0
+
   await supabase.from('progress_history').insert({
     student_id,
     coach_id: coach.id,
-    snapshot: accepted,
+    snapshot,
     session_date: today,
     class_session_id: class_session_id || null,
     status: 'pending_review'

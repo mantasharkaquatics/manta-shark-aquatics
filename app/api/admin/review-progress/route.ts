@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   // student_skill_progress.last_updated_by is a FK to coaches, so the lesson's
   // coach belongs there, not the admin. Who reviewed is recorded on the history row.
   const { data: histRow } = await supabase
-    .from('progress_history').select('coach_id, student_id').eq('id', history_id).single()
+    .from('progress_history').select('coach_id, student_id, snapshot').eq('id', history_id).single()
   if (!histRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // A swimmer with no level is an assessment, and that is confirmed together
@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
     reviewed_by: admin_id,
     reviewed_at: new Date().toISOString()
   }
-  if (updated_snapshot) updatePayload.snapshot = updated_snapshot
+  // Only the skills that were changed may come back; the rest of the record stays.
+  if (updated_snapshot) updatePayload.snapshot = { ...(histRow.snapshot || {}), ...updated_snapshot }
 
   const { error } = await supabase
     .from('progress_history')

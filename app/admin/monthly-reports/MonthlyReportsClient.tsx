@@ -101,6 +101,9 @@ export default function MonthlyReportsClient() {
   const sent = reports.filter(r => r.status === 'sent').length
   const missing = data.eligible == null ? 0 : Math.max(0, data.eligible - reports.length)
   const monthOver = data.today >= data.sendsFrom
+  // The month's last day. A report written before it saw only part of the month.
+  const lastDay = new Date(Date.parse(data.sendsFrom + 'T12:00:00Z') - 86_400_000).toISOString().slice(0, 10)
+  const writtenOn = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
   return (
     <div className="p-6 md:p-8 max-w-5xl">
@@ -161,6 +164,9 @@ export default function MonthlyReportsClient() {
 
               {d.pendingReviews > 0 && r.status === 'draft' && (
                 <p className="text-amber-300 text-xs mb-3">⚠ {d.pendingReviews} lesson report(s) from this month were still waiting in Reviews when this was written. Approve them there, then press Rewrite.</p>
+              )}
+              {r.status !== 'sent' && r.generated_at && writtenOn(r.generated_at) < lastDay && (
+                <p className="text-amber-300 text-xs mb-3">Written on {dayLabel(writtenOn(r.generated_at))}, before the month was over, so it covers only the lessons up to then. It is written again from the whole month on the last night, and needs approving after that.</p>
               )}
               {d.aiFailed && r.status === 'draft' && (
                 <p className="text-red-300 text-xs mb-3">The text could not be written automatically. Write it below, or press Rewrite.</p>
