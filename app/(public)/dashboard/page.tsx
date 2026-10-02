@@ -1412,6 +1412,8 @@ export default function DashboardPage() {
     t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : ''))
   const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
   const plus28 = (d: string) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 28); return x.toISOString().slice(0, 10) }
+  // A window that opened in the past is shown from today.
+  const laterOf = (a: string, b: string) => (a > b ? a : b)
   const plusDays = (d: string, n: number) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
   /**
    * What cancelling this lesson online would do (docs/fixed-class-spec.md):
@@ -2136,7 +2138,7 @@ export default function DashboardPage() {
         setNotice(errText(j.error, 'dash.cancelFailed'))
       } else if (j.outcome === 'voucher' && j.voucher_expires) {
         setDoneMsg(j.voucher_from
-          ? t('dash.cancelDone.voucherWindow', { from: shortDate(j.voucher_from), to: shortDate(j.voucher_expires) })
+          ? t('dash.cancelDone.voucherWindow', { from: shortDate(laterOf(j.voucher_from, getTodayLA())), to: shortDate(j.voucher_expires) })
           : t('dash.cancelDone.voucher', { date: shortDate(j.voucher_expires) }))
       } else if (j.outcome === 'restore') {
         setDoneMsg(t('dash.cancelDone.voucherBack'))
@@ -2182,7 +2184,7 @@ export default function DashboardPage() {
       voucher: voucherKind(b.course_slug, b.lesson_group_id ? 60 : 30),
       voucherBy: shortDate(plus28(b.session_date)),
       // Fixed-class leave in time: a make-up within 14 days either side of this lesson.
-      voucherFrom: b.fixed_class_id && !b.voucher_id && !late ? shortDate(plusDays(b.session_date, -14)) : undefined,
+      voucherFrom: b.fixed_class_id && !b.voucher_id && !late ? shortDate(laterOf(plusDays(b.session_date, -14), getTodayLA())) : undefined,
       ...(b.fixed_class_id && !b.voucher_id && !late ? { voucherBy: shortDate(plusDays(b.session_date, 14)) } : {}),
     })
   // Fixed class / make-up, shown beside the swimmer's name.
