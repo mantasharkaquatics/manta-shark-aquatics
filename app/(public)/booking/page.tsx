@@ -2907,8 +2907,11 @@ export default function BookingPage() {
               <span style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6 }}>
                 {isTrial ? t('booking.policy.assessment')
                   : makeUp ? t('booking.policy.makeUp')
+                  // A lesson a voucher pays for is a make-up: its cancellation rule
+                  // is the voucher's, not the points refund of a single lesson.
                   : [planSplit.lines.length > 0 ? t('booking.policy.fixed') : null,
-                     (planSplit.lines.length === 0 || planSplit.singles.length > 0) ? t('booking.policy.single') : null].filter(Boolean).join(' ')}{' '}
+                     (planSplit.singles.some(x => !recurCover.has(lessonKey(x))) || (planSplit.lines.length === 0 && voucherUsing === 0)) ? t('booking.policy.single') : null,
+                     voucherUsing > 0 ? t('booking.policy.makeUp') : null].filter(Boolean).join(' ')}{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
                   {t('booking.viewTerms')}
                 </a>
