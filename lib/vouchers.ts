@@ -145,6 +145,46 @@ export async function releaseVoucher(svc: Svc, voucherId: string) {
     .eq('id', voucherId).eq('status', 'used')
 }
 
+/**
+ * The family's usable vouchers for one kind of lesson: same course, same length,
+ * the same child (or the same two children of a sibling 1-on-2). Earliest
+ * expiry first. Used when a voucher is applied by itself in an ordinary
+ * booking (owner, 2026-10-02) rather than chosen with 「用券預約」.
+ */
+export async function matchingVouchers(svc: Svc, parentId: string,
+  want: { slug: string; minutes: number; studentIds: string[] }, today: string = getTodayLA()): Promise<Voucher[]> {
+  const { data } = await svc.from('make_up_vouchers').select('*')
+    .eq('parent_id', parentId).eq('status', 'active').gte('expires_on', today)
+    .eq('course_slug', want.slug).eq('minutes', want.minutes)
+    .order('expires_on', { ascending: true }).order('created_at', { ascending: true })
+  const wanted = new Set(want.studentIds)
+  return ((data || []) as Voucher[]).filter(v => {
+    const has = [v.student_id, v.student2_id].filter(Boolean) as string[]
+    return has.length === wanted.size && has.every(id => wanted.has(id))
+  })
+}
+
+/**
+ * Which lessons the vouchers pay for. Lessons in date order, each taking the
+ * voucher that runs out soonest among those still valid on its date -- that
+ * covers as many lessons as the vouchers can, and spends the ones about to
+ * expire first. The booking page runs the same rule to show the family what
+ * will happen (assignVoucherKeys below is the shared core).
+ */
+export function assignVoucherKeys<V extends { expires_on: string }, L extends { date: string; time: string }>(
+  lessons: L[], vouchers: V[], keyOf: (l: L) => string): Map<string, V> {
+  const out = new Map<string, V>()
+  const left = [...vouchers].sort((a, b) => a.expires_on.localeCompare(b.expires_on))
+  const ordered = [...lessons].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+  for (const l of ordered) {
+    const i = left.findIndex(v => v.expires_on >= l.date)
+    if (i < 0) continue
+    out.set(keyOf(l), left[i])
+    left.splice(i, 1)
+  }
+  return out
+}
+
 /** Read one voucher the family owns and can still use. */
 export async function usableVoucher(svc: Svc, voucherId: string, parentId: string, today: string = getTodayLA()): Promise<Voucher | null> {
   const { data } = await svc.from('make_up_vouchers').select('*')

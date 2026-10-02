@@ -21,6 +21,7 @@ import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
@@ -220,9 +221,15 @@ export default function BookingPage() {
   // charges with, so what the parent is quoted and what they are charged are
   // the same arithmetic rather than two copies of it.
   const [wallet, setWallet] = useState<Wallet | null>(null)
+  // The family's make-up vouchers. An ordinary booking uses a matching one by
+  // itself (owner, 2026-10-02), unless the family switches to points.
+  const [myVouchers, setMyVouchers] = useState<{ id: string; studentId: string; student2Id: string | null; courseSlug: string; minutes: number; expiresOn: string }[]>([])
+  const [payWithVouchers, setPayWithVouchers] = useState(true)
   const reloadWallet = () => {
     fetch('/api/parent/wallet').then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setWallet(d) }).catch(() => {})
+    fetch('/api/parent/vouchers').then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setMyVouchers(d.vouchers || []) }).catch(() => {})
   }
   useEffect(reloadWallet, [])
   const [partnerStudents, setPartnerStudents] = useState<PartnerStudent[]>([])
@@ -879,9 +886,8 @@ export default function BookingPage() {
       const had = n.get(key)
       if (had && had.coachId === coach.id) { n.delete(key); return n }
       const sameDay = [...n.entries()].filter(([k]) => k.startsWith(ds + '|'))
-      const freed = sameDay.reduce((acc, [, x]) => acc + x.points, 0)
-      const spent = [...n.values()].reduce((acc, x) => acc + x.points, 0)
-      if (!had && spent - freed + cost > balance) return prev
+      const after = [...n.values()].filter(x => x.date !== ds).concat({ date: ds, time: slot.time, label: slot.label, points: cost, coachId: coach.id })
+      if (!had && dueOf(after, 30) > balance) return prev
       for (const [k] of sameDay) n.delete(k)
       n.set(key, { date: ds, time: slot.time, label: slot.label, points: cost, coachId: coach.id, coachName: coach.first_name })
       return n
@@ -955,14 +961,52 @@ export default function BookingPage() {
     setIsTrial(false); setSelectedCourse(null); setSelectedCoach(null); clearTime(); setStep(0)
   }
 
+  // ---- Make-up vouchers in an ordinary booking ---------------------------
+  // Which of the family's vouchers fit what is being booked: same course, same
+  // length, the same child (or the same two children of a sibling 1-on-2).
+  // Never in a make-up booking (it names its own), an assessment, a reschedule
+  // or a cross-family 1-on-2.
+  const voucherKids = (selectedStudent && !(selectedStudent2 as any)?.isPartner)
+    ? [selectedStudent.id, ...(siblingPair && selectedStudent2 ? [selectedStudent2.id] : [])] : []
+  function fittingVouchers(minutes: number) {
+    if (makeUp || isTrial || isReschedule || !selectedCourse || voucherKids.length === 0) return []
+    const want = new Set(voucherKids)
+    return myVouchers.filter(v => {
+      const has = [v.studentId, v.student2Id].filter(Boolean) as string[]
+      return v.courseSlug === selectedCourse.slug && v.minutes === minutes
+        && has.length === want.size && has.every(id => want.has(id))
+    }).map(v => ({ ...v, expires_on: v.expiresOn }))
+  }
+  const lessonKey = (x: { date: string; time: string }) => `${x.date}|${x.time}`
+  /** Which single lessons the vouchers would pay for -- the same rule the server
+   *  applies (lib/vouchers assignVoucherKeys). `always` ignores the switch, to
+   *  say how many COULD be covered. */
+  function voucherCover<L extends { date: string; time: string; fixed?: string }>(items: L[], minutes: number, always = false) {
+    if (!always && !payWithVouchers) return new Map<string, unknown>()
+    const vs = fittingVouchers(minutes)
+    if (vs.length === 0) return new Map<string, unknown>()
+    return assignVoucherKeys(items.filter(x => !x.fixed), vs, lessonKey) as Map<string, unknown>
+  }
+  /** Points still due for a set of lessons once the vouchers have paid for theirs. */
+  function dueOf<L extends { date: string; time: string; points: number; fixed?: string }>(items: L[], minutes = 30) {
+    const cover = voucherCover(items, minutes)
+    return items.reduce((a, x) => a + (cover.has(lessonKey(x)) ? 0 : x.points), 0)
+  }
+  // A 60-minute single (the hour list) takes one voucher for its date.
+  const hourDate = selectedDate ? formatDateLA(selectedDate) : ''
+  const hourVoucherFits = !!hourDate && !rescheduleGroupIdRef.current
+    && fittingVouchers(60).some(v => v.expiresOn >= hourDate)
+  const hourCovered = payWithVouchers && hourVoucherFits
+
   // What this booking will actually cost, once a slot is picked. A reschedule
   // keeps its original charge, so it costs nothing here.
   const bookingPrice = (!isReschedule && !isTrial && selectedDate && selectedSlot)
     ? priceAt(formatDateLA(selectedDate), selectedSlot.time)
     : null
-  const bookingCost = bookingPrice?.charged ?? 0
+  const bookingCost = selectedHour && hourCovered ? 0 : (bookingPrice?.charged ?? 0)
   const basket = [...recurSel.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
-  const basketTotal = basket.reduce((a, x) => a + x.points, 0)
+  // What the basket will take from the wallet: the lessons a voucher pays for cost nothing.
+  const basketTotal = dueOf(basket, 30)
   // One time across the whole batch, or several? It decides whether the summary
   // can print a single Time row, and whether a chip needs to say the hour.
   const basketTimes = new Set(basket.map(x => x.time))
@@ -1001,7 +1045,15 @@ export default function BookingPage() {
   }
   const basketSplit = splitPlan(basket)
   const planSplit = splitPlan(recurPlan)
-  const recurTotal = recurPlan.reduce((a, x) => a + x.points, 0)
+  // The plan's lessons a voucher pays for, and what is left to pay in points.
+  const recurCover = voucherCover(recurPlan, planMinutes)
+  const recurCoverAll = voucherCover(recurPlan, planMinutes, true)
+  const recurGross = recurPlan.reduce((a, x) => a + x.points, 0)
+  const recurSaved = recurPlan.reduce((a, x) => a + (recurCover.has(lessonKey(x)) ? x.points : 0), 0)
+  const recurTotal = recurGross - recurSaved
+  // How many lessons on this screen a voucher could pay for, switch on or off.
+  const voucherCould = recurPlan.length > 0 ? recurCoverAll.size : (selectedHour && hourVoucherFits ? 1 : 0)
+  const voucherUsing = recurPlan.length > 0 ? recurCover.size : (selectedHour && hourCovered ? 1 : 0)
   // The undiscounted figure, so the batch can show what the discounts took off.
   const recurBase = recurPlan.reduce((a, x) => {
     const pr = priceAt(x.date, x.time, planMinutes)
@@ -1023,7 +1075,7 @@ export default function BookingPage() {
   // So the panel now owns this slot's dates outright, and its arithmetic is:
   // what the REST of the basket costs, plus whatever is ticked here.
   const slotKeys = new Set(recurCandidates.map((c: any) => `${c.date}|${selectedSlot?.time ?? ''}`))
-  const otherTotal = basket.filter(x => !slotKeys.has(`${x.date}|${x.time}`)).reduce((a, x) => a + x.points, 0)
+  const otherTotal = dueOf(basket.filter(x => !slotKeys.has(`${x.date}|${x.time}`)), 30)
   const chosen = (() => {
     const out = new Map<string, number>()
     if (!selectedSlot) return out
@@ -1071,8 +1123,7 @@ export default function BookingPage() {
     setRecurSel(prev => {
       const n = new Map(prev)
       if (n.has(key)) { n.delete(key); return n }
-      const spent = [...n.values()].reduce((a, x) => a + x.points, 0)
-      if (spent + cost > balance) return n
+      if (dueOf([...n.values(), { date: ds, time: sl.time, label: '', points: cost, coachId: c.id }], 30) > balance) return n
       n.set(key, { date: ds, time: sl.time, label: formatTime(sl.time), points: cost, coachId: c.id, coachName: c.first_name })
       return n
     })
@@ -1118,6 +1169,7 @@ export default function BookingPage() {
           course_slug: selectedCourse?.slug ?? '1on4', minutes: planMinutes,
           slots: recurPlan.map(x => ({ date: x.date, start_time: x.time, coach_id: x.coachId, fixed: x.fixed })),
           voucher_id: makeUp?.id ?? null,
+          use_vouchers: !makeUp && payWithVouchers,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -1234,6 +1286,7 @@ export default function BookingPage() {
           ? { action: 'reschedule', course_slug: selectedCourse?.slug, lesson_group_id: rGroup, student_id: selectedStudent.id, session_date: dateStr,
               start_time: selectedHour.start_time, coach1_id: selectedHour.coach1_id, coach2_id: selectedHour.coach2_id }
           : { action: 'book', course_slug: selectedCourse?.slug, student_id: selectedStudent.id, voucher_id: makeUp?.id ?? null,
+              use_vouchers: !makeUp && payWithVouchers,
               student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
               // Cross-account: the other family is INVITED, not charged. Same
               // shape create/route.ts sends for a 30-minute partner booking.
@@ -1878,7 +1931,7 @@ export default function BookingPage() {
                   // decides whether the family can book an hour at all; when
                   // they cannot, saying so beats a wall of grey buttons.
                   const cheapest = rows.length ? Math.min(...rows.map((h: any) => Number(h.points) || 0)) : 0
-                  const canAffordHour = isReschedule || !!makeUp || (rows.length > 0 && hourBalance >= cheapest)
+                  const canAffordHour = isReschedule || !!makeUp || (rows.length > 0 && (hourCovered || hourBalance >= cheapest))
                   return (
                     <div style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '10px' }}>
@@ -1904,7 +1957,7 @@ export default function BookingPage() {
                           {rows.map((h: any) => {
                             const o = h.pick
                             const sel = selectedHour?.start_time === h.start_time
-                            const affordable = isReschedule || !!makeUp || hourBalance >= (Number(h.points) || 0)
+                            const affordable = isReschedule || !!makeUp || hourCovered || hourBalance >= (Number(h.points) || 0)
                             const usable = affordable && !h.is_current
                             const w24 = isWithin24Hours(formatDateLA(selectedDate), h.start_time)
                             return (
@@ -2090,8 +2143,8 @@ export default function BookingPage() {
                           const on = inBasket || (!batchFlow && selectedSlot?.time === tm)
                           const pr = (isReschedule || isTrial) ? null : priceAt(ds0, tm, 30)
                           const cost0 = pr?.charged ?? 0
-                          const freed = batchFlow ? [...recurSel.values()].filter(x => x.date === ds0).reduce((acc, x) => acc + x.points, 0) : 0
-                          const affordable0 = !batchFlow || inBasket || basketTotal - freed + cost0 <= balance
+                          const affordable0 = !batchFlow || inBasket
+                            || dueOf([...recurSel.values()].filter(x => x.date !== ds0).concat({ date: ds0, time: tm, label: '', points: cost0, coachId: '' }), 30) <= balance
                           const w24 = isWithin24Hours(ds0, tm)
                           const chosenCoach = inBasket ? recurSel.get(key0)!.coachId : null
                           return (
@@ -2178,8 +2231,8 @@ export default function BookingPage() {
                       // time on a day REPLACES the first, so the affordability
                       // test has to give back what it would drop.
                       const sameDay = batchFlow ? [...recurSel.values()].filter(x => x.date === ds0) : []
-                      const freed = sameDay.reduce((a, x) => a + x.points, 0)
-                      const affordable0 = !batchFlow || inBasket || basketTotal - freed + cost0 <= balance
+                      const affordable0 = !batchFlow || inBasket
+                        || dueOf([...recurSel.values()].filter(x => x.date !== ds0).concat({ date: ds0, time: slot.time, label: '', points: cost0, coachId: '' }), 30) <= balance
                       const usable0 = slot.available && affordable0
                       return (
                         <button key={slot.time}
@@ -2340,7 +2393,7 @@ export default function BookingPage() {
                                         const key = `${ds}|${sl.time}`
                                         const inBasket = recurSel.has(key)
                                         const cost = priceAt(ds, sl.time, 30)?.charged ?? 0
-                                        const affordable = inBasket || basketTotal + cost <= balance
+                                        const affordable = inBasket || dueOf([...recurSel.values(), { date: ds, time: sl.time, label: '', points: cost, coachId: '' }], 30) <= balance
                                         const clickable = !sl.full && !sl.already_booked && affordable
                                         const proposed = !inBasket && ghost.has(key)
                                         const cellBorder = inBasket ? GOLD : proposed ? `${GOLD}99` : sl.full || sl.already_booked ? 'rgba(255,255,255,0.06)' : !affordable ? 'rgba(255,255,255,0.10)' : myBandColor + '55'
@@ -2387,7 +2440,7 @@ export default function BookingPage() {
                                       const inBasket = recurSel.has(key)
                                       const pr = priceAt(openDay!, sl.time, 30)
                                       const cost = pr?.charged ?? 0
-                                      const affordable = inBasket || basketTotal + cost <= balance
+                                      const affordable = inBasket || dueOf([...recurSel.values(), { date: openDay!, time: sl.time, label: '', points: cost, coachId: '' }], 30) <= balance
                                       const clickable = !sl.full && !sl.already_booked && affordable
                                       const w24 = isWithin24Hours(openDay!, sl.time)
                                       return (
@@ -2764,6 +2817,7 @@ export default function BookingPage() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {recurPlan.map(x => (
                       <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                        {recurCover.has(lessonKey(x)) ? '🎟 ' : ''}
                         {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                         {planTimes.size > 1 ? ` · ${x.label}` : ''}
                         {planCoaches.length > 1 ? ` · ${x.coachName || ''}` : ''}
@@ -2776,11 +2830,12 @@ export default function BookingPage() {
                   "-4 pts, -3 pts": they are multiplied together and rounded down
                   once, so per-line whole numbers would not add up to the total
                   and a parent subtracting them would find us out. */}
-              {!isTrial && !isReschedule && (planOne ? onePrice : recurPlan.length === 0 && bookingPrice) && (() => { const bookingPrice = (planOne ? onePrice : bookingPriceSingle)!; const bookingCost = planOne ? planOne.points : bookingCostSingle; const balanceAfter = Math.max(0, balance - bookingCost); return (
+              {!isTrial && !isReschedule && (planOne ? onePrice : recurPlan.length === 0 && bookingPrice) && (() => { const bookingPrice = (planOne ? onePrice : bookingPriceSingle)!; const covered = planOne ? recurCover.has(lessonKey(planOne)) : (!!selectedHour && hourCovered); const bookingCost = planOne ? (covered ? 0 : planOne.points) : bookingCostSingle; const balanceAfter = Math.max(0, balance - bookingCost); return (
                 <div style={{ paddingTop: '12px' }}>
                   {[
                     { k: 'base', label: bookingPrice.seats > 1 ? t('booking.price.baseSeats', { n: bookingPrice.seats }) : t('booking.price.base'), value: String(bookingPrice.base * bookingPrice.seats), dim: true },
                     ...(bookingPrice.offPeak ? [{ k: 'off', label: t('booking.price.offPeak'), value: `−${Math.round(bookingPrice.offPeakPct * 100)}%`, dim: true }] : []),
+                    ...(covered ? [{ k: 'voucher', label: t('booking.voucherAuto.row', { n: 1 }), value: t('booking.voucherAuto.free'), dim: true }] : []),
                   ].map(row => (
                     <div key={row.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
                       <span style={{ fontSize: '14px', color: '#56647d' }}>{row.label}</span>
@@ -2807,10 +2862,16 @@ export default function BookingPage() {
                     <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.batchBase', { n: recurPlan.length })}</span>
                     <span style={{ fontSize: '14px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{recurBase}</span>
                   </div>
-                  {recurBase > recurTotal && (
+                  {recurBase > recurGross && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
                       <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.batchDiscount')}</span>
-                      <span style={{ fontSize: '14px', color: myBandColor, fontVariantNumeric: 'tabular-nums' }}>−{recurBase - recurTotal}</span>
+                      <span style={{ fontSize: '14px', color: myBandColor, fontVariantNumeric: 'tabular-nums' }}>−{recurBase - recurGross}</span>
+                    </div>
+                  )}
+                  {recurSaved > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                      <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.voucherAuto.row', { n: recurCover.size })}</span>
+                      <span style={{ fontSize: '14px', color: '#1f7a57', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>−{recurSaved}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid #e3ebf6', marginTop: '6px' }}>
@@ -2829,6 +2890,18 @@ export default function BookingPage() {
                 ⚠️ {t('booking.short.body', { have: balance, need: recurPlan.length > 0 ? recurTotal : bookingCost })}
                 <div><BuyPointsLink label={t('booking.short.cta')} /></div>
               </div>
+            )}
+            {voucherCould > 0 && (
+              <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', background: '#eef8f1', border: '1px solid #bfe3cb', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={payWithVouchers} onChange={e => setPayWithVouchers(e.target.checked)}
+                  style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#1f7a57', flexShrink: 0 }} />
+                <span style={{ fontSize: '14px', color: '#16294a', lineHeight: 1.6 }}>
+                  <b>🎟 {t('booking.voucherAuto.use', { n: voucherCould })}</b><br />
+                  <span style={{ color: '#56647d', fontSize: '13px' }}>
+                    {payWithVouchers ? t('booking.voucherAuto.on', { n: voucherUsing }) : t('booking.voucherAuto.off')}
+                  </span>
+                </span>
+              </label>
             )}
             <div style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
               <span style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6 }}>

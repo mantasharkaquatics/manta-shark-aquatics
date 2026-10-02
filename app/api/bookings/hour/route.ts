@@ -8,7 +8,7 @@ import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { sendEmail } from '@/lib/email'
-import { attachVoucher, claimVoucher, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
+import { attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 
 export const runtime = 'nodejs'
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
   // A make-up hour, paid with a voucher: it may be booked up to the voucher's
   // date. Anything else booked here is a single lesson (and so is the date a
   // reschedule moves one to), inside the 14-day window.
-  const hourVoucher: Voucher | null = typeof body.voucher_id === 'string' && body.voucher_id
+  let hourVoucher: Voucher | null = typeof body.voucher_id === 'string' && body.voucher_id
     ? await usableVoucher(svc, body.voucher_id, parent.id, today) : null
   if (typeof body.voucher_id === 'string' && body.voucher_id && !hourVoucher)
     return NextResponse.json({ error: VOUCHER_GONE_ERROR }, { status: 400 })
@@ -147,6 +147,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'That date is after this make-up voucher expires.' }, { status: 400 })
   } else if (session_date > singleMaxDate(today)) {
     return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
+  }
+  // An ordinary hour booking takes a matching voucher by itself (owner,
+  // 2026-10-02), unless the family chose to pay with points. Not for a
+  // reschedule (it moves a lesson already paid for) or a cross-account 1-on-2.
+  if (!hourVoucher && body.action === 'book' && body.use_vouchers === true && !isPartnerBooking && !lesson_group_id) {
+    const mine = await matchingVouchers(svc, parent.id, { slug: ct.slug, minutes: 60, studentIds: students.map((x: any) => x.id) }, today)
+    hourVoucher = mine.find(v => v.expires_on >= session_date) ?? null
   }
 
   const day = await loadDay(svc, session_date, ct.id, parent.id)

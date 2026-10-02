@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { renewalHolds, weeklyCandidates, lessonsOf, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
 import { getTodayLA, formatTime12h } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
-import { attachVoucher, claimVoucher, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
+import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, type Voucher } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
@@ -342,6 +342,17 @@ export async function POST(req: NextRequest) {
     if (okSlots.length === 0)
       return NextResponse.json({ ok: true, booked: 0, booked_slots: [], booked_dates: [], skipped })
 
+    // Vouchers applied by themselves (owner, 2026-10-02): an ordinary booking
+    // of single lessons takes the family's matching vouchers first, one per
+    // lesson, unless the family chose to pay with points. A fixed class never
+    // does -- its lessons are the term the family is paying for.
+    const autoVouchers: Voucher[] = !voucher && !renewFc && body.use_vouchers === true
+      ? await matchingVouchers(svc, parent.id, { slug: ct.slug, minutes, studentIds }, today)
+      : []
+    const coverOf = (slots: Slot[]) => autoVouchers.length
+      ? assignVoucherKeys(slots.filter(x => !x.fixed), autoVouchers, slotKey)
+      : new Map<string, Voucher>()
+
     if (!voucher) {
       const wallet = await walletSummary(svc, parent.id)
       // A wallet in arrears can still show a positive total when it holds
@@ -350,8 +361,9 @@ export async function POST(req: NextRequest) {
       // do is settle a payment that came back.
       if (wallet.arrears > 0)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: wallet.arrears }, { status: 402 })
-      const quote = priceSlots(ct.slug, okSlots, minutes, seats)
-      if (wallet.balance < quote.total)
+      const planned = coverOf(okSlots)
+      const quote = priceSlots(ct.slug, okSlots.filter(x => !planned.has(slotKey(x))), minutes, seats)
+      if (quote.total > 0 && wallet.balance < quote.total)
         return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
     }
 
@@ -484,29 +496,41 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const charge = priceSlots(ct.slug, booked, minutes, seats)
+    // The vouchers are taken now -- each conditionally, so two tabs cannot
+    // spend one twice; a voucher that has gone in the meantime leaves its
+    // lesson to be paid in points -- and given back if anything below fails.
+    const cover = new Map<string, Voucher>()
+    for (const [k, v] of coverOf(booked)) {
+      const got = await claimVoucher(svc, v.id, parent.id, today)
+      if (got) cover.set(k, got)
+    }
+    const releaseCover = async () => { for (const v of cover.values()) await releaseVoucher(svc, v.id) }
+    const paidSlots = booked.filter(s2 => !cover.has(slotKey(s2)))
+
+    const charge = priceSlots(ct.slug, paidSlots, minutes, seats)
     const uniformTime = times.length === 1 ? times[0] : null
 
     // One debit for the batch, not one per lesson. A parent's statement should
     // read "8 lessons booked" on the day they booked them, and each booking row
     // still carries its own points so cancelling one date refunds exactly that
     // date. The per-lesson figures ride along in the ledger entry.
-    let paid
-    try {
+    let paid: { grantedTaken: number; grantedExpiresAt: string | null } = { grantedTaken: 0, grantedExpiresAt: null }
+    if (charge.total > 0) try {
       paid = await applyPoints(svc, {
         parentId: parent.id, reason: 'booking', points: -charge.total, actor: 'parent',
         pricing: uniformTime
           ? {
               kind: 'weekly_term', courseSlug: ct.slug, startTime: uniformTime,
-              dates: booked.map(s2 => ({ date: s2.date, points: charge.perSlot.get(slotKey(s2))! })),
+              dates: paidSlots.map(s2 => ({ date: s2.date, points: charge.perSlot.get(slotKey(s2))! })),
             }
           : {
               kind: 'multi_slot', courseSlug: ct.slug,
-              slots: booked.map(s2 => ({ date: s2.date, startTime: s2.time, points: charge.perSlot.get(slotKey(s2))! })),
+              slots: paidSlots.map(s2 => ({ date: s2.date, startTime: s2.time, points: charge.perSlot.get(slotKey(s2))! })),
             },
-        note: `${booked.length} lessons booked`,
+        note: `${paidSlots.length} lessons booked`,
       })
     } catch (e: any) {
+      await releaseCover()
       await dropFixed()
       if (e instanceof WalletInArrears)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
@@ -516,7 +540,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not take the points for these lessons. Please try again.' }, { status: 500 })
     }
 
-    const refundBatch = (why: string) => applyPoints(svc, {
+    const refundBatch = async (why: string) => charge.total > 0 && applyPoints(svc, {
       parentId: parent.id, reason: 'booking_failed', points: charge.total,
       grantedPart: paid.grantedTaken, grantedExpiresAt: paid.grantedExpiresAt,
       actor: 'system', note: why,
@@ -532,7 +556,8 @@ export async function POST(req: NextRequest) {
       const group = parts.length > 1 ? randomUUID() : null
       return parts.flatMap(p => studentIds.map(sid => ({
         s2, sid, sess: sessionIdByKey.get(p.key)!, group,
-        points: charge.perSeat.get(slotKey(s2))! / parts.length,
+        points: cover.has(slotKey(s2)) ? 0 : charge.perSeat.get(slotKey(s2))! / parts.length,
+        voucherId: cover.get(slotKey(s2))?.id ?? null,
       })))
     })
     const rowGranted = splitGranted(paid.grantedTaken, rowSpecs.map(r => r.points))
@@ -540,19 +565,27 @@ export async function POST(req: NextRequest) {
     // One row per swimmer per lesson. Both seats were paid in the single debit
     // above, but each row carries its own seat's points so cancelling one
     // sibling's lesson refunds that seat and leaves the other standing.
-    const { error: bookErr } = await svc.from('bookings')
-      .insert(rowSpecs.map(({ s2, sid, sess, group, points }, i) => ({
+    const { data: bookRows, error: bookErr } = await svc.from('bookings')
+      .insert(rowSpecs.map(({ s2, sid, sess, group, points, voucherId }, i) => ({
         class_session_id: sess, parent_id: parent.id, lesson_group_id: group,
         student_id: sid, lesson_credit_id: null,
         points_charged: points, status: 'confirmed',
         points_granted: rowGranted[i],
         points_granted_expires_at: rowGranted[i] > 0 ? paid.grantedExpiresAt : null,
         fixed_class_id: s2.fixed ? fixedIdByKey.get(s2.fixed) ?? null : null,
+        voucher_id: voucherId,
       })))
+      .select('id, voucher_id')
     if (bookErr) {
       await refundBatch('the lessons could not be booked')
+      await releaseCover()
       await dropFixed()
       return NextResponse.json({ error: `Failed to book the lessons: ${bookErr.message}` }, { status: 500 })
+    }
+    // Each voucher points at one of the rows it paid for (the first one).
+    for (const v of cover.values()) {
+      const row = ((bookRows || []) as { id: string; voucher_id: string | null }[]).find(r => r.voucher_id === v.id)
+      if (row) await attachVoucher(svc, v.id, row.id)
     }
     // Renewed: the next renewal notice is about the new last lesson.
     if (renewFc) {
@@ -582,10 +615,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       booked: booked.length,
-      booked_slots: booked.map(s2 => ({ date: s2.date, start_time: s2.time, coach_id: s2.coach, points: charge.perSlot.get(slotKey(s2))! })),
+      booked_slots: booked.map(s2 => ({ date: s2.date, start_time: s2.time, coach_id: s2.coach,
+        points: cover.has(slotKey(s2)) ? 0 : charge.perSlot.get(slotKey(s2))!, make_up: cover.has(slotKey(s2)) })),
       booked_dates: booked.map(s2 => s2.date),
       skipped,
       points_charged: charge.total,
+      vouchers_used: cover.size,
       fixed_classes: fixedIdByKey.size,
     })
   }
