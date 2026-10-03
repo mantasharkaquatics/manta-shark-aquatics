@@ -407,7 +407,11 @@ export default function BookingPage() {
     // last month on screen. It used to be one six-week call per month, which
     // overlapped and doubled the server's work.
     const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay())
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
+    // A voucher's calendar runs to its expiry whatever the month count says (a
+    // phone starts at one month, which would cut a next-month window short).
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
+    const expiry = makeUp ? new Date(makeUp.expiresOn + 'T00:00:00') : null
+    const lastDay = expiry && expiry > monthEnd ? expiry : monthEnd
     const weeks = Math.ceil((lastDay.getTime() - from.getTime()) / (7 * 86400000)) + 1
     const st = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`
     let live = true
@@ -419,7 +423,7 @@ export default function BookingPage() {
       })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupFlow, selectedStudent, monthsShown, cartRefresh])
+  }, [groupFlow, selectedStudent, monthsShown, cartRefresh, makeUp])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return
@@ -1884,6 +1888,8 @@ export default function BookingPage() {
                         setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]); setSlotsLoading(true)
                       }}
                       style={{
+                        // A voucher's calendar shows only the days it can use (owner, 2026-10-03).
+                        visibility: makeUp && !available ? 'hidden' : undefined,
                         padding: '10px 4px', minHeight: '48px', borderRadius: '10px',
                         border: hasPick ? `2px solid ${GOLD}` : hasGhost ? `2px dashed ${GOLD}99` : '2px solid transparent',
                         background: isSelected ? NAVY : hasPick ? `${GOLD}20` : 'transparent',
@@ -2303,8 +2309,12 @@ export default function BookingPage() {
                       September and October. A ticked lesson in September still
                       stays in view while the family looks at October. */}
                   {(() => {
-                    const weekStart0 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay())
-                    const lastDay = new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
+                    // With a make-up voucher the calendar covers the voucher's own
+                    // dates and nothing else (owner, 2026-10-03): from the week its
+                    // window opens (or this week) to the week it expires.
+                    const winFrom = makeUp?.usableFrom && makeUp.usableFrom > todayDs ? new Date(makeUp.usableFrom + 'T00:00:00') : today
+                    const weekStart0 = new Date(winFrom.getFullYear(), winFrom.getMonth(), winFrom.getDate() - winFrom.getDay())
+                    const lastDay = makeUp ? new Date(makeUp.expiresOn + 'T00:00:00') : new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
                     const days: Date[] = []
                     for (const d = new Date(weekStart0); d <= lastDay || days.length % 7 !== 0; d.setDate(d.getDate() + 1)) days.push(new Date(d))
                     // A row the month line runs above gets extra room, and the
@@ -2354,8 +2364,15 @@ export default function BookingPage() {
                             const edgeTop = !!above && above.getMonth() !== m
                             const edgeLeft = !!before && before.getMonth() !== m
                             const row = Math.floor(idx / 7)
-                            const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time))
+                            // A voucher shows only what it can book: no full or
+                            // already-booked times, and no day outside its dates or
+                            // with nothing left -- those cells are left empty, not
+                            // greyed (owner, 2026-10-03). The empty cell keeps the
+                            // weekday columns in line.
+                            const slots = (byDate[ds] || []).filter((c: any) => meetsLeadTime(ds, c.time)
+                              && (!makeUp || (!c.full && !c.already_booked)))
                             const isPast = ds < todayDs
+                            const hideDay = !!makeUp && (isPast || !makeUpDateOk(ds) || slots.length === 0)
                             const isToday2 = ds === todayDs
                             const open = openDay === ds
                             const anyPicked = slots.some((sl: any) => recurSel.has(`${ds}|${sl.time}`))
@@ -2364,10 +2381,11 @@ export default function BookingPage() {
                             const rowStart = idx - (idx % 7)
                             const openInThisWeek = isPhone && openDay != null
                               && days.slice(rowStart, idx + 1).some(x => formatDateLA(x) === openDay)
-                            const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)) : []
+                            const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)
+                              && (!makeUp || (!c.full && !c.already_booked))) : []
                             return (
                               <React.Fragment key={ds}>
-                              <div style={{ backgroundColor: '#fff', backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : '#e3ebf6'}`, borderRadius: isPhone ? '9px' : '10px', padding: isPhone ? '0' : '8px 6px 7px', minHeight: isPhone ? '60px' : '100px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
+                              <div style={{ visibility: hideDay ? 'hidden' : undefined, backgroundColor: '#fff', backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : '#e3ebf6'}`, borderRadius: isPhone ? '9px' : '10px', padding: isPhone ? '0' : '8px 6px 7px', minHeight: isPhone ? '60px' : '100px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
                                 {!isPhone && (idx === 0 || (edgeTop && idx % 7 === 0)) && (
                                   // On a wide screen the month sits in the margin, level with
                                   // the start of its line. A phone has no margin to spare, so
@@ -2488,7 +2506,7 @@ export default function BookingPage() {
                     )
                   })()}
 
-                  {monthsShown < 6 && (
+                  {monthsShown < 6 && !makeUp && (
                     <button onClick={() => setMonthsShown(n => n + 1)}
                       style={{ width: '100%', marginBottom: '16px', padding: '11px', background: 'transparent', border: '1px dashed #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer' }}>
                       {t('booking.group.loadMore')}

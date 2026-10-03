@@ -140,7 +140,16 @@ ${REPORT_SHEET_CSS}
 .msa-lesson-head { grid-column: 1 / -1 }
 .msa-lesson-date { width: 52px; height: 52px; border-radius: 12px; display: flex; flex-direction: column;
                    align-items: center; justify-content: center; flex-shrink: 0 }
-.msa-lesson-actions { display: flex; flex-wrap: wrap; gap: 6px }
+.msa-lesson-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end }
+/* The lesson buttons (請假 / 取消 / 改期) are the size of the status pill above
+   them and sit right under it (owner, 2026-10-03) -- a full-width red bar read
+   as the main thing on the card. !important because each one carries its own
+   inline padding, and the site's 44px tap floor has to give way here; the
+   ::after below keeps the area a thumb can hit bigger than what is drawn. */
+.msa-lesson-actions > button, .msa-lesson-actions > div, .msa-lesson-actions > a {
+  border-radius: 20px !important; padding: 3px 10px !important; font-size: 11px !important; font-weight: 700 !important;
+  letter-spacing: 1px; line-height: 1.5; min-height: 0 !important; white-space: nowrap; position: relative }
+.msa-lesson-actions > button::after, .msa-lesson-actions > a::after { content: ''; position: absolute; inset: -10px -4px }
 .msa-lesson-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
 .msa-lesson-side { flex-direction: row; justify-content: flex-end; align-items: center; gap: 8px }
 .msa-lesson-status { display: flex; align-items: center; gap: 8px }
@@ -201,12 +210,13 @@ ${REPORT_SHEET_CSS}
      half the width each -- which is also the size a thumb wants. */
   /* Back to one column: the buttons want the full width under a thumb. */
   .msa-lesson { grid-template-columns: minmax(0, 1fr); row-gap: 10px; padding: 14px 16px }
-  .msa-lesson-actions { flex: 1 }
-  .msa-lesson-actions > * { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap }
-  .msa-lesson-row { flex-direction: column; align-items: stretch; gap: 8px }
-  /* A thumb wants the buttons full width, not tucked into a corner. */
-  .msa-lesson-side { flex-direction: column; align-items: stretch }
-  .msa-lesson-status { justify-content: flex-start }
+  /* A card whose right side is only its small buttons keeps two columns, so
+     the buttons stay under the status pill beside the swimmer's name. Other
+     right-side contents (a payment countdown, a held cart) still drop below. */
+  .msa-lesson:has(.msa-lesson-side > .msa-lesson-actions) { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px }
+  .msa-lesson-row { flex-wrap: nowrap; gap: 8px }
+  .msa-lesson-side { flex-direction: column; align-items: flex-end }
+  .msa-lesson-status { justify-content: flex-end }
 
   /* A day sheet belongs at the bottom of a phone, under the thumb. */
   .msa-sheet-wrap { align-items: flex-end !important; padding: 0 !important }
