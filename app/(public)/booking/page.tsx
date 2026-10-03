@@ -1599,7 +1599,7 @@ export default function BookingPage() {
           </div>
         )}
 
-        {lockedStudent && selectedStudent && (
+        {lockedStudent && selectedStudent && !makeUp && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
             <span>📌 {t('booking.lockedFor')}<strong style={{ color: '#16294a' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? t('booking.assessmentPrepaid') : ''}</span>
             <button onClick={() => { setLockedStudent(false); setSelectedStudent(null); setIsTrial(false); setSelectedCourse(null); setStep(0) }}
@@ -1662,7 +1662,7 @@ export default function BookingPage() {
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {(trialEligible || trialHasCredit) && !isReschedule && (
+              {(trialEligible || trialHasCredit) && !isReschedule && !makeUp && (
                 <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { requestAdvance(); setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -1676,7 +1676,9 @@ export default function BookingPage() {
                   </div>
                 </SelectCard>
               )}
-              {courseTypes.filter(ct => ct.slug !== 'team').map(ct => {
+              {/* A make-up voucher books only its own kind of lesson (owner,
+                  2026-10-03): a 1-on-4 voucher never offers 1-on-1 or 1-on-2. */}
+              {courseTypes.filter(ct => ct.slug !== 'team' && (!makeUp || ct.slug === makeUp.courseSlug)).map(ct => {
                 const color = COURSE_COLORS[ct.slug] || GOLD
                 const listed = listPrice(ct.slug)
                 const full = BASE_POINTS[ct.slug] ?? 0
@@ -2744,15 +2746,16 @@ export default function BookingPage() {
               )}
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button onClick={() => {
-                  // A reschedule has no course step to go back to (the course is
-                  // fixed), so its way out is back to the family's page.
-                  if (isReschedule) { window.location.href = '/dashboard'; return }
+                  // A reschedule or a make-up has no course step to go back to (the
+                  // course is fixed -- a make-up is booked as the voucher's own kind
+                  // of lesson), so its way out is back to the family's page.
+                  if (isReschedule || makeUp) { window.location.href = '/dashboard'; return }
                   setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map())
                 }} style={{
                   flex: 1, padding: '14px', background: '#fff',
                   color: '#16294a', border: '1px solid #d3deec',
                   borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
-                }}>{isReschedule ? t('booking.cancelBack') : t('booking.back')}</button>
+                }}>{isReschedule || makeUp ? t('booking.cancelBack') : t('booking.back')}</button>
                 <button
                   onClick={goToConfirm}
                   disabled={!canContinue}
