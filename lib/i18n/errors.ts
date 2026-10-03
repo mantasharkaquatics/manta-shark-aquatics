@@ -123,6 +123,7 @@ const MAP: readonly (readonly [string, string])[] = [
   ['A 60-minute lesson must be taught by a single coach', 'err.hourOneCoach'],
   ['That start time is not on the schedule', 'err.timeNotOnSchedule'],
   ['This swimmer already has a lesson during that hour', 'err.swimmerBusy'],
+  ['already has a lesson at this time', 'err.swimmerBusyAt'],
   ['half is no longer available', 'err.hourHalfGone'],
   ['This booking is not awaiting payment', 'err.bookingChanged'],
   ['Booking state changed', 'err.bookingChanged'],

@@ -318,15 +318,23 @@ export async function POST(req: NextRequest) {
     // back, because the parent may have been choosing for several minutes.
     const times = [...new Set(wanted.map(w => w.time))]
     const statusByKey = new Map<string, string>()
+    // buildCandidates walks ONE weekday, week by week, from its first date. A
+    // basket of single lessons can hold the same coach and time on different
+    // weekdays (Mon 10/12 and Wed 10/14 at 9:45); read as one run, only the
+    // first weekday was ever checked and the rest were skipped as
+    // "out_of_range" -- booked one, charged one, the other silently dropped
+    // (found 2026-10-03). So each weekday is its own run.
+    const dowOf = (d: string) => new Date(d + 'T12:00:00Z').getUTCDay()
     for (const cid of coachIds) {
       for (const t of times) {
         const mine = wanted.filter(w => w.time === t && w.coach === cid)
-        if (mine.length === 0) continue
-        const ds = mine.map(w => w.date).sort()
-        const first = ds[0]
-        const span = Math.round((Date.parse(ds[ds.length - 1]) - Date.parse(first)) / 86400000 / 7) + 1
-        const cands = await buildCandidates(svc, cid, ct, studentIds, level, t, first, minutes, seats, Math.min(MAX_WEEKS, span), parent.id)
-        for (const c of cands) statusByKey.set(`${c.date}|${t}|${cid}`, c.status)
+        for (const dow of new Set(mine.map(w => dowOf(w.date)))) {
+          const ds = mine.filter(w => dowOf(w.date) === dow).map(w => w.date).sort()
+          const first = ds[0]
+          const span = Math.round((Date.parse(ds[ds.length - 1]) - Date.parse(first)) / 86400000 / 7) + 1
+          const cands = await buildCandidates(svc, cid, ct, studentIds, level, t, first, minutes, seats, Math.min(MAX_WEEKS, span), parent.id)
+          for (const c of cands) statusByKey.set(`${c.date}|${t}|${cid}`, c.status)
+        }
       }
     }
 

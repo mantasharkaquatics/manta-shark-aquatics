@@ -37,12 +37,22 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
   const sEnd = (x: any) => x.end_time ? toMin(String(x.end_time).slice(0, 5)) : sStart(x) + 30
   const ids = sess.map((x: any) => x.id)
   let myTimes = new Set<string>()
+  let mySess: any[] = []
   if (ids.length > 0) {
     const { data: myB } = await s.from('bookings').select('class_session_id')
       .in('class_session_id', ids).eq('student_id', student_id)
       .not('status', 'in', '("cancelled","pending_partner")')
-    myTimes = new Set((myB || []).map((b: any) => String(sess.find((x: any) => x.id === b.class_session_id)?.start_time || '').slice(0, 5)))
+    const mineIds = new Set((myB || []).map((b: any) => b.class_session_id))
+    mySess = sess.filter((x: any) => mineIds.has(x.id))
+    // "Already booked" is the swimmer's own GROUP class at that time; a private
+    // lesson starting at the same minute is a clash, handled by busyAt.
+    myTimes = new Set(mySess.filter((x: any) => x.course_type_id === ct.id).map((x: any) => String(x.start_time).slice(0, 5)))
   }
+  // The swimmer's other lessons that day (a private lesson, an hour): a group
+  // time overlapping one is not offered, as the private calendar already does.
+  // It used to show as bookable and the booking then failed (found 2026-10-03).
+  const busyAt = (m: number, t: string) => !myTimes.has(t)
+    && mySess.some((x: any) => m < sEnd(x) && m + ct.duration_minutes > sStart(x))
 
   const classes: any[] = []
   coachIds.forEach((cid: string, i: number) => {
@@ -56,6 +66,7 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
         if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
         const clash = sess.find((x: any) => x.coach_id === cid && x.course_type_id !== ct.id && x.enrolled_count > 0 && m < sEnd(x) && m + ct.duration_minutes > sStart(x))
         if (clash) continue
+        if (busyAt(m, t)) continue
         // A renewal hold (lib/fixed-classes): a private class's slot is taken
         // outright, a 1-on-4 class keeps its own seat(s).
         const held = heldSeats(holds, cid, date, m, m + ct.duration_minutes, ct.id)
@@ -158,7 +169,10 @@ export async function GET(req: NextRequest) {
       if (ds > endStr) break
       const dow = cur.getDay()
       const sess = sessBy[ds] || []
-      const myTimes = new Set(sess.filter((x: any) => mine.has(x.id)).map((x: any) => String(x.start_time).slice(0, 5)))
+      const myTimes = new Set(sess.filter((x: any) => mine.has(x.id) && x.course_type_id === ct.id).map((x: any) => String(x.start_time).slice(0, 5)))
+      // As in the day shape: the swimmer's other lessons that day block the
+      // group times they overlap.
+      const mySessDay = sess.filter((x: any) => mine.has(x.id))
       const classes: any[] = []
       for (const cid of coachIds) {
         if (!zoned.has(cid)) continue
@@ -176,6 +190,7 @@ export async function GET(req: NextRequest) {
             if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
             const clash = sess.find((x: any) => x.coach_id === cid && x.course_type_id !== ct.id && x.enrolled_count > 0 && m < sEnd(x) && m + ct.duration_minutes > sStart(x))
             if (clash) continue
+            if (!myTimes.has(t) && mySessDay.some((x: any) => m < sEnd(x) && m + ct.duration_minutes > sStart(x))) continue
             const held = heldSeats(holds, cid, ds, m, m + ct.duration_minutes, ct.id)
             if (held === Infinity) continue
             const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)

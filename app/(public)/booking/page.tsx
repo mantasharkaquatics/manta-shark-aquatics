@@ -212,6 +212,10 @@ export default function BookingPage() {
   const [success, setSuccess] = useState(false)
   const [isPartnerBookingSuccess, setIsPartnerBookingSuccess] = useState(false)
   const [isReschedule, setIsReschedule] = useState(false)
+  // The other child in a sibling 1-on-2 being moved. Only the first child is
+  // in the link, so the openings used to ignore the second one's lessons and
+  // offer times the server then refused (found 2026-10-03).
+  const [rescheduleSibling, setRescheduleSibling] = useState<{ id: string; full_name: string } | null>(null)
   // The lesson being moved, so the last screen can say "from ... to ...".
   const [rescheduleFrom, setRescheduleFrom] = useState<{ date: string; start: string } | null>(null)
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null)
@@ -538,6 +542,13 @@ export default function BookingPage() {
         // A key, not text: this runs before the account's language is applied,
         // and a sentence translated now would stay English.
         if (ob && ob.status !== 'confirmed') setNotice('err.cannotReschedule')
+        if (ob?.class_session_id && rSlug === '1on2') {
+          const { data: mates } = await supabase.from('bookings')
+            .select('student_id').eq('class_session_id', ob.class_session_id).eq('status', 'confirmed')
+          const sib = (mates || []).map((m: any) => (studs || []).find((x: any) => x.id === m.student_id))
+            .find((x: any) => x && x.id !== matchStudent?.id)
+          if (sib) setRescheduleSibling({ id: sib.id, full_name: sib.full_name })
+        }
         if (ob?.class_session_id) {
           const { data: os } = await supabase.from('class_sessions')
             .select('session_date, start_time').eq('id', ob.class_session_id).maybeSingle()
@@ -747,6 +758,9 @@ export default function BookingPage() {
   // fifteen minutes, which is a per-lesson negotiation and cannot be batched.
   const siblingPair = selectedCourse?.slug === '1on2'
     && !!selectedStudent2 && !(selectedStudent2 as any).isPartner
+  // Who the second swimmer is on screen: the one picked, or the sibling of a
+  // 1-on-2 being moved.
+  const pair2 = selectedStudent2 || (selectedCourse?.slug === '1on2' ? rescheduleSibling : null)
   // Which flows book a BATCH. A 1-on-1 family repeats a weekly slot exactly as
   // a group family does, and at a higher price per lesson. Left out on purpose:
   // an assessment (one per swimmer), a reschedule (moving one lesson), and the
@@ -833,6 +847,7 @@ export default function BookingPage() {
       if (makeUp.usableFrom) qs.set('from', makeUp.usableFrom)
     }
     if (selectedStudent2 && !(selectedStudent2 as any).isPartner) qs.set('student2_id', selectedStudent2.id)
+    else if (rescheduleSibling) qs.set('student2_id', rescheduleSibling.id)
     fetch(`/api/bookings/openings?${qs}`)
       .then(r => r.ok ? r.json() : null)
       .then((j: Openings | null) => {
@@ -844,7 +859,7 @@ export default function BookingPage() {
       .catch(() => { if (live) setOpenings(null) })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, cartRefresh])
+  }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, cartRefresh, rescheduleSibling])
 
   // A filtered coach IS the selected coach, so the per-coach slot list below
   // (the one that knows about join-able sessions and 24h) is theirs.
@@ -1152,7 +1167,11 @@ export default function BookingPage() {
     setSelectedCoach(c)
     setSelectedSlot({ time: sl.time, label: formatTime(sl.time), available: true, enrolled: sl.enrolled, max: sl.max, session_id: sl.session_id, within24h: isWithin24Hours(ds, sl.time) })
     setRecurOpen(false); setRecurMsg('')
-    if (makeUp) {
+    // A make-up or a reschedule is one lesson: the tick replaces the last.
+    // A reschedule then goes through the single-lesson path that MOVES the
+    // booking -- through the basket it was booked as a new lesson (charged,
+    // or paid with a voucher) and the old one stayed (found 2026-10-03).
+    if (makeUp || isReschedule) {
       setRecurSel(new Map([[key, { date: ds, time: sl.time, label: formatTime(sl.time), points: 0, coachId: c.id, coachName: c.first_name }]]))
       return
     }
@@ -1216,7 +1235,9 @@ export default function BookingPage() {
       // booked, charged or spent. This used to land on a ✅ "0 lessons
       // booked!" card listing the dates (found 2026-10-03).
       if (j.booked === 0) {
-        setNotice(t('booking.recur.err.noneBooked'))
+        const why: string[] = (j.skipped || []).map((x: any) => x.reason)
+        setNotice(why.length > 0 && why.every(r => r === 'conflict')
+          ? t('booking.recur.err.noneBookedBusy') : t('booking.recur.err.noneBooked'))
         setRecurPlan([]); setRecurSel(new Map()); setSelectedSlot(null)
         setCartRefresh(n => n + 1)
         setStep(3); setSubmitting(false); return
@@ -1243,10 +1264,10 @@ export default function BookingPage() {
      has to be dropped or step 4 would confirm a term the visitor backed out of. */
   // With anything in the basket the visitor can go on whether or not a single
   // slot is highlighted -- the basket is the booking now.
-  const canContinue = recurSel.size > 0 || (!!selectedSlot && !recurOpen)
+  const canContinue = (recurSel.size > 0 && !isReschedule) || (!!selectedSlot && !recurOpen)
 
   function goToConfirm() {
-    if (recurSel.size > 0) { setRecurPlan(basket); setRecurOpen(false); setStep(4); return }
+    if (recurSel.size > 0 && !isReschedule) { setRecurPlan(basket); setRecurOpen(false); setStep(4); return }
     if (!selectedSlot) return
     setRecurPlan([])
     setStep(4)
@@ -1608,10 +1629,10 @@ export default function BookingPage() {
               <strong style={{ color: '#16294a' }}>
                 {hourRoster.length > 1
                   ? hourRoster.map((x: any) => x.full_name).join(' & ')
-                  : selectedCourse?.slug === '1on2' && selectedStudent2
-                  ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
+                  : selectedCourse?.slug === '1on2' && pair2
+                  ? `${selectedStudent?.full_name} & ${pair2.full_name}`
                   : selectedStudent?.full_name}
-              </strong> {t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.success.areBookedFor' : 'booking.success.isBookedFor')}
+              </strong> {t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && pair2)) ? 'booking.success.areBookedFor' : 'booking.success.isBookedFor')}
             </p>
             <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: selectedCoach?.first_name || '' })}
@@ -1692,7 +1713,7 @@ export default function BookingPage() {
         {step > 0 && selectedStudent && (
           <div style={{ marginBottom: '28px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
-              value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && selectedStudent2 ? ` ＋ ${selectedStudent2.full_name}` : '')}
+              value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && pair2 ? ` ＋ ${pair2.full_name}` : '')}
               onChange={isReschedule || makeUp || students.length <= 1 ? undefined : changeStudent} />
             {step > 1 && selectedCourse && (
               <DoneRow label={t('booking.sum.course')} changeLabel={t('booking.change')}
@@ -2020,7 +2041,10 @@ export default function BookingPage() {
                   </div>
                   {/* The Swim Assessment is 30 minutes, full stop. It rides on the
                       1-on-1 course type, which is why it used to get this switch. */}
-                  {!isTrial && !makeUp && (selectedCourse?.slug === '1on1'
+                  {/* Not while moving a lesson: it keeps its length. A 30-minute
+                      lesson moved as an hour was booked as a NEW hour and charged,
+                      the old one left in place (found 2026-10-03). */}
+                  {!isTrial && !makeUp && !isReschedule && (selectedCourse?.slug === '1on1'
                     || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
                     <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (
@@ -2051,7 +2075,7 @@ export default function BookingPage() {
                     <div style={{ marginBottom: '16px' }}>
                       {/* A voucher pays for the make-up, so the points line would only
                           make the family think points are taken (owner, 2026-10-03). */}
-                      {!makeUp && (
+                      {!makeUp && !isReschedule && (
                         <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '10px' }}>
                           {t('booking.hour.cost')} · {t('booking.balance', { n: hourBalance })}
                         </div>
@@ -2906,11 +2930,11 @@ export default function BookingPage() {
                   label: t('booking.sum.movingFrom'),
                   value: `${new Date(rescheduleFrom.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })} ${formatTime(rescheduleFrom.start)}`,
                 }] : []),
-                { label: t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && selectedStudent2)) ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
+                { label: t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && pair2)) ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: hourRoster.length > 1
                     ? hourRoster.map((x: any) => x.full_name).join(' & ')
-                    : selectedCourse?.slug === '1on2' && selectedStudent2
-                    ? `${selectedStudent?.full_name} & ${selectedStudent2.full_name}`
+                    : selectedCourse?.slug === '1on2' && pair2
+                    ? `${selectedStudent?.full_name} & ${pair2.full_name}`
                     : selectedStudent?.full_name },
                 // A Swim Assessment is booked as a 1-on-1 slot, so the course type
                 // behind it says "1-on-1 Private". Naming it that on the last screen
