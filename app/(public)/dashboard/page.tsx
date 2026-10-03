@@ -42,19 +42,34 @@ ${REPORT_SHEET_CSS}
 /* Two classes: .msa-sec-h comes later in this sheet and sets margin: 0 0 14px,
    which a single-class rule here would lose to. */
 .msa-sec-h.msa-plans-h { margin-top: 28px }
-.msa-plan { display: flex; flex-direction: column; gap: 3px; background: #fff; border: 1px solid #d3deec;
-  border-radius: 16px; padding: 14px 16px; color: #3f4d66; font-size: 13px; line-height: 1.45 }
-.msa-plan-tag { font-size: 11.5px; font-weight: 800; color: #2050a0; letter-spacing: .3px; margin-bottom: 2px;
-  overflow-wrap: anywhere }
-.msa-plan-main { font-size: 16px; font-weight: 900; color: #12254a; font-variant-numeric: tabular-nums }
-.msa-plan-btn { align-self: flex-end; margin-top: auto; padding-top: 10px }
+/* One card per child (owner, 2026-10-03): with three children each holding
+   a fixed class and vouchers, one card per plan made six or seven boxes and
+   a phone had to swipe through them. Now the number of cards is the number
+   of children -- a sibling 1-on-2 gets its own card named for both -- and
+   each plan is a row with its own button. The cards stack on a phone.
+   auto-fit: a one-child family's card takes the whole row instead of a
+   third of it, so its lines do not wrap. */
+.msa-plans { display: grid; gap: 14px; align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)) }
+.msa-plan { background: #fff; border: 1px solid #d3deec; border-radius: 16px; overflow: hidden; color: #3f4d66 }
+.msa-plan-h { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid #e6edf6;
+  font-size: 14.5px; font-weight: 900; color: #12254a; overflow-wrap: anywhere }
+.msa-plan-av { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; background: #12254a; color: #fff;
+  display: grid; place-items: center; font-size: 11px; font-weight: 800 }
+.msa-plan-av + .msa-plan-av { margin-left: -12px; box-shadow: 0 0 0 2px #fff }
+.msa-plan-row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; font-size: 12.5px; line-height: 1.4 }
+.msa-plan-row + .msa-plan-row { border-top: 1px solid #eef2f8 }
+.msa-plan-ic { flex: 0 0 auto; font-size: 15px }
+.msa-plan-tx { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.msa-plan-tx b { display: block; font-size: 14px; font-weight: 900; color: #12254a; font-variant-numeric: tabular-nums }
+.msa-plan-soon { color: #b86e00; font-weight: 700 }
+.msa-plan-btn { flex: 0 0 auto }
 .msa-plan-btn a, .msa-plan-btn button { display: inline-block; border: 1px solid #c9d8ee; border-radius: 999px;
   padding: 7px 14px; background: #fff; color: #2050a0; font-family: inherit; font-size: 13px; font-weight: 800;
-  text-decoration: none; cursor: pointer }
+  text-decoration: none; cursor: pointer; white-space: nowrap }
 .msa-plan-btn a:hover, .msa-plan-btn button:hover { border-color: #2050a0 }
 .msa-plan-btn .renew { background: #f09800; border-color: #f09800; color: #12254a }
 .msa-plan-btn .renew:hover { background: #d98900; border-color: #d98900 }
-.msa-rail-plans { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)) }
 /* The optional things -- book with another family, refer a friend, the
    suggestion box -- as one list at the foot of the page. Each row is a
    single tap target. */
@@ -193,8 +208,6 @@ ${REPORT_SHEET_CSS}
               scrollbar-width: none }
   .msa-rail::-webkit-scrollbar { display: none }
   .msa-rail > * { scroll-snap-align: center; flex: 0 0 92% }
-  /* Plan cards are small; showing most of the next one says the row moves. */
-  .msa-rail-plans > * { flex-basis: 80% }
   .msa-more-row { flex-wrap: wrap; row-gap: 2px }
   .msa-more-text { flex-basis: calc(100% - 34px) }
   .msa-more-link { margin-left: 34px }
@@ -354,7 +367,7 @@ function getDaysUntil(d: string): number {
 /* A row of cards that becomes a swipeable rail on a phone. The dots are the
    only reason this needs state: they say how many cards there are and which
    one you are on, which a bare overflow-x row cannot. */
-function Rail({ variant, count, children }: { variant: 'students' | 'credits' | 'plans'; count: number; children: React.ReactNode }) {
+function Rail({ variant, count, children }: { variant: 'students' | 'credits'; count: number; children: React.ReactNode }) {
   const [active, setActive] = useState(0)
   return (
     <>
@@ -1457,7 +1470,7 @@ export default function DashboardPage() {
   useEffect(() => { loadVouchers() }, [loadVouchers])
   // Fixed classes with lessons to come: one line each, opening the class page
   // (renew / change slot).
-  const [fixedClasses, setFixedClasses] = useState<{ id: string; weekday: number; time: string; coachName: string; left: number; last: string | null; renewOpen: boolean; studentNames: string[] }[]>([])
+  const [fixedClasses, setFixedClasses] = useState<{ id: string; weekday: number; time: string; coachName: string; left: number; last: string | null; renewOpen: boolean; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number }[]>([])
   useEffect(() => {
     fetch('/api/parent/fixed-classes').then(r => r.ok ? r.json() : null)
       .then(j => setFixedClasses(j?.classes || [])).catch(() => {})
@@ -1471,15 +1484,25 @@ export default function DashboardPage() {
   const voucherKind = (slug?: string | null, minutes?: number) =>
     t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : ''))
   const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
-  // The vouchers by whose they are, in the order the children's cards are in;
-  // each group keeps the API's earliest-expiry-first order.
-  const voucherGroups = (() => {
-    const by = new Map<string, MakeUpVoucher[]>()
-    for (const v of vouchers) { const k = voucherOwnerKey(v); by.set(k, [...(by.get(k) || []), v]) }
+  // 「我的方案」 by whose they are: one group per child, and one per sibling
+  // pair holding a 1-on-2 together, in the order the children's cards are in
+  // (a pair after the later of its two children). The key matches
+  // voucherOwnerKey, so a group's 查看 opens the sheet on its own vouchers.
+  type PlanGroup = { key: string; ids: string[]; names: string[]; fixed: typeof fixedClasses; vouchers: MakeUpVoucher[] }
+  const planGroups = (() => {
+    const by = new Map<string, PlanGroup>()
+    const groupOf = (a: string, b: string | null, names: string[]) => {
+      const ids = [a, b].filter((x): x is string => !!x)
+      const key = [...ids].sort().join('+')
+      let g = by.get(key)
+      if (!g) { g = { key, ids, names, fixed: [], vouchers: [] }; by.set(key, g) }
+      return g
+    }
+    for (const f of fixedClasses) groupOf(f.studentId, f.student2Id, f.studentNames).fixed.push(f)
+    for (const v of vouchers) groupOf(v.studentId, v.student2Id, v.studentNames).vouchers.push(v)
     const rank = (id: string) => { const i = students.findIndex(s => s.id === id); return i < 0 ? 999 : i }
-    return [...by.entries()]
-      .map(([key, list]) => ({ key, list, names: list[0].studentNames }))
-      .sort((a, b) => rank(a.list[0].studentId) - rank(b.list[0].studentId) || a.key.localeCompare(b.key))
+    const last = (g: PlanGroup) => Math.max(...g.ids.map(rank))
+    return [...by.values()].sort((a, b) => last(a) - last(b) || a.ids.length - b.ids.length || a.key.localeCompare(b.key))
   })()
   const plus28 = (d: string) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 28); return x.toISOString().slice(0, 10) }
   // A window that opened in the past is shown from today.
@@ -2589,36 +2612,50 @@ export default function DashboardPage() {
           {(fixedClasses.length > 0 || vouchers.length > 0) && (
             <>
               <h2 className="msa-sec-h msa-plans-h">{t('dash.plans.title')}</h2>
-              <Rail variant="plans" count={fixedClasses.length + voucherGroups.length}>
-                {fixedClasses.map(f => (
-                  <div key={f.id} className="msa-plan">
-                    <span className="msa-plan-tag">📌 {t('dash.tag.fixed')} · {f.studentNames.join(' & ')}</span>
-                    <span className="msa-plan-main">{t('dash.plan.when', {
-                      weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
-                      time: formatTime12h(f.time),
-                    })}</span>
-                    <span>{t('dash.up.coach', { name: f.coachName })}</span>
-                    <span>{t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}</span>
-                    <span className="msa-plan-btn">
-                      <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`} className={f.renewOpen ? 'renew' : undefined}>
-                        {f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›
-                      </Link>
-                    </span>
-                  </div>
-                ))}
-                {/* One card per child (a sibling 1-on-2's vouchers share one card
-                    named for both), beside that child's fixed classes. */}
-                {voucherGroups.map(g => (
-                  <div key={g.key} className="msa-plan">
-                    <span className="msa-plan-tag">🎟 {t('voucher.sheetTitle')} · {g.names.join(' & ')}</span>
-                    <span className="msa-plan-main">{t(g.list.length === 1 ? 'dash.plan.voucher' : 'dash.plan.vouchers', { n: g.list.length })}</span>
-                    <span>{t('dash.plan.firstExpires', { date: shortDate(g.list[0].expiresOn) })}</span>
-                    <span className="msa-plan-btn">
-                      <button className="tap-auto" onClick={() => { setVoucherKey(g.key); setVoucherSheet(true) }}>{t('voucher.lineLink')} ›</button>
-                    </span>
-                  </div>
-                ))}
-              </Rail>
+              <div className="msa-plans">
+                {planGroups.map(g => {
+                  const soon = plusDays(getTodayLA(), 7)
+                  return (
+                    <div key={g.key} className="msa-plan">
+                      <div className="msa-plan-h">
+                        {g.names.map((n, i) => <span key={i} className="msa-plan-av" aria-hidden="true">{(Array.from(n.trim())[0] || '?').toUpperCase()}</span>)}
+                        <span>{g.names.join(' & ')}</span>
+                      </div>
+                      {g.fixed.map(f => (
+                        <div key={f.id} className="msa-plan-row">
+                          <span className="msa-plan-ic" aria-hidden="true">📌</span>
+                          <span className="msa-plan-tx">
+                            <b>{t('dash.tag.fixed')} · {t('dash.plan.when', {
+                              weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
+                              time: formatTime12h(f.time),
+                            })}</b>
+                            {voucherKind(f.courseSlug, f.minutes)} · {t('dash.up.coach', { name: f.coachName })} · {t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}
+                          </span>
+                          <span className="msa-plan-btn">
+                            <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`} className={f.renewOpen ? 'renew' : undefined}>
+                              {f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›
+                            </Link>
+                          </span>
+                        </div>
+                      ))}
+                      {g.vouchers.length > 0 && (
+                        <div className="msa-plan-row">
+                          <span className="msa-plan-ic" aria-hidden="true">🎟</span>
+                          <span className="msa-plan-tx">
+                            <b>{t(g.vouchers.length === 1 ? 'dash.plan.voucherRowOne' : 'dash.plan.voucherRow', { n: g.vouchers.length })}</b>
+                            <span className={g.vouchers[0].expiresOn <= soon ? 'msa-plan-soon' : undefined}>
+                              {t(g.vouchers.length === 1 ? 'dash.plan.expires' : 'dash.plan.firstExpires', { date: shortDate(g.vouchers[0].expiresOn) })}
+                            </span>
+                          </span>
+                          <span className="msa-plan-btn">
+                            <button className="tap-auto" onClick={() => { setVoucherKey(g.key); setVoucherSheet(true) }}>{t('voucher.lineLink')} ›</button>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </>
           )}
         </section>
