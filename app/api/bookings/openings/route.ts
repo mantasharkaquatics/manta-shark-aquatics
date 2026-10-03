@@ -25,6 +25,7 @@ import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 //        days: { 'YYYY-MM-DD': { 'HH:MM': [coachId, ...] } } }
 
 const WINDOW_DAYS = 60
+const MAX_UNTIL_DAYS = 200
 const LESSON_MIN = 30
 
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
@@ -58,7 +59,12 @@ export async function GET(req: NextRequest) {
   const s2id = q.get('student2_id')
   const want2 = course_slug === '1on2' && !!s2id && s2id !== student_id
   const from = getTodayLA()
-  const to = addDays(from, WINDOW_DAYS)
+  // A make-up voucher may run past the usual window (a leave voucher for a
+  // lesson months away); the booking page then asks up to its expiry, capped.
+  const untilQ = q.get('until')
+  const to = untilQ && /^\d{4}-\d{2}-\d{2}$/.test(untilQ) && untilQ > addDays(from, WINDOW_DAYS)
+    ? (untilQ < addDays(from, MAX_UNTIL_DAYS) ? untilQ : addDays(from, MAX_UNTIL_DAYS))
+    : addDays(from, WINDOW_DAYS)
   const dates: string[] = []
   for (let ds = from; ds <= to; ds = addDays(ds, 1)) dates.push(ds)
 

@@ -2728,5 +2728,12 @@
   "dash.plan.firstExpires": "First one expires {date}",
   "dash.more.label": "More",
   "ref.fine": "Your friend has to sign up with your link or code — it can't be added later. The Swim Assessment doesn't count as the first lesson. The points arrive automatically the day after that lesson.",
-  "ref.rules": "Full rules"
+  "ref.rules": "Full rules",
+  "voucher.source": "{reason} · from the {when} lesson",
+  "voucher.reason.leave": "Fixed-class leave",
+  "voucher.reason.grace": "Monthly grace",
+  "voucher.reason.admin": "From the front desk",
+  "voucher.reason.end_of_term": "Fixed class ended",
+  "voucher.reason.moved": "Fixed-class slot change",
+  "booking.makeUp.noDays": "No times left in this month for this voucher."
 }

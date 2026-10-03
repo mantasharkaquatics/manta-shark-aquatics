@@ -290,7 +290,9 @@ interface Booking {
   voucher_id?: string | null
 }
 
-type MakeUpVoucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string; usableFrom?: string | null }
+type MakeUpVoucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string; usableFrom?: string | null; fromDate?: string | null; fromTime?: string | null }
+/** Why a family holds a voucher, in their words. An unknown reason shows nothing rather than a code. */
+const VOUCHER_REASONS = new Set(['leave', 'grace', 'admin', 'end_of_term', 'moved'])
 
 function getAge(dob: string): number {
   const birth = new Date(dob)
@@ -2336,6 +2338,14 @@ export default function DashboardPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{v.studentNames.join(' & ')} · {voucherKind(v.courseSlug, v.minutes)}</div>
                     <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{v.usableFrom && v.usableFrom > getTodayLA() ? t('voucher.window', { from: shortDate(v.usableFrom), to: shortDate(v.expiresOn) }) : t('voucher.useBy', { date: shortDate(v.expiresOn) })}</div>
+                    {/* Where it came from (owner, 2026-10-03): the reason, and the lesson it replaced. */}
+                    {VOUCHER_REASONS.has(v.reason) && (
+                      <div style={{ fontSize: '11.5px', color: '#7a879b', marginTop: '2px' }}>
+                        {v.fromDate
+                          ? t('voucher.source', { reason: t('voucher.reason.' + v.reason), when: shortDate(v.fromDate) + (v.fromTime ? ' ' + formatTime(v.fromTime) : '') })
+                          : t('voucher.reason.' + v.reason)}
+                      </div>
+                    )}
                   </div>
                   <Link href={`/booking?voucher=${v.id}`} style={{ flexShrink: 0, padding: '8px 12px', borderRadius: '9px', background: AMBER, color: NAVY, fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
                     {t('voucher.book')}

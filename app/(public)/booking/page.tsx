@@ -544,6 +544,13 @@ export default function BookingPage() {
           setNotice('err.voucherGone')
         } else {
           setMakeUp(v)
+          // The month calendar (1-on-1 / 1-on-2) opens on the voucher's first
+          // usable month -- a window starting next month used to open on an
+          // empty current month (owner, 2026-10-03).
+          if (v.usableFrom && v.usableFrom > formatDateLA(today)) {
+            const [fy, fm] = String(v.usableFrom).split('-').map(Number)
+            setCalYear(fy); setCalMonth(fm - 1)
+          }
           // Show every month the voucher's dates reach (a leave voucher may be for December).
           const [ey, em] = String(v.expiresOn).split('-').map(Number)
           const span = (ey - today.getFullYear()) * 12 + (em - 1 - today.getMonth()) + 1
@@ -802,6 +809,8 @@ export default function BookingPage() {
     if (step !== 3 || !privateFlow || !selectedStudent || !selectedCourse) return
     let live = true
     const qs = new URLSearchParams({ course_slug: selectedCourse.slug, student_id: selectedStudent.id })
+    // A voucher may reach past the usual 60 days; ask for openings up to its expiry.
+    if (makeUp) qs.set('until', makeUp.expiresOn)
     if (selectedStudent2 && !(selectedStudent2 as any).isPartner) qs.set('student2_id', selectedStudent2.id)
     fetch(`/api/bookings/openings?${qs}`)
       .then(r => r.ok ? r.json() : null)
@@ -1393,8 +1402,23 @@ export default function BookingPage() {
   const calIndex = calYear * 12 + calMonth
   const nowIndex = today.getFullYear() * 12 + today.getMonth()
   const lastBookable = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 60)
-  const canPrevMonth = calIndex > nowIndex
-  const canNextMonth = calIndex < lastBookable.getFullYear() * 12 + lastBookable.getMonth()
+  // With a voucher the months are its own: from the month it opens to the month it expires.
+  const ymIndex = (ds: string) => { const [y, m] = ds.split('-').map(Number); return y * 12 + m - 1 }
+  const firstIndex = makeUp?.usableFrom ? Math.max(nowIndex, ymIndex(makeUp.usableFrom)) : nowIndex
+  const lastIndex = makeUp ? ymIndex(makeUp.expiresOn) : lastBookable.getFullYear() * 12 + lastBookable.getMonth()
+  const canPrevMonth = calIndex > firstIndex
+  const canNextMonth = calIndex < lastIndex
+  /** True when this month of a voucher's calendar has no day left to book. */
+  function voucherMonthEmpty(): boolean {
+    if (!makeUp || !privateFlow || !openings) return false
+    for (let d = 1; d <= getDaysInMonth(calYear, calMonth); d++) {
+      const date = new Date(calYear, calMonth, d)
+      if (!isDateAvailable(date)) continue
+      const ds = formatDateLA(date)
+      if ((lessonLength === 60 ? coachesOnForHour(ds) : coachesOn(ds)).length > 0) return false
+    }
+    return true
+  }
   function shiftMonth(d: 1 | -1) {
     if (d < 0 ? !canPrevMonth : !canNextMonth) return
     const n = calIndex + d
@@ -1869,8 +1893,11 @@ export default function BookingPage() {
                   const date = new Date(calYear, calMonth, i + 1)
                   const dsC = formatDateLA(date)
                   const openHere = privateFlow && openings && lessonLength === 30 ? coachesOn(dsC) : null
-                  const available = isDateAvailable(date) && (openHere == null || openHere.length > 0)
                   const dotsHere = openHere ?? (privateFlow && openings && lessonLength === 60 ? coachesOnForHour(dsC) : null)
+                  // A voucher's calendar shows only days with a time it can book,
+                  // so a 60-minute make-up also needs a free hour that day.
+                  const available = isDateAvailable(date) && (openHere == null || openHere.length > 0)
+                    && !(makeUp && dotsHere != null && dotsHere.length === 0)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isTodayDate = date.toDateString() === today.toDateString()
                   // This calendar has no per-slot cells to mark, so the day itself
@@ -1910,6 +1937,9 @@ export default function BookingPage() {
                   )
                 })}
               </div>
+              {voucherMonthEmpty() && (
+                <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: '13px', color: '#56647d' }}>{t('booking.makeUp.noDays')}</p>
+              )}
             </div>}
 
             {/* Only while the picked day is in the month on screen. Paging to

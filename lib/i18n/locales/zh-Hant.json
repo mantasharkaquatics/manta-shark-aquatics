@@ -2728,5 +2728,12 @@
   "dash.plan.firstExpires": "最早 {date} 到期",
   "dash.more.label": "更多",
   "ref.fine": "朋友要在註冊時用您的連結或代碼，事後無法補填；游泳評估不算第一堂課。點數會在那堂課的隔天自動入帳。",
-  "ref.rules": "完整規則"
+  "ref.rules": "完整規則",
+  "voucher.source": "{reason} · 來自 {when} 的課",
+  "voucher.reason.leave": "固定班請假",
+  "voucher.reason.grace": "每月寬限",
+  "voucher.reason.admin": "櫃台補發",
+  "voucher.reason.end_of_term": "固定班結束",
+  "voucher.reason.moved": "固定班換時段",
+  "booking.makeUp.noDays": "這個月沒有可用這張補課券的時段。"
 }
