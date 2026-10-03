@@ -6,6 +6,7 @@ import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/bo
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 
 // Parent shopping cart. Items are real `in_cart` bookings so the DB trigger
 // counts them into enrolled_count (slot is reserved the moment it enters the
@@ -185,15 +186,47 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 409 })
     }
 
-    // Coach conflict / full check (in_cart counts via trigger-maintained enrolled_count)
-    const { data: conflicts } = await svc
+    // The same rules a direct booking keeps (found 2026-10-03: the cart
+    // checked none of them): the coach's zones for this course and, for a
+    // group, the swimmer's level band; any OVERLAPPING class of the coach,
+    // not only one starting at the same minute; and the swimmer's own other
+    // lessons that day.
+    const toMinK = (t: string) => { const [hh, mm] = String(t).slice(0, 5).split(':').map(Number); return hh * 60 + mm }
+    const kStart = toMinK(start_time), kEnd = kStart + course.duration_minutes
+    const eff = await getEffectiveZones(svc, coach_id, session_date)
+    let cartBand: { min: number; max: number } | null = null
+    if (!eff.legacy) {
+      const zt = zoneTypeForSlug(course.slug)
+      const z = eff.rows.find((r: any) => r.zone_type === zt && toMinK(r.start_time) <= kStart && kEnd <= toMinK(r.end_time))
+      if (!z)
+        return NextResponse.json({ error: 'This time is not available for this course type. Please pick another time.' }, { status: 409 })
+      if (zt === 'group' && z.group_level_min != null && z.group_level_max != null
+          && (student.current_level < z.group_level_min || student.current_level > z.group_level_max))
+        return NextResponse.json({ error: `This group time is for Level ${z.group_level_min}–${z.group_level_max} students. ${student.full_name} is Level ${student.current_level} — please pick a group time for that level.` }, { status: 409 })
+      if (zt === 'group' && z.group_level_min != null && z.group_level_max != null) cartBand = { min: z.group_level_min, max: z.group_level_max }
+    }
+    const { data: daySess } = await svc
       .from('class_sessions')
-      .select('id, course_type_id, enrolled_count, max_students, status')
-      .eq('coach_id', coach_id).eq('session_date', session_date).eq('start_time', start_time)
+      .select('id, course_type_id, enrolled_count, max_students, status, start_time, end_time')
+      .eq('coach_id', coach_id).eq('session_date', session_date)
       .in('status', ['open', 'full'])
-    const sameCourse = (conflicts || []).find((c: any) => c.course_type_id === course_type_id)
-    if ((conflicts || []).some((c: any) => c.course_type_id !== course_type_id && c.enrolled_count > 0))
+    const overlapsK = (c: any) => { const s0 = toMinK(c.start_time); const e0 = c.end_time ? toMinK(c.end_time) : s0 + 30; return kStart < e0 && kEnd > s0 }
+    const conflicts = (daySess || []).filter(overlapsK)
+    const sameCourse = conflicts.find((c: any) => c.course_type_id === course_type_id && String(c.start_time).slice(0, 5) === start_time)
+    if (conflicts.some((c: any) => c !== sameCourse && c.enrolled_count > 0))
       return NextResponse.json({ error: 'The coach already has another class at this time. Please pick another time.' }, { status: 409 })
+    {
+      const { data: mine } = await svc.from('bookings')
+        .select('class_session_id').eq('student_id', student_id)
+        .in('status', ['confirmed', 'in_cart', 'pending_payment', 'pending_partner'])
+      const ids = [...new Set((mine || []).map((b: any) => b.class_session_id))]
+      if (ids.length) {
+        const { data: ms } = await svc.from('class_sessions')
+          .select('id, start_time, end_time').in('id', ids).eq('session_date', session_date).neq('status', 'cancelled')
+        if ((ms || []).some((m: any) => m.id !== sameCourse?.id && overlapsK(m)))
+          return NextResponse.json({ error: 'This swimmer already has a lesson at this time. Please pick another time.' }, { status: 409 })
+      }
+    }
     if (sameCourse && sameCourse.enrolled_count >= sameCourse.max_students)
       return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
 
@@ -215,7 +248,8 @@ export async function POST(req: NextRequest) {
       const end_time = String(Math.floor(endTotal / 60)).padStart(2, '0') + ':' + String(endTotal % 60).padStart(2, '0')
       const { data: created, error: sessErr } = await svc
         .from('class_sessions')
-        .insert({ course_type_id, coach_id, session_date, start_time, end_time, max_students: course.max_students, enrolled_count: 0, status: 'open' })
+        .insert({ course_type_id, coach_id, session_date, start_time, end_time, max_students: course.max_students, enrolled_count: 0, status: 'open',
+          level_min: cartBand?.min ?? null, level_max: cartBand?.max ?? null })
         .select('id').single()
       if (sessErr || !created)
         return NextResponse.json({ error: 'Could not create the time slot. Please try again.' }, { status: 500 })
@@ -252,6 +286,13 @@ export async function POST(req: NextRequest) {
     if (cart.items.length === 0)
       return NextResponse.json({ error: 'Your cart is empty or has expired.' }, { status: 400 })
 
+    // The 30-minute lead time is judged now, not when the item went in: a
+    // cart lives 15 minutes (found 2026-10-03).
+    {
+      const today = getTodayLA(), nowMin = getNowMinutesLA()
+      const late = cart.items.find((it: any) => it.session_date < today || minutesUntil(it.session_date, it.start_time, today, nowMin) < LEAD_TIME_MINUTES)
+      if (late) return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts. Please pick a later time.' }, { status: 400 })
+    }
     const quote = await quoteCart(svc, parent.id, cart.items)
     if (!quote.priceable)
       return NextResponse.json({ error: 'One of the lessons in your cart cannot be paid for with points. Please remove it.' }, { status: 400 })
@@ -270,7 +311,7 @@ export async function POST(req: NextRequest) {
           kind: 'cart',
           items: cart.items.map((it: any) => ({
             course: it.course_slug, date: it.session_date,
-            time: it.start_time, points: pointsOf.get(it.booking_id) ?? 0,
+            time: it.start_time, student: it.student_id ?? null, points: pointsOf.get(it.booking_id) ?? 0,
           })),
         },
         note: `Cart: ${cart.items.length} lesson${cart.items.length === 1 ? '' : 's'}`,

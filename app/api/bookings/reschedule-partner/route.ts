@@ -4,6 +4,8 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
+import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -31,13 +33,28 @@ export async function POST(req: NextRequest) {
   // Fetch the initiator's booking
   const { data: myBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, partner_booking_id, status')
+    .select('id, class_session_id, parent_id, student_id, partner_booking_id, status, lesson_group_id, fixed_class_id, voucher_id')
     .eq('id', booking_id)
     .eq('status', 'confirmed')
     .single()
 
   if (!myBooking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
   if (myBooking.parent_id !== parent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // This route used to take any session id the client sent and check only
+  // that it existed (found 2026-10-03). The rules a move has to keep:
+  // not a fixed-class or make-up lesson, not a 60-minute lesson (two
+  // linked halves -- moving one splits it), not inside 24 hours, and into
+  // the same kind of lesson, on a bookable date, with room for both.
+  if (myBooking.fixed_class_id || myBooking.voucher_id)
+    return NextResponse.json({ error: FIXED_NO_RESCHEDULE_ERROR }, { status: 400 })
+  if (myBooking.lesson_group_id)
+    return NextResponse.json({ error: 'This lesson cannot be moved online. Please contact us and we will move it for you.' }, { status: 400 })
+  const today = getTodayLA(), nowMin = getNowMinutesLA()
+  const { data: oldSess } = await supabase.from('class_sessions')
+    .select('id, session_date, start_time, course_type_id').eq('id', myBooking.class_session_id).single()
+  if (!oldSess) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
+  if (minutesUntil(oldSess.session_date, String(oldSess.start_time).slice(0, 5), today, nowMin) < 24 * 60)
+    return NextResponse.json({ error: 'Bookings within 24 hours cannot be rescheduled online. Please contact us.' }, { status: 400 })
 
   // Fetch the partner's booking (via partner_booking_id)
   const partnerBookingId = myBooking.partner_booking_id
@@ -59,11 +76,21 @@ export async function POST(req: NextRequest) {
   // Verify the new session exists
   const { data: newSession } = await supabase
     .from('class_sessions')
-    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, course_types(name), coaches(first_name)')
+    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, course_type_id, status, course_types(name), coaches(first_name)')
     .eq('id', new_session_id)
     .single()
 
   if (!newSession) return NextResponse.json({ error: 'New time slot not found' }, { status: 404 })
+  const ns: any = newSession
+  if (ns.id === oldSess.id || ns.status === 'cancelled' || ns.course_type_id !== oldSess.course_type_id)
+    return NextResponse.json({ error: 'A lesson can only be moved to the same kind of lesson. Please cancel and book again instead.' }, { status: 400 })
+  const nStart = String(ns.start_time).slice(0, 5)
+  if (ns.session_date < today || minutesUntil(ns.session_date, nStart, today, nowMin) < LEAD_TIME_MINUTES)
+    return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts. Please pick a later time.' }, { status: 400 })
+  if (ns.session_date > singleMaxDate(today))
+    return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
+  if ((ns.enrolled_count ?? 0) + 2 > ns.max_students)
+    return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
 
   // Set both sides' pending_action = 'reschedule', pending_new_session_id = new_session_id
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()

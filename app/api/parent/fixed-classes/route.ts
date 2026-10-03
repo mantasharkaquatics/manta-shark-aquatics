@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { addDaysStr } from '@/lib/vouchers'
-import { FC_COLUMNS, HOLD_RELEASE_DAYS, classState, holdLive, isUpcoming, lessonsOf, renewOpen, type FixedClass } from '@/lib/fixed-classes'
+import { FC_COLUMNS, HOLD_RELEASE_DAYS, classState, holdLive, isUpcoming, lessonsOf, renewOpen, termLastDates, type FixedClass } from '@/lib/fixed-classes'
 
 export const runtime = 'nodejs'
 
@@ -17,11 +17,12 @@ export async function GET() {
       .eq('parent_id', parent.id).eq('status', 'active').order('created_at')
     const list = (fcs || []) as FixedClass[]
     if (list.length === 0) return NextResponse.json({ classes: [] })
-    const [lessons, { data: kids }, { data: coaches }, { data: cts }] = await Promise.all([
+    const [lessons, { data: kids }, { data: coaches }, { data: cts }, ends] = await Promise.all([
       lessonsOf(svc, list.map(f => f.id)),
       svc.from('students').select('id, full_name').eq('parent_id', parent.id),
       svc.from('coaches').select('id, first_name'),
       svc.from('course_types').select('id, slug, name'),
+      termLastDates(svc, list.map(f => f.id)),
     ])
     const kid = new Map<string, string>((kids || []).map((k: any) => [k.id, k.full_name]))
     const coach = new Map<string, string>((coaches || []).map((c: any) => [c.id, c.first_name]))
@@ -29,7 +30,7 @@ export async function GET() {
     const today = getTodayLA(), nowMin = getNowMinutesLA()
     const classes = list.map(f => {
       const ls = lessons.get(f.id) || []
-      const st = classState(ls, today, nowMin)
+      const st = classState(ls, today, nowMin, ends.get(f.id))
       const upcoming = ls.filter(l => isUpcoming(l, today, nowMin) && l.rows.some(r => r.status === 'confirmed'))
       const ct = ctOf.get(f.course_type_id)
       return {

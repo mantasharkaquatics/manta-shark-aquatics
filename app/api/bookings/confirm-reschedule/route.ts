@@ -27,12 +27,15 @@ export async function POST(req: NextRequest) {
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // Fetch own booking (must be pending reschedule)
+  // Fetch own booking (must be pending reschedule). Only the family who was
+  // ASKED can confirm: the family who proposed the move holds
+  // 'reschedule_initiator', and accepting that let them move the other
+  // family's child on their own (found 2026-10-03).
   const { data: myBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, status, partner_booking_id, points_charged, points_granted, points_granted_expires_at, pending_new_session_id, pending_action, original_booking_id')
+    .select('id, class_session_id, parent_id, student_id, status, partner_booking_id, points_charged, points_granted, points_granted_expires_at, pending_new_session_id, pending_action, pending_expires_at, original_booking_id')
     .eq('id', booking_id)
-    .in('pending_action', ['reschedule', 'reschedule_initiator'])
+    .eq('pending_action', 'reschedule')
     .single()
 
   if (!myBooking) return NextResponse.json({ error: 'Booking not found or in the wrong state' }, { status: 404 })
@@ -44,18 +47,26 @@ export async function POST(req: NextRequest) {
 
   const { data: partnerBooking } = await supabase
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, status, points_charged, points_granted, points_granted_expires_at, pending_new_session_id, original_booking_id')
+    .select('id, class_session_id, parent_id, student_id, status, points_charged, points_granted, points_granted_expires_at, pending_new_session_id, pending_action, original_booking_id')
     .eq('id', partnerBookingId)
     .single()
 
   if (!partnerBooking) return NextResponse.json({ error: 'Partner booking not found' }, { status: 404 })
+  // The other side must be the one that asked, for this same new time, and
+  // the request must not have run out.
+  if (partnerBooking.pending_action !== 'reschedule_initiator'
+      || partnerBooking.pending_new_session_id !== myBooking.pending_new_session_id
+      || partnerBooking.parent_id === myBooking.parent_id)
+    return NextResponse.json({ error: 'This reschedule has already been dealt with.' }, { status: 409 })
+  if (myBooking.pending_expires_at && new Date(myBooking.pending_expires_at) < new Date())
+    return NextResponse.json({ error: 'This reschedule has already been dealt with.' }, { status: 409 })
 
   const newSessionId = myBooking.pending_new_session_id
 
   // Fetch the new session
   const { data: newSession } = await supabase
     .from('class_sessions')
-    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, course_type_id')
+    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, end_time, course_type_id')
     .eq('id', newSessionId)
     .single()
 
@@ -69,15 +80,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'The new time slot was just booked; reschedule failed and the original time is kept' }, { status: 409 })
   }
 
-  // Race protection: check coach conflicts
-  const { data: conflictSessions } = await supabase
+  // Race protection: check coach conflicts -- any session of the coach that
+  // OVERLAPS the new one, not only one starting at the same minute (a
+  // 60-minute lesson's second half starts off the grid).
+  const toMinR = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  const { data: daySessions } = await supabase
     .from('class_sessions')
-    .select('id')
+    .select('id, start_time, end_time')
     .eq('coach_id', newSession.coach_id)
     .eq('session_date', newSession.session_date)
-    .eq('start_time', newSession.start_time)
     .neq('id', newSession.id)
-  const conflictIds = (conflictSessions || []).map((s: any) => s.id)
+    .neq('status', 'cancelled')
+  const ns = toMinR(newSession.start_time)
+  const ne = (newSession as any).end_time ? toMinR((newSession as any).end_time) : ns + 30
+  const conflictIds = (daySessions || [])
+    .filter((s: any) => { const s0 = toMinR(s.start_time); const e0 = s.end_time ? toMinR(s.end_time) : s0 + 30; return ns < e0 && ne > s0 })
+    .map((s: any) => s.id)
   if (conflictIds.length > 0) {
     const { data: conflictBookings } = await supabase
       .from('bookings').select('id')

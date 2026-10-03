@@ -43,7 +43,7 @@ export async function GET() {
   const list = fcs || []
   const ids = list.map((f: any) => f.id)
   const [{ data: all }, left, { data: ps }, { data: ss }, { data: cs }, { data: cts }] = await Promise.all([
-    ids.length ? svc.from('bookings').select('fixed_class_id, class_session_id, status').in('fixed_class_id', ids) : Promise.resolve({ data: [] as any[] }),
+    ids.length ? svc.from('bookings').select('fixed_class_id, class_session_id, status, cancellation_reason').in('fixed_class_id', ids) : Promise.resolve({ data: [] as any[] }),
     remainingLessons(svc, list.filter((f: any) => f.status === 'active').map((f: any) => f.id)),
     svc.from('parents').select('id, first_name, last_name').in('id', [...new Set(list.map((f: any) => f.parent_id))]),
     svc.from('students').select('id, full_name').in('id', [...new Set(list.flatMap((f: any) => [f.student_id, f.student2_id]).filter(Boolean))]),
@@ -58,7 +58,9 @@ export async function GET() {
     classes: list.map((f: any) => {
       const mine = left.filter((b: any) => b.fixed_class_id === f.id)
       const lessonsLeft = new Set(mine.map((b: any) => b.lesson_group_id || b.class_session_id)).size
-      const total = new Set((all || []).filter((b: any) => b.fixed_class_id === f.id).map((b: any) => b.class_session_id)).size
+      // Lessons moved by a change of slot leave their old rows behind as
+      // 'rescheduled'; counting them showed a 10-lesson class as ~18.
+      const total = new Set((all || []).filter((b: any) => b.fixed_class_id === f.id && !(b.status === 'cancelled' && b.cancellation_reason === 'rescheduled')).map((b: any) => b.class_session_id)).size
       const ct: any = ctOf.get(f.course_type_id)
       return {
         id: f.id, status: f.status, endedAt: f.ended_at, endedReason: f.ended_reason,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { randomUUID } from 'crypto'
-import { renewalHolds, weeklyCandidates, lessonsOf, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
+import { renewalHolds, weeklyCandidates, lessonsOf, termLastDates, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
 import { getTodayLA, formatTime12h } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
 import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
       const f0 = [...groups.values()][0][0]
       if (f0.coach !== fc.coach_id || f0.time !== String(fc.start_time).slice(0, 5) || weekdayOf(f0.date) !== fc.weekday)
         return NextResponse.json({ error: 'A renewal keeps the same weekday, time and coach.' }, { status: 400 })
-      const { last } = classState((await lessonsOf(svc, [fc.id])).get(fc.id))
+      const { last } = classState((await lessonsOf(svc, [fc.id])).get(fc.id), undefined, undefined, (await termLastDates(svc, [fc.id])).get(fc.id))
       if (last && f0.date <= last)
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
       renewFc = fc

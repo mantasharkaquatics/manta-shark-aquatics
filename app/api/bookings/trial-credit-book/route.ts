@@ -3,6 +3,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { assessmentSlotError } from '@/lib/assessment-slot'
 
 // Booking a Swim Assessment that was already paid for at the front desk.
 //
@@ -43,6 +44,10 @@ export async function POST(req: NextRequest) {
       .limit(1)
     if (existingTrial && existingTrial.length > 0) {
       return NextResponse.json({ error: 'A Swim Assessment is already booked for this student' }, { status: 400 })
+    }
+    {
+      const why = await assessmentSlotError(svc, { coachId, date, time, studentId, minutes: 30 })
+      if (why) return NextResponse.json({ error: why }, { status: 400 })
     }
 
     // Claim the credit first (conditional update = lock); refund if booking fails
@@ -143,7 +148,10 @@ export async function POST(req: NextRequest) {
       if (bookErr.message?.includes('coach_timeslot_conflict')) {
         return NextResponse.json({ error: 'This time slot is no longer available' }, { status: 409 })
       }
-      return NextResponse.json({ error: 'Failed to create booking: ' + bookErr.message }, { status: 500 })
+      console.error('trial-credit-book insert failed:', bookErr.message)
+      return NextResponse.json({ error: bookErr.message?.includes('STUDENT_DOUBLE_BOOKED')
+        ? 'This swimmer already has a lesson at this time. Please pick another time.'
+        : 'Booking failed. Please try again.' }, { status: 500 })
     }
 
     // Confirmation email (non-fatal)
@@ -168,6 +176,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || 'Internal error' }, { status: 500 })
+    console.error('trial-credit-book failed:', e)
+    return NextResponse.json({ error: 'Booking failed. Please try again.' }, { status: 500 })
   }
 }

@@ -20,12 +20,34 @@ async function getAffected(svc: any, block: any) {
   })
   if (!overlapped.length) return { sessions: [], bookings: [] }
   const ids = overlapped.map((s: any) => s.id)
+  const COLS = 'id, class_session_id, parent_id, student_id, status, points_charged, points_refunded, block_notice_sent_at, cancellation_reason, lesson_group_id, voucher_id'
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, class_session_id, parent_id, student_id, status, points_charged, points_refunded, block_notice_sent_at, cancellation_reason')
+    .select(COLS)
     .in('class_session_id', ids)
     .or('status.eq.confirmed,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
-  return { sessions: overlapped, bookings: bookings || [] }
+  // A 60-minute lesson is two linked halves. Time off covering only one of
+  // them used to cancel and refund that half and leave the other booked
+  // (found 2026-10-03): the lesson goes as a whole.
+  let all: any[] = bookings || []
+  const groups = [...new Set(all.map((b: any) => b.lesson_group_id).filter(Boolean))]
+  if (groups.length) {
+    const { data: more } = await svc.from('bookings').select(COLS)
+      .in('lesson_group_id', groups)
+      .or('status.eq.confirmed,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
+    const seen = new Set(all.map((b: any) => b.id))
+    const extra = (more || []).filter((b: any) => !seen.has(b.id))
+    if (extra.length) {
+      all = all.concat(extra)
+      const missing = [...new Set(extra.map((b: any) => b.class_session_id))].filter(id => !ids.includes(id))
+      if (missing.length) {
+        const { data: ms } = await svc.from('class_sessions')
+          .select('id, session_date, start_time, end_time, course_type_id, status').in('id', missing)
+        overlapped.push(...(ms || []))
+      }
+    }
+  }
+  return { sessions: overlapped, bookings: all }
 }
 
 export async function POST(req: NextRequest) {
@@ -86,24 +108,36 @@ export async function POST(req: NextRequest) {
   if (action === 'notify') {
     const targets = bookings.filter((b: any) => b.status === 'confirmed' && !b.block_notice_sent_at)
     let sent = 0
+    // One email per family per lesson: a 60-minute lesson's two halves and a
+    // sibling pair's two seats used to send two (found 2026-10-03).
+    const byLesson = new Map<string, any[]>()
     for (const b of targets) {
+      const k = `${b.parent_id}|${b.lesson_group_id || b.class_session_id}`
+      byLesson.set(k, [...(byLesson.get(k) || []), b])
+    }
+    for (const rows of byLesson.values()) {
+      const sorted = [...rows].sort((x: any, y: any) => String((sessMap.get(x.class_session_id) as any)?.start_time || '').localeCompare(String((sessMap.get(y.class_session_id) as any)?.start_time || '')))
+      const b = sorted[0]
       const s: any = sessMap.get(b.class_session_id)
+      const sLast: any = sessMap.get(sorted[sorted.length - 1].class_session_id) || s
       const par: any = parMap.get(b.parent_id)
-      const stu: any = stuMap.get(b.student_id)
+      const names = [...new Set(rows.map((r: any) => (stuMap.get(r.student_id) as any)?.full_name).filter(Boolean))]
       if (!s || !par?.email) continue
+      // A make-up was paid with a voucher, which comes back -- not points.
+      const kind = rows.some((r: any) => r.points_charged) ? 'points' : rows.some((r: any) => r.voucher_id) ? 'voucher' : 'none'
       const ok = await sendEmail({
         type: 'block_cancellation_notice',
-        refundKind: b.points_charged ? 'points' : 'none',
+        refundKind: kind,
         to: par.email,
         parentName: par.first_name,
-        studentName: stu?.full_name || '',
+        studentName: names.join(' & '),
         courseName: (ctMap.get(s.course_type_id) as any)?.name || '',
         coachName,
         date: s.session_date,
-        time: `${formatTime12h(s.start_time)} \u2013 ${formatTime12h(s.end_time)}`,
+        time: `${formatTime12h(s.start_time)} \u2013 ${formatTime12h(sLast.end_time)}`,
       })
       if (ok) {
-        await svc.from('bookings').update({ block_notice_sent_at: new Date().toISOString() }).eq('id', b.id)
+        await svc.from('bookings').update({ block_notice_sent_at: new Date().toISOString() }).in('id', rows.map((r: any) => r.id))
         sent++
       }
     }

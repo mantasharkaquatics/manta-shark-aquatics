@@ -125,7 +125,7 @@ const TOOLS = [
   },
   {
     name: 'cancel_booking',
-    description: 'Cancel one upcoming lesson and refund the credit. Only call AFTER the parent has explicitly confirmed cancelling this specific lesson in the conversation. booking_id must come from get_upcoming_lessons.',
+    description: 'Cancel one upcoming lesson more than 24 hours away. What the family gets follows the policies: a single lesson\'s points come back, a fixed-class lesson becomes a make-up voucher, a make-up returns its voucher. Lessons inside 24 hours cannot be cancelled with this tool. Only call AFTER the parent has explicitly confirmed cancelling this specific lesson in the conversation. booking_id must come from get_upcoming_lessons.',
     input_schema: {
       type: 'object',
       properties: { booking_id: { type: 'string', description: 'The booking id to cancel' } },
@@ -391,7 +391,7 @@ export async function POST(req: NextRequest) {
       }
       if (!row.cancellable_online) {
         escalate = true
-        return { error: 'This lesson starts within 24 hours and cannot be cancelled online. The conversation has been flagged for a team member.' }
+        return { error: "This lesson starts within 24 hours, so this tool cannot cancel it. Tell the family they can cancel it themselves on their dashboard with the lesson's 'Cancel (within 24 hours)' button: it uses that child's monthly grace and gives a make-up voucher instead of points (if the grace is already used this month, it cannot be cancelled online). The conversation has also been flagged for a team member." }
       }
       // cancelLesson, not the half-cancel: a 60-minute lesson is two booking
       // rows, and cancelling one of them while saying "done" left a coach

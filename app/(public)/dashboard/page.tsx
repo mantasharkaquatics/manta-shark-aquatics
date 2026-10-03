@@ -357,11 +357,11 @@ function formatDate(d: string, loc = 'en-US'): string {
   return date.toLocaleDateString(loc, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+// Days from the SCHOOL's today. The phone's own date made a family abroad
+// (Taiwan) see tomorrow's lesson as "today" -- grace wording, or locked as
+// "cannot cancel online" -- for a lesson 32 hours away (found 2026-10-03).
 function getDaysUntil(d: string): number {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const date = new Date(d + 'T00:00:00')
-  return Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.round((Date.parse(d + 'T12:00:00Z') - Date.parse(getTodayLA() + 'T12:00:00Z')) / 86400000)
 }
 
 /* A row of cards that becomes a swipeable rail on a phone. The dots are the
@@ -1909,7 +1909,14 @@ export default function DashboardPage() {
           map[sid] = b
         }
       }
-      return [...result, ...Object.values(map)]
+      // Same order on every card: the rows arrive in booking order, so one
+      // sibling 1-on-2 listed NN first and the next one CC first.
+      const sortedGroups = Object.values(map).map(b => {
+        if (!b._group) return b
+        const g = [...b._group].sort((x, y) => (x.student_name || '').localeCompare(y.student_name || ''))
+        return { ...g[0], student_name: g.map(x => x.student_name).filter(Boolean).join(', '), _group: g }
+      })
+      return [...result, ...sortedGroups]
     }
     const nowMinutesLA = getNowMinutesLA()
     const isLessonPast = (b: Booking) => {
@@ -1926,14 +1933,26 @@ export default function DashboardPage() {
       const out: Booking[] = []
       for (const b of bookings) {
         if (!b.lesson_group_id) { out.push(b); continue }
-        ;(byGroup[b.lesson_group_id] ||= []).push(b)
+        // Per child: the past list is not merged per session, so a sibling
+        // 1-on-2 hour arrives as four rows, and keying on the group alone
+        // folded both children into the first one's card.
+        const k = b.lesson_group_id + '|' + (b._group ? 'both' : (b.student_id || ''))
+        ;(byGroup[k] ||= []).push(b)
       }
       for (const halves of Object.values(byGroup)) {
         if (halves.length === 1) { out.push(halves[0]); continue }
         const sorted = [...halves].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
         const first = sorted[0], last = sorted[sorted.length - 1]
         const coaches = [...new Set(sorted.map(h => h.coach_name).filter(Boolean))]
-        out.push({ ...first, end_time: last.end_time, coach_name: coaches.join(' → '), _hour: true })
+        // A sibling 1-on-2 hour arrives here already merged per half (one card
+        // per half holding both children), so each child's line has to span
+        // both halves too -- it showed the first half's 30 minutes only.
+        const lastG = last._group || [last]
+        const grp = first._group?.map(m => {
+          const twin = lastG.find(x => x.student_id === m.student_id)
+          return { ...m, end_time: twin?.end_time || last.end_time, coach_name: coaches.join(' → '), _hour: true }
+        })
+        out.push({ ...first, ...(grp ? { _group: grp } : {}), end_time: last.end_time, coach_name: coaches.join(' → '), _hour: true })
       }
       return out
     }
@@ -2244,6 +2263,14 @@ export default function DashboardPage() {
 
   function confirmReschedule() {
     if (!rescheduleTarget) return
+    // A 60-minute lesson shared with another family cannot be moved online:
+    // the two halves and two families have no path that moves them together
+    // (found 2026-10-03: the page offered no times at all). The desk does it.
+    if (rescheduleTarget.partnerBookingId && rescheduleTarget.groupId) {
+      setRescheduleTarget(null)
+      setNotice(t('err.rescheduleContact'))
+      return
+    }
     // Go to booking page with old booking ID; old lesson is cancelled only after new one confirms
     const partnerParam = rescheduleTarget.partnerBookingId ? `&reschedule_partner_booking_id=${rescheduleTarget.partnerBookingId}` : ''
     // A 60-minute lesson travels as a group: the booking page needs the group id
@@ -2426,7 +2453,13 @@ export default function DashboardPage() {
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.keepInvitation' : 'dash.cancelModal.keepLesson')}
               </button>
-              <button onClick={async () => { if (cancelTarget.type === 'reject') { await rejectPartnerBooking(cancelTarget.id) } else { await cancelBooking(cancelTarget.id) } setCancelTarget(null) }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+              {/* The modal closes at once and the row shows "..." while the
+                  cancel runs. It used to stay open, live, for the several
+                  seconds a 60-minute or sibling cancel takes -- a second tap
+                  sent a second cancel, which answered "Already cancelled" over
+                  the top of the one that had worked, and closing it at the end
+                  also closed whatever modal the parent had opened meanwhile. */}
+              <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : cancelTarget.kind === 'leave' ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
               </button>
             </div>
@@ -3046,10 +3079,13 @@ export default function DashboardPage() {
                             // by session, so the pair's points are the group's --
                             // quoting one seat's 47 for a 94-point refund would
                             // have undersold every cancellation.
-                            const refundPts = (m.course_slug === '1on2' && !booking._hour)
+                            // An hour is two halves charged alike: the refund is both
+                            // (the modal used to quote one half -- found 2026-10-03).
+                            const halves = booking._hour ? 2 : 1
+                            const refundPts = (m.course_slug === '1on2'
                               ? (booking._group || []).filter(x => x.course_slug === '1on2' && x.status !== 'cancelled')
                                   .reduce((a, x) => a + (x.points_charged ?? 0), 0)
-                              : (m.points_charged ?? 0)
+                              : (m.points_charged ?? 0)) * halves
                             return (
                               <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid #e3ebf6' : 'none' }}>
                                 <div style={{ minWidth: 0 }}>
@@ -3290,7 +3326,7 @@ export default function DashboardPage() {
                             const enabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== booking.id && booking.status !== 'pending_partner'
                             return enabled ? (
                               <button
-                                onClick={() => openCancel(booking, late, ck, booking.points_charged ?? 0)}
+                                onClick={() => openCancel(booking, late, ck, (booking.points_charged ?? 0) * (booking._hour ? 2 : 1))}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {cancellingId === booking.id ? '...' : cancelLabel(booking, late)}
                               </button>

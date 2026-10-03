@@ -107,10 +107,41 @@ export function isUpcoming(l: Lesson, today = getTodayLA(), nowMin = getNowMinut
 }
 
 export type ClassState = { last: string | null; next: string | null; left: number; total: number }
-export function classState(lessons: Lesson[] | undefined, today = getTodayLA(), nowMin = getNowMinutesLA()): ClassState {
+/**
+ * `termLast` is the class's last date counting lessons the family took leave
+ * from (termLastDates). Without it, leave on the final lesson made the term
+ * look a week shorter: the renewal started on the very date the family said
+ * they would be away, and the hold and the email came a week early (found
+ * 2026-10-03).
+ */
+export function classState(lessons: Lesson[] | undefined, today = getTodayLA(), nowMin = getNowMinutesLA(), termLast?: string | null): ClassState {
   const list = lessons || []
   const up = list.filter(l => isUpcoming(l, today, nowMin) && l.rows.some(r => r.status === 'confirmed'))
-  return { last: list.length ? list[list.length - 1].date : null, next: up[0]?.date ?? null, left: up.length, total: list.length }
+  const lastBooked = list.length ? list[list.length - 1].date : null
+  const last = termLast && (!lastBooked || termLast > lastBooked) ? termLast : lastBooked
+  return { last, next: up[0]?.date ?? null, left: up.length, total: list.length }
+}
+
+/** Each class's last lesson date, including lessons a parent cancelled (leave
+ *  or grace) -- not ones moved by a change of slot or cancelled by the school. */
+export async function termLastDates(svc: Svc, fcIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (fcIds.length === 0) return out
+  const { data: rows } = await svc.from('bookings')
+    .select('fixed_class_id, class_session_id, status, cancellation_reason')
+    .in('fixed_class_id', fcIds)
+    .or('status.in.(confirmed,completed),and(status.eq.cancelled,cancellation_reason.eq.cancelled_by_parent)')
+  const sids = [...new Set((rows || []).map((r: any) => r.class_session_id))]
+  const dateOf = new Map<string, string>()
+  for (let i = 0; i < sids.length; i += 150) {
+    const { data: ss } = await svc.from('class_sessions').select('id, session_date').in('id', sids.slice(i, i + 150))
+    for (const x of ss || []) dateOf.set(x.id, x.session_date)
+  }
+  for (const r of rows || []) {
+    const d = dateOf.get(r.class_session_id)
+    if (d && (!out.has(r.fixed_class_id) || d > out.get(r.fixed_class_id)!)) out.set(r.fixed_class_id, d)
+  }
+  return out
 }
 
 /** The hold is on until 14 days before the last lesson. */
@@ -140,14 +171,15 @@ export async function renewalHolds(svc: Svc, from: string, to: string, exceptPar
   if (error) { console.error('renewalHolds: fixed classes not read:', error.message); return [] }
   const list = ((fcs || []) as FixedClass[]).filter(f => f.parent_id !== exceptParentId)
   if (list.length === 0) return []
-  const [{ data: cts }, lessons] = await Promise.all([
+  const [{ data: cts }, lessons, ends] = await Promise.all([
     svc.from('course_types').select('id, slug'),
     lessonsOf(svc, list.map(f => f.id)),
+    termLastDates(svc, list.map(f => f.id)),
   ])
   const slugOf = new Map<string, string>((cts || []).map((c: any) => [c.id, c.slug]))
   const out: Hold[] = []
   for (const f of list) {
-    const { last } = classState(lessons.get(f.id), today)
+    const { last } = classState(lessons.get(f.id), today, undefined, ends.get(f.id))
     if (!holdLive(last, today)) continue
     const startMin = toMin(f.start_time)
     const whole = slugOf.get(f.course_type_id) !== '1on4'
@@ -337,10 +369,10 @@ export async function sendRenewalNotices(svc: Svc, send: (fc: FixedClass, last: 
   if (error) { console.error('renewal notices: fixed classes not read:', error.message); return { sent: 0, failed: -1 } }
   const list = (data || []) as FixedClass[]
   if (list.length === 0) return { sent: 0, failed: 0 }
-  const lessons = await lessonsOf(svc, list.map(f => f.id))
+  const [lessons, ends] = await Promise.all([lessonsOf(svc, list.map(f => f.id)), termLastDates(svc, list.map(f => f.id))])
   let sent = 0, failed = 0
   for (const f of list) {
-    const st = classState(lessons.get(f.id), today)
+    const st = classState(lessons.get(f.id), today, undefined, ends.get(f.id))
     if (!st.last || st.left === 0 || !renewOpen(st.last, today)) continue
     const { data: claimed } = await svc.from('fixed_classes')
       .update({ renewal_notified_at: new Date().toISOString() }).eq('id', f.id).is('renewal_notified_at', null).select('id')

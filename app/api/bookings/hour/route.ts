@@ -1,3 +1,4 @@
+import { activePartnershipId } from '@/lib/partnerships'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { requireParent } from '@/lib/api-auth'
@@ -122,6 +123,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Partner student not found' }, { status: 400 })
     if (ps.current_level == null)
       return NextResponse.json({ error: 'The partner student must complete a Swim Assessment before booking lessons.' }, { status: 400 })
+    // Only between linked families (found 2026-10-03).
+    const pid = await activePartnershipId(svc, parent.id, partner.parent_id)
+    if (!pid) return NextResponse.json({ error: 'Partnership not found' }, { status: 403 })
+    partner.partnership_id = pid
     partnerStudent = ps
   }
   const students: any[] = student2 ? [student, student2] : [student]
@@ -133,6 +138,12 @@ export async function POST(req: NextRequest) {
   // A make-up hour, paid with a voucher: it may be booked up to the voucher's
   // date. Anything else booked here is a single lesson (and so is the date a
   // reschedule moves one to), inside the 14-day window.
+  // Only a booking (or the list of times for one) uses a voucher. A
+  // reschedule naming one used to skip the 14-day limit and move an ordinary
+  // hour as far out as the voucher's expiry, the voucher never claimed
+  // (found 2026-10-03).
+  if (action === 'reschedule' && body.voucher_id)
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   let hourVoucher: Voucher | null = typeof body.voucher_id === 'string' && body.voucher_id
     ? await usableVoucher(svc, body.voucher_id, parent.id, today) : null
   if (typeof body.voucher_id === 'string' && body.voucher_id && !hourVoucher)
@@ -331,7 +342,8 @@ export async function POST(req: NextRequest) {
       try {
         const paid = await applyPoints(svc, {
           parentId: parent.id, reason: 'booking', points: -price.charged,
-          pricing: price, actor: 'parent',
+          pricing: { ...price, kind: 'single', date: session_date, startTime: start_time, students: students.map((s: any) => s.id) },
+          actor: 'parent',
         })
         pointsTaken = price.charged
         grantedTaken = paid.grantedTaken

@@ -4,6 +4,7 @@ import Stripe from 'stripe'
 import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { formatTime12h } from '@/lib/date'
+import { assessmentSlotError } from '@/lib/assessment-slot'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -64,6 +65,11 @@ export async function POST(req: NextRequest) {
       .limit(1)
     if (existingTrial && existingTrial.length > 0) {
       return NextResponse.json({ error: 'A trial lesson is already booked or awaiting payment for this student' }, { status: 400 })
+    }
+    // A parent's own booking keeps the booking rules; the desk may override.
+    if (isParentFlow) {
+      const why = await assessmentSlotError(svc, { coachId, date, time, studentId, minutes: 30 })
+      if (why) return NextResponse.json({ error: why }, { status: 400 })
     }
 
     const { data: parent } = await svc
@@ -133,7 +139,8 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (sessErr || !newSess) {
-        return NextResponse.json({ error: 'Failed to create session: ' + (sessErr?.message || 'unknown error') }, { status: 500 })
+        console.error('trial-checkout session insert failed:', sessErr?.message)
+        return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
       }
       sessId = newSess.id
     }
@@ -159,7 +166,9 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (bookErr || !booking) {
-      return NextResponse.json({ error: 'Failed to create booking: ' + (bookErr?.message || 'unknown error') }, { status: 500 })
+      console.error('trial-checkout booking insert failed:', bookErr?.message)
+      return NextResponse.json({ error: (bookErr?.message || '').includes('STUDENT_DOUBLE_BOOKED')
+        ? 'This swimmer already has a lesson at this time. Please pick another time.' : 'Failed to create booking' }, { status: 500 })
     }
 
     const checkoutSession = await stripe.checkout.sessions.create({
@@ -210,6 +219,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: checkoutSession.url })
   } catch (err: any) {
     console.error('Trial checkout error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: 'Booking failed. Please try again.' }, { status: 500 })
   }
 }

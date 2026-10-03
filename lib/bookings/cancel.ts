@@ -144,8 +144,27 @@ export async function cancelLesson(
   options: { skipEmail?: boolean } = {},
 ): Promise<CancelResult & { remainingBookingIds?: string[] }> {
   const { data: self } = await svc
-    .from('bookings').select('lesson_group_id').eq('id', bookingId).single()
+    .from('bookings').select('lesson_group_id, parent_id').eq('id', bookingId).single()
   const groupId: string | null = self?.lesson_group_id || null
+
+  // A 60-minute lesson is judged by when it STARTS. The half named decides
+  // the outcome and the other follows it, so naming the second half (the AI's
+  // list shows both, an API call can name either) judged the 24-hour line
+  // from thirty minutes later -- a refund for a lesson starting in under 24
+  // hours (found 2026-10-03). Start from this family's earliest live half.
+  if (groupId) {
+    const { data: halves } = await svc.from('bookings')
+      .select('id, parent_id, status, class_session_id')
+      .eq('lesson_group_id', groupId).not('status', 'in', '("cancelled")')
+    const mine = (halves || []).filter((h: any) => h.parent_id === self?.parent_id)
+    if (mine.length > 1) {
+      const { data: ss } = await svc.from('class_sessions').select('id, session_date, start_time')
+        .in('id', mine.map((h: any) => h.class_session_id))
+      const at = new Map((ss || []).map((x: any) => [x.id, `${x.session_date} ${String(x.start_time).slice(0, 5)}`]))
+      const first = [...mine].sort((a: any, b: any) => String(at.get(a.class_session_id)).localeCompare(String(at.get(b.class_session_id))))[0]
+      if (first?.id) bookingId = first.id
+    }
+  }
 
   const result = await cancelBookingWithPartner(svc, bookingId, callerParentId, {
     skipEmail: options.skipEmail || !!groupId,
@@ -154,6 +173,7 @@ export async function cancelLesson(
 
   const cancelled = [...(result.cancelledBookingIds || [])]
   const targets: CancelTarget[] = [...(result.emailTargets || [])]
+  let pointsBack = result.pointsRefunded ?? 0
   // The other half follows the first: same refund, no second voucher or grace.
   const settled = result.outcome
 
@@ -171,6 +191,7 @@ export async function cancelLesson(
     if (r.ok) {
       cancelled.push(...(r.cancelledBookingIds || [sib.id]))
       targets.push(...(r.emailTargets || []))
+      pointsBack += r.pointsRefunded ?? 0
     }
     // A 403 here is expected and harmless: rows belonging to the other family
     // are not ours to cancel directly, and the cross-account sweep inside their
@@ -197,7 +218,7 @@ export async function cancelLesson(
   // One email per family, spanning the full hour.
   if (!options.skipEmail) await notifyCancellation(svc, { bookingIds: cancelled, targets })
 
-  return { ...result, ok: true, status: 200, cancelledBookingIds: cancelled, emailTargets: targets }
+  return { ...result, ok: true, status: 200, cancelledBookingIds: cancelled, emailTargets: targets, pointsRefunded: pointsBack }
 }
 
 // Cancels one booking plus any same-account and cross-account partner bookings
@@ -306,7 +327,7 @@ export async function cancelBookingWithPartner(
   // What actually went back, not what was due: the email below promises the
   // family their points, and it must not promise them on the strength of a
   // refund that failed.
-  const refunded = refundPoints
+  let refunded = refundPoints
     ? await refundBookingPoints(svc, {
         booking,
         parentId: booking.parent_id,
@@ -349,8 +370,10 @@ export async function cancelBookingWithPartner(
     cancelledBookingIds.push(pb.id)
     // The sibling seat of the same 1-on-2, paid in the same debit. It follows
     // the primary: refunded when the primary was, kept when it was not.
+    // Counted into what this family got back: the AI assistant quotes it, and a
+    // sibling 1-on-2 answered with half the refund (found 2026-10-03).
     if (refundPoints) {
-      await refundBookingPoints(svc, {
+      refunded += await refundBookingPoints(svc, {
         booking: pb,
         parentId: booking.parent_id,
         reason: 'cancel_refund',

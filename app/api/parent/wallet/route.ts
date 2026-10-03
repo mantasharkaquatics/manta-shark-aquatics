@@ -69,12 +69,38 @@ export async function GET(req: NextRequest) {
         lessonOfBooking.set(b.id, { student: nm.get(b.student_id) ?? null, date: se.session_date, time: String(se.start_time || '').slice(0, 5) || null })
       }
     }
+    // A single, hour or cart booking is debited before its booking row exists,
+    // so the debit names its lesson and swimmers in its pricing instead
+    // (rows written before 2026-10-03 have neither, and stay anonymous).
+    const pricedKids = new Set<string>()
+    for (const r of rows || []) {
+      const pr: any = r.pricing
+      if (pr?.kind === 'single' && Array.isArray(pr.students)) pr.students.forEach((s: any) => s && pricedKids.add(String(s)))
+      if (pr?.kind === 'cart' && Array.isArray(pr.items)) pr.items.forEach((it: any) => it?.student && pricedKids.add(String(it.student)))
+    }
+    const kidName = new Map<string, string>()
+    if (pricedKids.size) {
+      const { data: ks } = await ctx.svc.from('students').select('id, full_name')
+        .eq('parent_id', ctx.parent.id).in('id', [...pricedKids])
+      for (const k of ks || []) kidName.set(k.id, k.full_name)
+    }
+    const namesOf = (ids: any[]) => {
+      const n = [...new Set(ids.map(i => kidName.get(String(i))).filter(Boolean))]
+      return n.length ? n.join(' & ') : null
+    }
     const lessonOf = (r: any) => {
       if (r.booking_id && lessonOfBooking.has(r.booking_id)) {
         const l = lessonOfBooking.get(r.booking_id)!
         return { student: l.student, date: l.date, time: l.time, count: 1 }
       }
       const pr = r.pricing
+      if (pr?.kind === 'single' && pr.date) {
+        return { student: namesOf(Array.isArray(pr.students) ? pr.students : []), date: String(pr.date), time: pr.startTime ? String(pr.startTime).slice(0, 5) : null, count: 1 }
+      }
+      if (pr?.kind === 'cart' && Array.isArray(pr.items) && pr.items.length) {
+        const it = [...pr.items].sort((a: any, b: any) => String(a.date + a.time).localeCompare(String(b.date + b.time)))
+        return { student: namesOf(it.map((x: any) => x.student).filter(Boolean)), date: String(it[0].date), time: it.length === 1 ? String(it[0].time).slice(0, 5) : null, count: it.length }
+      }
       if (pr?.kind === 'weekly_term' && Array.isArray(pr.dates) && pr.dates.length) {
         const ds = pr.dates.map((d: any) => String(d.date)).sort()
         return { student: null, date: ds[0], time: pr.startTime ? String(pr.startTime).slice(0, 5) : null, count: ds.length }
@@ -148,11 +174,27 @@ export async function GET(req: NextRequest) {
        how many points were not returned. Admin cancel-booking with refund:false
        is the only writer of cancelled_by 'admin' + reason 'cancelled_by_parent'. */
     const { data: lateRows } = await ctx.svc.from('bookings')
-      .select('id, student_id, class_session_id, cancelled_at, points_charged, points_refunded')
+      .select('id, student_id, class_session_id, cancelled_at, points_charged, points_refunded, lesson_group_id')
       .eq('parent_id', ctx.parent.id).eq('status', 'cancelled')
       .eq('cancelled_by', 'admin').eq('cancellation_reason', 'cancelled_by_parent')
       .order('cancelled_at', { ascending: false }).limit(limit)
-    const kept = (lateRows || []).filter((b: any) => (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0) > 0)
+    // The desk's "make-up voucher" cancel and "end fixed class -> vouchers"
+    // write the same admin + cancelled_by_parent pair, but the family got a
+    // voucher for those -- they are not late cancellations kept without
+    // refund (found 2026-10-03).
+    let converted = new Set<string>()
+    if ((lateRows || []).length) {
+      const { data: vs } = await ctx.svc.from('make_up_vouchers').select('source_booking_id')
+        .in('source_booking_id', (lateRows || []).map((b: any) => b.id))
+      converted = new Set((vs || []).map((v: any) => v.source_booking_id))
+    }
+    // An hour's voucher names one half; the other half went with it.
+    const convertedGroups = new Set((lateRows || []).filter((b: any) => converted.has(b.id) && b.lesson_group_id).map((b: any) => b.lesson_group_id))
+    // A sibling 1-on-2's voucher names one seat; the other seat shares the session.
+    const convertedSessions = new Set((lateRows || []).filter((b: any) => converted.has(b.id)).map((b: any) => b.class_session_id))
+    const kept = (lateRows || []).filter((b: any) => !converted.has(b.id) && !(b.lesson_group_id && convertedGroups.has(b.lesson_group_id))
+      && !convertedSessions.has(b.class_session_id)
+      && (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0) > 0)
     let lateLines: any[] = []
     if (kept.length) {
       const sIds = [...new Set(kept.map((b: any) => b.student_id).filter(Boolean))]

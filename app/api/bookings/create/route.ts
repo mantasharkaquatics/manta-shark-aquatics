@@ -8,6 +8,7 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
+import { activePartnershipId } from '@/lib/partnerships'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -141,7 +142,13 @@ export async function POST(req: NextRequest) {
   if (groupBand && (student.current_level < groupBand.min || student.current_level > groupBand.max))
     return NextResponse.json({ error: `This group time is for Level ${groupBand.min}–${groupBand.max} students. ${student.full_name} is Level ${student.current_level} — please pick a group time for that level.` }, { status: 409 })
   let student2: any = null
+  // A second swimmer belongs only in a 1-on-2. A 1-on-1 used to take one
+  // (two rows in a one-seat session, charged twice) -- found 2026-10-03.
+  if (student2_id && course.slug !== '1on2')
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   if (student2_id) {
+    if (student2_id === student.id)
+      return NextResponse.json({ error: 'Please pick two different swimmers.' }, { status: 400 })
     const { data: s2 } = await svc
       .from('students').select('id, parent_id, current_level, full_name').eq('id', student2_id).single()
     if (!s2 || s2.parent_id !== parent.id)
@@ -175,7 +182,7 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       // points_refunded comes along because the refund below subtracts it:
       // without it a lesson refunded in part would be refunded again in full.
-      .select('id, parent_id, status, points_charged, points_refunded, points_granted, points_granted_expires_at, class_session_id, original_booking_id, partner_booking_id, lesson_group_id, fixed_class_id, voucher_id')
+      .select('id, parent_id, student_id, status, points_charged, points_refunded, points_granted, points_granted_expires_at, class_session_id, original_booking_id, partner_booking_id, lesson_group_id, fixed_class_id, voucher_id')
       .eq('id', reschedule_booking_id).single()
     if (!ob || ob.parent_id !== parent.id)
       return NextResponse.json({ error: 'Booking to reschedule not found' }, { status: 403 })
@@ -237,8 +244,47 @@ export async function POST(req: NextRequest) {
       }
     } else {
       oldLessonRows = [ob]
+      // Two of this family's swimmers in the old lesson move together; an
+      // invitation moves one, which would strand the other on the old time.
+      if (isPartnerBooking) {
+        const { data: own } = await svc.from('bookings').select('id')
+          .eq('parent_id', parent.id).eq('class_session_id', ob.class_session_id).eq('status', 'confirmed')
+        if ((own || []).length > 1)
+          return NextResponse.json({ error: 'This lesson has two swimmers, so both have to move together. Please reschedule from your dashboard.' }, { status: 400 })
+      }
     }
+    // The lesson moves; the swimmer does not change. The page falls back to
+    // the first child when the link names one it cannot find, and this route
+    // never checked, so the lesson could land on another child.
+    const movingKids = new Set(oldLessonRows.map((r: any) => r.student_id).filter(Boolean))
+    if (!movingKids.has(student.id) || (student2 && !movingKids.has(student2.id)))
+      return NextResponse.json({ error: 'This lesson cannot be moved online. Please contact us and we will move it for you.' }, { status: 409 })
     oldBooking = ob
+  }
+
+  // A 1-on-2 is two swimmers: two of yours, or yours and an invited family's.
+  // One swimmer alone used to be sold one 50-point seat of a lesson that is
+  // in effect private (65) -- found 2026-10-03.
+  // (A move keeps what the lesson has: a 1-on-2 left with one swimmer after
+  // the desk refunded the other seat still moves as one seat.)
+  if (course.slug === '1on2' && !student2 && !isPartnerBooking && !oldBooking)
+    return NextResponse.json({ error: 'A 1-on-2 lesson needs a second swimmer.' }, { status: 400 })
+  // The second swimmer is held to the same group level band as the first.
+  if (groupBand && student2 && (student2.current_level < groupBand.min || student2.current_level > groupBand.max))
+    return NextResponse.json({ error: `This group time is for Level ${groupBand.min}–${groupBand.max} students. ${student2.full_name} is Level ${student2.current_level} — please pick a group time for that level.` }, { status: 409 })
+  // Room for every seat this booking takes. The check above only asked
+  // whether one more fitted, so two siblings could fill a 3/4 class to 5/4.
+  {
+    const seatsNeeded = (student2 || isPartnerBooking) ? 2 : 1
+    const { data: here } = await svc.from('class_sessions').select('enrolled_count, max_students').eq('id', sessionId).single()
+    if (here && (here.enrolled_count ?? 0) + seatsNeeded > here.max_students)
+      return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
+  }
+  // An invitation needs a live link between the two families.
+  if (isPartnerBooking) {
+    const pid = await activePartnershipId(svc, parent.id, partner?.parent_id)
+    if (!pid) return NextResponse.json({ error: 'Partnership not found' }, { status: 403 })
+    partner.partnership_id = pid
   }
 
   // ---- PRICE AND SETTLE (points) --------------------------------------
@@ -293,6 +339,30 @@ export async function POST(req: NextRequest) {
 
   const rootOriginalId = oldBooking ? (oldBooking.original_booking_id || oldBooking.id) : null
 
+  // A reschedule claims the old lesson FIRST: a conditional flip from
+  // confirmed, so two requests sent at once cannot both move it and leave two
+  // lessons for one payment (found 2026-10-03). Anything that fails below
+  // puts it back.
+  const claimedOldIds: string[] = []
+  const restoreOld = async () => {
+    if (claimedOldIds.length === 0) return
+    await svc.from('bookings')
+      .update({ status: 'confirmed', cancellation_reason: null, pending_new_session_id: null })
+      .in('id', claimedOldIds).eq('status', 'cancelled')
+    claimedOldIds.length = 0
+  }
+  if (oldBooking) {
+    const oldIds = oldLessonRows.length > 0 ? oldLessonRows.map((r: any) => r.id) : [oldBooking.id]
+    const { data: got } = await svc.from('bookings')
+      .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
+      .in('id', oldIds).eq('status', 'confirmed').select('id')
+    claimedOldIds.push(...(got || []).map((r: any) => r.id))
+    if (claimedOldIds.length !== oldIds.length) {
+      await restoreOld()
+      return NextResponse.json({ error: 'Only confirmed bookings can be rescheduled' }, { status: 409 })
+    }
+  }
+
   // Settle BEFORE the row exists, so a request that cannot pay is turned away
   // with nothing to undo rather than leaving a booking nobody paid for. A
   // cross-account 1-on-2 settles when the other family confirms, not here.
@@ -325,7 +395,9 @@ export async function POST(req: NextRequest) {
         parentId: parent.id,
         reason: 'booking',
         points: -price.charged,
-        pricing: price,
+        // The lesson rides along so the statement can say which one this was
+        // (the booking row does not exist yet, so booking_id cannot).
+        pricing: { ...price, kind: 'single', date: session_date, startTime: start_time, students: [student.id, ...(student2 ? [student2.id] : [])] },
         actor: 'parent',
       })
       chargedTotal = price.charged
@@ -333,6 +405,7 @@ export async function POST(req: NextRequest) {
       grantedExpires = paid.grantedExpiresAt
       seatGranted = splitGranted(paid.grantedTaken, Array(seatCount).fill(price.perSeat))
     } catch (e: any) {
+      await restoreOld()
       if (e instanceof WalletInArrears)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
       if (e instanceof InsufficientPoints) {
@@ -366,6 +439,7 @@ export async function POST(req: NextRequest) {
     .select('id').single()
   if (bookErr || !newBooking) {
     await refundSpent('booking insert failed')
+    await restoreOld()
     const m = bookErr?.message || ''
     const msg = m.includes('STUDENT_DOUBLE_BOOKED')
       ? 'This swimmer already has a lesson at this time. Please pick another time.'
@@ -397,6 +471,7 @@ export async function POST(req: NextRequest) {
       await svc.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' })
         .eq('id', newBooking.id)
+      await restoreOld()
 
       const who = student2.full_name || 'The second swimmer'
       const msg2 = (s2Err.message || '').includes('STUDENT_DOUBLE_BOOKED')
@@ -416,10 +491,12 @@ export async function POST(req: NextRequest) {
       .from('students').select('id, parent_id, full_name, current_level').eq('id', partner.student_id).single()
     if (!pStudent || pStudent.parent_id !== partner.parent_id) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_invalid' }).eq('id', newBooking.id)
+      await restoreOld()
       return NextResponse.json({ error: 'Partner student not found' }, { status: 400 })
     }
     if (pStudent.current_level == null) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_needs_assessment' }).eq('id', newBooking.id)
+      await restoreOld()
       return NextResponse.json({ error: 'The partner student must complete a Swim Assessment before booking lessons.' }, { status: 400 })
     }
     const expiry = new Date(Date.now() + 15 * 60 * 1000).toISOString()
@@ -438,10 +515,14 @@ export async function POST(req: NextRequest) {
     }).select('id').single()
     if (guestErr || !guest) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_invalid' }).eq('id', newBooking.id)
+      await restoreOld()
       return NextResponse.json({ error: 'Could not create partner invitation. Please try again.' }, { status: 500 })
     }
     partnerBookingId = guest.id
-    await svc.from('bookings').update({ pending_expires_at: expiry }).eq('id', newBooking.id)
+    // Both rows point at each other, as the hour route does. Without the
+    // inviter's link, the inviter could move or late-cancel the shared lesson
+    // as if it were theirs alone (found 2026-10-03).
+    await svc.from('bookings').update({ pending_expires_at: expiry, partner_booking_id: guest.id }).eq('id', newBooking.id)
     try {
       const { data: pp } = await svc.from('parents').select('first_name, email').eq('id', partner.parent_id).single()
       if (pp) {
@@ -462,12 +543,7 @@ export async function POST(req: NextRequest) {
 
   // Finalize reschedule: cancel old booking
   if (oldBooking) {
-    // All of them. Cancelling only the row that was named left the second
-    // swimmer of a 1-on-2 confirmed on a session their partner had left.
-    const oldIds = oldLessonRows.length > 0 ? oldLessonRows.map((r: any) => r.id) : [oldBooking.id]
-    await svc.from('bookings')
-      .update({ status: 'cancelled', cancellation_reason: 'rescheduled', pending_new_session_id: sessionId })
-      .in('id', oldIds)
+    // The old rows were claimed (cancelled) before anything was inserted.
     // Rescheduling into a cross-account 1-on-2 makes a fresh invitation that
     // settles when the other family confirms, so the old lesson's points come
     // back now rather than riding along. Every row that was just cancelled,

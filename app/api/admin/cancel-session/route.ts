@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   if ((attended || []).length > 0)
     return NextResponse.json({ error: 'This swimmer has already checked in, so the lesson counts as delivered and cannot be cancelled. To compensate the family, issue a token from the Members page.' }, { status: 409 })
 
-  const notified: { parent_id: string; student_id: string; kind: 'points' | 'none' }[] = []
+  const notified: { parent_id: string; student_id: string; kind: 'points' | 'voucher' | 'none' }[] = []
 
   for (const b of allBookings) {
     if (b.status === 'confirmed') {
@@ -90,8 +90,8 @@ export async function POST(req: NextRequest) {
         actor: 'admin', note: 'Lesson cancelled by the school',
       })
       // A make-up lesson cost a voucher, not points: that comes back instead.
-      await giveBackVouchers(svc, [b.id])
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: refunded > 0 ? 'points' : 'none' })
+      const back = await giveBackVouchers(svc, [b.id])
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
     } else {
       // pending_partner etc.: no credits were deducted, cancel without refund
       const { data: c } = await svc
@@ -148,7 +148,9 @@ export async function POST(req: NextRequest) {
         const ks = kindsByParent.get(t.parent_id)
         // One currency now, so there is nothing to mix: either points came
         // back or nothing did.
-        const refundKind = !ks || ks.size === 0 ? 'none' as const : 'points' as const
+        // A make-up's voucher comes back rather than points (found 2026-10-03:
+        // the email said nothing was returned).
+        const refundKind = !ks || ks.size === 0 ? 'none' as const : ks.has('points') ? 'points' as const : 'voucher' as const
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
         const { data: s } = await svc.from('students').select('full_name').eq('id', t.student_id).single()
         if (p?.email) {
