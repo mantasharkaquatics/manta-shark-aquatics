@@ -293,6 +293,8 @@ interface Booking {
 type MakeUpVoucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string; usableFrom?: string | null; fromDate?: string | null; fromTime?: string | null }
 /** Why a family holds a voucher, in their words. An unknown reason shows nothing rather than a code. */
 const VOUCHER_REASONS = new Set(['leave', 'grace', 'admin', 'end_of_term', 'moved'])
+/** Whose voucher: one child, or the two of a sibling 1-on-2 (the same key either way round). */
+const voucherOwnerKey = (v: MakeUpVoucher) => [v.studentId, v.student2Id].filter(Boolean).sort().join('+')
 
 function getAge(dob: string): number {
   const birth = new Date(dob)
@@ -1440,6 +1442,9 @@ export default function DashboardPage() {
   const [vouchers, setVouchers] = useState<MakeUpVoucher[]>([])
   const [graceUsed, setGraceUsed] = useState<Set<string>>(new Set())
   const [voucherSheet, setVoucherSheet] = useState(false)
+  /* Which child's vouchers the sheet shows -- null for all of them. Each child
+     gets their own card under 我的方案 (owner, 2026-10-03). */
+  const [voucherKey, setVoucherKey] = useState<string | null>(null)
   const loadVouchers = useCallback(async () => {
     try {
       const r = await fetch('/api/parent/vouchers')
@@ -1466,6 +1471,16 @@ export default function DashboardPage() {
   const voucherKind = (slug?: string | null, minutes?: number) =>
     t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : ''))
   const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  // The vouchers by whose they are, in the order the children's cards are in;
+  // each group keeps the API's earliest-expiry-first order.
+  const voucherGroups = (() => {
+    const by = new Map<string, MakeUpVoucher[]>()
+    for (const v of vouchers) { const k = voucherOwnerKey(v); by.set(k, [...(by.get(k) || []), v]) }
+    const rank = (id: string) => { const i = students.findIndex(s => s.id === id); return i < 0 ? 999 : i }
+    return [...by.entries()]
+      .map(([key, list]) => ({ key, list, names: list[0].studentNames }))
+      .sort((a, b) => rank(a.list[0].studentId) - rank(b.list[0].studentId) || a.key.localeCompare(b.key))
+  })()
   const plus28 = (d: string) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 28); return x.toISOString().slice(0, 10) }
   // A window that opened in the past is shown from today.
   const laterOf = (a: string, b: string) => (a > b ? a : b)
@@ -2323,17 +2338,20 @@ export default function DashboardPage() {
       )}
 
       {/* Make-up vouchers */}
-      {voucherSheet && (
-        <div onClick={() => setVoucherSheet(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+      {voucherSheet && (() => {
+        const shown = voucherKey ? vouchers.filter(v => voucherOwnerKey(v) === voucherKey) : vouchers
+        const closeSheet = () => { setVoucherSheet(false); setVoucherKey(null) }
+        return (
+        <div onClick={closeSheet} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} role="dialog" aria-label={t('voucher.sheetTitle')} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '28px', maxWidth: '420px', width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{t('voucher.sheetTitle')}</div>
-              <button onClick={() => setVoucherSheet(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#56647d', cursor: 'pointer' }}>×</button>
+              <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{t('voucher.sheetTitle')}{voucherKey && shown[0] ? ' · ' + shown[0].studentNames.join(' & ') : ''}</div>
+              <button onClick={closeSheet} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#56647d', cursor: 'pointer' }}>×</button>
             </div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, margin: '0 0 16px' }}>{t('voucher.sheetHint')}</p>
-            {vouchers.length === 0 && <p style={{ fontSize: '14px', color: '#56647d' }}>{t('voucher.none')}</p>}
+            {shown.length === 0 && <p style={{ fontSize: '14px', color: '#56647d' }}>{t('voucher.none')}</p>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {vouchers.map(v => (
+              {shown.map(v => (
                 <div key={v.id} style={{ border: '1px solid #e3ebf6', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{v.studentNames.join(' & ')} · {voucherKind(v.courseSlug, v.minutes)}</div>
@@ -2355,7 +2373,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Cancel Confirm Modal */}
       {cancelTarget && (
@@ -2570,7 +2589,7 @@ export default function DashboardPage() {
           {(fixedClasses.length > 0 || vouchers.length > 0) && (
             <>
               <h2 className="msa-sec-h msa-plans-h">{t('dash.plans.title')}</h2>
-              <Rail variant="plans" count={fixedClasses.length + (vouchers.length > 0 ? 1 : 0)}>
+              <Rail variant="plans" count={fixedClasses.length + voucherGroups.length}>
                 {fixedClasses.map(f => (
                   <div key={f.id} className="msa-plan">
                     <span className="msa-plan-tag">📌 {t('dash.tag.fixed')} · {f.studentNames.join(' & ')}</span>
@@ -2587,16 +2606,18 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 ))}
-                {vouchers.length > 0 && (
-                  <div className="msa-plan">
-                    <span className="msa-plan-tag">🎟 {t('voucher.sheetTitle')}</span>
-                    <span className="msa-plan-main">{t(vouchers.length === 1 ? 'dash.plan.voucher' : 'dash.plan.vouchers', { n: vouchers.length })}</span>
-                    <span>{t('dash.plan.firstExpires', { date: shortDate(vouchers[0].expiresOn) })}</span>
+                {/* One card per child (a sibling 1-on-2's vouchers share one card
+                    named for both), beside that child's fixed classes. */}
+                {voucherGroups.map(g => (
+                  <div key={g.key} className="msa-plan">
+                    <span className="msa-plan-tag">🎟 {t('voucher.sheetTitle')} · {g.names.join(' & ')}</span>
+                    <span className="msa-plan-main">{t(g.list.length === 1 ? 'dash.plan.voucher' : 'dash.plan.vouchers', { n: g.list.length })}</span>
+                    <span>{t('dash.plan.firstExpires', { date: shortDate(g.list[0].expiresOn) })}</span>
                     <span className="msa-plan-btn">
-                      <button className="tap-auto" onClick={() => setVoucherSheet(true)}>{t('voucher.lineLink')} ›</button>
+                      <button className="tap-auto" onClick={() => { setVoucherKey(g.key); setVoucherSheet(true) }}>{t('voucher.lineLink')} ›</button>
                     </span>
                   </div>
-                )}
+                ))}
               </Rail>
             </>
           )}
