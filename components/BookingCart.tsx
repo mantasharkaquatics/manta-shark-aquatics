@@ -50,6 +50,9 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
   const [open, setOpen] = useState(false)
   const [cart, setCart] = useState<CartState | null>(null)
   const [busy, setBusy] = useState(false)
+  // What the busy request is: removing a line must not make the checkout
+  // button read 預約中… (found 2026-10-03).
+  const [busyKind, setBusyKind] = useState<'remove' | 'commit' | null>(null)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const [remainMs, setRemainMs] = useState<number | null>(null)
@@ -100,6 +103,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
 
   async function act(body: any) {
     setBusy(true)
+    setBusyKind(body?.action === 'remove' ? 'remove' : 'commit')
     setError('')
     try {
       const res = await fetch('/api/bookings/cart', {
@@ -120,6 +124,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
       return null
     } finally {
       setBusy(false)
+      setBusyKind(null)
     }
   }
 
@@ -227,7 +232,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                   <div>
                     <div style={{ color: '#16294a', fontSize: '14px', fontWeight: 600 }}>{it.student_name}</div>
                     <div style={{ color: '#56647d', fontSize: '12px', marginTop: '4px' }}>
-                      {it.course_type_id ? tDb(locale, 'course_types', it.course_type_id, it.course_name) : it.course_name} · {t('cart.coach', { name: it.coach_name })}
+                      {it.course_type_id ? tDb(locale, 'course_types', it.course_type_id, it.course_name) : it.course_name} · {t('cart.coach', { name: (it.coach_name || '').split(' ')[0] })}
                     </div>
                     <div style={{ color: GOLD, fontSize: '12px', marginTop: '4px', fontWeight: 600 }}>
                       {it.session_date} · {fmt12h(it.start_time)} – {fmt12h(it.end_time)}
@@ -271,7 +276,7 @@ export default function BookingCart({ refreshSignal, onCommitted }: { refreshSig
                     fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase',
                     cursor: busy || !cart.quote.sufficient ? 'not-allowed' : 'pointer', marginTop: '4px',
                   }}
-                >{busy ? t('cart.booking') : cart.quote.sufficient ? t('cart.confirmAll', { n: count }) + ' ✓' : t('cart.notEnough')}</button>
+                >{busy && busyKind === 'commit' ? t('cart.booking') : cart.quote.sufficient ? t('cart.confirmAll', { n: count }) + ' ✓' : t('cart.notEnough')}</button>
               </>
             )}
           </div>

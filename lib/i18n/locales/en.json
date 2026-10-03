@@ -311,6 +311,7 @@
   "booking.recur.clearAll": "Clear all",
   "booking.recur.cta": "Fixed class · {weekday}s {time} (10+ lessons) →",
   "booking.recur.err.commit": "Could not complete the weekly booking.",
+  "booking.recur.err.noneBooked": "Those times were just taken by someone else, so nothing was booked and nothing was charged. Please pick another time.",
   "booking.recur.err.preview": "Could not load the weekly schedule.",
   "booking.recur.everyWeekday": "Every {weekday} · {time}",
   "booking.recur.gridHint": "A fixed class is the same day, time and coach every week, at least {n} lessons. Ten are ticked to start with; tick more if you like. Nothing is charged until you confirm.",
@@ -1613,7 +1614,7 @@
   "dash.cancelModal.bodyLeave": "The points for this lesson are not refunded. Instead you get a {kind} make-up voucher, to use by {date}.",
   "dash.cancelModal.bodyLeaveWindow": "The points for this lesson aren't refunded; it becomes a {kind} make-up voucher for a make-up between {from} and {date} (14 days either side of this lesson). You can book the make-up now.",
   "dash.cancelModal.bodyGrace": "This lesson starts within 24 hours. Cancelling now uses {name}'s grace for this month (one a month). The points are not refunded; you get a {kind} make-up voucher instead, to use by {date}.",
-  "dash.cancelModal.bodyMakeupBack": "This is a make-up. Cancel now and the voucher comes back with its dates unchanged — if fewer than 7 days are left, it's extended to 7 days from today (once per voucher).",
+  "dash.cancelModal.bodyMakeupBack": "This is a make-up. Cancel now and the voucher comes back with the same use-by dates — if fewer than 7 days are left, it's extended to 7 days from today (once per voucher).",
   "dash.cancelModal.bodyMakeupLose": "This make-up lesson starts within 24 hours. If you cancel now, the voucher is used up and does not come back.",
   "dash.cancelDone.voucher": "A make-up voucher has been added to your account — use it by {date}.",
   "dash.cancelDone.voucherBack": "The make-up voucher is back in your account.",
@@ -1622,7 +1623,7 @@
   "booking.makeUp.payLabel": "Paid with",
   "booking.makeUp.pay": "Make-up voucher · no points",
   "booking.makeUp.outside": "Outside voucher dates",
-  "booking.voucherAuto.use": "Use my make-up vouchers ({n})",
+  "booking.voucherAuto.use": "Pay with make-up vouchers ({n} lesson(s) qualify)",
   "booking.voucherAuto.on": "{n} lesson(s) paid with a voucher — no points taken. The voucher closest to expiring is used first.",
   "booking.voucherAuto.off": "You pay with points this time; your vouchers stay for another lesson.",
   "booking.voucherAuto.row": "Make-up voucher ({n})",
@@ -2737,5 +2738,7 @@
   "voucher.reason.end_of_term": "Fixed class ended",
   "voucher.reason.moved": "Fixed-class slot change",
   "booking.makeUp.noDays": "No times left for this voucher.",
+  "booking.makeUp.basketHint": "A voucher books one lesson. Tapping another time swaps it for that one. No points are taken.",
+  "booking.makeUp.basket": "{n} lesson selected · paid with a voucher",
   "booking.makeUp.range": "{from} – {to}"
 }

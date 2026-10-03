@@ -19,7 +19,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
-import { formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
+import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
@@ -70,6 +70,16 @@ const COURSE_ICONS: Record<string, string> = {
   '1on1': '👤', '1on2': '👥', '1on4': '👨‍👩‍👧‍👦', 'team': '🏊',
 }
 
+
+/** Every Date on this page is a calendar day in the school's time zone, held
+ *  at local midnight -- the calendar cells, the picked day, "today". Its
+ *  YYYY-MM-DD is therefore read from the local fields. formatDateLA used to be
+ *  applied to these, which on a phone set east of California (New York,
+ *  Taipei) turned local midnight into the previous day in LA and booked the
+ *  day before the one tapped (found 2026-10-03). */
+function localDs(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 function generateSlots(start: string, end: string): string[] {
   const slots: string[] = []
@@ -320,7 +330,8 @@ export default function BookingPage() {
       .catch(() => { setTrialEligible(false); setTrialHasCredit(false); if (lockedRef.current) setStep(1) })
   }, [selectedStudent])
 
-  const today = new Date()
+  // The school's today, as a local-midnight date (see localDs).
+  const today = new Date(getTodayLA() + 'T00:00:00')
   const [calMonth, setCalMonth] = useState(today.getMonth())
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [groupWeeks, setGroupWeeks] = useState<any[]>([])
@@ -406,12 +417,16 @@ export default function BookingPage() {
     // One call for the whole view, from this week's Sunday to the end of the
     // last month on screen. It used to be one six-week call per month, which
     // overlapped and doubled the server's work.
-    const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay())
+    // With a voucher whose window opens later, from the week it opens: the
+    // server reads at most 27 weeks, which a lesson far ahead would outrun.
+    const opens = makeUp?.usableFrom ? new Date(makeUp.usableFrom + 'T00:00:00') : null
+    const base = opens && opens > today ? opens : today
+    const from = new Date(base.getFullYear(), base.getMonth(), base.getDate() - base.getDay())
     // A voucher's calendar runs to its expiry whatever the month count says (a
     // phone starts at one month, which would cut a next-month window short).
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + monthsShown, 0)
     const expiry = makeUp ? new Date(makeUp.expiresOn + 'T00:00:00') : null
-    const lastDay = expiry && expiry > monthEnd ? expiry : monthEnd
+    const lastDay = expiry ?? monthEnd
     const weeks = Math.ceil((lastDay.getTime() - from.getTime()) / (7 * 86400000)) + 1
     const st = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`
     let live = true
@@ -449,7 +464,7 @@ export default function BookingPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'options', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
         student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
-        session_date: formatDateLA(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null, voucher_id: makeUp?.id ?? null }),
+        session_date: localDs(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null, voucher_id: makeUp?.id ?? null }),
     }).then(r => r.json())
       .then(d => { setHourSlots(d?.slots || []); setHourBalance(d?.balance ?? 0); setHourRoster(d?.roster || []) })
       .catch(() => setHourSlots([]))
@@ -547,7 +562,7 @@ export default function BookingPage() {
           // The month calendar (1-on-1 / 1-on-2) opens on the voucher's first
           // usable month -- a window starting next month used to open on an
           // empty current month (owner, 2026-10-03).
-          if (v.usableFrom && v.usableFrom > formatDateLA(today)) {
+          if (v.usableFrom && v.usableFrom > localDs(today)) {
             const [fy, fm] = String(v.usableFrom).split('-').map(Number)
             setCalYear(fy); setCalMonth(fm - 1)
           }
@@ -605,7 +620,7 @@ export default function BookingPage() {
   async function buildTimeSlots(seq: number) {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
 
-    const dateStr = formatDateLA(selectedDate)
+    const dateStr = localDs(selectedDate)
 
     // Server API bypasses RLS: booked slots, coach blocks, and availability zones in one call
     const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}&student_id=${selectedStudent?.id || ''}`)
@@ -739,6 +754,9 @@ export default function BookingPage() {
   // basket when the toggle moves is worse than not offering it).
   const batchFlow = !isTrial && !isReschedule
     && (groupFlow || ((selectedCourse?.slug === '1on1' || siblingPair) && !isHourLesson))
+  // A make-up shows only the times it can take (owner, 2026-10-03): with one
+  // coach picked, full and taken times used to stay on screen, greyed.
+  const shownTimeSlots = makeUp ? timeSlots.filter(sl => sl.available) : timeSlots
   // A 60-minute fixed class (owner, 2026-10-01): the hour list picks the slot
   // and the same fixed-class panel takes it from there. A batch is one length,
   // so the length switch is locked while the basket holds anything.
@@ -810,7 +828,10 @@ export default function BookingPage() {
     let live = true
     const qs = new URLSearchParams({ course_slug: selectedCourse.slug, student_id: selectedStudent.id })
     // A voucher may reach past the usual 60 days; ask for openings up to its expiry.
-    if (makeUp) qs.set('until', makeUp.expiresOn)
+    if (makeUp) {
+      qs.set('until', makeUp.expiresOn)
+      if (makeUp.usableFrom) qs.set('from', makeUp.usableFrom)
+    }
     if (selectedStudent2 && !(selectedStudent2 as any).isPartner) qs.set('student2_id', selectedStudent2.id)
     fetch(`/api/bookings/openings?${qs}`)
       .then(r => r.ok ? r.json() : null)
@@ -878,7 +899,7 @@ export default function BookingPage() {
     setCoachFilter(id)
     setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
     if (selectedDate && id !== 'any') {
-      const ds = formatDateLA(selectedDate)
+      const ds = localDs(selectedDate)
       if (!Object.values(openings?.days[ds] || {}).some(l => l.includes(id))) setSelectedDate(null)
     }
   }
@@ -1010,7 +1031,7 @@ export default function BookingPage() {
     return items.reduce((a, x) => a + (cover.has(lessonKey(x)) ? 0 : x.points), 0)
   }
   // A 60-minute single (the hour list) takes one voucher for its date.
-  const hourDate = selectedDate ? formatDateLA(selectedDate) : ''
+  const hourDate = selectedDate ? localDs(selectedDate) : ''
   const hourVoucherFits = !!hourDate && !rescheduleGroupIdRef.current
     && fittingVouchers(60).some(v => v.expiresOn >= hourDate && (!v.usableFrom || hourDate >= v.usableFrom))
   const hourCovered = payWithVouchers && hourVoucherFits
@@ -1018,7 +1039,7 @@ export default function BookingPage() {
   // What this booking will actually cost, once a slot is picked. A reschedule
   // keeps its original charge, so it costs nothing here.
   const bookingPrice = (!isReschedule && !isTrial && selectedDate && selectedSlot)
-    ? priceAt(formatDateLA(selectedDate), selectedSlot.time)
+    ? priceAt(localDs(selectedDate), selectedSlot.time)
     : null
   const bookingCost = selectedHour && hourCovered ? 0 : (bookingPrice?.charged ?? 0)
   const basket = [...recurSel.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
@@ -1191,6 +1212,20 @@ export default function BookingPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) { setNotice(tErr(j.error, 'booking.recur.err.commit')); setSubmitting(false); return }
+      // Every time was taken between choosing and confirming: nothing was
+      // booked, charged or spent. This used to land on a ✅ "0 lessons
+      // booked!" card listing the dates (found 2026-10-03).
+      if (j.booked === 0) {
+        setNotice(t('booking.recur.err.noneBooked'))
+        setRecurPlan([]); setRecurSel(new Map()); setSelectedSlot(null)
+        setCartRefresh(n => n + 1)
+        setStep(3); setSubmitting(false); return
+      }
+      // The success card lists only what was booked, not what was skipped.
+      if (Array.isArray(j.booked_slots)) {
+        const got = new Set(j.booked_slots.map((x: any) => `${x.date}|${String(x.start_time || '').slice(0, 5)}`))
+        setRecurPlan(prev => prev.filter(x => got.has(`${x.date}|${x.time.slice(0, 5)}`)))
+      }
       setRecurBooked(j.booked ?? recurPlan.length)
       const asked = new Set(recurPlan.map(x => `${x.date}|${x.time}`))
       setRecurSkipped((j.skipped || []).filter((x: any) => asked.has(`${x.date}|${String(x.start_time || '').slice(0, 5)}`)).length)
@@ -1222,7 +1257,7 @@ export default function BookingPage() {
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId) return
     setSubmitting(true)
 
-    const dateStr = formatDateLA(selectedDate)
+    const dateStr = localDs(selectedDate)
     const startTime = selectedSlot.time
 
     if (isTrial && trialHasCredit) {
@@ -1373,7 +1408,7 @@ export default function BookingPage() {
           action: 'add',
           course_type_id: selectedCourse.id,
           coach_id: selectedCoach.id,
-          session_date: formatDateLA(selectedDate),
+          session_date: localDs(selectedDate),
           start_time: selectedSlot.time,
           student_id: selectedStudent.id,
         }),
@@ -1414,7 +1449,7 @@ export default function BookingPage() {
      days from the first usable date to the expiry, on one page -- no month
      arrows to find the rest (owner, 2026-10-03). */
   const voucherRange: { from: Date; to: Date } | null = makeUp ? {
-    from: makeUp.usableFrom && makeUp.usableFrom > formatDateLA(today) ? new Date(makeUp.usableFrom + 'T00:00:00') : new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+    from: makeUp.usableFrom && makeUp.usableFrom > localDs(today) ? new Date(makeUp.usableFrom + 'T00:00:00') : new Date(today.getFullYear(), today.getMonth(), today.getDate()),
     to: new Date(makeUp.expiresOn + 'T00:00:00'),
   } : null
   const calCells: (Date | null)[] = (() => {
@@ -1436,7 +1471,7 @@ export default function BookingPage() {
     for (const date of calCells) {
       if (!date) continue
       if (!isDateAvailable(date)) continue
-      const ds = formatDateLA(date)
+      const ds = localDs(date)
       if ((lessonLength === 60 ? coachesOnForHour(ds) : coachesOn(ds)).length > 0) return false
     }
     return true
@@ -1461,7 +1496,7 @@ export default function BookingPage() {
     todayMidnight.setHours(0, 0, 0, 0)
     if (date < todayMidnight) return false
     // A make-up may be booked on any date its voucher covers, wherever that falls.
-    if (makeUp) return makeUpDateOk(formatDateLA(date))
+    if (makeUp) return makeUpDateOk(localDs(date))
     const maxDate = new Date(today)
     // A batch-capable course shows 60 days, because a fixed class can start on
     // any of them; a date past the single-lesson window then opens the fixed
@@ -1635,7 +1670,7 @@ export default function BookingPage() {
         )}
         {makeUp && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', fontSize: '14px', color: '#1f7a57', lineHeight: 1.6 }}>
-            🎟 {t(makeUp.usableFrom && makeUp.usableFrom > formatDateLA(today) ? 'booking.makeUp.bannerWindow' : 'booking.makeUp.banner', {
+            🎟 {t(makeUp.usableFrom && makeUp.usableFrom > localDs(today) ? 'booking.makeUp.bannerWindow' : 'booking.makeUp.banner', {
               names: makeUp.studentNames.join(' & '),
               kind: t('voucher.kind.' + makeUp.courseSlug + (makeUp.courseSlug === '1on1' ? '.' + (makeUp.minutes === 60 ? 60 : 30) : '')),
               date: new Date(makeUp.expiresOn + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
@@ -1920,7 +1955,7 @@ export default function BookingPage() {
                 {calCells.map((date, j) => {
                   if (!date) return <div key={`e-${j}`} />
                   const i = date.getDate() - 1
-                  const dsC = formatDateLA(date)
+                  const dsC = localDs(date)
                   // In a voucher's run of days the month is named where it
                   // starts, and on the first day shown.
                   const monthTag = !!voucherRange && (i === 0 || calCells.findIndex(c => c) === j)
@@ -1938,7 +1973,7 @@ export default function BookingPage() {
                   // this the shortcut's own hint pointed at cells that do not exist
                   // here, and a paged calendar gave no sign which days were already
                   // in the basket.
-                  const dsX = formatDateLA(date)
+                  const dsX = localDs(date)
                   const hasPick = batchFlow && [...recurSel.keys()].some(k => k.startsWith(dsX + '|'))
                   const hasGhost = batchFlow && !hasPick && [...ghost.keys()].some(k => k.startsWith(dsX + '|'))
                   return (
@@ -1963,7 +1998,7 @@ export default function BookingPage() {
                       <span style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
                         {dotsHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
                       </span>
-                    )}{groupFlow && groupDates.includes(formatDateLA(date)) && !isSelected && (
+                    )}{groupFlow && groupDates.includes(localDs(date)) && !isSelected && (
                       <span style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', margin: '2px auto 0', backgroundColor: myBandColor }} />
                     )}</button>
                   )
@@ -2043,7 +2078,7 @@ export default function BookingPage() {
                             const sel = selectedHour?.start_time === h.start_time
                             const affordable = isReschedule || !!makeUp || hourCovered || hourBalance >= (Number(h.points) || 0)
                             const usable = affordable && !h.is_current
-                            const w24 = isWithin24Hours(formatDateLA(selectedDate), h.start_time)
+                            const w24 = isWithin24Hours(localDs(selectedDate), h.start_time)
                             return (
                               <button key={h.start_time} disabled={!usable}
                                 onClick={() => {
@@ -2129,7 +2164,7 @@ export default function BookingPage() {
                   )
                 })()}
                 {!isTrial && (privateFlow && openings && coachFilter === 'any'
-                  ? lessonLength === 30 && Object.keys(openings.days[formatDateLA(selectedDate)] || {}).some(tm => isWithin24Hours(formatDateLA(selectedDate), tm))
+                  ? lessonLength === 30 && Object.keys(openings.days[localDs(selectedDate)] || {}).some(tm => isWithin24Hours(localDs(selectedDate), tm))
                   : timeSlots.some(sl => sl.available && sl.within24h)) && (
                   <div style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>⚠️</span>
@@ -2143,7 +2178,7 @@ export default function BookingPage() {
                   groupLoading ? (
                     <p style={{ color: '#56647d', fontSize: '15px' }}>{t('booking.groupLoading')}</p>
                   ) : (() => {
-                    const ds2 = formatDateLA(selectedDate)
+                    const ds2 = localDs(selectedDate)
                     const visible = groupClasses.filter((gc: any) => meetsLeadTime(ds2, gc.time))
                     if (visible.length === 0) return (
                       <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed #e3ebf6' }}>
@@ -2203,7 +2238,7 @@ export default function BookingPage() {
                     )
                   })()
                 ) : (privateFlow && openings && coachFilter === 'any') ? (lessonLength === 60 ? null : (() => {
-                  const ds0 = formatDateLA(selectedDate)
+                  const ds0 = localDs(selectedDate)
                   const day = openings.days[ds0] || {}
                   const times = Object.keys(day).sort()
                   if (times.length === 0) return (
@@ -2292,7 +2327,7 @@ export default function BookingPage() {
                       )}
                     </>
                   )
-                })()) : timeSlots.length === 0 ? (
+                })()) : shownTimeSlots.length === 0 ? (
                   <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed #e3ebf6' }}>
                     <p style={{ color: '#56647d', fontSize: '15px' }}>{slotsLoading ? t('booking.loading') : t('booking.noSlots')}</p>
                   </div>
@@ -2302,8 +2337,8 @@ export default function BookingPage() {
                     <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
                   )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
-                    {(lessonLength === 60 ? [] : timeSlots).map(slot => {
-                      const ds0 = selectedDate ? formatDateLA(selectedDate) : ''
+                    {(lessonLength === 60 ? [] : shownTimeSlots).map(slot => {
+                      const ds0 = selectedDate ? localDs(selectedDate) : ''
                       const key0 = `${ds0}|${slot.time}`
                       const inBasket = batchFlow && recurSel.has(key0)
                       const on = inBasket || (!batchFlow && selectedSlot?.time === slot.time)
@@ -2338,7 +2373,7 @@ export default function BookingPage() {
                         {inBasket ? '✓ ' : ''}{slot.label}
                         {(() => {
                           if (isReschedule || isTrial || !selectedDate) return null
-                          const pr = priceAt(formatDateLA(selectedDate), slot.time, 30)
+                          const pr = priceAt(localDs(selectedDate), slot.time, 30)
                           if (!pr) return null
                           return (
                             <>
@@ -2367,7 +2402,7 @@ export default function BookingPage() {
             {groupFlow && (() => {
               const byDate: Record<string, any[]> = {}
               for (const d of groupWeeks) byDate[d.date] = d.classes || []
-              const todayDs = formatDateLA(today)
+              const todayDs = localDs(today)
               return (
                 <div>
                   {/* One continuous run of weeks, starting with the week we are in.
@@ -2448,7 +2483,7 @@ export default function BookingPage() {
                             const endsWeek = idx % 7 === 6
                             const rowStart = idx - (idx % 7)
                             const openInThisWeek = isPhone && openDay != null
-                              && days.slice(rowStart, idx + 1).some(x => formatDateLA(x) === openDay)
+                              && days.slice(rowStart, idx + 1).some(x => localDs(x) === openDay)
                             const openSlots = openInThisWeek ? (byDate[openDay!] || []).filter((c: any) => meetsLeadTime(openDay!, c.time)
                               && (!makeUp || (!c.full && !c.already_booked))) : []
                             return (
@@ -2640,7 +2675,10 @@ export default function BookingPage() {
                       ))}
                     </div>
                     <div style={{ fontSize: '13px', color: '#56647d', marginTop: '10px', lineHeight: 1.6 }}>
-                      {t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
+                      {/* A voucher books one lesson and takes no points: the
+                          ordinary basket line ("add more, charged at once,
+                          balance after") was wrong for it. */}
+                      {makeUp ? t('booking.makeUp.basketHint') : t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
                     </div>
                   </div>
                 )}
@@ -2649,7 +2687,7 @@ export default function BookingPage() {
                 )}
                 {fixedFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && !makeUp && (
                   <button disabled={recurBusy}
-                    onClick={() => { setFixedOnly(false); openFixed(formatDateLA(selectedDate), selectedSlot.time, selectedCoach.id) }}
+                    onClick={() => { setFixedOnly(false); openFixed(localDs(selectedDate), selectedSlot.time, selectedCoach.id) }}
                     style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
                     {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                   </button>
@@ -2803,11 +2841,13 @@ export default function BookingPage() {
               {fixedFlow && recurSel.size > 0 && (
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
                   <span style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
-                    {t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
+                    {makeUp ? t('booking.makeUp.basket', { n: recurSel.size }) : t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
                   </span>
-                  <span style={{ fontSize: '13px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
-                    {t('booking.price.after')} {t('points.unit', { n: Math.max(0, balance - basketTotal) })}
-                  </span>
+                  {!makeUp && (
+                    <span style={{ fontSize: '13px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
+                      {t('booking.price.after')} {t('points.unit', { n: Math.max(0, balance - basketTotal) })}
+                    </span>
+                  )}
                 </div>
               )}
               <div style={{ display: 'flex', gap: '12px' }}>
@@ -3026,9 +3066,12 @@ export default function BookingPage() {
                 color: '#16294a', border: '1px solid #d3deec',
                 borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
               }}>{t('booking.back')}</button>
-              {/* The cart pays in points and carries no voucher, so a make-up is booked
-                  straight away only. */}
-              {!isTrial && !isReschedule && !makeUp && recurPlan.length === 0 && selectedCourse?.slug !== '1on2' && (
+              {/* The cart books a 30-minute lesson, pays in points and carries no
+                  voucher: a make-up, an hour, or a lesson a voucher would pay
+                  for is booked straight away only (found 2026-10-03 -- an
+                  hour went into the cart as half an hour). */}
+              {!isTrial && !isReschedule && !makeUp && !selectedHour && lessonLength !== 60 && voucherCould === 0
+                && recurPlan.length === 0 && selectedCourse?.slug !== '1on2' && (
                 <button
                   onClick={handleAddToCart}
                   disabled={submitting || addingToCart}

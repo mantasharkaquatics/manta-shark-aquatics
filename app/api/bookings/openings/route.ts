@@ -25,7 +25,7 @@ import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 //        days: { 'YYYY-MM-DD': { 'HH:MM': [coachId, ...] } } }
 
 const WINDOW_DAYS = 60
-const MAX_UNTIL_DAYS = 200
+const MAX_UNTIL_DAYS = 400
 const LESSON_MIN = 30
 
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
@@ -58,13 +58,17 @@ export async function GET(req: NextRequest) {
   // on an earlier answer is asked at the same time: two rounds after sign-in.
   const s2id = q.get('student2_id')
   const want2 = course_slug === '1on2' && !!s2id && s2id !== student_id
-  const from = getTodayLA()
+  const today = getTodayLA()
+  const isDs = (x: string | null): x is string => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x)
+  const farthest = addDays(today, MAX_UNTIL_DAYS)
   // A make-up voucher may run past the usual window (a leave voucher for a
-  // lesson months away); the booking page then asks up to its expiry, capped.
+  // lesson months away): the booking page asks from the day its window opens
+  // to its expiry, so only those weeks are worked out, never today..expiry.
+  const fromQ = q.get('from')
+  const from = isDs(fromQ) && fromQ > today ? (fromQ < farthest ? fromQ : farthest) : today
   const untilQ = q.get('until')
-  const to = untilQ && /^\d{4}-\d{2}-\d{2}$/.test(untilQ) && untilQ > addDays(from, WINDOW_DAYS)
-    ? (untilQ < addDays(from, MAX_UNTIL_DAYS) ? untilQ : addDays(from, MAX_UNTIL_DAYS))
-    : addDays(from, WINDOW_DAYS)
+  const toWanted = isDs(untilQ) && untilQ > addDays(from, WINDOW_DAYS) ? untilQ : addDays(from, WINDOW_DAYS)
+  const to = toWanted < farthest ? toWanted : farthest
   const dates: string[] = []
   for (let ds = from; ds <= to; ds = addDays(ds, 1)) dates.push(ds)
 
@@ -160,7 +164,7 @@ export async function GET(req: NextRequest) {
       }
       // "Last" means the most recent lesson on or before today; a lesson
       // booked for next month is not who they have been swimming with.
-      if (privateTypeIds.has(m.course_type_id) && m.session_date <= from && m.session_date > latest
+      if (privateTypeIds.has(m.course_type_id) && m.session_date <= today && m.session_date > latest
           && coachIds.includes(m.coach_id)) {
         latest = m.session_date; preferred = m.coach_id
       }
@@ -199,7 +203,7 @@ export async function GET(req: NextRequest) {
           const t = toTime(m), end = m + LESSON_MIN
           // Only today can fall inside the lead time; checking every slot of 60
           // days reformatted the clock thousands of times.
-          if (ds === from && !meetsLeadTime(ds, t)) continue
+          if (ds === today && !meetsLeadTime(ds, t)) continue
           if (isBlocked(blocks, c.id, t, toTime(end))) continue
           if (busy.some(iv => m < iv.e && end > iv.s)) continue
           if (heldSeats(holds, c.id, ds, m, end, ct.id) > 0) continue

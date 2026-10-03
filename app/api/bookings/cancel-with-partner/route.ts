@@ -25,10 +25,18 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // A parent may only cancel their own bookings (admin accounts have no parents row)
+  // A parent may only cancel their own bookings. Without a parents row the
+  // caller must be an admin: a coach (PIN session) or a job applicant also
+  // has an auth user and no parents row, and used to get here as "admin" --
+  // able to cancel any booking by id with a full refund (found 2026-10-03).
   const { data: callerParent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+    .from('parents').select('id').eq('auth_user_id', user.id).maybeSingle()
   const parentId = callerParent?.id || null
+  if (!parentId) {
+    const { data: admin } = await supabase
+      .from('admins').select('id').eq('auth_user_id', user.id).maybeSingle()
+    if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
 
   // The whole lesson, hour lessons included. That sweep used to live here,
   // which meant the chat assistant -- calling the library directly -- cancelled
