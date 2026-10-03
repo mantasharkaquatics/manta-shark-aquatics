@@ -292,8 +292,19 @@ export async function cancelBookingWithPartner(
       if (booking.partner_booking_id) {
         return { ok: false, status: 400, error: '1-on-2 lessons starting within 24 hours cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
       }
-      const used = await graceUsedThisMonth(svc, [booking.student_id])
-      if (used.has(booking.student_id)) {
+      // A sibling 1-on-2 spends BOTH children's grace (owner, 2026-10-03):
+      // both seats are given up, so either child having used theirs already
+      // stops it. The voucher carries both children, and graceUsedThisMonth
+      // counts its second child too.
+      const kids = [booking.student_id]
+      if (ctSlug === '1on2') {
+        const { data: seat } = await svc.from('bookings').select('student_id')
+          .eq('parent_id', booking.parent_id).eq('class_session_id', booking.class_session_id)
+          .neq('id', booking.id).not('status', 'in', '("cancelled","pending_payment","in_cart")')
+        for (const s of seat || []) if (s.student_id && !kids.includes(s.student_id)) kids.push(s.student_id)
+      }
+      const used = await graceUsedThisMonth(svc, kids)
+      if (kids.some(k => used.has(k))) {
         // Nothing to spend, so the lesson cannot be cancelled online. The
         // dashboard says so before the parent gets here; this is the server
         // refusing to be talked past.

@@ -92,9 +92,18 @@ export function voucherFitsDate(v: { expires_on: string; usable_from?: string | 
 /** Which children have already used this month's grace. */
 export async function graceUsedThisMonth(svc: Svc, studentIds: string[], today: string = getTodayLA()): Promise<Set<string>> {
   if (studentIds.length === 0) return new Set()
+  // A sibling 1-on-2's grace voucher names both children and uses both
+  // children's grace (owner, 2026-10-03), so the second child counts too.
+  const ids = studentIds.filter(id => /^[0-9a-f-]{36}$/i.test(id))
+  if (ids.length === 0) return new Set()
+  const list = ids.join(',')
   const { data } = await svc.from('make_up_vouchers')
-    .select('student_id').in('student_id', studentIds).eq('grace_month', monthOfDate(today))
-  return new Set((data || []).map((r: any) => r.student_id))
+    .select('student_id, student2_id').eq('grace_month', monthOfDate(today))
+    .or(`student_id.in.(${list}),student2_id.in.(${list})`)
+  const want = new Set(ids)
+  const out = new Set<string>()
+  for (const r of data || []) for (const s of [r.student_id, r.student2_id]) if (s && want.has(s)) out.add(s)
+  return out
 }
 
 export type IssueInput = {

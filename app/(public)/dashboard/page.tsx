@@ -1518,11 +1518,13 @@ export default function DashboardPage() {
    *   pair / noGrace  cannot be done online
    */
   type CancelKind = 'refund' | 'leave' | 'grace' | 'makeupBack' | 'makeupLose' | 'pair' | 'noGrace'
-  const cancelKindOf = (b: Booking, late: boolean): CancelKind => {
+  // kids: whose grace a late cancel spends -- both children of a sibling
+  // 1-on-2 (owner, 2026-10-03), otherwise the lesson's own child.
+  const cancelKindOf = (b: Booking, late: boolean, kids?: string[]): CancelKind => {
     if (b.voucher_id) return late ? 'makeupLose' : 'makeupBack'
     if (late) {
       if (b.partner_booking_id || b.points_charged == null) return 'pair'
-      if (graceUsed.has(b.student_id || '')) return 'noGrace'
+      if ((kids && kids.length ? kids : [b.student_id || '']).some(k => graceUsed.has(k))) return 'noGrace'
       return 'grace'
     }
     return b.fixed_class_id ? 'leave' : 'refund'
@@ -2300,7 +2302,8 @@ export default function DashboardPage() {
       id: b.id, courseName: b.course_name, courseTypeId: b.course_type_id,
       date: formatDate(b.session_date, intlOf(locale)), time: formatTime(b.start_time),
       isLate: late, points, kind,
-      studentName: (b.student_name || '').split(',')[0],
+      // Every child whose grace this spends: a sibling 1-on-2 names both.
+      studentName: (b.student_name || '').split(',').map(x => x.trim()).filter(Boolean).join(' & '),
       voucher: voucherKind(b.course_slug, b.lesson_group_id ? 60 : 30),
       voucherBy: shortDate(plus28(b.session_date)),
       // Fixed-class leave in time: a make-up within 14 days either side of this lesson.
@@ -3068,7 +3071,15 @@ export default function DashboardPage() {
                         <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {booking._group.map((m, mi) => {
                             const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
-                            const ck = cancelKindOf(m, late)
+                            // A sibling 1-on-2 is one lesson for both children:
+                            // its late cancel spends both children's grace.
+                            const pair = m.course_slug === '1on2'
+                              ? (booking._group || []).filter(x => x.course_slug === '1on2' && x.status !== 'cancelled') : [m]
+                            const ck = cancelKindOf(m, late, pair.map(x => x.student_id || ''))
+                            // Named in the modal and in the "grace used" note: both
+                            // children, or the one whose grace is already gone.
+                            const pairNames = pair.map(x => x.student_name).filter(Boolean).join(', ')
+                            const spentName = pair.find(x => graceUsed.has(x.student_id || ''))?.student_name || m.student_name
                             const cEnabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== m.id && m.status !== 'pending_partner'
                             // A fixed-class lesson or a make-up is not moved: leave
                             // turns it into a voucher instead.
@@ -3104,14 +3115,14 @@ export default function DashboardPage() {
                                     </button>}
                                     {cEnabled ? (
                                       <button
-                                        onClick={() => openCancel(m, late, ck, refundPts)}
+                                        onClick={() => openCancel({ ...m, student_name: pairNames || m.student_name }, late, ck, refundPts)}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {cancellingId === m.id ? '...' : cancelLabel(m, late)}
                                       </button>
                                     ) : late ? (
                                       <button
-                                        onClick={() => openChatOr(lateLockHelp(m))}
-                                        title={lateLockHelp(m)}
+                                        onClick={() => openChatOr(lateLockHelp({ ...m, student_name: spentName }))}
+                                        title={lateLockHelp({ ...m, student_name: spentName })}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {t('dash.up.cancelLocked')}
                                       </button>

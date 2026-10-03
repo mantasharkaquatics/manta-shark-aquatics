@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     const pricedKids = new Set<string>()
     for (const r of rows || []) {
       const pr: any = r.pricing
-      if (pr?.kind === 'single' && Array.isArray(pr.students)) pr.students.forEach((s: any) => s && pricedKids.add(String(s)))
+      if ((pr?.kind === 'single' || pr?.kind === 'weekly_term' || pr?.kind === 'multi_slot') && Array.isArray(pr.students)) pr.students.forEach((s: any) => s && pricedKids.add(String(s)))
       if (pr?.kind === 'cart' && Array.isArray(pr.items)) pr.items.forEach((it: any) => it?.student && pricedKids.add(String(it.student)))
     }
     const kidName = new Map<string, string>()
@@ -103,11 +103,11 @@ export async function GET(req: NextRequest) {
       }
       if (pr?.kind === 'weekly_term' && Array.isArray(pr.dates) && pr.dates.length) {
         const ds = pr.dates.map((d: any) => String(d.date)).sort()
-        return { student: null, date: ds[0], time: pr.startTime ? String(pr.startTime).slice(0, 5) : null, count: ds.length }
+        return { student: Array.isArray(pr.students) ? namesOf(pr.students) : null, date: ds[0], time: pr.startTime ? String(pr.startTime).slice(0, 5) : null, count: ds.length }
       }
       if (pr?.kind === 'multi_slot' && Array.isArray(pr.slots) && pr.slots.length) {
         const sl = [...pr.slots].sort((a: any, b: any) => String(a.date + a.startTime).localeCompare(String(b.date + b.startTime)))
-        return { student: null, date: String(sl[0].date), time: sl.length === 1 ? String(sl[0].startTime).slice(0, 5) : null, count: sl.length }
+        return { student: Array.isArray(pr.students) ? namesOf(pr.students) : null, date: String(sl[0].date), time: sl.length === 1 ? String(sl[0].startTime).slice(0, 5) : null, count: sl.length }
       }
       return null
     }

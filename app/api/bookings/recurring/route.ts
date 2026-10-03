@@ -530,11 +530,11 @@ export async function POST(req: NextRequest) {
         parentId: parent.id, reason: 'booking', points: -charge.total, actor: 'parent',
         pricing: uniformTime
           ? {
-              kind: 'weekly_term', courseSlug: ct.slug, startTime: uniformTime,
+              kind: 'weekly_term', courseSlug: ct.slug, startTime: uniformTime, students: studentIds,
               dates: paidSlots.map(s2 => ({ date: s2.date, points: charge.perSlot.get(slotKey(s2))! })),
             }
           : {
-              kind: 'multi_slot', courseSlug: ct.slug,
+              kind: 'multi_slot', courseSlug: ct.slug, students: studentIds,
               slots: paidSlots.map(s2 => ({ date: s2.date, startTime: s2.time, points: charge.perSlot.get(slotKey(s2))! })),
             },
         note: `${paidSlots.length} lessons booked`,

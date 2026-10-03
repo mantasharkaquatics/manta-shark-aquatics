@@ -1214,6 +1214,28 @@ export default function BookingPage() {
       return n
     })
   }
+  /** A 60-minute basket: the hour list adds singles to it once a fixed class
+   *  is in. The basket books through the recurring route, which takes one
+   *  coach per lesson, so a relay hour (two coaches) cannot join it. One
+   *  private lesson per day, as everywhere else in the basket. */
+  const hourBasket = hourFixedFlow && recurSel.size > 0
+  function addHourToBasket(h: any) {
+    if (!selectedDate) return
+    const ds = localDs(selectedDate)
+    const key = `${ds}|${h.start_time}`
+    const solo = (h.pick && !h.pick.relay ? h.pick : null) || (h.opts || []).find((x: any) => !x.relay && x.coach1_id === x.coach2_id)
+    setRecurMsg('')
+    if (recurSel.get(key)?.fixed) return
+    if (recurSel.has(key)) { setRecurSel(prev => { const n = new Map(prev); n.delete(key); return n }); return }
+    if (!solo) { setRecurMsg(t('booking.recur.err.relayHour')); return }
+    if (ds > singleMax) { setRecurMsg(t('booking.recur.err.hourTooFar')); return }
+    if ([...recurSel.values()].some(x => x.date === ds)) { setRecurMsg(t('booking.recur.err.hourSameDay')); return }
+    const pts = Number(h.points) || 0
+    const item = { date: ds, time: h.start_time, label: `${formatTime(h.start_time)} – ${formatTime(h.end_time)}`, points: pts, coachId: solo.coach1_id, coachName: coachName(solo.coach1_id) }
+    if (dueOf([...recurSel.values(), item], 60) > balance) { setRecurMsg(t('booking.short.body', { have: balance, need: dueOf([...recurSel.values(), item], 60) })); return }
+    setRecurSel(prev => new Map(prev).set(key, item))
+  }
+
   const balanceAfter = Math.max(0, balance - bookingCost)
 
   // Every "you cannot pay for this" notice offers the same way out.
@@ -2139,13 +2161,21 @@ export default function BookingPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                           {rows.map((h: any) => {
                             const o = h.pick
-                            const sel = selectedHour?.start_time === h.start_time
+                            const hKey = `${localDs(selectedDate)}|${h.start_time}`
+                            const sel = hourBasket ? recurSel.has(hKey) : selectedHour?.start_time === h.start_time
                             const affordable = isReschedule || !!makeUp || hourCovered || hourBalance >= (Number(h.points) || 0)
                             const usable = affordable && !h.is_current
                             const w24 = isWithin24Hours(localDs(selectedDate), h.start_time)
                             return (
                               <button key={h.start_time} disabled={!usable}
                                 onClick={() => {
+                                  // With a fixed class already in the basket, an
+                                  // hour tapped here is one more lesson IN the
+                                  // basket. It used to become the highlighted
+                                  // single while Continue booked only the basket,
+                                  // so the hour vanished without a word (found
+                                  // 2026-10-03).
+                                  if (hourBasket) { addHourToBasket(h); return }
                                   const c1 = coaches.find(x => x.id === o.coach1_id)
                                   if (c1) setSelectedCoach(c1)
                                   setSelectedHour({ ...h, ...o })
@@ -2191,7 +2221,7 @@ export default function BookingPage() {
                       )}
                       {(() => {
                         const cur = selectedHour ? rows.find((h: any) => h.start_time === selectedHour.start_time) : null
-                        if (!cur || coachFilter !== 'any') return null
+                        if (!cur || coachFilter !== 'any' || hourBasket) return null
                         return (
                           <div style={{ marginTop: '12px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 14px' }}>
                             <div style={{ fontSize: '13.5px', color: '#56647d', marginBottom: '10px' }}>
