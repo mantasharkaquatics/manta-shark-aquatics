@@ -2014,9 +2014,13 @@ export default function BookingPage() {
                   const canAffordHour = isReschedule || !!makeUp || (rows.length > 0 && (hourCovered || hourBalance >= cheapest))
                   return (
                     <div style={{ marginBottom: '16px' }}>
-                      <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '10px' }}>
-                        {t('booking.hour.cost')} · {t('booking.balance', { n: hourBalance })}
-                      </div>
+                      {/* A voucher pays for the make-up, so the points line would only
+                          make the family think points are taken (owner, 2026-10-03). */}
+                      {!makeUp && (
+                        <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '10px' }}>
+                          {t('booking.hour.cost')} · {t('booking.balance', { n: hourBalance })}
+                        </div>
+                      )}
                       {!hourLoading && rows.length > 0 && !canAffordHour && (
                         <div style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
                           <div style={{ fontSize: '14px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.short.title')}</div>
@@ -3022,7 +3026,9 @@ export default function BookingPage() {
                 color: '#16294a', border: '1px solid #d3deec',
                 borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
               }}>{t('booking.back')}</button>
-              {!isTrial && !isReschedule && recurPlan.length === 0 && selectedCourse?.slug !== '1on2' && (
+              {/* The cart pays in points and carries no voucher, so a make-up is booked
+                  straight away only. */}
+              {!isTrial && !isReschedule && !makeUp && recurPlan.length === 0 && selectedCourse?.slug !== '1on2' && (
                 <button
                   onClick={handleAddToCart}
                   disabled={submitting || addingToCart}
