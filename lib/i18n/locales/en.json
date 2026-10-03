@@ -2735,5 +2735,6 @@
   "voucher.reason.admin": "From the front desk",
   "voucher.reason.end_of_term": "Fixed class ended",
   "voucher.reason.moved": "Fixed-class slot change",
-  "booking.makeUp.noDays": "No times left in this month for this voucher."
+  "booking.makeUp.noDays": "No times left for this voucher.",
+  "booking.makeUp.range": "{from} – {to}"
 }

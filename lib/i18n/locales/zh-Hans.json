@@ -2735,5 +2735,6 @@
   "voucher.reason.admin": "柜台补发",
   "voucher.reason.end_of_term": "固定班结束",
   "voucher.reason.moved": "固定班换时段",
-  "booking.makeUp.noDays": "这个月没有可用这张补课券的时段。"
+  "booking.makeUp.noDays": "这张补课券的日期内已经没有可预约的时段。",
+  "booking.makeUp.range": "{from}–{to}"
 }

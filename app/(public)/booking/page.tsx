@@ -1408,11 +1408,33 @@ export default function BookingPage() {
   const lastIndex = makeUp ? ymIndex(makeUp.expiresOn) : lastBookable.getFullYear() * 12 + lastBookable.getMonth()
   const canPrevMonth = calIndex > firstIndex
   const canNextMonth = calIndex < lastIndex
-  /** True when this month of a voucher's calendar has no day left to book. */
+  const calSkip = (calYear === today.getFullYear() && calMonth === today.getMonth())
+    ? Math.max(0, today.getDate() - today.getDay() - 1) : 0
+  /* A voucher's dates are a few weeks at most, so its calendar is one run of
+     days from the first usable date to the expiry, on one page -- no month
+     arrows to find the rest (owner, 2026-10-03). */
+  const voucherRange: { from: Date; to: Date } | null = makeUp ? {
+    from: makeUp.usableFrom && makeUp.usableFrom > formatDateLA(today) ? new Date(makeUp.usableFrom + 'T00:00:00') : new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+    to: new Date(makeUp.expiresOn + 'T00:00:00'),
+  } : null
+  const calCells: (Date | null)[] = (() => {
+    const out: (Date | null)[] = []
+    if (voucherRange) {
+      const { from, to } = voucherRange
+      const start = new Date(from.getFullYear(), from.getMonth(), from.getDate() - from.getDay())
+      const end = new Date(to.getFullYear(), to.getMonth(), to.getDate() + (6 - to.getDay()))
+      for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(d < from || d > to ? null : new Date(d))
+      return out
+    }
+    for (let k = 0; k < (calSkip ? 0 : getFirstDayOfMonth(calYear, calMonth)); k++) out.push(null)
+    for (let d = calSkip; d < getDaysInMonth(calYear, calMonth); d++) out.push(new Date(calYear, calMonth, d + 1))
+    return out
+  })()
+  /** True when a voucher's calendar has no day left to book. */
   function voucherMonthEmpty(): boolean {
     if (!makeUp || !privateFlow || !openings) return false
-    for (let d = 1; d <= getDaysInMonth(calYear, calMonth); d++) {
-      const date = new Date(calYear, calMonth, d)
+    for (const date of calCells) {
+      if (!date) continue
       if (!isDateAvailable(date)) continue
       const ds = formatDateLA(date)
       if ((lessonLength === 60 ? coachesOnForHour(ds) : coachesOn(ds)).length > 0) return false
@@ -1420,6 +1442,7 @@ export default function BookingPage() {
     return true
   }
   function shiftMonth(d: 1 | -1) {
+    if (voucherRange) return
     if (d < 0 ? !canPrevMonth : !canNextMonth) return
     const n = calIndex + d
     setCalSlide(d > 0 ? 'l' : 'r')
@@ -1427,8 +1450,6 @@ export default function BookingPage() {
   }
   shiftMonthRef.current = shiftMonth
 
-  const calSkip = (calYear === today.getFullYear() && calMonth === today.getMonth())
-    ? Math.max(0, today.getDate() - today.getDay() - 1) : 0
 
   /** A make-up's date must sit inside its voucher's dates: up to the expiry,
    *  and for a leave voucher no earlier than 14 days before the missed lesson. */
@@ -1872,6 +1893,14 @@ export default function BookingPage() {
               <style>{`@keyframes msaCalL { from { opacity: 0; transform: translateX(28px) } to { opacity: 1; transform: none } }
                 @keyframes msaCalR { from { opacity: 0; transform: translateX(-28px) } to { opacity: 1; transform: none } }
                 @media (prefers-reduced-motion: reduce) { .msa-cal-anim { animation: none !important } }`}</style>
+              {voucherRange ? (
+                <div style={{ textAlign: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 700, color: '#16294a' }}>
+                  {t('booking.makeUp.range', {
+                    from: voucherRange.from.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric' }),
+                    to: voucherRange.to.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric' }),
+                  })}
+                </div>
+              ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <button onClick={() => shiftMonth(-1)} disabled={!canPrevMonth}
                   aria-label={t('booking.cal.prevMonth')} style={{ background: 'transparent', border: 'none', color: canPrevMonth ? '#56647d' : '#9aa6ba', fontSize: '22px', cursor: canPrevMonth ? 'pointer' : 'default', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
@@ -1879,6 +1908,7 @@ export default function BookingPage() {
                 <button onClick={() => shiftMonth(1)} disabled={!canNextMonth}
                   aria-label={t('booking.cal.nextMonth')} style={{ background: 'transparent', border: 'none', color: canNextMonth ? '#56647d' : '#9aa6ba', fontSize: '22px', cursor: canNextMonth ? 'pointer' : 'default', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
               </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '8px' }}>
                 {[0, 1, 2, 3, 4, 5, 6].map(d => (
                   <div key={d} style={{ textAlign: 'center', fontSize: '13px', fontWeight: 600, color: '#56647d', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
@@ -1887,11 +1917,13 @@ export default function BookingPage() {
               <div key={`${calYear}-${calMonth}`} className="msa-cal-anim" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', animation: calSlide ? `${calSlide === 'l' ? 'msaCalL' : 'msaCalR'} .28s ease` : undefined }}>
                 {/* In the current month the weeks already gone are left out: the
                     grid starts on the Sunday of this week, as the group calendar does. */}
-                {Array.from({ length: calSkip ? 0 : getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => <div key={`e-${i}`} />)}
-                {Array.from({ length: getDaysInMonth(calYear, calMonth) - calSkip }).map((_, j) => {
-                  const i = j + calSkip
-                  const date = new Date(calYear, calMonth, i + 1)
+                {calCells.map((date, j) => {
+                  if (!date) return <div key={`e-${j}`} />
+                  const i = date.getDate() - 1
                   const dsC = formatDateLA(date)
+                  // In a voucher's run of days the month is named where it
+                  // starts, and on the first day shown.
+                  const monthTag = !!voucherRange && (i === 0 || calCells.findIndex(c => c) === j)
                   const openHere = privateFlow && openings && lessonLength === 30 ? coachesOn(dsC) : null
                   const dotsHere = openHere ?? (privateFlow && openings && lessonLength === 60 ? coachesOnForHour(dsC) : null)
                   // A voucher's calendar shows only days with a time it can book,
@@ -1910,7 +1942,7 @@ export default function BookingPage() {
                   const hasPick = batchFlow && [...recurSel.keys()].some(k => k.startsWith(dsX + '|'))
                   const hasGhost = batchFlow && !hasPick && [...ghost.keys()].some(k => k.startsWith(dsX + '|'))
                   return (
-                    <button key={i}
+                    <button key={dsC}
                       onClick={() => {
                         // Re-clicking the day already open would clear its times and never refetch them.
                         if (!available || (selectedDate && selectedDate.getTime() === date.getTime())) return
@@ -1927,7 +1959,7 @@ export default function BookingPage() {
                         cursor: available ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px',
                       }}
-                    ><span>{i + 1}</span>{dotsHere && dotsHere.length > 0 && isDateAvailable(date) && !isSelected && (
+                    >{monthTag && <span style={{ display: 'block', fontSize: '10px', fontWeight: 800, lineHeight: 1.2, color: isSelected ? '#fff' : GOLD }}>{date.toLocaleDateString(dateLoc, { month: 'short' })}</span>}<span>{i + 1}</span>{dotsHere && dotsHere.length > 0 && isDateAvailable(date) && !isSelected && (
                       <span style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
                         {dotsHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
                       </span>
@@ -1945,7 +1977,7 @@ export default function BookingPage() {
             {/* Only while the picked day is in the month on screen. Paging to
                 the next month used to leave last month's day and its times
                 underneath, reading as if they belonged to the new month. */}
-            {!groupFlow && selectedDate && selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth && (
+            {!groupFlow && selectedDate && (voucherRange || (selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth)) && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#56647d' }}>
