@@ -2324,7 +2324,7 @@ export default function DashboardPage() {
   const lateLockHelp = (b: { course_slug?: string | null; partner_booking_id?: string | null; student_name?: string }) =>
     b.partner_booking_id
       ? t('dash.up.cancelPairHelp')
-      : t('dash.up.graceUsedHelp', { name: (b.student_name || '').split(',')[0] })
+      : t('dash.up.graceUsedHelp', { name: (b.student_name || '').split(',').map(x => x.trim()).filter(Boolean).join(' & ') })
   // Why a button cannot do its job online, said in words first. It used to
   // open the chat straight away with the reason only in a hover tooltip,
   // which a phone never shows -- the family saw a chat window and no reason.
@@ -3079,7 +3079,7 @@ export default function DashboardPage() {
                             // Named in the modal and in the "grace used" note: both
                             // children, or the one whose grace is already gone.
                             const pairNames = pair.map(x => x.student_name).filter(Boolean).join(', ')
-                            const spentName = pair.find(x => graceUsed.has(x.student_id || ''))?.student_name || m.student_name
+                            const spentName = pair.filter(x => graceUsed.has(x.student_id || '')).map(x => x.student_name).filter(Boolean).join(', ') || m.student_name
                             const cEnabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== m.id && m.status !== 'pending_partner'
                             // A fixed-class lesson or a make-up is not moved: leave
                             // turns it into a voucher instead.
