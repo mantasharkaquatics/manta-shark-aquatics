@@ -150,5 +150,7 @@ export async function POST(req: NextRequest) {
     })
   } catch {}
 
-  return NextResponse.json({ ok: true, lessons: cancelled.length, refunded, vouchers })
+  // Lessons, not rows: a 60-minute lesson is two rows and a sibling 1-on-2 two
+  // seats, and "20 bookings cancelled" for a 10-lesson class read as 20 lessons.
+  return NextResponse.json({ ok: true, lessons: new Set(cancelled.map((r: any) => r.lesson_group_id || r.class_session_id)).size, refunded, vouchers })
 }

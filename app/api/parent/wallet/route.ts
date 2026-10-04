@@ -25,7 +25,10 @@ export async function GET(req: NextRequest) {
       .select('id, created_at, delta_purchased, delta_granted, balance_purchased_after, balance_granted_after, reason, note, amount_cents, booking_id, stripe_session_id, pricing')
       .eq('parent_id', ctx.parent.id)
       .order('created_at', { ascending: false })
-      .limit(limit)
+      // Read past the page: lines that are merged below (a fixed class ended
+      // with a refund writes one row per half-lesson) must not push the rest
+      // of the page out.
+      .limit(Math.min(400, limit * 4))
 
     // A top-up row carries a receipt. The invoice email tells the family to come
     // to the dashboard for it, so the statement line for the money has to be
@@ -51,10 +54,10 @@ export async function GET(req: NextRequest) {
     // moved. A refund carries its booking; a batch booking carries its dates
     // in the pricing it was charged at.
     const bookingIds = [...new Set((rows || []).map((r: any) => r.booking_id).filter(Boolean))] as string[]
-    const lessonOfBooking = new Map<string, { student: string | null; date: string; time: string | null }>()
+    const lessonOfBooking = new Map<string, { student: string | null; date: string; time: string | null; fixedClassId: string | null; lessonKey: string }>()
     if (bookingIds.length) {
       const { data: bks } = await ctx.svc.from('bookings')
-        .select('id, student_id, class_session_id').in('id', bookingIds)
+        .select('id, student_id, class_session_id, fixed_class_id, lesson_group_id').in('id', bookingIds)
       const sIds = [...new Set((bks || []).map((b: any) => b.student_id).filter(Boolean))]
       const cIds = [...new Set((bks || []).map((b: any) => b.class_session_id).filter(Boolean))]
       const [{ data: sts }, { data: cs }] = await Promise.all([
@@ -66,7 +69,8 @@ export async function GET(req: NextRequest) {
       for (const b of bks || []) {
         const se: any = sess.get(b.class_session_id)
         if (!se) continue
-        lessonOfBooking.set(b.id, { student: nm.get(b.student_id) ?? null, date: se.session_date, time: String(se.start_time || '').slice(0, 5) || null })
+        lessonOfBooking.set(b.id, { student: nm.get(b.student_id) ?? null, date: se.session_date, time: String(se.start_time || '').slice(0, 5) || null,
+          fixedClassId: b.fixed_class_id ?? null, lessonKey: b.lesson_group_id || b.class_session_id })
       }
     }
     // A single, hour or cart booking is debited before its booking row exists,
@@ -115,7 +119,7 @@ export async function GET(req: NextRequest) {
     // The parent sees one balance, so the statement shows one delta. The split
     // between purchased and granted matters only to a refund, and a refund is
     // not something this screen does.
-    const history = (rows || []).map((r: any) => ({
+    const lines = (rows || []).map((r: any) => ({
       id: r.id,
       at: r.created_at,
       points: (r.delta_purchased || 0) + (r.delta_granted || 0),
@@ -129,6 +133,36 @@ export async function GET(req: NextRequest) {
         ? invoiceBySession.get(r.stripe_session_id) ?? null
         : null,
     }))
+    /* Ending a fixed class with a refund returns each remaining lesson on its
+       own ledger row -- one per half of a 60-minute lesson -- so a 10-lesson
+       class put 20 lines of +65 on the family's statement. The family sees ONE
+       line for it (owner, 2026-10-04); the ledger itself keeps every row. The
+       reason the desk typed is for staff, so the merged line does not carry it. */
+    const endKey = (r: any) => {
+      if (r.reason !== 'cancel_refund' || !String(r.note || '').startsWith('Fixed class ended') || !r.bookingId) return null
+      const l = lessonOfBooking.get(r.bookingId)
+      return l?.fixedClassId ? l.fixedClassId : null
+    }
+    const ended = new Map<string, any[]>()
+    for (const r of lines) { const k = endKey(r); if (k) ended.set(k, [...(ended.get(k) || []), r]) }
+    const history: any[] = []
+    for (const r of lines) {
+      const k = endKey(r)
+      if (!k) { history.push(r); continue }
+      const grp = ended.get(k)!
+      if (grp[0] !== r) continue // newest row stands for the group
+      const ls = grp.map(x => lessonOfBooking.get(x.bookingId)!).filter(Boolean)
+      const kids = [...new Set(ls.map(l => l.student).filter(Boolean))]
+      history.push({
+        ...r,
+        id: 'fc-end-' + k,
+        points: grp.reduce((a, x) => a + x.points, 0),
+        reason: 'fixed_class_end',
+        note: null,
+        bookingId: null,
+        lesson: { student: kids.length ? kids.join(' & ') : null, date: ls.map(l => l.date).sort()[0], time: null, count: new Set(ls.map(l => l.lessonKey)).size },
+      })
+    }
     /* The Swim Assessment is paid in dollars before a family has any points, so
        it never touches the ledger -- and its receipt had nowhere to be found,
        although the confirmation told the family it was on their dashboard. Each
