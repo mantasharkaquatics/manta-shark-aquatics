@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { giveBackVouchers } from '@/lib/vouchers'
 
@@ -69,6 +69,23 @@ export async function POST(req: NextRequest) {
   const { sessions, bookings } = await getAffected(svc, block)
   const sessMap = new Map(sessions.map((s: any) => [s.id, s]))
 
+  // A lesson that has ended, or where the swimmer checked in, was delivered:
+  // "cancel & refund" used to cancel and refund it anyway (found 2026-10-04).
+  // Same rule as cancel-session / cancel-booking, applied per swimmer-lesson so
+  // both halves of a 60-minute lesson stay together.
+  const lessonKey = (b: any) => `${b.lesson_group_id || b.class_session_id}|${b.student_id}`
+  const today = getTodayLA()
+  const nowMin = getNowMinutesLA()
+  const hasEnded = (s: any) => !!s && (s.session_date < today || (s.session_date === today && !!s.end_time && toM(s.end_time) <= nowMin))
+  const { data: attended } = bookings.length
+    ? await svc.from('attendance').select('booking_id').in('booking_id', bookings.map((b: any) => b.id))
+    : { data: [] }
+  const attendedIds = new Set((attended || []).map((a: any) => a.booking_id))
+  const delivered = new Set<string>()
+  for (const b of bookings) {
+    if (attendedIds.has(b.id) || hasEnded(sessMap.get(b.class_session_id))) delivered.add(lessonKey(b))
+  }
+
   // Two-step queries: students / parents / course_types
   const stuIds = [...new Set(bookings.map((b: any) => b.student_id).filter(Boolean))]
   const parIds = [...new Set(bookings.map((b: any) => b.parent_id).filter(Boolean))]
@@ -84,12 +101,17 @@ export async function POST(req: NextRequest) {
   const ctMap = new Map((cts || []).map((x: any) => [x.id, x]))
   const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
 
+  // Sorted on sort_key (raw date + 24-hour start): sorting the formatted
+  // 12-hour text put "1:00 PM" before "9:00 AM" (found 2026-10-04).
   const items = bookings.map((b: any) => {
     const s: any = sessMap.get(b.class_session_id)
     const stu: any = stuMap.get(b.student_id)
     const par: any = parMap.get(b.parent_id)
     return {
       booking_id: b.id,
+      lesson_key: lessonKey(b),
+      delivered: delivered.has(lessonKey(b)),
+      sort_key: s ? `${s.session_date} ${String(s.start_time).slice(0, 5)}` : '',
       status: b.status,
       notice_sent_at: b.block_notice_sent_at,
       student_name: stu?.full_name || '',
@@ -99,14 +121,14 @@ export async function POST(req: NextRequest) {
       date: s?.session_date || '',
       time: s ? `${formatTime12h(s.start_time)} \u2013 ${formatTime12h(s.end_time)}` : '',
     }
-  }).sort((a: any, b: any) => a.time.localeCompare(b.time))
+  }).sort((a: any, b: any) => a.sort_key.localeCompare(b.sort_key))
 
   if (action === 'list') {
     return NextResponse.json({ items })
   }
 
   if (action === 'notify') {
-    const targets = bookings.filter((b: any) => b.status === 'confirmed' && !b.block_notice_sent_at)
+    const targets = bookings.filter((b: any) => b.status === 'confirmed' && !b.block_notice_sent_at && !delivered.has(lessonKey(b)))
     let sent = 0
     // One email per family per lesson: a 60-minute lesson's two halves and a
     // sibling pair's two seats used to send two (found 2026-10-03).
@@ -145,7 +167,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'cancel') {
-    const targets = bookings.filter((b: any) => b.status === 'confirmed' && b.block_notice_sent_at)
+    const targets = bookings.filter((b: any) => b.status === 'confirmed' && b.block_notice_sent_at && !delivered.has(lessonKey(b)))
     if (!targets.length) return NextResponse.json({ error: 'No notified bookings to cancel. Send notices first.' }, { status: 400 })
     let cancelled = 0
     const touchedSessions = new Set<string>()

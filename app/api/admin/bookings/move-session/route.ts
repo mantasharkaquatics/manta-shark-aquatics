@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { readJson, badRequest } from '@/lib/http'
+import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 
 function t12(t: string) {
   const [h, m] = t.split(':').map(Number)
@@ -34,7 +35,10 @@ export async function POST(req: NextRequest) {
     .from('bookings')
     .select('id, parent_id, student_id, status, is_trial, lesson_group_id')
     .eq('class_session_id', session_id)
-    .not('status', 'in', '(cancelled,pending_partner)')
+    // pending_partner used to be filtered out here, so a 1-on-2 invitation
+    // waiting on the partner was moved silently and the partner never told.
+    // Keeping it in lets the "pending confirmation" refusal below fire (found 2026-10-04).
+    .neq('status', 'cancelled')
   if (!activeBookings || activeBookings.length === 0)
     return NextResponse.json({ error: 'No active bookings on this session' }, { status: 400 })
   if (activeBookings.some((b: any) => b.status !== 'confirmed' && b.status !== 'pending_payment'))
@@ -59,6 +63,26 @@ export async function POST(req: NextRequest) {
         .map((x: any) => x.id)
     }
   }
+
+  // Same guards as cancel-session: a lesson that has ended, or where a swimmer
+  // checked in, was delivered and stays where it happened. And a lesson cannot
+  // be moved into the past (found 2026-10-04).
+  const today = getTodayLA()
+  const nowMin = getNowMinutesLA()
+  const hm = (t: string) => { const [hh, mm] = String(t).slice(0, 5).split(':').map(Number); return hh * 60 + mm }
+  if (date < today || (date === today && hm(time) <= nowMin))
+    return NextResponse.json({ error: 'A lesson cannot be moved to a time that has already passed' }, { status: 400 })
+  const { data: movingSess } = await svc
+    .from('class_sessions').select('id, session_date, end_time').in('id', moveSessionIds)
+  if ((movingSess || []).some((x: any) => x.session_date < today || (x.session_date === today && x.end_time && hm(x.end_time) <= nowMin)))
+    return NextResponse.json({ error: 'This lesson has already taken place and cannot be moved.' }, { status: 409 })
+  const { data: movingBookings } = await svc
+    .from('bookings').select('id').in('class_session_id', moveSessionIds).neq('status', 'cancelled')
+  const { data: attended } = (movingBookings || []).length
+    ? await svc.from('attendance').select('booking_id').in('booking_id', (movingBookings || []).map((b: any) => b.id))
+    : { data: [] }
+  if ((attended || []).length > 0)
+    return NextResponse.json({ error: 'A swimmer has already checked in to this lesson, so it cannot be moved.' }, { status: 409 })
 
   const { data: course } = await svc
     .from('course_types').select('name, duration_minutes').eq('id', sess.course_type_id).single()

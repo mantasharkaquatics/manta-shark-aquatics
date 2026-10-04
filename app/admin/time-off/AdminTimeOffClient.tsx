@@ -11,7 +11,7 @@ type Item = {
   coaches: { first_name: string; last_name: string } | null
 }
 type ImpactItem = {
-  booking_id: string; status: string; notice_sent_at: string | null
+  booking_id: string; lesson_key?: string; delivered?: boolean; status: string; notice_sent_at: string | null
   student_name: string; parent_name: string; course_name: string; course_type_id?: string | null; date: string; time: string
 }
 
@@ -38,6 +38,9 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   const [expanded, setExpanded] = useState<string | null>(null)
   const [impact, setImpact] = useState<Record<string, { loading: boolean; items: ImpactItem[]; error: string }>>({})
   const [acting, setActing] = useState<string | null>(null)
+  // Notify / cancel used to swallow a failed response and just reload the list,
+  // so the desk never saw why nothing happened (found 2026-10-04).
+  const [actionError, setActionError] = useState<Record<string, string>>({})
   const [confirmAction, setConfirmAction] = useState<{ kind: 'cancel' | 'delete'; id: string; count?: number } | null>(null)
 
   const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { weekday: 'short', month: 'long', day: 'numeric' })
@@ -76,7 +79,8 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'notify', block_id: blockId }),
     })
-    await res.json().catch(() => ({}))
+    const data = await res.json().catch(() => ({}))
+    setActionError(prev => ({ ...prev, [blockId]: res.ok ? '' : (data.error || t('admin.timeOff.err.actionFailed')) }))
     await loadImpact(blockId)
     setActing(null)
   }
@@ -88,7 +92,8 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'cancel', block_id: blockId }),
     })
-    await res.json().catch(() => ({}))
+    const data = await res.json().catch(() => ({}))
+    setActionError(prev => ({ ...prev, [blockId]: res.ok ? '' : (data.error || t('admin.timeOff.err.actionFailed')) }))
     await loadImpact(blockId)
     setActing(null)
   }
@@ -137,8 +142,13 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
 
   const renderCard = (item: Item, removable: boolean) => {
     const imp = impact[item.id]
-    const confirmedNoNotice = imp?.items.filter(i => i.status === 'confirmed' && !i.notice_sent_at) || []
-    const confirmedNotified = imp?.items.filter(i => i.status === 'confirmed' && i.notice_sent_at) || []
+    // The items are booking rows: a 60-minute lesson is two of them. The
+    // buttons counted rows, so one lesson read as 2 (found 2026-10-04). Count
+    // distinct lessons, and leave out lessons already delivered (the API will
+    // not notify or cancel those).
+    const lessons = (xs: ImpactItem[]) => new Set(xs.map(i => i.lesson_key || i.booking_id)).size
+    const confirmedNoNotice = imp?.items.filter(i => i.status === 'confirmed' && !i.notice_sent_at && !i.delivered) || []
+    const confirmedNotified = imp?.items.filter(i => i.status === 'confirmed' && i.notice_sent_at && !i.delivered) || []
     const cancelledItems = imp?.items.filter(i => i.status === 'cancelled') || []
     const isOpen = expanded === item.id
     return (
@@ -203,6 +213,8 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                       </div>
                       {i.status === 'cancelled' ? (
                         <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">{t('admin.timeOff.cancelledRefunded')}</span>
+                      ) : i.delivered ? (
+                        <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">{t('admin.timeOff.delivered')}</span>
                       ) : i.notice_sent_at ? (
                         <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-1 rounded">{t('admin.timeOff.notifiedAwaiting')}</span>
                       ) : (
@@ -216,16 +228,17 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                     <button onClick={() => handleNotify(item.id)}
                       disabled={acting === item.id || confirmedNoNotice.length === 0}
                       className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold text-sm disabled:opacity-40 transition-all">
-                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.sendNotices', { n: confirmedNoNotice.length })}
+                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.sendNotices', { n: lessons(confirmedNoNotice) })}
                     </button>
-                    <button onClick={() => setConfirmAction({ kind: 'cancel', id: item.id, count: confirmedNotified.length })}
+                    <button onClick={() => setConfirmAction({ kind: 'cancel', id: item.id, count: lessons(confirmedNotified) })}
                       disabled={acting === item.id || confirmedNotified.length === 0}
                       className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-40 transition-all"
                       style={{ backgroundColor: '#ef4444', color: '#fff' }}>
-                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.cancelRefundCount', { n: confirmedNotified.length })}
+                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.cancelRefundCount', { n: lessons(confirmedNotified) })}
                     </button>
                   </div>
                 )}
+                {actionError[item.id] && <p className="text-red-400 text-sm">{actionError[item.id]}</p>}
                 {confirmedNoNotice.length === 0 && confirmedNotified.length === 0 && cancelledItems.length > 0 && (
                   <p className="text-gray-500 text-xs">{t('admin.timeOff.allHandled')}</p>
                 )}

@@ -15,8 +15,13 @@ export async function POST(req: NextRequest) {
   // student_skill_progress.last_updated_by is a FK to coaches, so the lesson's
   // coach belongs there, not the admin. Who reviewed is recorded on the history row.
   const { data: histRow } = await supabase
-    .from('progress_history').select('coach_id, student_id, snapshot').eq('id', history_id).single()
+    .from('progress_history').select('coach_id, student_id, snapshot, status').eq('id', history_id).single()
   if (!histRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // A stale tab could re-approve an approved record, or approve one another
+  // admin had rejected, rewriting the live skill progress (found 2026-10-04).
+  if (histRow.status !== 'pending_review') {
+    return NextResponse.json({ error: 'This progress record has already been reviewed' }, { status: 409 })
+  }
 
   // A swimmer with no level is an assessment, and that is confirmed together
   // with its level (/api/admin/review-assessment). Publishing it here would put
@@ -50,12 +55,18 @@ export async function POST(req: NextRequest) {
   // Only the skills that were changed may come back; the rest of the record stays.
   if (updated_snapshot) updatePayload.snapshot = { ...(histRow.snapshot || {}), ...updated_snapshot }
 
-  const { error } = await supabase
+  // Conditional: only the call that moves it off pending_review approves it.
+  const { data: approved, error } = await supabase
     .from('progress_history')
     .update(updatePayload)
     .eq('id', history_id)
+    .eq('status', 'pending_review')
+    .select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!approved || approved.length === 0) {
+    return NextResponse.json({ error: 'This progress record has already been reviewed' }, { status: 409 })
+  }
 
   // The lesson note is approved in the same breath. The transcript is never
   // touched: editing changes only what the family reads.

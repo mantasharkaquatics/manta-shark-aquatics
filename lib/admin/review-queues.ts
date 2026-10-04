@@ -11,6 +11,8 @@
  * fine on every admin page, which is why the badge fetches this from the
  * client after paint and the route caches the answer.
  */
+import { getTodayLA } from '@/lib/date'
+
 export type ReviewQueues = {
   recommendations: any[]
   pendingProgressList: any[]
@@ -41,12 +43,17 @@ export async function loadReviewQueues(
     for (const c of recCoaches || []) cMap[c.id] = c
 
     // Fetch all of the student's history today (incl. rejected)
-    const today = new Date().toISOString().slice(0, 10)
+    // "Today" is the school's day: the UTC date and UTC midnight cut the day at
+    // 5pm (4pm in winter) LA time, so after that the history went missing
+    // (found 2026-10-04). LA midnight, with LA's current UTC offset.
+    const today = getTodayLA()
+    const laOffset = (new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', timeZoneName: 'longOffset' })
+      .formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || 'GMT-08:00').replace('GMT', '') || '-08:00'
     const { data: allHistory } = await svc
       .from('level_recommendations')
       .select('student_id, coach_id, recommended_level, previous_recommended_level, status, created_at')
       .in('student_id', studentIds)
-      .gte('created_at', today + 'T00:00:00Z')
+      .gte('created_at', today + 'T00:00:00' + laOffset)
       .order('created_at', { ascending: true })
 
     const historyByStudent: Record<string, any[]> = {}

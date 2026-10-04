@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CoachDashboardClient from './CoachDashboardClient'
+import { isRealBooking } from './real-booking'
 
 // An hour lesson is two class_sessions but ONE lesson. Merge the halves that
 // share a lesson_group_id so a coach reads one card spanning the full hour,
@@ -69,22 +70,27 @@ export default async function CoachDashboardPage() {
   if (sessionsError) console.error('coach/today: session query failed', sessionsError)
 
   // normalize course_types from array to object
+  // Only real bookings travel on (found 2026-10-04): a cancelled, in-cart,
+  // unpaid or unaccepted-invite row is not a swimmer the coach should expect,
+  // and dropping them BEFORE mergeHourHalves also stops a cancelled booking's
+  // lesson_group_id from merging a session into an hour it no longer belongs to.
   const todaySessions = (rawSessions || []).map((s: any) => ({
     ...s,
     course_types: Array.isArray(s.course_types) ? s.course_types[0] : s.course_types,
-    bookings: (s.bookings || []).map((b: any) => ({
+    bookings: (s.bookings || []).filter(isRealBooking).map((b: any) => ({
       ...b,
       students: Array.isArray(b.students) ? b.students[0] : b.students,
     })),
   }))
 
-  // An empty 1-on-1 or 1-on-2 slot is a leftover shell: a session is created when
-  // a lesson is booked but is never removed when that lesson is cancelled or the
-  // invitation expires. A group class with nobody in it is a real scheduled
-  // class, so that one stays visible.
+  // An empty session is a leftover shell: a session is created when a lesson is
+  // booked but is never removed when that lesson is cancelled or the invitation
+  // expires. Empty 1-on-4 sessions used to be kept here as "a real scheduled
+  // class", but /coach/schedule had already dropped them (group times come from
+  // the coach's zones, not from sessions), so Today and Schedule disagreed about
+  // the same day. Same rule on both now (found 2026-10-04).
   const visibleToday = mergeHourHalves(todaySessions).filter((s: any) =>
-    s.course_types?.slug === '1on4'
-    || (s.bookings || []).some((b: any) => b.status !== 'cancelled')
+    (s.bookings || []).length > 0
   )
 
   return <CoachDashboardClient coach={coach} todaySessions={visibleToday} today={today} />

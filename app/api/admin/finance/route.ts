@@ -105,7 +105,7 @@ export async function GET() {
     // is cancelled with its points unrefunded ON PURPOSE -- they moved to the
     // new row -- and counting it booked the same lesson twice.
     allRows(() => svc.from('bookings')
-      .select('id, points_charged, points_refunded, status, cancelled_by, cancellation_reason, class_session_id, student_id, lesson_group_id')
+      .select('id, points_charged, points_refunded, points_granted, status, cancelled_by, cancellation_reason, class_session_id, student_id, lesson_group_id')
       .not('points_charged', 'is', null).order('id')),
     // What Stripe kept. Read from the payments themselves rather than derived
     // from a rate: ACH is capped, cards carry extras, Terminal differs again.
@@ -169,7 +169,13 @@ export async function GET() {
   const earnedByMonth: Record<string, number> = {}
   const earn = (date: string, pts: number) => { earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts }
   for (const b of (bookings || []) as any[]) {
-    const pts = (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0)
+    // Only the PURCHASED part of a lesson is owed or earned: the granted part
+    // was a discount, never cash (see the header). It used to count the whole
+    // charge, so a 65-point lesson paid with 50 bonus points showed 65 owed
+    // (found 2026-10-04). A refund hands the granted part back first
+    // (lib/bookings/refund.ts), so what is left granted is granted - refunded.
+    const charged = Number(b.points_charged) || 0, refunded = Number(b.points_refunded) || 0
+    const pts = (charged - refunded) - Math.max(0, (Number(b.points_granted) || 0) - refunded)
     if (pts <= 0) continue
     if (b.status === 'cancelled') {
       // A lesson given up for a voucher: owed until the voucher ends.

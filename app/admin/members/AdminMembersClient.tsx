@@ -500,7 +500,10 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
       .from('bookings')
       .select('id, status, student_id, class_session_id, lesson_group_id')
       .eq('student_id', studentId)
-      .neq('status', 'cancelled')
+      // A cart item, an unpaid checkout or an invitation the partner has not
+      // accepted is not a lesson yet, but was listed (and markable) as one
+      // (found 2026-10-04).
+      .not('status', 'in', '(cancelled,in_cart,pending_payment,pending_partner)')
     if (!rawBookings || rawBookings.length === 0) {
       setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming: [], past: [], loaded: true } }))
       return

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { requireStaff } from '@/lib/api-auth'
+import { requireStaff, requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { isLevelNumber } from '@/lib/levels'
 
@@ -131,20 +131,28 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const staff = await requireStaff()
-  if (!staff) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Admins only (found 2026-10-04). The one caller is the admin Reviews
+  // "missing progress" form; coaches file progress through /api/coach/lesson-note
+  // with a recording. requireStaff() let any coach in here, with no check that
+  // the swimmer was in their lesson, so a coach could write any student's live
+  // skill table and queue a history row without a note.
+  const admin = await requireAdmin()
+  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await readJson(req)
   if (!body) return badRequest()
   const { student_id, progress, session_date, class_session_id, coach_id: bodyCoachId } = body
-  let coach_id: string | null = null
-  if (staff.role === 'coach') {
-    const { data: self } = await supabase.from('coaches').select('id').eq('auth_user_id', staff.user.id).single()
-    if (!self) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    coach_id = self.id
-  } else {
-    coach_id = bodyCoachId || null
+  const coach_id: string | null = bodyCoachId || null
+  if (!student_id || !progress || typeof progress !== 'object' || Array.isArray(progress)) {
+    return NextResponse.json({ error: 'Missing data' }, { status: 400 })
   }
-  if (!student_id || !progress) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
+  // Every score is a whole percentage 0-100 (found 2026-10-04): nothing bounded
+  // them, and a 150 or "abc" went straight into student_skill_progress and the
+  // snapshot a parent reads.
+  for (const v of Object.values(progress)) {
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 100) {
+      return NextResponse.json({ error: 'Each skill score must be a whole number from 0 to 100' }, { status: 400 })
+    }
+  }
   if (!coach_id) return NextResponse.json({ error: 'This session has no assigned coach' }, { status: 400 })
 
   // Verify coach exists
@@ -227,7 +235,9 @@ export async function POST(req: NextRequest) {
   const snapshot: Record<string, number> = { ...accepted }
   if (allowed) for (const id of allowed) if (!(id in snapshot)) snapshot[id] = stored[id] ?? 0
 
-  await supabase.from('progress_history').insert({
+  // The insert error used to be ignored (found 2026-10-04): the form reported
+  // success, the card left the list, and no record ever reached Reviews.
+  const { error: historyError } = await supabase.from('progress_history').insert({
     student_id,
     coach_id: coach.id,
     snapshot,
@@ -235,6 +245,10 @@ export async function POST(req: NextRequest) {
     class_session_id: class_session_id || null,
     status: 'pending_review'
   })
+  if (historyError) {
+    console.error('coach/progress: progress history save failed', historyError)
+    return NextResponse.json({ error: 'Could not save the progress record' }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }

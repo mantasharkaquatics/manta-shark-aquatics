@@ -1384,7 +1384,7 @@ export default function DashboardPage() {
     const k = errorKey(raw)
     return k ? t(k) : (raw || t(fallbackKey))
   }
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
@@ -2302,6 +2302,8 @@ export default function DashboardPage() {
       id: b.id, courseName: b.course_name, courseTypeId: b.course_type_id,
       date: formatDate(b.session_date, intlOf(locale)), time: formatTime(b.start_time),
       isLate: late, points, kind,
+      // A fixed-class lesson is taken as LEAVE, inside 24h too (its button says 請假).
+      fixed: !!b.fixed_class_id,
       // Every child whose grace this spends: a sibling 1-on-2 names both.
       studentName: (b.student_name || '').split(',').map(x => x.trim()).filter(Boolean).join(' & '),
       voucher: voucherKind(b.course_slug, b.lesson_group_id ? 60 : 30),
@@ -2433,8 +2435,8 @@ export default function DashboardPage() {
       {cancelTarget && (
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : cancelTarget.kind === 'leave' ? 'dash.cancelModal.eyebrowLeave' : 'dash.cancelModal.eyebrowCancel')}</div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : cancelTarget.kind === 'leave' ? 'dash.cancelModal.titleLeave' : 'dash.cancelModal.titleCancel')}</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.eyebrowLeave' : 'dash.cancelModal.eyebrowCancel')}</div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.titleLeave' : 'dash.cancelModal.titleCancel')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{cancelTarget.date} · {cancelTarget.time}</div>
@@ -2463,7 +2465,7 @@ export default function DashboardPage() {
                   the top of the one that had worked, and closing it at the end
                   also closed whatever modal the parent had opened meanwhile. */}
               <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : cancelTarget.kind === 'leave' ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
+                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
               </button>
             </div>
           </div>

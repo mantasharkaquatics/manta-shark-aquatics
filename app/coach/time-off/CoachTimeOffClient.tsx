@@ -27,6 +27,10 @@ export default function CoachTimeOffClient({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  // Removing time off is a two-step: tap Cancel, then confirm in the row.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<{ id: string; msg: string } | null>(null)
 
   const formatDate = (d: string) => {
     const dt = new Date(d + 'T12:00:00')
@@ -76,9 +80,23 @@ export default function CoachTimeOffClient({
     setSubmitting(false)
   }
 
+  // One tap used to delete with no confirmation, and the row vanished even when
+  // the delete failed, so the coach believed a day off was gone that the admin
+  // still saw (found 2026-10-04). Now it asks first, and the row only leaves
+  // the list once the database says it is gone. .select() matters: a delete
+  // that RLS refuses returns no error, only zero rows.
   const handleDelete = async (id: string) => {
-    await supabase.from('coach_time_off').delete().eq('id', id)
-    setTimeOffList(prev => prev.filter(t => t.id !== id))
+    setDeletingId(id)
+    setDeleteError(null)
+    const { data, error: err } = await supabase
+      .from('coach_time_off').delete().eq('id', id).eq('coach_id', coach.id).select('id')
+    if (err || !data || data.length === 0) {
+      setDeleteError({ id, msg: t('coach.timeOff.errDelete') })
+    } else {
+      setTimeOffList(prev => prev.filter(t => t.id !== id))
+      setConfirmingId(null)
+    }
+    setDeletingId(null)
   }
 
   return (
@@ -165,18 +183,44 @@ export default function CoachTimeOffClient({
           ) : (
             <div className="space-y-3">
               {timeOffList.map(item => (
-                <div key={item.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium">{formatDate(item.date)}</p>
-                    <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</p>
-                    {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
+                <div key={item.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">{formatDate(item.date)}</p>
+                      <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</p>
+                      {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
+                    </div>
+                    {confirmingId !== item.id && (
+                      <button
+                        onClick={() => { setConfirmingId(item.id); setDeleteError(null) }}
+                        className="text-gray-500 hover:text-red-400 transition-colors text-sm ml-4 flex-shrink-0"
+                      >
+                        {t('coach.cancel')}
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="text-gray-500 hover:text-red-400 transition-colors text-sm ml-4 flex-shrink-0"
-                  >
-                    {t('coach.cancel')}
-                  </button>
+                  {confirmingId === item.id && (
+                    <div className="mt-3 pt-3 border-t border-[#1e3a6e] flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-gray-300 text-sm">{t('coach.timeOff.confirmRemove')}</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setConfirmingId(null); setDeleteError(null) }}
+                          disabled={deletingId === item.id}
+                          className="text-gray-400 hover:text-white text-sm px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                          {t('coach.timeOff.keep')}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          disabled={deletingId === item.id}
+                          className="bg-red-900/40 hover:bg-red-900/60 text-red-300 text-sm font-medium px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                          {deletingId === item.id ? t('coach.timeOff.removing') : t('coach.timeOff.confirmYes')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {deleteError?.id === item.id && <p className="text-red-400 text-sm mt-2">{deleteError.msg}</p>}
                 </div>
               ))}
             </div>

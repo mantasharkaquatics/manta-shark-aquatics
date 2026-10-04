@@ -45,7 +45,7 @@ export default async function AdminSchedulePage() {
       .select('id, pending_action, pending_new_session_id, class_session_id, parent_id, student_id, pending_expires_at')
       .in('pending_action', ['reschedule', 'reschedule_initiator']),
     supabase.from('bookings')
-      .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason, points_charged, is_trial')
+      .select('id, updated_at, student_id, parent_id, class_session_id, cancellation_reason, points_charged, is_trial, lesson_group_id')
       .eq('status', 'cancelled').is('pending_action', null)
       .or('cancellation_reason.is.null,cancellation_reason.neq.rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
@@ -56,7 +56,7 @@ export default async function AdminSchedulePage() {
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('updated_at', { ascending: true }).limit(50),
     supabase.from('bookings')
-      .select('id, created_at, student_id, parent_id, class_session_id, original_booking_id')
+      .select('id, created_at, student_id, parent_id, class_session_id, original_booking_id, lesson_group_id')
       .eq('status', 'confirmed').is('original_booking_id', null)
       .is('cancellation_reason', null)
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
@@ -293,19 +293,26 @@ export default async function AdminSchedulePage() {
             type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled' | 'new'; names: string; cs: any; newCs: any; updatedAt: string; isCrossAccount?: boolean; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
             const items: ActivityItem[] = []
 
-            // New bookings (dedupe same session)
+            // A 60-minute lesson is two bookings in two sessions, and was listed
+            // twice (found 2026-10-04): group by lesson_group_id first, show the
+            // first half's session and each swimmer once.
+            const firstHalf = (group: any[]) => [...group].sort((x: any, y: any) =>
+              String(sessionMap[x.class_session_id]?.start_time || '').localeCompare(String(sessionMap[y.class_session_id]?.start_time || '')))[0]
+            const uniqueNames = (group: any[]) => [...new Set(group.map((b: any) => {
+              const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
+              return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
+            }).filter(Boolean))].join('、')
+
+            // New bookings (dedupe same session / same 60-minute lesson)
             const mergedNew: Record<string, any[]> = {}
             for (const b of rawNewBookings || []) {
-              const key = b.class_session_id || b.id
+              const key = b.lesson_group_id || b.class_session_id || b.id
               if (!mergedNew[key]) mergedNew[key] = []
               mergedNew[key].push(b)
             }
             for (const group of Object.values(mergedNew)) {
-              const b0 = group[0]
-              const names = group.map((b:any) => {
-                const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
-                return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
-              }).filter(Boolean).join('、')
+              const b0 = firstHalf(group)
+              const names = uniqueNames(group)
               const isCrossAccountNew = new Set(group.map((b:any) => b.parent_id)).size > 1
               items.push({ key: 'n-' + b0.id, type: 'new', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.created_at, isCrossAccount: isCrossAccountNew })
             }
@@ -318,16 +325,13 @@ export default async function AdminSchedulePage() {
             // it has to be named separately or a cancelled assessment disappears.
             const mergedCancelled: Record<string, any[]> = {}
             for (const b of (rawCancelled || []).filter((b: any) => b.points_charged != null || b.is_trial)) {
-              const key = b.class_session_id || b.id
+              const key = b.lesson_group_id || b.class_session_id || b.id
               if (!mergedCancelled[key]) mergedCancelled[key] = []
               mergedCancelled[key].push(b)
             }
             for (const group of Object.values(mergedCancelled)) {
-              const b0 = group[0]
-              const names = group.map((b:any) => {
-                const s = studentMap[b.student_id]; const p = parentMap[b.parent_id]
-                return s ? `${s.full_name} (${p?.first_name} ${p?.last_name})` : ''
-              }).filter(Boolean).join('、')
+              const b0 = firstHalf(group)
+              const names = uniqueNames(group)
               const isCrossAccountC = new Set(group.map((b:any) => b.parent_id)).size > 1
               items.push({ key: 'c-' + b0.id, type: 'cancelled', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.updated_at, isCrossAccount: isCrossAccountC })
             }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
-import { dateTag, type Locale } from '@/lib/i18n'
+import { dateTag, tDb, type Locale } from '@/lib/i18n'
 
 
 interface Student {
@@ -14,11 +14,14 @@ interface Student {
 
 interface AttendanceRecord {
   id: string
-  student_name: string
+  kind?: 'lesson' | 'team'
+  student_name: string | null
   parent_name: string
   check_in_method: string
   checked_in_at: string
-  detail?: string
+  team_time?: string | null
+  team_tier_id?: string | null
+  team_tier_name?: string | null
 }
 
 // Date follows the admin's language; the clock time stays 12-hour English.
@@ -278,7 +281,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                 <tr><td colSpan={4} className="text-center text-white/30 py-6">{t('admin.checkin.noRecords')}</td></tr>
               ) : records.map(r => (
                 <tr key={r.id} className="border-t border-white/5">
-                  <td className="px-6 py-3 text-white">{r.student_name}{r.detail && <div className="text-[#c9a84c] text-xs mt-0.5">{r.detail}</div>}</td>
+                  <td className="px-6 py-3 text-white">{r.student_name || t('admin.checkin.unknownStudent')}{r.kind === 'team' && <div className="text-[#c9a84c] text-xs mt-0.5">{t('admin.checkin.teamPractice', { time: r.team_time ?? '', tier: r.team_tier_id && r.team_tier_name ? tDb(locale, 'team_tiers', r.team_tier_id, r.team_tier_name) : (r.team_tier_name || t('admin.booking.team')) })}</div>}</td>
                   <td className="px-6 py-3 text-white/60">{r.parent_name}</td>
                   <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr' ? t('admin.checkin.method.qr') : r.check_in_method === 'self' ? t('admin.checkin.method.self') : t('admin.checkin.method.manual')}</td>
                   <td className="px-6 py-3 text-white/60">{formatDateTime(r.checked_in_at, locale)}</td>

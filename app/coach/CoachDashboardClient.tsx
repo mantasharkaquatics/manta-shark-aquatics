@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { levelNameKey } from '@/lib/levels'
 import { STAGES } from '@/lib/levels'
+import { isRealBooking } from './real-booking'
 
 
 type Student = {
@@ -21,7 +22,8 @@ type Booking = {
   status: string
   lesson_group_id: string | null
   is_trial?: boolean
-  students: Student
+  // Null when the embed comes back without the student (RLS, deleted row).
+  students: Student | null
 }
 
 type Session = {
@@ -73,10 +75,20 @@ export default function CoachDashboardClient({
     return `${hour > 12 ? hour - 12 : hour === 0 ? 12 : hour}:${m} ${hour >= 12 ? 'PM' : 'AM'}`
   }
 
+  // Real bookings only, and only ones whose student actually came back
+  // (found 2026-10-04): in_cart / pending_payment / pending_partner are not a
+  // swimmer in the pool, and a null embed used to crash on .full_name below.
   const activeBookings = (session: Session) =>
-    session.bookings.filter(b => b.status !== 'cancelled')
+    session.bookings.filter(b => isRealBooking(b) && !!b.students)
+
+  // The id of the student whose skills were asked for LAST (found 2026-10-04).
+  // Tapping swimmer A then B quickly could let A's slower response land after
+  // B's and paint A's skills under B's name; a stale response is ignored.
+  const latestStudentRef = useRef<string | null>(null)
 
   const loadStudentSkills = async (student: Student) => {
+    latestStudentRef.current = student.id
+    const stale = () => latestStudentRef.current !== student.id
     setSelectedStudent(student)
     setSkills([])
     setOpenStage(null)
@@ -98,6 +110,7 @@ export default function CoachDashboardClient({
       .eq('level_number', levelNum)
       .single()
 
+    if (stale()) return
     if (!levelData) {
       setLoadingSkills(false)
       return
@@ -113,6 +126,7 @@ export default function CoachDashboardClient({
       .order('stage')
       .order('sort_order')
 
+    if (stale()) return
     if (!skillList || skillList.length === 0) {
       setLoadingSkills(false)
       return
@@ -124,6 +138,7 @@ export default function CoachDashboardClient({
       .eq('student_id', student.id)
       .in('skill_id', skillList.map(s => s.id))
 
+    if (stale()) return
     const progressMap: Record<string, number> = {}
     progressData?.forEach(p => { progressMap[p.skill_id] = p.progress_percent })
 
@@ -197,7 +212,7 @@ export default function CoachDashboardClient({
                   className={`bg-[#111d38] rounded-xl p-5 border transition-all cursor-pointer ${
                     selectedSession?.id === session.id ? 'border-[#c9a84c]' : 'border-[#1e3a6e] hover:border-[#c9a84c]/50'
                   }`}
-                  onClick={() => { setSelectedSession(session); setSelectedStudent(null); setSkills([]) }}
+                  onClick={() => { latestStudentRef.current = null; setSelectedSession(session); setSelectedStudent(null); setSkills([]) }}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -220,19 +235,19 @@ export default function CoachDashboardClient({
                     {activeBookings(session).map(booking => (
                       <button
                         key={booking.id}
-                        onClick={e => { e.stopPropagation(); setSelectedSession(session); setSelectedBooking(booking); loadStudentSkills(booking.students) }}
+                        onClick={e => { e.stopPropagation(); setSelectedSession(session); setSelectedBooking(booking); if (booking.students) loadStudentSkills(booking.students) }}
                         className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
-                          selectedStudent?.id === booking.students.id
+                          selectedStudent?.id === booking.students?.id
                             ? 'bg-[#c9a84c]/20 border border-[#c9a84c]/50'
                             : 'bg-[#0d1529] hover:bg-[#1e3a6e]/50'
                         }`}
                       >
                         <div className="w-8 h-8 rounded-full bg-[#1e3a6e] flex items-center justify-center flex-shrink-0">
-                          <span className="text-[#c9a84c] text-xs font-bold">{booking.students.full_name.charAt(0)}</span>
+                          <span className="text-[#c9a84c] text-xs font-bold">{booking.students?.full_name?.charAt(0)}</span>
                         </div>
                         <div>
-                          <p className="text-white text-sm font-medium">{booking.students.full_name}</p>
-                          <p className="text-gray-400 text-xs">{booking.students.current_level ? t('coach.level', { n: booking.students.current_level }) : t('coach.progress.unassigned')}</p>
+                          <p className="text-white text-sm font-medium">{booking.students?.full_name}</p>
+                          <p className="text-gray-400 text-xs">{booking.students?.current_level ? t('coach.level', { n: booking.students.current_level }) : t('coach.progress.unassigned')}</p>
                         </div>
                         <span className="ml-auto text-gray-500 text-xs">{t('coach.today.viewProgress')}</span>
                       </button>

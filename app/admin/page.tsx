@@ -39,15 +39,20 @@ export default async function AdminDashboardPage() {
   const [
     { count: totalMembers },
     { count: totalStudents },
-    { data: pendingUpgrades },
+    { count: pendingUpgradesCount },
     { data: pendingTimeOff },
     { data: todaySessions },
+    { count: pendingTimeOffCount },
   ] = await Promise.all([
     supabase.from('parents').select('*', { count: 'exact', head: true }),
     supabase.from('students').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('students').select('id, full_name, current_level, parent_id').eq('upgrade_pending', true).limit(5),
+    // Both cards counted a .limit(5) list and so never showed more than 5
+    // (found 2026-10-04). This list was never displayed: count it instead.
+    supabase.from('students').select('*', { count: 'exact', head: true }).eq('upgrade_pending', true),
     supabase.from('coach_time_off').select('id, date, reason, coaches(first_name, last_name)').gte('date', today).order('date').limit(5),
     supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(id, name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').gt('enrolled_count', 0).order('start_time'),
+    // The time-off list above stops at 5 for display; the card needs the total.
+    supabase.from('coach_time_off').select('*', { count: 'exact', head: true }).gte('date', today),
   ])
 
   // coach_applications has RLS on with zero policies, so the cookie-scoped
@@ -95,8 +100,8 @@ export default async function AdminDashboardPage() {
   const stats = [
     { label: t('admin.dash.totalMembers'), value: totalMembers ?? 0, href: '/admin/members', color: 'text-blue-400' },
     { label: t('admin.dash.activeStudents'), value: totalStudents ?? 0, href: '/admin/members', color: 'text-green-400' },
-    { label: t('admin.dash.pendingUpgrades'), value: pendingUpgrades?.length ?? 0, href: '/admin/reviews', color: 'text-[#c9a84c]' },
-    { label: t('admin.dash.timeOffRequests'), value: pendingTimeOff?.length ?? 0, href: '/admin/time-off', color: 'text-purple-400' },
+    { label: t('admin.dash.pendingUpgrades'), value: pendingUpgradesCount ?? 0, href: '/admin/reviews', color: 'text-[#c9a84c]' },
+    { label: t('admin.dash.timeOffRequests'), value: pendingTimeOffCount ?? 0, href: '/admin/time-off', color: 'text-purple-400' },
     { label: t('admin.dash.newApplications'), value: newApplications ?? 0, href: '/admin/applications', color: 'text-orange-400' },
   ]
 

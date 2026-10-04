@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CoachScheduleClient from './CoachScheduleClient'
+import { isRealBooking } from '../real-booking'
 
 // An hour lesson is two class_sessions but ONE lesson. Merge the halves that
 // share a lesson_group_id so a coach reads one card spanning the full hour,
@@ -20,7 +21,12 @@ function mergeHourHalves(list: any[]) {
       if (b.students?.id && !seen.has(b.students.id)) { prev.bookings.push(b); seen.add(b.students.id) }
     }
   }
-  return [...byKey.values()].sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
+  // Date first, then time (found 2026-10-04): this list spans 30 days, and a
+  // start_time-only sort put Friday's 9:00 ahead of Tuesday's 4:00, so the
+  // client's group-by-date came out with the days out of order.
+  return [...byKey.values()].sort((a, b) =>
+    String(a.session_date).localeCompare(String(b.session_date))
+    || String(a.start_time).localeCompare(String(b.start_time)))
 }
 
 export default async function CoachSchedulePage() {
@@ -71,10 +77,14 @@ export default async function CoachSchedulePage() {
   // at the poolside. Say so in the log rather than rendering a quiet blank page.
   if (sessionsError) console.error('coach/schedule: session query failed', sessionsError)
 
+  // Only real bookings travel on (found 2026-10-04): a cancelled, in-cart,
+  // unpaid or unaccepted-invite row is not a swimmer the coach should expect,
+  // and dropping them BEFORE mergeHourHalves also stops a cancelled booking's
+  // lesson_group_id from merging a session into an hour it no longer belongs to.
   const sessions = (rawSessions || []).map((s: any) => ({
     ...s,
     course_types: Array.isArray(s.course_types) ? s.course_types[0] : s.course_types,
-    bookings: (s.bookings || []).map((b: any) => ({
+    bookings: (s.bookings || []).filter(isRealBooking).map((b: any) => ({
       ...b,
       students: Array.isArray(b.students) ? b.students[0] : b.students,
     })),
@@ -88,7 +98,7 @@ export default async function CoachSchedulePage() {
   // only empty group "class" a coach ever saw was one somebody had booked and
   // cancelled, while every untouched group time stayed off the list.
   const visible = mergeHourHalves(sessions).filter((s: any) =>
-    (s.bookings || []).some((b: any) => b.status !== 'cancelled')
+    (s.bookings || []).length > 0
   )
 
   return <CoachScheduleClient coach={coach} sessions={visible} today={today} />

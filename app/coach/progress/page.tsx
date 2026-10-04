@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CoachProgressClient from './CoachProgressClient'
+import { NOT_REAL_BOOKING_STATUSES } from '../real-booking'
 export const dynamic = 'force-dynamic'
 
 export default async function CoachProgressPage() {
@@ -40,12 +41,6 @@ export default async function CoachProgressPage() {
     .neq('status', 'cancelled')
     .order('start_time')
 
-  // scheduledToday separates "nothing on the calendar" from "nobody has checked
-  // in yet". Both arrive at the client as an empty session list, and telling a
-  // coach "no lessons scheduled" on a day they are about to teach reads as the
-  // schedule being broken.
-  const scheduledToday = sessions?.length || 0
-
   if (!sessions || sessions.length === 0) {
     return <CoachProgressClient coach={coach} sessions={[]} today={today} completedKeys={[]} scheduledToday={0} />
   }
@@ -62,12 +57,34 @@ export default async function CoachProgressPage() {
   const courseTypeMap: Record<string, string> = {}
   for (const ct of courseTypes || []) courseTypeMap[ct.id] = ct.name
 
-  // Step 3: fetch confirmed bookings
-  const { data: bookingsRaw } = await supabase
+  // Step 3: fetch the real bookings (confirmed, completed -- not a basket, an
+  // unpaid checkout or an unaccepted invite)
+  const { data: realBookings } = await supabase
     .from('bookings')
-    .select('id, class_session_id, student_id, lesson_group_id, is_trial')
+    .select('id, class_session_id, student_id, lesson_group_id, is_trial, status')
     .in('class_session_id', sessionIds)
-    .eq('status', 'confirmed')
+    .not('status', 'in', `(${NOT_REAL_BOOKING_STATUSES.join(',')})`)
+
+  // scheduledToday separates "nothing on the calendar" from "nobody has checked
+  // in yet". Both arrive at the client as an empty session list, and telling a
+  // coach "no lessons scheduled" on a day they are about to teach reads as the
+  // schedule being broken.
+  // It used to be sessions.length, which counted leftover empty sessions (a
+  // cancelled or never-paid booking leaves its session behind) and both halves
+  // of an hour lesson, so a coach with one real lesson read "You have 3
+  // lesson(s) today" (found 2026-10-04). Count what the Today page shows: a
+  // session with at least one real booking, with an hour's two halves (one
+  // shared lesson_group_id) counted once.
+  const lessonKeys = new Set<string>()
+  for (const s of sessions) {
+    const mine = (realBookings || []).filter((b: any) => b.class_session_id === s.id)
+    if (mine.length === 0) continue
+    const groups = [...new Set(mine.map((b: any) => b.lesson_group_id).filter(Boolean))]
+    lessonKeys.add(groups.length === 1 ? 'g:' + groups[0] : 's:' + s.id)
+  }
+  const scheduledToday = lessonKeys.size
+
+  const bookingsRaw = (realBookings || []).filter((b: any) => b.status === 'confirmed')
 
   // Absent students need no progress: keep only bookings with an attendance row (checked in)
   let bookings: any[] = []

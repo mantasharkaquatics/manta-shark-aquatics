@@ -2,8 +2,9 @@
 
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
+import { isRealBooking } from '../real-booking'
 
-type Student = { id: string; full_name: string; current_level: string }
+type Student = { id: string; full_name: string; current_level: string | null }
 type Booking = { id: string; status: string; is_trial?: boolean; students: Student }
 type Session = {
   id: string; session_date: string; start_time: string; end_time: string
@@ -41,7 +42,9 @@ export default function CoachScheduleClient({
     grouped[s.session_date].push(s)
   })
 
-  const activeBookings = (s: Session) => s.bookings.filter(b => b.status !== 'cancelled')
+  // Real bookings only (found 2026-10-04): in_cart / pending_payment /
+  // pending_partner rows are not a swimmer the coach should expect.
+  const activeBookings = (s: Session) => s.bookings.filter(isRealBooking)
 
   return (
     <div>
@@ -101,7 +104,9 @@ export default function CoachScheduleClient({
                             </div>
                             <div>
                               <p className="text-white text-sm">{booking.students?.full_name}</p>
-                              <p className="text-gray-500 text-xs">{t('coach.level', { n: booking.students?.current_level ?? '' })}</p>
+                              {/* An unassigned swimmer read "Level " with no number (found 2026-10-04);
+                                  same label as Today and Progress now. */}
+                              <p className="text-gray-500 text-xs">{booking.students?.current_level ? t('coach.level', { n: booking.students.current_level }) : t('coach.progress.unassigned')}</p>
                             </div>
                           </div>
                         ))}

@@ -30,7 +30,7 @@ async function todaysLessons(svc: SupabaseClient, studentId: string) {
   const todayStr = getTodayLA()
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, class_session_id, status')
+    .select('id, class_session_id, status, lesson_group_id')
     .eq('student_id', studentId)
     .neq('status', 'cancelled')
 
@@ -197,12 +197,20 @@ export async function checkInStudent(svc: SupabaseClient, studentId: string, met
 
   if (error) return { ok: false, status: 500, code: 'db', error: error.message }
 
+  // A 60-minute lesson is two bookings: counting rows said "2 lessons" and
+  // listed the second half's start as a lesson of its own (found 2026-10-04).
+  // One entry per lesson, at the time that lesson starts.
+  const lessonOf = (b: any) => b.lesson_group_id || b.id
+  const startOf = new Map<string, string>()
+  for (const b of todays) if (!startOf.has(lessonOf(b))) startOf.set(lessonOf(b), b.cs.start_time)
+  const lessonKeys = [...new Set(targets.map(lessonOf))]
+
   return {
     ok: true,
     student_id: student.id,
     student_name: student.full_name,
     current_level: student.current_level,
-    checked_in_count: rows.length,
-    lesson_times: targets.map((b: any) => formatTime12h(b.cs.start_time)),
+    checked_in_count: lessonKeys.length,
+    lesson_times: lessonKeys.map(k => formatTime12h(startOf.get(k))),
   }
 }

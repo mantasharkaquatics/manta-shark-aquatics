@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
-import { applyPoints, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, walletSummary, WalletInArrears } from '@/lib/points-wallet'
 import { MAX_TOPUP_DOLLARS } from '@/lib/points'
 
 export const runtime = 'nodejs'
@@ -95,6 +95,10 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ ok: true, balance: res.balance })
   } catch (e: any) {
+    // A wallet in arrears refuses every deduction; this used to surface as the
+    // generic "Could not adjust" 500 (found 2026-10-04).
+    if (e instanceof WalletInArrears)
+      return NextResponse.json({ error: `This family owes ${e.owed} points from a returned payment; a deduction cannot be made until it is settled.` }, { status: 400 })
     if (e?.name === 'InsufficientPoints')
       return NextResponse.json({ error: `This family only has ${e.available} points` }, { status: 409 })
     console.error('admin points adjust failed:', e)

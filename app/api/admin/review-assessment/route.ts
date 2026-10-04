@@ -21,6 +21,7 @@ export const maxDuration = 60
  *
  * Order matters, because PostgREST gives us no transaction:
  *  1. everything is read and checked first, so a bad request writes nothing;
+ *     then the pending report is claimed, so a second confirm stops here;
  *  2. the level moves (history row first, see setStudentLevel);
  *  3. the scores go live, then the note, then the recommendation is closed;
  *  4. the family's report is written (course, frequency, the 60-day credit);
@@ -97,10 +98,33 @@ export async function POST(req: NextRequest) {
     if (allowed.has(id) && Number.isFinite(n) && n >= 0 && n <= 100) snapshot[id] = n
   }
 
+  // Claim the report before writing anything. The checks above are reads, so
+  // two confirms arriving together (two admins, a double click) both passed
+  // them and both moved the level, translated and emailed (found 2026-10-04).
+  // The claim is a short lease on the pending row: a confirm that fails below
+  // releases it, and one that dies outright frees it after LEASE_MS, so the
+  // card can still be confirmed again as step 5 above promises.
+  const LEASE_MS = 90_000
+  const claimAt = new Date().toISOString()
+  const { data: claimed, error: claimErr } = await svc.from('progress_history')
+    .update({ reviewed_by: adminId, reviewed_at: claimAt })
+    .eq('id', history_id).eq('status', 'pending_review')
+    .or(`reviewed_at.is.null,reviewed_at.lt."${new Date(Date.now() - LEASE_MS).toISOString()}"`)
+    .select('id')
+  if (claimErr) return NextResponse.json({ error: claimErr.message }, { status: 500 })
+  if (!claimed || claimed.length === 0) {
+    return NextResponse.json({ error: 'This assessment is being confirmed right now, or already has been. Refresh in a minute.' }, { status: 409 })
+  }
+  const fail = async (error: string, status: number) => {
+    await svc.from('progress_history').update({ reviewed_by: null, reviewed_at: null })
+      .eq('id', history_id).eq('status', 'pending_review').eq('reviewed_at', claimAt)
+    return NextResponse.json({ error }, { status })
+  }
+
   // 2. The level.
   if (!student.current_level) {
     const moved = await setStudentLevel(svc, { studentId: rec.student_id, toLevel: level, adminId, notes: 'Assessment' })
-    if (!moved.ok) return NextResponse.json({ error: moved.error }, { status: moved.status })
+    if (!moved.ok) return fail(moved.error, moved.status)
   }
 
   // 3. The scores go live. After the level, so the stage trigger reads the
@@ -116,7 +140,7 @@ export async function POST(req: NextRequest) {
   }))
   if (upserts.length > 0) {
     const { error } = await svc.from('student_skill_progress').upsert(upserts, { onConflict: 'student_id,skill_id' })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return fail(error.message, 500)
   }
 
   if (note) {
@@ -127,7 +151,7 @@ export async function POST(req: NextRequest) {
       reviewed_at: now,
       updated_at: now,
     }).eq('id', note.id)
-    if (noteErr) return NextResponse.json({ error: noteErr.message }, { status: 500 })
+    if (noteErr) return fail(noteErr.message, 500)
     await refreshNoteTranslations(svc, note.id)
   }
 
@@ -138,7 +162,7 @@ export async function POST(req: NextRequest) {
     final_level: level,
     reviewed_at: now,
   }).eq('id', recommendation_id)
-  if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 })
+  if (recErr) return fail(recErr.message, 500)
 
   // 4. The family's report. The assessment booking gives the date the 60 days
   // run from; the history row's own date stands in if it cannot be found.
@@ -172,33 +196,40 @@ export async function POST(req: NextRequest) {
     confirmed_at: now,
     credit_deadline: addDays(assessedOn, CREDIT_DAYS),
   }, { onConflict: 'student_id' })
-  if (reportErr) return NextResponse.json({ error: reportErr.message }, { status: 500 })
+  if (reportErr) return fail(reportErr.message, 500)
 
   // 5. The report, last: this is what takes the card out of Reviews.
   const { error: histErr } = await svc.from('progress_history').update({
     status: 'approved', reviewed_by: adminId, reviewed_at: now, snapshot,
   }).eq('id', history_id)
-  if (histErr) return NextResponse.json({ error: histErr.message }, { status: 500 })
+  if (histErr) return fail(histErr.message, 500)
 
   // 6. Tell the family, once. Best effort: the report is on the dashboard either way.
-  if (!existing?.emailed_at) {
+  // Claim emailed_at first so two confirms cannot both send; a failed send
+  // gives the claim back (found 2026-10-04).
+  const { data: mailClaim } = existing?.emailed_at ? { data: [] } : await svc.from('student_assessments')
+    .update({ emailed_at: new Date().toISOString() })
+    .eq('student_id', rec.student_id).is('emailed_at', null)
+    .select('student_id')
+  if (mailClaim && mailClaim.length > 0) {
+    let sent = false
     try {
       const { data: fam } = await svc.from('parents')
         .select('email, first_name, preferred_language').eq('id', student.parent_id).maybeSingle()
       if (fam?.email) {
         const lang = String(fam.preferred_language || 'en')
-        const sent = await sendEmail({
+        sent = await sendEmail({
           type: 'assessment_report', to: fam.email, parentName: fam.first_name || '',
           studentName: student.full_name || '', lang,
           level, course: recommended_course, frequency: weekly_frequency,
           reason: reasonText ? (i18n[lang] || reasonText) : '',
           creditDeadline: addDays(assessedOn, CREDIT_DAYS),
         })
-        if (sent) await svc.from('student_assessments').update({ emailed_at: new Date().toISOString() }).eq('student_id', rec.student_id)
       }
     } catch (e) {
       console.error('review-assessment: report saved, email failed:', e)
     }
+    if (!sent) await svc.from('student_assessments').update({ emailed_at: null }).eq('student_id', rec.student_id)
   }
 
   return NextResponse.json({ ok: true })

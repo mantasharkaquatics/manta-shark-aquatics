@@ -141,6 +141,15 @@ export async function POST(req: NextRequest) {
         if (!kindsByParent.has(n.parent_id)) kindsByParent.set(n.parent_id, new Set())
         kindsByParent.get(n.parent_id)!.add(n.kind)
       }
+      // A sibling pair is two bookings for one parent: the email named only the
+      // first child (found 2026-10-04). Name every child, as time-off does.
+      const studentsByParent = new Map<string, string[]>()
+      for (const n of notified) {
+        if (!n.parent_id || !n.student_id) continue
+        const list = studentsByParent.get(n.parent_id) || []
+        if (!list.includes(n.student_id)) list.push(n.student_id)
+        studentsByParent.set(n.parent_id, list)
+      }
       const seen = new Set<string>()
       for (const t of notified) {
         if (!t.parent_id || seen.has(t.parent_id)) continue
@@ -152,13 +161,15 @@ export async function POST(req: NextRequest) {
         // the email said nothing was returned).
         const refundKind = !ks || ks.size === 0 ? 'none' as const : ks.has('points') ? 'points' as const : 'voucher' as const
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
-        const { data: s } = await svc.from('students').select('full_name').eq('id', t.student_id).single()
+        const { data: kids } = await svc.from('students').select('id, full_name').in('id', studentsByParent.get(t.parent_id) || [t.student_id])
+        const kidNames = (studentsByParent.get(t.parent_id) || [t.student_id])
+          .map(id => (kids || []).find((k: any) => k.id === id)?.full_name).filter(Boolean)
         if (p?.email) {
           await sendEmail({
             type: 'booking_cancelled',
             to: p.email,
             parentName: p.first_name,
-            studentName: s?.full_name || '',
+            studentName: kidNames.join(' & '),
             courseName: ct?.name || '',
             coachName,
             date: sess.session_date,

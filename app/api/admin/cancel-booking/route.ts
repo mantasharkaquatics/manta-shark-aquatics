@@ -42,6 +42,10 @@ export async function POST(req: NextRequest) {
   if (!primary) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
   if (primary.status === 'cancelled') return NextResponse.json({ error: 'This booking is already cancelled.' }, { status: 409 })
   if (mode === 'voucher') {
+    // A Swim Assessment is not a lesson the family can make up: turning it into
+    // a voucher handed out a free lesson (found 2026-10-04).
+    if (primary.is_trial)
+      return NextResponse.json({ error: 'A Swim Assessment cannot be turned into a make-up voucher. Refund it or keep the points instead.' }, { status: 400 })
     const { data: s1 } = await svc.from('class_sessions').select('course_types(slug)').eq('id', primary.class_session_id).single()
     const ct1: any = Array.isArray((s1 as any)?.course_types) ? (s1 as any).course_types[0] : (s1 as any)?.course_types
     if (!['1on1', '1on4'].includes(ct1?.slug))
@@ -108,10 +112,13 @@ export async function POST(req: NextRequest) {
     const ctRow: any = Array.isArray((s0 as any)?.course_types) ? (s0 as any).course_types[0] : (s0 as any)?.course_types
     const r = await issueVoucher(svc, {
       parentId: primary.parent_id, studentId: primary.student_id,
-      courseSlug: ctRow?.slug || '', minutes: primary.lesson_group_id ? 60 : 30,
+      // 60 only when both halves were cancelled here: a 60-minute lesson whose
+      // other half was already cancelled used to yield a 60-minute voucher
+      // for 30 minutes of lesson (found 2026-10-04).
+      courseSlug: ctRow?.slug || '', minutes: primary.lesson_group_id && cancelled.length >= 2 ? 60 : 30,
       reason: 'admin', expiresOn: voucherExpiry(s0?.session_date || getTodayLA()),
       sourceBookingId: primary.id, fixedClassId: primary.fixed_class_id ?? null,
-      createdBy: auth.admin.id, note: 'Front desk cancelled the lesson',
+      createdBy: auth.admin.id, note: null, // reason 'admin' + the source lesson already say it; an English sentence showed on the Chinese admin page
     })
     if (!r.voucher) {
       console.error('admin cancel: voucher not issued', r)

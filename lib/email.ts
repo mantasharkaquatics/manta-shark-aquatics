@@ -92,6 +92,8 @@ export interface EmailPayload {
   expiresOn?: string
   // booking_cancelled: a leave voucher's first usable date (null = at once).
   usableFrom?: string
+  /** booking_cancelled: a make-up was cancelled in time and its voucher came back. */
+  voucherBack?: boolean
   // parent_password_reset: the link to /reset-password, and the family's
   // language (en / zh-Hant / zh-Hans) -- this one email is written in all three.
   resetUrl?: string
@@ -183,6 +185,8 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       : ''
     const cancelLine = rk === 'none'
       ? 'Your lesson has been cancelled.'
+      : rk === 'voucher' && payload.voucherBack
+      ? 'Your make-up lesson has been cancelled and the make-up voucher has been returned to your account.'
       : rk === 'voucher'
       ? 'Your lesson has been cancelled and turned into a make-up voucher.'
       : 'Your lesson has been cancelled and the points have been returned to your account.'
@@ -192,7 +196,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       ? (payload.usableFrom && voucherBy
         ? `Book your make-up lesson from your dashboard for a date between ${new Date(payload.usableFrom + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })} and ${voucherBy} (14 days either side of the missed lesson). You can book it now. It costs no points.`
         : `Book your make-up lesson from your dashboard${voucherBy ? ` by ${voucherBy}` : ''}. It costs no points.`)
-      : 'Your points are back in your wallet and never expire.'
+      : 'Your points are back in your wallet.'
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">❌ Lesson Cancelled</h2><p>Hi ${parentName},</p><p>${cancelLine}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${studentName}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${courseName}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${time}</td></tr></table><p style="color: #c9a84c; font-weight: 600;">${readyLine}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
   } else if (type === 'block_cancellation_notice') {

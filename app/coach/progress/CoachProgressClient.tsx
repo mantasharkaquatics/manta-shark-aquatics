@@ -1,5 +1,5 @@
 'use client'
-import { tDb } from '@/lib/i18n'
+import { tDb, dateTag } from '@/lib/i18n'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { levelNameKey } from '@/lib/levels'
 
@@ -24,6 +24,22 @@ type StudentProgress = {
   assessedLevel?: number | null
 }
 
+
+// The lesson-note route answers in English (it is also read by logs and the
+// admin side). A coach on the zh-Hant portal used to see that English raw
+// (found 2026-10-04), so the errors a coach can act on map to a key here and
+// anything else falls back to the generic "could not send".
+const SEND_ERROR_KEYS: Record<string, string> = {
+  'Unauthorized': 'coach.progress.err.signIn',
+  'Not a coach': 'coach.progress.err.signIn',
+  'Not your lesson': 'coach.progress.err.notYourLesson',
+  'This swimmer is not booked in this lesson.': 'coach.progress.err.notYourLesson',
+  'Skill progress is missing': 'coach.progress.needSkills',
+  'Pick the level to recommend first': 'coach.progress.err.pickLevel',
+  'Could not transcribe the recording': 'coach.progress.err.transcribe',
+  'Nothing was heard in that recording': 'coach.progress.err.silent',
+  'This report has already been approved.': 'coach.progress.err.approved',
+}
 
 function barColor(pct: number): string {
   if (pct >= 70) return '#3ecf8e'
@@ -185,12 +201,14 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     const data = studentDataMap[entryKey]
     if (data?.assessment && data.assessedLevel) form.append('recommended_level', String(data.assessedLevel))
 
-    const res = await fetch('/api/coach/lesson-note', { method: 'POST', body: form })
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}))
-      setErrorMap(prev => ({ ...prev, [entryKey]: j.error || t('coach.progress.sendFailed') }))
+    // A dropped connection used to throw here and leave the button on "Sending…".
+    const res = await fetch('/api/coach/lesson-note', { method: 'POST', body: form }).catch(() => null)
+    if (!res || !res.ok) {
+      const j = res ? await res.json().catch(() => ({})) : {}
+      const key = SEND_ERROR_KEYS[String(j.error || '')] || 'coach.progress.sendFailed'
+      setErrorMap(prev => ({ ...prev, [entryKey]: t(key) }))
     }
-    if (res.ok) {
+    if (res && res.ok) {
       // Mark completed and collapse this card
       setCompletedSet(prev => new Set([...prev, entryKey]))
       setExpandedStudent(null)
@@ -209,7 +227,9 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
         <div>
           <h1 className="text-2xl font-bold text-white">{t('coach.progress.title')}</h1>
           <p className="text-gray-400 text-sm mt-1">
-            {today} · {sessionEntries.length === 0 && scheduledToday > 0
+            {/* Was the raw '2026-10-04' (found 2026-10-04); dates follow the
+                coach's language like the rest of the portal. */}
+            {new Date(today + 'T12:00:00').toLocaleDateString(dateTag(locale), { weekday: 'long', month: 'long', day: 'numeric' })} · {sessionEntries.length === 0 && scheduledToday > 0
               ? t('coach.progress.countScheduled', { n: scheduledToday })
               : t('coach.progress.countToday', { n: sessionEntries.length })}
           </p>

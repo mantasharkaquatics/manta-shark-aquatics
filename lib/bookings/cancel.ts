@@ -12,6 +12,8 @@ export type CancelTarget = {
   voucherExpires?: string
   /** A leave voucher's first usable date (it covers the 14 days either side). */
   voucherFrom?: string | null
+  /** The voucher that paid for a make-up came BACK; no new one was made. */
+  voucherBack?: boolean
 }
 
 /**
@@ -89,10 +91,10 @@ export async function notifyCancellation(
     for (const s of studs || []) { nameOf[(s as any).id] = (s as any).full_name }
 
     // One message per parent, naming every swimmer of theirs in the lesson.
-    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind']; expires?: string; from?: string | null }>()
+    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind']; expires?: string; from?: string | null; back?: boolean }>()
     for (const t of opts.targets) {
       if (!t.parent_id) continue
-      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind, expires: t.voucherExpires, from: t.voucherFrom }
+      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind, expires: t.voucherExpires, from: t.voucherFrom, back: t.voucherBack }
       const n = nameOf[t.student_id]
       if (n && !entry.names.includes(n)) entry.names.push(n)
       // A real refund anywhere in the group outranks 'none'.
@@ -115,6 +117,7 @@ export async function notifyCancellation(
         refundKind: entry.kind,
         expiresOn: entry.expires,
         usableFrom: entry.from ?? undefined,
+        voucherBack: entry.back,
       })
     }
   } catch {}
@@ -499,7 +502,7 @@ export async function cancelBookingWithPartner(
   // one message covering both halves instead of one per half.
   const emailTargets: CancelTarget[] = [
     outcome === 'voucher' || outcome === 'restore'
-      ? { parent_id: booking.parent_id, student_id: booking.student_id, kind: 'voucher' as const, voucherExpires: voucher?.expires_on || restoredExpiry, voucherFrom: voucher ? voucher.usable_from : restoredFrom }
+      ? { parent_id: booking.parent_id, student_id: booking.student_id, kind: 'voucher' as const, voucherExpires: voucher?.expires_on || restoredExpiry, voucherFrom: voucher ? voucher.usable_from : restoredFrom, voucherBack: outcome === 'restore' }
       : { parent_id: booking.parent_id, student_id: booking.student_id, kind: refunded > 0 ? 'points' as const : 'none' as const },
     ...cancelledPartners,
   ]

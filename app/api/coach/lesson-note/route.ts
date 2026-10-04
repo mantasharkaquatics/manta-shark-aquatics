@@ -7,6 +7,9 @@ import { cookies } from 'next/headers'
 // Match /api/chat/ai-reply so there is one model string to change, not two.
 import { POLISH_MODEL, RECORDING_LANGUAGES, LANGUAGE_NAMES, detectNoteLanguage } from '@/lib/ai/models'
 import { isLevelNumber } from '@/lib/levels'
+import { NOT_REAL_BOOKING_STATUSES } from '@/app/coach/real-booking'
+
+const NOT_REAL = `(${NOT_REAL_BOOKING_STATUSES.join(',')})`
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -23,16 +26,20 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // is_active is the off-boarding switch, as in requireCoach(): a coach who has
+  // left but still holds a session must be refused here too (found 2026-10-04).
   const { data: coach } = await svc
     .from('coaches').select('id, first_name, last_name, default_note_language')
-    .eq('auth_user_id', user.id).single()
+    .eq('auth_user_id', user.id).eq('is_active', true).single()
   if (!coach) return NextResponse.json({ error: 'Not a coach' }, { status: 403 })
 
   const form = await req.formData()
   const audio = form.get('audio') as File | null
   const studentId = String(form.get('student_id') || '')
   const classSessionId = String(form.get('class_session_id') || '')
-  const lessonGroupId = (form.get('lesson_group_id') as string) || null
+  // Only a hint. The group the report is filed under is read off the swimmer's
+  // own booking below, never taken from the form.
+  const formLessonGroupId = (form.get('lesson_group_id') as string) || null
   const sessionDate = String(form.get('session_date') || '')
   /* The recorder no longer asks. The language is read off the transcript
       further down, once there is something to read. This stays only as the
@@ -65,6 +72,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not your lesson' }, { status: 403 })
   }
 
+  // ...and only on a swimmer who is really in it (found 2026-10-04). The
+  // session check alone let a coach file a report, and write the live skill
+  // table, for ANY student id against one of their own sessions. The swimmer
+  // needs a real booking (not cancelled, in a basket, unpaid or an unaccepted
+  // invite) in this session, or in the other half of this session's hour.
+  // lesson_group_id comes from that booking, not the form, so a crafted group
+  // id cannot point the report at someone else's lesson.
+  const { data: ownBooking } = await svc
+    .from('bookings').select('id, lesson_group_id')
+    .eq('class_session_id', classSessionId).eq('student_id', studentId)
+    .not('status', 'in', NOT_REAL).limit(1).maybeSingle()
+  let lessonGroupId: string | null = ownBooking ? (ownBooking.lesson_group_id || null) : null
+  if (!ownBooking) {
+    let inGroup = false
+    if (formLessonGroupId) {
+      const [{ data: sessionInGroup }, { data: studentInGroup }] = await Promise.all([
+        svc.from('bookings').select('id')
+          .eq('class_session_id', classSessionId).eq('lesson_group_id', formLessonGroupId)
+          .not('status', 'in', NOT_REAL).limit(1),
+        svc.from('bookings').select('id')
+          .eq('student_id', studentId).eq('lesson_group_id', formLessonGroupId)
+          .not('status', 'in', NOT_REAL).limit(1),
+      ])
+      inGroup = !!sessionInGroup?.length && !!studentInGroup?.length
+    }
+    if (!inGroup) {
+      return NextResponse.json({ error: 'This swimmer is not booked in this lesson.' }, { status: 403 })
+    }
+    lessonGroupId = formLessonGroupId
+  }
+
+  /* A relay hour (found 2026-10-04): the two halves of one lesson_group_id
+     taught by different coaches. New relays have not been bookable since
+     2026-07-29, but existing ones remain. Keyed by the group, the second
+     coach's report found the first coach's row and overwrote it. In a relay
+     each coach files their own half, keyed by their own class_session_id
+     (lesson_group_id left off the row, so lesson_key falls back to the
+     session). Matching on coach_id instead would leave two rows sharing one
+     (student, lesson_key), and the admin Reviews card, the parent dashboard
+     and the monthly report all pair a note to its progress on exactly that
+     pair -- they would show one coach's note beside the other's scores. */
+  if (lessonGroupId) {
+    const { data: groupBookings } = await svc
+      .from('bookings').select('class_session_id')
+      .eq('lesson_group_id', lessonGroupId).not('status', 'in', NOT_REAL)
+    const groupSessionIds = [...new Set((groupBookings || []).map((b: any) => b.class_session_id).filter(Boolean))]
+    if (groupSessionIds.length > 0) {
+      const { data: groupSessions } = await svc
+        .from('class_sessions').select('id, coach_id').in('id', groupSessionIds)
+      if ((groupSessions || []).some((g: any) => g.coach_id && g.coach_id !== coach.id)) {
+        // A relay half is this coach's only if the swimmer is booked in it; the
+        // other half is the other coach's to report.
+        if (!ownBooking) {
+          return NextResponse.json({ error: 'This swimmer is not booked in this lesson.' }, { status: 403 })
+        }
+        lessonGroupId = null
+      }
+    }
+  }
+
   const { data: student } = await svc
     .from('students').select('id, full_name, current_level').eq('id', studentId).single()
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
@@ -87,7 +154,10 @@ export async function POST(req: NextRequest) {
   if (!lvl) return NextResponse.json({ error: 'That level does not exist' }, { status: 400 })
   const { data: levelSkills } = await svc
     .from('skills').select('id, name, is_active').eq('level_id', lvl.id)
-  const allowedSkills = new Set((levelSkills || []).map((k: any) => k.id))
+  // Active skills only (found 2026-10-04): a retired skill is not shown on the
+  // recorder (/api/coach/progress GET filters is_active), so a score for one is
+  // a stale tab or a hand-made request, and must not land in the live table.
+  const allowedSkills = new Set((levelSkills || []).filter((k: any) => k.is_active !== false).map((k: any) => k.id))
   for (const [id, v] of Object.entries(progress)) {
     const n = Number(v)
     if (!allowedSkills.has(id) || !Number.isFinite(n) || n < 0 || n > 100) delete progress[id]
@@ -95,6 +165,22 @@ export async function POST(req: NextRequest) {
   }
   if (Object.keys(progress).length === 0) {
     return NextResponse.json({ error: 'Skill progress is missing' }, { status: 400 })
+  }
+
+  // ---- 0. An approved report is final ----
+  // Re-sending used to overwrite an APPROVED note and progress row and put them
+  // back to pending_review, pulling a report the family had already been shown
+  // (found 2026-10-04). Checked here, before the recording is stored or
+  // transcribed and before an assessment's level recommendation is written.
+  const lessonKey = lessonGroupId || classSessionId
+  const [{ data: existingNote }, { data: existingHistory }] = await Promise.all([
+    svc.from('lesson_notes').select('id, status')
+      .eq('student_id', studentId).eq('lesson_key', lessonKey).maybeSingle(),
+    svc.from('progress_history').select('id, status')
+      .eq('student_id', studentId).eq('lesson_key', lessonKey).maybeSingle(),
+  ])
+  if (existingNote?.status === 'approved' || existingHistory?.status === 'approved') {
+    return NextResponse.json({ error: 'This report has already been approved.' }, { status: 409 })
   }
 
   const { data: glossaryRows } = await svc
@@ -227,7 +313,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- 4. One report per student per lesson: an hour is ONE lesson ----
-  const lessonKey = lessonGroupId || classSessionId
+  // (lessonKey and the existing rows were looked up in step 0.)
   const now = new Date().toISOString()
 
   const noteRow = {
@@ -245,12 +331,10 @@ export async function POST(req: NextRequest) {
     updated_at: now,
   }
 
-  const { data: existingNote } = await svc
-    .from('lesson_notes').select('id')
-    .eq('student_id', studentId).eq('lesson_key', lessonKey).maybeSingle()
-
+  // neq('approved'): an admin approving while this request was transcribing
+  // must still not be undone by it.
   const { error: noteError } = existingNote
-    ? await svc.from('lesson_notes').update(noteRow).eq('id', existingNote.id)
+    ? await svc.from('lesson_notes').update(noteRow).eq('id', existingNote.id).neq('status', 'approved')
     : await svc.from('lesson_notes').insert(noteRow)
 
   if (noteError) {
@@ -290,12 +374,8 @@ export async function POST(req: NextRequest) {
     status: 'pending_review',
   }
 
-  const { data: existingHistory } = await svc
-    .from('progress_history').select('id')
-    .eq('student_id', studentId).eq('lesson_key', lessonKey).maybeSingle()
-
   const { error: historyError } = existingHistory
-    ? await svc.from('progress_history').update(historyRow).eq('id', existingHistory.id)
+    ? await svc.from('progress_history').update(historyRow).eq('id', existingHistory.id).neq('status', 'approved')
     : await svc.from('progress_history').insert(historyRow)
 
   if (historyError) {

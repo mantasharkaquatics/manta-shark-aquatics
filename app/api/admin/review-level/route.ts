@@ -30,6 +30,25 @@ export async function POST(req: NextRequest) {
 
   const levelToAssign = action === 'modified' ? final_level : rec.recommended_level
 
+  // Claim the recommendation BEFORE moving the swimmer. The status check above
+  // is a read, so two answers arriving together both passed it and both moved
+  // the level (found 2026-10-04). Only the call that flips pending wins.
+  const { data: claimed, error: claimErr } = await supabase
+    .from('level_recommendations')
+    .update({
+      status: action,
+      reviewed_by: admin_id,
+      final_level: action === 'rejected' ? null : Number(levelToAssign),
+      reviewed_at: new Date().toISOString()
+    })
+    .eq('id', recommendation_id)
+    .eq('status', 'pending')
+    .select('id')
+  if (claimErr) return NextResponse.json({ error: claimErr.message }, { status: 500 })
+  if (!claimed || claimed.length === 0) {
+    return NextResponse.json({ error: 'This recommendation has already been answered' }, { status: 409 })
+  }
+
   // A rejection is the admin's veto. The student's level and the upgrade
   // history must not move -- only the recommendation's own status changes.
   if (action !== 'rejected') {
@@ -42,21 +61,15 @@ export async function POST(req: NextRequest) {
       const moved = await setStudentLevel(supabase, {
         studentId: rec.student_id, toLevel: levelToAssign, adminId: admin_id, notes,
       })
-      if (!moved.ok) return NextResponse.json({ error: moved.error }, { status: moved.status })
+      if (!moved.ok) {
+        // Release the claim so the admin can try again.
+        await supabase.from('level_recommendations')
+          .update({ status: 'pending', reviewed_by: null, final_level: null, reviewed_at: null })
+          .eq('id', recommendation_id).eq('status', action)
+        return NextResponse.json({ error: moved.error }, { status: moved.status })
+      }
     }
   }
-
-  const { error: statusErr } = await supabase
-    .from('level_recommendations')
-    .update({
-      status: action,
-      reviewed_by: admin_id,
-      final_level: action === 'rejected' ? null : Number(levelToAssign),
-      reviewed_at: new Date().toISOString()
-    })
-    .eq('id', recommendation_id)
-
-  if (statusErr) return NextResponse.json({ error: statusErr.message }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }

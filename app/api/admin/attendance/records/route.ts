@@ -75,18 +75,20 @@ export async function GET(req: NextRequest) {
   const enriched = pageRows.map((r: any) => {
     const student: any = studentMap.get(r.student_id)
     const parent: any = student ? parentMap.get(student.parent_id) : null
-    let detail: string | undefined
-    if (r.kind === 'team') {
-      const tierName = Array.isArray(r.team_tiers) ? r.team_tiers[0]?.name : r.team_tiers?.name
-      detail = formatTime12h(String(r.start_time).slice(0, 5)) + ' \u00b7 ' + (tierName || 'Team') + ' practice'
-    }
+    // Neutral data only: the wording ('Unknown student', 'Team practice') was
+    // fixed here in one language each and ignored the admin's own (found
+    // 2026-10-04). The check-in screen words it through t().
+    const tierName = r.kind === 'team' ? (Array.isArray(r.team_tiers) ? r.team_tiers[0]?.name : r.team_tiers?.name) : null
     return {
       id: r.kind + '-' + r.id,
-      student_name: student?.full_name || '\u672a\u77e5\u5b78\u751f',
+      kind: r.kind as 'lesson' | 'team',
+      student_name: student?.full_name || null,
       parent_name: parent ? (parent.first_name + ' ' + parent.last_name) : '',
       check_in_method: r.check_in_method,
       checked_in_at: r.checked_in_at,
-      detail,
+      team_time: r.kind === 'team' ? formatTime12h(String(r.start_time).slice(0, 5)) : null,
+      team_tier_id: r.kind === 'team' ? (r.team_tier_id || null) : null,
+      team_tier_name: tierName || null,
     }
   })
 
