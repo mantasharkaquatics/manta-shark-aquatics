@@ -163,6 +163,42 @@ export async function GET(req: NextRequest) {
         lesson: { student: kids.length ? kids.join(' & ') : null, date: ls.map(l => l.date).sort()[0], time: null, count: new Set(ls.map(l => l.lessonKey)).size },
       })
     }
+    /* The same for one lesson: a 60-minute lesson is two rows and a sibling
+       1-on-2 two seats, each refunded on its own row, so a sibling hour put four
+       lines of +50 where the family cancelled one lesson (owner, 2026-10-04).
+       Rows of the same reason for the same lesson written within minutes of
+       each other are one line; a later cancellation of a re-booked slot is not. */
+    const WINDOW_MS = 10 * 60 * 1000
+    const groupLesson = <T extends { at: string }>(list: T[], keyOf: (x: T) => string | null, combine: (grp: T[]) => T): T[] => {
+      const open = new Map<string, T[]>()
+      const out: (T | T[])[] = []
+      for (const x of list) {
+        const k = keyOf(x)
+        if (!k) { out.push(x); continue }
+        const g = open.get(k)
+        if (g && new Date(g[0].at).getTime() - new Date(x.at).getTime() <= WINDOW_MS) { g.push(x); continue }
+        const ng = [x]; open.set(k, ng); out.push(ng)
+      }
+      return out.map(x => Array.isArray(x) ? (x.length === 1 ? x[0] : combine(x)) : x)
+    }
+    const combineLesson = (grp: any[]) => {
+      const ls = grp.map((x: any) => x.lesson).filter(Boolean)
+      const kids = [...new Set(ls.map((l: any) => l.student).filter(Boolean))].sort()
+      const first = [...ls].sort((a: any, b: any) => String(a.date + (a.time || '')).localeCompare(String(b.date + (b.time || ''))))[0]
+      return {
+        ...grp[0],
+        id: grp[0].id + '-lesson',
+        points: grp.reduce((a: number, x: any) => a + (x.points || 0), 0),
+        ...(grp[0].kept != null ? { kept: grp.reduce((a: number, x: any) => a + (x.kept || 0), 0) } : {}),
+        lesson: first ? { ...first, student: kids.length ? kids.join(' & ') : null, count: 1 } : grp[0].lesson,
+      }
+    }
+    const refundKey = (r: any) => {
+      if (!['cancel_refund', 'school_cancel'].includes(r.reason) || !r.bookingId) return null
+      const l = lessonOfBooking.get(r.bookingId)
+      return l ? `${r.reason}|${l.lessonKey}` : null
+    }
+    const historyLines = groupLesson(history, refundKey, combineLesson)
     /* The Swim Assessment is paid in dollars before a family has any points, so
        it never touches the ledger -- and its receipt had nowhere to be found,
        although the confirmation told the family it was on their dashboard. Each
@@ -253,10 +289,13 @@ export async function GET(req: NextRequest) {
           lesson: se ? { student: nm.get(b.student_id) ?? null, date: se.session_date, time: String(se.start_time || '').slice(0, 5) || null, count: 1 } : null,
           invoice: null,
           kept: (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0),
+          _key: b.lesson_group_id || b.class_session_id,
         }
       })
+      // One lesson, one line: both halves of an hour, both seats of a sibling 1-on-2.
+      lateLines = groupLesson(lateLines, (x: any) => x._key || null, combineLesson).map(({ _key, ...x }: any) => x)
     }
-    const merged = [...history, ...payments, ...lateLines]
+    const merged = [...historyLines, ...payments, ...lateLines]
       .sort((a, b) => String(b.at).localeCompare(String(a.at)))
       .slice(0, limit)
     return NextResponse.json({ ...summary, history: merged })
