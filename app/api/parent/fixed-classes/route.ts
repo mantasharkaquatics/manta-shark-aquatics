@@ -51,7 +51,11 @@ export async function GET() {
           bookingId: l.rows.find(r => r.status === 'confirmed')?.id ?? null,
         })),
       }
-    }).filter(c => c.left > 0)
+    // A class with nothing left to come stays while it can still be renewed:
+    // on the last day, once that lesson has started, `left` is 0 but the
+    // renewal window is open until the day ends, and the emailed ?renew=1
+    // link found no class at all (found 2026-10-05).
+    }).filter(c => c.left > 0 || c.renewOpen)
     return NextResponse.json({ classes })
   } catch (e) {
     console.error('parent/fixed-classes failed:', e)

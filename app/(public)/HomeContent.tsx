@@ -31,7 +31,7 @@ export default function HomeContent() {
 
   // Booking lives behind the login: a signed-out visitor registers first and is
   // carried on to booking; a signed-in one goes straight there.
-  const bookAssessment = () => router.push(signedIn ? '/booking' : '/register?redirect=/booking')
+  const bookAssessment = () => router.push(signedIn ? '/booking' : '/register?next=/booking')
 
   const programs = [
     { slug: 'private' },

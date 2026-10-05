@@ -5,6 +5,7 @@ import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { formatTime12h } from '@/lib/date'
 import { assessmentSlotError } from '@/lib/assessment-slot'
+import { releaseTrialHold } from '@/lib/trial-booking'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -171,31 +172,41 @@ export async function POST(req: NextRequest) {
         ? 'This swimmer already has a lesson at this time. Please pick another time.' : 'Failed to create booking' }, { status: 500 })
     }
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      locale: 'en',
-      payment_method_types: ['card', 'us_bank_account'],
-      mode: 'payment',
-      customer_email: parent?.email,
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60 + 60,
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: { name: `Swim Assessment - 30 min - ${student.full_name}` },
-          unit_amount: TRIAL_PRICE_CENTS,
+    // The hold above already exists, and nothing else would ever release it:
+    // with no stripe_session_id there is no checkout to expire or pay. If
+    // Stripe throws, give the slot straight back (found 2026-10-05).
+    let checkoutSession: Stripe.Checkout.Session
+    try {
+      checkoutSession = await stripe.checkout.sessions.create({
+        locale: 'en',
+        payment_method_types: ['card', 'us_bank_account'],
+        mode: 'payment',
+        customer_email: parent?.email,
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60 + 60,
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `Swim Assessment - 30 min - ${student.full_name}` },
+            unit_amount: TRIAL_PRICE_CENTS,
+          },
+          quantity: 1,
+        }],
+        metadata: {
+          type: 'trial_lesson',
+          booking_id: booking.id,
+          student_id: studentId,
+          class_session_id: sessId,
+          parent_id: student.parent_id,
+          course_type_id: courseType.id,
         },
-        quantity: 1,
-      }],
-      metadata: {
-        type: 'trial_lesson',
-        booking_id: booking.id,
-        student_id: studentId,
-        class_session_id: sessId,
-        parent_id: student.parent_id,
-        course_type_id: courseType.id,
-      },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=cancelled`,
-    })
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=success`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=cancelled`,
+      })
+    } catch (stripeErr) {
+      await releaseTrialHold(svc, booking.id, sessId, 'checkout_failed').catch(e =>
+        console.error('trial-checkout: could not release hold after Stripe error', booking.id, e))
+      throw stripeErr
+    }
 
     await svc.from('bookings').update({ stripe_session_id: checkoutSession.id }).eq('id', booking.id)
 

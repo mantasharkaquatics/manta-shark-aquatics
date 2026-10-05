@@ -62,4 +62,4 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
 }
 
 export const SMS_COMPLIANCE_SUFFIX =
-  ' Msg&Data rates may apply. Reply HELP for help, STOP to opt out.'
+  ' Msg & data rates may apply. Reply HELP for help, STOP to opt out.'

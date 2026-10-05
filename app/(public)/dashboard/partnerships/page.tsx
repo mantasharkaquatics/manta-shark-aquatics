@@ -37,6 +37,12 @@ export default function PartnershipsPage() {
   const [joinSuccess, setJoinSuccess] = useState(false)
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revokeConfirm, setRevokeConfirm] = useState(false)
+  // Busy flags and the unlink error (found 2026-10-05): Join and Unlink could
+  // be pressed again while the request was out, and a failed unlink closed the
+  // dialog as if it had worked.
+  const [joinBusy, setJoinBusy] = useState(false)
+  const [revokeBusy, setRevokeBusy] = useState(false)
+  const [revokeError, setRevokeError] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -59,29 +65,52 @@ export default function PartnershipsPage() {
   }
 
   const handleJoin = async () => {
+    if (joinBusy) return
     setJoinError(null)
-    const res = await fetch('/api/partnerships/accept', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invite_code: inputCode.trim().toUpperCase() }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setJoinError(tErr(data.error)); return }
-    setJoinSuccess(true)
-    setInputCode('')
-    await load()
+    setJoinBusy(true)
+    try {
+      const res = await fetch('/api/partnerships/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invite_code: inputCode.trim().toUpperCase() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setJoinError(tErr(data.error)); return }
+      setJoinSuccess(true)
+      setInputCode('')
+      await load()
+    } catch {
+      setJoinError(t('cart.err.network'))
+    } finally {
+      setJoinBusy(false)
+    }
   }
 
   const handleRevoke = async () => {
-    if (!revokeId) return
-    await fetch('/api/partnerships/revoke', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partnership_id: revokeId }),
-    })
-    setRevokeId(null)
-    setRevokeConfirm(false)
-    await load()
+    if (!revokeId || revokeBusy) return
+    setRevokeError(null)
+    setRevokeBusy(true)
+    try {
+      const res = await fetch('/api/partnerships/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partnership_id: revokeId }),
+      })
+      if (!res.ok) {
+        // Stay in the dialog and say so; never show the route's raw English.
+        const data = await res.json().catch(() => ({}))
+        const k = errorKey(data.error)
+        setRevokeError(k ? t(k) : t('link.err.unlink'))
+        return
+      }
+      setRevokeId(null)
+      setRevokeConfirm(false)
+      await load()
+    } catch {
+      setRevokeError(t('cart.err.network'))
+    } finally {
+      setRevokeBusy(false)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -92,7 +121,7 @@ export default function PartnershipsPage() {
   const studentsForPartner = (partnerParentId: string) =>
     partnerStudents.filter(s => s.parent_id === partnerParentId)
 
-  const closeRevoke = () => { setRevokeConfirm(false); setRevokeId(null) }
+  const closeRevoke = () => { if (revokeBusy) return; setRevokeConfirm(false); setRevokeId(null); setRevokeError(null) }
 
   if (loading) return (
     <div className="ac-root ac-loading">
@@ -174,7 +203,7 @@ export default function PartnershipsPage() {
                   <input className="ac-input" autoComplete="new-password" type="text" placeholder="MSA-XXXXXX"
                     aria-label={t('link.enterCode')} value={inputCode}
                     onChange={e => setInputCode(e.target.value.toUpperCase())} style={{ letterSpacing: '0.1em', flex: 1 }} />
-                  <button type="button" className="ac-btn gold" onClick={handleJoin} disabled={!inputCode.trim()}>{t('link.linkBtn')}</button>
+                  <button type="button" className="ac-btn gold" onClick={handleJoin} disabled={!inputCode.trim() || joinBusy} aria-busy={joinBusy}>{joinBusy ? t('link.linking') : t('link.linkBtn')}</button>
                 </div>
                 {joinError && <div className="ac-err">{joinError}</div>}
               </>
@@ -190,9 +219,10 @@ export default function PartnershipsPage() {
             <div className="eyebrow">{t('link.unlinkEyebrow')}</div>
             <h2>{t('link.unlinkTitle')}</h2>
             <p>{t('link.unlinkDesc')}</p>
+            {revokeError && <div className="ac-err" role="alert">{revokeError}</div>}
             <div className="ac-pair">
-              <button type="button" className="ac-btn line" onClick={closeRevoke}>{t('common.cancel')}</button>
-              <button type="button" className="ac-btn dangerFill" onClick={handleRevoke}>{t('link.confirmUnlink')}</button>
+              <button type="button" className="ac-btn line" onClick={closeRevoke} disabled={revokeBusy}>{t('common.cancel')}</button>
+              <button type="button" className="ac-btn dangerFill" onClick={handleRevoke} disabled={revokeBusy} aria-busy={revokeBusy}>{revokeBusy ? t('link.unlinking') : t('link.confirmUnlink')}</button>
             </div>
           </div>
         </div>

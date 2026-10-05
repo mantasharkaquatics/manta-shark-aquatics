@@ -4,13 +4,36 @@
 // which can shift the calendar day near the UTC day boundary
 // (e.g. 5-8pm Pacific Time is already the next day in UTC).
 
+// Built once per module, not per call (found 2026-10-05): constructing an
+// Intl.DateTimeFormat is far slower than formatting with one, and these
+// helpers run inside per-slot loops on the booking calendar. Output is
+// identical to the old per-call formatters.
+const LA_DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+const LA_HM_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+// Full wall-clock reading, used only to work out LA's UTC offset at an instant.
+const LA_FULL_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+})
+
 export function formatDateLA(date: Date): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
+  const parts = LA_DATE_FMT.formatToParts(date)
   const y = parts.find(p => p.type === 'year')?.value
   const m = parts.find(p => p.type === 'month')?.value
   const d = parts.find(p => p.type === 'day')?.value
@@ -25,12 +48,7 @@ export function getTodayLA(): string {
 // Used to compare against a booking's HH:MM end_time to determine
 // whether a lesson happening "today" has already finished.
 export function getNowMinutesLA(): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date())
+  const parts = LA_HM_FMT.formatToParts(new Date())
   const h = Number(parts.find(p => p.type === 'hour')?.value || '0')
   const m = Number(parts.find(p => p.type === 'minute')?.value || '0')
   return h * 60 + m
@@ -49,13 +67,64 @@ export function formatTime12h(t: string | null | undefined): string {
   return h12 + ':' + m + ' ' + ampm
 }
 
+// LA's offset from UTC, in minutes (-480 for PST, -420 for PDT), at instant `ms`.
+function laOffsetMinutes(ms: number): number {
+  const p: Record<string, number> = {}
+  for (const x of LA_FULL_FMT.formatToParts(new Date(ms))) if (x.type !== 'literal') p[x.type] = Number(x.value)
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second)
+  return Math.round((asUtc - Math.floor(ms / 1000) * 1000) / 60000)
+}
+
+/**
+ * The UTC instant (epoch ms) of an America/Los_Angeles wall time. `timeStr` is
+ * "HH:MM" or "HH:MM:SS"; seconds are ignored.
+ *
+ * Tries the offset in force a day before and a day after, and keeps whichever
+ * reproduces the wall time. On the fall-back night the 1 AM hour happens twice:
+ * both fit and the EARLIER (PDT) one is taken. On the spring-forward night
+ * 2:00-2:59 never happens: neither fits, and the pre-change offset is used,
+ * which lands an hour later on the clock (2:30 reads as 3:30 PDT) -- the same
+ * rule as Temporal's 'compatible' disambiguation.
+ */
+export function laWallTimeToUtcMs(dateStr: string, timeStr: string): number {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const [h, mi] = timeStr.split(':').map(Number)
+  const guess = Date.UTC(y, mo - 1, d, h || 0, mi || 0)
+  const before = laOffsetMinutes(guess - 86400000)
+  const after = laOffsetMinutes(guess + 86400000)
+  const fits = [...new Set([before, after])]
+    .map(off => guess - off * 60000)
+    .filter(ms => laOffsetMinutes(ms) * 60000 === guess - ms)
+  if (fits.length) return Math.min(...fits)
+  return guess - before * 60000
+}
+
 // Minutes from (todayStr @ nowMin) until (dateStr @ timeStr). Negative if already passed.
 // Moved from bookings create/cart routes (was duplicated); LA-time inputs from getTodayLA/getNowMinutesLA.
+//
+// REAL elapsed minutes, not wall-clock minutes (found 2026-10-05). It used to
+// count every day as 1440 minutes, so across a DST change the 24-hour
+// cancellation line and the 30-minute lead time were off by an hour (the
+// fall-back day is 1500 minutes long, the spring-forward day 1380). Both ends
+// are now turned into UTC instants and subtracted. Same signature and inputs,
+// so no caller changes. Self-checks (verified with TZ=UTC and TZ=Asia/Taipei):
+//   ('2026-11-01','09:10','2026-10-31',570)  => 1480  (24h40m; was 1420 -> "within 24h")
+//   ('2027-03-14','09:10','2027-03-13',570)  => 1360  (22h40m; was 1420)
+//   ('2027-03-14','09:10','2027-03-13',510)  => 1420  (23h40m; was 1480 -> "not within 24h")
+//   laWallTimeToUtcMs('2026-11-01','01:30') => 08:30Z (ambiguous hour: earlier, PDT)
+//   laWallTimeToUtcMs('2027-03-14','02:30') => 10:30Z (nonexistent: reads as 3:30 PDT)
+//   ('2026-10-06','09:10','2026-10-05',570)  => 1420  (no DST change: unchanged)
+//   ('2026-10-05','09:00','2026-10-05',600)  => -60   (already started)
 export function minutesUntil(dateStr: string, timeStr: string, todayStr: string, nowMin: number) {
-  const d = (s: string) => Date.parse(s + 'T00:00:00Z')
-  const days = Math.round((d(dateStr) - d(todayStr)) / 86400000)
-  const [h, m] = timeStr.split(':').map(Number)
-  return days * 1440 + h * 60 + m - nowMin
+  const nowHHMM = String(Math.floor(nowMin / 60)).padStart(2, '0') + ':' + String(nowMin % 60).padStart(2, '0')
+  return Math.round((laWallTimeToUtcMs(dateStr, timeStr) - laWallTimeToUtcMs(todayStr, nowHHMM)) / 60000)
+}
+
+/** YYYY-MM-DD plus n calendar days. Pure date arithmetic; no time zone involved. */
+export function addDaysYMD(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
 }
 
 // Venue slot cadence: 30-min lesson + 5-min turnover.

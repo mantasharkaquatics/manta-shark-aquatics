@@ -73,6 +73,11 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [unread, setUnread] = useState(0)
+  // The realtime callback below is created once per thread, so it would see
+  // `open` as it was then -- true, since the thread only loads once the panel
+  // opens -- and never count anything (found 2026-10-05). It reads this ref.
+  const openRef = useRef(open)
+  useEffect(() => { openRef.current = open }, [open])
   const [awaitingAi, setAwaitingAi] = useState(false)
 
   useEffect(() => {
@@ -103,7 +108,9 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
           setAwaitingAi(false)
           if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
         }
-        if (!open) setUnread(u => u + 1)
+        // Only the school's replies are "unread"; the family's own message
+        // (sent from another tab or phone) is not news to them.
+        if (!openRef.current && (payload.new as any)?.sender_type !== 'parent') setUnread(u => u + 1)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -300,7 +307,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 800, color: '#fff', fontSize: '16px' }}>{t('chat.title')}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{t('chat.subtitle')}</div>
             </div>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label="Close">✕</button>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label={t('common.close')}>✕</button>
           </div>
 
           {/* Signed out: what an account adds, and the way to get one. */}
@@ -366,7 +373,10 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                     </div>
                   )}
                   <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
-                    {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    {/* The school's clock, like the day line above (found 2026-10-05:
+                        this used the phone's zone, so a family travelling saw
+                        times that disagreed with the dates). */}
+                    {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}
                   </div>
                 </div>
               </div>
@@ -396,7 +406,14 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+              // Enter while a Chinese/Japanese IME is composing picks the
+              // candidate; it must not also send the half-typed message.
+              // keyCode 229 covers Safari, which reports isComposing late.
+              onKeyDown={e => {
+                if (e.key !== 'Enter' || e.shiftKey) return
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                sendMessage()
+              }}
               placeholder={t('chat.placeholder')}
               maxLength={800}
               style={{
@@ -405,12 +422,12 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                 borderRadius: '10px', padding: '10px 14px', color: BRAND.ink, fontSize: '16px', outline: 'none', fontFamily: 'inherit',
               }}
             />
-            <button onClick={() => sendMessage()} disabled={!input.trim() || sending} style={{
+            <button onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')} style={{
               background: input.trim() ? AMBER : '#eef2f8',
               border: 'none', borderRadius: '10px', width: '40px',
               cursor: input.trim() ? 'pointer' : 'not-allowed',
               fontSize: '16px', color: input.trim() ? NAVY : '#9aa6ba',
-            }}>➤</button>
+            }}><span aria-hidden="true">➤</span></button>
           </div>
         </div>
       )}

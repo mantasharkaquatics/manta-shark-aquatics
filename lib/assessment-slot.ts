@@ -3,6 +3,7 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { getEffectiveZones } from '@/lib/zones'
+import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 
 /** How far ahead a Swim Assessment can be booked online. */
 export const ASSESSMENT_MAX_DAYS = 60
@@ -43,6 +44,17 @@ export async function assessmentSlotError(svc: SupabaseClient, o: {
     .select('id, start_time, end_time, enrolled_count').eq('coach_id', o.coachId).eq('session_date', o.date)
     .in('status', ['open', 'full']).gt('enrolled_count', 0)
   if ((coachDay || []).some(overlaps)) return 'The coach already has another class at this time. Please pick another time.'
+
+  // Another family's renewal hold (lib/fixed-classes) takes the slot even
+  // though nothing is booked in it yet; an assessment used to be able to land
+  // in one (found 2026-10-05). An assessment is never a fixed-class course,
+  // so any hold overlapping the time is the whole slot to it (heldSeats
+  // returns Infinity for a hold of another course type). The swimmer's own
+  // family is never kept out of its own slot.
+  const { data: stu } = await svc.from('students').select('parent_id').eq('id', o.studentId).maybeSingle()
+  const holds = await renewalHolds(svc, o.date, o.date, stu?.parent_id ?? null)
+  if (heldSeats(holds, o.coachId, o.date, s, e, '') > 0)
+    return 'This time slot is no longer available. Please pick another time.'
 
   const { data: mine } = await svc.from('bookings').select('class_session_id').eq('student_id', o.studentId)
     .in('status', ['confirmed', 'in_cart', 'pending_payment', 'pending_partner'])

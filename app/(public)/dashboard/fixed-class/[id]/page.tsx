@@ -259,7 +259,14 @@ export default function FixedClassPage() {
       if (res.status === 409 && j.plan) { setPlan({ items: j.plan, sig: j.sig }); setMErr(t('err.fixedPlanChanged')); setMBusy(false); return }
       if (!res.ok) { setMErr(tErr(j.error)); setMBusy(false); return }
       const done = t('fixedPage.move.done', { weekday: weekdayName(pick.weekday), time: formatTime12h(pick.time) })
-      setMsg({ ok: true, text: j.vouchers > 0 ? `${done} ${t('fixedPage.move.doneVouchers', { n: j.vouchers })}` : done })
+      const parts = [done]
+      if (j.vouchers > 0) parts.push(t('fixedPage.move.doneVouchers', { n: j.vouchers }))
+      // Lessons whose voucher could not be written stay on their old slot
+      // (lib/fixed-move.ts step 4); say so rather than let the family think
+      // every week moved.
+      const stayed: number = Array.isArray(j.notMoved) ? j.notMoved.length : 0
+      if (stayed > 0) parts.push(t('fixedPage.move.notMoved', { n: stayed }))
+      setMsg({ ok: stayed === 0, text: parts.join(' ') })
       setOpts(null); setPick(null); setPlan(null)
       await load()
     } catch { setMErr(t('cart.err.network')) }

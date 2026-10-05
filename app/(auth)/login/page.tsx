@@ -1,10 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { safeNext } from '@/lib/safe-next'
+import { safeNext, withNext } from '@/lib/safe-next'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import PasswordField from '@/components/ui/PasswordField'
@@ -26,6 +26,37 @@ export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  // Built after mount: ?next= is only readable in the browser, and computing
+  // it during render would make the server and client hrefs disagree.
+  const [signUpHref, setSignUpHref] = useState('/register')
+
+  /* Found 2026-10-05: if the parents row failed to save after the auth user
+     was created, the family was stuck -- the dashboard finds no parent and
+     sends them here, and signing in sends them back to the dashboard. A
+     signed-in user with no parent, coach or admin record is that family:
+     send them to /register to finish the form instead (RegisterClient picks
+     the account up and only adds the missing row). */
+  async function isUnfinishedFamily(userId: string): Promise<boolean> {
+    for (const table of ['parents', 'admins', 'coaches'] as const) {
+      const { data, error } = await supabase.from(table).select('id').eq('auth_user_id', userId).limit(1)
+      // A failed lookup is not proof of anything: leave them where they are.
+      if (error || (data && data.length > 0)) return false
+    }
+    return true
+  }
+
+  // Arriving here already signed in (the dashboard bounces a user with no
+  // parent row to /login): catch the unfinished registration straight away.
+  // getSession is local, so a signed-out visitor costs no request. Everyone
+  // else who is signed in still just sees the form, as before.
+  useEffect(() => {
+    setSignUpHref(withNext('/register'))
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user && await isUnfinishedFamily(session.user.id)) router.replace(withNext('/register?finish=1'))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleLogin = async () => {
     setLoading(true)
     setError('')
@@ -37,12 +68,16 @@ export default function LoginPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError(t('login.err.failed')); setLoading(false); return }
       if (user) {
+        // Staff keep their own home, but a deep link inside it (from the
+        // proxy's ?next=) is honoured now too.
+        const next = safeNext()
         const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
-        if (admin) { router.push('/admin'); return }
+        if (admin) { router.push(next?.startsWith('/admin') ? next : '/admin'); return }
         const { data: coach } = await supabase.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).single()
-        if (coach) { router.push('/coach'); return }
+        if (coach) { router.push(next?.startsWith('/coach') ? next : '/coach'); return }
+        if (await isUnfinishedFamily(user.id)) { router.push(withNext('/register?finish=1')); return }
         await supabase.from('parents').update({ last_login_at: new Date().toISOString() }).eq('auth_user_id', user.id)
-        router.push(safeNext() || '/dashboard')
+        router.push(next || '/dashboard')
       }
     }
   }
@@ -87,7 +122,7 @@ export default function LoginPage() {
         </div>
         <p className="text-center text-sm text-[#56647d] mt-6">
           {t('login.noAccount')}{' '}
-          <Link href="/register" className="text-[#2050a0] hover:underline font-bold">{t('login.signUp')}</Link>
+          <Link href={signUpHref} className="text-[#2050a0] hover:underline font-bold">{t('login.signUp')}</Link>
         </p>
       </div>
     </div>

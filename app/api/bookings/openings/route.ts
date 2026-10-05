@@ -3,7 +3,7 @@ import { requireParent } from '@/lib/api-auth'
 import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { meetsLeadTime } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
-import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
+import { renewalHolds, heldSeats, allRows, allRowsIn } from '@/lib/fixed-classes'
 
 // Every coach's open private-lesson times over the booking window, in one call.
 //
@@ -83,13 +83,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
   if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
 
-  // A second swimmer on the SAME account takes a second seat in the lesson and
-  // has their own calendar to respect. One from a linked family takes a seat
-  // of its own when they accept, which is settled on their side.
+  // A second swimmer on the SAME account has their own calendar to respect.
+  // Seats: a 1-on-2 is always booked for two swimmers -- two of yours, or
+  // yours and an invited family's -- and bookings/create asks for both seats
+  // up front either way (seatsNeeded). Counting a partner invite (which the
+  // page does not send as student2_id) as one seat showed a 1-on-2 with one
+  // seat left as open, and the booking was then refused (found 2026-10-05).
+  // The one 1-seat 1-on-2 -- moving a lesson left with a lone swimmer -- is
+  // indistinguishable here and is shown conservatively.
   const studentIds = [student.id]
-  let seats = 1
+  const seats = course_slug === '1on2' ? 2 : 1
   const s2 = s2res.data
-  if (s2 && s2.parent_id === parent.id) { studentIds.push(s2.id); seats = 2 }
+  if (s2 && s2.parent_id === parent.id) studentIds.push(s2.id)
   const privateTypeIds = new Set((privateTypes || []).map((r: any) => r.id))
 
   const coaches = (coachRows || []) as { id: string; first_name: string }[]
@@ -107,18 +112,23 @@ export async function GET(req: NextRequest) {
     svc.from('coach_availability')
       .select('coach_id, day_of_week, start_time, end_time')
       .in('coach_id', coachIds).eq('is_active', true),
-    svc.from('coach_time_off')
-      .select('coach_id, date, start_time, end_time, block_type')
-      .in('coach_id', coachIds).gte('date', from).lte('date', to),
-    svc.from('class_sessions')
+    // Paged (allRows), ordered by id: up to 400 days of every coach's
+    // sessions is far past the API's silent 1,000-row cap, and a session past
+    // the cut read as a free lane (found 2026-10-05). Only sessions with
+    // someone in them can make a time unbookable -- an empty session takes
+    // no seat and blocks nothing below -- so the rest are not read at all.
+    allRows(() => svc.from('coach_time_off')
+      .select('id, coach_id, date, start_time, end_time, block_type')
+      .in('coach_id', coachIds).gte('date', from).lte('date', to).order('id')),
+    allRows(() => svc.from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students')
       .in('coach_id', coachIds).gte('session_date', from).lte('session_date', to)
-      .in('status', ['open', 'full']),
+      .in('status', ['open', 'full']).gt('enrolled_count', 0).order('id')),
     // The student's own lessons come with their session in the same read.
-    svc.from('bookings')
-      .select('class_session_id, class_sessions!bookings_class_session_id_fkey(coach_id, session_date, start_time, end_time, course_type_id)')
+    allRows(() => svc.from('bookings')
+      .select('id, class_session_id, class_sessions!bookings_class_session_id_fkey(coach_id, session_date, start_time, end_time, course_type_id)')
       .in('student_id', studentIds)
-      .not('status', 'in', '("cancelled","pending_partner")'),
+      .not('status', 'in', '("cancelled","pending_partner")').order('id')),
     // Other families' renewal holds (lib/fixed-classes): a held slot is taken.
     renewalHolds(svc, from, to, parent.id),
   ])
@@ -147,10 +157,11 @@ export async function GET(req: NextRequest) {
   let mine: any[] = (myRes.data || []).map((b: any) => Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions).filter(Boolean)
   if (myRes.error) {
     // No embeddable relation: fall back to two reads.
-    const { data: ids } = await svc.from('bookings').select('class_session_id').in('student_id', studentIds)
-      .not('status', 'in', '("cancelled","pending_partner")')
-    const myIds = (ids || []).map((b: any) => b.class_session_id).filter(Boolean)
-    if (myIds.length) mine = (await svc.from('class_sessions').select('coach_id, session_date, start_time, end_time, course_type_id').in('id', myIds)).data || []
+    const { data: ids } = await allRows(() => svc.from('bookings').select('id, class_session_id').in('student_id', studentIds)
+      .not('status', 'in', '("cancelled","pending_partner")').order('id'))
+    const myIds = [...new Set((ids || []).map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+    if (myIds.length) mine = (await allRowsIn(myIds, chunk => svc.from('class_sessions')
+      .select('id, coach_id, session_date, start_time, end_time, course_type_id').in('id', chunk).order('id'))).data || []
   }
   const busyBy = new Map<string, { s: number; e: number }[]>()
   let preferred: string | null = null
@@ -209,10 +220,15 @@ export async function GET(req: NextRequest) {
           if (heldSeats(holds, c.id, ds, m, end, ct.id) > 0) continue
           // A lesson of this kind already at this time has room or it does not.
           const same = sess.find((s: any) => s.course_type_id === ct.id && toMin(s.start_time) === m)
-          if (same) {
-            if (same.enrolled_count + seats > same.max_students) continue
-          } else if (sess.some((s: any) => {
-            if (s.enrolled_count <= 0) return false
+          if (same && same.enrolled_count + seats > same.max_students) continue
+          // Anything ELSE running in the coach's lane blocks the time, whether
+          // or not a same-course session exists here. This used to be skipped
+          // whenever one did -- and cancellations leave empty 'open' sessions
+          // behind -- so a time showed as bookable over another course's
+          // lesson and the server then refused it (found 2026-10-05). Same
+          // rule as evalSlot in lib/fixed-classes.
+          if (sess.some((s: any) => {
+            if (s === same || s.enrolled_count <= 0) return false
             const ss = toMin(s.start_time)
             const se = s.end_time ? toMin(s.end_time) : ss + LESSON_MIN
             return m < se && end > ss

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, serviceClient } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
+import { renewalHolds, minToTime } from '@/lib/fixed-classes'
 
 // Who may read a coach's booked times (2026-10-04). This route used to answer
 // anyone, logged in or not, with every booked student's id and -- given any
@@ -90,6 +91,19 @@ export async function GET(req: NextRequest) {
     }))
   }
 
+  // Other families' renewal holds (lib/fixed-classes) this coach has that
+  // day, reported as busy times so the coach-filtered booking view greys them
+  // out; they used to read as free (found 2026-10-05). This view serves the
+  // private, 1-on-2 and assessment calendars (the group calendar reads
+  // bookings/group-classes), and to all of those any overlapping hold is the
+  // whole slot. Same entry shape as a booking, with no student or session.
+  const holds = (await renewalHolds(supabase, session_date, session_date, caller.parentId))
+    .filter(h => h.coachId === coach_id && h.date === session_date)
+  const heldTimes = holds.map(h => ({
+    time: minToTime(h.startMin), end: minToTime(h.endMin),
+    student_id: null, course_type_id: h.courseTypeId, session_id: null,
+  }))
+
   // Step 1: find all class_sessions for this coach on this date
   const { data: sessions } = await supabase
     .from('class_sessions')
@@ -97,7 +111,7 @@ export async function GET(req: NextRequest) {
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
 
-  if (!sessions || sessions.length === 0) return NextResponse.json({ times: [], blocked, zones, studentBusy, legacyWindows })
+  if (!sessions || sessions.length === 0) return NextResponse.json({ times: heldTimes, blocked, zones, studentBusy, legacyWindows })
 
   const sessionIds = sessions.map(s => s.id)
   const sessionMap: Record<string, any> = {}
@@ -121,5 +135,5 @@ export async function GET(req: NextRequest) {
     }
   }).filter(x => x.time)
 
-  return NextResponse.json({ times, blocked, zones, studentBusy, legacyWindows })
+  return NextResponse.json({ times: [...times, ...heldTimes], blocked, zones, studentBusy, legacyWindows })
 }

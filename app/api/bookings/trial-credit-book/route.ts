@@ -50,18 +50,31 @@ export async function POST(req: NextRequest) {
       if (why) return NextResponse.json({ error: why }, { status: 400 })
     }
 
-    // Claim the credit first (conditional update = lock); refund if booking fails
-    const { data: claimed } = await svc
+    // Claim the credit first (conditional update = lock); refund if booking fails.
+    // ONE credit, by id. The update used to match every unused assessment
+    // credit the swimmer had, marking them all used while the booking took and
+    // the refund gave back only the first (found 2026-10-05). Soonest-expiring
+    // first; a candidate taken by a concurrent request is skipped.
+    const { data: candidates } = await svc
       .from('lesson_credits')
-      .update({ used_credits: 1 })
+      .select('id')
       .eq('student_id', studentId)
       .eq('is_trial', true)
       .eq('used_credits', 0)
-      .select('id')
-    if (!claimed || claimed.length === 0) {
+      .order('expires_at', { ascending: true, nullsFirst: false })
+    let trialCreditId: string | null = null
+    for (const c of candidates || []) {
+      const { data: claimed } = await svc
+        .from('lesson_credits')
+        .update({ used_credits: 1 })
+        .eq('id', c.id)
+        .eq('used_credits', 0)
+        .select('id')
+      if (claimed && claimed.length > 0) { trialCreditId = claimed[0].id; break }
+    }
+    if (!trialCreditId) {
       return NextResponse.json({ error: 'No available assessment credit for this student' }, { status: 400 })
     }
-    const trialCreditId = claimed[0].id
     const refund = async () => {
       await svc.from('lesson_credits').update({ used_credits: 0 }).eq('id', trialCreditId)
     }

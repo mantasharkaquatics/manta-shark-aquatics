@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
+import { allRowsIn } from '@/lib/fixed-classes'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -16,8 +17,9 @@ export async function POST(req: NextRequest) {
 
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { session_ids, parent_id: requestedParentId } = body
-  if (!session_ids?.length) return NextResponse.json({ partners: {} })
+  const { session_ids: rawIds, parent_id: requestedParentId } = body
+  if (!Array.isArray(rawIds) || !rawIds.length) return NextResponse.json({ partners: {} })
+  let session_ids = [...new Set(rawIds.filter((x: unknown): x is string => typeof x === 'string' && !!x))]
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,23 +35,38 @@ export async function POST(req: NextRequest) {
       .from('parents').select('id').eq('auth_user_id', user.id).single()
     if (!callerParent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     parent_id = callerParent.id
+    // Only sessions the caller is really in (found 2026-10-05). This used to
+    // answer for ANY session_ids, so a signed-in parent could list other
+    // families' children by full name across the schedule. A parent now gets
+    // names only for sessions where they hold a booking that is not
+    // cancelled -- what the dashboard asks about. Admins keep any session.
+    const { data: own } = await allRowsIn(session_ids, chunk => supabase
+      .from('bookings').select('id, class_session_id')
+      .in('class_session_id', chunk).eq('parent_id', parent_id)
+      .neq('status', 'cancelled').order('id'))
+    const mine = new Set((own || []).map((b: any) => b.class_session_id))
+    session_ids = session_ids.filter(id => mine.has(id))
+    if (!session_ids.length) return NextResponse.json({ partners: {} })
   }
 
   // Fetch other active bookings in these sessions not belonging to this parent
-  const { data: partnerBookings } = await supabase
+  // (chunked and paged: a dashboard's whole booking history is a long list).
+  const { data: partnerBookings } = await allRowsIn(session_ids, chunk => supabase
     .from('bookings')
-    .select('class_session_id, student_id')
-    .in('class_session_id', session_ids)
+    .select('id, class_session_id, student_id')
+    .in('class_session_id', chunk)
     .neq('parent_id', parent_id)
     .not('status', 'in', '("cancelled")')
+    .order('id'))
 
   if (!partnerBookings?.length) return NextResponse.json({ partners: {} })
 
   const studentIds = [...new Set(partnerBookings.map((b: any) => b.student_id).filter(Boolean))]
-  const { data: students } = await supabase
+  const { data: students } = await allRowsIn(studentIds as string[], chunk => supabase
     .from('students')
     .select('id, full_name')
-    .in('id', studentIds)
+    .in('id', chunk)
+    .order('id'))
 
   const studentMap: Record<string, string> = {}
   for (const s of students || []) { studentMap[(s as any).id] = (s as any).full_name }

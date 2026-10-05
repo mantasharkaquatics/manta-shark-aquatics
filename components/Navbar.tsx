@@ -204,7 +204,9 @@ export default function Navbar() {
       return isLocale(seg) && seg !== 'en'
     }
     async function applyUser(userId: string | undefined) {
-      if (!userId) { setIsLoggedIn(false); setFirstName(''); setFullName(''); return }
+      // parentId too: with the effect now living for the whole mount, a
+      // sign-out must not leave the old family's id for changeLocale to write to.
+      if (!userId) { setIsLoggedIn(false); setFirstName(''); setFullName(''); setParentId(null); return }
       setIsLoggedIn(true)
       const { data: parent } = await supabase
         .from('parents')
@@ -228,15 +230,25 @@ export default function Navbar() {
         setLocale(parent.preferred_language)
       }
     }
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      await applyUser(user?.id)
-      setAuthLoading(false)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      applyUser(session?.user?.id)
+    /* Once per mount (found 2026-10-05). This ran on every navigation --
+       a getUser round trip plus a parents query -- and onAuthStateChange
+       repeated it, since subscribing replays INITIAL_SESSION. The bar stays
+       mounted across pages within a layout, and the subscription alone covers
+       the first answer (INITIAL_SESSION) and every sign-in or sign-out after
+       it. TOKEN_REFRESHED changes nothing shown here, so it is skipped.
+       setTimeout: Supabase warns that calling the client from inside this
+       callback can deadlock on its auth lock. */
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') return
+      const userId = session?.user?.id
+      setTimeout(async () => {
+        await applyUser(userId)
+        if (event === 'INITIAL_SESSION') setAuthLoading(false)
+      }, 0)
     })
     return () => subscription.unsubscribe()
-  }, [pathname])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Any navigation closes whatever was open.
   useEffect(() => { setOpen(null) }, [pathname])
@@ -322,7 +334,7 @@ export default function Navbar() {
     <>
       <style>{css}</style>
       <div className="rn-space" aria-hidden="true" />
-      <nav ref={navRef} className="rn" aria-label="Main">
+      <nav ref={navRef} className="rn" aria-label={t('nav.mainAria')}>
         {open === 'drawer' && <div className="rn-scrim" onClick={() => setOpen(null)} />}
         <div className="rn-bar">
           <div className="rn-piece rn-p1">

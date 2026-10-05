@@ -170,13 +170,12 @@ export async function POST(req: NextRequest) {
     if ((existingWallet?.balance_purchased ?? 0) < 0) {
       bankDebitOk = false
     } else if (dollars > FIRST_TOPUP_BANK_CAP_DOLLARS) {
-      const { count: settled } = await svcForGate
-        .from('purchases')
-        .select('id', { count: 'exact', head: true })
-        .eq('parent_id', parent.id)
-        .eq('status', 'paid')
-        .is('reversed_at', null)
-      if (!settled) bankDebitOk = false
+      // "Paid by us before" used to mean any purchases row with status 'paid',
+      // which a Swim Assessment writes, and which a bank-debit top-up writes
+      // the moment checkout completes -- days before the money settles. So
+      // the cap never applied: a family's first $500 debit, still unsettled,
+      // lifted it for a $10,000 one (found 2026-10-05).
+      bankDebitOk = await hasSettledPointsPurchase(svcForGate, parent.id)
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -209,4 +208,54 @@ export async function POST(req: NextRequest) {
     console.error('Stripe checkout error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
+}
+
+/**
+ * Has this family ever paid us for points with money that actually arrived?
+ *
+ * A points purchase is one with a 'purchase' row in the ledger -- the only
+ * writers are the points webhook and the desk POS, so a Swim Assessment (no
+ * ledger row) never counts -- and that was not later reversed. It has
+ * settled when:
+ *   - it was taken at the desk without Stripe (cash and the like), or
+ *   - its Stripe payment intent says 'succeeded'. A card succeeds at once; a
+ *     bank debit sits in 'processing' until the funds settle and only then
+ *     succeeds, so this is the settlement signal for both.
+ * purchases.fee_captured_at was considered and not used: it is filled
+ * best-effort and, for bank debits, only by the backfill an admin runs by
+ * hand, so a settled debit could wait on it indefinitely.
+ */
+async function hasSettledPointsPurchase(svc: any, parentId: string): Promise<boolean> {
+  const { data: rows } = await svc
+    .from('point_ledger')
+    .select('reason, stripe_session_id, created_at')
+    .eq('parent_id', parentId)
+    .in('reason', ['purchase', 'payment_failed', 'chargeback'])
+    .order('created_at', { ascending: false })
+    .limit(100)
+  const reversed = new Set((rows || [])
+    .filter((r: any) => r.reason !== 'purchase' && r.stripe_session_id)
+    .map((r: any) => r.stripe_session_id))
+  const bought = (rows || []).filter((r: any) =>
+    r.reason === 'purchase' && !(r.stripe_session_id && reversed.has(r.stripe_session_id)))
+  if (bought.some((r: any) => !r.stripe_session_id)) return true
+
+  // Newest first, and only a handful: this runs only above the cap.
+  for (const r of bought.slice(0, 5)) {
+    const key = String(r.stripe_session_id)
+    try {
+      let pi: Stripe.PaymentIntent | string | null = null
+      if (key.startsWith('cs_')) {
+        const cs = await stripe.checkout.sessions.retrieve(key, { expand: ['payment_intent'] })
+        pi = cs.payment_intent
+      } else if (key.startsWith('pi_')) {
+        pi = await stripe.paymentIntents.retrieve(key)
+      }
+      if (pi && typeof pi === 'object' && pi.status === 'succeeded') return true
+    } catch (e: any) {
+      // Unknown is not settled: the family is offered cards, not refused.
+      console.error(`bank-cap check: could not read ${key}:`, e?.message)
+    }
+  }
+  return false
 }

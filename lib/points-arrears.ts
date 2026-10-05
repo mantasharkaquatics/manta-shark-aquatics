@@ -12,8 +12,8 @@
 // still owes those two lessons; that remainder stays as a negative balance for
 // a human to chase.
 
-import { applyPoints, arrears, getWallet } from '@/lib/points-wallet'
-import { grantedShareOfRefund } from '@/lib/bookings/refund'
+import { arrears, getWallet } from '@/lib/points-wallet'
+import { cancelLesson } from '@/lib/bookings/cancel'
 
 type Svc = any
 
@@ -23,6 +23,8 @@ export type ReclaimResult = {
   /** Points owed after -- zero if the released lessons covered the debt. */
   arrearsAfter: number
   cancelledBookingIds: string[]
+  /** Whole lessons released: an hour is two rows, a sibling 1-on-2 two seats. */
+  lessonsReleased: number
   pointsReturned: number
 }
 
@@ -42,6 +44,16 @@ function todayLA(): string {
  *
  * Never touches a lesson that has already been checked in: the coach was
  * there, so it was delivered whatever happened to the payment.
+ *
+ * Whole lessons only, through the same cancelLesson the rest of the site uses
+ * (found 2026-10-05). This used to cancel booking rows one at a time, so it
+ * could release one half of a 60-minute lesson or one seat of a sibling
+ * 1-on-2 and leave the coach holding the rest. It also counted today's
+ * lessons as releasable -- one starting in an hour could vanish -- so only
+ * lessons from tomorrow (LA) on are released now.
+ *
+ * A 1-on-2 shared with another family is skipped. Releasing it would cancel
+ * that family's lesson for a debt that is not theirs; it stays for a person.
  */
 export async function reclaimForArrears(
   svc: Svc,
@@ -52,13 +64,13 @@ export async function reclaimForArrears(
   const owedAtStart = arrears(wallet)
   const empty: ReclaimResult = {
     arrearsBefore: owedAtStart, arrearsAfter: owedAtStart,
-    cancelledBookingIds: [], pointsReturned: 0,
+    cancelledBookingIds: [], lessonsReleased: 0, pointsReturned: 0,
   }
   if (owedAtStart === 0) return empty
 
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, class_session_id, points_charged, points_refunded, points_granted, points_granted_expires_at, status')
+    .select('id, class_session_id, lesson_group_id, points_charged, points_refunded, status')
     .eq('parent_id', parentId)
     .eq('status', 'confirmed')
     .not('points_charged', 'is', null)
@@ -69,9 +81,9 @@ export async function reclaimForArrears(
   const sessionIds = [...new Set(bookings.map((b: any) => b.class_session_id).filter(Boolean))]
   const { data: sessions } = await svc
     .from('class_sessions')
-    .select('id, session_date, start_time')
+    .select('id, session_date, start_time, coach_id, course_type_id')
     .in('id', sessionIds)
-    .gte('session_date', todayLA())
+    .gt('session_date', todayLA())
   const futureById = new Map((sessions || []).map((s: any) => [s.id, s]))
 
   const { data: attended } = await svc
@@ -80,74 +92,89 @@ export async function reclaimForArrears(
     .in('booking_id', bookings.map((b: any) => b.id))
   const checkedIn = new Set((attended || []).map((a: any) => a.booking_id))
 
-  const releasable = bookings
-    .filter((b: any) => futureById.has(b.class_session_id) && !checkedIn.has(b.id))
-    .map((b: any) => ({ ...b, sess: futureById.get(b.class_session_id) }))
-    .sort((a: any, b: any) =>
-      String(b.sess.session_date).localeCompare(String(a.sess.session_date)) ||
-      String(b.sess.start_time).localeCompare(String(a.sess.start_time)))
+  const ctIds = [...new Set((sessions || []).map((s: any) => s.course_type_id).filter(Boolean))]
+  const { data: cts } = ctIds.length
+    ? await svc.from('course_types').select('id, slug').in('id', ctIds)
+    : { data: [] as any[] }
+  const slugOf = new Map((cts || []).map((c: any) => [c.id, c.slug]))
+
+  // One lesson per key: the rows of an hour share lesson_group_id; the seats
+  // of a 30-minute sibling 1-on-2 share the class_session.
+  const lessons = new Map<string, any[]>()
+  for (const b of bookings) {
+    const key = b.lesson_group_id || b.class_session_id
+    if (!key) continue
+    lessons.set(key, [...(lessons.get(key) || []), b])
+  }
+
+  type Lesson = { rows: any[]; sess: any[] }
+  const releasable: Lesson[] = []
+  for (const rows of lessons.values()) {
+    const sess = rows.map((r: any) => futureById.get(r.class_session_id))
+    // Every part of the lesson must be in the future and none checked in;
+    // anything else is not a whole unswum lesson.
+    if (sess.some((s: any) => !s) || rows.some((r: any) => checkedIn.has(r.id))) continue
+    const owedBack = rows.reduce((a: number, r: any) => a + (r.points_charged ?? 0) - (r.points_refunded ?? 0), 0)
+    if (owedBack <= 0) continue
+    releasable.push({ rows, sess })
+  }
+  releasable.sort((a, b) => {
+    const at = (l: Lesson) => l.sess.map((s: any) => `${s.session_date} ${String(s.start_time).slice(0, 5)}`).sort()[0]
+    return at(b).localeCompare(at(a))
+  })
 
   const cancelledBookingIds: string[] = []
+  let lessonsReleased = 0
   let pointsReturned = 0
   let owed = owedAtStart
 
-  for (const b of releasable) {
+  for (const lesson of releasable) {
     if (owed <= 0) break
-    const back = (b.points_charged ?? 0) - (b.points_refunded ?? 0)
-    if (back <= 0) continue
 
-    // Claim the booking first, exactly as the school-cancel path does: only
-    // the request that flips confirmed -> cancelled is allowed to give the
-    // points back, so a parent cancelling the same lesson in the same second
-    // cannot make it refund twice.
-    const { data: claimed } = await svc
-      .from('bookings')
-      .update({
-        status: 'cancelled',
-        pending_action: null,
-        cancellation_reason: 'cancelled_by_school',
-        cancelled_by: 'system',
-        cancelled_at: new Date().toISOString(),
-      })
-      .eq('id', b.id)
-      .eq('status', 'confirmed')
-      .select('id')
-    if (!claimed || claimed.length === 0) continue
-
-    // A lesson paid with granted points returns them as granted points --
-    // which do not reduce the debt, so only the purchased share counts below.
-    const grantedBack = grantedShareOfRefund(b, back)
-    try {
-      await applyPoints(svc, {
-        parentId,
-        reason: 'school_cancel',
-        points: back,
-        grantedPart: grantedBack,
-        grantedExpiresAt: b.points_granted_expires_at ?? null,
-        bookingId: b.id,
-        actor: 'system',
-        note,
-      })
-    } catch (e) {
-      // The points did not go back, so the lesson must not stay cancelled --
-      // otherwise the family loses both. Put it back and stop: something is
-      // wrong with the wallet and the next booking would hit it too.
-      await svc.from('bookings')
-        .update({ status: 'confirmed', cancellation_reason: null, cancelled_by: null, cancelled_at: null })
-        .eq('id', b.id).eq('status', 'cancelled')
-      console.error(`reclaimForArrears: could not return ${back} points for booking ${b.id}:`, e)
-      break
+    // Another family on the same 1-on-2 slot? cancelBookingWithPartner would
+    // take their seat down too. Skip it.
+    const shared = lesson.sess.filter((s: any) => slugOf.get(s.course_type_id) === '1on2')
+    let crossFamily = false
+    for (const s of shared) {
+      const { data: same } = await svc.from('class_sessions').select('id')
+        .eq('session_date', s.session_date).eq('start_time', s.start_time).eq('coach_id', s.coach_id)
+      const ids = (same || []).map((x: any) => x.id)
+      if (ids.length === 0) continue
+      const { data: others } = await svc.from('bookings').select('id')
+        .in('class_session_id', ids).neq('parent_id', parentId)
+        .not('status', 'in', '("cancelled","pending_payment","in_cart")')
+        .limit(1)
+      if (others && others.length > 0) { crossFamily = true; break }
     }
+    if (crossFamily) continue
 
-    // Only now, and only with what actually moved. Stamping this before the
-    // refund lands is how a lesson ends up marked refunded but never repaid.
+    // A system cancel (callerParentId null) always refunds, sweeps both halves
+    // of an hour and both seats of a sibling 1-on-2. The family's email about
+    // this comes from the caller (payment_reversed), so cancelLesson's own
+    // booking_cancelled email is suppressed. A 1-on-4 has no seat cascade, so
+    // any row of the family's not swept by the first call gets its own.
+    let released = false
+    for (const r of lesson.rows) {
+      if (cancelledBookingIds.includes(r.id)) continue
+      const res = await cancelLesson(svc, r.id, null, { skipEmail: true })
+      const mine = (res.cancelledBookingIds || []).filter((id: string) => !cancelledBookingIds.includes(id))
+      cancelledBookingIds.push(...mine)
+      pointsReturned += res.pointsRefunded ?? 0
+      if (mine.length > 0) released = true
+      if (!res.ok) console.error(`reclaimForArrears: booking ${r.id} not fully released (${res.status} ${res.error ?? ''}) -- ${note}`)
+    }
+    if (!released) continue
+    lessonsReleased++
+
+    // cancelLesson labels its rows as a parent's cancellation; this one was
+    // the school's, as it always was on this path.
     await svc.from('bookings')
-      .update({ points_refunded: (b.points_refunded ?? 0) + back })
-      .eq('id', b.id)
+      .update({ cancellation_reason: 'cancelled_by_school', cancelled_by: 'system' })
+      .in('id', cancelledBookingIds).eq('parent_id', parentId).eq('status', 'cancelled')
 
-    cancelledBookingIds.push(b.id)
-    pointsReturned += back
-    owed -= back - grantedBack
+    // Granted points come back as granted and do not pay down the debt, so
+    // read what is still owed rather than adding it up.
+    owed = arrears(await getWallet(svc, parentId))
   }
 
   const after = await getWallet(svc, parentId)
@@ -155,6 +182,7 @@ export async function reclaimForArrears(
     arrearsBefore: owedAtStart,
     arrearsAfter: arrears(after),
     cancelledBookingIds,
+    lessonsReleased,
     pointsReturned,
   }
 }

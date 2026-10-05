@@ -32,11 +32,16 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
+  // Only what every page shares (found 2026-10-05). The home page's title and
+  // description used to sit here too, and every page that did not override
+  // openGraph -- all of them but the referral link -- previewed as the home
+  // page. Marketing pages now get their own from lib/marketing-metadata; any
+  // other page leaves og:title out, and link previews then fall back to that
+  // page's own <title> and description.
   openGraph: {
-    type: 'website', siteName: 'Manta Shark Aquatics',
-    title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SITE_OG_IMAGE],
+    type: 'website', siteName: 'Manta Shark Aquatics', images: [SITE_OG_IMAGE],
   },
-  twitter: { card: 'summary_large_image', title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SITE_OG_IMAGE.url] },
+  twitter: { card: 'summary_large_image', images: [SITE_OG_IMAGE.url] },
   // PRE-LAUNCH: keep the site out of search results while it is still being
   // built and translated. Anyone with the URL can still browse it normally.
   // TO GO LIVE: delete this block AND flip SEARCH_ENGINES_ALLOWED in app/robots.ts.

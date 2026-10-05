@@ -28,10 +28,11 @@ export async function GET(req: NextRequest) {
 
   // Find all expired pending_partner bookings
   const now = new Date().toISOString()
-  const { data: expired } = await supabase
+  const EXPIRED_STATUSES = ['pending_partner', 'in_cart']
+  const { data: expiredCandidates } = await supabase
     .from('bookings')
     .select('id, class_session_id, parent_id, student_id, status, lesson_group_id')
-    .in('status', ['pending_partner', 'in_cart'])
+    .in('status', EXPIRED_STATUSES)
     .lt('pending_expires_at', now)
 
   // Also clean up expired reschedule pendings
@@ -43,17 +44,44 @@ export async function GET(req: NextRequest) {
 
   if ((expiredReschedule || []).length > 0) {
     const rids = (expiredReschedule || []).map((b: any) => b.id)
+    // Same condition as the select, re-checked in the write (found
+    // 2026-10-05): a reschedule confirmed or re-requested between the two
+    // queries must not have its fresh pending fields wiped.
     await supabase.from('bookings').update({
       pending_action: null,
       pending_new_session_id: null,
       pending_expires_at: null,
     }).in('id', rids)
+      .in('pending_action', ['reschedule', 'reschedule_initiator'])
+      .lt('pending_expires_at', now)
   }
 
-  // Work out who to tell BEFORE deleting anything: once the rows are gone, so
-  // are the links to the parent, the swimmer and the session. Cart holds are
-  // skipped — an abandoned cart is not something to email anyone about.
-  const invites = (expired || []).filter((b: any) => b.status === 'pending_partner')
+  // Delete FIRST, and only rows that still match the select's condition
+  // (found 2026-10-05). The old delete went by id alone, so an invitation the
+  // other family confirmed (or a cart checked out) between the select and the
+  // delete was deleted as a confirmed, paid lesson. The status + expiry filter
+  // makes the delete skip it, and .select() returns what really went, so the
+  // expiry emails below go only to families whose invitation actually lapsed.
+  // The rows' parent / swimmer / session ids are still in memory, which is all
+  // the notices need.
+  const candidateIds = (expiredCandidates || []).map((b: any) => b.id)
+  let expired: any[] = []
+  if (candidateIds.length > 0) {
+    const { data: gone, error: delErr } = await supabase.from('bookings').delete()
+      .in('id', candidateIds)
+      .in('status', EXPIRED_STATUSES)
+      .lt('pending_expires_at', now)
+      .select('id')
+    if (delErr) console.error('cleanup-pending-bookings: delete failed', delErr)
+    const goneIds = new Set((gone || []).map((r: any) => r.id))
+    expired = (expiredCandidates || []).filter((b: any) => goneIds.has(b.id))
+  }
+  const deleted = expired.length
+
+  // Work out who to tell from the rows that were deleted (held in memory
+  // above). Cart holds are skipped — an abandoned cart is not something to
+  // email anyone about.
+  const invites = expired.filter((b: any) => b.status === 'pending_partner')
   const notices: ExpiryNotice[] = []
 
   if (invites.length > 0) {
@@ -147,13 +175,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const ids = (expired || []).map(b => b.id)
-  let deleted = 0
-  if (ids.length > 0) {
-    await supabase.from('bookings').delete().in('id', ids)
-    deleted = ids.length
-  }
-
   // Deletion is done and committed; emails are best effort from here.
   let notified = 0
   for (const n of notices) {
@@ -192,5 +213,5 @@ export async function GET(req: NextRequest) {
     console.error('cleanup-pending-bookings: trial sweep failed', err)
   }
 
-  return NextResponse.json({ deleted, checked: (expired || []).length, notified, trialsReleased, trialsConfirmed })
+  return NextResponse.json({ deleted, checked: candidateIds.length, notified, trialsReleased, trialsConfirmed })
 }

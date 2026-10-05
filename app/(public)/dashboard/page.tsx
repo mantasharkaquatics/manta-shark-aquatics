@@ -11,7 +11,7 @@ import { isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
-import { tDb } from '@/lib/i18n'
+import { tDb, dateTag, getT, type Locale } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import { localePath } from '@/lib/i18n/paths'
 import NoticeModal from '@/components/NoticeModal'
@@ -260,6 +260,9 @@ interface ProgressRecord {
   course_type_id?: string
   minutes?: number
   note?: string
+  /** A Swim Assessment: its course_name is the translated "Swim Assessment",
+   *  re-set when the language changes (see relocalizeNotes). */
+  is_trial?: boolean
   skills: SkillProgress[]
 }
 interface StageSkill {
@@ -309,20 +312,28 @@ const VOUCHER_REASONS = new Set(['leave', 'grace', 'admin', 'end_of_term', 'move
 /** Whose voucher: one child, or the two of a sibling 1-on-2 (the same key either way round). */
 const voucherOwnerKey = (v: MakeUpVoucher) => [v.studentId, v.student2Id].filter(Boolean).sort().join('+')
 
+// Birthdays are plain calendar dates, compared with today's LA date as plain
+// parts (found 2026-10-05). new Date('YYYY-MM-DD') is UTC midnight, which in
+// California is the evening before, so the age went up a day early.
+function ymdParts(s: string): [number, number, number] {
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number)
+  return [y, m, d]
+}
+
 function getAge(dob: string): number {
-  const birth = new Date(dob)
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const m = today.getMonth() - birth.getMonth()
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  const [by, bm, bd] = ymdParts(dob)
+  const [ty, tm, td] = ymdParts(getTodayLA())
+  let age = ty - by
+  const m = tm - bm
+  if (m < 0 || (m === 0 && td < bd)) age--
   return age
 }
 
 function getAgeMonths(dob: string): number {
-  const birth = new Date(dob)
-  const today = new Date()
-  let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth())
-  if (today.getDate() < birth.getDate()) months--
+  const [by, bm, bd] = ymdParts(dob)
+  const [ty, tm, td] = ymdParts(getTodayLA())
+  let months = (ty - by) * 12 + (tm - bm)
+  if (td < bd) months--
   return months < 0 ? 0 : months
 }
 
@@ -1201,15 +1212,18 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
   const t = useT()
   if (memberships.length === 0) return null
   const RED = '#e05a4a'
-  const DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  // Weekday names in the reader's language (were hard-coded English -- found
+  // 2026-10-05). 2026-01-04 is a Sunday, so +weekday gives that day.
+  const day3 = (wd: number) => new Date(2026, 0, 4 + wd).toLocaleDateString(dateTag(locale), { weekday: 'short' })
+  const daySep = locale === 'en' ? ', ' : '、'
   const t12tc = (v: string) => { const [h, m] = String(v).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
   const practiceLines = (slots: { weekday: number; start_time: string; end_time: string; coach_name: string }[]) => {
     const g: Record<string, { days: string[]; st: string; en: string; coach: string }> = {}
     for (const s of slots) {
       const k = s.start_time + '|' + s.end_time + '|' + s.coach_name
-      ;(g[k] ||= { days: [], st: s.start_time, en: s.end_time, coach: s.coach_name }).days.push(DAYS3[s.weekday])
+      ;(g[k] ||= { days: [], st: s.start_time, en: s.end_time, coach: s.coach_name }).days.push(day3(s.weekday))
     }
-    return Object.values(g).map(x => ({ days: x.days.length === 7 ? 'Every day' : x.days.join(', '), time: `${t12tc(x.st)} – ${t12tc(x.en)}`, coach: x.coach }))
+    return Object.values(g).map(x => ({ days: x.days.length === 7 ? t('dash.team.everyDay') : x.days.join(daySep), time: `${t12tc(x.st)} – ${t12tc(x.en)}`, coach: x.coach }))
   }
   const openPortal = async (id: string) => {
     setPortalLoading(id)
@@ -1246,7 +1260,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
                       {practiceLines(m.weekly_slots || []).map((ln, li) => (
                         <div key={li} style={{ fontSize: '11px', lineHeight: 1.5 }}>
                           <span style={{ color: '#16294a', fontWeight: 600 }}>{ln.days}</span>
-                          <span style={{ color: '#56647d' }}> · {ln.time}{ln.coach ? ` · Coach ${ln.coach}` : ''}</span>
+                          <span style={{ color: '#56647d' }}> · {ln.time}{ln.coach ? ` · ${t('dash.up.coach', { name: ln.coach })}` : ''}</span>
                         </div>
                       ))}
                     </div>
@@ -1327,8 +1341,9 @@ export default function DashboardPage() {
     const i = students.findIndex(st => firstName(st.full_name) === firstName(n))
     return i >= 0 ? SWIMMER_COLORS[i % SWIMMER_COLORS.length] : GOLD
   }
-  const [lvMonth, setLvMonth] = useState(() => new Date().getMonth())
-  const [lvYear, setLvYear] = useState(() => new Date().getFullYear())
+  // Open on this month in LA, not on the device clock (found 2026-10-05).
+  const [lvMonth, setLvMonth] = useState(() => Number(getTodayLA().slice(5, 7)) - 1)
+  const [lvYear, setLvYear] = useState(() => Number(getTodayLA().slice(0, 4)))
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('morning')
   const router = useRouter()
@@ -1336,22 +1351,32 @@ export default function DashboardPage() {
   /* Assessment reports come back in the page's language (the coach's note and
      the recommendation line are translated), so they reload with fetchAll and
      only the newest load may write -- the same race fetchAll guards against. */
-  async function loadAssessments(latest: () => boolean) {
+  /* The page no longer re-runs the whole fetchAll when the language changes
+     (found 2026-10-05) -- only these two and the lesson notes reload. Each has
+     its own sequence so the newest call wins whoever made it, and each reads
+     the language at call time from localeRef rather than its render's closure. */
+  const localeRef = useRef(locale)
+  localeRef.current = locale
+  const assessSeq = useRef(0)
+  const monthlySeq = useRef(0)
+  async function loadAssessments() {
+    const seq = ++assessSeq.current
     try {
-      const r = await fetch('/api/parent/assessments?lang=' + encodeURIComponent(locale))
+      const r = await fetch('/api/parent/assessments?lang=' + encodeURIComponent(localeRef.current))
       if (!r.ok) return
       const j = await r.json()
-      if (latest()) setAssessReports(Object.fromEntries((j.reports || []).map((x: AssessmentReport) => [x.studentId, x])))
+      if (seq === assessSeq.current) setAssessReports(Object.fromEntries((j.reports || []).map((x: AssessmentReport) => [x.studentId, x])))
     } catch {}
   }
 
   /* Monthly reports, also in the page's language, under the same guard. */
-  async function loadMonthlyReports(latest: () => boolean) {
+  async function loadMonthlyReports() {
+    const seq = ++monthlySeq.current
     try {
-      const r = await fetch('/api/parent/monthly-reports?lang=' + encodeURIComponent(locale))
+      const r = await fetch('/api/parent/monthly-reports?lang=' + encodeURIComponent(localeRef.current))
       if (!r.ok) return
       const j = await r.json()
-      if (latest()) setMonthlyReports(j.reports || [])
+      if (seq === monthlySeq.current) setMonthlyReports(j.reports || [])
     } catch {}
   }
 
@@ -1649,23 +1674,88 @@ export default function DashboardPage() {
       else if (ends != null && now >= ends && last >= ends && now - last > 15000) syncTrial(b.id)
     }
   }, [upcomingBookings, now])
+  /* The 1-second tick re-renders the whole dashboard, so it runs only while
+     something on the page has an expiry to count down to (a pending invite,
+     reschedule, partner booking or an assessment awaiting payment -- the
+     trial-sync effect above also needs the tick to notice a hold running out).
+     It used to run every second all day on every visit (found 2026-10-05).
+     Otherwise it ticks once a minute: the check-in window and the 24-hour
+     cancel line are read from the clock at render and relied on these
+     re-renders to move on time. */
+  const hasCountdown = pendingPartnerBookings.length > 0
+    || upcomingBookings.some(b => !!b.pending_expires_at)
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), hasCountdown ? 1000 : 60000)
     return () => clearInterval(timer)
-  }, [])
+  }, [hasCountdown])
 
   useEffect(() => {
-    const hour = new Date().getHours()
+    // LA time, not the device clock (found 2026-10-05).
+    const hour = Math.floor(getNowMinutesLA() / 60)
     if (hour < 12) setGreeting('morning')
     else if (hour < 17) setGreeting('afternoon')
     else setGreeting('evening')
   }, [])
 
-  /* locale is a dependency because the coach's note is now read in the site's
-     language: the text is chosen during this fetch, so without it a parent who
-     switches language keeps the note they already had until a full reload --
-     which is the same thing that made the coach portal's switcher look dead. */
-  useEffect(() => { fetchAll() }, [locale])
+  /* The coach's note is read in the site's language, and so are the assessment
+     and monthly reports, so a language switch has to reload them -- without it
+     a parent who switches keeps the text they already had until a full reload.
+     That used to be done by re-running ALL of fetchAll on every language change
+     (and the page mounts in English and then switches, so every visit loaded
+     everything twice). Now fetchAll runs once, and a language change reloads
+     only the language-dependent parts (found 2026-10-05). */
+  useEffect(() => { fetchAll() }, [])
+  const langSeen = useRef(false)
+  useEffect(() => {
+    // The first run is the mount; fetchAll already loads both.
+    if (!langSeen.current) { langSeen.current = true; return }
+    loadAssessments()
+    loadMonthlyReports()
+  }, [locale])
+  /* The language the progress map's notes are in. Whenever it differs from the
+     page's -- a switch, or a fetchAll that read the language just before one --
+     the notes (and the "Swim Assessment" label) are re-read in the new one. */
+  const [notesLang, setNotesLang] = useState<Locale | null>(null)
+  const relocSeq = useRef(0)
+  async function relocalizeNotes(lang: Locale) {
+    const seq = ++relocSeq.current
+    // Only records that carry a note have a real lesson_key to look up.
+    const keys = new Set<string>()
+    for (const p of Object.values(studentProgressMap)) for (const r of p.records) if (r.note && r.lesson_key) keys.add(r.lesson_key)
+    const noteByKey: Record<string, string> = {}
+    if (keys.size > 0) {
+      const { data: notes, error } = await supabase.from('lesson_notes')
+        .select('id, student_id, lesson_key, language, note').in('lesson_key', [...keys]).eq('status', 'approved')
+      if (error) return
+      for (const n of (notes as any[]) || []) noteByKey[`${n.student_id}|${n.lesson_key}`] = n.note || ''
+      const foreignIds = ((notes as any[]) || []).filter(n => n.language !== lang).map(n => n.id)
+      if (foreignIds.length > 0) {
+        const { data: trans, error: tErr } = await supabase.from('lesson_note_translations')
+          .select('lesson_note_id, text').in('lesson_note_id', foreignIds).eq('language', lang)
+        if (tErr) return
+        const keyById: Record<string, string> = {}
+        for (const n of (notes as any[]) || []) keyById[n.id] = `${n.student_id}|${n.lesson_key}`
+        for (const x of (trans as any[]) || []) { const k = keyById[x.lesson_note_id]; if (k && x.text) noteByKey[k] = x.text }
+      }
+    }
+    if (seq !== relocSeq.current) return
+    const tl = getT(lang)
+    setStudentProgressMap(prev => {
+      const out: Record<string, StudentProgress> = {}
+      for (const [sid, p] of Object.entries(prev)) {
+        out[sid] = { ...p, records: p.records.map(r => {
+          const k = r.lesson_key ? `${sid}|${r.lesson_key}` : ''
+          return { ...r, note: k && k in noteByKey ? noteByKey[k] : r.note, course_name: r.is_trial ? tl('common.assessment') : r.course_name }
+        }) }
+      }
+      return out
+    })
+    setNotesLang(lang)
+  }
+  useEffect(() => {
+    if (notesLang && notesLang !== locale) relocalizeNotes(locale)
+  }, [locale, notesLang])
 
   /* Only the newest fetchAll may write. The page mounts in English and then
      switches to the reader's language, so two runs are always in flight, and
@@ -1678,8 +1768,8 @@ export default function DashboardPage() {
     const seq = ++fetchSeq.current
     const latest = () => seq === fetchSeq.current
     loadWallet()
-    loadAssessments(latest)
-    loadMonthlyReports(latest)
+    loadAssessments()
+    loadMonthlyReports()
     const { data: { user } } = await supabase.auth.getUser()
     // Both of these used to be a bare `return`, which left loading at true and
     // the page on its spinner for ever. A coach or an admin who follows a link
@@ -1980,6 +2070,11 @@ export default function DashboardPage() {
     if (latest()) setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date) || (b.start_time || '').localeCompare(a.start_time || '')))
     // Fetch each student's latest approved progress_history
     const studentIdList = (studs || []).map((s: any) => s.id)
+    // The language this progress map's notes and "Swim Assessment" label are
+    // in, read now (not from this run's render closure). notesLang records it
+    // so relocalizeNotes can catch up if the language changed meanwhile.
+    const progLang: Locale = localeRef.current
+    const tProg = getT(progLang)
     if (studentIdList.length > 0) {
       const { data: histRows } = await histPromise
 
@@ -2048,7 +2143,7 @@ export default function DashboardPage() {
            something to find. The account setting stays as the fallback -- it is
            what a family who never touches the site switcher gets -- and a
            missing translation still falls through to the original. */
-        const wantLang = locale || (parentData as any).preferred_language || 'en'
+        const wantLang = progLang || (parentData as any).preferred_language || 'en'
         const foreignIds = (hNotes || []).filter((n: any) => n.language !== wantLang).map((n: any) => n.id)
         if (foreignIds.length > 0) {
           const { data: hTrans } = await supabase
@@ -2125,7 +2220,8 @@ export default function DashboardPage() {
                 session_date: hist.session_date,
                 lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
                 start_time: info?.start_time || '',
-                course_name: isTrial ? t('common.assessment') : (info?.course_name || ''),
+                course_name: isTrial ? tProg('common.assessment') : (info?.course_name || ''),
+                is_trial: isTrial,
                 course_type_id: isTrial ? '' : (info?.course_type_id || ''),
                 // An hour is two sessions but one lesson; the record is stored
                 // against the first half, so its own end time would read short.
@@ -2156,7 +2252,7 @@ export default function DashboardPage() {
               })),
             }
           }
-          if (latest()) setStudentProgressMap(progressMap)
+          if (latest()) { setStudentProgressMap(progressMap); setNotesLang(progLang) }
         }
       } else {
         // Fallback when level info is missing
@@ -2170,8 +2266,9 @@ export default function DashboardPage() {
             session_date: hist.session_date,
             lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
             start_time: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.start_time : '') || '',
+            is_trial: !!hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`),
             course_name: (hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`))
-              ? t('common.assessment')
+              ? tProg('common.assessment')
               : (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_name : '') || '',
             course_type_id: (hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`))
               ? ''
@@ -2185,7 +2282,7 @@ export default function DashboardPage() {
           }))
           progressMap[sid] = { student_id: sid, records, stages: [], stageSkills: [], allPercents: {} }
         }
-        if (latest()) setStudentProgressMap(progressMap)
+        if (latest()) { setStudentProgressMap(progressMap); setNotesLang(progLang) }
       }
     }
 
@@ -2214,8 +2311,8 @@ export default function DashboardPage() {
           return
         }
     } catch {
-      setInfoModal({ title: 'Confirmation Failed', message: 'Please try again later.' })
-      setConfirmingId(null)
+      // Was hard-coded English (found 2026-10-05).
+      setInfoModal({ title: t('dash.partner.confirmFailTitle'), message: t('cart.err.network') })
       setConfirmingId(null)
       return
     }
@@ -2501,7 +2598,9 @@ export default function DashboardPage() {
       <header className="msa-hello">
         <div className="msa-hello-in">
           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: BRAND.blue, marginBottom: '8px' }}>
-            {(() => { const d = new Date(); return t('date.header', { weekday: t('date.weekday.' + d.getDay()), month: t('date.month.' + (d.getMonth() + 1)), day: d.getDate() }) })()}
+            {/* Today in LA, not the device clock (found 2026-10-05): the school's
+                day, whatever time zone the phone is set to. */}
+            {(() => { const [y, m, d] = getTodayLA().split('-').map(Number); const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); return t('date.header', { weekday: t('date.weekday.' + wd), month: t('date.month.' + m), day: d }) })()}
           </div>
           <h1>
             {t('dash.greeting.' + greeting)}<em style={{ fontStyle: locale.startsWith('zh') ? 'normal' : 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
@@ -2744,7 +2843,7 @@ export default function DashboardPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                         <button
-                          onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || 'Lesson', date: formatDate(cs?.session_date || '', intlOf(locale)), time: formatTime(cs?.start_time || ''), type: 'reject' })}
+                          onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || t('dash.sheet.lesson'), date: formatDate(cs?.session_date || '', intlOf(locale)), time: formatTime(cs?.start_time || ''), type: 'reject' })}
                           disabled={rejectingId === b.id || confirmingId === b.id}
                           style={{ padding: '8px 16px', background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '8px', color: '#c0392b', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                           {rejectingId === b.id ? '...' : t('dash.invite.decline')}
@@ -2823,15 +2922,18 @@ export default function DashboardPage() {
                dropped -- but one letter of it is enough, and three did not fit. */
             const t12c = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')}${h >= 12 ? 'p' : 'a'}` }
             const MAX_PER_DAY = 3
-            const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+            // Month and weekday names from Intl in the reader's language; they
+            // were hard-coded English (found 2026-10-05).
+            const monthTitle = new Date(lvYear, lvMonth, 1).toLocaleDateString(dateTag(locale), { year: 'numeric', month: 'long' })
+            const weekdayHeads = Array.from({ length: 7 }, (_, i) => new Date(2026, 0, 4 + i).toLocaleDateString(dateTag(locale), { weekday: 'short' }).toUpperCase())
             return (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <button onClick={() => { if (lvMonth === 0) { setLvMonth(11); setLvYear(lvYear - 1) } else setLvMonth(lvMonth - 1) }}
-                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>‹ Prev</button>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{MONTH_NAMES[lvMonth]} {lvYear}</span>
+                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>‹ {t('dash.month.prev')}</button>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{monthTitle}</span>
                   <button onClick={() => { if (lvMonth === 11) { setLvMonth(0); setLvYear(lvYear + 1) } else setLvMonth(lvMonth + 1) }}
-                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>Next ›</button>
+                    style={{ background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, color: '#56647d', cursor: 'pointer' }}>{t('dash.month.next')} ›</button>
                 </div>
                 {students.length > 1 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: '10px' }}>
@@ -2844,7 +2946,7 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
-                  {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+                  {weekdayHeads.map(d => (
                     <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', color: '#56647d', padding: '4px 0' }}>{d}</div>
                   ))}
                 </div>
@@ -2947,7 +3049,7 @@ export default function DashboardPage() {
                       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                           <div>
-                            <div style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || 'Lesson'}</div>
+                            <div style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</div>
                             {b.level_min != null && b.level_max != null && (
                               <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('dash.lesson.band', { r: bandRange(b.level_min, b.level_max) })}</div>
                             )}
@@ -2955,11 +3057,12 @@ export default function DashboardPage() {
                           <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>
                         </div>
                         {[
-                          { label: 'Swimmer', value: b.student_name || '—' },
-                          { label: 'Date', value: dateStr },
-                          { label: 'Time', value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
-                          { label: 'Coach', value: b.coach_name ? `Coach ${b.coach_name}` : '—' },
-                          { label: 'Payment', value: funding },
+                          // Row labels were hard-coded English (found 2026-10-05).
+                          { label: t('booking.sum.swimmer'), value: b.student_name || '—' },
+                          { label: t('booking.sum.date'), value: dateStr },
+                          { label: t('booking.sum.time'), value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
+                          { label: t('booking.sum.coach'), value: b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : '—' },
+                          { label: t('dash.sheet.payment'), value: funding },
                         ].map(row => (
                           <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #e3ebf6' }}>
                             <span style={{ fontSize: '13px', color: '#56647d' }}>{row.label}</span>
@@ -2967,7 +3070,7 @@ export default function DashboardPage() {
                           </div>
                         ))}
                         <button onClick={() => setLessonDetail(null)}
-                          style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+                          style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>
                       </div>
                     </div>
                   )

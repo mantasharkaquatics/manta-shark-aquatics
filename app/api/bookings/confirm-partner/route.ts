@@ -6,6 +6,7 @@ import { cookies } from 'next/headers'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { readJson, badRequest } from '@/lib/http'
+import { formatTime12h } from '@/lib/date'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
   const sessionIds = Array.from(new Set(group.map(r => r.class_session_id)))
   const { data: sessions } = await supabase
     .from('class_sessions')
-    .select('id, enrolled_count, max_students, course_type_id, coach_id, session_date, start_time')
+    .select('id, enrolled_count, max_students, course_type_id, coach_id, session_date, start_time, end_time')
     .in('id', sessionIds)
   if (!sessions || sessions.length !== sessionIds.length) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
@@ -195,10 +196,17 @@ export async function POST(req: NextRequest) {
     taken.push({ parentId: initiatorBooking.parent_id, points: theirQuote.total, granted: paid.grantedTaken, expires: paid.grantedExpiresAt })
   } catch (e: any) {
     await refundSpent('the inviting family could not pay')
+    // The INVITER's wallet is in arrears, not the confirming parent's (found
+    // 2026-10-05). WALLET_IN_ARREARS made the invited parent read a message
+    // about their own bank payment. Own string (err.partnerInArrears), no
+    // `owed` figure (that is the other family's balance), and 409 rather than
+    // 402: the dashboard turns a 402 into "not enough points" with a Buy
+    // Points button, which is not something this parent can fix. The same
+    // holds when the inviter is short of points: also 409.
     if (e instanceof WalletInArrears)
-      return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
+      return NextResponse.json({ error: 'The other family cannot be charged right now, so this lesson cannot be confirmed. Please contact us.' }, { status: 409 })
     if (e instanceof InsufficientPoints)
-      return NextResponse.json({ error: 'The family who invited you no longer has enough points for their half of this lesson.' }, { status: 402 })
+      return NextResponse.json({ error: 'The family who invited you no longer has enough points for their half of this lesson.' }, { status: 409 })
     console.error('points charge failed:', e)
     return NextResponse.json({ error: 'Could not take the points for this lesson. Please try again.' }, { status: 500 })
   }
@@ -258,7 +266,9 @@ export async function POST(req: NextRequest) {
         courseName: (ct?.name || '') + (sessions.length > 1 ? ' (60 min)' : ''),
         coachName: coach?.first_name || '',
         date: (sess as any).session_date,
-        time: (sess as any).start_time,
+        // 12-hour start-end range across both halves of an hour (found
+        // 2026-10-05): the raw column read "10:20:00" with no end time.
+        time: formatTime12h(ordered[0].start_time) + ' \u2013 ' + formatTime12h(ordered[ordered.length - 1].end_time),
       })
     }
   } catch {}

@@ -150,7 +150,9 @@ function TeamButton() {
       onClick={async () => {
         setLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
-        router.push(user ? '/checkout?plan=team' : '/login?redirect=/checkout?plan=team')
+        // ?next= is what the login page reads (found 2026-10-05: ?redirect= was
+        // ignored). Encoded, or the inner ?plan=team becomes /login's own param.
+        router.push(user ? '/checkout?plan=team' : '/login?next=' + encodeURIComponent('/checkout?plan=team'))
         setLoading(false)
       }}
       disabled={loading}
@@ -191,7 +193,9 @@ function TopUp() {
     setNeedsAssessment(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push('/login?redirect=/plans')
+      // Back to this page after signing in, in the language it was read in
+      // (/zh-Hant/plans as well as /plans). ?next=, found 2026-10-05.
+      router.push('/login?next=' + encodeURIComponent(window.location.pathname))
       return
     }
     try {

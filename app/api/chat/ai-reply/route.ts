@@ -8,11 +8,52 @@ import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { TOPUP_PRESETS, presetLessons } from '@/lib/points'
 import { walletSummary } from '@/lib/points-wallet'
-import { getTodayLA, getNowMinutesLA, formatTime12h, SLOT_STEP_MINUTES } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, formatTime12h, formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { cancelLesson } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
 
-const FALLBACK = 'Thanks for your message! A member of our team will get back to you shortly.'
+// The fixed texts this route posts itself (the catch-all fallback and the two
+// guard replacements) used to be English only, even to a parent writing in
+// Chinese (found 2026-10-05). The guest route translates its fallback with
+// the page locale; a parent thread has no page locale, so -- like the AI
+// itself, which answers in the language the parent wrote in -- the language is
+// read off the parent's message, with their saved preferred_language for a
+// message that has no letters to go by (an emoji, a number). Kept here rather
+// than in the locale files: these are message bodies stored in the thread,
+// not UI chrome.
+type ReplyLang = 'en' | 'zh-Hant' | 'zh-Hans'
+const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard', Record<ReplyLang, string>> = {
+  fallback: {
+    en: 'Thanks for your message! A member of our team will get back to you shortly.',
+    'zh-Hant': '謝謝您的訊息！我們的團隊成員會盡快回覆您。',
+    'zh-Hans': '谢谢您的消息！我们的团队成员会尽快回复您。',
+  },
+  cancelGuard: {
+    en: 'I was not able to complete that cancellation just now, so nothing has been changed on your account. A team member has been notified and will follow up shortly.',
+    'zh-Hant': '剛剛沒能完成這次取消，您的帳戶沒有任何變更。我們已通知團隊成員，會盡快與您聯繫。',
+    'zh-Hans': '刚刚没能完成这次取消，您的账户没有任何变更。我们已通知团队成员，会尽快与您联系。',
+  },
+  trialGuard: {
+    en: 'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.',
+    'zh-Hant': '剛剛沒能為您保留這個時段，所以沒有預約，也沒有收取任何費用。我們已通知團隊成員，會盡快與您聯繫。',
+    'zh-Hans': '刚刚没能为您保留这个时段，所以没有预约，也没有收取任何费用。我们已通知团队成员，会尽快与您联系。',
+  },
+}
+// Common characters that differ between the two scripts, pair for pair.
+const SIMPLIFIED_ONLY = new Set('们这个么说为时吗课预账号还让请谢点发会没过后学级钱现问题开关对经车东边来认识帮应该习练师费单节场员间长电话动写买卖实岁儿两报约择换续邮证网页钟几样给从处')
+const TRADITIONAL_ONLY = new Set('們這個麼說為時嗎課預帳號還讓請謝點發會沒過後學級錢現問題開關對經車東邊來認識幫應該習練師費單節場員間長電話動寫買賣實歲兒兩報約擇換續郵證網頁鐘幾樣給從處')
+function replyLang(text: string | null | undefined, preferred: string | null | undefined): ReplyLang {
+  const pref: ReplyLang | null = preferred === 'zh-Hant' || preferred === 'zh-Hans' || preferred === 'en' ? preferred : null
+  const t = String(text || '')
+  if (/[\u3400-\u9fff]/.test(t)) {
+    let s = 0, tr = 0
+    for (const ch of t) { if (SIMPLIFIED_ONLY.has(ch)) s++; else if (TRADITIONAL_ONLY.has(ch)) tr++ }
+    if (s !== tr) return s > tr ? 'zh-Hans' : 'zh-Hant'
+    return pref === 'zh-Hans' ? 'zh-Hans' : 'zh-Hant'
+  }
+  if (/[A-Za-z]/.test(t)) return 'en'
+  return pref || 'en'
+}
 const MODEL = 'claude-sonnet-4-6'
 const CANCEL_LOCK_MINUTES = 24 * 60
 
@@ -230,7 +271,7 @@ export async function POST(req: NextRequest) {
   )
 
   const { data: parent } = await svc
-    .from('parents').select('id, email, first_name').eq('auth_user_id', user.id).single()
+    .from('parents').select('id, email, first_name, preferred_language').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: thread } = await svc
@@ -256,6 +297,7 @@ export async function POST(req: NextRequest) {
   if (!lastMsg || lastMsg.sender_type !== 'parent') {
     return NextResponse.json({ skipped: true })
   }
+  const lang = replyLang(lastMsg.body, (parent as any).preferred_language)
 
   // Idempotent claim on the triggering message: if another invocation already
   // claimed it (duplicate client call / rapid resend), skip. Fails open if the
@@ -366,8 +408,10 @@ export async function POST(req: NextRequest) {
         balance_points: w.balance,
         balance_dollars: w.balance,
         bonus_points: w.balanceGranted,
+        // LA calendar day, not the UTC slice -- a grant made after 5pm Pacific
+        // was quoted a day late (found 2026-10-05).
         next_bonus_expiry: w.grantedNextExpiry
-          ? `${w.grantedNextExpiry.points} bonus points expire on ${w.grantedNextExpiry.date.slice(0, 10)}`
+          ? `${w.grantedNextExpiry.points} bonus points expire on ${formatDateLA(new Date(w.grantedNextExpiry.date))}`
           : null,
         lessons_completed: w.lessonsCompleted,
       }
@@ -732,8 +776,7 @@ export async function POST(req: NextRequest) {
       if (!asksConfirm) {
         console.error('[ai-reply guard] blocked hallucinated cancellation claim:', finalText.slice(0, 200))
         escalate = true
-        finalText =
-          'I was not able to complete that cancellation just now, so nothing has been changed on your account. A team member has been notified and will follow up shortly.'
+        finalText = CANNED.cancelGuard[lang]
       }
     }
 
@@ -742,8 +785,7 @@ export async function POST(req: NextRequest) {
     if (claimsTrialBooked && !trialBookSucceededThisTurn) {
       console.error('[ai-reply guard] blocked hallucinated trial booking claim:', finalText.slice(0, 200))
       escalate = true
-      finalText =
-        'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.'
+      finalText = CANNED.trialGuard[lang]
     }
 
     let replyBody = finalText
@@ -772,7 +814,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, escalated: escalate })
   } catch (err) {
     console.error('[ai-reply]', err)
-    await postAiMessage(FALLBACK, true)
+    await postAiMessage(CANNED.fallback[lang], true)
     return NextResponse.json({ ok: true, escalated: true, fallback: true })
   }
 }

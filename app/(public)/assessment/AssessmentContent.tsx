@@ -20,7 +20,9 @@ function BookAssessmentButton({ label }: { label: string }) {
   async function go() {
     setBusy(true)
     const { data: { user } } = await supabase.auth.getUser()
-    router.push(user ? '/booking' : '/register?redirect=/booking')
+    // ?next=, the name register and login read (found 2026-10-05: this sent
+    // ?redirect=, which nothing reads, so the visitor lost their way here).
+    router.push(user ? '/booking' : '/register?next=' + encodeURIComponent('/booking'))
   }
 
   return (

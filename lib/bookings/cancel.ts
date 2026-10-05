@@ -263,6 +263,17 @@ export async function cancelBookingWithPartner(
     return { ok: false, status: 400, error: "A Swim Assessment can't be cancelled online. Please contact us and we'll take care of it.", cancelledBookingIds: [] }
   }
 
+  // A parent can only cancel a lesson that is still ahead of them (found
+  // 2026-10-05). Before this, a lesson already under way or over -- or one
+  // whose row had moved past 'confirmed' -- could be cancelled for a grace
+  // voucher. 'pending_partner' (an invitation, nothing charged) is allowed
+  // through; 'cancelled' falls through to the "Already cancelled" claim below.
+  // The start-time half of this check is with the timing read further down.
+  const LESSON_STARTED_ERROR = 'This lesson has already started, so it can no longer be cancelled.'
+  if (callerParentId && !['confirmed', 'pending_partner', 'cancelled'].includes(booking.status)) {
+    return { ok: false, status: 400, error: LESSON_STARTED_ERROR, cancelledBookingIds: [] }
+  }
+
   // What the cancellation does (CancelOutcome above). Admin and system
   // callers always refund; only a parent's own cancellation is judged by the
   // clock, the kind of lesson, and the child's grace of the month.
@@ -281,10 +292,22 @@ export async function cancelBookingWithPartner(
       : { data: null as any }
     sessionDate = timing?.session_date || getTodayLA()
     ctSlug = ct?.slug || ''
-    const late = !timing || minutesUntil(timing.session_date, timing.start_time, getTodayLA(), getNowMinutesLA()) < 24 * 60
+    const untilStart = timing ? minutesUntil(timing.session_date, timing.start_time, getTodayLA(), getNowMinutesLA()) : null
+    if (untilStart !== null && untilStart <= 0) {
+      return { ok: false, status: 400, error: LESSON_STARTED_ERROR, cancelledBookingIds: [] }
+    }
+    const late = untilStart === null || untilStart < 24 * 60
     if (options.settled) {
       // The second half of an hour follows the first, whatever it was.
       outcome = options.settled
+    } else if (booking.status === 'pending_partner') {
+      // An invitation the other family has not accepted yet (found
+      // 2026-10-05). Nothing has been charged -- both families pay when the
+      // invitation is confirmed -- so withdrawing it costs nothing and spends
+      // no grace, whatever the clock says. The inviter's row carries
+      // partner_booking_id, which used to send this into the "1-on-2 within
+      // 24 hours" refusal below and left the inviter unable to withdraw.
+      outcome = 'refund'
     } else if (booking.voucher_id) {
       // A make-up lesson: in time, the voucher comes back; inside 24 hours it
       // is spent. Never a grace -- a make-up is already the second chance.

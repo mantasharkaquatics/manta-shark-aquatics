@@ -254,10 +254,17 @@ export async function sweepVouchers(svc: Svc, sendReminder: (v: Voucher) => Prom
   let reminded = 0
   for (const v of (soon || []) as Voucher[]) {
     // Claimed before sending, so two overlapping runs cannot both email.
+    const stamp = new Date().toISOString()
     const { data: claimed } = await svc.from('make_up_vouchers')
-      .update({ reminded_at: new Date().toISOString() }).eq('id', v.id).is('reminded_at', null).select('id')
+      .update({ reminded_at: stamp }).eq('id', v.id).is('reminded_at', null).select('id')
     if (!claimed || claimed.length === 0) continue
-    try { if (await sendReminder(v)) reminded++ } catch (e) { console.error('voucher reminder failed', e) }
+    let ok = false
+    try { ok = await sendReminder(v) } catch (e) { console.error('voucher reminder failed', e) }
+    if (ok) { reminded++; continue }
+    // Not sent: give the claim back so the next run tries again -- it used to
+    // stay set and the family never got the reminder (found 2026-10-05).
+    // Conditional on our own stamp, so anything that changed it since is kept.
+    await svc.from('make_up_vouchers').update({ reminded_at: null }).eq('id', v.id).eq('reminded_at', stamp)
   }
   return { expired: (gone || []).length, reminded }
 }

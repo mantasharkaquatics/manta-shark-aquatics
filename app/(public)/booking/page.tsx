@@ -397,6 +397,11 @@ export default function BookingPage() {
   // mornings is describing one set of lessons, and used to have to book it
   // twice because picking the second weekday threw away the first.
   const [recurSel, setRecurSel] = useState<Map<string, PlanSlot>>(new Map())
+  // Basket (and fixed-class proposal) keys are date|time|coachId. They were
+  // date|time, so with two coaches at the same time ticking one showed both
+  // ticked and clicking the other removed the first (found 2026-10-05). Code
+  // that means "this date and time, whichever coach" matches on x.date/x.time.
+  const slotKey = (date: string, time: string, coachId: string) => `${date}|${time}|${coachId}`
   const [recurQuote, setRecurQuote] = useState<Map<string, number>>(new Map())
   // Which of the slot's future occurrences the shortcut is proposing, by key.
   // It only ever PROPOSES: nothing is in the basket until it is accepted. The
@@ -953,20 +958,23 @@ export default function BookingPage() {
     setRecurOpen(false); setRecurMsg('')
     if (makeUp) {
       // One lesson, nothing to pay: picking another time replaces it.
-      setRecurSel(new Map([[`${ds}|${slot.time}`, { date: ds, time: slot.time, label: slot.label, points: 0, coachId: coach.id, coachName: coach.first_name }]]))
+      setRecurSel(new Map([[slotKey(ds, slot.time, coach.id), { date: ds, time: slot.time, label: slot.label, points: 0, coachId: coach.id, coachName: coach.first_name }]]))
       return
     }
     if (ds > singleMax) { setFixedOnly(true); openFixed(ds, slot.time, coach.id); return }
     setFixedOnly(false)
-    const key = `${ds}|${slot.time}`
+    const key = slotKey(ds, slot.time, coach.id)
     const cost = priceAt(ds, slot.time, 30)?.charged ?? 0
     setRecurSel(prev => {
       const n = new Map(prev)
-      const had = n.get(key)
-      if (had && had.coachId === coach.id) { n.delete(key); return n }
+      // The key carries the coach, so a hit is this very lesson: untick it.
+      if (n.has(key)) { n.delete(key); return n }
+      // Same date and time with another coach is a coach swap at the same
+      // price, so (as before the key change) it skips the affordability test.
+      const sameSlot = [...n.values()].some(x => x.date === ds && x.time === slot.time)
       const sameDay = [...n.entries()].filter(([k]) => k.startsWith(ds + '|'))
       const after = [...n.values()].filter(x => x.date !== ds).concat({ date: ds, time: slot.time, label: slot.label, points: cost, coachId: coach.id })
-      if (!had && dueOf(after, 30) > balance) return prev
+      if (!sameSlot && dueOf(after, 30) > balance) return prev
       for (const [k] of sameDay) n.delete(k)
       n.set(key, { date: ds, time: slot.time, label: slot.label, points: cost, coachId: coach.id, coachName: coach.first_name })
       return n
@@ -1007,18 +1015,21 @@ export default function BookingPage() {
         const pre = new Set<string>()
         // What the parent already chose at this slot is ticked first, so the
         // fill can never crowd it out.
-        let run = [...recurSel.entries()]
-          .filter(([k]) => !k.endsWith(`|${time}`))
-          .reduce((a, [, v]) => a + v.points, 0)
+        // (Keys now end in the coach, so "this time" is matched on v.time.)
+        let run = [...recurSel.values()]
+          .filter(v => v.time !== time)
+          .reduce((a, v) => a + v.points, 0)
         for (const c of cands) {
-          const key = `${c.date}|${time}`
-          if (c.status === 'ok' && recurSel.has(key)) {
+          // Proposal keys carry this panel's coach; a basket lesson at this
+          // date and time with any coach counts as already chosen, as before.
+          const key = slotKey(c.date, time, coachId)
+          if (c.status === 'ok' && [...recurSel.values()].some(v => v.date === c.date && v.time === time)) {
             pre.add(key); run += quote.get(c.date) ?? 0
           }
         }
         for (const c of cands) {
           if (pre.size >= FIXED_CLASS_MIN_LESSONS) break
-          const key = `${c.date}|${time}`
+          const key = slotKey(c.date, time, coachId)
           if (c.status !== 'ok' || pre.has(key)) continue
           const cost = quote.get(c.date) ?? 0
           if (run + cost > balance) break
@@ -1088,7 +1099,21 @@ export default function BookingPage() {
   const bookingCost = selectedHour && hourCovered ? 0 : (bookingPrice?.charged ?? 0)
   const basket = [...recurSel.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
   // What the basket will take from the wallet: the lessons a voucher pays for cost nothing.
-  const basketTotal = dueOf(basket, 30)
+  // planMinutes, not 30: a 60-minute basket's vouchers are 60-minute ones, and
+  // with 30 none of them fitted so the total ignored them (found 2026-10-05).
+  const basketTotal = dueOf(basket, planMinutes)
+  // The basket by date|time, whichever coach: "is something already booked at
+  // this date and time" is a coach-free question (one swimmer, one place).
+  const basketByTime = new Map<string, PlanSlot>()
+  for (const x of basket) basketByTime.set(`${x.date}|${x.time}`, x)
+  const basketAt = (date: string, time: string) => basketByTime.get(`${date}|${time}`)
+  // Perf (found 2026-10-05): the group grid called dueOf() on the whole basket
+  // plus one candidate for every cell, re-running the voucher assignment each
+  // time. With no voucher in play the answer is simply basketTotal + its cost;
+  // only when vouchers could shift does it fall back to the exact recompute.
+  const vouchersInPlay = payWithVouchers && fittingVouchers(planMinutes).length > 0
+  const dueWith = (extra: PlanSlot) =>
+    vouchersInPlay ? dueOf([...basket, extra], planMinutes) : basketTotal + extra.points
   // One time across the whole batch, or several? It decides whether the summary
   // can print a single Time row, and whether a chip needs to say the hour.
   const basketTimes = new Set(basket.map(x => x.time))
@@ -1156,13 +1181,16 @@ export default function BookingPage() {
     : []
   // So the panel now owns this slot's dates outright, and its arithmetic is:
   // what the REST of the basket costs, plus whatever is ticked here.
+  // slotKeys are the panel's date|time pairs, coach-free on purpose: accepting
+  // the panel replaces whatever the basket holds at those dates and times.
   const slotKeys = new Set(recurCandidates.map((c: any) => `${c.date}|${selectedSlot?.time ?? ''}`))
-  const otherTotal = dueOf(basket.filter(x => !slotKeys.has(`${x.date}|${x.time}`)), 30)
+  // planMinutes, not 30 (found 2026-10-05) -- see basketTotal.
+  const otherTotal = dueOf(basket.filter(x => !slotKeys.has(`${x.date}|${x.time}`)), planMinutes)
   const chosen = (() => {
     const out = new Map<string, number>()
     if (!selectedSlot) return out
     for (const c of recurCandidates) {
-      const key = `${c.date}|${selectedSlot.time}`
+      const key = slotKey(c.date, selectedSlot.time, selectedCoach?.id ?? '')
       if (ghostSel.has(key)) out.set(key, recurQuote.get(c.date) ?? 0)
     }
     return out
@@ -1188,7 +1216,7 @@ export default function BookingPage() {
     if (sl.full || sl.already_booked) return
     const c = coaches.find(x => x.id === sl.coach_id)
     if (!c) return
-    const key = `${ds}|${sl.time}`
+    const key = slotKey(ds, sl.time, c.id)
     const cost = priceAt(ds, sl.time, 30)?.charged ?? 0
     // The slot is also remembered as "the one on screen", so the repeat-weekly
     // shortcut knows which weekday and hour it is being asked to repeat.
@@ -1209,7 +1237,11 @@ export default function BookingPage() {
     setRecurSel(prev => {
       const n = new Map(prev)
       if (n.has(key)) { n.delete(key); return n }
-      if (dueOf([...n.values(), { date: ds, time: sl.time, label: '', points: cost, coachId: c.id }], 30) > balance) return n
+      // Another coach's class at the same date and time: one swimmer cannot be
+      // in both, so this one replaces it (the old coach-free key did this by
+      // accident, and also un-ticked the other cell -- found 2026-10-05).
+      for (const [k, v] of prev) if (v.date === ds && v.time === sl.time) n.delete(k)
+      if (dueOf([...n.values(), { date: ds, time: sl.time, label: '', points: cost, coachId: c.id }], 30) > balance) return prev
       n.set(key, { date: ds, time: sl.time, label: formatTime(sl.time), points: cost, coachId: c.id, coachName: c.first_name })
       return n
     })
@@ -1222,12 +1254,15 @@ export default function BookingPage() {
   function addHourToBasket(h: any) {
     if (!selectedDate) return
     const ds = localDs(selectedDate)
-    const key = `${ds}|${h.start_time}`
     const solo = (h.pick && !h.pick.relay ? h.pick : null) || (h.opts || []).find((x: any) => !x.relay && x.coach1_id === x.coach2_id)
     setRecurMsg('')
-    if (recurSel.get(key)?.fixed) return
-    if (recurSel.has(key)) { setRecurSel(prev => { const n = new Map(prev); n.delete(key); return n }); return }
+    // The hour list has one cell per time, whichever coach: look the basket up
+    // by date and time (keys now carry the coach -- found 2026-10-05).
+    const had = basketAt(ds, h.start_time)
+    if (had?.fixed) return
+    if (had) { const hk = slotKey(had.date, had.time, had.coachId); setRecurSel(prev => { const n = new Map(prev); n.delete(hk); return n }); return }
     if (!solo) { setRecurMsg(t('booking.recur.err.relayHour')); return }
+    const key = slotKey(ds, h.start_time, solo.coach1_id)
     if (ds > singleMax) { setRecurMsg(t('booking.recur.err.hourTooFar')); return }
     if ([...recurSel.values()].some(x => x.date === ds)) { setRecurMsg(t('booking.recur.err.hourSameDay')); return }
     const pts = Number(h.points) || 0
@@ -2161,8 +2196,8 @@ export default function BookingPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                           {rows.map((h: any) => {
                             const o = h.pick
-                            const hKey = `${localDs(selectedDate)}|${h.start_time}`
-                            const sel = hourBasket ? recurSel.has(hKey) : selectedHour?.start_time === h.start_time
+                            // By date and time: basket keys carry the coach (2026-10-05).
+                            const sel = hourBasket ? !!basketAt(localDs(selectedDate), h.start_time) : selectedHour?.start_time === h.start_time
                             const affordable = isReschedule || !!makeUp || hourCovered || hourBalance >= (Number(h.points) || 0)
                             const usable = affordable && !h.is_current
                             const w24 = isWithin24Hours(localDs(selectedDate), h.start_time)
@@ -2340,9 +2375,10 @@ export default function BookingPage() {
                       <p style={{ color: '#56647d', fontSize: '15px' }}>{t('booking.noSlots')}</p>
                     </div>
                   )
-                  const curKey = selectedSlot ? `${ds0}|${selectedSlot.time}` : ''
+                  // This grid is one cell per time across coaches, so it asks the
+                  // basket by date and time (keys carry the coach since 2026-10-05).
                   const curIds = selectedSlot ? (day[selectedSlot.time] || []) : []
-                  const curShown = !!selectedSlot && curIds.length > 0 && (!batchFlow || recurSel.has(curKey))
+                  const curShown = !!selectedSlot && curIds.length > 0 && (!batchFlow || !!basketAt(ds0, selectedSlot.time))
                   return (
                     <>
                       {batchFlow && (
@@ -2351,15 +2387,15 @@ export default function BookingPage() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                         {times.map(tm => {
                           const ids = day[tm]
-                          const key0 = `${ds0}|${tm}`
-                          const inBasket = batchFlow && recurSel.has(key0)
+                          const hit0 = basketAt(ds0, tm)
+                          const inBasket = batchFlow && !!hit0
                           const on = inBasket || (!batchFlow && selectedSlot?.time === tm)
                           const pr = (isReschedule || isTrial) ? null : priceAt(ds0, tm, 30)
                           const cost0 = pr?.charged ?? 0
                           const affordable0 = !batchFlow || inBasket
                             || dueOf([...recurSel.values()].filter(x => x.date !== ds0).concat({ date: ds0, time: tm, label: '', points: cost0, coachId: '' }), 30) <= balance
                           const w24 = isWithin24Hours(ds0, tm)
-                          const chosenCoach = inBasket ? recurSel.get(key0)!.coachId : null
+                          const chosenCoach = inBasket ? hit0!.coachId : null
                           return (
                             <button key={tm} disabled={!affordable0}
                               onClick={() => {
@@ -2433,7 +2469,9 @@ export default function BookingPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                     {(lessonLength === 60 ? [] : shownTimeSlots).map(slot => {
                       const ds0 = selectedDate ? localDs(selectedDate) : ''
-                      const key0 = `${ds0}|${slot.time}`
+                      // This grid is ONE coach's times: only that coach's lesson
+                      // shows ticked here (found 2026-10-05).
+                      const key0 = slotKey(ds0, slot.time, selectedCoach?.id ?? '')
                       const inBasket = batchFlow && recurSel.has(key0)
                       const on = inBasket || (!batchFlow && selectedSlot?.time === slot.time)
                       const cost0 = (batchFlow && selectedDate) ? (priceAt(ds0, slot.time, 30)?.charged ?? 0) : 0
@@ -2572,7 +2610,7 @@ export default function BookingPage() {
                             const hideDay = (!!makeUp && (isPast || !makeUpDateOk(ds) || slots.length === 0)) || (isReschedule && !rescheduleDateOk(ds))
                             const isToday2 = ds === todayDs
                             const open = openDay === ds
-                            const anyPicked = slots.some((sl: any) => recurSel.has(`${ds}|${sl.time}`))
+                            const anyPicked = slots.some((sl: any) => recurSel.has(slotKey(ds, sl.time, sl.coach_id)))
                             // The phone's time panel opens under the week the day is in.
                             const endsWeek = idx % 7 === 6
                             const rowStart = idx - (idx % 7)
@@ -2599,8 +2637,8 @@ export default function BookingPage() {
                                     <span style={{ fontSize: '17px', lineHeight: 1.1, color: anyPicked ? GOLD : isToday2 ? GOLD : isPast ? '#9aa6ba' : weekend ? '#16294a' : '#56647d', fontWeight: weekend ? 800 : 600 }}>{monthTag && <span style={{ display: 'block', width: 'fit-content', margin: '0 auto 3px', fontSize: '10px', fontWeight: 800, color: NAVY, background: AMBER, borderRadius: '4px', padding: '1px 5px', lineHeight: 1.25 }}>{monthLabel}</span>}{i + 1}</span>
                                     <span style={{ display: 'flex', gap: '4px', height: '7px', alignItems: 'center' }}>
                                       {slots.map((sl: any) => {
-                                        const picked = recurSel.has(`${ds}|${sl.time}`)
-                                        const prop = !picked && ghost.has(`${ds}|${sl.time}`)
+                                        const picked = recurSel.has(slotKey(ds, sl.time, sl.coach_id))
+                                        const prop = !picked && ghost.has(slotKey(ds, sl.time, sl.coach_id))
                                         const gone = sl.full || sl.already_booked
                                         return <span key={sl.coach_id + sl.time} style={{ width: '7px', height: '7px', borderRadius: '50%', background: picked ? AMBER : (gone || prop) ? 'transparent' : myBandColor, border: prop ? `1px solid ${GOLD}` : gone ? '1px solid #e3ebf6' : 'none' }} />
                                       })}
@@ -2615,11 +2653,13 @@ export default function BookingPage() {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                       {slots.map((sl: any) => {
                                         const w24 = isWithin24Hours(ds, sl.time)
-                                        const key = `${ds}|${sl.time}`
+                                        const key = slotKey(ds, sl.time, sl.coach_id)
                                         const inBasket = recurSel.has(key)
                                         const cost = priceAt(ds, sl.time, 30)?.charged ?? 0
                                         // Outside a make-up voucher's dates a cell looks as unavailable as it is.
-                                        const affordable = makeUpDateOk(ds) && rescheduleDateOk(ds) && (isReschedule || inBasket || dueOf([...recurSel.values(), { date: ds, time: sl.time, label: '', points: cost, coachId: '' }], 30) <= balance)
+                                        // Another coach's lesson at this date and time would be swapped
+                                        // out at the same price, so that cell stays affordable.
+                                        const affordable = makeUpDateOk(ds) && rescheduleDateOk(ds) && (isReschedule || inBasket || !!basketAt(ds, sl.time) || dueWith({ date: ds, time: sl.time, label: '', points: cost, coachId: sl.coach_id }) <= balance)
                                         const clickable = !sl.full && !sl.already_booked && affordable
                                         const proposed = !inBasket && ghost.has(key)
                                         const cellBorder = inBasket ? GOLD : proposed ? `${GOLD}99` : sl.full || sl.already_booked ? 'rgba(255,255,255,0.06)' : !affordable ? 'rgba(255,255,255,0.10)' : myBandColor + '55'
@@ -2662,11 +2702,11 @@ export default function BookingPage() {
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {openSlots.map((sl: any) => {
-                                      const key = `${openDay}|${sl.time}`
+                                      const key = slotKey(openDay!, sl.time, sl.coach_id)
                                       const inBasket = recurSel.has(key)
                                       const pr = priceAt(openDay!, sl.time, 30)
                                       const cost = pr?.charged ?? 0
-                                      const affordable = makeUpDateOk(openDay!) && rescheduleDateOk(openDay!) && (isReschedule || inBasket || dueOf([...recurSel.values(), { date: openDay!, time: sl.time, label: '', points: cost, coachId: '' }], 30) <= balance)
+                                      const affordable = makeUpDateOk(openDay!) && rescheduleDateOk(openDay!) && (isReschedule || inBasket || !!basketAt(openDay!, sl.time) || dueWith({ date: openDay!, time: sl.time, label: '', points: cost, coachId: sl.coach_id }) <= balance)
                                       const clickable = !sl.full && !sl.already_booked && affordable
                                       const w24 = isWithin24Hours(openDay!, sl.time)
                                       return (
@@ -2759,7 +2799,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
                       {basketSplit.singles.map(x => (
                         <button key={x.date + x.time}
-                          onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(`${x.date}|${x.time}`); return n })}
+                          onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(slotKey(x.date, x.time, x.coachId)); return n })}
                           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
                           {new Date(x.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                           {basketTimes.size > 1 ? ` · ${x.label}` : ''}
@@ -2809,7 +2849,7 @@ export default function BookingPage() {
                         are buying. Ten come pre-ticked; the rest they tick. */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))', gap: '6px', marginTop: '13px', maxHeight: '236px', overflowY: 'auto' }}>
                       {recurShown.map((c: any) => {
-                        const key = `${c.date}|${selectedSlot.time}`
+                        const key = slotKey(c.date, selectedSlot.time, selectedCoach.id)
                         // A week the coach is off is shown, so the gap in the
                         // dates has a reason, but it cannot be ticked or paid for.
                         if (c.status !== 'ok') return (
@@ -2891,14 +2931,17 @@ export default function BookingPage() {
                             // Whatever the grid says about this slot is now the
                             // truth about it, so unticking the anchor date in
                             // here actually drops it.
-                            for (const k of slotKeys) n.delete(k)
+                            // slotKeys are date|time; basket keys carry the coach
+                            // (2026-10-05), so match on the lesson's own fields.
+                            for (const [k, v] of prev) if (slotKeys.has(`${v.date}|${v.time}`)) n.delete(k)
                             for (const [key, points] of chosen) {
+                              // key is date|time|coach; the coach is re-read below.
                               const [date, time] = key.split('|')
                               // One private lesson per day still holds: this
                               // slot's date displaces anything else that day.
                               if (!groupFlow) for (const k of [...n.keys()]) if (k.startsWith(date + '|')) n.delete(k)
                               const cid = recurCoach.get(date) || selectedCoach.id
-                              n.set(key, { date, time, label: selectedSlot.label, points, coachId: cid, coachName: coachName(cid), fixed: fixedKey })
+                              n.set(slotKey(date, time, cid), { date, time, label: selectedSlot.label, points, coachId: cid, coachName: coachName(cid), fixed: fixedKey })
                             }
                             return n
                           })

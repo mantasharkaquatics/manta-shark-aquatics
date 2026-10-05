@@ -18,8 +18,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getTodayLA, getNowMinutesLA, minutesUntil, SLOT_STEP_MINUTES } from '@/lib/date'
 import { addDaysStr, issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import {
-  FC_COLUMNS, MOVE_EXTRA_WEEKS, evalSlot, halvesOf, isUpcoming, lessonsOf, loadWindow, minToTime,
-  renewalHolds, studentBusy, toMin, weekdayOf,
+  FC_COLUMNS, MOVE_EXTRA_WEEKS, classState, evalSlot, halvesOf, isUpcoming, lessonsOf, loadWindow, minToTime,
+  renewalHolds, studentBusy, termLastDates, toMin, weekdayOf,
   type FixedClass, type Lesson,
 } from '@/lib/fixed-classes'
 import { zoneTypeForSlug } from '@/lib/zones'
@@ -193,14 +193,25 @@ function split(n: number, k: number): number[] {
   return Array.from({ length: k }, (_, i) => base + (i < n - base * k ? 1 : 0))
 }
 
-/** Carry out a plan already shown to the family. */
+/** The class's last lesson date, the way the renewal notice and hold read it. */
+async function lastDateOf(svc: Svc, fcId: string): Promise<string | null> {
+  const [lessons, ends] = await Promise.all([lessonsOf(svc, [fcId]), termLastDates(svc, [fcId])])
+  return classState(lessons.get(fcId), undefined, undefined, ends.get(fcId)).last
+}
+
+/** Carry out a plan already shown to the family. `notMoved` lists the dates
+ *  of lessons that could neither be placed nor turned into a voucher and so
+ *  were left on their old slot. */
 export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, plan: MovePlan):
-  Promise<{ ok: true; moved: number; vouchers: number } | { error: string; status: number }> {
+  Promise<{ ok: true; moved: number; vouchers: number; notMoved: string[] } | { error: string; status: number }> {
   const byDate = new Map(ctx.movable.map(l => [l.date, l]))
   const moving = plan.items.filter(i => i.to)
   const toVoucher = plan.items.filter(i => !i.to)
   const startMin = toMin(target.startTime)
   const { fc, ct } = ctx
+  // Read before anything moves, to tell afterwards whether the last lesson
+  // date changed (step 5).
+  const lastBefore = await lastDateOf(svc, fc.id)
 
   // 1. Take the old rows out of their lessons -- conditionally, so a second
   //    press finds nothing to take.
@@ -288,26 +299,63 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
   }
 
   // 4. Lessons that could not be placed anywhere become make-up vouchers.
+  //    The lesson is cancelled first and the voucher written second. If the
+  //    voucher is NOT written, the lesson goes back to how it was, on its old
+  //    slot, and is reported in notMoved -- it used to only log, leaving the
+  //    family with neither the lesson nor a voucher nor its points (found
+  //    2026-10-05). Restoring rather than refunding (refundBookingPoints):
+  //    points move with the lessons untouched (owner, 2026-10-01), a restore
+  //    is a plain undo of the write just made, and the lesson the family paid
+  //    for is still there for the desk to move or voucher by hand. A refund
+  //    would turn a lesson into points the family never asked for, and granted
+  //    points could come back already expired. A duplicate means a voucher for
+  //    this lesson already exists, so that lesson is not restored.
   let vouchers = 0
+  const notMoved: string[] = []
   for (const i of toVoucher) {
     const l = byDate.get(i.from)!
     const ids = l.rows.map(r => r.id)
+    const { data: before } = await svc.from('bookings')
+      .select('id, pending_action, cancellation_reason, cancelled_by, cancelled_at').in('id', ids).eq('status', 'confirmed')
     const { data: c } = await svc.from('bookings')
       .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
       .in('id', ids).eq('status', 'confirmed').select('id')
     if (!c || c.length === 0) continue
-    const v = await issueVoucher(svc, {
-      parentId: fc.parent_id, studentId: fc.student_id, student2Id: fc.student2_id,
-      courseSlug: ct.slug, minutes: fc.minutes, reason: 'moved',
-      expiresOn: voucherExpiry(i.from), sourceBookingId: l.rows[0].id, fixedClassId: fc.id,
-    })
-    if (v.voucher) vouchers++
-    else console.error('fixed-class move: voucher not issued for', l.rows[0].id, v)
+    let v: Awaited<ReturnType<typeof issueVoucher>>
+    try {
+      v = await issueVoucher(svc, {
+        parentId: fc.parent_id, studentId: fc.student_id, student2Id: fc.student2_id,
+        courseSlug: ct.slug, minutes: fc.minutes, reason: 'moved',
+        expiresOn: voucherExpiry(i.from), sourceBookingId: l.rows[0].id, fixedClassId: fc.id,
+      })
+    } catch (e) { v = { error: e instanceof Error ? e.message : String(e) } }
+    if (v.voucher) { vouchers++; continue }
+    if (v.duplicate) { console.error('fixed-class move: a voucher already exists for', l.rows[0].id); continue }
+    console.error('fixed-class move: voucher not issued for', l.rows[0].id, v)
+    const prev = new Map((before || []).map((b: any) => [b.id, b]))
+    let restored = true
+    for (const { id } of c as { id: string }[]) {
+      const p = prev.get(id) || {}
+      const { data: back, error: rErr } = await svc.from('bookings')
+        .update({ status: 'confirmed', pending_action: p.pending_action ?? null, cancellation_reason: p.cancellation_reason ?? null,
+          cancelled_by: p.cancelled_by ?? null, cancelled_at: p.cancelled_at ?? null })
+        .eq('id', id).eq('status', 'cancelled').eq('cancellation_reason', 'cancelled_by_parent').select('id')
+      if (rErr || !back || back.length === 0) restored = false
+    }
+    if (!restored) console.error(`⚠️ fixed-class move: lesson ${i.from} (${ids.join(', ')}) cancelled with no voucher and not restored -- fix by hand`)
+    notMoved.push(i.from)
   }
 
-  // 5. The class takes its new slot.
+  // 5. The class takes its new slot. A move that changes the last lesson
+  //    date also clears renewal_notified_at: the notice already sent was for
+  //    the old date, and with the flag left set the family never got one for
+  //    the new date (found 2026-10-05).
+  const lastAfter = await lastDateOf(svc, fc.id)
   const { error: fcErr } = await svc.from('fixed_classes')
-    .update({ coach_id: target.coachId, weekday: weekdayOf(target.startDate), start_time: target.startTime })
+    .update({
+      coach_id: target.coachId, weekday: weekdayOf(target.startDate), start_time: target.startTime,
+      ...(lastAfter !== lastBefore ? { renewal_notified_at: null } : {}),
+    })
     .eq('id', fc.id)
   if (fcErr) console.error(`⚠️ fixed-class move: lessons moved but class ${fc.id} still shows the old slot:`, fcErr.message)
 
@@ -318,5 +366,5 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
       .eq('class_session_id', sid).neq('status', 'cancelled')
     if ((count || 0) === 0) await svc.from('class_sessions').update({ status: 'cancelled' }).eq('id', sid).neq('status', 'cancelled')
   }
-  return { ok: true, moved: moving.length, vouchers }
+  return { ok: true, moved: moving.length, vouchers, notMoved }
 }

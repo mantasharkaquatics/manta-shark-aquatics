@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { sendSms } from '@/lib/sms'
+import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 
 export const runtime = 'nodejs'
+// Up to ~a minute of Twilio calls on a busy day (sent 5 at a time below).
+export const maxDuration = 60
 
 const WINDOW_START_H = 24.5
 const WINDOW_END_H = 25.5
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
   // Step 2: confirmed, not-yet-reminded bookings for those sessions
   const { data: bookings, error: bookErr } = await supabase
     .from('bookings')
-    .select('id, class_session_id, student_id, parent_id')
+    .select('id, class_session_id, student_id, parent_id, lesson_group_id')
     .eq('status', 'confirmed')
     .is('reminder_sent_at', null)
     .in('class_session_id', inWindow.map((s) => s.id))
@@ -75,12 +77,60 @@ export async function GET(request: Request) {
     return NextResponse.json({ sent: 0, results: [], note: 'no unreminded bookings in window' })
   }
 
+  // Step 2b: one text per family per LESSON, not per booking row (found
+  // 2026-10-05). A 60-minute lesson is two half-hour rows (lesson_group_id) and
+  // a sibling 1-on-2 is one row per child on the same session; each row used to
+  // get its own text, so an hour sent a second reminder an hour later quoting
+  // the second half's start, and siblings got one text each. Pull in every
+  // confirmed row of the hour lessons seen here (the other half can sit outside
+  // this window), plus the sessions of those halves.
+  type Row = { id: string; class_session_id: string; student_id: string | null; parent_id: string; lesson_group_id: string | null; reminder_sent_at?: string | null }
+  const groupIds = [...new Set(bookings.map((b) => b.lesson_group_id).filter(Boolean))] as string[]
+  let groupRows: Row[] = []
+  if (groupIds.length > 0) {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, class_session_id, student_id, parent_id, lesson_group_id, reminder_sent_at')
+      .eq('status', 'confirmed')
+      .in('lesson_group_id', groupIds)
+    if (error) {
+      console.error('Error fetching lesson groups:', error)
+      return NextResponse.json({ error: 'DB error (lesson groups)' }, { status: 500 })
+    }
+    groupRows = (data || []) as Row[]
+    const missing = [...new Set(groupRows.map((r) => r.class_session_id))].filter((id) => !sessionMap.has(id))
+    if (missing.length > 0) {
+      const { data: more, error: moreErr } = await supabase
+        .from('class_sessions')
+        .select('id, session_date, start_time, course_type_id, coach_id')
+        .in('id', missing)
+      if (moreErr) {
+        console.error('Error fetching sessions (other halves):', moreErr)
+        return NextResponse.json({ error: 'DB error (sessions)' }, { status: 500 })
+      }
+      for (const s of more || []) sessionMap.set(s.id, s)
+    }
+  }
+
+  // Family + lesson -> its rows. Key on lesson_group_id for an hour, else on
+  // the session (sibling seats share it). Different families never share a key.
+  const lessons = new Map<string, Row[]>()
+  const add = (r: Row) => {
+    const key = r.parent_id + '|' + (r.lesson_group_id || 'cs:' + r.class_session_id)
+    const list = lessons.get(key) || []
+    if (!list.some((x) => x.id === r.id)) list.push(r)
+    lessons.set(key, list)
+  }
+  for (const b of bookings) add(b as Row)
+  for (const r of groupRows) if (bookings.some((b) => b.parent_id === r.parent_id && b.lesson_group_id === r.lesson_group_id)) add(r)
+
   // Step 3: batch lookups
   const uniq = (arr: (string | null)[]) => [...new Set(arr.filter(Boolean))] as string[]
-  const studentIds = uniq(bookings.map((b) => b.student_id))
-  const parentIds = uniq(bookings.map((b) => b.parent_id))
-  const courseTypeIds = uniq(inWindow.map((s) => s.course_type_id))
-  const coachIds = uniq(inWindow.map((s) => s.coach_id))
+  const allRows = [...lessons.values()].flat()
+  const studentIds = uniq(allRows.map((b) => b.student_id))
+  const parentIds = uniq(allRows.map((b) => b.parent_id))
+  const courseTypeIds = uniq([...sessionMap.values()].map((s) => s.course_type_id))
+  const coachIds = uniq([...sessionMap.values()].map((s) => s.coach_id))
 
   const [studentsRes, parentsRes, courseTypesRes, coachesRes] = await Promise.all([
     supabase.from('students').select('id, full_name').in('id', studentIds),
@@ -109,37 +159,93 @@ export async function GET(request: Request) {
   const results: Array<Record<string, unknown>> = []
   let sent = 0
 
-  for (const booking of bookings) {
-    const session = sessionMap.get(booking.class_session_id)
-    const parent = parentMap.get(booking.parent_id)
-    const student = studentMap.get(booking.student_id)
-    if (!session || !parent?.phone) continue
+  const remindLesson = async (rows: Row[]) => {
+    const ids = rows.map((r) => r.id)
+    const parent = parentMap.get(rows[0].parent_id)
+    if (!parent?.phone) return
+    // The lesson starts when its EARLIEST half starts. Only that run texts:
+    // when the earliest half is outside this window (it was this family's
+    // reminder an hour ago, or the lesson was booked inside 24.5 hours), the
+    // later half seen here is not a lesson of its own.
+    const sess = [...new Set(rows.map((r) => r.class_session_id))]
+      .map((id) => sessionMap.get(id))
+      .filter(Boolean)
+      .sort((a: any, b: any) => wallMs(a.session_date, a.start_time || '00:00:00') - wallMs(b.session_date, b.start_time || '00:00:00')) as any[]
+    const first = sess[0]
+    if (!first) return
+    const firstAt = wallMs(first.session_date, first.start_time || '00:00:00')
+    if (firstAt < winStart || firstAt >= winEnd) return
+    const pending = rows.filter((r) => !r.reminder_sent_at).map((r) => r.id)
+    if (pending.length === 0) return
 
-    const courseType = courseTypeMap.get(session.course_type_id)
-    const coach = coachMap.get(session.coach_id)
-    const time = formatTime(session.start_time || '')
-    const message = `Hi ${parent.first_name}! Reminder: ${student?.full_name} has a ${courseType?.name} lesson tomorrow at ${time} with Coach ${coach?.first_name}. See you then! - Manta Shark Aquatics`
+    // Claim BEFORE sending (found 2026-10-05). The stamp used to be written
+    // after Twilio answered, so two overlapping runs both saw the rows
+    // unreminded and both texted. The conditional update is the lock: only
+    // the run whose update actually flips reminder_sent_at sends.
+    const stampAt = new Date().toISOString()
+    const { data: claimed, error: claimErr } = await supabase
+      .from('bookings')
+      .update({ reminder_sent_at: stampAt })
+      .in('id', pending)
+      .is('reminder_sent_at', null)
+      .eq('status', 'confirmed')
+      .select('id')
+    if (claimErr) {
+      console.error('Error claiming reminder rows:', pending, claimErr)
+      results.push({ booking_ids: ids, error: 'claim failed' })
+      return
+    }
+    const claimedIds = (claimed || []).map((r: any) => r.id as string)
+    if (claimedIds.length === 0) {
+      results.push({ booking_ids: ids, skipped: 'claimed by another run' })
+      return
+    }
+    const release = async () => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ reminder_sent_at: null })
+        .in('id', claimedIds)
+        .eq('reminder_sent_at', stampAt)
+      if (error) console.error('Error releasing reminder claim:', claimedIds, error)
+    }
+
+    const names = [...new Set(rows.map((r) => studentMap.get(r.student_id || '')?.full_name).filter(Boolean))] as string[]
+    const who = names.length ? names.join(' & ') : 'your swimmer'
+    const courseType = courseTypeMap.get(first.course_type_id)
+    const coach = coachMap.get(first.coach_id)
+    const time = formatTime(first.start_time || '')
+    const hour = sess.length > 1 ? ' (60 min)' : ''
+    // STOP/HELP line (2026-10-05): the SMS Terms tell families to "Reply STOP
+    // to any message to opt out", and the reminder was the one text without it.
+    const message = `Hi ${parent.first_name}! Reminder: ${who} ${names.length > 1 ? 'have' : 'has'} a ${courseType?.name} lesson${hour} tomorrow at ${time} with Coach ${coach?.first_name}. See you then! - Manta Shark Aquatics${SMS_COMPLIANCE_SUFFIX}`
 
     try {
       const result = await sendSms(parent.phone, message)
       if (result.ok && result.sid) {
-        const { error: updErr } = await supabase
-          .from('bookings')
-          .update({ reminder_sent_at: new Date().toISOString() })
-          .eq('id', booking.id)
-        if (updErr) console.error('Error stamping reminder_sent_at:', booking.id, updErr)
         sent += 1
-        results.push({ booking_id: booking.id, status: result.status, to: parent.phone, stamped: !updErr })
+        results.push({ booking_ids: claimedIds, status: result.status, to: parent.phone, stamped: true })
       } else {
+        await release()
         results.push({
-          booking_id: booking.id,
+          booking_ids: claimedIds,
           error: result.ok ? 'twilio accepted the message but returned no sid' : result.code ?? result.reason,
         })
       }
     } catch (err) {
-      results.push({ booking_id: booking.id, error: String(err) })
+      await release()
+      results.push({ booking_ids: claimedIds, error: String(err) })
     }
   }
+
+  // A few at a time: one-by-one could run past the function limit on a busy
+  // day, all at once would hit Twilio's rate limit.
+  const queue = [...lessons.values()]
+  const CONCURRENCY = 5
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+      for (let rows = queue.shift(); rows; rows = queue.shift()) await remindLesson(rows)
+    }),
+  )
 
   return NextResponse.json({ sent, results })
 }

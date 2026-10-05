@@ -17,6 +17,7 @@ import {
   LESSONS_PER_FORGIVENESS,
   type PriceBreakdown,
 } from '@/lib/points'
+import { formatDateLA } from '@/lib/date'
 
 type Svc = any
 
@@ -212,8 +213,11 @@ export async function walletSummary(svc: Svc, parentId: string) {
       .sort((a, b) => expiryMs(a.expiresAt) - expiryMs(b.expiresAt))
     if (dated.length > 0) {
       const first = dated[0].expiresAt!
-      // Several grants can land on the same day; count them together.
-      const sameDay = dated.filter(l => l.expiresAt!.slice(0, 10) === first.slice(0, 10))
+      // Several grants can land on the same day; count them together. The day
+      // is the LA calendar day: slicing the UTC timestamp put a grant made
+      // after 5pm Pacific on the next day's pile (found 2026-10-05).
+      const laDay = (iso: string) => formatDateLA(new Date(iso))
+      const sameDay = dated.filter(l => laDay(l.expiresAt!) === laDay(first))
       grantedNextExpiry = { date: first, points: sameDay.reduce((a, l) => a + l.remaining, 0) }
     }
   }

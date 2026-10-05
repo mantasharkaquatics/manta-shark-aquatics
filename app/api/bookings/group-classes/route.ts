@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAuthUser, serviceClient } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { bandKey } from '@/lib/zone-colors'
-import { renewalHolds, heldSeats, type Hold } from '@/lib/fixed-classes'
+import { renewalHolds, heldSeats, allRows, type Hold } from '@/lib/fixed-classes'
 
 // Parent 1on4 class-based booking (cross-coach).
 // GET ?student_id&date=YYYY-MM-DD          → that day's matching-band classes across all coaches
@@ -96,10 +96,24 @@ export async function GET(req: NextRequest) {
   const month = q.get('month')
   if (!student_id) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
-  const s = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-  const { data: student } = await s.from('students').select('id, parent_id, current_level').eq('id', student_id).single()
+  // Who may ask (found 2026-10-05): this answered anyone, signed in or not,
+  // for any student_id, with the service role -- a swimmer's level band and
+  // which classes they are booked into. Now a parent for their OWN child
+  // (the booking page, and the AI assistant, which forwards the parent's
+  // cookie), or staff (an active coach or an admin).
+  const user = await getAuthUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const s = serviceClient()
+  const [{ data: student }, { data: admin }, { data: coach }, { data: parent }] = await Promise.all([
+    s.from('students').select('id, parent_id, current_level').eq('id', student_id).maybeSingle(),
+    s.from('admins').select('id').eq('auth_user_id', user.id).maybeSingle(),
+    s.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).maybeSingle(),
+    s.from('parents').select('id').eq('auth_user_id', user.id).maybeSingle(),
+  ])
+  const staff = !!admin || !!coach
+  if (!staff && !parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+  if (!staff && student.parent_id !== parent!.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const level = student.current_level == null ? null : Number(student.current_level)
   const myBand = level == null ? null : (() => { const b = BANDS.find(([a, z]) => level >= a && level <= z); return b ? { min: b[0], max: b[1] } : null })()
   if (level == null) return NextResponse.json({ band: null, dates: [], classes: [] })
@@ -134,21 +148,26 @@ export async function GET(req: NextRequest) {
     // dayClasses runs two queries per coach plus three more -- about nine round
     // trips a day, over three hundred for six weeks, which is what made the
     // group calendar sit empty for seconds.
-    const holds = await renewalHolds(s, startStr, endStr, student.parent_id)
     const coachList = (coaches || []) as { id: string }[]
     const coachIds = coachList.map(c => c.id)
-    const [{ data: zAll }, { data: zAny }, { data: offRows }, { data: sessRows }, { data: myB }] = await Promise.all([
+    // The holds read with everything else instead of a round of its own
+    // before it (2026-10-05).
+    const [{ data: zAll }, { data: zAny }, { data: offRows }, { data: sessRows }, { data: myB }, holds] = await Promise.all([
       s.from('coach_availability_zones')
         .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
         .in('coach_id', coachIds)
         .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startStr},override_date.lte.${endStr})`),
       s.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds),
-      s.from('coach_time_off').select('coach_id, date, start_time, end_time, block_type')
-        .in('coach_id', coachIds).gte('date', startStr).lte('date', endStr),
-      s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
-        .gte('session_date', startStr).lte('session_date', endStr).neq('status', 'cancelled'),
-      s.from('bookings').select('class_session_id').eq('student_id', student_id)
-        .not('status', 'in', '("cancelled","pending_partner")'),
+      // Paged (allRows), ordered by id: up to 27 weeks of every coach's
+      // sessions passes the API's silent 1,000-row cap, and a session past the
+      // cut read as an empty lane or an empty class (found 2026-10-05).
+      allRows(() => s.from('coach_time_off').select('id, coach_id, date, start_time, end_time, block_type')
+        .in('coach_id', coachIds).gte('date', startStr).lte('date', endStr).order('id')),
+      allRows(() => s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
+        .gte('session_date', startStr).lte('session_date', endStr).neq('status', 'cancelled').order('id')),
+      allRows(() => s.from('bookings').select('id, class_session_id').eq('student_id', student_id)
+        .not('status', 'in', '("cancelled","pending_partner")').order('id')),
+      renewalHolds(s, startStr, endStr, student.parent_id),
     ])
     // A coach with no zone rows at all is on the old availability model and has
     // no group zones (getEffectiveZones -> legacy); dayClasses skips them too.

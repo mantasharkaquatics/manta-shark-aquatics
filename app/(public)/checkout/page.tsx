@@ -80,7 +80,8 @@ function CheckoutContent() {
     if (!isTeam) return
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login?redirect=/checkout?plan=team'); return }
+      // ?next= is what the login page reads (found 2026-10-05: ?redirect= was ignored).
+      if (!user) { router.push('/login?next=' + encodeURIComponent('/checkout?plan=team')); return }
       const { data: parent } = await supabase
         .from('parents').select('id, first_name, last_name').eq('auth_user_id', user.id).single()
       if (!parent) { router.push('/login'); return }

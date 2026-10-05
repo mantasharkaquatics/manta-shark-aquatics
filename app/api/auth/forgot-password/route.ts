@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { sendEmail } from '@/lib/email'
+import { emailIlikePattern, sameEmail } from '@/lib/account-exists'
 
 export const runtime = 'nodejs'
 
@@ -28,13 +29,19 @@ export async function POST(req: NextRequest) {
 
   const svc = serviceClient()
 
-  let person: { auth_user_id: string | null; first_name: string | null; preferred_language?: string | null } | null = null
-  const { data: parent } = await svc.from('parents')
-    .select('auth_user_id, first_name, preferred_language').ilike('email', email).limit(1).maybeSingle()
+  // Exact match only (found 2026-10-05): a raw ilike let "%" and "_" act as
+  // wildcards, so "%@gmail.com" would reset whichever account matched first.
+  // See emailIlikePattern in lib/account-exists for why it is ilike + compare.
+  type Person = { auth_user_id: string | null; first_name: string | null; email: string | null; preferred_language?: string | null }
+  let person: Person | null = null
+  const { data: parents } = await svc.from('parents')
+    .select('auth_user_id, first_name, email, preferred_language').ilike('email', emailIlikePattern(email)).limit(20)
+  const parent = (parents as Person[] | null)?.find(r => sameEmail(r.email, email))
   if (parent?.auth_user_id) person = parent
   else {
-    const { data: admin } = await svc.from('admins')
-      .select('auth_user_id, first_name').ilike('email', email).limit(1).maybeSingle()
+    const { data: admins } = await svc.from('admins')
+      .select('auth_user_id, first_name, email').ilike('email', emailIlikePattern(email)).limit(20)
+    const admin = (admins as Person[] | null)?.find(r => sameEmail(r.email, email))
     if (admin?.auth_user_id) person = admin
   }
   if (!person?.auth_user_id) return NextResponse.json({ ok: true })

@@ -45,21 +45,46 @@ export async function POST(req: NextRequest) {
     : partnership.initiator_parent_id
 
   // Only pending invitations, which were never charged -- nothing to refund.
-  const { data: pendingBookings } = await supabase
+  // Exactly the invitations between THESE two parents, in both directions
+  // (found 2026-10-05). It used to match partner_parent_id = the other parent
+  // alone, which cancelled every invite that parent had sent to ANY family
+  // and missed the ones this parent had sent to them. On an invite row,
+  // parent_id is the invited family and partner_parent_id the inviter.
+  const { data: pendingBookings, error: findErr } = await supabase
     .from('bookings')
-    .select('id')
-    .eq('partner_parent_id', otherParentId)
+    .select('id, partner_booking_id, lesson_group_id')
+    .or(`and(parent_id.eq.${parent.id},partner_parent_id.eq.${otherParentId}),and(parent_id.eq.${otherParentId},partner_parent_id.eq.${parent.id})`)
     .eq('pending_action', 'confirm')
     .eq('status', 'pending_partner')
+  if (findErr) return NextResponse.json({ error: 'Could not unlink the accounts' }, { status: 500 })
 
+  // The inviter's own pending (also uncharged) half of each invitation goes
+  // with it, as in reject-partner: the linked row, or the whole hour group.
+  const ids = new Set<string>()
+  const groups = new Set<string>()
   for (const b of pendingBookings || []) {
-    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', b.id)
+    ids.add(b.id)
+    if (b.partner_booking_id) ids.add(b.partner_booking_id)
+    if (b.lesson_group_id) groups.add(b.lesson_group_id)
+  }
+  if (groups.size > 0) {
+    const { data: groupRows } = await supabase.from('bookings')
+      .select('id').in('lesson_group_id', [...groups]).eq('status', 'pending_partner')
+    for (const r of groupRows || []) ids.add(r.id)
+  }
+  if (ids.size > 0) {
+    const { error: cancelErr } = await supabase.from('bookings')
+      .update({ status: 'cancelled' })
+      .in('id', [...ids])
+      .eq('status', 'pending_partner')
+    if (cancelErr) return NextResponse.json({ error: 'Could not unlink the accounts' }, { status: 500 })
   }
 
-  await supabase
+  const { error: revokeErr } = await supabase
     .from('parent_partnerships')
     .update({ status: 'revoked', revoked_at: new Date().toISOString() })
     .eq('id', partnership_id)
+  if (revokeErr) return NextResponse.json({ error: 'Could not unlink the accounts' }, { status: 500 })
 
   return NextResponse.json({ success: true })
 }

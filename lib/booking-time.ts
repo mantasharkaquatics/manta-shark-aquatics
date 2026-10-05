@@ -6,15 +6,18 @@
 // Both are judged in the school's local time, because a parent reads a booking
 // page against the clock on their wall.
 
-import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, minutesUntil, addDaysYMD } from '@/lib/date'
 
 /** A lesson cannot be booked less than this long before it starts. */
 export const LEAD_TIME_MINUTES = 30
 
 export function meetsLeadTime(session_date: string, start_time: string): boolean {
   const today = getTodayLA()
-  const nowMin = getNowMinutesLA()
   if (session_date < today) return false
+  // Early out (2026-10-05): two calendar days ahead is at least 24h01m on the
+  // wall, 23h01m real even across spring-forward -- never inside 30 minutes.
+  if (session_date > addDaysYMD(today, 1)) return true
+  const nowMin = getNowMinutesLA()
   return minutesUntil(session_date, start_time, today, nowMin) >= LEAD_TIME_MINUTES
 }
 
@@ -25,8 +28,12 @@ export function meetsLeadTime(session_date: string, start_time: string): boolean
  */
 export function isWithin24Hours(session_date: string, start_time: string): boolean {
   const today = getTodayLA()
-  const nowMin = getNowMinutesLA()
   if (session_date < today) return true
+  // Early out (2026-10-05). NOT "after tomorrow": 23:59 to 00:00 two days on is
+  // 24h01m on the wall but only 23h01m real across spring-forward. Three
+  // calendar days ahead is at least 47h01m real, so it is always outside.
+  if (session_date > addDaysYMD(today, 2)) return false
+  const nowMin = getNowMinutesLA()
   return minutesUntil(session_date, start_time, today, nowMin) < 24 * 60
 }
 

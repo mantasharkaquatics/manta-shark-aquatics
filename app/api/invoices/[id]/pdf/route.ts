@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUser } from '@/lib/api-auth'
 
+// Every value below comes from the database, and several are typed by people
+// (names, item names, notes). Interpolated raw, a name like <img onerror=...>
+// ran as script on this origin when an admin opened the invoice -- stored XSS
+// (found 2026-10-05). Everything dynamic goes through esc().
+const esc = (v: unknown) => String(v ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await requireUser()
@@ -36,7 +44,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const parent = Array.isArray(invoice.parents) ? invoice.parents[0] : invoice.parents
   const student = Array.isArray(invoice.students) ? invoice.students[0] : invoice.students
   const isSdp = !!student?.uci_number
-  const issuedDate = new Date(invoice.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  // The school's date, not the server's: Vercel runs in UTC, so an evening
+  // sale in California printed as the next day (found 2026-10-05).
+  const issuedDate = new Date(invoice.issued_at).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: 'long', day: 'numeric' })
   const items = (invoice.items || []) as { name: string; quantity: number; unit_price: number }[]
 
   const html = `<!DOCTYPE html>
@@ -88,8 +98,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     </div>
     <div class="invoice-meta">
       <div class="invoice-title">INVOICE</div>
-      <div class="invoice-number">${invoice.invoice_number}</div>
-      <div class="invoice-date">Issued: ${issuedDate}</div>
+      <div class="invoice-number">${esc(invoice.invoice_number)}</div>
+      <div class="invoice-date">Issued: ${esc(issuedDate)}</div>
     </div>
   </div>
 
@@ -98,15 +108,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   <div style="display:flex;justify-content:space-between;gap:24px;" class="bill-to">
     <div>
       <div class="bill-to-label">Bill To</div>
-      <div class="bill-to-name">${parent?.first_name || ''} ${parent?.last_name || ''}</div>
-      <div class="bill-to-email">${parent?.email || ''}</div>
+      <div class="bill-to-name">${esc(parent?.first_name)} ${esc(parent?.last_name)}</div>
+      <div class="bill-to-email">${esc(parent?.email)}</div>
     </div>
     ${isSdp ? `
     <div style="text-align:right;padding:12px 16px;background:#f8f8fb;border-radius:8px;border-right:4px solid #c9a84c;">
       <div class="bill-to-label">Student Information</div>
-      <div style="font-size:13px;color:#1a2744;font-weight:700;">${student.legal_full_name || student.full_name}</div>
-      <div style="font-size:12px;color:#333;margin-top:4px;">UCI #: <strong>${student.uci_number}</strong></div>
-      <div style="font-size:12px;color:#333;margin-top:2px;">Service Code: <strong>${student.service_code || '331'}</strong></div>
+      <div style="font-size:13px;color:#1a2744;font-weight:700;">${esc(student.legal_full_name || student.full_name)}</div>
+      <div style="font-size:12px;color:#333;margin-top:4px;">UCI #: <strong>${esc(student.uci_number)}</strong></div>
+      <div style="font-size:12px;color:#333;margin-top:2px;">Service Code: <strong>${esc(student.service_code || '331')}</strong></div>
     </div>` : ''}
   </div>
 
@@ -122,8 +132,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     <tbody>
       ${items.map(item => `
       <tr>
-        <td>${item.name}</td>
-        <td style="text-align:center">${item.quantity}</td>
+        <td>${esc(item.name)}</td>
+        <td style="text-align:center">${esc(item.quantity)}</td>
         <td style="text-align:right">$${Number(item.unit_price).toFixed(2)}</td>
         <td>$${(item.quantity * item.unit_price).toFixed(2)}</td>
       </tr>`).join('')}
@@ -138,7 +148,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     </div>
   </div>
 
-  ${invoice.notes ? `<div class="payment-info"><div class="payment-label">Note</div><div class="payment-method">${invoice.notes}</div></div>` : ''}
+  ${invoice.notes ? `<div class="payment-info"><div class="payment-label">Note</div><div class="payment-method">${esc(invoice.notes)}</div></div>` : ''}
 
   <div class="footer">
     Thank you for choosing Manta Shark Aquatics &middot; This invoice was generated automatically
@@ -149,6 +159,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return new NextResponse(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
+      // Second line of defence behind esc(): this page needs inline styles and
+      // nothing else -- no script, no fetches, no frames (found 2026-10-05).
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data: https:",
     },
   })
 }

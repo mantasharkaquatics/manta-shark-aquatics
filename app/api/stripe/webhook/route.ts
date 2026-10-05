@@ -7,7 +7,7 @@ import { insertInvoice } from '@/lib/invoices/create'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
-import { confirmTrialBooking } from '@/lib/trial-booking'
+import { confirmTrialBooking, failTrialBooking } from '@/lib/trial-booking'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -34,7 +34,13 @@ export async function POST(req: NextRequest) {
 
     if (meta.type === 'trial_lesson') {
       try {
-        await confirmTrialBooking(supabase, session)
+        // Confirms only when payment_status is 'paid' (found 2026-10-05). A
+        // bank debit completes the checkout unpaid; it stays pending_payment
+        // until checkout.session.async_payment_succeeded / _failed below.
+        const r = await confirmTrialBooking(supabase, session)
+        if (r === 'noop' && session.payment_status !== 'paid') {
+          console.log(`Trial checkout ${session.id} completed unpaid (bank debit); waiting for settlement`)
+        }
       } catch (e: any) {
         console.error(e?.message || e)
         return NextResponse.json({ error: 'Trial booking confirm failed' }, { status: 500 })
@@ -211,6 +217,61 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ---- A BANK DEBIT FOR A CHECKOUT THAT ALREADY COMPLETED --------------
+  // Added 2026-10-05. Only the Swim Assessment waits for these: it is
+  // confirmed when the money settles and released if it never does. A points
+  // top-up is credited at completion and taken back by
+  // payment_intent.payment_failed, so nothing happens for one here.
+  if (event.type === 'checkout.session.async_payment_succeeded' || event.type === 'checkout.session.async_payment_failed') {
+    const session = event.data.object as Stripe.Checkout.Session
+    if (session.metadata?.type === 'trial_lesson') {
+      try {
+        if (event.type === 'checkout.session.async_payment_succeeded') await confirmTrialBooking(supabase, session)
+        else await failTrialBooking(supabase, session)
+      } catch (e: any) {
+        console.error(`${event.type} ${session.id}:`, e?.message || e)
+        return NextResponse.json({ error: 'Trial booking update failed' }, { status: 500 })
+      }
+    }
+    return NextResponse.json({ received: true })
+  }
+
+  // ---- A DISPUTE THE SCHOOL WON ------------------------------------------
+  // The bank gave the money back, so the points taken at charge.dispute.created
+  // should come back as PURCHASED points (found 2026-10-05: they never did).
+  //
+  // TODO(owner): not done automatically yet. No existing ledger reason fits:
+  // 'purchase' would collide with the purchase already recorded for this
+  // session and re-count it as new revenue; 'admin_grant' and the refund
+  // reasons mislabel it and leave total_paid_cents short by the disputed
+  // amount. It needs a new reason (e.g. 'chargeback_won') in
+  // point_ledger_reason_check and lib/points-wallet.ts (LedgerReason, and
+  // writeMovement adding amount_cents back to total_paid_cents), plus a
+  // unique index per session. Until then, say so loudly so it is done by hand.
+  if (event.type === 'charge.dispute.closed') {
+    const dispute = event.data.object as Stripe.Dispute
+    if (dispute.status === 'won') {
+      const piId = typeof dispute.payment_intent === 'string' ? dispute.payment_intent : dispute.payment_intent?.id ?? null
+      try {
+        const cs = piId ? (await stripe.checkout.sessions.list({ payment_intent: piId, limit: 1 })).data[0] : null
+        if (cs && cs.metadata?.kind === 'points' && cs.metadata?.parent_id) {
+          const { data: rev } = await supabase.from('point_ledger')
+            .select('delta_purchased, amount_cents').eq('stripe_session_id', cs.id).eq('reason', 'chargeback').limit(1)
+          if (rev && rev.length > 0) {
+            console.error(
+              `\u26a0\ufe0f DISPUTE WON ${dispute.id}: restore ${-(Number(rev[0].delta_purchased) || 0)} purchased points ` +
+              `($${((Number(rev[0].amount_cents) || 0) / 100).toFixed(2)}) to parent=${cs.metadata.parent_id} session=${cs.id} by hand -- ` +
+              `no automatic re-credit until a 'chargeback_won' ledger reason exists`
+            )
+          }
+        }
+      } catch (e: any) {
+        console.error(`charge.dispute.closed ${dispute.id}: could not resolve the checkout:`, e?.message)
+      }
+    }
+    return NextResponse.json({ received: true })
+  }
+
   if (event.type === 'customer.subscription.updated') {
     const sub = event.data.object as Stripe.Subscription
     const ts = (sub as any).cancel_at || (sub as any).current_period_end
@@ -321,14 +382,47 @@ export async function POST(req: NextRequest) {
   // Two events, one path. payment_intent.payment_failed is the bank returning
   // the debit; charge.dispute.created is the customer's own bank reversing it
   // at their request.
-  if (event.type === 'payment_intent.payment_failed' || event.type === 'charge.dispute.created') {
+  //
+  // charge.dispute.funds_withdrawn (added 2026-10-05) is the moment a dispute
+  // actually costs us money, which for an inquiry that escalates comes after
+  // .created. Both land here; the one-reversal-per-session index makes the
+  // second a no-op.
+  if (event.type === 'payment_intent.payment_failed' || event.type === 'charge.dispute.created' || event.type === 'charge.dispute.funds_withdrawn') {
     const obj = event.data.object as any
-    const reason: ReversalReason =
-      event.type === 'charge.dispute.created' ? 'chargeback' : 'payment_failed'
-    const paymentIntentId: string | null = event.type === 'charge.dispute.created'
+    const isDispute = event.type !== 'payment_intent.payment_failed'
+    const reason: ReversalReason = isDispute ? 'chargeback' : 'payment_failed'
+    const paymentIntentId: string | null = isDispute
       ? (typeof obj.payment_intent === 'string' ? obj.payment_intent : obj.payment_intent?.id ?? null)
       : (obj.id ?? null)
     if (!paymentIntentId) return NextResponse.json({ received: true })
+
+    // An inquiry (warning_*) is the bank asking a question; no money has moved
+    // and most close with nothing owed. It used to take every point back and
+    // release the family's lessons (found 2026-10-05).
+    if (isDispute && String(obj.status || '').startsWith('warning_')) {
+      console.log(`${event.type} ${obj.id}: inquiry (${obj.status}), nothing reversed`)
+      return NextResponse.json({ received: true })
+    }
+
+    // Stripe does not order events. A payment_failed for an earlier attempt can
+    // arrive after the payment went through, and reversing then takes back
+    // points the family did pay for (found 2026-10-05). Ask Stripe where the
+    // payment stands now; 'processing' is a newer attempt still on its way,
+    // whose own failure would arrive as its own event.
+    if (!isDispute) {
+      try {
+        const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] })
+        const lc = (pi as any).latest_charge
+        const charge = lc && typeof lc === 'object' ? lc : null
+        if (pi.status === 'succeeded' || pi.status === 'processing' || charge?.status === 'succeeded') {
+          console.log(`payment_intent.payment_failed ${paymentIntentId}: payment is now ${pi.status}/${charge?.status ?? 'none'}, nothing reversed`)
+          return NextResponse.json({ received: true })
+        }
+      } catch (e: any) {
+        console.error(`payment_intent.payment_failed ${paymentIntentId}: could not read the payment intent:`, e?.message)
+        return NextResponse.json({ error: 'could not read payment intent' }, { status: 503 })
+      }
+    }
 
     // Ask Stripe which checkout this was rather than reading our own tables:
     // the session id is the key the ledger was written under, and it is
@@ -350,6 +444,14 @@ export async function POST(req: NextRequest) {
     // A card decline during checkout, a Swim Assessment, a team subscription:
     // none of those put points in a wallet, so there is nothing to take back.
     if (!topUp || topUp.amountCents <= 0) return NextResponse.json({ received: true })
+
+    // A dispute can be for part of the payment; take back only that part, in
+    // whole dollars (points are whole dollars), rounded down in the family's
+    // favour (found 2026-10-05: the whole checkout was always reversed).
+    const reverseCents = isDispute
+      ? Math.floor(Math.min(Number(obj.amount) || 0, topUp.amountCents) / 100) * 100
+      : topUp.amountCents
+    if (reverseCents <= 0) return NextResponse.json({ received: true })
     if (!(await purchaseAlreadyCredited(supabase, topUp.sessionId))) {
       console.log(`${event.type}: session ${topUp.sessionId} was never credited, nothing to reverse`)
       return NextResponse.json({ received: true })
@@ -366,7 +468,7 @@ export async function POST(req: NextRequest) {
     try {
       await reversePurchase(supabase, {
         parentId: topUp.parentId,
-        amountCents: topUp.amountCents,
+        amountCents: reverseCents,
         stripeSessionId: topUp.sessionId,
         reason,
         note,
@@ -386,7 +488,7 @@ export async function POST(req: NextRequest) {
 
     // Give back the lessons they have not swum, which pays down most of the
     // debt on its own. Anything left is for a human to chase.
-    let reclaimed = { arrearsAfter: 0, cancelledBookingIds: [] as string[], pointsReturned: 0 }
+    let reclaimed = { arrearsAfter: 0, cancelledBookingIds: [] as string[], lessonsReleased: 0, pointsReturned: 0 }
     try {
       reclaimed = await reclaimForArrears(supabase, topUp.parentId, note)
     } catch (e) {
@@ -395,8 +497,8 @@ export async function POST(req: NextRequest) {
 
     console.error(
       `\u26a0\ufe0f PAYMENT REVERSED (${reason}) parent=${topUp.parentId} ` +
-      `session=${topUp.sessionId} amount=$${(topUp.amountCents / 100).toFixed(2)} ` +
-      `released=${reclaimed.cancelledBookingIds.length} lessons (${reclaimed.pointsReturned} pts) ` +
+      `session=${topUp.sessionId} amount=$${(reverseCents / 100).toFixed(2)} of $${(topUp.amountCents / 100).toFixed(2)} ` +
+      `released=${reclaimed.lessonsReleased} lessons (${reclaimed.cancelledBookingIds.length} bookings, ${reclaimed.pointsReturned} pts) ` +
       `still owed=${reclaimed.arrearsAfter} pts`
     )
 
@@ -410,22 +512,22 @@ export async function POST(req: NextRequest) {
           type: 'payment_reversed',
           to: parentRow.email,
           parentName: parentRow.first_name || 'there',
-          amount: topUp.amountCents / 100,
+          amount: reverseCents / 100,
           pointsOwed: reclaimed.arrearsAfter,
-          lessonsReleased: reclaimed.cancelledBookingIds.length,
+          lessonsReleased: reclaimed.lessonsReleased,
           reversalKind: reason,
         })
       }
       const { data: th } = await supabase.from('chat_threads').select('id')
         .eq('parent_id', topUp.parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
       if (th) {
-        const dollars = (topUp.amountCents / 100).toFixed(2)
+        const dollars = (reverseCents / 100).toFixed(2)
         const owedLine = reclaimed.arrearsAfter > 0
           ? `Your balance is now ${reclaimed.arrearsAfter.toLocaleString('en-US')} points short, so booking is paused until it's settled.`
           : 'Nothing further is owed and you can book again straight away.'
         const body = `Your $${dollars} payment didn't complete at the bank, so those points have been removed from your wallet.` +
-          (reclaimed.cancelledBookingIds.length > 0
-            ? ` We've released ${reclaimed.cancelledBookingIds.length} lesson(s) you hadn't taken yet and returned those points.`
+          (reclaimed.lessonsReleased > 0
+            ? ` We've released ${reclaimed.lessonsReleased} lesson(s) you hadn't taken yet and returned those points.`
             : '') +
           `\n\n${owedLine}\n\nPaying by card on the Plans page clears this right away. If you think this is a mistake, just reply here.`
         await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
@@ -19,6 +20,7 @@ export default function AccountPage() {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
+  const router = useRouter()
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,9 +42,21 @@ export default function AccountPage() {
 
   async function fetchAll() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    // Both of these were a bare `return`, which left a coach, an admin, an
+    // orphan account or an expired session on "Loading…" for ever (found
+    // 2026-10-05). Send them where dashboard/page.tsx sends them.
+    if (!user) { router.replace('/login'); return }
     const { data: parentData } = await supabase.from('parents').select('*').eq('auth_user_id', user.id).single()
-    if (!parentData) return
+    if (!parentData) {
+      const { data: admin } = await supabase
+        .from('admins').select('id').eq('auth_user_id', user.id).maybeSingle()
+      if (admin) { router.replace('/admin'); return }
+      const { data: coach } = await supabase
+        .from('coaches').select('id').eq('auth_user_id', user.id).maybeSingle()
+      if (coach) { router.replace('/coach'); return }
+      router.replace('/login')
+      return
+    }
     setParent(parentData)
     const { data: studs } = await supabase.from('students').select('id, full_name, date_of_birth, added_by_parent').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order')
     setStudents(studs || [])

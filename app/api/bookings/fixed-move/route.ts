@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       })
     } catch (e) { console.error('fixed-move email failed:', e) }
 
-    return NextResponse.json({ ok: true, moved: done.moved, vouchers: done.vouchers })
+    return NextResponse.json({ ok: true, moved: done.moved, vouchers: done.vouchers, notMoved: done.notMoved })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

@@ -50,7 +50,10 @@ export async function POST(req: NextRequest) {
   if (existingPartnership)
     return NextResponse.json({ error: 'These accounts are already linked' }, { status: 400 })
 
-  const { error } = await supabase
+  // Only while the code is still pending (found 2026-10-05): two parents
+  // entering the same code at once both passed the read above, and the second
+  // update overwrote the first family's link. Now only one update can match.
+  const { data: claimed, error } = await supabase
     .from('parent_partnerships')
     .update({
       partner_parent_id: parent.id,
@@ -58,7 +61,12 @@ export async function POST(req: NextRequest) {
       accepted_at: new Date().toISOString(),
     })
     .eq('id', partnership.id)
+    .eq('status', 'pending')
+    .select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Someone else used the code first: to this parent it is no longer valid.
+  if (!claimed || claimed.length === 0)
+    return NextResponse.json({ error: 'Invite code is invalid or expired' }, { status: 409 })
   return NextResponse.json({ success: true })
 }

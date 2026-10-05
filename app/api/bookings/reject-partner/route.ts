@@ -40,9 +40,16 @@ export async function POST(req: NextRequest) {
   } else if (pending.partner_booking_id) {
     targetIds.push(pending.partner_booking_id)
   }
-  await svc.from('bookings')
+  // Only rows still waiting are declined. Without the status filter, a decline
+  // racing a confirm (two tabs, or the inviter's partner pressing both) could
+  // cancel a lesson that had just been confirmed and charged, with no refund
+  // (found 2026-10-05).
+  const { data: declined, error: declineErr } = await svc.from('bookings')
     .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'partner_rejected' })
-    .in('id', targetIds)
+    .in('id', targetIds).eq('status', 'pending_partner').select('id')
+  if (declineErr) return NextResponse.json({ error: 'Could not decline this invitation. Please try again.' }, { status: 500 })
+  if (!declined || declined.length === 0)
+    return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })
 
   // Notify the initiator (two-step queries)
   try {

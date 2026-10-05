@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
+import { dateTag } from '@/lib/i18n'
 import PasswordField from '@/components/ui/PasswordField'
 import { getTodayLA } from '@/lib/date'
-import { safeNext } from '@/lib/safe-next'
+import { safeNext, withNext } from '@/lib/safe-next'
 import { REFERRAL_POINTS } from '@/lib/points'
 
 // A friend's link is remembered for 30 days (owner, 2026-09-29): families
@@ -34,10 +35,17 @@ function forgetReferral() {
 }
 
 const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
-const DOB_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+// Month names in the page's language (found 2026-10-05: they were English on
+// the Chinese pages). Intl gives "Jan" / "1月" from the same tag the rest of
+// the site uses for dates; UTC so no time zone can shift the 1st into the
+// previous month.
+function monthName(mm: string, tag: string): string {
+  return new Intl.DateTimeFormat(tag, { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(mm) - 1, 1)))
+}
 
 function DobSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const t = useT()
+  const monthTag = dateTag(useLocale())
   const [vy = '', vm = '', vd = ''] = (value || '').split('-')
   const [y, setY] = useState(vy)
   const [m, setM] = useState(vm)
@@ -71,7 +79,7 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
     <div className="grid grid-cols-3 gap-2">
       <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls}>
         <option value="">{t('register.dob.month')}</option>
-        {months.map(mm => <option key={mm} value={mm}>{DOB_MONTH_NAMES[Number(mm) - 1]}</option>)}
+        {months.map(mm => <option key={mm} value={mm}>{monthName(mm, monthTag)}</option>)}
       </select>
       <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls}>
         <option value="">{t('register.dob.day')}</option>
@@ -135,6 +143,36 @@ export default function RegisterClient() {
   const [phoneVerifying, setPhoneVerifying] = useState(false)
   const [phoneError, setPhoneError] = useState('')
   const [phoneCooldown, setPhoneCooldown] = useState(0)
+
+  /* Finishing an interrupted registration (found 2026-10-05). The auth user
+     is created first and the parents row second, both from this browser; if
+     the second step failed the family had a login with no family record --
+     registering again said "already registered", and signing in bounced off
+     the dashboard. Now a signed-in user with no parent, coach or admin record
+     lands here (the login page sends them) and the form only adds the missing
+     rows: email is the account's own, so it needs no code, and the password
+     already exists. createdUserRef covers the same failure without a
+     reload: a second press of "Create account" must not sign up again. */
+  const [finish, setFinish] = useState<{ userId: string; email: string } | null>(null)
+  const createdUserRef = useRef<{ userId: string; email: string } | null>(null)
+  const emailOk = emailVerified || !!finish
+  // ?next= is only readable in the browser; set after mount so the server
+  // and client render the same href.
+  const [signInHref, setSignInHref] = useState('/login')
+  useEffect(() => {
+    setSignInHref(withNext('/login'))
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const u = session?.user
+      if (!u?.email) return
+      for (const table of ['parents', 'admins', 'coaches'] as const) {
+        const { data, error } = await supabase.from(table).select('id').eq('auth_user_id', u.id).limit(1)
+        if (error || (data && data.length > 0)) return
+      }
+      setFinish({ userId: u.id, email: u.email })
+      setEmail(u.email)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '' }])
   const [termsAccepted, setTermsAccepted] = useState(false)
@@ -234,7 +272,7 @@ export default function RegisterClient() {
   async function selectSuggestion(placeId: string, description: string) {
     setShowSuggestions(false)
     try {
-      const res = await fetch('/api/places/details?place_id=' + placeId)
+      const res = await fetch('/api/places/details?place_id=' + encodeURIComponent(placeId))
       const data = await res.json()
       if (data.address_line1) setAddressLine1(data.address_line1)
       if (data.city) setCity(data.city)
@@ -265,7 +303,12 @@ export default function RegisterClient() {
         body: JSON.stringify({ email, context: 'register' }),
       })
       const data = await res.json()
-      if (!res.ok) { setEmailError(tErr(data.error, 'register.err.sendFailed')); setEmailSending(false); return }
+      if (!res.ok) {
+        // The hourly cap has its own wording; the 60s cooldown maps through
+        // errorKey like the phone one does.
+        setEmailError(data?.code === 'EMAIL_OTP_HOURLY_CAP' ? t('register.err.emailTooManyCodes') : tErr(data.error, 'register.err.sendFailed'))
+        setEmailSending(false); return
+      }
       setEmailOtpSent(true)
       setEmailCooldown(60)
     } catch {
@@ -330,11 +373,12 @@ export default function RegisterClient() {
   }
 
   function handleContinue() {
-    if (!firstName || !lastName || !email || !phone || !password || !password2 || !addressLine1 || !city || !state || !zipCode) {
+    // Finishing: the account already has a password, so none is asked for.
+    if (!firstName || !lastName || !email || !phone || (!finish && (!password || !password2)) || !addressLine1 || !city || !state || !zipCode) {
       setError(t('register.err.fillAll')); return
     }
-    if (password !== password2) { setError(t('register.err.passwordMismatch')); return }
-    if (!emailVerified) { setError(t('register.err.verifyEmail')); return }
+    if (!finish && password !== password2) { setError(t('register.err.passwordMismatch')); return }
+    if (!emailOk) { setError(t('register.err.verifyEmail')); return }
     if (!phoneVerified) { setError(t('register.err.verifyPhone')); return }
     setError(''); setStep(2)
   }
@@ -349,11 +393,18 @@ export default function RegisterClient() {
     if (students.some(s => s.dateOfBirth && s.dateOfBirth > getTodayLA())) { setError(t('register.err.dobFuture')); return }
     setLoading(true); setError('')
     const now = new Date().toISOString()
-    const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
-    if (authError || !authData.user) { setError(tErr(authError?.message, 'register.err.signupFailed')); setLoading(false); return }
+    // The parents row must carry the address the login was made with, even
+    // if the email field was edited between a failed attempt and the retry.
+    let account = finish ?? createdUserRef.current
+    if (!account) {
+      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+      if (authError || !authData.user) { setError(tErr(authError?.message, 'register.err.signupFailed')); setLoading(false); return }
+      account = { userId: authData.user.id, email }
+      createdUserRef.current = account
+    }
     const { data: parent, error: parentError } = await supabase.from('parents').insert({
-      auth_user_id: authData.user.id,
-      first_name: firstName, last_name: lastName, email, phone: normalizePhoneForSave(phone),
+      auth_user_id: account.userId,
+      first_name: firstName, last_name: lastName, email: account.email, phone: normalizePhoneForSave(phone),
       registered_at: now, terms_accepted_at: now, terms_version: LEGAL_VERSIONS.terms,
       waiver_accepted_at: now, waiver_version: LEGAL_VERSIONS.waiver,
       media_release_accepted: mediaAccepted, media_release_at: mediaAccepted ? now : null,
@@ -361,7 +412,14 @@ export default function RegisterClient() {
       address_line1: addressLine1, address_line2: addressLine2 || null,
       city, state, zip_code: zipCode,
     }).select().single()
-    if (parentError || !parent) { setError(t('register.err.createFailed') + tErr(parentError?.message)); setLoading(false); return }
+    if (parentError || !parent) {
+      // The raw text here is a database message (constraint names, RLS
+      // wording) -- English, and meaningless to a parent. Log it; show ours.
+      console.error('register: parents insert failed', parentError)
+      const k = errorKey(parentError?.message)
+      setError(t('register.err.createFailed') + t(k || 'err.generic'))
+      setLoading(false); return
+    }
     let sortOrder = 1
     // A failed insert used to be ignored, so the family landed on a dashboard
     // with no child and no word about it. Now they are told, and the account --
@@ -406,6 +464,9 @@ export default function RegisterClient() {
 
         {step === 1 && (
           <div className="space-y-4">
+            {finish && (
+              <p className="rounded-xl border border-[#f3dfb4] bg-[#fff7e6] px-4 py-3 text-sm text-[#16294a] leading-relaxed">{t('register.finish.notice')}</p>
+            )}
             {referral?.valid ? (
               <div className="rounded-xl border border-[#9fd8b8] bg-[#effaf3] px-4 py-3.5">
                 <p className="font-bold text-[15px] text-[#14683f]">
@@ -464,9 +525,9 @@ export default function RegisterClient() {
                   field was squeezed to about a third of a phone screen -- you
                   could not see the address you were typing. Stacked below sm. */}
               <div className="flex flex-col sm:flex-row gap-2">
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailVerified}
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailOk}
                   className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
-                {emailVerified ? (
+                {emailOk ? (
                   <span className="flex items-center px-3 text-green-700 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
                 ) : (
                   <button type="button" onClick={sendEmailOtp} disabled={emailSending || emailCooldown > 0 || !email.trim()}
@@ -475,7 +536,7 @@ export default function RegisterClient() {
                   </button>
                 )}
               </div>
-              {emailOtpSent && !emailVerified && (
+              {emailOtpSent && !emailOk && (
                 <div className="flex gap-2 mt-2">
                   <input
                     type="text" inputMode="numeric" maxLength={6}
@@ -584,8 +645,9 @@ export default function RegisterClient() {
               </div>
             </div>
 
-            {/* Side by side on a computer, one under the other on a phone. */}
-            <div>
+            {/* Side by side on a computer, one under the other on a phone.
+                Not shown when finishing: the account already has a password. */}
+            {!finish && <div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
@@ -601,17 +663,17 @@ export default function RegisterClient() {
               {password2 && (password2 === password
                 ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
                 : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}
-            </div>
+            </div>}
             {error && <p className="text-red-600 text-sm">{error}</p>}
             <button
               onClick={handleContinue}
-              disabled={!emailVerified || !phoneVerified}
+              disabled={!emailOk || !phoneVerified}
               className="w-full bg-[#f09800] hover:bg-[#d98900] text-[#12254a] py-3 rounded-lg font-bold hover:opacity-90 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {(!emailVerified || !phoneVerified) ? t('register.verifyFirst') : t('register.continue')}
+              {(!emailOk || !phoneVerified) ? t('register.verifyFirst') : t('register.continue')}
             </button>
             <p className="text-center text-sm text-[#56647d]">
-              {t('register.haveAccount')} <Link href="/login" className="text-[#2050a0] hover:underline font-semibold">{t('register.signIn')}</Link>
+              {t('register.haveAccount')} <Link href={signInHref} className="text-[#2050a0] hover:underline font-semibold">{t('register.signIn')}</Link>
             </p>
           </div>
         )}
@@ -671,7 +733,7 @@ export default function RegisterClient() {
               </button>
             </div>
             <p className="text-center text-sm text-[#56647d]">
-              {t('register.haveAccount')} <Link href="/login" className="text-[#2050a0] hover:underline font-semibold">{t('register.signIn')}</Link>
+              {t('register.haveAccount')} <Link href={signInHref} className="text-[#2050a0] hover:underline font-semibold">{t('register.signIn')}</Link>
             </p>
           </div>
         )}

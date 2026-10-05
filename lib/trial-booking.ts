@@ -18,6 +18,14 @@ export async function confirmTrialBooking(
   const booking_id = meta.booking_id
   const student_id = meta.student_id
 
+  // Only money that has arrived confirms a lesson. A bank-debit checkout
+  // completes with payment_status 'unpaid' and settles days later; this used
+  // to confirm it (and record it as paid) on the spot, so a returned debit
+  // left a confirmed, unpaid assessment (found 2026-10-05). Such a booking
+  // stays pending_payment until checkout.session.async_payment_succeeded
+  // brings a session that says 'paid', or async_payment_failed releases it.
+  if (session.payment_status !== 'paid') return 'noop'
+
   // Idempotency lock: only the pending_payment -> confirmed transition proceeds.
   // Webhook retries and already-cancelled bookings fall through harmlessly.
   const { data: locked, error: bookingErr } = await supabase
@@ -168,8 +176,94 @@ export async function confirmTrialBooking(
   return 'confirmed'
 }
 
+/* Give a held (pending_payment) assessment slot back. Only the request that
+   flips pending_payment -> cancelled does anything, so callers may race and
+   repeat. Returns whether this call released it. */
+export async function releaseTrialHold(
+  supabase: SupabaseClient,
+  bookingId: string,
+  classSessionId: string | null | undefined,
+  reason: string,
+): Promise<boolean> {
+  const { data: locked } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled', cancellation_reason: reason })
+    .eq('id', bookingId).eq('status', 'pending_payment')
+    .select('id, class_session_id')
+  if (!locked || locked.length === 0) return false
+
+  // enrolled_count is recounted by trigger; close the session if it is empty.
+  const sessId = classSessionId || locked[0].class_session_id
+  if (sessId) {
+    const { data: sess } = await supabase
+      .from('class_sessions').select('enrolled_count').eq('id', sessId).single()
+    if (sess && sess.enrolled_count === 0) {
+      await supabase.from('class_sessions')
+        .update({ status: 'cancelled' })
+        .eq('id', sessId).eq('enrolled_count', 0)
+    }
+  }
+  return true
+}
+
+/* A bank-debit assessment payment that did not go through: release the held
+   slot and mark any purchase recorded for it as not paid. Added 2026-10-05 --
+   before this a failed debit was never handled, so the slot stayed held (or,
+   on older checkouts, the assessment stayed confirmed and "paid").
+   Idempotent: the release is a conditional update, the purchase mark only
+   touches a row not already marked. */
+export async function failTrialBooking(
+  supabase: SupabaseClient,
+  session: Stripe.Checkout.Session,
+): Promise<'released' | 'noop'> {
+  const meta = session.metadata || {}
+
+  // Same columns a returned points top-up uses; purchases.status keeps its
+  // legacy CHECK and is left alone (docs/migration-ach-reversal.sql).
+  await supabase.from('purchases')
+    .update({ reversed_at: new Date().toISOString(), reversal_reason: 'payment_failed' })
+    .eq('stripe_session_id', session.id).is('reversed_at', null)
+
+  if (!meta.booking_id) return 'noop'
+  const released = await releaseTrialHold(supabase, meta.booking_id, meta.class_session_id, 'payment_failed')
+  if (!released) {
+    // A checkout from before this fix may have confirmed the assessment on
+    // completion. Cancelling a lesson that may already have happened is a
+    // judgment call, so it goes to a person.
+    const { data: bk } = await supabase.from('bookings').select('status').eq('id', meta.booking_id).maybeSingle()
+    if (bk?.status === 'confirmed') {
+      console.error(`\u26a0\ufe0f Swim Assessment ${meta.booking_id} is confirmed but its bank payment (session ${session.id}) failed -- settle by hand`)
+    }
+    return 'noop'
+  }
+
+  // Tell the family (best-effort), in their language.
+  try {
+    const parentId = meta.parent_id
+    const { data: th } = parentId
+      ? await supabase.from('chat_threads').select('id').eq('parent_id', parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
+      : { data: null as any }
+    if (th) {
+      const { data: langRow } = await supabase.from('parents').select('preferred_language').eq('id', parentId).maybeSingle()
+      const lang = String(langRow?.preferred_language || 'en')
+      const body = lang === 'zh-Hant'
+        ? '您的游泳評估銀行付款沒有成功，所以這個時段已經釋出。請回到「我的頁面」重新預約，或直接在這裡回覆我們。'
+        : lang === 'zh-Hans'
+        ? '您的游泳评估银行付款没有成功，所以这个时段已经释出。请回到「我的页面」重新预约，或直接在这里回复我们。'
+        : "Your bank payment for the Swim Assessment didn't go through, so that time slot has been released. You can book again from your Dashboard, or just reply here."
+      const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
+      if (!chatErr) await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)
+    }
+  } catch (e) {
+    console.error('Trial payment-failed notice error:', e)
+  }
+  console.log(`Trial lesson bank payment failed, released slot: booking ${meta.booking_id}`)
+  return 'released'
+}
+
 /* Bring one unpaid Swim Assessment in line with its Stripe checkout:
    - paid                      -> confirm it
+   - bank debit that failed    -> release the slot
    - expired, or past its hold -> close the checkout and release the slot
    - still open                -> leave it, and say when the hold ends
    Safe to call as often as you like. */
@@ -178,13 +272,38 @@ export async function syncTrialBooking(
   stripe: Stripe,
   booking: { id: string; status: string; stripe_session_id: string | null; class_session_id: string; pending_expires_at?: string | null },
 ): Promise<{ state: 'confirmed' | 'released' | 'open' | 'unchanged'; expiresAt?: string }> {
-  if (booking.status !== 'pending_payment' || !booking.stripe_session_id) return { state: 'unchanged' }
+  if (booking.status !== 'pending_payment') return { state: 'unchanged' }
+
+  // A hold with no checkout: Stripe failed (or the request died) between the
+  // booking insert and the session create, so there is nothing anyone can
+  // pay. It used to be skipped here and so held the coach's slot forever
+  // (found 2026-10-05). Release it once its hold has passed; a hold stamped
+  // before pending_expires_at existed is judged by age, as the cron does.
+  if (!booking.stripe_session_id) {
+    let holdEnds = booking.pending_expires_at ? new Date(booking.pending_expires_at).getTime() : NaN
+    if (!Number.isFinite(holdEnds)) {
+      const { data: row } = await supabase.from('bookings').select('created_at').eq('id', booking.id).maybeSingle()
+      holdEnds = row?.created_at ? new Date(row.created_at).getTime() + 35 * 60 * 1000 : NaN
+    }
+    if (!Number.isFinite(holdEnds) || Date.now() < holdEnds) return { state: 'unchanged' }
+    const released = await releaseTrialHold(supabase, booking.id, booking.class_session_id, 'payment_expired')
+    return { state: released ? 'released' : 'unchanged' }
+  }
+
   let session = await stripe.checkout.sessions.retrieve(booking.stripe_session_id)
 
   if (session.status === 'complete') {
     // A bank-account payment completes the checkout before the money clears;
-    // that one still waits for the webhook, as before.
-    if (session.payment_status !== 'paid') return { state: 'open' }
+    // that one waits for the webhook -- unless the debit has already failed
+    // and the async_payment_failed delivery was missed, in which case the
+    // payment intent says so and the slot is released here instead.
+    if (session.payment_status !== 'paid') {
+      if (await debitFailed(stripe, session)) {
+        const r = await failTrialBooking(supabase, session)
+        return { state: r === 'released' ? 'released' : 'unchanged' }
+      }
+      return { state: 'open' }
+    }
     const r = await confirmTrialBooking(supabase, session)
     return { state: r === 'confirmed' ? 'confirmed' : 'unchanged' }
   }
@@ -208,20 +327,16 @@ export async function syncTrialBooking(
     }
   }
 
-  const { data: locked } = await supabase
-    .from('bookings')
-    .update({ status: 'cancelled', cancellation_reason: 'payment_expired' })
-    .eq('id', booking.id).eq('status', 'pending_payment')
-    .select('id')
-  if (!locked || locked.length === 0) return { state: 'unchanged' }
+  const released = await releaseTrialHold(supabase, booking.id, booking.class_session_id, 'payment_expired')
+  return { state: released ? 'released' : 'unchanged' }
+}
 
-  // enrolled_count is recounted by trigger; close the session if it is empty.
-  const { data: sess } = await supabase
-    .from('class_sessions').select('enrolled_count').eq('id', booking.class_session_id).single()
-  if (sess && sess.enrolled_count === 0) {
-    await supabase.from('class_sessions')
-      .update({ status: 'cancelled' })
-      .eq('id', booking.class_session_id).eq('enrolled_count', 0)
-  }
-  return { state: 'released' }
+/* Has the bank debit behind a completed-but-unpaid checkout already failed?
+   A failed attempt sends the payment intent back to requires_payment_method
+   (or it is canceled); 'processing' is a debit still on its way. */
+async function debitFailed(stripe: Stripe, session: Stripe.Checkout.Session): Promise<boolean> {
+  const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
+  if (!piId) return false
+  const pi = await stripe.paymentIntents.retrieve(piId)
+  return pi.status === 'requires_payment_method' || pi.status === 'canceled'
 }

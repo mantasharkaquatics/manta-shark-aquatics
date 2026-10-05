@@ -172,11 +172,20 @@ async function qualifyingBooking(svc: Svc, parentId: string, today: string): Pro
 /**
  * Pays every referral whose new family has now taken a paid lesson. Run daily.
  *
- * The row is claimed (pending -> awarded) BEFORE any points move, so two runs
- * overlapping cannot pay the same referral twice. If the first grant then
- * fails, the claim is put back and tomorrow tries again; if only the second
- * fails, that is logged loudly for a person to finish by hand rather than
- * paying the first family twice on a retry.
+ * Found 2026-10-05: the row used to be marked 'awarded' BEFORE any points
+ * moved, so if the referrer's points landed and the new family's did not, the
+ * row was already 'awarded' and the new family was never paid. Now (no schema
+ * change):
+ *   - the row is leased while it is worked on -- awarded_at is stamped on the
+ *     still-'pending' row (nothing reads awarded_at on a pending row) -- so two
+ *     overlapping runs cannot both pay it. A lease older than an hour is a run
+ *     that died part-way and may be taken over;
+ *   - each side's credit is idempotent: its ledger row carries the referral id
+ *     in `pricing` ({ kind: 'referral', referralId }), and a side that already
+ *     has a referral_bonus row for this referral is not credited again (the
+ *     ledger `note` stays the other family's name, which the wallet shows);
+ *   - the row turns 'awarded' only after BOTH sides are in. On any failure the
+ *     lease is given back and tomorrow's run finishes whichever side is missing.
  */
 export async function awardDueReferrals(svc: Svc): Promise<{ awarded: number; failed: number }> {
   const today = getTodayLA()
@@ -189,11 +198,16 @@ export async function awardDueReferrals(svc: Svc): Promise<{ awarded: number; fa
     const bookingId = await qualifyingBooking(svc, r.referred_parent_id, today)
     if (!bookingId) continue
 
+    const stamp = new Date().toISOString()
+    const stale = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     const { data: claimed } = await svc.from('referrals')
-      .update({ status: 'awarded', awarded_at: new Date().toISOString(), qualifying_booking_id: bookingId })
+      .update({ awarded_at: stamp, qualifying_booking_id: bookingId })
       .eq('id', r.id).eq('status', 'pending')
+      .or(`awarded_at.is.null,awarded_at.lt."${stale}"`)
       .select('id')
     if (!claimed || claimed.length === 0) continue
+    const release = () => svc.from('referrals').update({ awarded_at: null, qualifying_booking_id: null })
+      .eq('id', r.id).eq('status', 'pending').eq('awarded_at', stamp)
 
     const { data: fams } = await svc.from('parents')
       .select('id, first_name, last_name, email')
@@ -201,26 +215,37 @@ export async function awardDueReferrals(svc: Svc): Promise<{ awarded: number; fa
     const referrer = (fams || []).find((f: any) => f.id === r.referrer_parent_id)
     const referred = (fams || []).find((f: any) => f.id === r.referred_parent_id)
 
-    let first
-    try {
-      first = await applyPoints(svc, {
-        parentId: r.referrer_parent_id, reason: 'referral_bonus', points: REFERRAL_POINTS,
-        toGranted: true, actor: 'system', note: familyName(referred),
+    // One side's reward, unless its ledger already shows it for this referral.
+    const credit = async (parentId: string, note: string): Promise<{ grantedExpiresAt: string | null }> => {
+      const { data: had, error } = await svc.from('point_ledger')
+        .select('id, granted_expires_at').eq('parent_id', parentId).eq('reason', 'referral_bonus')
+        .contains('pricing', { referralId: r.id }).limit(1)
+      if (error) throw new Error(`ledger not read: ${error.message}`)
+      if (had && had.length > 0) return { grantedExpiresAt: had[0].granted_expires_at ?? null }
+      const res = await applyPoints(svc, {
+        parentId, reason: 'referral_bonus', points: REFERRAL_POINTS,
+        toGranted: true, actor: 'system', note, pricing: { kind: 'referral', referralId: r.id },
       })
+      return { grantedExpiresAt: res.grantedExpiresAt }
+    }
+
+    let first, second
+    try {
+      first = await credit(r.referrer_parent_id, familyName(referred))
+      second = await credit(r.referred_parent_id, familyName(referrer))
     } catch (e) {
-      console.error(`referral ${r.id}: could not credit the referrer; will retry tomorrow:`, e)
-      await svc.from('referrals').update({ status: 'pending', awarded_at: null, qualifying_booking_id: null }).eq('id', r.id)
+      console.error(`referral ${r.id}: a reward did not land; will retry tomorrow (a side already paid is not paid again):`, e)
+      await release()
       failed++
       continue
     }
-    let second
-    try {
-      second = await applyPoints(svc, {
-        parentId: r.referred_parent_id, reason: 'referral_bonus', points: REFERRAL_POINTS,
-        toGranted: true, actor: 'system', note: familyName(referrer),
-      })
-    } catch (e) {
-      console.error(`⚠️ referral ${r.id}: the referrer was credited but the NEW family was not. Grant ${REFERRAL_POINTS} points to parent ${r.referred_parent_id} by hand:`, e)
+    const { data: done } = await svc.from('referrals')
+      .update({ status: 'awarded' }).eq('id', r.id).eq('status', 'pending').eq('awarded_at', stamp).select('id')
+    if (!done || done.length === 0) {
+      // Both sides are paid; tomorrow's run finds both ledger rows and only
+      // marks the row.
+      console.error(`referral ${r.id}: both rewards in but the row was not marked awarded; next run will mark it`)
+      await release()
       failed++
       continue
     }

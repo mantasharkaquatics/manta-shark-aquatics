@@ -22,6 +22,37 @@ import { addDaysStr } from '@/lib/vouchers'
 
 type Svc = SupabaseClient
 
+/**
+ * Every row a query matches, a page at a time. The API hands back at most
+ * 1,000 rows per request and says nothing when it stops there, so a read of
+ * every active class's lessons, or of every coach's sessions over months,
+ * silently lost the rest (found 2026-10-05). `make` must order by something
+ * unique so pages do not overlap. Same shape as allRows in
+ * app/api/admin/finance/route.ts: an error ends the read with what it has.
+ */
+export const PAGE_ROWS = 1000
+export async function allRows(make: () => any): Promise<{ data: any[]; error: any }> {
+  const out: any[] = []
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await make().range(from, from + PAGE_ROWS - 1)
+    if (error) return { data: out, error }
+    out.push(...(data || []))
+    if (!data || data.length < PAGE_ROWS) return { data: out, error: null }
+  }
+}
+/** allRows over a long id list, IN_CHUNK ids per .in(): thousands of uuids in one URL is past what the API takes. */
+export const IN_CHUNK = 500
+export async function allRowsIn(ids: string[], make: (chunk: string[]) => any): Promise<{ data: any[]; error: any }> {
+  const out: any[] = []
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK)
+    const { data, error } = await allRows(() => make(chunk))
+    out.push(...data)
+    if (error) return { data: out, error }
+  }
+  return { data: out, error: null }
+}
+
 /** The renewal email goes this many days before the last lesson. */
 export const RENEW_NOTICE_DAYS = 21
 /** The hold lasts until this many days before the last lesson. */
@@ -63,14 +94,17 @@ export async function lessonsOf(svc: Svc, fcIds: string[]): Promise<Map<string, 
   let rows: LessonRow[] = []
   // bookings has two keys into class_sessions (class_session_id and
   // pending_new_session_id), so the embed has to name which one it means.
-  const { data, error } = await svc.from('bookings')
+  // Paged and chunked (allRowsIn): renewalHolds passes every active class, and
+  // their lessons run past 1,000 rows -- the rest were dropped silently, so a
+  // class could look ended and its hold vanish (found 2026-10-05).
+  const { data, error } = await allRowsIn(fcIds, chunk => svc.from('bookings')
     .select(`${ROW_COLS}, session:class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, coach_id, course_type_id)`)
-    .in('fixed_class_id', fcIds).in('status', ['confirmed', 'completed'])
+    .in('fixed_class_id', chunk).in('status', ['confirmed', 'completed']).order('id'))
   if (!error) {
     rows = (data || []).map((r: any) => ({ ...r, session: Array.isArray(r.session) ? r.session[0] : r.session }))
   } else {
-    const { data: bs } = await svc.from('bookings').select(ROW_COLS)
-      .in('fixed_class_id', fcIds).in('status', ['confirmed', 'completed'])
+    const { data: bs } = await allRowsIn(fcIds, chunk => svc.from('bookings').select(ROW_COLS)
+      .in('fixed_class_id', chunk).in('status', ['confirmed', 'completed']).order('id'))
     const ids = [...new Set((bs || []).map((b: any) => b.class_session_id))]
     const sOf = new Map<string, any>()
     for (let i = 0; i < ids.length; i += 150) {
@@ -127,10 +161,12 @@ export function classState(lessons: Lesson[] | undefined, today = getTodayLA(), 
 export async function termLastDates(svc: Svc, fcIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   if (fcIds.length === 0) return out
-  const { data: rows } = await svc.from('bookings')
-    .select('fixed_class_id, class_session_id, status, cancellation_reason')
-    .in('fixed_class_id', fcIds)
+  // Paged and chunked like lessonsOf (found 2026-10-05).
+  const { data: rows } = await allRowsIn(fcIds, chunk => svc.from('bookings')
+    .select('id, fixed_class_id, class_session_id, status, cancellation_reason')
+    .in('fixed_class_id', chunk)
     .or('status.in.(confirmed,completed),and(status.eq.cancelled,cancellation_reason.eq.cancelled_by_parent)')
+    .order('id'))
   const sids = [...new Set((rows || []).map((r: any) => r.class_session_id))]
   const dateOf = new Map<string, string>()
   for (let i = 0; i < sids.length; i += 150) {
@@ -167,7 +203,8 @@ export type Hold = {
 export async function renewalHolds(svc: Svc, from: string, to: string, exceptParentId?: string | null, today = getTodayLA()): Promise<Hold[]> {
   // The earliest a held week can be: L+7 with L at least today+14.
   if (to < addDaysStr(today, HOLD_RELEASE_DAYS + 7)) return []
-  const { data: fcs, error } = await svc.from('fixed_classes').select(FC_COLUMNS).eq('status', 'active')
+  // Paged: past 1,000 active classes the rest would have held nothing (found 2026-10-05).
+  const { data: fcs, error } = await allRows(() => svc.from('fixed_classes').select(FC_COLUMNS).eq('status', 'active').order('id'))
   if (error) { console.error('renewalHolds: fixed classes not read:', error.message); return [] }
   const list = ((fcs || []) as FixedClass[]).filter(f => f.parent_id !== exceptParentId)
   if (list.length === 0) return []
@@ -213,9 +250,11 @@ export type Busy = { s: number; e: number; sessionId: string }
 export async function studentBusy(svc: Svc, studentIds: string[], from: string, to: string, ignoreBookingIds?: Set<string>): Promise<Map<string, Busy[]>> {
   const out = new Map<string, Busy[]>()
   if (studentIds.length === 0) return out
-  const { data, error } = await svc.from('bookings')
+  // Every lesson the swimmers ever booked, so paged: a long-time pair of
+  // siblings can pass 1,000 rows, and the missing ones read as free (found 2026-10-05).
+  const { data, error } = await allRows(() => svc.from('bookings')
     .select('id, class_session_id, session:class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time)')
-    .in('student_id', studentIds).not('status', 'in', '("cancelled","pending_partner")')
+    .in('student_id', studentIds).not('status', 'in', '("cancelled","pending_partner")').order('id'))
   if (error) { console.error('studentBusy:', error.message); return out }
   for (const r of (data || []) as any[]) {
     if (ignoreBookingIds?.has(r.id)) continue
@@ -244,11 +283,13 @@ export async function loadWindow(svc: Svc, coachIds: string[], from: string, to:
       .in('coach_id', coachIds)
       .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${from},override_date.lte.${to})`),
     svc.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds),
-    svc.from('coach_time_off').select('coach_id, date, start_time, end_time, block_type')
-      .in('coach_id', coachIds).gte('date', from).lte('date', to),
-    svc.from('class_sessions')
+    // Paged: months of every coach's sessions (and time off) pass 1,000 rows,
+    // and a session past the cut read as an empty lane (found 2026-10-05).
+    allRows(() => svc.from('coach_time_off').select('id, coach_id, date, start_time, end_time, block_type')
+      .in('coach_id', coachIds).gte('date', from).lte('date', to).order('id')),
+    allRows(() => svc.from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
-      .in('coach_id', coachIds).gte('session_date', from).lte('session_date', to).in('status', ['open', 'full']),
+      .in('coach_id', coachIds).gte('session_date', from).lte('session_date', to).in('status', ['open', 'full']).order('id')),
   ])
   for (const r of zany || []) w.zoned.add(r.coach_id)
   for (const r of zrows || []) w.zones.set(r.coach_id, [...(w.zones.get(r.coach_id) || []), r])
@@ -374,10 +415,19 @@ export async function sendRenewalNotices(svc: Svc, send: (fc: FixedClass, last: 
   for (const f of list) {
     const st = classState(lessons.get(f.id), today, undefined, ends.get(f.id))
     if (!st.last || st.left === 0 || !renewOpen(st.last, today)) continue
+    const stamp = new Date().toISOString()
     const { data: claimed } = await svc.from('fixed_classes')
-      .update({ renewal_notified_at: new Date().toISOString() }).eq('id', f.id).is('renewal_notified_at', null).select('id')
+      .update({ renewal_notified_at: stamp }).eq('id', f.id).is('renewal_notified_at', null).select('id')
     if (!claimed || claimed.length === 0) continue
-    try { if (await send(f, st.last)) sent++; else failed++ } catch (e) { failed++; console.error('renewal notice failed', f.id, e) }
+    let ok = false
+    try { ok = await send(f, st.last) } catch (e) { console.error('renewal notice failed', f.id, e) }
+    if (ok) { sent++; continue }
+    failed++
+    // Not sent: give the claim back so tomorrow's run tries again. It used to
+    // stay set, and a family whose email failed once never got a notice
+    // (found 2026-10-05). Conditional on our own stamp, so a renewal that
+    // cleared it, or another run that re-claimed it, is left alone.
+    await svc.from('fixed_classes').update({ renewal_notified_at: null }).eq('id', f.id).eq('renewal_notified_at', stamp)
   }
   return { sent, failed }
 }
