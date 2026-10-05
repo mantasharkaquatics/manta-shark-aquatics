@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 import { priceLesson, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
@@ -1812,13 +1813,20 @@ export default function DashboardPage() {
       .lt('pending_expires_at', nowIso)
       .then(() => {})
 
+    /* Every booking the family has, past and future, read a page at a time
+       (lib/db-paging). One request stops at 1,000 rows without a word, and
+       oldest-first meant the rows it dropped were the newest -- every upcoming
+       lesson, with its cancel and reschedule buttons (found 2026-10-05). The
+       id tiebreak makes the order unique, which paging needs; created_at
+       first keeps the booking order the cards below were written for. */
     const [{ data: studs }, { data: rawBookings }, { data: pendingRaw }] = await Promise.all([
       supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
-      supabase.from('bookings')
+      allRows(() => supabase.from('bookings')
         .select('id, status, student_id, points_charged, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id, fixed_class_id, voucher_id')
         .eq('parent_id', parentData.id)
         .neq('status', 'cancelled')
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })),
       supabase.from('bookings')
         .select('id, student_id, pending_expires_at, partner_parent_id, class_session_id, lesson_group_id')
         .eq('parent_id', parentData.id)
@@ -1828,25 +1836,28 @@ export default function DashboardPage() {
     ])
 
     // Query class_sessions and students separately
-    const sessionIds = [...new Set((rawBookings || []).map((b: any) => b.class_session_id).filter(Boolean))]
-    const studentIds = [...new Set((rawBookings || []).map((b: any) => b.student_id).filter(Boolean))]
+    const sessionIds = [...new Set((rawBookings || []).map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+    const studentIds = [...new Set((rawBookings || []).map((b: any) => b.student_id).filter(Boolean))] as string[]
 
     const newSessionIds = [...new Set((rawBookings || [])
       .filter((b: any) => b.pending_new_session_id)
       .map((b: any) => b.pending_new_session_id)
-      .filter(Boolean))]
+      .filter(Boolean))] as string[]
     const pendingSessionIds = [...new Set((pendingRaw || []).map((b: any) => b.class_session_id).filter(Boolean))]
     const pendingStudentIds = [...new Set((pendingRaw || []).map((b: any) => b.student_id).filter(Boolean))]
 
+    // Chunked: the whole history's session ids in one .in() is past what the
+    // API takes, and a failed read here left sessionMap empty -- which hides
+    // every lesson, past and upcoming (found 2026-10-05).
     const [{ data: sessionsData }, { data: studentsData }, { data: newSessionsData }, { data: pSessions }, { data: pStudents }] = await Promise.all([
       sessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', sessionIds)
+        ? allRowsIn(sessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
         : Promise.resolve({ data: [] }),
       studentIds.length > 0
-        ? supabase.from('students').select('id, full_name').in('id', studentIds)
+        ? allRowsIn(studentIds, chunk => supabase.from('students').select('id, full_name').in('id', chunk).order('id'))
         : Promise.resolve({ data: [] }),
       newSessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', newSessionIds)
+        ? allRowsIn(newSessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
         : Promise.resolve({ data: [] }),
       pendingSessionIds.length > 0
         ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(id, name, slug), coaches(first_name)').in('id', pendingSessionIds)
@@ -1878,10 +1889,12 @@ export default function DashboardPage() {
 
     // Early-start independent fetches (awaited later where needed).
     // Promise.resolve() forces lazy supabase builders to fire immediately.
-    const on2IdsEarly = (rawBookings || [])
-      .filter((b: any) => b.status !== 'cancelled')
+    // 1-on-2 sessions only: the partner's name is shown for nothing else, and
+    // sending every session asked the server about group classmates too.
+    const on2IdsEarly = [...new Set((rawBookings || [])
+      .filter((b: any) => b.status !== 'cancelled' && sessionMap[b.class_session_id]?.ct?.slug === '1on2')
       .map((b: any) => b.class_session_id)
-      .filter(Boolean)
+      .filter(Boolean))]
     const partnerPromise: Promise<Response | null> = (on2IdsEarly.length > 0 && parentData?.id)
       ? fetch('/api/bookings/session-partners', {
           method: 'POST',
@@ -1889,10 +1902,13 @@ export default function DashboardPage() {
           body: JSON.stringify({ session_ids: on2IdsEarly, parent_id: parentData.id }),
         }).catch(() => null)
       : Promise.resolve(null)
+    // A GET per 100 ids: every booking id in one URL grows with the family's
+    // history until the request is too long to send.
     const bookingIdsEarly = (rawBookings || []).map((b: any) => b.id)
-    const attendancePromise: Promise<Response | null> = bookingIdsEarly.length > 0
-      ? fetch('/api/parent/attendance?booking_ids=' + bookingIdsEarly.join(',')).catch(() => null)
-      : Promise.resolve(null)
+    const attendanceChunks: string[][] = []
+    for (let i = 0; i < bookingIdsEarly.length; i += 100) attendanceChunks.push(bookingIdsEarly.slice(i, i + 100))
+    const attendancePromise: Promise<(Response | null)[]> = Promise.all(attendanceChunks.map(ids =>
+      fetch('/api/parent/attendance?booking_ids=' + ids.join(',')).catch(() => null)))
     const histStudentIdsEarly = (studs || []).map((s: any) => s.id)
     const histPromise: Promise<{ data: any[] | null }> = histStudentIdsEarly.length > 0
       ? Promise.resolve(supabase.from('progress_history')
@@ -2063,10 +2079,11 @@ export default function DashboardPage() {
     // Fetch attendance for ALL bookings (incl. today's) so Upcoming cards can show check-in status
     let checkedInSet = new Set<string>()
     {
-      const res = await attendancePromise
-      const json = res ? await res.json().catch(() => ({ checkedInBookingIds: [] })) : { checkedInBookingIds: [] }
-      for (const id of (json.checkedInBookingIds || [])) {
-        checkedInSet.add(id)
+      for (const res of await attendancePromise) {
+        const json = res ? await res.json().catch(() => ({ checkedInBookingIds: [] })) : { checkedInBookingIds: [] }
+        for (const id of (json.checkedInBookingIds || [])) {
+          checkedInSet.add(id)
+        }
       }
     }
 
@@ -2432,6 +2449,22 @@ export default function DashboardPage() {
     b.partner_booking_id
       ? t('dash.up.cancelPairHelp')
       : t('dash.up.graceUsedHelp', { name: (b.student_name || '').split(',').map(x => x.trim()).filter(Boolean).join(' & ') })
+  /* The inviter's own row of a 1-on-2 invitation the other family has not
+     accepted yet (the invited family's row carries pending_action 'confirm'
+     and is answered in the invitations box). Nothing has been charged, so the
+     server lets the inviter withdraw it for free at any time
+     (lib/bookings/cancel.ts). The page used to grey its Cancel out, and
+     inside 24 hours said "a second family shares the slot" -- nobody had
+     confirmed anything -- so the time and the child stayed held until the
+     invitation expired (found 2026-10-05). */
+  const isOwnInvite = (b: { status?: string; pending_action?: string | null }) =>
+    b.status === 'pending_partner' && b.pending_action !== 'confirm'
+  const askWithdraw = (b: { id: string }) => setInfoModal({
+    title: t('dash.up.withdrawTitle'),
+    message: t('dash.up.withdrawHelp'),
+    actionLabel: t('dash.up.withdraw'),
+    onAction: () => { cancelBooking(b.id) },
+  })
   // Why a button cannot do its job online, said in words first. It used to
   // open the chat straight away with the reason only in a hover tooltip,
   // which a phone never shows -- the family saw a chat window and no reason.
@@ -3229,7 +3262,14 @@ export default function DashboardPage() {
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>}
-                                    {cEnabled ? (
+                                    {isOwnInvite(m) ? (
+                                      <button
+                                        onClick={() => askWithdraw(m)}
+                                        disabled={cancellingId === m.id}
+                                        style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                                        {cancellingId === m.id ? '...' : t('dash.up.withdraw')}
+                                      </button>
+                                    ) : cEnabled ? (
                                       <button
                                         onClick={() => openCancel({ ...m, student_name: pairNames || m.student_name }, late, ck, refundPts)}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
@@ -3446,6 +3486,17 @@ export default function DashboardPage() {
                                 onClick={() => openChatOr(t('dash.up.trialContactHelp'), t('common.assessment'))}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {t('dash.up.trialContact')}
+                              </button>
+                            )
+                            // An invitation not yet accepted is withdrawn, not
+                            // cancelled: free, and never the 'pair' lock, which is
+                            // for a 1-on-2 both families have confirmed.
+                            if (isOwnInvite(booking)) return (
+                              <button
+                                onClick={() => askWithdraw(booking)}
+                                disabled={cancellingId === booking.id}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                {cancellingId === booking.id ? '...' : t('dash.up.withdraw')}
                               </button>
                             )
                             const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1

@@ -5,27 +5,34 @@ import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
+import { allRowsIn } from '@/lib/db-paging'
 
 export const runtime = 'nodejs'
 
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
-/** A fixed class's lessons that have not happened yet and can still be cancelled. */
-async function remainingLessons(svc: any, fixedClassIds: string[]) {
-  if (fixedClassIds.length === 0) return []
-  const { data: bs } = await svc.from('bookings')
+/** A fixed class's lessons that have not happened yet and can still be cancelled.
+ *  Paged (lib/db-paging): a single read stopped at 1,000 rows without saying
+ *  so, which undercounted lessons and points left once there were a few dozen
+ *  classes (found 2026-10-05). A failed read comes back as an error rather
+ *  than as a short list -- ending a class on a short list would refund or
+ *  voucher only part of it. */
+async function remainingLessons(svc: any, fixedClassIds: string[]): Promise<{ rows: any[]; error: any }> {
+  if (fixedClassIds.length === 0) return { rows: [], error: null }
+  const { data: bs, error: bErr } = await allRowsIn(fixedClassIds, chunk => svc.from('bookings')
     .select('id, fixed_class_id, class_session_id, student_id, parent_id, status, points_charged, points_refunded, points_granted, points_granted_expires_at, lesson_group_id')
-    .in('fixed_class_id', fixedClassIds).eq('status', 'confirmed')
-  const rows = bs || []
-  const sessIds = [...new Set(rows.map((b: any) => b.class_session_id))]
-  const { data: sess } = sessIds.length
-    ? await svc.from('class_sessions').select('id, session_date, start_time').in('id', sessIds)
-    : { data: [] }
-  const sOf = new Map((sess || []).map((s: any) => [s.id, s]))
+    .in('fixed_class_id', chunk).eq('status', 'confirmed').order('id'))
+  if (bErr) return { rows: [], error: bErr }
+  const sessIds = [...new Set(bs.map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+  const { data: sess, error: sErr } = await allRowsIn(sessIds, chunk =>
+    svc.from('class_sessions').select('id, session_date, start_time').in('id', chunk).order('id'))
+  if (sErr) return { rows: [], error: sErr }
+  const sOf = new Map(sess.map((s: any) => [s.id, s]))
   const today = getTodayLA(), now = getNowMinutesLA()
-  return rows
+  const rows = bs
     .map((b: any) => ({ ...b, session: sOf.get(b.class_session_id) as any }))
     .filter((b: any) => b.session && (b.session.session_date > today || (b.session.session_date === today && toMin(b.session.start_time) > now)))
+  return { rows, error: null }
 }
 
 // Fixed classes for the front desk: who, when, how much is left -- and the
@@ -42,14 +49,21 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const list = fcs || []
   const ids = list.map((f: any) => f.id)
-  const [{ data: all }, left, { data: ps }, { data: ss }, { data: cs }, { data: cts }] = await Promise.all([
-    ids.length ? svc.from('bookings').select('fixed_class_id, class_session_id, status, cancellation_reason').in('fixed_class_id', ids) : Promise.resolve({ data: [] as any[] }),
+  const [{ data: all, error: allErr }, { rows: left, error: leftErr }, { data: ps }, { data: ss }, { data: cs }, { data: cts }] = await Promise.all([
+    allRowsIn(ids, chunk => svc.from('bookings').select('id, fixed_class_id, class_session_id, status, cancellation_reason').in('fixed_class_id', chunk).order('id')),
     remainingLessons(svc, list.filter((f: any) => f.status === 'active').map((f: any) => f.id)),
     svc.from('parents').select('id, first_name, last_name').in('id', [...new Set(list.map((f: any) => f.parent_id))]),
     svc.from('students').select('id, full_name').in('id', [...new Set(list.flatMap((f: any) => [f.student_id, f.student2_id]).filter(Boolean))]),
     svc.from('coaches').select('id, first_name').in('id', [...new Set(list.map((f: any) => f.coach_id))]),
     svc.from('course_types').select('id, name, slug'),
   ])
+  // Lessons and points left are what the desk reads before choosing refund,
+  // voucher or keep. A partial read would show them short, so say it failed.
+  const readErr = allErr || leftErr
+  if (readErr) {
+    console.error('fixed-classes: bookings read failed:', readErr.message || readErr)
+    return NextResponse.json({ error: 'Could not read the lessons for these classes. Refresh and try again.' }, { status: 500 })
+  }
   const pName = new Map((ps || []).map((p: any) => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim()]))
   const sName = new Map((ss || []).map((s: any) => [s.id, s.full_name]))
   const cName = new Map((cs || []).map((c: any) => [c.id, c.first_name]))
@@ -60,7 +74,7 @@ export async function GET() {
       const lessonsLeft = new Set(mine.map((b: any) => b.lesson_group_id || b.class_session_id)).size
       // Lessons moved by a change of slot leave their old rows behind as
       // 'rescheduled'; counting them showed a 10-lesson class as ~18.
-      const total = new Set((all || []).filter((b: any) => b.fixed_class_id === f.id && !(b.status === 'cancelled' && b.cancellation_reason === 'rescheduled')).map((b: any) => b.class_session_id)).size
+      const total = new Set(all.filter((b: any) => b.fixed_class_id === f.id && !(b.status === 'cancelled' && b.cancellation_reason === 'rescheduled')).map((b: any) => b.class_session_id)).size
       const ct: any = ctOf.get(f.course_type_id)
       return {
         id: f.id, status: f.status, endedAt: f.ended_at, endedReason: f.ended_reason,
@@ -90,6 +104,15 @@ export async function POST(req: NextRequest) {
   if (!id || !mode) return NextResponse.json({ error: 'Choose what happens to the remaining lessons.' }, { status: 400 })
   if (!reason) return NextResponse.json({ error: 'Write why the class is ending.' }, { status: 400 })
 
+  // Read before the claim: if the lessons cannot be read, nothing has changed
+  // yet and the desk can simply try again. Each booking is still re-checked
+  // as confirmed when it is cancelled below.
+  const { rows, error: rowsErr } = await remainingLessons(svc, [id])
+  if (rowsErr) {
+    console.error('fixed-classes end: lessons read failed:', rowsErr.message || rowsErr)
+    return NextResponse.json({ error: 'Could not read the remaining lessons. Nothing was changed — try again.' }, { status: 500 })
+  }
+
   // Claimed first: only one press ends it.
   const { data: fcRows } = await svc.from('fixed_classes')
     .update({ status: 'ended', ended_at: new Date().toISOString(), ended_by: admin.id, ended_reason: `${mode}: ${reason}` })
@@ -98,7 +121,6 @@ export async function POST(req: NextRequest) {
   if (!fc) return NextResponse.json({ error: 'This class has already ended. Refresh and try again.' }, { status: 409 })
   const { data: ct } = await svc.from('course_types').select('slug, name').eq('id', fc.course_type_id).single()
 
-  const rows = await remainingLessons(svc, [id])
   let refunded = 0, vouchers = 0
   const cancelled: any[] = []
   for (const r of rows) {

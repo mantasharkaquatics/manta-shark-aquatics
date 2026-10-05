@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { requireStaff, requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { isLevelNumber } from '@/lib/levels'
+import { pendingOverlay } from '@/lib/skill-progress-sync'
 
 export async function GET(req: NextRequest) {
   const staff = await requireStaff()
@@ -104,6 +105,12 @@ export async function GET(req: NextRequest) {
   for (const row of progressRows || []) {
     progressMap[row.skill_id] = row.progress_percent
   }
+  /* The live table now waits for the admin's confirm (owner, 2026-10-05), so
+     on its own it no longer holds what this coach sent last lesson. Their
+     reports still in Reviews are laid over it: the recorder opens on the marks
+     they last sent, and the next report carries them forward rather than
+     quietly sending the older approved values back. */
+  if (!assessment) Object.assign(progressMap, await pendingOverlay(supabase, studentId))
 
   return NextResponse.json({
     // In an assessment the student row still has no level; `level` here is the
@@ -211,23 +218,10 @@ export async function POST(req: NextRequest) {
       : (pct as number)
   }
 
-  const upserts = Object.entries(accepted)
-    .filter(([skill_id]) => !allowed || allowed.has(skill_id))
-    .map(([skill_id, pct]) => ({
-      student_id,
-      skill_id,
-      progress_percent: pct as number,
-      last_updated_by: coach.id,
-      last_updated_at: new Date().toISOString()
-    }))
-
-  if (upserts.length > 0) {
-    const { error } = await supabase
-      .from('student_skill_progress')
-      .upsert(upserts, { onConflict: 'student_id,skill_id' })
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  // Queued only, like a coach's report: the live table is written when an
+  // admin confirms the record in Reviews (/api/admin/review-progress), so the
+  // stage trigger cannot move the swimmer on numbers nobody has confirmed
+  // (owner, 2026-10-05).
 
   // The skills of the level nobody touched this time are recorded as they
   // stand, so the record is a complete picture of the level (and a card sent

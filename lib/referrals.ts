@@ -17,6 +17,7 @@ import { applyPoints } from '@/lib/points-wallet'
 import { REFERRAL_POINTS } from '@/lib/points'
 import { getTodayLA } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
+import { allRows } from '@/lib/db-paging'
 
 type Svc = any
 
@@ -189,12 +190,17 @@ async function qualifyingBooking(svc: Svc, parentId: string, today: string): Pro
  */
 export async function awardDueReferrals(svc: Svc): Promise<{ awarded: number; failed: number }> {
   const today = getTodayLA()
-  const { data: pending } = await svc.from('referrals')
+  // Paged (lib/db-paging): past 1,000 pending referrals a single read left
+  // the rest unpaid with no sign of it. A failed read throws, so the cron
+  // reports it rather than quietly paying only part of the list.
+  const { data: pending, error: pendingErr } = await allRows(() => svc.from('referrals')
     .select('id, referrer_parent_id, referred_parent_id')
     .eq('status', 'pending')
+    .order('id'))
+  if (pendingErr) throw new Error(`pending referrals not read: ${pendingErr.message || pendingErr}`)
   let awarded = 0, failed = 0
 
-  for (const r of pending || []) {
+  for (const r of pending) {
     const bookingId = await qualifyingBooking(svc, r.referred_parent_id, today)
     if (!bookingId) continue
 

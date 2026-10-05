@@ -4,19 +4,17 @@ import { serviceClient } from '@/lib/api-auth'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { readJson, badRequest } from '@/lib/http'
 import { phoneHasAccount } from '@/lib/account-exists'
+import { normalizePhone } from '@/lib/applicant-auth'
+import { takeIpSlot } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
 
 const CODE_TTL_MS = 10 * 60 * 1000
 const RESEND_COOLDOWN_MS = 60 * 1000
 const MAX_PER_HOUR = 5
-
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 10) return '+1' + digits
-  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits
-  return phone.startsWith('+') ? phone : '+' + digits
-}
+// Per network, on top of the per-number limit: one machine looping through
+// many different numbers was never slowed by the per-number count.
+const MAX_PER_IP_PER_HOUR = 10
 
 export async function POST(req: NextRequest) {
   const body = await readJson(req)
@@ -24,7 +22,13 @@ export async function POST(req: NextRequest) {
   const { phone, context } = body
   if (!phone) return NextResponse.json({ error: 'Missing phone number' }, { status: 400 })
 
-  const normalizedPhone = normalizePhone(phone)
+  // US numbers only, as on careers (owner, 2026-10-05). Any '+' number used to
+  // pass straight to Twilio, so a script could text premium-rate numbers
+  // abroad from our account (SMS pumping).
+  const normalizedPhone = normalizePhone(String(phone))
+  if (!normalizedPhone) {
+    return NextResponse.json({ error: 'Please enter a valid US phone number.' }, { status: 400 })
+  }
   const supabase = serviceClient()
 
   if (context === 'register') {
@@ -57,6 +61,15 @@ export async function POST(req: NextRequest) {
   }
   if (recent && recent[0] && Date.now() - new Date(recent[0].created_at).getTime() < RESEND_COOLDOWN_MS) {
     return NextResponse.json({ error: 'Please wait a minute before requesting another code.' }, { status: 429 })
+  }
+
+  // Counted last, so a refusal above does not use up the network's budget.
+  const slot = await takeIpSlot(supabase, req, 'send-otp', MAX_PER_IP_PER_HOUR, 60 * 60 * 1000)
+  if (slot === 'error') {
+    return NextResponse.json({ error: 'Failed to create verification code' }, { status: 500 })
+  }
+  if (slot === 'limited') {
+    return NextResponse.json({ error: 'Too many codes requested from this network. Please try again later.', code: 'OTP_IP_HOURLY_CAP' }, { status: 429 })
   }
 
   // randomInt, not Math.random: this code is a login boundary and V8's PRNG is

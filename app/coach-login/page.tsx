@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
+type PinAnswer = { code?: string; locked?: boolean; attempts_left?: number; retry_after_seconds?: number } | null
+
 export default function CoachLoginPage() {
   const t = useT()
   const [pin, setPin] = useState(['', '', '', '', '', '', '', ''])
@@ -18,6 +20,29 @@ export default function CoachLoginPage() {
   const inputs = useRef<(HTMLInputElement | null)[]>([])
   const router = useRouter()
 
+  /* The route answers with a code and numbers; the words are built here, in
+     the page's own language. It used to print the server's English sentence,
+     so a coach on the Chinese page read "Incorrect PIN. 4 attempts left."
+     (found 2026-10-05). */
+  function waitText(seconds: number): string {
+    const minutes = Math.max(1, Math.ceil(seconds / 60))
+    if (minutes <= 60) return minutes === 1 ? t('coach.login.time.minute') : t('coach.login.time.minutes', { n: minutes })
+    const hours = Math.ceil(minutes / 60)
+    return hours === 1 ? t('coach.login.time.hour') : t('coach.login.time.hours', { n: hours })
+  }
+
+  function pinError(data: PinAnswer): string {
+    const left = Number(data?.attempts_left)
+    if (data?.locked) {
+      return t('coach.login.locked', { time: waitText(Number(data?.retry_after_seconds) || 15 * 60) })
+    }
+    if (data?.code === 'bad_pin' && Number.isFinite(left) && left > 0) {
+      return left === 1 ? t('coach.login.attemptLeft') : t('coach.login.attemptsLeft', { n: left })
+    }
+    if (data?.code === 'login_failed') return t('coach.login.failed')
+    return t('coach.login.badPin')
+  }
+
   async function submitPin(digits: string[]) {
     const code = digits.join('')
     if (code.length !== 8 || locked) return
@@ -29,12 +54,12 @@ export default function CoachLoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: code })
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => null)
       if (!res.ok) {
         // The server knows how many tries are left and how long a lock lasts;
         // a hard-coded "please try again" here would have thrown that away and
         // left a locked-out coach retyping the right PIN to no effect.
-        setError(data?.error || t('coach.login.badPin'))
+        setError(pinError(data))
         setPin(['', '', '', '', '', '', '', ''])
         if (data?.locked) { setLocked(true); return }
         inputs.current[0]?.focus()

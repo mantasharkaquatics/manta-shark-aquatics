@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { centsToPoints, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS } from '@/lib/points'
+import { centsToPoints } from '@/lib/points'
 import { applyPoints } from '@/lib/points-wallet'
 import { insertInvoice } from '@/lib/invoices/create'
+import { checkPointsSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
 
 // Selling points at the front desk. The same thing the parent buys online, put
 // through by an admin who takes the card or the cash.
@@ -37,16 +38,11 @@ export async function POST(req: NextRequest) {
     const { data: admin } = await supabaseAuth.from('admins').select('id').eq('auth_user_id', user.id).single()
     if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    if (!parentId) return NextResponse.json({ error: 'parentId required' }, { status: 400 })
-    const amount = Math.round(Number(amountCents))
-    if (!Number.isFinite(amount) || amount % 100 !== 0)
-      return NextResponse.json({ error: 'Amount must be a whole number of dollars' }, { status: 400 })
-    const dollars = amount / 100
-    if (dollars < MIN_TOPUP_DOLLARS || dollars > MAX_TOPUP_DOLLARS)
-      return NextResponse.json({ error: `Amount must be between $${MIN_TOPUP_DOLLARS} and $${MAX_TOPUP_DOLLARS}` }, { status: 400 })
-    const bonus = Math.round(Number(bonusPoints || 0))
-    if (!Number.isFinite(bonus) || bonus < 0 || bonus > dollars)
-      return NextResponse.json({ error: 'Bonus points must be between 0 and the amount paid' }, { status: 400 })
+    // The same checks the terminal PaymentIntent was made under, so a card
+    // sale that got this far passes them here too (lib/pos/sale-checks).
+    const sale = checkPointsSale({ parentId, amountCents, bonusPoints })
+    if (!sale.ok) return NextResponse.json({ error: sale.error }, { status: sale.status })
+    const { amountCents: amount, dollars, bonus } = sale
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,6 +59,17 @@ export async function POST(req: NextRequest) {
         .eq('stripe_session_id', paymentIntentId).eq('reason', 'purchase').limit(1)
       if (seen && seen.length)
         return NextResponse.json({ error: 'This payment has already been recorded.' }, { status: 409 })
+      // A purchase row with no ledger line is a sale whose points did not go
+      // in. Recording it again would make a second purchase; the retry button
+      // finishes the first one instead.
+      const { data: had } = await supabase
+        .from('purchases').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
+      if (had && had.length)
+        return NextResponse.json({
+          error: 'This payment has already been recorded, but its points may not have gone in. Do not take payment again — add them with the button below.',
+          purchaseId: had[0].id,
+          retryCredit: { purchaseId: had[0].id, bonusPoints: bonus, bonusNote: `Bonus on a $${dollars.toLocaleString('en-US')} desk purchase` },
+        }, { status: 409 })
     } else {
       // Nothing to key on, so key on the shape of it: the same family, the same
       // amount, moments ago. Two genuinely separate cash sales of the same size
@@ -96,35 +103,56 @@ export async function POST(req: NextRequest) {
       .from('purchases').insert(purchaseRow).select().single()
     if (purchaseErr || !purchase) {
       console.error('POS purchase error:', purchaseErr)
-      return NextResponse.json({ error: 'Purchase failed' }, { status: 500 })
+      // Nothing was written, so sending the same sale again is safe: the
+      // duplicate guards above find nothing to match.
+      return NextResponse.json({
+        error: 'The payment was taken but the sale was not recorded. Do not take payment again — record it again with the button below.',
+        retryable: true,
+      }, { status: 500 })
     }
 
+    // The purchase and the bonus are two movements and can fail separately,
+    // so each reports for itself. One try block used to cover both, and a
+    // bonus that failed after the purchase landed told the desk "the points
+    // did not go in" -- they were in, and adding them again paid the family
+    // twice (found 2026-10-05). Both carry the purchase id in `pricing`, which
+    // is what lets /api/pos/retry-credit finish the job as PURCHASED points
+    // without crediting anything twice. The manual adjustment on the parent's
+    // page cannot: it writes every addition as granted points, which expire.
     const points = centsToPoints(amount)
+    const bonusNote = `Bonus on a $${dollars.toLocaleString('en-US')} desk purchase`
+    const retryCredit = { purchaseId: purchase.id, bonusPoints: bonus, bonusNote }
     let balance = 0
+    let creditError: string | null = null
     try {
       const res = await applyPoints(supabase, {
         parentId, reason: 'purchase', points,
         amountCents: amount,
         stripeSessionId: paymentIntentId || null,
+        pricing: { kind: 'pos_purchase', purchaseId: purchase.id },
         actor: `admin:${admin.id}`,
         note: note ? String(note).slice(0, 300) : null,
       })
       balance = res.balance
-      if (bonus > 0) {
-        const res2 = await applyPoints(supabase, {
-          parentId, reason: 'admin_grant', points: bonus, toGranted: true,
-          actor: `admin:${admin.id}`,
-          note: `Bonus on a $${dollars.toLocaleString('en-US')} desk purchase`,
-        })
-        balance = res2.balance
-      }
     } catch (e: any) {
       // The money is real and recorded; the wallet is not. Say so loudly rather
       // than reporting a clean sale that left the family with nothing.
       console.error('POS points credit failed:', e)
-      return NextResponse.json({
-        error: 'The payment was recorded but the points did not go in. Do not take payment again — add the points by hand from the parent\'s page.',
-      }, { status: 500 })
+      creditError = 'The payment was recorded but no points went in. Do not take payment again — add them with the button below.'
+    }
+    if (!creditError && bonus > 0) {
+      try {
+        const res2 = await applyPoints(supabase, {
+          parentId, reason: 'admin_grant', points: bonus, toGranted: true,
+          pricing: { kind: 'pos_bonus', purchaseId: purchase.id },
+          actor: `admin:${admin.id}`,
+          note: bonusNote,
+        })
+        balance = res2.balance
+      } catch (e: any) {
+        console.error('POS bonus grant failed:', e)
+        creditError = `The payment was recorded and the ${points.toLocaleString('en-US')} purchased points are in, but the ${bonus.toLocaleString('en-US')} bonus points were not added. Do not take payment again — add the bonus with the button below.`
+      }
     }
 
     const { data: parent } = await supabase
@@ -132,16 +160,17 @@ export async function POST(req: NextRequest) {
 
     const label = `${points.toLocaleString('en-US')} lesson points`
 
-    // The money is taken and the points are in the wallet. A receipt that
-    // cannot be numbered must not come back to the front desk as a failed
-    // sale -- the operator would take payment a second time. Loud in the log,
-    // recoverable by hand, invisible to the person at the counter.
+    // The money is taken. A receipt that cannot be numbered must not come
+    // back to the front desk as a failed sale -- the operator would take
+    // payment a second time. Loud in the log, recoverable by hand, invisible
+    // to the person at the counter. Written even when the points did not go
+    // in: the payment happened, and the retry button only adds points.
     let invoice: any = null
     try {
       invoice = await insertInvoice(supabase, {
         parent_id: parentId,
         amount: dollars,
-        payment_method: paymentMethod === 'stripe_terminal' ? 'Credit Card (Terminal)' : paymentMethod,
+        payment_method: invoicePaymentLabel(paymentMethod),
         items: [
           { name: label, quantity: points, unit_price: 1 },
           ...(bonus > 0 ? [{ name: `${bonus.toLocaleString('en-US')} bonus points`, quantity: bonus, unit_price: 0 }] : []),
@@ -169,6 +198,12 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error('Invoice email error:', e)
       }
+    }
+
+    if (creditError) {
+      return NextResponse.json({
+        error: creditError, purchaseId: purchase.id, invoiceId: invoice?.id, retryCredit,
+      }, { status: 500 })
     }
 
     console.log(`✅ POS points sale: $${dollars} (+${bonus} bonus) parent=${parentId} method=${paymentMethod} invoice=${invoice?.invoice_number}`)

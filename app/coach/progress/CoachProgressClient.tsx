@@ -59,7 +59,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   const locale = useLocale()
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null)
   const [studentDataMap, setStudentDataMap] = useState<Record<string, StudentProgress>>({})
-  const [localProgressMap, setLocalProgressMap] = useState<Record<string, Record<string, number>>>({})
+  /* The marks a coach has tapped on each card, kept apart from what the server
+     says (found 2026-10-05). They used to live in one map the server answer
+     overwrote: reopening a card refetched, and every chip set before the coach
+     moved on to the next swimmer in the 1-on-4 was gone. On screen a card is
+     the server's picture with these laid over it. */
+  const [editsMap, setEditsMap] = useState<Record<string, Record<string, number>>>({})
   const [savingMap, setSavingMap] = useState<Record<string, boolean>>({})
   const [completedSet, setCompletedSet] = useState<Set<string>>(new Set(completedKeys))
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
@@ -125,6 +130,35 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
     .map(e => ({ ...e, sessionTime: `${formatTime12h(e.start_time)} - ${formatTime12h(e.end_time)}` }))
 
+  /* Lessons, not swimmers, for the heading (found 2026-10-05). It counted the
+     cards -- one per checked-in swimmer -- so a 1-on-4 read "4 lesson(s)
+     today", while the same page before check-in counted 1. A lesson is a
+     session with someone checked in, and an hour's two halves (sessions joined
+     by a lesson_group_id) are one lesson, as the server counts scheduledToday. */
+  const lessonCount = (() => {
+    const parent: Record<string, string> = {}
+    const find = (x: string): string => {
+      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
+      return x
+    }
+    const add = (x: string) => { if (!(x in parent)) parent[x] = x }
+    const sessionIds: string[] = []
+    for (const s of sessions) {
+      const bookings = ((s as any).bookings || []).filter((b: any) => b.students?.id)
+      if (bookings.length === 0) continue
+      const sid = 's:' + s.id
+      add(sid)
+      sessionIds.push(sid)
+      for (const b of bookings) {
+        if (!b.lesson_group_id) continue
+        const gid = 'g:' + b.lesson_group_id
+        add(gid)
+        parent[find(gid)] = find(sid)
+      }
+    }
+    return new Set(sessionIds.map(find)).size
+  })()
+
   // Latest request per card. A coach tapping L3 then L4 quickly must end up
   // looking at L4's skills: an older response that lands late is dropped.
   const loadSeq = useRef<Record<string, number>>({})
@@ -146,7 +180,6 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     }
     setErrorMap(prev => ({ ...prev, [entryKey]: '' }))
     setStudentDataMap(prev => ({ ...prev, [entryKey]: data }))
-    setLocalProgressMap(prev => ({ ...prev, [entryKey]: { ...data.progress } }))
     if (data.todayLocked) setCompletedSet(prev => new Set([...prev, entryKey]))
     setLoadingMap(prev => ({ ...prev, [entryKey]: false }))
     return 'ok'
@@ -158,9 +191,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       return
     }
     setExpandedStudent(entryKey)
-    // Re-fetch on every expand to get the latest progress (reflects saves from the previous lesson)
+    // Re-fetch on every expand to get the latest progress (reflects saves from
+    // the previous lesson). The coach's own marks sit in editsMap, so this
+    // cannot overwrite them; a card already loaded refreshes in place rather
+    // than flashing "Loading" over its recorder.
     if (studentDataMap[entryKey]?.todayLocked) return
-    await loadStudent(entryKey, studentId, sessionId, assessLevelMap[entryKey])
+    await loadStudent(entryKey, studentId, sessionId, assessLevelMap[entryKey], !!studentDataMap[entryKey])
   }
 
   /* An assessment: the coach says which level the swimmer belongs in, and that
@@ -177,6 +213,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     const result = await loadStudent(entryKey, studentId, sessionId, level, true)
     // A failed load leaves the old list on screen; the highlight goes back to it.
     if (result === 'failed') setAssessLevelMap(prev => ({ ...prev, [entryKey]: before || '' }))
+    // The new level's list starts unmarked: the old marks were for other skills.
+    if (result === 'ok') setEditsMap(prev => { const n = { ...prev }; delete n[entryKey]; return n })
   }
 
   // Progress and the recording leave together. The owner's rule is that a coach
@@ -187,7 +225,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     if (!capture) return
     setSavingMap(prev => ({ ...prev, [entryKey]: true }))
     setErrorMap(prev => ({ ...prev, [entryKey]: '' }))
-    const progress = localProgressMap[entryKey] || {}
+    const progress = { ...(studentDataMap[entryKey]?.progress || {}), ...(editsMap[entryKey] || {}) }
 
     const form = new FormData()
     form.append('audio', capture.blob, 'note.' + (capture.blob.type.includes('mp4') ? 'mp4' : 'webm'))
@@ -217,6 +255,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
         ...prev,
         [entryKey]: { ...prev[entryKey], progress, todayLocked: true }
       }))
+      setEditsMap(prev => { const n = { ...prev }; delete n[entryKey]; return n })
+      setCaptureMap(prev => ({ ...prev, [entryKey]: null }))
     }
     setSavingMap(prev => ({ ...prev, [entryKey]: false }))
   }
@@ -231,7 +271,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                 coach's language like the rest of the portal. */}
             {new Date(today + 'T12:00:00').toLocaleDateString(dateTag(locale), { weekday: 'long', month: 'long', day: 'numeric' })} · {sessionEntries.length === 0 && scheduledToday > 0
               ? t('coach.progress.countScheduled', { n: scheduledToday })
-              : t('coach.progress.countToday', { n: sessionEntries.length })}
+              : t('coach.progress.countToday', { n: lessonCount })}
           </p>
         </div>
 
@@ -262,9 +302,18 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
             const isExpanded = expandedStudent === s.entryKey
             const data = studentDataMap[s.entryKey]
             const loading = loadingMap[s.entryKey]
-            const localProgress = localProgressMap[s.entryKey] || {}
+            const edits = editsMap[s.entryKey] || {}
+            const localProgress = { ...(data?.progress || {}), ...edits }
             const saving = savingMap[s.entryKey]
-            const hasChanges = data && JSON.stringify(localProgress) !== JSON.stringify(data.progress)
+            const hasChanges = !!data && Object.entries(edits).some(([id, v]) => data.progress[id] !== v)
+            /* A lesson where nothing moved is still a lesson to report (found
+               2026-10-05): Send used to need a changed mark, so a swimmer with
+               every skill already scored could not be sent a note without the
+               coach inventing a change. Scores on file for this level are a
+               complete report as they stand. An assessment has nothing on file,
+               so it still needs marks. */
+            const hasScores = !!data && !data.assessment && data.skills.some(k => data.progress[k.id] !== undefined)
+            const canSend = hasChanges || hasScores
             const assessPick = assessLevelMap[s.entryKey] || (data?.assessedLevel ? String(data.assessedLevel) : '')
             // The level the stage ribbons and the learning map are drawn for.
             const shownLevel = Number(data?.student.current_level) || Number(data?.assessedLevel) || 1
@@ -352,6 +401,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 studentName={s.full_name}
                                 defaultLanguage={(data as any).coachDefaultLanguage === 'zh-Hant' ? 'zh-Hant' : 'en'}
                                 disabled={locked || saving}
+                                initial={captureMap[s.entryKey] || null}
                                 onChange={cap => setCaptureMap(prev => ({ ...prev, [s.entryKey]: cap }))}
                               />
                             )}
@@ -360,18 +410,22 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                               <p className="text-gray-500 text-xs uppercase tracking-wider">{t('coach.skillProgress')}</p>
                               <button
                                 onClick={() => sendReport(s.entryKey, s.studentId, s.sessionId, s.lessonGroupId, s.sessionDate)}
-                                disabled={saving || !hasChanges || !captureMap[s.entryKey] || locked || isCompleted}
+                                disabled={saving || !canSend || !captureMap[s.entryKey] || locked || isCompleted}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                                   isCompleted ? 'bg-green-700/50 text-green-400 cursor-not-allowed' :
-                                  hasChanges && captureMap[s.entryKey] && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
+                                  canSend && captureMap[s.entryKey] && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
                                   'bg-gray-700 text-gray-500 cursor-not-allowed'
                                 }`}
                               >
                                 {saving ? t('coach.progress.sending')
                                   : isCompleted ? t('coach.progress.doneToday')
                                   : locked ? t('coach.progress.locked')
-                                  : !hasChanges ? t('coach.progress.needSkills')
+                                  // Only when nothing is on file and nothing is marked
+                                  // does "set the skills first" hold.
+                                  : !canSend ? t('coach.progress.needSkills')
                                   : !captureMap[s.entryKey] ? t('coach.progress.needNote')
+                                  // Says so, so a coach who meant to mark something notices.
+                                  : !hasChanges ? t('coach.progress.sendNoChange')
                                   : t('coach.progress.send')}
                               </button>
                             </div>
@@ -385,7 +439,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 level: shownLevel,
                                 stage: Number(data.student.current_stage) || 1,
                                 // what is on screen, including marks not yet sent
-                                percents: { ...data.progress, ...localProgress },
+                                percents: localProgress,
                               })}
                               className="w-full mb-3 py-2.5 px-3 rounded-lg border border-[#c9a84c]/45 bg-[#c9a84c]/10 text-[#c9a84c] text-xs font-bold flex items-center justify-between"
                             >
@@ -482,7 +536,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                         return (
                                         <button key={b}
                                           disabled={!stageOpen || locked || isCompleted}
-                                          onClick={() => { if (stageOpen && !locked && !isCompleted) setLocalProgressMap(prev => ({ ...prev, [s.entryKey]: { ...prev[s.entryKey], [skill.id]: v } })) }}
+                                          onClick={() => { if (stageOpen && !locked && !isCompleted) setEditsMap(prev => ({ ...prev, [s.entryKey]: { ...prev[s.entryKey], [skill.id]: v } })) }}
                                           className={`w-full py-2 rounded text-[11px] leading-tight font-medium transition-all ${on ? 'font-bold' : 'text-gray-400 bg-white/5'} ${stageOpen && !locked && !isCompleted ? 'hover:bg-white/10' : 'cursor-not-allowed'}`}
                                           style={on ? { backgroundColor: MASTERY_COLOR[b], color: '#1a2744' } : {}}
                                         >

@@ -159,9 +159,10 @@ export async function POST(req: NextRequest) {
         `Manta Shark Aquatics: your verification code is ${code}. It expires in 10 minutes. Only share it with our staff if you asked to change your account email.`)
       delivered = smsResult.ok
     } else {
+      // sendEmail reports a failed send by returning false, not by throwing,
+      // so the desk was told the code went out when Resend had refused it.
       try {
-        await sendEmail({ type: 'contact_change_code', to: parent.email, parentName: parent.first_name, code })
-        delivered = true
+        delivered = await sendEmail({ type: 'contact_change_code', to: parent.email, parentName: parent.first_name, code })
       } catch {}
     }
 

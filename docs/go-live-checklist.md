@@ -14,19 +14,28 @@
 
 - [ ] 在 **正式模式**（不是沙盒、不是測試模式）建立 webhook endpoint，指向
       `https://www.mantasharkaquatics.net/api/stripe/webhook`
-- [ ] 勾選這 8 個事件 —— 少一個就有一段程式永遠不會被觸發：
+- [ ] 勾選這 12 個事件 —— 少一個就有一段程式永遠不會被觸發
+      （清單以 `app/api/stripe/webhook/route.ts` 處理的事件為準，2026-10-05 核對）：
 
   | 事件 | 沒勾會怎樣 |
   |---|---|
   | `checkout.session.completed` | 家長付了錢但點數不會進錢包 |
   | `checkout.session.expired` | 未付款的評估課會一直佔住時段 |
+  | `checkout.session.async_payment_succeeded` | 用銀行轉帳付的評估課要等清理排程才確認，不會即時確認 |
+  | `checkout.session.async_payment_failed` | 銀行轉帳沒扣成的評估課要等清理排程才釋出時段 |
   | `customer.subscription.updated` | 泳隊取消預約日期不會顯示 |
   | `customer.subscription.deleted` | 泳隊退訂後仍算有效會員 |
   | `invoice.paid` | 泳隊每月收據不會產生 |
   | `invoice.payment_failed` | 泳隊欠費不會標記 past_due |
   | `payment_intent.payment_failed` | **銀行扣款失敗，點數收不回來** |
   | `charge.dispute.created` | **家長申訴成功，點數收不回來** |
+  | `charge.dispute.funds_withdrawn` | **銀行詢問（inquiry）升級成正式申訴、錢被扣走時，點數收不回來**——詢問階段在 `.created` 不會收點數，只靠這個事件 |
+  | `charge.dispute.closed` | 申訴打贏時不會在 log 留下「要手動補回點數」的提醒 |
 
+- [ ] **如果正式 endpoint 已經照舊的 8 個事件建好**：到 Stripe → Developers →
+      Webhooks → 該 endpoint → Update details，補勾
+      `checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、
+      `charge.dispute.funds_withdrawn`、`charge.dispute.closed`
 - [ ] 把該 endpoint 的 signing secret 設成 Vercel production 的
       `STRIPE_WEBHOOK_SECRET`
 - [ ] Vercel production 的 `STRIPE_SECRET_KEY` 換成正式金鑰（`sk_live_…`）
@@ -40,6 +49,8 @@
 - [x] `docs/migration-stripe-fees.sql`（purchases 的手續費欄位）+ 歷史資料已補抓
 - [x] `docs/migration-invoice-seq-lockdown.sql`（收回 `get_next_invoice_seq`
       的 authenticated 執行權，避免任何登入者空燒發票號碼）
+- [ ] `docs/migration-pos-credit-retry.sql`（櫃檯「補入點數」按鈕的唯一索引，
+      兩個人同時按也不會重複入點）
 - [ ] `docs/migration-skill-criteria.sql`（技能改成可量測的名稱 + 加上
       通過標準）。技能 id 不變，家長的歷史進度全部保留。
       跑完到教練 app 的「進度」頁確認標準有顯示在百分比按鈕上方。

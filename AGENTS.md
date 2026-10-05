@@ -97,6 +97,12 @@ Facts the code depends on:
 - **The trigger advances stages, never levels.** Finishing stage 3 leaves the
   swimmer there; moving up a level stays a coach recommendation an admin
   approves. Do not "fix" this by making the trigger promote.
+- **No coach report touches the live skill table until an admin confirms it**
+  (2026-10-05, not only assessments). `/api/coach/lesson-note` writes the
+  pending `progress_history` row only; `review-progress` and `report-edit` write
+  `student_skill_progress` through `lib/skill-progress-sync.ts`, so the stage
+  trigger can only fire on an approved report. The coach's own recorder lays
+  pending scores over the live ones (`pendingOverlay`).
 - Parents cannot read `student_skill_progress` (RLS gives it to coaches only).
   The parent dashboard therefore derives current percentages by merging
   `progress_history` snapshots newest-first. Do not switch it to the live table

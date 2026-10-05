@@ -8,6 +8,7 @@ import { sendEmail } from '@/lib/email'
 import { sendRenewalNotices, HOLD_RELEASE_DAYS } from '@/lib/fixed-classes'
 import { addDaysStr } from '@/lib/vouchers'
 import { formatTime12h } from '@/lib/date'
+import { allRows } from '@/lib/db-paging'
 
 export const runtime = 'nodejs'
 
@@ -40,16 +41,21 @@ export async function GET(req: NextRequest) {
   }
   const svc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  const { data: wallets, error } = await svc
+  // Paged: one read stopped at 1,000 wallets, and every family past that had
+  // its granted points outlive their year (found 2026-10-05). All pages are
+  // read before anything expires, so expiring a wallet -- which takes it out
+  // of this filter -- cannot shift a later page.
+  const { data: wallets, error } = await allRows(() => svc
     .from('point_wallets')
     .select('parent_id')
     .gt('balance_granted', 0)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    .order('parent_id'))
+  if (error) return NextResponse.json({ error: error.message || String(error) }, { status: 500 })
 
   let expiredFamilies = 0
   let expiredPoints = 0
   const failed: string[] = []
-  for (const w of wallets || []) {
+  for (const w of wallets) {
     try {
       const n = await expireGrantedPoints(svc, w.parent_id)
       if (n > 0) { expiredFamilies++; expiredPoints += n }
@@ -125,7 +131,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     renewalsSent: renewals.sent, renewalsFailed: renewals.failed,
     vouchersExpired: vouchers.expired, vouchersReminded: vouchers.reminded, vouchersFailed: vouchers.failed,
-    checked: (wallets || []).length, expiredFamilies, expiredPoints, failed: failed.length,
+    checked: wallets.length, expiredFamilies, expiredPoints, failed: failed.length,
     referralsAwarded: referrals.awarded, referralsFailed: referrals.failed,
     assessmentCreditsAwarded: credits.awarded, assessmentCreditsExpired: credits.expired,
     assessmentCreditsFailed: credits.failed,

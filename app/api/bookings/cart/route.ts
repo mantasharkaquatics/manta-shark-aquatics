@@ -375,9 +375,17 @@ export async function POST(req: NextRequest) {
           if (!groups.has(key)) groups.set(key, [])
           groups.get(key)!.push(it)
         }
-        for (const [, items] of groups) {
+        for (const [, groupItems] of groups) {
+          // The cart holds items in the order they were added, and a group can
+          // mix times (same coach, Mon 3:00 and Wed 4:10). List them by date,
+          // and when the times differ say the time on every line -- one Time
+          // row taken from the first item tells the family the wrong hour.
+          const items = [...groupItems].sort((a: any, b: any) =>
+            String(a.session_date).localeCompare(String(b.session_date)) || String(a.start_time).localeCompare(String(b.start_time)))
           const first = items[0]
-          const timeStr = `${formatTime12h(first.start_time)} \u2013 ${formatTime12h(first.end_time)}`
+          const rangeOf = (it: any) => `${formatTime12h(it.start_time)} \u2013 ${formatTime12h(it.end_time)}`
+          const timeStr = rangeOf(first)
+          const uniformTime = items.every((it: any) => rangeOf(it) === timeStr)
           if (items.length === 1) {
             await sendEmail({
               type: 'booking_confirmed', to: parentRow.email, parentName: parentRow.first_name,
@@ -388,7 +396,9 @@ export async function POST(req: NextRequest) {
             await sendEmail({
               type: 'booking_series_confirmed', to: parentRow.email, parentName: parentRow.first_name,
               studentName: first.student_name, courseName: first.course_name, coachName: first.coach_name,
-              dates: items.map((i: any) => i.session_date), time: timeStr,
+              dates: items.map((i: any) => i.session_date),
+              times: uniformTime ? undefined : items.map(rangeOf),
+              time: uniformTime ? timeStr : undefined,
             })
           }
         }

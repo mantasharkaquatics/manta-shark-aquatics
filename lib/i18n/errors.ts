@@ -12,6 +12,13 @@ const MAP: readonly (readonly [string, string])[] = [
   ['Failed to verify phone number', 'err.phoneLookupFailed'],
   ['Failed to create verification code', 'err.createCodeFailed'],
   ['Failed to send email', 'err.sendEmailFailed'],
+  // app/api/auth/complete-registration: the code behind a field expired or
+  // was already used while the form was filled in.
+  ['Please enter a valid US phone number', 'err.usPhoneOnly'],
+  ['Too many codes requested from this network', 'err.otpTooManyFromNetwork'],
+  ['Email verification is missing or has expired', 'err.emailProofMissing'],
+  ['Phone verification is missing or has expired', 'err.phoneProofMissing'],
+  ['Could not create the account', 'err.generic'],
   ['Verification code not found', 'err.codeNotFound'],
   ['Verification code expired', 'err.codeExpired'],
   ['Incorrect verification code', 'err.codeIncorrect'],

@@ -73,10 +73,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ...and only on a swimmer who is really in it (found 2026-10-04). The
-  // session check alone let a coach file a report, and write the live skill
-  // table, for ANY student id against one of their own sessions. The swimmer
-  // needs a real booking (not cancelled, in a basket, unpaid or an unaccepted
-  // invite) in this session, or in the other half of this session's hour.
+  // session check alone let a coach file a report (which then also wrote the
+  // live skill table) for ANY student id against one of their own sessions.
+  // The swimmer needs a real booking (not cancelled, in a basket, unpaid or an
+  // unaccepted invite) in this session, or in the other half of this session's
+  // hour.
   // lesson_group_id comes from that booking, not the form, so a crafted group
   // id cannot point the report at someone else's lesson.
   const { data: ownBooking } = await svc
@@ -156,7 +157,8 @@ export async function POST(req: NextRequest) {
     .from('skills').select('id, name, is_active').eq('level_id', lvl.id)
   // Active skills only (found 2026-10-04): a retired skill is not shown on the
   // recorder (/api/coach/progress GET filters is_active), so a score for one is
-  // a stale tab or a hand-made request, and must not land in the live table.
+  // a stale tab or a hand-made request, and must not reach the live table when
+  // the report is confirmed.
   const allowedSkills = new Set((levelSkills || []).filter((k: any) => k.is_active !== false).map((k: any) => k.id))
   for (const [id, v] of Object.entries(progress)) {
     const n = Number(v)
@@ -343,27 +345,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- 5. The progress half, same lesson key ----
-  // student_skill_progress is the live picture and is written now; the family
-  // only ever sees the approved progress_history row, so nothing leaks early.
-  // Not for an assessment: the swimmer has no level yet, and the scores belong
-  // to a level an admin may still change. The confirm writes them.
-  if (!assessment) {
-    const upserts = Object.entries(progress).map(([skill_id, pct]) => ({
-      student_id: studentId,
-      skill_id,
-      progress_percent: pct as number,
-      last_updated_by: coach.id,
-      last_updated_at: now,
-    }))
-    const { error: sspError } = await svc
-      .from('student_skill_progress')
-      .upsert(upserts, { onConflict: 'student_id,skill_id' })
-    if (sspError) {
-      console.error('lesson-note: skill progress save failed', sspError)
-      return NextResponse.json({ error: 'Could not save the skill progress' }, { status: 500 })
-    }
-  }
-
+  // Queued only. student_skill_progress used to be written here, the moment
+  // the coach sent the report -- and the stage trigger fired on that write, so
+  // the family saw the swimmer in a new stage while the report still sat in
+  // Reviews (found 2026-10-05). The owner's rule is that nothing the family
+  // sees moves until an admin confirms: /api/admin/review-progress writes the
+  // live table from the approved row. The coach's recorder reads this pending
+  // row back (lib/skill-progress-sync pendingOverlay), so their next lesson
+  // still starts from what they sent.
   const historyRow = {
     student_id: studentId,
     coach_id: coach.id,

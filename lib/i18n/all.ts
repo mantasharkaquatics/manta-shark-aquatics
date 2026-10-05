@@ -25,4 +25,4 @@ export function messagesFor(locale: Locale, staff = false): Dict {
   return { ...(locale === 'en' ? {} : SITE[locale]), ...(staff ? STAFF[locale] : {}) }
 }
 
-export { getT, translate, tDb, dateTag, LOCALES, DEFAULT_LOCALE, isLocale, type Locale } from './index'
+export { getT, translate, tDb, dateTag, toLocale, LOCALES, DEFAULT_LOCALE, isLocale, type Locale } from './index'

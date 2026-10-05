@@ -46,9 +46,14 @@ export default async function AdminDashboardPage() {
   ] = await Promise.all([
     supabase.from('parents').select('*', { count: 'exact', head: true }),
     supabase.from('students').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    // Both cards counted a .limit(5) list and so never showed more than 5
-    // (found 2026-10-04). This list was never displayed: count it instead.
-    supabase.from('students').select('*', { count: 'exact', head: true }).eq('upgrade_pending', true),
+    // What Reviews lists as level recommendations (lib/admin/review-queues.ts):
+    // pending level_recommendations, which covers coach upgrade suggestions and
+    // assessments alike. This used to count students.upgrade_pending, a column
+    // nothing writes any more, so the card sat at 0 while Reviews had work
+    // waiting (found 2026-10-05). A head count, not loadReviewQueues -- that is
+    // the second-long pass AGENTS.md keeps off page renders. Service client
+    // because the queue itself is read with one.
+    serviceClient().from('level_recommendations').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('coach_time_off').select('id, date, reason, coaches(first_name, last_name)').gte('date', today).order('date').limit(5),
     supabase.from('class_sessions').select('id, start_time, end_time, enrolled_count, max_students, course_types(id, name), coaches(first_name)').eq('session_date', today).neq('status', 'cancelled').gt('enrolled_count', 0).order('start_time'),
     // The time-off list above stops at 5 for display; the card needs the total.

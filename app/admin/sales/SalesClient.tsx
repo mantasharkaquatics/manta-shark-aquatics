@@ -12,6 +12,15 @@ const PAYMENT_METHODS = [
   { value: 'cash', labelKey: 'admin.sales.pm.cash' },
 ]
 
+// Terminal card sales were written under three labels: 'Credit Card (Terminal)'
+// by points and assessment sales, 'card' by SDP sales and the raw
+// 'stripe_terminal' by Swim Team sales, so filtering by terminal left the SDP
+// and team ones out of the list and its total (found 2026-10-05). Every POS
+// route now writes 'Credit Card (Terminal)'; older invoices keep what they
+// have, so the filter treats all three as one.
+const TERMINAL_LABELS = new Set(['Credit Card (Terminal)', 'card', 'stripe_terminal'])
+const pmBucket = (pm: string | null | undefined) => (pm && TERMINAL_LABELS.has(pm) ? 'Credit Card (Terminal)' : pm)
+
 // Sale-type filter: value is matched in the filter logic, label is shown.
 const SALE_TYPES = [
   { value: 'All', labelKey: 'admin.sales.all' },
@@ -86,7 +95,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
       }
 
       // Payment method
-      if (payMethod !== 'All' && inv.payment_method !== payMethod) return false
+      if (payMethod !== 'All' && pmBucket(inv.payment_method) !== payMethod) return false
 
       // Date range
       if (dateRange !== 'All') {

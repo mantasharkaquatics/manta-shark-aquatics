@@ -12,6 +12,9 @@ type Props = {
   // Handed up rather than submitted here: progress and the recording go to the
   // server together in one action, so this component only captures.
   onChange: (capture: Capture | null) => void
+  /** The take the parent is still holding for this card, shown again when the
+   *  card is reopened (a coach moving between swimmers in a 1-on-4). */
+  initial?: Capture | null
 }
 
 type Phase = 'idle' | 'recording' | 'review' | 'error'
@@ -26,25 +29,35 @@ function pickMimeType(): string | undefined {
   return undefined
 }
 
+/* One player URL per take, however many times its card is reopened. A take
+   now outlives the recorder (see the cleanup below), so its URL does too: it is
+   revoked when the coach throws the take away, not when the card closes. */
+const takeUrls = new WeakMap<Blob, string>()
+function urlFor(blob: Blob): string {
+  let url = takeUrls.get(blob)
+  if (!url) { url = URL.createObjectURL(blob); takeUrls.set(blob, url) }
+  return url
+}
+
 export default function LessonNoteCapture({
-  studentName, defaultLanguage, disabled, onChange,
+  studentName, defaultLanguage, disabled, onChange, initial,
 }: Props) {
-  const [phase, setPhase] = useState<Phase>('idle')
+  const [phase, setPhase] = useState<Phase>(initial ? 'review' : 'idle')
   const t = useT()
-  const [language, setLanguage] = useState<'zh-Hant' | 'en'>(defaultLanguage)
-  const [seconds, setSeconds] = useState(0)
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [language, setLanguage] = useState<'zh-Hant' | 'en'>(initial?.language ?? defaultLanguage)
+  const [seconds, setSeconds] = useState(initial?.seconds ?? 0)
+  const [audioUrl, setAudioUrl] = useState<string | null>(() => initial ? urlFor(initial.blob) : null)
   const [message, setMessage] = useState('')
 
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const urlRef = useRef<string | null>(null)
+  const urlRef = useRef<string | null>(audioUrl)
   // Kept in step with the seconds state so onstop can read the elapsed time
   // directly. Reading it through a setSeconds updater instead would call
   // onChange during React's render phase, which updates the parent mid-render.
-  const secondsRef = useRef(0)
+  const secondsRef = useRef(initial?.seconds ?? 0)
 
   // The latest onChange, for the unmount cleanup below (which runs once).
   const onChangeRef = useRef(onChange)
@@ -53,16 +66,18 @@ export default function LessonNoteCapture({
   useEffect(() => {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current)
-      /* Gone from the screen means gone from the report. The parent used to
-         keep the last take after the recorder unmounted -- collapse the card
-         and reopen it, and an empty recorder sat above an enabled Send that
-         would upload the take no longer shown. A take still being recorded is
-         dropped too: its onstop would otherwise fire after this and hand the
-         parent a cut-off clip. */
-      if (recorderRef.current) recorderRef.current.onstop = null
+      /* A finished take outlives the recorder (found 2026-10-05). Only one card
+         is open at a time, so in a 1-on-4 opening swimmer B's card closed A's,
+         and dropping A's take here meant the coach recorded A's note again or
+         left it unsent. The parent keeps it and hands it back as `initial`, so
+         the recorder reopens showing exactly what Send would upload. A take
+         still being RECORDED is dropped: its onstop would otherwise fire after
+         this and hand the parent a cut-off clip. */
+      if (recorderRef.current) {
+        recorderRef.current.onstop = null
+        onChangeRef.current(null)
+      }
       streamRef.current?.getTracks().forEach(t => t.stop())
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
-      onChangeRef.current(null)
     }
   }, [])
 
@@ -91,7 +106,7 @@ export default function LessonNoteCapture({
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/mp4' })
-        const url = URL.createObjectURL(blob)
+        const url = urlFor(blob)
         urlRef.current = url
         setAudioUrl(url)
         streamRef.current?.getTracks().forEach(t => t.stop())

@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { LEGAL_VERSIONS } from '@/lib/legal'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -150,12 +149,20 @@ export default function RegisterClient() {
      registering again said "already registered", and signing in bounced off
      the dashboard. Now a signed-in user with no parent, coach or admin record
      lands here (the login page sends them) and the form only adds the missing
-     rows: email is the account's own, so it needs no code, and the password
-     already exists. createdUserRef covers the same failure without a
-     reload: a second press of "Create account" must not sign up again. */
+     rows. The email is the account's own and cannot be changed, and the
+     password already exists.
+
+     The email still needs a code here (changed 2026-10-05): the family row
+     is now created by /api/auth/complete-registration, which refuses
+     without a recent verified code for the login's email -- otherwise a
+     login made straight through the auth API with a stranger's address
+     could be "finished" without ever proving it.
+
+     The same mode is entered without a reload when signUp worked but the
+     family row did not save: a second press of "Create account" must not
+     sign up again. */
   const [finish, setFinish] = useState<{ userId: string; email: string } | null>(null)
-  const createdUserRef = useRef<{ userId: string; email: string } | null>(null)
-  const emailOk = emailVerified || !!finish
+  const emailOk = emailVerified
   // ?next= is only readable in the browser; set after mount so the server
   // and client render the same href.
   const [signInHref, setSignInHref] = useState('/login')
@@ -392,57 +399,60 @@ export default function RegisterClient() {
     if (students.some(s => s.fullName.trim() && !s.dateOfBirth)) { setError(t('register.err.studentDob')); return }
     if (students.some(s => s.dateOfBirth && s.dateOfBirth > getTodayLA())) { setError(t('register.err.dobFuture')); return }
     setLoading(true); setError('')
-    const now = new Date().toISOString()
-    // The parents row must carry the address the login was made with, even
-    // if the email field was edited between a failed attempt and the retry.
-    let account = finish ?? createdUserRef.current
-    if (!account) {
+    // The login first, from the browser, so the session cookies are set
+    // exactly as before. Once it exists the page is in "finish" mode: a retry
+    // goes straight to the family record and never signs up twice.
+    if (!finish) {
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
       if (authError || !authData.user) { setError(tErr(authError?.message, 'register.err.signupFailed')); setLoading(false); return }
-      account = { userId: authData.user.id, email }
-      createdUserRef.current = account
+      setFinish({ userId: authData.user.id, email })
     }
-    const { data: parent, error: parentError } = await supabase.from('parents').insert({
-      auth_user_id: account.userId,
-      first_name: firstName, last_name: lastName, email: account.email, phone: normalizePhoneForSave(phone),
-      registered_at: now, terms_accepted_at: now, terms_version: LEGAL_VERSIONS.terms,
-      waiver_accepted_at: now, waiver_version: LEGAL_VERSIONS.waiver,
-      media_release_accepted: mediaAccepted, media_release_at: mediaAccepted ? now : null,
-      newsletter_subscribed: newsletter, last_login_at: now, preferred_language: locale,
-      address_line1: addressLine1, address_line2: addressLine2 || null,
-      city, state, zip_code: zipCode,
-    }).select().single()
-    if (parentError || !parent) {
-      // The raw text here is a database message (constraint names, RLS
-      // wording) -- English, and meaningless to a parent. Log it; show ours.
-      console.error('register: parents insert failed', parentError)
-      const k = errorKey(parentError?.message)
-      setError(t('register.err.createFailed') + t(k || 'err.generic'))
+    // Then the family record, on the server (found 2026-10-05): it checks the
+    // email and phone codes itself, so they cannot be skipped from the
+    // console. Parents, swimmers and the referral are all written there.
+    let data: any = null
+    try {
+      const res = await fetch('/api/auth/complete-registration', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: firstName, last_name: lastName, phone,
+          address_line1: addressLine1, address_line2: addressLine2 || null,
+          city, state, zip_code: zipCode,
+          terms_accepted: termsAccepted, waiver_accepted: waiverAccepted,
+          media_release_accepted: mediaAccepted, newsletter_subscribed: newsletter,
+          preferred_language: locale,
+          students: students.filter(s => s.fullName.trim()).map(s => ({ full_name: s.fullName.trim(), date_of_birth: s.dateOfBirth })),
+          // Best effort on the server: a code that fails must not block the
+          // account. lib/referrals re-checks everything.
+          referral_code: referralCode.trim() && referral?.valid ? referralCode.trim() : null,
+        }),
+      })
+      data = await res.json().catch(() => null)
+      if (!res.ok && !data) data = { error: '' }
+    } catch {
+      data = { error: '' }
+    }
+    if (!data?.ok) {
+      // A code that expired (or was used) while the form was filled in: back
+      // to step 1 with that field open again, rather than a dead end.
+      if (data?.code === 'EMAIL_NOT_VERIFIED') {
+        setEmailVerified(false); setEmailOtpSent(false); setEmailOtpCode('')
+        setStep(1); setError(tErr(data.error, 'register.err.verifyEmail')); setLoading(false); return
+      }
+      if (data?.code === 'PHONE_NOT_VERIFIED') {
+        setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode('')
+        setStep(1); setError(tErr(data.error, 'register.err.verifyPhone')); setLoading(false); return
+      }
+      // Anything else is shown through our own wording, never raw server or
+      // database text.
+      console.error('register: complete-registration failed', data)
+      setError(t('register.err.createFailed') + t(errorKey(data?.error) || 'err.generic'))
       setLoading(false); return
     }
-    let sortOrder = 1
-    // A failed insert used to be ignored, so the family landed on a dashboard
-    // with no child and no word about it. Now they are told, and the account --
-    // which already exists -- can add the swimmer from My Account.
-    let studentFailed = false
-    for (const s of students.filter(s => s.fullName.trim())) {
-      const { error: stuErr } = await supabase.from('students').insert({
-        parent_id: parent.id, full_name: s.fullName.trim(),
-        date_of_birth: s.dateOfBirth, current_level: null, is_active: true,
-        sort_order: sortOrder++,
-      })
-      if (stuErr) { console.error('register: student insert failed', stuErr); studentFailed = true }
-    }
-    // Best effort: a code that fails here must not block the account, which
-    // already exists. The server re-checks everything.
-    if (referralCode.trim() && referral?.valid) {
-      try {
-        await fetch('/api/referrals/claim', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: referralCode.trim() }),
-        })
-      } catch {}
-    }
+    // A failed swimmer insert used to be ignored, so the family landed on a
+    // dashboard with no child and no word about it. Now they are told, and the
+    // account -- which already exists -- can add the swimmer from My Account.
+    const studentFailed = !!data.student_failed
     // Registered: a remembered link has done its job either way.
     forgetReferral()
     setLoading(false)
@@ -525,7 +535,7 @@ export default function RegisterClient() {
                   field was squeezed to about a third of a phone screen -- you
                   could not see the address you were typing. Stacked below sm. */}
               <div className="flex flex-col sm:flex-row gap-2">
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailOk}
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailOk || !!finish}
                   className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {emailOk ? (
                   <span className="flex items-center px-3 text-green-700 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
@@ -740,11 +750,4 @@ export default function RegisterClient() {
       </div>
     </div>
   )
-}
-
-function normalizePhoneForSave(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 10) return '+1' + digits
-  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits
-  return phone.startsWith('+') ? phone : '+' + digits
 }

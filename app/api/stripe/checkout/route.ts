@@ -169,13 +169,20 @@ export async function POST(req: NextRequest) {
       .from('point_wallets').select('balance_purchased').eq('parent_id', parent.id).maybeSingle()
     if ((existingWallet?.balance_purchased ?? 0) < 0) {
       bankDebitOk = false
-    } else if (dollars > FIRST_TOPUP_BANK_CAP_DOLLARS) {
+    } else {
       // "Paid by us before" used to mean any purchases row with status 'paid',
       // which a Swim Assessment writes, and which a bank-debit top-up writes
       // the moment checkout completes -- days before the money settles. So
       // the cap never applied: a family's first $500 debit, still unsettled,
       // lifted it for a $10,000 one (found 2026-10-05).
-      bankDebitOk = await hasSettledPointsPurchase(svcForGate, parent.id)
+      //
+      // And the cap is on the TOTAL not yet settled, not on this one checkout:
+      // five $500 debits from an empty account were five passes of a $500 cap,
+      // and the points land before the money does (found 2026-10-05).
+      const exposure = await bankDebitExposure(svcForGate, parent.id)
+      bankDebitOk = exposure.settled
+        || (exposure.unsettledDollars !== null
+          && exposure.unsettledDollars + dollars <= FIRST_TOPUP_BANK_CAP_DOLLARS)
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -199,6 +206,10 @@ export async function POST(req: NextRequest) {
         parent_id: parent.id,
         points: String(dollars),
       },
+      // An open bank-debit checkout counts against the cap (bankDebitExposure),
+      // so one the parent walked away from should not hold it for Stripe's
+      // default 24 hours. An hour is plenty to finish paying.
+      ...(bankDebitOk ? { expires_at: Math.floor(Date.now() / 1000) + 60 * 60 } : {}),
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
     })
@@ -211,7 +222,8 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Has this family ever paid us for points with money that actually arrived?
+ * Has this family ever paid us for points with money that actually arrived,
+ * and if not, how many dollars of bank debit are still on their way?
  *
  * A points purchase is one with a 'purchase' row in the ledger -- the only
  * writers are the points webhook and the desk POS, so a Swim Assessment (no
@@ -224,24 +236,39 @@ export async function POST(req: NextRequest) {
  * purchases.fee_captured_at was considered and not used: it is filled
  * best-effort and, for bank debits, only by the backfill an admin runs by
  * hand, so a settled debit could wait on it indefinitely.
+ *
+ * With nothing settled, every unreversed purchase that is not 'succeeded' is
+ * money still owed to us, and so is every bank-debit points checkout this
+ * family has open right now (several opened side by side would otherwise each
+ * see nothing outstanding). unsettledDollars is null when that could not be
+ * worked out; the caller then offers cards only.
  */
-async function hasSettledPointsPurchase(svc: any, parentId: string): Promise<boolean> {
-  const { data: rows } = await svc
+async function bankDebitExposure(svc: any, parentId: string): Promise<{ settled: boolean; unsettledDollars: number | null }> {
+  const { data: rows, error } = await svc
     .from('point_ledger')
-    .select('reason, stripe_session_id, created_at')
+    .select('reason, stripe_session_id, delta_purchased, created_at')
     .eq('parent_id', parentId)
     .in('reason', ['purchase', 'payment_failed', 'chargeback'])
     .order('created_at', { ascending: false })
     .limit(100)
+  if (error) {
+    console.error('bank-cap check: could not read the ledger:', error.message)
+    return { settled: false, unsettledDollars: null }
+  }
   const reversed = new Set((rows || [])
     .filter((r: any) => r.reason !== 'purchase' && r.stripe_session_id)
     .map((r: any) => r.stripe_session_id))
   const bought = (rows || []).filter((r: any) =>
     r.reason === 'purchase' && !(r.stripe_session_id && reversed.has(r.stripe_session_id)))
-  if (bought.some((r: any) => !r.stripe_session_id)) return true
+  if (bought.some((r: any) => !r.stripe_session_id)) return { settled: true, unsettledDollars: 0 }
 
-  // Newest first, and only a handful: this runs only above the cap.
-  for (const r of bought.slice(0, 5)) {
+  // Newest first, stopping at the first settled one -- for a family we know,
+  // that is usually the first or second. A family with no settled payment has
+  // only a few purchases; past ten unsettled ones the answer is "cards".
+  let unsettled = 0
+  let unknown = false
+  for (const [i, r] of bought.entries()) {
+    if (i >= 10) return { settled: false, unsettledDollars: null }
     const key = String(r.stripe_session_id)
     try {
       let pi: Stripe.PaymentIntent | string | null = null
@@ -251,11 +278,36 @@ async function hasSettledPointsPurchase(svc: any, parentId: string): Promise<boo
       } else if (key.startsWith('pi_')) {
         pi = await stripe.paymentIntents.retrieve(key)
       }
-      if (pi && typeof pi === 'object' && pi.status === 'succeeded') return true
+      if (pi && typeof pi === 'object' && pi.status === 'succeeded') return { settled: true, unsettledDollars: 0 }
     } catch (e: any) {
       // Unknown is not settled: the family is offered cards, not refused.
       console.error(`bank-cap check: could not read ${key}:`, e?.message)
+      unknown = true
+      continue
     }
+    unsettled += Math.max(0, Number(r.delta_purchased) || 0)
   }
-  return false
+  if (unknown) return { settled: false, unsettledDollars: null }
+
+  // Open checkouts that offer bank debit. Points checkouts with bank debit
+  // expire after an hour (see the create call), so a day back is all of them.
+  try {
+    // Cast: these filters are in Stripe's API and in the SDK's .d.ts, but this
+    // project's type check sees only the pagination fields of the params type.
+    const recent = await stripe.checkout.sessions.list({
+      status: 'open',
+      created: { gte: Math.floor(Date.now() / 1000) - 24 * 60 * 60 },
+      limit: 100,
+    } as Stripe.Checkout.SessionListParams).autoPagingToArray({ limit: 1000 })
+    for (const cs of recent) {
+      if (cs.status !== 'open') continue
+      if (cs.metadata?.kind !== 'points' || cs.metadata?.parent_id !== parentId) continue
+      if (!(cs.payment_method_types || []).includes('us_bank_account')) continue
+      unsettled += Math.max(0, Number(cs.metadata?.points) || 0)
+    }
+  } catch (e: any) {
+    console.error('bank-cap check: could not list open checkouts:', e?.message)
+    return { settled: false, unsettledDollars: null }
+  }
+  return { settled: false, unsettledDollars: unsettled }
 }

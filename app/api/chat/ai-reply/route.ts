@@ -11,6 +11,10 @@ import { walletSummary } from '@/lib/points-wallet'
 import { getTodayLA, getNowMinutesLA, formatTime12h, formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { cancelLesson } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
+import { ASSESSMENT_MAX_DAYS } from '@/lib/assessment-slot'
+import { TRIAL_HOLD_MINUTES } from '@/lib/plans'
+import { LEAVE_WINDOW_DAYS } from '@/lib/vouchers'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 
 // The fixed texts this route posts itself (the catch-all fallback and the two
 // guard replacements) used to be English only, even to a parent writing in
@@ -69,7 +73,10 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   const today = getTodayLA()
   const dayDiff = Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000)
   if (isNaN(dayDiff) || dayDiff < 0) return { error: 'Date is in the past or invalid.' }
-  if (dayDiff > 14) return { error: 'Slots can only be checked up to 14 days ahead. Ask the parent for a date within 2 weeks.' }
+  // The assessment is exempt from the 14-day single-lesson window: the
+  // booking page takes it up to ASSESSMENT_MAX_DAYS out, and the chat used to
+  // tell parents "within 2 weeks" (found 2026-10-05).
+  if (dayDiff > ASSESSMENT_MAX_DAYS) return { error: `Slots can only be checked up to ${ASSESSMENT_MAX_DAYS} days ahead. Ask the parent for a date within ${ASSESSMENT_MAX_DAYS} days.` }
   const dow = new Date(date + 'T00:00:00Z').getUTCDay()
 
   let coachQ = svc.from('coaches').select('id, first_name, last_name').eq('is_active', true)
@@ -96,19 +103,24 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
     busy.get(s.coach_id)!.push({ s: st, e: en })
   }
   const isBusy = (coachId: string, a: number, b: number) => (busy.get(coachId) || []).some(iv => a < iv.e && b > iv.s)
-  const { data: ownBookings } = await svc
+  // Paged and chunked (lib/db-paging): unpaged, a family past 1,000 rows lost
+  // its newest bookings here, and every session id in one .in() is past what
+  // the API takes.
+  const { data: ownBookings } = await allRows(() => svc
     .from('bookings')
-    .select('class_session_id, student_id, status')
+    .select('id, class_session_id, student_id, status')
     .eq('parent_id', parentId)
     .not('status', 'in', '("cancelled","pending_partner")')
-  const ownSessionIds = (ownBookings || []).map((b: any) => b.class_session_id).filter(Boolean)
+    .order('id', { ascending: true }))
+  const ownSessionIds = [...new Set(ownBookings.map((b: any) => b.class_session_id).filter(Boolean))] as string[]
   const ownTimes = new Map<string, string>()
   if (ownSessionIds.length) {
-    const { data: ownSess } = await svc
+    const { data: ownSess } = await allRowsIn(ownSessionIds, chunk => svc
       .from('class_sessions')
       .select('id, coach_id, start_time')
-      .in('id', ownSessionIds)
+      .in('id', chunk)
       .eq('session_date', date)
+      .order('id', { ascending: true }))
     const stuIds = [...new Set((ownBookings || []).map((b: any) => b.student_id).filter(Boolean))]
     const { data: stus } = stuIds.length
       ? await svc.from('students').select('id, full_name').in('id', stuIds)
@@ -198,7 +210,7 @@ const TOOLS = [
   },
   {
     name: 'get_trial_slots',
-    description: 'Get real available Swim Assessment time slots for a date (within 14 days). Optionally filter by coach_id. Never invent availability; only present times returned by this tool.',
+    description: `Get real available Swim Assessment time slots for a date (up to ${ASSESSMENT_MAX_DAYS} days ahead; the assessment is not limited to 14 days). Optionally filter by coach_id. Never invent availability; only present times returned by this tool.`,
     input_schema: {
       type: 'object',
       properties: {
@@ -210,7 +222,7 @@ const TOOLS = [
   },
   {
     name: 'book_trial_pending',
-    description: 'Reserve one Swim Assessment slot (pending payment) and get a secure payment link. Only call AFTER the parent has clearly confirmed this exact student, date and time in a LATER message. The slot is held ~30 minutes; the booking is confirmed only after the parent pays.',
+    description: `Reserve one Swim Assessment slot (pending payment) and get a secure payment link. Only call AFTER the parent has clearly confirmed this exact student, date and time in a LATER message. The slot is held ${TRIAL_HOLD_MINUTES} minutes; the booking is confirmed only after the parent pays.`,
     input_schema: {
       type: 'object',
       properties: {
@@ -330,22 +342,28 @@ export async function POST(req: NextRequest) {
 
   // ---------- helpers used by multiple tools ----------
   async function fetchLessonRows(pastNotFuture: boolean) {
-    const { data: bookings } = await svc
+    // Paged and ordered by id: one unpaged read stops at 1,000 rows without a
+    // word, and the rows it dropped were whichever the database returned last
+    // -- the assistant could then tell a family they had no lesson when they
+    // did. The session lookup is chunked for the same reason (lib/db-paging).
+    const { data: bookings } = await allRows(() => svc
       .from('bookings')
       .select('id, student_id, class_session_id, status, partner_booking_id, points_charged, is_trial')
       .eq('parent_id', parent!.id)
       .neq('status', 'cancelled')
       .neq('status', 'pending_partner')
-    const rows = bookings || []
+      .order('id', { ascending: true }))
+    const rows: any[] = bookings
     if (!rows.length) return []
-    const sessionIds = [...new Set(rows.map(b => b.class_session_id).filter(Boolean))]
-    const { data: sessions } = await svc
+    const sessionIds = [...new Set(rows.map(b => b.class_session_id).filter(Boolean))] as string[]
+    const { data: sessions } = await allRowsIn(sessionIds, chunk => svc
       .from('class_sessions')
       .select('id, session_date, start_time, end_time, coach_id, course_type_id')
-      .in('id', sessionIds)
-    const sMap = new Map((sessions || []).map(s => [s.id, s]))
-    const coachIds = [...new Set((sessions || []).map(s => s.coach_id).filter(Boolean))]
-    const ctIds = [...new Set((sessions || []).map(s => s.course_type_id).filter(Boolean))]
+      .in('id', chunk)
+      .order('id', { ascending: true }))
+    const sMap = new Map(sessions.map((s: any) => [s.id, s]))
+    const coachIds = [...new Set(sessions.map((s: any) => s.coach_id).filter(Boolean))]
+    const ctIds = [...new Set(sessions.map((s: any) => s.course_type_id).filter(Boolean))]
     const studentIds = [...new Set(rows.map(b => b.student_id).filter(Boolean))]
     const [coachRes, ctRes, stuRes] = await Promise.all([
       coachIds.length ? svc.from('coaches').select('id, first_name, last_name').in('id', coachIds) : Promise.resolve({ data: [] }),
@@ -487,7 +505,10 @@ export async function POST(req: NextRequest) {
       // and books the make-up with the voucher that gives them.
       {
         const { data: fb } = await svc.from('bookings').select('fixed_class_id').eq('id', row.booking_id).maybeSingle()
-        if (fb?.fixed_class_id) return { error: 'This lesson is part of a fixed weekly class and cannot be rescheduled. Cancelling it at least 24 hours ahead turns it into a make-up voucher, which the family can use to book another time within four weeks.' }
+        // A leave voucher is NOT the four-week kind: its make-up has to fall
+        // within LEAVE_WINDOW_DAYS either side of the missed lesson. The text
+        // said "within four weeks", which the model passed on (found 2026-10-05).
+        if (fb?.fixed_class_id) return { error: `This lesson is part of a fixed weekly class and cannot be rescheduled. Taking leave at least 24 hours ahead turns it into a make-up voucher for a make-up dated within ${LEAVE_WINDOW_DAYS} days before or after this lesson; it can be booked right away. (Inside 24 hours, leave uses the child's monthly grace and that voucher lasts 4 weeks.)` }
       }
       if (row.course_slug === 'assessment') {
         escalate = true
@@ -637,7 +658,7 @@ export async function POST(req: NextRequest) {
         date,
         time: formatTime12h(time),
         payment_url: data.url,
-        note: 'Slot reserved PENDING PAYMENT only. The parent must pay via payment_url within 30 minutes or the slot is released automatically. Never say the booking is confirmed.',
+        note: `Slot reserved PENDING PAYMENT only. The parent must pay via payment_url within ${TRIAL_HOLD_MINUTES} minutes or the slot is released automatically. Never say the booking is confirmed.`,
       }
     }
 

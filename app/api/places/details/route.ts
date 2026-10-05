@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serviceClient } from '@/lib/api-auth'
+import { takeIpSlot } from '@/lib/ip-rate-limit'
+
+export const runtime = 'nodejs'
+
+// Public for the same reason as ./autocomplete (registration, no account yet),
+// and paid per call, so fenced per network too (found 2026-10-05). One call
+// per address picked from the list.
+const MAX_PER_IP_PER_HOUR = 20
 
 export async function GET(req: NextRequest) {
   const place_id = req.nextUrl.searchParams.get('place_id')
@@ -9,6 +18,9 @@ export async function GET(req: NextRequest) {
   if (place_id.length > 512 || !/^[A-Za-z0-9_-]+$/.test(place_id)) {
     return NextResponse.json({ error: 'Invalid place_id' }, { status: 400 })
   }
+  // On a refusal the page fills nothing in and the family types the address.
+  const slot = await takeIpSlot(serviceClient(), req, 'places-details', MAX_PER_IP_PER_HOUR, 60 * 60 * 1000)
+  if (slot !== 'ok') return NextResponse.json({}, { status: slot === 'limited' ? 429 : 503 })
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY
   const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(place_id)}`

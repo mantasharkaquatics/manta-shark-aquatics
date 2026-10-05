@@ -487,12 +487,28 @@ export async function POST(req: NextRequest) {
 
     const { data: curSess } = await svc.from('class_sessions')
       // coach_id and end_time come along so a half-done move can be undone.
-      .select('id, session_date, start_time, end_time, coach_id').in('id', Array.from(excludeSessIds))
+      .select('id, session_date, start_time, end_time, coach_id, course_type_id, max_students').in('id', Array.from(excludeSessIds))
     const ordered = (curSess || []).sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))
     if (ordered.length < 2)
       return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
     if (isWithin24Hours(ordered[0].session_date, String(ordered[0].start_time).slice(0, 5)))
       return NextResponse.json({ error: 'Lessons cannot be rescheduled within 24 hours of the start time.' }, { status: 400 })
+
+    // Other lessons' rows on these sessions (found 2026-10-05). Booking an hour
+    // reuses any open session at that coach and time with room -- including
+    // one left empty when another family cancelled -- and the move below
+    // carries every row on the session with it. A fixed-class leave moved that
+    // way changed the family's term "last lesson" and their voucher's "from
+    // lesson on" date to the day THIS lesson went to. Such rows are put back
+    // at the old time (after the move) on a session of their own. A row that
+    // is not cancelled would be a second family holding a seat in this
+    // lesson, which a move must not take anywhere -- that one goes to a person.
+    const { data: onHalves } = await svc.from('bookings')
+      .select('id, class_session_id, status, lesson_group_id')
+      .in('class_session_id', ordered.map((o: any) => o.id))
+    const foreign = (onHalves || []).filter((b: any) => b.lesson_group_id !== lesson_group_id)
+    if (foreign.some((b: any) => b.status !== 'cancelled'))
+      return NextResponse.json({ error: 'This lesson cannot be moved online. Please contact us.' }, { status: 409 })
 
     if (studentBusy(s1, e2))
       return NextResponse.json({ error: 'This swimmer already has a lesson during that hour.' }, { status: 409 })
@@ -535,6 +551,35 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: uErr.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not move the lesson.' }, { status: 409 })
       }
       moved.push(h.id)
+    }
+
+    // The other lessons' cancelled rows go back to where they were: a fresh
+    // session at the old coach, date and time (empty, as the one they were on
+    // was), so every date read through them -- termLastDates, the voucher's
+    // source lesson -- is the date they were actually for. The lesson itself
+    // has already moved; a failure here is logged, not undone.
+    const shape = new Map((curSess || []).map((c: any) => [c.id, c]))
+    for (const sid of [...new Set(foreign.map((b: any) => b.class_session_id as string))]) {
+      const was: any = shape.get(sid)
+      if (!was) continue
+      const rowIds = foreign.filter((b: any) => b.class_session_id === sid).map((b: any) => b.id)
+      const { data: home, error: hErr } = await svc.from('class_sessions')
+        .insert({ course_type_id: was.course_type_id, coach_id: was.coach_id, session_date: was.session_date,
+                  start_time: was.start_time, end_time: was.end_time, max_students: was.max_students,
+                  enrolled_count: 0, status: 'open' })
+        .select('id').single()
+      if (hErr || !home) {
+        console.error(`\u26a0\ufe0f hour reschedule: cancelled rows ${rowIds.join(', ')} moved with session ${sid} to ${session_date}; ` +
+          `their old session could not be recreated -- fix by hand:`, hErr?.message)
+        continue
+      }
+      const { error: rErr } = await svc.from('bookings').update({ class_session_id: home.id })
+        .in('id', rowIds).eq('status', 'cancelled')
+      if (rErr) {
+        console.error(`\u26a0\ufe0f hour reschedule: cancelled rows ${rowIds.join(', ')} moved with session ${sid} to ${session_date}; ` +
+          `they could not be put back on ${home.id} -- fix by hand:`, rErr.message)
+        await svc.from('class_sessions').delete().eq('id', home.id)
+      }
     }
 
     // Name everyone actually in the lesson, read back from the group rather

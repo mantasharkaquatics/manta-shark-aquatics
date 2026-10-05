@@ -179,7 +179,11 @@ export async function POST(req: NextRequest) {
     try {
       checkoutSession = await stripe.checkout.sessions.create({
         locale: 'en',
-        payment_method_types: ['card', 'us_bank_account'],
+        // Card only (owner, 2026-10-05). An assessment can be booked 30
+        // minutes ahead, and a bank debit takes days to settle: the booking
+        // sat in pending_payment, hidden from the coach and with no reminder,
+        // until after the lesson had happened.
+        payment_method_types: ['card'],
         mode: 'payment',
         customer_email: parent?.email,
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60 + 60,

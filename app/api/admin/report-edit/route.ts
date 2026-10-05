@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { refreshNoteTranslations } from '@/lib/ai/translate-note'
 import { readJson, badRequest } from '@/lib/http'
+import { cleanSnapshot, syncApprovedSkills } from '@/lib/skill-progress-sync'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
   // The previous values are captured before anything is written, so the trace
   // records what the family actually saw rather than what it is becoming.
   const { data: prevHistory } = await supabase
-    .from('progress_history').select('snapshot, coach_id').eq('id', history_id).single()
+    .from('progress_history').select('snapshot, coach_id, student_id').eq('id', history_id).single()
   let prevNote: string | null = null
   if (note_id) {
     const { data: n } = await supabase.from('lesson_notes').select('note').eq('id', note_id).single()
@@ -35,8 +36,10 @@ export async function POST(req: NextRequest) {
   })
   if (traceError) return NextResponse.json({ error: traceError.message }, { status: 500 })
 
-  if (snapshot) {
-    const { error } = await supabase.from('progress_history').update({ snapshot }).eq('id', history_id)
+  // Real skill ids with values 0-100 only, as every other write of a snapshot.
+  const cleaned = snapshot ? await cleanSnapshot(supabase, snapshot) : null
+  if (cleaned) {
+    const { error } = await supabase.from('progress_history').update({ snapshot: cleaned }).eq('id', history_id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -52,33 +55,19 @@ export async function POST(req: NextRequest) {
     await refreshNoteTranslations(supabase, note_id)
   }
 
-  // student_skill_progress holds the LATEST value per skill, so it is rebuilt
-  // from this student's most recent approved lesson - never from the row that
-  // happened to be edited, which may be months old.
-  const { data: latest } = await supabase
-    .from('progress_history')
-    .select('snapshot')
-    .eq('student_id', student_id)
-    .eq('status', 'approved')
-    .order('session_date', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (latest?.snapshot) {
-    const upserts = Object.entries(latest.snapshot).map(([skill_id, pct]) => ({
-      student_id,
-      skill_id,
-      progress_percent: pct as number,
-      last_updated_by: prevHistory?.coach_id ?? null,
-      last_updated_at: new Date().toISOString(),
-    }))
-    if (upserts.length > 0) {
-      const { error } = await supabase
-        .from('student_skill_progress')
-        .upsert(upserts, { onConflict: 'student_id,skill_id' })
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+  // student_skill_progress holds the LATEST value per skill, so each skill this
+  // report scores is rebuilt from the newest approved lesson that scored it --
+  // never simply from the row that happened to be edited, which may be months
+  // old. The stage follows: a skill lowered in a stage the swimmer has already
+  // passed puts them back in that stage (the trigger only ever moves forward).
+  if (cleaned) {
+    const synced = await syncApprovedSkills(supabase, {
+      // The report says whose it is; the body's student_id is only a fallback.
+      studentId: prevHistory?.student_id || student_id,
+      skillIds: [...Object.keys(prevHistory?.snapshot || {}), ...Object.keys(cleaned)],
+      stageBack: { adminId: admin_id },
+    })
+    if (!synced.ok) return NextResponse.json({ error: synced.error }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })

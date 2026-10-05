@@ -6,10 +6,11 @@ import { MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/point
 import { tierFor, tierBandLabel, TEAM_SQUAD_CAP, type TierBand } from '@/lib/team-tiers'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
+import { MAX_SDP_SESSIONS, MAX_SDP_UNIT_CENTS, SDP_COURSE_SLUGS, TRIAL_PRICE_CENTS } from '@/lib/pos/sale-checks'
 
 const NAVY = '#1a2744'
 const GOLD = '#c9a84c'
-const TRIAL_CENTS = 8500
+const TRIAL_CENTS = TRIAL_PRICE_CENTS
 
 type Parent = { id: string; first_name: string; last_name: string; email: string }
 type Student = { id: string; full_name: string; trial_used_at: string | null; current_level: number | null; current_stage: number | null }
@@ -17,6 +18,10 @@ type PosTier = TierBand & { id: string; name: string; monthly_price_cents: numbe
 type Coach = { id: string; first_name: string; last_name: string }
 type PayMethod = 'card' | 'cash'
 type Step = 'select' | 'success'
+/** A sale that took the money but did not finish recording. 'credit' adds the
+ *  points a recorded purchase is missing (/api/pos/retry-credit); 'record'
+ *  sends the same complete-* request again, which the server marks as safe. */
+type Recovery = { kind: 'credit'; body: unknown } | { kind: 'record'; url: string; body: unknown }
 
 const TIME_SLOTS: string[] = []
 for (let h = 6; h < 22; h++) {
@@ -64,6 +69,7 @@ export default function POSClient() {
   const [cashConfirmOpen, setCashConfirmOpen] = useState(false)
   const [showCashConfirm, setShowCashConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [recovery, setRecovery] = useState<Recovery | null>(null)
   const [terminal, setTerminal] = useState<any>(null)
   const [isTeam, setIsTeam] = useState(false)
   const [teamTiers, setTeamTiers] = useState<PosTier[]>([])
@@ -126,7 +132,11 @@ export default function POSClient() {
   useEffect(() => {
     if (!selectedParent || (!isTrial && !isTeam)) { setStudents([]); setSelectedStudentId(null); return }
     const q = supabase.from('students').select('id, full_name, trial_used_at, current_level, current_stage').eq('parent_id', selectedParent.id)
-    ;(isTrial ? q.is('trial_used_at', null) : q)
+    // The same rule the server checks before the card is charged: no
+    // assessment used AND no level yet. Filtering on trial_used_at alone
+    // offered swimmers whose level was set by hand, and the sale was refused
+    // only after the $85 had been taken (found 2026-10-05).
+    ;(isTrial ? q.is('trial_used_at', null).is('current_level', null) : q)
       .then(({ data }) => {
         setStudents(data || [])
         setSelectedStudentId(isTrial && data?.length ? data[0].id : null)
@@ -135,7 +145,8 @@ export default function POSClient() {
 
   useEffect(() => {
     if (!isSdp || sdpCourseTypes.length > 0) return
-    supabase.from('course_types').select('id, name').order('name')
+    // Only course types priced in points -- the server refuses the rest.
+    supabase.from('course_types').select('id, name').in('slug', SDP_COURSE_SLUGS).order('name')
       .then(({ data }) => {
         setSdpCourseTypes(data || [])
         if (data?.length && !sdpCourseTypeId) setSdpCourseTypeId(data[0].id)
@@ -159,22 +170,28 @@ export default function POSClient() {
   const sdpQty = Math.max(0, Math.round(Number(sdpSessions) || 0))
   const sdpUnitCents = Math.max(0, Math.round((Number(sdpUnitPrice) || 0) * 100))
   const sdpAmountCents = sdpQty * sdpUnitCents
+  // Whole dollars, because the dollars paid become purchased points one for
+  // one; the server refuses anything else, and now does so before the card.
+  const sdpUnitWhole = sdpUnitCents % 100 === 0
+  const sdpValid = sdpQty >= 1 && sdpQty <= MAX_SDP_SESSIONS && sdpUnitCents >= 100 && sdpUnitCents <= MAX_SDP_UNIT_CENTS && sdpUnitWhole
   const teamTier = teamTiers.find(tier => tier.id === teamTierId) || null
   const teamM = Math.max(1, Math.min(12, Math.round(Number(teamMonths) || 1)))
   const teamAmountCents = (teamTier?.monthly_price_cents ?? 39900) * teamM
-  // teamLabel is the Stripe PaymentIntent description and stays English;
-  // teamLabelUi is the same line for the screen, in the admin's language.
-  const teamLabel = `${teamTier?.name || 'Swim Team'} · Prepaid · ${teamM} month${teamM > 1 ? 's' : ''}`
+  // The Stripe description (English) is written by create-payment-intent from
+  // the sale itself; teamLabelUi is the same line for the screen, in the
+  // admin's language.
   const teamTierName = teamTier ? tDb(locale, 'team_tiers', teamTier.id, teamTier.name) : ''
   const teamLabelUi = t(teamM > 1 ? 'admin.pos.teamLabelPlural' : 'admin.pos.teamLabel', { tier: teamTierName || t('admin.pos.swimTeam'), n: teamM })
   const pointsLine = t('admin.pos.pointsN', { n: topup.toLocaleString() }) + (bonus > 0 ? t('admin.pos.bonusSuffix', { n: bonus.toLocaleString() }) : '')
   const chargeAmount = isTeam ? teamAmountCents : isSdp ? sdpAmountCents : isTrial ? TRIAL_CENTS : topup * 100
 
-  const canCharge = !processing && (
+  // While a charged sale is waiting to be finished, the Charge button stays
+  // off: pressing it would take the money a second time.
+  const canCharge = !processing && !recovery && (
     isTeam
       ? !!selectedParent && !!selectedStudentId && !!teamTierId && (payMethod === 'cash' || readerStatus === 'connected')
       : isSdp
-      ? !!selectedParent && !!sdpStudentId && !!sdpCourseTypeId && sdpQty >= 1 && sdpUnitCents >= 50 && (payMethod === 'cash' || readerStatus === 'connected')
+      ? !!selectedParent && !!sdpStudentId && !!sdpCourseTypeId && sdpValid && (payMethod === 'cash' || readerStatus === 'connected')
       : isTrial
       ? !!selectedParent && !!selectedStudentId && (payMethod === 'cash' || readerStatus === 'connected')
       : !!selectedParent && topupValid && (payMethod === 'cash' || readerStatus === 'connected')
@@ -217,131 +234,146 @@ export default function POSClient() {
     await doCharge()
   }
 
+  // The card is taken only after the server has checked the sale: the
+  // create-*-payment-intent routes run the same checks as the complete-*
+  // routes and work the amount out themselves (lib/pos/sale-checks). A
+  // refusal arriving after the reader had charged the card used to leave the
+  // family paying for nothing (found 2026-10-05).
+  const takeCard = async (url: string, body: unknown, expectedCents: number): Promise<string> => {
+    if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
+    const piRes = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const piData = await piRes.json().catch(() => ({}))
+    if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
+    // The server priced the sale itself. If that is not the total on the
+    // screen, stop before the card: the family agreed to what they were shown.
+    if (piData.amountCents !== expectedCents) throw new Error(t('admin.pos.err.amountChanged'))
+    const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
+    if (ce) throw new Error(ce.message)
+    const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
+    if (pe) throw new Error(pe.message)
+    return processed.id
+  }
+
+  // Records the sale. A failure after the money moved comes back with what
+  // can finish it, and the button under the error offers exactly that.
+  const record = async (url: string, body: unknown) => {
+    const res = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      if (data.retryCredit) setRecovery({ kind: 'credit', body: data.retryCredit })
+      else if (data.retryable) setRecovery({ kind: 'record', url, body })
+      throw new Error(data.error || t('admin.pos.err.failed'))
+    }
+    setRecovery(null)
+    setStep('success')
+  }
+
   const doCharge = async () => {
     if (!selectedParent) return
     setError(null)
+    setRecovery(null)
     setProcessing(true)
     try {
       if (isTeam) {
         if (!selectedStudentId) throw new Error(t('admin.pos.err.selectStudent'))
         if (!teamTierId) throw new Error(t('admin.pos.err.selectTier'))
-        let paymentIntentId: string | undefined
-        if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
-          const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amountCents: teamAmountCents, description: teamLabel }),
-          })
-          const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
-          const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
-          if (ce) throw new Error(ce.message)
-          const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
-          if (pe) throw new Error(pe.message)
-          paymentIntentId = processed.id
+        const sale = {
+          parentId: selectedParent.id, studentId: selectedStudentId, tierId: teamTierId, months: teamM,
+          override: teamOverrideRef.current,
         }
+        const paymentIntentId = payMethod === 'card'
+          ? await takeCard('/api/stripe/terminal/create-payment-intent', { kind: 'team', ...sale }, teamAmountCents)
+          : undefined
+        // A team sale is not offered a second recording: it extends the
+        // membership before the invoice is written, so sending it twice would
+        // extend it twice.
         const res = await fetch('/api/pos/complete-team-sale', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            parentId: selectedParent.id, studentId: selectedStudentId, tierId: teamTierId, months: teamM,
-            override: teamOverrideRef.current,
+            ...sale,
             paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
             ...(paymentIntentId ? { paymentIntentId } : {}),
           }),
         })
-        const data = await res.json()
+        const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
         setStep('success')
       } else if (isSdp) {
         if (!sdpStudentId) throw new Error(t('admin.pos.err.selectStudent'))
-        let paymentIntentId: string | undefined
-        if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
-          const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amountCents: sdpAmountCents, description: sdpDesc }),
-          })
-          const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
-          const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
-          if (ce) throw new Error(ce.message)
-          const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
-          if (pe) throw new Error(pe.message)
-          paymentIntentId = processed.id
+        const sale = {
+          parentId: selectedParent.id, studentId: sdpStudentId, courseTypeId: sdpCourseTypeId,
+          description: sdpDesc, sessions: sdpQty, unitPriceCents: sdpUnitCents,
         }
-        const res = await fetch('/api/pos/complete-sdp-sale', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            parentId: selectedParent.id, studentId: sdpStudentId, courseTypeId: sdpCourseTypeId,
-            description: sdpDesc, sessions: sdpQty, unitPriceCents: sdpUnitCents,
-            paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
-            ...(paymentIntentId ? { paymentIntentId } : {}),
-          }),
+        const paymentIntentId = payMethod === 'card'
+          ? await takeCard('/api/stripe/terminal/create-payment-intent', { kind: 'sdp', ...sale }, sdpAmountCents)
+          : undefined
+        await record('/api/pos/complete-sdp-sale', {
+          ...sale,
+          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...(paymentIntentId ? { paymentIntentId } : {}),
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
-        setStep('success')
       } else if (isTrial) {
         if (!selectedStudentId) throw new Error(t('admin.pos.err.selectStudent'))
-        let paymentIntentId: string | undefined
-        if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
-          const piRes = await fetch('/api/stripe/terminal/create-trial-payment-intent', { method: 'POST' })
-          const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
-          const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
-          if (ce) throw new Error(ce.message)
-          const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
-          if (pe) throw new Error(pe.message)
-          paymentIntentId = processed.id
-        }
-        const res = await fetch('/api/pos/complete-trial-sale', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parentId: selectedParent.id, studentId: selectedStudentId, paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash', ...(paymentIntentId ? { paymentIntentId } : {}) }),
+        const sale = { parentId: selectedParent.id, studentId: selectedStudentId }
+        const paymentIntentId = payMethod === 'card'
+          ? await takeCard('/api/stripe/terminal/create-trial-payment-intent', sale, TRIAL_CENTS)
+          : undefined
+        await record('/api/pos/complete-trial-sale', {
+          ...sale,
+          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...(paymentIntentId ? { paymentIntentId } : {}),
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
-        setStep('success')
       } else {
         if (!topupValid) return
-        let paymentIntentId: string | undefined
-        if (payMethod === 'card') {
-          if (!terminal || readerStatus !== 'connected') throw new Error(t('admin.pos.err.readerNotConnected'))
-          const piRes = await fetch('/api/stripe/terminal/create-payment-intent', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amountCents: topup * 100, kind: 'points', description: `${topup} lesson points`, parentId: selectedParent.id }),
-          })
-          const piData = await piRes.json()
-          if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
-          const { paymentIntent: collected, error: ce } = await terminal.collectPaymentMethod(piData.clientSecret)
-          if (ce) throw new Error(ce.message)
-          const { paymentIntent: processed, error: pe } = await terminal.processPayment(collected)
-          if (pe) throw new Error(pe.message)
-          paymentIntentId = processed.id
-        }
-        const res = await fetch('/api/pos/complete-sale', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            parentId: selectedParent.id,
-            amountCents: topup * 100,
-            bonusPoints: bonus,
-            paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
-            ...(paymentIntentId ? { paymentIntentId } : {}),
-          }),
+        const sale = { parentId: selectedParent.id, amountCents: topup * 100, bonusPoints: bonus }
+        const paymentIntentId = payMethod === 'card'
+          ? await takeCard('/api/stripe/terminal/create-payment-intent', { kind: 'points', ...sale }, topup * 100)
+          : undefined
+        await record('/api/pos/complete-sale', {
+          ...sale,
+          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...(paymentIntentId ? { paymentIntentId } : {}),
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
-        setStep('success')
       }
     } catch (err: any) {
       setError(err.message || t('admin.pos.err.paymentFailed'))
+    } finally { setProcessing(false) }
+  }
+
+  // Finishes a sale that took the money but did not finish recording. Never
+  // charges anything.
+  const runRecovery = async () => {
+    if (!recovery) return
+    setError(null)
+    setProcessing(true)
+    try {
+      if (recovery.kind === 'record') {
+        await record(recovery.url, recovery.body)
+      } else {
+        const res = await fetch('/api/pos/retry-credit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(recovery.body),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
+        setRecovery(null)
+        setStep('success')
+      }
+    } catch (err: any) {
+      setError(err.message || t('admin.pos.err.failed'))
     } finally { setProcessing(false) }
   }
   const reset = () => {
     setStep('select'); setSelectedParent(null); setTopupDollars(String(TOPUP_PRESETS[1])); setBonusPoints(''); setIsTrial(false)
     setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65'); setSdpCourseTypeId(null)
     setStudents([]); setSelectedStudentId(null); setPayMethod('card'); setIsTeam(false); setTeamMonths('1')
-    setSearch(''); setSearchResults([]); setError(null); setProcessing(false); setShowCashConfirm(false)
+    setSearch(''); setSearchResults([]); setError(null); setRecovery(null); setProcessing(false); setShowCashConfirm(false)
 
   }
 
@@ -571,9 +603,14 @@ export default function POSClient() {
                     </div>
                     <div>
                       <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.sdp.unitPrice')}</p>
-                      <input type="number" min="1" step="0.01" value={sdpUnitPrice} onChange={e => setSdpUnitPrice(e.target.value)} style={sel0} />
+                      <input type="number" min="1" step="1" value={sdpUnitPrice} onChange={e => setSdpUnitPrice(e.target.value)} style={sel0} />
                     </div>
                   </div>
+                  {(!sdpUnitWhole || sdpQty > MAX_SDP_SESSIONS) && (
+                    <p style={{ color: '#fbbf24', fontSize: 11, margin: '8px 0 0' }}>
+                      {!sdpUnitWhole ? t('admin.pos.sdp.wholeDollars') : t('admin.pos.sdp.maxSessions', { n: MAX_SDP_SESSIONS })}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -716,6 +753,18 @@ export default function POSClient() {
             ))}
           </div>
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
+          {recovery && (
+            <div style={{ marginBottom: 12 }}>
+              <button onClick={runRecovery} disabled={processing}
+                style={{ width: '100%', padding: 12, borderRadius: 10, fontWeight: 700, fontSize: 14, border: '1px solid #b45309', background: '#b45309', color: 'white', cursor: processing ? 'not-allowed' : 'pointer' }}>
+                {recovery.kind === 'credit' ? t('admin.pos.retry.credit') : t('admin.pos.retry.record')}
+              </button>
+              <button onClick={() => { setRecovery(null); setError(null) }} disabled={processing}
+                style={{ width: '100%', marginTop: 6, padding: 8, borderRadius: 8, fontSize: 12, border: 'none', background: 'transparent', color: '#9ca3af', cursor: 'pointer' }}>
+                {t('admin.pos.retry.dismiss')}
+              </button>
+            </div>
+          )}
           <button onClick={() => handleCharge()} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
             {processing ? t('admin.pos.processing') : canCharge ? t('admin.pos.charge', { amount: `$${(chargeAmount / 100).toLocaleString()}` }) : isTeam ? t('admin.pos.cta.team') : isSdp ? t('admin.pos.cta.sdp') : isTrial ? t('admin.pos.cta.student') : !selectedParent ? t('admin.pos.cta.customer') : t('admin.pos.cta.amount')}

@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { BASE_POINTS, centsToPoints } from '@/lib/points'
+import { centsToPoints } from '@/lib/points'
 import { applyPoints } from '@/lib/points-wallet'
 import { insertInvoice } from '@/lib/invoices/create'
+import { checkSdpSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
 
 // A negotiated programme sale: a set number of lessons for one named swimmer at
 // a price agreed off the price list (school districts, scholarships, a family
@@ -37,35 +38,22 @@ export async function POST(req: NextRequest) {
     const { data: admin } = await supabaseAuth.from('admins').select('id').eq('auth_user_id', user.id).single()
     if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const qty = Math.round(Number(sessions))
-    const unit = Math.round(Number(unitPriceCents))
-    if (!parentId || !studentId) return NextResponse.json({ error: 'parentId and studentId required' }, { status: 400 })
-    if (!Number.isFinite(qty) || qty < 1 || qty > 200) return NextResponse.json({ error: 'Invalid sessions' }, { status: 400 })
-    if (!Number.isFinite(unit) || unit < 50 || unit > 100000) return NextResponse.json({ error: 'Invalid unit price' }, { status: 400 })
-    if (unit % 100 !== 0) return NextResponse.json({ error: 'Unit price must be a whole number of dollars' }, { status: 400 })
-    if (!courseTypeId) return NextResponse.json({ error: 'courseTypeId required' }, { status: 400 })
-    const amountCents = qty * unit
-    const noteText = String(description || '').trim()
-
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { data: student } = await supabase
-      .from('students').select('id, full_name, parent_id, uci_number')
-      .eq('id', studentId).single()
-    if (!student || student.parent_id !== parentId) {
-      return NextResponse.json({ error: 'Student does not belong to this parent' }, { status: 400 })
-    }
+    // The same checks the terminal PaymentIntent was made under, so a card
+    // sale that got this far passes them here too (lib/pos/sale-checks).
+    const sale = await checkSdpSale(supabase, { parentId, studentId, courseTypeId, sessions, unitPriceCents })
+    if (!sale.ok) return NextResponse.json({ error: sale.error }, { status: sale.status })
+    const { amountCents, qty, unit, listPerLesson, student, courseType } = sale
+    const noteText = String(description || '').trim()
 
-    const { data: courseType } = await supabase
-      .from('course_types').select('id, name, slug').eq('id', courseTypeId).single()
-    if (!courseType) return NextResponse.json({ error: 'Invalid course type' }, { status: 400 })
-
-    const listPerLesson = BASE_POINTS[courseType.slug]
-    if (listPerLesson === undefined)
-      return NextResponse.json({ error: `${courseType.name} is not paid for with points.` }, { status: 400 })
+    const paidPoints = centsToPoints(amountCents)
+    const listPoints = listPerLesson * qty
+    const bonusPoints = Math.max(0, listPoints - paidPoints)
+    const bonusNote = `Programme rate for ${student.full_name}: ${qty} × ${courseType.name} at $${unit / 100} against a list price of ${listPerLesson}`
 
     if (paymentIntentId) {
       const { data: seen } = await supabase
@@ -73,6 +61,17 @@ export async function POST(req: NextRequest) {
         .eq('stripe_session_id', paymentIntentId).eq('reason', 'purchase').limit(1)
       if (seen && seen.length)
         return NextResponse.json({ error: 'This payment has already been recorded.' }, { status: 409 })
+      // A purchase row with no ledger line is a sale whose points did not go
+      // in. Recording it again would make a second purchase; the retry button
+      // finishes the first one instead.
+      const { data: had } = await supabase
+        .from('purchases').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
+      if (had && had.length)
+        return NextResponse.json({
+          error: 'This payment has already been recorded, but its points may not have gone in. Do not take payment again — add them with the button below.',
+          purchaseId: had[0].id,
+          retryCredit: { purchaseId: had[0].id, bonusPoints, bonusNote },
+        }, { status: 409 })
     }
 
     const insertData: Record<string, unknown> = {
@@ -90,52 +89,63 @@ export async function POST(req: NextRequest) {
       .from('purchases').insert(insertData).select().single()
     if (purchaseErr || !purchase) {
       console.error('SDP purchase error:', purchaseErr)
-      return NextResponse.json({ error: 'Purchase failed' }, { status: 500 })
+      // Nothing was written, so sending the same sale again is safe.
+      return NextResponse.json({
+        error: 'The payment was taken but the sale was not recorded. Do not take payment again — record it again with the button below.',
+        retryable: true,
+      }, { status: 500 })
     }
 
-    const paidPoints = centsToPoints(amountCents)
-    const listPoints = listPerLesson * qty
-    const bonusPoints = Math.max(0, listPoints - paidPoints)
-
+    // Two movements, each reporting for itself, both carrying the purchase id
+    // so /api/pos/retry-credit can finish whichever did not land -- as
+    // PURCHASED points for the purchase, never twice. See complete-sale.
+    const retryCredit = { purchaseId: purchase.id, bonusPoints, bonusNote }
     let balance = 0
+    let creditError: string | null = null
     try {
       const res = await applyPoints(supabase, {
         parentId, reason: 'purchase', points: paidPoints,
         amountCents,
         stripeSessionId: paymentIntentId || null,
+        pricing: { kind: 'pos_purchase', purchaseId: purchase.id },
         actor: `admin:${admin.id}`,
         note: `${qty} × ${courseType.name} for ${student.full_name}${noteText ? ` — ${noteText}` : ''}`,
       })
       balance = res.balance
-      if (bonusPoints > 0) {
-        const res2 = await applyPoints(supabase, {
-          parentId, reason: 'admin_grant', points: bonusPoints, toGranted: true,
-          actor: `admin:${admin.id}`,
-          note: `Programme rate for ${student.full_name}: ${qty} × ${courseType.name} at $${unit / 100} against a list price of ${listPerLesson}`,
-        })
-        balance = res2.balance
-      }
     } catch (e: any) {
       console.error('SDP points credit failed:', e)
-      return NextResponse.json({
-        error: 'The payment was recorded but the points did not go in. Do not take payment again — add the points by hand from the parent\'s page.',
-      }, { status: 500 })
+      creditError = 'The payment was recorded but no points went in. Do not take payment again — add them with the button below.'
+    }
+    if (!creditError && bonusPoints > 0) {
+      try {
+        const res2 = await applyPoints(supabase, {
+          parentId, reason: 'admin_grant', points: bonusPoints, toGranted: true,
+          pricing: { kind: 'pos_bonus', purchaseId: purchase.id },
+          actor: `admin:${admin.id}`,
+          note: bonusNote,
+        })
+        balance = res2.balance
+      } catch (e: any) {
+        console.error('SDP programme-rate grant failed:', e)
+        creditError = `The payment was recorded and the ${paidPoints.toLocaleString('en-US')} purchased points are in, but the ${bonusPoints.toLocaleString('en-US')} programme-rate points were not added. Do not take payment again — add them with the button below.`
+      }
     }
 
     const { data: parent } = await supabase
       .from('parents').select('first_name, last_name, email').eq('id', parentId).single()
 
-    // The money is taken and the points are in the wallet. A receipt that
-    // cannot be numbered must not come back to the front desk as a failed
-    // sale -- the operator would take payment a second time. Loud in the log,
-    // recoverable by hand, invisible to the person at the counter.
+    // The money is taken. A receipt that cannot be numbered must not come
+    // back to the front desk as a failed sale -- the operator would take
+    // payment a second time. Loud in the log, recoverable by hand, invisible
+    // to the person at the counter. Written even when the points did not go
+    // in: the payment happened, and the retry button only adds points.
     let invoice: any = null
     try {
       invoice = await insertInvoice(supabase, {
         parent_id: parentId,
         student_id: studentId,
         amount: amountCents / 100,
-        payment_method: paymentMethod === 'stripe_terminal' ? 'card' : paymentMethod,
+        payment_method: invoicePaymentLabel(paymentMethod),
         items: [
           { name: `${courseType.name} — ${student.full_name}`, quantity: qty, unit_price: unit / 100 },
           ...(bonusPoints > 0
@@ -165,6 +175,12 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error('SDP invoice email error:', e)
       }
+    }
+
+    if (creditError) {
+      return NextResponse.json({
+        error: creditError, purchaseId: purchase.id, invoiceId: invoice?.id, retryCredit,
+      }, { status: 500 })
     }
 
     console.log(`✅ SDP sale: "${courseType.name}" x${qty} student=${studentId} points=${paidPoints}+${bonusPoints} invoice=${invoice?.invoice_number}`)

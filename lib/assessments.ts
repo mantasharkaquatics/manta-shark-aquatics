@@ -23,6 +23,7 @@
 import { applyPoints } from '@/lib/points-wallet'
 import { ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { getTodayLA } from '@/lib/date'
+import { allRows } from '@/lib/db-paging'
 import { detectNoteLanguage, SUPPORTED_NOTE_LANGUAGES } from '@/lib/ai/models'
 import { loadGlossary, translateOnce } from '@/lib/ai/translate-note'
 
@@ -110,12 +111,16 @@ export async function countCreditLessons(
  */
 export async function settleAssessmentCredits(svc: Svc): Promise<{ awarded: number; expired: number; failed: number }> {
   const today = getTodayLA()
-  const { data: pending } = await svc.from('student_assessments')
+  // Paged (lib/db-paging): past 1,000 open credits a single read left the
+  // rest neither paid nor closed. A failed read throws, so the cron reports it.
+  const { data: pending, error: pendingErr } = await allRows(() => svc.from('student_assessments')
     .select('id, student_id, parent_id, assessed_on, credit_deadline')
     .eq('credit_status', 'pending')
+    .order('id'))
+  if (pendingErr) throw new Error(`pending assessment credits not read: ${pendingErr.message || pendingErr}`)
   let awarded = 0, expired = 0, failed = 0
 
-  for (const r of pending || []) {
+  for (const r of pending) {
     let count = 0
     try { count = await countCreditLessons(svc, r, today) } catch (e) {
       console.error(`assessment credit ${r.id}: could not count lessons:`, e)
