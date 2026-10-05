@@ -476,7 +476,7 @@
   "dash.day.nLessons": "{n} 堂课",
   "dash.day.oneLesson": "{n} 堂课",
   "dash.greeting.afternoon": "下午好，",
-  "dash.greeting.bang": "！",
+  "dash.greeting.bang": "!",
   "dash.greeting.evening": "晚上好，",
   "dash.greeting.morning": "早上好，",
   "dash.here.button": "我到了，帮 {name} 报到",
