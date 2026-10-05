@@ -3043,7 +3043,10 @@ export default function DashboardPage() {
                   const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
                   const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn') : t('status.confirmed')
                   const statusColor = past ? (b.checked_in ? '#1f7a57' : '#c0392b') : b.checked_in ? '#1f7a57' : GOLD
-                  const funding = b.is_trial ? t('common.assessment') : b.points_charged != null ? t('points.unit', { n: b.points_charged }) : '—'
+                  // A merged 60-minute card carries the first half's row only; both halves
+                  // are charged alike, so the lesson cost is twice that (found
+                  // 2026-10-05: the sheet said 65 points for a 130-point hour).
+                  const funding = b.is_trial ? t('common.assessment') : b.points_charged != null ? t('points.unit', { n: b.points_charged * (b._hour ? 2 : 1) }) : '—'
                   return (
                     <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
