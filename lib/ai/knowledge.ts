@@ -4,7 +4,7 @@ import {
   OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, REFERRAL_POINTS, TOPUP_PRESETS, presetLessons,
 } from '@/lib/points'
 import { FAQ_IDS } from '@/lib/faq'
-import { translate } from '@/lib/i18n'
+import { translate } from '@/lib/i18n/all'
 
 // Retrieves live data for the AI assistant.
 // Two-step queries only (no nested joins) per project convention.

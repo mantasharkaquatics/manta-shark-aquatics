@@ -1,4 +1,4 @@
-import { translate, type Locale } from '@/lib/i18n'
+import { translate, type Locale } from '@/lib/i18n/all'
 import { FAQ_IDS } from '@/lib/faq'
 
 // FAQPage structured data, built from the same ids the page renders, so Google

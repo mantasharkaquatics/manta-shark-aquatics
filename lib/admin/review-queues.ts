@@ -13,6 +13,7 @@
  * client after paint and the route caches the answer.
  */
 import { getTodayLA } from '@/lib/date'
+import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
 
 /**
  * Every row a query matches, a page at a time. The API hands back at most
@@ -23,23 +24,13 @@ import { getTodayLA } from '@/lib/date'
  * and ends the read with what it has, which is what the single unpaged reads
  * here used to do (they ignored the error and saw no rows).
  */
-const PAGE = 1000
-async function allRows(make: () => any): Promise<any[]> {
-  const out: any[] = []
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await make().range(from, from + PAGE - 1)
-    if (error) { console.error('review-queues: read failed:', error.message || error); return out }
-    out.push(...(data || []))
-    if (!data || data.length < PAGE) return out
-  }
-}
+const allRows = (make: () => any) => allRowsOrLog('review-queues', make)
 
 /**
  * allRows over a long id list, cut into .in() requests of IN_CHUNK ids: a few
  * thousand uuids in one URL is past what the API will take. A few chunks run
  * at once; every caller folds the rows into a set or a map, so order is moot.
  */
-const IN_CHUNK = 500
 const PARALLEL = 4
 async function inChunks(ids: string[], make: (chunk: string[]) => any): Promise<any[]> {
   const chunks: string[][] = []

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getTodayLA, getNowMinutesLA, minutesUntil, formatTime12h } from '@/lib/date'
-import { getT, tDb, dateTag } from '@/lib/i18n'
+import { getT, tDb, dateTag } from '@/lib/i18n/all'
 import { getAdminLocale } from '@/lib/i18n/admin-locale'
 
 export const dynamic = 'force-dynamic'

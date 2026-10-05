@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AlertModal from '@/components/AlertModal'
-import { getT, tDb, type Locale } from '@/lib/i18n'
-import { useT } from '@/lib/i18n/provider'
+import { tDb, type Locale } from '@/lib/i18n'
+import { useT, useTFor } from '@/lib/i18n/provider'
 import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
 
 type View = {
@@ -46,7 +46,8 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
   useEffect(() => { load() }, [load])
 
   // ft: the FAMILY's language (the picture below); t: the admin's own language (the desk chrome).
-  const ft = useMemo(() => getT((lang || 'en') as Locale), [lang])
+  // The family's language, fetched on demand (lib/i18n/load.ts).
+  const ft = useTFor((lang || 'en') as Locale, true)
   const loc = INTL[lang || 'en'] || 'en-US'
   const day = (d: string, o: Intl.DateTimeFormatOptions) => new Date(d + 'T12:00:00Z').toLocaleDateString(loc, { ...o, timeZone: 'UTC' })
   const time = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` }

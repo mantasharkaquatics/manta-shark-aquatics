@@ -13,8 +13,33 @@ const TABLES = {
 
 const load = (name) => JSON.parse(readFileSync(DIR + '/' + name + '.json', 'utf8'));
 
+// Each language is two files (2026-10-05). locales/<lang>.json holds what the
+// public site and the parent pages read; locales/staff/<lang>.json holds the
+// admin back office and the coach portal. The browser downloads the staff file
+// only inside those portals, so a parent page no longer carries ~70KB of
+// back-office text per language. Which file a key belongs in is decided by
+// isStaffKey below -- keep it the same as STAFF in lib/i18n/index.ts.
+const isStaffKey = (k) =>
+  k.startsWith('admin.') || (k.startsWith('coach.') && !k.startsWith('coach.login.') && k !== 'coach.portal');
+
 let failed = false;
-const dicts = Object.fromEntries(LOCALES.map((l) => [l, load(l)]));
+const misplaced = [];
+const dicts = Object.fromEntries(LOCALES.map((l) => {
+  const site = load(l);
+  const staff = load('staff/' + l);
+  for (const k of Object.keys(site)) if (isStaffKey(k)) misplaced.push(l + '.json has staff key ' + k + ' (move it to staff/' + l + '.json)');
+  for (const k of Object.keys(staff)) {
+    if (!isStaffKey(k)) misplaced.push('staff/' + l + '.json has site key ' + k + ' (move it to ' + l + '.json)');
+    if (k in site) misplaced.push(k + ' is in both ' + l + '.json and staff/' + l + '.json');
+  }
+  return [l, { ...site, ...staff }];
+}));
+if (misplaced.length) {
+  console.log('misplaced keys: ' + misplaced.length);
+  for (const m of misplaced) console.log('  PLACE    ' + m);
+  console.log('');
+  failed = true;
+}
 const baseKeys = Object.keys(dicts[BASE]);
 
 console.log('base locale ' + BASE + ': ' + baseKeys.length + ' keys');

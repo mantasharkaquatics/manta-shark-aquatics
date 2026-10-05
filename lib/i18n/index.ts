@@ -1,6 +1,4 @@
 import en from './locales/en.json';
-import zhHant from './locales/zh-Hant.json';
-import zhHans from './locales/zh-Hans.json';
 import dbStrings from './locales/db-strings.json';
 
 export const LOCALES = ['en', 'zh-Hant', 'zh-Hans'] as const;
@@ -10,13 +8,43 @@ export const DEFAULT_LOCALE: Locale = 'en';
 export const LOCALE_COOKIE = 'msa_locale';
 export const LOCALE_EXPLICIT_COOKIE = 'msa_locale_explicit';
 
-type Dict = Record<string, string>;
+export type Dict = Record<string, string>;
 
-const DICTS: Record<Locale, Dict> = {
-  en: en as Dict,
-  'zh-Hant': zhHant as Dict,
-  'zh-Hans': zhHans as Dict,
-};
+/* Which dictionaries are in memory (2026-10-05).
+
+   This module used to import all three languages, admin and coach text
+   included, so every page in the browser downloaded ~566KB (175KB gzipped)
+   of words it would mostly never show. Now only English site text is built
+   in -- the server renders English first on pages that are not under
+   /zh-Hant or /zh-Hans, so the first client render must have it at hand.
+   Everything else is added when it is needed:
+
+     - on the server, lib/i18n/all.ts registers every dictionary; server code
+       that translates imports getT / translate from there, not from here;
+     - a layout that knows its language (/[locale], /admin, /coach) hands the
+       provider that language's text as a prop, which registers it;
+     - otherwise lib/i18n/load.ts fetches the language as its own file.
+
+   Staff text (admin.*, coach.* other than the coach login page) is a separate
+   file per language, loaded only in the back office and the coach portal.
+   isStaffKey here and in scripts/i18n-check.mjs must stay the same. */
+export const isStaffKey = (k: string) =>
+  k.startsWith('admin.') || (k.startsWith('coach.') && !k.startsWith('coach.login.') && k !== 'coach.portal');
+
+type Part = 'site' | 'staff';
+const DICTS: Partial<Record<Locale, Dict>> = { en: { ...(en as Dict) } };
+const LOADED: Record<Part, Set<Locale>> = { site: new Set<Locale>(['en']), staff: new Set<Locale>() };
+
+/** Add text for a language. `parts` says which halves the text completes. */
+export function registerDict(locale: Locale, dict: Dict, parts: readonly Part[]): void {
+  const have = DICTS[locale];
+  DICTS[locale] = have ? Object.assign(have, dict) : { ...dict };
+  for (const p of parts) LOADED[p].add(locale);
+}
+
+export function isDictLoaded(locale: Locale, staff = false): boolean {
+  return LOADED.site.has(locale) && (!staff || LOADED.staff.has(locale));
+}
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
@@ -50,7 +78,7 @@ export function translate(
   key: string,
   vars?: Record<string, string | number>
 ): string {
-  const hit = DICTS[locale]?.[key] ?? DICTS[DEFAULT_LOCALE][key];
+  const hit = DICTS[locale]?.[key] ?? DICTS[DEFAULT_LOCALE]?.[key];
   if (hit === undefined) {
     if (process.env.NODE_ENV !== 'production') {
       console.warn('[i18n] missing key: ' + key);

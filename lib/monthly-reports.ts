@@ -22,7 +22,7 @@
 import { POLISH_MODEL, SUPPORTED_NOTE_LANGUAGES, LANGUAGE_NAMES } from '@/lib/ai/models'
 import { loadGlossary } from '@/lib/ai/translate-note'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
-import { getT, tDb, type Locale } from '@/lib/i18n'
+import { getT, tDb, type Locale } from '@/lib/i18n/all'
 import { stageProgress, stageNameKey, type StageProgress } from '@/lib/levels'
 import { masteryOf, MASTERY_LABEL } from '@/lib/mastery'
 import { TEAM_SLUG } from '@/lib/points'

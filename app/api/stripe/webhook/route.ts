@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
           ? `已收到付款，${points.toLocaleString('en-US')} 點已存入您的帳戶，目前餘額 ${bal} 點。\n\n點數不會過期。收據在「我的頁面」的點數紀錄裡。`
           : lang === 'zh-Hans'
           ? `已收到付款，${points.toLocaleString('en-US')} 点已存入您的账户，目前余额 ${bal} 点。\n\n点数不会过期。收据在「我的页面」的点数记录里。`
-          : `Payment received — ${pointsLabel} are in your wallet. Your balance is now ${bal} points.\n\nPoints never expire. Your receipt is in the points history on your Dashboard.`
+          : `Payment received — ${pointsLabel} are in your wallet. Your balance is now ${bal} points.\n\nPoints you buy never expire. Your receipt is in the points history on your Dashboard.`
         const { error: chatErr } = await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
         if (chatErr) console.error('Purchase chat confirm error:', chatErr)
         else await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) }).eq('id', th.id)

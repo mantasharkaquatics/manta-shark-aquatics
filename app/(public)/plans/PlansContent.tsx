@@ -306,6 +306,28 @@ export default function PlansContent() {
       .catch(() => {})
   }, [])
   const teamFee = teamFees.length ? Math.min(...teamFees) : null
+
+  // A signed-in family whose every swimmer already has a level has done the
+  // assessment: "we haven't met your swimmer yet" was wrong for them (owner,
+  // 2026-10-05). Hide that card and point the closing call to booking. Read
+  // after paint and only for display; anyone signed out, or with a swimmer
+  // still to assess, keeps the assessment-first page.
+  const [allAssessed, setAllAssessed] = useState(false)
+  useEffect(() => {
+    let live = true
+    ;(async () => {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        const { data: p } = await supabase.from('parents').select('id').eq('auth_user_id', session.user.id).maybeSingle()
+        if (!p) return
+        const { data: kids } = await supabase.from('students').select('current_level').eq('parent_id', p.id).eq('is_active', true)
+        if (live && kids && kids.length > 0 && kids.every((k: { current_level: number | null }) => k.current_level != null)) setAllAssessed(true)
+      } catch { /* display only */ }
+    })()
+    return () => { live = false }
+  }, [])
   const teamFeeVaries = teamFees.some(n => n !== teamFee)
 
   const lessonRows = [
@@ -337,7 +359,7 @@ export default function PlansContent() {
       <div className="b-paper">
         {/* The assessment is not bought with points -- it is the thing a family
             buys before they have any. So it sits above the wallet. */}
-        <div className="b-wrap">
+        {!allAssessed && <div className="b-wrap">
           <div className="p-assess">
             <div>
               <h3>{t('plans.assessFirst.title')}</h3>
@@ -345,7 +367,7 @@ export default function PlansContent() {
             </div>
             <Link href={localePath('/assessment', locale)} className="b-btn line">{t('plans.assessFirst.cta')}</Link>
           </div>
-        </div>
+        </div>}
 
         {/* BUY + PRICE LIST, side by side. The list is next to the button on
             purpose: a parent deciding how much to put in needs to see what a
@@ -448,10 +470,12 @@ export default function PlansContent() {
       <section className="b-final">
         <div className="b-wrap">
           <p className="b-eyebrow" style={{ color: BRAND.yellow, marginBottom: 12 }}>{t('plans.cta.eyebrow')}</p>
-          <h2>{t('plans.cta.title')}</h2>
-          <p>{t('points.cta.desc')}</p>
+          <h2>{t(allAssessed ? 'points.cta.bookTitle' : 'plans.cta.title')}</h2>
+          <p>{t(allAssessed ? 'points.cta.bookDesc' : 'points.cta.desc')}</p>
           <div className="b-ctas">
-            <Link href={localePath('/assessment', locale)} className="b-btn gold">{t('points.cta.btn')}</Link>
+            {allAssessed
+              ? <Link href="/booking" className="b-btn gold">{t('points.cta.bookBtn')}</Link>
+              : <Link href={localePath('/assessment', locale)} className="b-btn gold">{t('points.cta.btn')}</Link>}
           </div>
         </div>
       </section>

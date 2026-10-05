@@ -52,16 +52,6 @@ export const LEVEL_BADGE_CLASSES: Record<string, string> = {
   '7': 'bg-amber-900/40 text-amber-300',
 }
 
-export function levelName(level: number | string | null | undefined): string {
-  if (level == null || level === '') return ''
-  return LEVEL_NAMES[String(level)] || ''
-}
-
-export function levelColor(level: number | string | null | undefined, fallback = '#374151'): string {
-  if (level == null || level === '') return fallback
-  return LEVEL_COLORS[String(level)] || fallback
-}
-
 /** i18n key for a level's display name, e.g. t(levelNameKey(3)). */
 export function levelNameKey(level: number | string): string {
   return 'level.' + level + '.name'

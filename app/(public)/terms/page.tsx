@@ -9,7 +9,7 @@ export default function Page() {
     <LegalPage
       title="User Agreement"
       subtitle="The agreement governing your account, bookings, lessons, points, payments, and refunds."
-      meta={<>Version: {LEGAL_VERSIONS.terms} · Last updated October 1, 2026</>}
+      meta={<>Version: {LEGAL_VERSIONS.terms} · Last updated October 5, 2026</>}
     >
           <h2>1. Acceptance of Terms</h2>
           <p>By creating an account with Manta Shark Aquatics (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;the School&rdquo;), you agree to be bound by this User Agreement. If you do not agree, please do not register or use our services. This agreement applies to the parent or legal guardian creating the account and to all students enrolled under that account.</p>
@@ -52,7 +52,7 @@ export default function Page() {
           <p><em>Illness exception.</em> If a student is ill within the 24-hour window, contact us before the lesson. With a doctor&rsquo;s note, the absence is excused without limit. Without a note, one excused illness absence is allowed per student. An excused absence has its points returned by our staff after review, and does not use the student&rsquo;s monthly grace.</p>
 
           <h2>6. School-Initiated Cancellations</h2>
-          <p>If the School cancels a lesson &mdash; including for extreme weather, an official disaster alert, or a fixed-class coach being unavailable &mdash; you will be notified by email and SMS, and the points for that lesson are returned to your account <strong>in full, whatever the notice period</strong>. If the cancelled lesson was a make-up booked with a voucher, the voucher is returned instead, valid for at least four weeks from the cancelled lesson. A School-initiated cancellation never uses a student&rsquo;s monthly grace, because the 24-hour rule exists to protect a coach&rsquo;s reserved time and it is the School giving that time up.</p>
+          <p>If the School cancels a lesson &mdash; including for extreme weather, an official disaster alert, or a fixed-class coach being unavailable &mdash; you will be notified by email, and the points for that lesson are returned to your account <strong>in full, whatever the notice period</strong>. If the cancelled lesson was a make-up booked with a voucher, the voucher is returned instead, valid for at least four weeks from the cancelled lesson. A School-initiated cancellation never uses a student&rsquo;s monthly grace, because the 24-hour rule exists to protect a coach&rsquo;s reserved time and it is the School giving that time up.</p>
 
           <h2>7. Refunds</h2>
           <div className="lg-plain"><strong>In plain terms:</strong> points you paid for can be turned back into money at any time, one dollar per point, for whatever you have not spent. There is no deadline and no fee.</div>
@@ -61,8 +61,8 @@ export default function Page() {
           <p>To request a refund, contact us through the in-app chat or at the front desk. Refunds are reviewed and processed by our staff and issued to the original payment method; payments made in cash at the front desk are refunded in cash at the front desk. This policy is provided in accordance with California law, including Civil Code Sections 1749.5 and 1723.</p>
 
           <h2>8. Monthly Programs &amp; Automatic Renewal</h2>
-          <div className="lg-plain"><strong>In plain terms:</strong> monthly programs renew each month automatically until you cancel, and you can cancel anytime before your next billing date.</div>
-          <p>Group programs and Swim Team memberships are billed monthly and renew automatically each month until canceled. The recurring price is disclosed at signup, and you will be notified in advance of any price change. You may cancel at any time before your next billing date from your account dashboard or by contacting us at info@mantasharkaquatics.net; cancellation stops future charges and your membership remains active through the period already paid.</p>
+          <div className="lg-plain"><strong>In plain terms:</strong> Swim Team is the one monthly program. It renews each month automatically until you cancel, and you can cancel anytime before your next billing date. Lessons, group lessons included, are paid with points and never renew on their own.</div>
+          <p>Swim Team memberships are billed monthly and renew automatically each month until canceled. Lessons, including 1-on-4 group lessons, are paid for with points under Sections 3 and 4 and are not billed monthly. The recurring price is disclosed at signup, and you will be notified in advance of any price change. You may cancel at any time before your next billing date from your account dashboard or by contacting us at info@mantasharkaquatics.net; cancellation stops future charges and your membership remains active through the period already paid.</p>
 
           <h2>9. Check-in &amp; Attendance</h2>
           <p>Students must check in at the front desk before each lesson, either by QR code or by name. Check-in opens 30 minutes before the scheduled start time and closes when the lesson ends. Attendance records are maintained electronically and are visible in your account dashboard.</p>
@@ -71,7 +71,7 @@ export default function Page() {
           <p>Lessons start and end at their scheduled times. Time missed due to late arrival is not made up, and the lesson counts in full, as the coach&rsquo;s time is reserved for your student.</p>
 
           <h2>11. Student Conduct &amp; Safety</h2>
-          <p>Students must follow all posted pool rules and instructions from coaches and staff at all times. The School reserves the right to remove any student from a lesson for unsafe behavior without refund. Students should not enter the pool area before their scheduled lesson. Parents are not required to remain on premises, except for infant and baby swim programs, where a parent or guardian participates in the water.</p>
+          <p>Students must follow all posted pool rules and instructions from coaches and staff at all times. The School reserves the right to remove any student from a lesson for unsafe behavior without refund. Students should not enter the pool area before their scheduled lesson. Parents are not required to remain on premises, except in any parent-and-child program for infants or babies that we may offer, where a parent or guardian participates in the water.</p>
 
           <h2>12. Health Requirements</h2>
           <p>Students must be in good health to participate. Please do not bring a student to a lesson if they are ill, have an open wound, or have a contagious condition. You must inform us of any medical conditions, allergies, or special needs that may affect the student&rsquo;s safety in the water.</p>

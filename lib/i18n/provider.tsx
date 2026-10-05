@@ -1,17 +1,21 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
   LOCALE_EXPLICIT_COOKIE,
   getT,
+  isDictLoaded,
   isLocale,
   matchLocaleTags,
+  registerDict,
+  type Dict,
   type Locale,
   type TFunction,
 } from './index';
+import { loadDict } from './load';
 
 type LocaleContextValue = {
   locale: Locale;
@@ -56,10 +60,33 @@ export function clearExplicitLocale() {
   document.cookie = LOCALE_EXPLICIT_COOKIE + '=; path=/; max-age=0; samesite=lax';
 }
 
+let langOwners = 0;
+
+// Start fetching the visitor's language the moment this module runs, in
+// parallel with hydration, rather than after the first effect: pages outside
+// /zh-Hant and /zh-Hans render English first and switch once the text is in.
+if (typeof window !== 'undefined') {
+  try {
+    const early = readLocaleCookie()
+      ?? matchLocaleTags(navigator.languages?.length ? navigator.languages : [navigator.language]);
+    // Under /zh-Hant or /zh-Hans the layout hands the text over itself.
+    const ownPath = /^\/zh-Han[st](\/|$)/.test(window.location.pathname);
+    if (early && early !== DEFAULT_LOCALE && !ownPath) loadDict(early).catch(() => {});
+  } catch { /* cookies blocked: the provider's effect still runs */ }
+}
+
+/**
+ * messages: this language's text, handed down by a server layout so the first
+ * render already has it (see lib/i18n/all.ts messagesFor). staff: this surface
+ * is the back office or the coach portal and needs admin/coach text too.
+ */
 export function LocaleProvider(
-  { locale, persist = true, children }:
-  { locale?: Locale; persist?: boolean; children: ReactNode }
+  { locale, persist = true, messages, staff = false, children }:
+  { locale?: Locale; persist?: boolean; messages?: Dict; staff?: boolean; children: ReactNode }
 ) {
+  // Registered during render, before any child asks for a word. Idempotent.
+  if (messages && locale) registerDict(locale, messages, staff ? ['site', 'staff'] : ['site']);
+
   const [detected, setDetected] = useState<Locale>(locale ?? DEFAULT_LOCALE);
   const pathname = usePathname();
 
@@ -84,11 +111,36 @@ export function LocaleProvider(
   const [override, setOverride] = useState<Locale | null>(null);
   useEffect(() => { setOverride(null); }, [locale]);
 
-  const active = override ?? locale ?? detected;
+  const wanted = override ?? locale ?? detected;
 
+  // Show a language only once its text is in memory. Until then keep showing
+  // the last one that was (English at first), and fetch the wanted one.
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const [shown, setShown] = useState<Locale>(() => (isDictLoaded(wanted, staff) ? wanted : DEFAULT_LOCALE));
+  const ready = isDictLoaded(wanted, staff);
   useEffect(() => {
+    if (ready) { setShown(wanted); return; }
+    let live = true;
+    loadDict(wanted, staff).then(() => { if (live) rerender(); }).catch(() => {});
+    return () => { live = false; };
+  }, [wanted, staff, ready]);
+  const active = ready ? wanted : shown;
+
+  // <html lang> belongs to the innermost provider. The root one wraps the
+  // coach portal, the back office and /zh-Hant pages too, and its effect runs
+  // after theirs, so it used to stamp its own language over the page's (the
+  // coach portal in Chinese reported lang="en"). A provider handed a locale
+  // claims the attribute while mounted; the root one writes it only when no
+  // one has, and again on each navigation, once an inner one has gone.
+  useEffect(() => {
+    if (!locale) return;
+    langOwners++;
     document.documentElement.lang = active;
-  }, [active]);
+    return () => { langOwners--; };
+  }, [locale, active]);
+  useEffect(() => {
+    if (!locale && langOwners === 0) document.documentElement.lang = active;
+  }, [locale, active, pathname]);
 
   // A visitor who arrives on /zh-Hant/... has never touched the switcher, so the
   // cookie is unset. Persist the URL's locale, otherwise the first click onto a
@@ -126,4 +178,23 @@ export function useT(): TFunction {
 
 export function useSetLocale(): (next: Locale) => void {
   return useContext(LocaleContext).setLocale;
+}
+
+/**
+ * A translator for a language other than the page's -- an admin previewing a
+ * family's view, a report shown in another language. Falls back to English
+ * word by word until that language has been fetched, then re-renders.
+ */
+export function useTFor(locale: Locale, staff = false): TFunction {
+  // Starts as English on the server and in the first browser render alike, so
+  // hydration matches whatever the server happened to have loaded; switches
+  // once this browser has the language.
+  const [ok, setOk] = useState<Locale | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (isDictLoaded(locale, staff)) setOk(locale);
+    else loadDict(locale, staff).then(() => { if (live) setOk(locale); }).catch(() => {});
+    return () => { live = false; };
+  }, [locale, staff]);
+  return useMemo(() => getT(ok === locale ? locale : DEFAULT_LOCALE), [ok, locale]);
 }

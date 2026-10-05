@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import CurriculumMapClient, { type SkillNotes } from './CurriculumMapClient'
-import { getT } from '@/lib/i18n'
+import { getT } from '@/lib/i18n/all'
 import { getAdminLocale } from '@/lib/i18n/admin-locale'
 
 export async function generateMetadata() {

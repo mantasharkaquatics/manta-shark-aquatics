@@ -19,14 +19,3 @@ export const TRIAL_PRICE_CENTS = 8500
  * (lib/trial-booking.ts) rather than by Stripe.
  */
 export const TRIAL_HOLD_MINUTES = 15
-
-/**
- * Swim Team is a monthly membership, not a lesson. The real price comes from
- * team_tiers.monthly_price_cents per squad; this is only the label used where a
- * screen has to name the product before a tier is known.
- */
-export const TEAM_PLAN = {
-  id: 'team',
-  name: 'Swim Team · Monthly',
-  courseSlug: 'team',
-} as const

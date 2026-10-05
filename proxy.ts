@@ -33,7 +33,18 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getClaims, not getUser (2026-10-05). getUser asks Supabase's auth server
+  // on every request from a signed-in browser -- a network round trip before
+  // any page could start. getClaims checks the token's signature here, with
+  // keys it fetches once and caches, and still refreshes an expired session
+  // (which is the other job of this file). On a project still on the old
+  // shared-secret tokens it falls back to getUser by itself, so nothing gets
+  // slower. A session revoked elsewhere stays readable here until its token
+  // expires (at most an hour); this file only routes, and every API route
+  // checks the user again before doing anything.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = typeof claimsData?.claims?.sub === 'string' ? claimsData.claims.sub : null
+  const user = userId ? { id: userId } : null
 
   if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
     return toLogin(request)
@@ -59,5 +70,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Files served as they are -- images, fonts, video -- need neither a session
+  // nor a redirect, and were each paying for an auth check (2026-10-05).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|pdf|txt|xml)$).*)'],
 }

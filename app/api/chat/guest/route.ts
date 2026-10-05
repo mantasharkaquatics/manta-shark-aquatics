@@ -5,7 +5,7 @@ import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { getTodayLA } from '@/lib/date'
 import { readJson, badRequest } from '@/lib/http'
-import { translate, isLocale } from '@/lib/i18n'
+import { translate, isLocale } from '@/lib/i18n/all'
 
 // The chat for visitors who have not signed up (owner, 2026-09-28): every page
 // has the chat button, and someone who is only looking can ask about lessons

@@ -5,6 +5,7 @@ import AdminSidebar, { AdminMenuButton } from './AdminNav'
 import { AdminPortalLabel, AdminSignOut, AdminLangSwitch } from './AdminChrome'
 import { LocaleProvider } from '@/lib/i18n/provider'
 import { getAdminLocale } from '@/lib/i18n/admin-locale'
+import { messagesFor } from '@/lib/i18n/all'
 import Image from 'next/image'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -27,7 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // The shell is exactly one viewport tall on a desktop and the two panes
   // scroll independently, so nothing in the chrome ever scrolls out of reach.
   return (
-    <LocaleProvider locale={locale} persist={false}>
+    <LocaleProvider locale={locale} persist={false} messages={messagesFor(locale, true)} staff>
     <div className="min-h-screen bg-[#0d1529] lg:h-dvh lg:flex lg:flex-col lg:overflow-hidden">
       {/* Sign Out sits top-right on the identity row, which is where the coach
           portal already puts it and where a hand goes looking for it. At the

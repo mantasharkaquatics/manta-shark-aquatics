@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { serviceClient } from '@/lib/api-auth'
 import Link from 'next/link'
-import { getT, tDb, dateTag } from '@/lib/i18n'
+import { getT, tDb, dateTag } from '@/lib/i18n/all'
 import { getAdminLocale } from '@/lib/i18n/admin-locale'
 
 function formatTimeRange(start: string, end: string): string {

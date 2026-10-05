@@ -6,7 +6,7 @@ export default function PrivacyPolicyPage() {
     <LegalPage
       title="Privacy Policy"
       subtitle="What information we collect and how we use it."
-      meta="Last updated: August 30, 2026"
+      meta="Last updated: October 5, 2026"
     >
         <p>
           Manta Shark Aquatics (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) values your privacy. This Privacy Policy explains how we
@@ -47,10 +47,12 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li>
             When you provide your phone number during account registration and tap &quot;Send Verification
-            Code&quot;, you consent to receive a one-time verification passcode by SMS from Manta Shark
-            Aquatics. Messages are sent only when you request them.
+            Code&quot;, you consent to receive text messages from Manta Shark Aquatics: a one-time
+            verification passcode, a reminder the day before each lesson you book, and occasional notices
+            about your account (for example, when the phone number on your account changes). We do not
+            send marketing or promotional text messages.
           </li>
-          <li>Message frequency: one message per verification request. Message and data rates may apply.</li>
+          <li>Message frequency varies: a passcode only when you request one, and one reminder for each lesson you book. Message and data rates may apply.</li>
           <li>Reply STOP to opt out of SMS at any time. Reply HELP for help, or contact us at info@mantasharkaquatics.net.</li>
           <li>Consent to receive SMS is not a condition of purchasing any goods or services.</li>
           <li>

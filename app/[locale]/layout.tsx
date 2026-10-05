@@ -1,5 +1,6 @@
 import { LOCALES, type Locale } from '@/lib/i18n'
 import { LocaleProvider } from '@/lib/i18n/provider'
+import { messagesFor } from '@/lib/i18n/all'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
@@ -31,7 +32,9 @@ export default async function LocaleLayout({
 }) {
   const { locale } = await params
   return (
-    <LocaleProvider locale={locale as Locale}>
+    // The language's text rides along with the page, so the first render is
+    // already in Chinese (lib/i18n/index.ts).
+    <LocaleProvider locale={locale as Locale} messages={messagesFor(locale as Locale)}>
       {/* Same shell as (public)/layout.tsx: the brand stylesheet and reading face. */}
       <div style={{ display: 'contents', fontFamily: FONT_BODY }}>
         <BrandStyles />

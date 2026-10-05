@@ -71,6 +71,3 @@ export const MASTERY_LABEL: Record<Mastery, string> = {
   4: 'Getting solid',
   5: 'Mastered',
 }
-
-export const isUnlocking = (pct: number | null | undefined) => masteryOf(pct) >= UNLOCK_LEVEL
-export const isPassed    = (pct: number | null | undefined) => masteryOf(pct) >= PASS_LEVEL

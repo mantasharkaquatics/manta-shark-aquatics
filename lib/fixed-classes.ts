@@ -22,36 +22,9 @@ import { addDaysStr } from '@/lib/vouchers'
 
 type Svc = SupabaseClient
 
-/**
- * Every row a query matches, a page at a time. The API hands back at most
- * 1,000 rows per request and says nothing when it stops there, so a read of
- * every active class's lessons, or of every coach's sessions over months,
- * silently lost the rest (found 2026-10-05). `make` must order by something
- * unique so pages do not overlap. Same shape as allRows in
- * app/api/admin/finance/route.ts: an error ends the read with what it has.
- */
-export const PAGE_ROWS = 1000
-export async function allRows(make: () => any): Promise<{ data: any[]; error: any }> {
-  const out: any[] = []
-  for (let from = 0; ; from += PAGE_ROWS) {
-    const { data, error } = await make().range(from, from + PAGE_ROWS - 1)
-    if (error) return { data: out, error }
-    out.push(...(data || []))
-    if (!data || data.length < PAGE_ROWS) return { data: out, error: null }
-  }
-}
-/** allRows over a long id list, IN_CHUNK ids per .in(): thousands of uuids in one URL is past what the API takes. */
-export const IN_CHUNK = 500
-export async function allRowsIn(ids: string[], make: (chunk: string[]) => any): Promise<{ data: any[]; error: any }> {
-  const out: any[] = []
-  for (let i = 0; i < ids.length; i += IN_CHUNK) {
-    const chunk = ids.slice(i, i + IN_CHUNK)
-    const { data, error } = await allRows(() => make(chunk))
-    out.push(...data)
-    if (error) return { data: out, error }
-  }
-  return { data: out, error: null }
-}
+// Paging helpers live in lib/db-paging.ts; re-exported for existing callers.
+import { allRows, allRowsIn, PAGE_ROWS, IN_CHUNK } from './db-paging'
+export { allRows, allRowsIn, PAGE_ROWS, IN_CHUNK }
 
 /** The renewal email goes this many days before the last lesson. */
 export const RENEW_NOTICE_DAYS = 21

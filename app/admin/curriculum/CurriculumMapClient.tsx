@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { LocaleProvider, useT } from '@/lib/i18n/provider'
-import { getT } from '@/lib/i18n'
+import { LocaleProvider, useT, useTFor } from '@/lib/i18n/provider'
 import SkillTree from '@/app/(public)/dashboard/SkillTree'
 import { MAX_LEVEL } from '@/lib/levels'
 
@@ -24,6 +23,7 @@ export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
   const t = useT()
   const [loc, setLoc] = useState<'zh-Hant' | 'en'>('zh-Hant')
   const [open, setOpen] = useState(false)
+  const tMap = useTFor(loc, true)
 
   return (
     <div className="p-6 max-w-3xl">
@@ -52,9 +52,9 @@ export default function CurriculumMapClient({ notes }: { notes: SkillNotes }) {
       </div>
 
       {open && (
-        <LocaleProvider locale={loc} persist={false}>
+        <LocaleProvider locale={loc} persist={false} staff>
           <SkillTree
-            studentName={getT(loc)('admin.curriculum.wholeProgramme')}
+            studentName={tMap('admin.curriculum.wholeProgramme')}
             currentLevel={MAX_LEVEL}
             currentStage={3}
             percentBySkillId={NO_RECORDS}

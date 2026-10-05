@@ -64,8 +64,6 @@ export default function CoachDashboardClient({
   // null means "follow the swimmer": the stage they are in opens, the rest stay
   // shut. Reset whenever a different student is picked.
   const [openStage, setOpenStage] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
   const [allComplete, setAllComplete] = useState(false)
   const [levelName, setLevelName] = useState('')
 
@@ -92,7 +90,6 @@ export default function CoachDashboardClient({
     setSelectedStudent(student)
     setSkills([])
     setOpenStage(null)
-    setSaveSuccess(false)
     setAllComplete(false)
     setLevelName('')
     setLoadingSkills(true)
@@ -150,32 +147,6 @@ export default function CoachDashboardClient({
     setSkills(combined)
     setAllComplete(combined.every(s => s.progress === 100))
     setLoadingSkills(false)
-  }
-
-  const updateSkillProgress = (skillId: string, value: number) => {
-    const updated = skills.map(s => s.id === skillId ? { ...s, progress: value } : s)
-    setSkills(updated)
-    setAllComplete(updated.every(s => s.progress === 100))
-  }
-
-  const saveProgress = async () => {
-    if (!selectedStudent) return
-    setSaving(true)
-    setSaveSuccess(false)
-
-    for (const skill of skills) {
-      await supabase
-        .from('student_skill_progress')
-        .upsert({
-          student_id: selectedStudent.id,
-          skill_id: skill.id,
-          progress_percent: skill.progress,
-          last_updated_by: coach.id,
-        }, { onConflict: 'student_id,skill_id' })
-    }
-
-    setSaving(false)
-    setSaveSuccess(true)
   }
 
   const hour = new Date().getHours()

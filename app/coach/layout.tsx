@@ -7,6 +7,7 @@ import CoachLangSwitch from './CoachLangSwitch'
 import { CoachPortalLabel, CoachSignOut } from './CoachChrome'
 import { LocaleProvider } from '@/lib/i18n/provider'
 import { isLocale, DEFAULT_LOCALE, type Locale } from '@/lib/i18n'
+import { messagesFor } from '@/lib/i18n/all'
 
 export default async function CoachLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
@@ -37,7 +38,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
   const locale: Locale = isLocale(stored) ? stored : DEFAULT_LOCALE
 
   return (
-    <LocaleProvider locale={locale} persist={false}>
+    <LocaleProvider locale={locale} persist={false} messages={messagesFor(locale, true)} staff>
     <div className="min-h-screen bg-[#0d1529]">
       {/* Two rows: who you are plus the way out, then where you can go. Every
           destination stays visible -- no hamburger to open with wet hands -- and

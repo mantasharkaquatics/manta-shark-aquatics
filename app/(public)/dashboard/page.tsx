@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import QRCode from 'qrcode'
+import dynamic from 'next/dynamic'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
 import { priceLesson, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
@@ -16,8 +16,14 @@ import { errorKey } from '@/lib/i18n/errors'
 import { localePath } from '@/lib/i18n/paths'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
-import SkillTree from './SkillTree'
-import MonthlyReportSheet, { REPORT_SHEET_CSS, type MonthlyReport } from './MonthlyReportSheet'
+import { REPORT_SHEET_CSS } from './report-sheet-css'
+import type { MonthlyReport } from './MonthlyReportSheet'
+
+// Opened from a button, never on first paint: fetched the first time a family
+// opens them rather than with the page (2026-10-05). The skill map alone is
+// ~740 lines; the QR library loads the same way, inside QRModal.
+const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
+const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 /* The phone layout lives here rather than in inline styles, because an inline
@@ -766,12 +772,14 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
 
   useEffect(() => {
     const payload = makeQRPayload(student.id)
-    QRCode.toDataURL(payload, {
+    let live = true
+    import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(payload, {
       width: 280,
       margin: 2,
       color: { dark: '#1a2744', light: '#ffffff' },
       errorCorrectionLevel: 'H',
-    }).then(setQrDataUrl)
+    })).then(url => { if (live) setQrDataUrl(url) }).catch(() => {})
+    return () => { live = false }
   }, [student.id])
 
   const handleDownload = () => {

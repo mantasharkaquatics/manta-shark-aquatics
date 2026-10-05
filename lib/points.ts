@@ -12,7 +12,6 @@
 // Design book: the artifact published 2026-09-01. If you change a number here,
 // change the User Agreement too -- parents are told these rules.
 
-import { getTodayLA } from '@/lib/date'
 
 // --- Base prices, per swimmer, per 30 minutes -------------------------------
 // This is the price. There is no surcharge anywhere in the system, deliberately. "Off-peak saves 3 points"
@@ -268,6 +267,3 @@ export const centsToPoints = (cents: number) => Math.floor(cents / CENTS_PER_POI
  * courtesy into a withdrawal.
  */
 export const refundableCents = (balancePurchased: number) => pointsToCents(balancePurchased)
-
-/** Today in the school's timezone, for callers that need a default date. */
-export const todayLA = getTodayLA

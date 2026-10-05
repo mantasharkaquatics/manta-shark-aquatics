@@ -1,3 +1,4 @@
+import { allRows } from '@/lib/db-paging'
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
@@ -60,22 +61,8 @@ const NOT_LESSON_TRAFFIC = new Set([
   'admin_grant', 'admin_deduct', 'referral_bonus', 'grant_expired',
 ])
 
-/**
- * Every row a query matches, a page at a time. The API hands back at most
- * 1,000 rows per request, and a report that silently stopped at the first
- * thousand bookings would understate the liability without saying so. Each
- * query must be ordered by something unique so the pages do not overlap.
- */
-async function allRows(make: () => any): Promise<{ data: any[]; error: any }> {
-  const PAGE = 1000
-  const out: any[] = []
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await make().range(from, from + PAGE - 1)
-    if (error) return { data: out, error }
-    out.push(...(data || []))
-    if (!data || data.length < PAGE) return { data: out, error: null }
-  }
-}
+// allRows: lib/db-paging.ts. A report that silently stopped at the first
+// thousand bookings would understate the liability without saying so.
 
 export async function GET() {
   const auth = await requireAdmin()

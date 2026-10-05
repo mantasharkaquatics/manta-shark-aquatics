@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
           currency: 'usd',
           product_data: {
             name: `${dollars.toLocaleString('en-US')} lesson points`,
-            description: 'One point books one dollar of lessons. Points never expire.',
+            description: 'One point books one dollar of lessons. Points you buy never expire.',
           },
           unit_amount: dollars * 100,
         },

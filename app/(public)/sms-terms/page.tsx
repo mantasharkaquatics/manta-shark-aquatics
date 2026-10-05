@@ -6,18 +6,27 @@ export default function SmsTermsPage() {
     <LegalPage
       title="SMS Terms & Conditions"
       subtitle="Message frequency, rates, and how to opt out."
-      meta="Last updated: July 4, 2026"
+      meta="Last updated: October 5, 2026"
     >
         <h2>Program Description</h2>
         <p>
-          Manta Shark Aquatics sends SMS messages to verify your phone number during account
-          registration on www.mantasharkaquatics.net. When you enter your phone number and tap
-          &quot;Send Verification Code&quot;, we send you a one-time passcode by SMS. Messages are sent only
-          when you request them.
+          Manta Shark Aquatics sends text messages to the mobile number on your account at
+          www.mantasharkaquatics.net. When you enter your phone number and tap &quot;Send Verification
+          Code&quot;, you agree to receive:
         </p>
+        <ul>
+          <li><strong>Verification passcodes.</strong> A one-time passcode to confirm your phone number when you register, or when you apply for a coaching position, sent only when you request it.</li>
+          <li><strong>Lesson reminders.</strong> A reminder the day before each lesson you have booked, with the swimmer, lesson time and coach.</li>
+          <li><strong>Account notices.</strong> Occasional messages about your account, such as a confirmation when the phone number on your account is changed.</li>
+        </ul>
+        <p>We do not send marketing or promotional text messages.</p>
 
         <h2>Message Frequency</h2>
-        <p>One message per verification request. Message frequency varies based on how many codes you request.</p>
+        <p>
+          Message frequency varies. Passcodes are sent only when you request one. Lesson reminders are
+          one message for each lesson you have booked; a 60-minute lesson, or two of your children in
+          the same lesson, gets one reminder, not two.
+        </p>
 
         <h2>Fees</h2>
         <p>
@@ -28,10 +37,11 @@ export default function SmsTermsPage() {
         <h2>Opting Out</h2>
         <p>
           Reply STOP to any message to opt out. After opting out you will receive one final
-          confirmation message and no further messages will be sent. Note that phone verification by
-          SMS is offered as a convenience; consent to receive SMS is not a condition of purchasing any
-          goods or services. If you need help with your account without SMS, contact us at
-          info@mantasharkaquatics.net.
+          confirmation message and no further text messages, including lesson reminders; booking
+          confirmations and other notices continue by email. Reply START to receive text messages
+          again. Consent to receive text messages is not a condition of purchasing any goods or
+          services. If you cannot receive a verification passcode by text, contact us at
+          info@mantasharkaquatics.net and we will help you finish setting up your account.
         </p>
 
         <h2>Help</h2>

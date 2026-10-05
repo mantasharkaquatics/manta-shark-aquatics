@@ -6,22 +6,11 @@ import SalesClient from './SalesClient'
 
 export const dynamic = 'force-dynamic'
 
-const PAGE = 1000
-const IN_CHUNK = 500
+import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
 
-/** Every row a query matches, PAGE at a time (same shape as allRows in
- *  app/api/admin/finance/route.ts). The query must be ordered by something
- *  unique. A failed page ends the read with what it has, as the single read
- *  this replaced did on error -- logged, so it is not silent. */
-async function allRows(make: () => any): Promise<any[]> {
-  const out: any[] = []
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await make().range(from, from + PAGE - 1)
-    if (error) { console.error('admin/sales: read failed:', error.message || error); return out }
-    out.push(...(data || []))
-    if (!data || data.length < PAGE) return out
-  }
-}
+// Every row, a page at a time; a failed page is logged and the page shows
+// what it has (lib/db-paging.ts).
+const allRows = (make: () => any) => allRowsOrLog('admin/sales', make)
 
 export default async function AdminSalesPage() {
   const cookieStore = await cookies()

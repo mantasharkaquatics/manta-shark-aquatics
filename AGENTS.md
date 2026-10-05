@@ -147,6 +147,15 @@ owner, 2026-10-02 for admin).
 - The AI assistant answers in whatever language the parent wrote in
   (`lib/ai/system-prompt.ts`); only the chrome around it needed keys.
 
-`node scripts/i18n-check.mjs` fails on a key missing from any locale, and on
-orphans. It does not know about a string you never wrapped -- that part is on
+Each language is two files: `lib/i18n/locales/<lang>.json` (public site and
+parent pages) and `lib/i18n/locales/staff/<lang>.json` (`admin.*`, and
+`coach.*` except the coach login page). The browser builds in only English site
+text; other languages arrive from the layout (`messages` prop, from
+`lib/i18n/all.ts`) or are fetched on demand (`lib/i18n/load.ts`). Server code
+that translates imports `getT` / `translate` from `@/lib/i18n/all` -- from plain
+`@/lib/i18n` it would only find English. Never import `all.ts` into a
+`'use client'` file: that puts every language back into every page.
+
+`node scripts/i18n-check.mjs` fails on a key missing from any locale, on a key
+in the wrong one of the two files, and on orphans. It does not know about a string you never wrapped -- that part is on
 you.

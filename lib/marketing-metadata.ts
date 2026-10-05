@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_URL } from '@/lib/site-config'
-import { LOCALES, DEFAULT_LOCALE, translate, type Locale } from '@/lib/i18n'
+import { LOCALES, DEFAULT_LOCALE, translate, type Locale } from '@/lib/i18n/all'
 import { SITE_OG_IMAGE } from '@/lib/og'
 
 // og:locale wants language_TERRITORY. Same territories as dateTag().
