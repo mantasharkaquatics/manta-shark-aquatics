@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
- * The four queues behind /admin/reviews, in one place so the page and the
- * sidebar's badge cannot drift apart.
+ * The queues behind /admin/reviews, in one place so the page and the
+ * sidebar's badge cannot drift apart: missing progress, pending progress
+ * (today and earlier), level recommendations, and refunds still owed.
  *
  * The missing-progress pass is the expensive one: it reads every confirmed
  * booking, its attendance, its session and the progress already recorded, then
@@ -13,17 +14,216 @@
  */
 import { getTodayLA } from '@/lib/date'
 
+/**
+ * Every row a query matches, a page at a time. The API hands back at most
+ * 1,000 rows per request, and a queue that silently stopped at the first
+ * thousand would say "nothing waiting" about lessons it never read. Each
+ * query must be ordered by something unique so the pages do not overlap.
+ * Same shape as allRows in app/api/admin/finance/route.ts. An error is logged
+ * and ends the read with what it has, which is what the single unpaged reads
+ * here used to do (they ignored the error and saw no rows).
+ */
+const PAGE = 1000
+async function allRows(make: () => any): Promise<any[]> {
+  const out: any[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await make().range(from, from + PAGE - 1)
+    if (error) { console.error('review-queues: read failed:', error.message || error); return out }
+    out.push(...(data || []))
+    if (!data || data.length < PAGE) return out
+  }
+}
+
+/**
+ * allRows over a long id list, cut into .in() requests of IN_CHUNK ids: a few
+ * thousand uuids in one URL is past what the API will take. A few chunks run
+ * at once; every caller folds the rows into a set or a map, so order is moot.
+ */
+const IN_CHUNK = 500
+const PARALLEL = 4
+async function inChunks(ids: string[], make: (chunk: string[]) => any): Promise<any[]> {
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += IN_CHUNK) chunks.push(ids.slice(i, i + IN_CHUNK))
+  const out: any[] = []
+  for (let i = 0; i < chunks.length; i += PARALLEL) {
+    const got = await Promise.all(chunks.slice(i, i + PARALLEL).map(c => allRows(() => make(c))))
+    for (const rows of got) out.push(...rows)
+  }
+  return out
+}
+
+// --- Refunds still owed ("退點未完成", owner 2026-10-04) -----------------------
+//
+// refundBookingPoints (lib/bookings/refund.ts) never throws: when the wallet
+// write fails it logs and returns 0, and the booking stays cancelled with
+// points_charged - points_refunded > 0. Every cancel path has already flipped
+// the row to cancelled by then, so nothing ever comes back for it. This queue
+// is that "something", and /api/admin/refund-retry is its button.
+
+/**
+ * Cancelled rows whose unrefunded points are NOT owed, by design:
+ *   rescheduled            the points moved to the new row with the lesson.
+ *   partner_double_booked  a booking that failed half-way (create route): the
+ *                          whole debit went back as ONE 'booking_failed'
+ *                          ledger row with no booking_id, and the row was
+ *                          never stamped. Retrying it would refund twice.
+ */
+const NOT_OWED_REASONS = new Set(['rescheduled', 'partner_double_booked'])
+
+export type RefundCheckRow = {
+  id: string
+  parent_id: string | null
+  status: string | null
+  points_charged: number | null
+  points_refunded: number | null
+  cancelled_by: string | null
+  cancellation_reason: string | null
+  class_session_id: string | null
+  lesson_group_id: string | null
+}
+
+export const refundOwedPoints = (b: { points_charged?: number | null; points_refunded?: number | null }) =>
+  (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0)
+
+/**
+ * The row-level half of "is a refund still owed". The other half -- was the
+ * lesson turned into a make-up voucher instead -- needs the database; see
+ * voucherCoveredIds. Both the queue and the retry route use these two, so the
+ * button can never act on something the queue would not show.
+ */
+export function refundLooksOwed(b: RefundCheckRow): boolean {
+  if (b.status !== 'cancelled') return false
+  if (refundOwedPoints(b) <= 0) return false
+  if (b.cancellation_reason && NOT_OWED_REASONS.has(b.cancellation_reason)) return false
+  // A deliberate keep: the desk cancelled without a refund (admin
+  // cancel-booking refund:false, fixed class ended "keep"/"voucher").
+  if (b.cancelled_by === 'admin' && b.cancellation_reason === 'cancelled_by_parent') return false
+  return true
+}
+
+/**
+ * Which of `rows` were turned into a make-up voucher rather than refunded.
+ * Mirrors converted / convertedGroups / convertedSessions in
+ * app/api/parent/wallet/route.ts: a voucher names ONE source row, but the
+ * lesson it replaced can be several -- both halves of an hour share a
+ * lesson_group_id, both seats of a sibling 1-on-2 share the session (and the
+ * family; another family in the same group class is not covered by ours).
+ */
+export async function voucherCoveredIds(svc: any, rows: RefundCheckRow[]): Promise<Set<string>> {
+  if (rows.length === 0) return new Set()
+  const groups = [...new Set(rows.map(r => r.lesson_group_id).filter(Boolean))] as string[]
+  const sessions = [...new Set(rows.map(r => r.class_session_id).filter(Boolean))] as string[]
+  const [byGroup, bySession] = await Promise.all([
+    inChunks(groups, c => svc.from('bookings').select('id, parent_id, class_session_id, lesson_group_id').in('lesson_group_id', c).order('id')),
+    inChunks(sessions, c => svc.from('bookings').select('id, parent_id, class_session_id, lesson_group_id').in('class_session_id', c).order('id')),
+  ])
+  // The lesson's other rows, and the candidates themselves.
+  const related = new Map<string, any>()
+  for (const b of [...rows, ...byGroup, ...bySession]) related.set(b.id, b)
+  const vs = await inChunks([...related.keys()], c =>
+    svc.from('make_up_vouchers').select('id, source_booking_id').in('source_booking_id', c).order('id'))
+  const converted = new Set<string>(vs.map((v: any) => v.source_booking_id))
+  const convertedGroups = new Set<string>()
+  const convertedSeats = new Set<string>()
+  for (const id of converted) {
+    const src = related.get(id)
+    if (!src) continue
+    if (src.lesson_group_id) convertedGroups.add(src.lesson_group_id)
+    if (src.class_session_id) convertedSeats.add(`${src.parent_id}|${src.class_session_id}`)
+  }
+  const out = new Set<string>()
+  for (const r of rows) {
+    if (converted.has(r.id)
+      || (r.lesson_group_id && convertedGroups.has(r.lesson_group_id))
+      || (r.class_session_id && convertedSeats.has(`${r.parent_id}|${r.class_session_id}`))) out.add(r.id)
+  }
+  return out
+}
+
+export type RefundOwedItem = {
+  id: string
+  parent_id: string | null
+  student_id: string | null
+  family_name: string
+  student_name: string
+  session_date: string | null
+  start_time: string | null
+  end_time: string | null
+  points_owed: number
+  cancelled_at: string | null
+  cancellation_reason: string | null
+}
+
+const REFUND_COLS = 'id, parent_id, student_id, status, points_charged, points_refunded, cancelled_by, cancellation_reason, cancelled_at, class_session_id, lesson_group_id'
+
+/** Cancelled lessons whose points never made it back. Oldest first. */
+async function loadRefundOwed(svc: any, withDetails: boolean): Promise<RefundOwedItem[]> {
+  // Server side narrows to cancelled rows that cost points; whether any are
+  // still owed is a column-to-column comparison, done here.
+  const cancelled = await allRows(() => svc.from('bookings').select(REFUND_COLS)
+    .eq('status', 'cancelled').gt('points_charged', 0).order('id'))
+  const looks = cancelled.filter(refundLooksOwed)
+  if (looks.length === 0) return []
+  const covered = await voucherCoveredIds(svc, looks)
+  const owed = looks.filter((b: any) => !covered.has(b.id))
+  if (owed.length === 0) return []
+
+  const parentMap: Record<string, any> = {}
+  const studentMap: Record<string, any> = {}
+  const sessionMap: Record<string, any> = {}
+  if (withDetails) {
+    const pIds = [...new Set(owed.map((b: any) => b.parent_id).filter(Boolean))] as string[]
+    const sIds = [...new Set(owed.map((b: any) => b.student_id).filter(Boolean))] as string[]
+    const cIds = [...new Set(owed.map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+    const [ps, ss, cs] = await Promise.all([
+      inChunks(pIds, c => svc.from('parents').select('id, first_name, last_name').in('id', c).order('id')),
+      inChunks(sIds, c => svc.from('students').select('id, full_name').in('id', c).order('id')),
+      inChunks(cIds, c => svc.from('class_sessions').select('id, session_date, start_time, end_time').in('id', c).order('id')),
+    ])
+    for (const p of ps) parentMap[p.id] = p
+    for (const s of ss) studentMap[s.id] = s
+    for (const c of cs) sessionMap[c.id] = c
+  }
+
+  return owed
+    .map((b: any): RefundOwedItem => {
+      const p = parentMap[b.parent_id]
+      const se = sessionMap[b.class_session_id]
+      return {
+        id: b.id,
+        parent_id: b.parent_id ?? null,
+        student_id: b.student_id ?? null,
+        family_name: p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : '',
+        student_name: studentMap[b.student_id]?.full_name || '',
+        session_date: se?.session_date ?? null,
+        start_time: se?.start_time ?? null,
+        end_time: se?.end_time ?? null,
+        points_owed: refundOwedPoints(b),
+        cancelled_at: b.cancelled_at ?? null,
+        cancellation_reason: b.cancellation_reason ?? null,
+      }
+    })
+    .sort((a, b) => String(a.cancelled_at || '').localeCompare(String(b.cancelled_at || '')) || a.id.localeCompare(b.id))
+}
+
 export type ReviewQueues = {
   recommendations: any[]
   pendingProgressList: any[]
   pastPendingProgressList: any[]
   missingProgressList: any[]
+  refundOwedList: RefundOwedItem[]
 }
 
 export async function loadReviewQueues(
   svc: any,
   { withDetails = true }: { withDetails?: boolean } = {}
 ): Promise<ReviewQueues> {
+  // Independent of everything below, so it runs alongside it.
+  const refundOwedPromise = loadRefundOwed(svc, withDetails).catch((e: unknown) => {
+    console.error('review-queues: refund-owed queue failed:', e)
+    return [] as RefundOwedItem[]
+  })
+
   // Two-step query: pending recommendations
   const { data: recs } = await svc
     .from('level_recommendations')
@@ -174,33 +374,38 @@ export async function loadReviewQueues(
   }
 
   // Missing: students with a confirmed booking but no progress_history on any day, today or earlier (not just today, so forgotten days aren't lost)
-  const { data: pastBookingsRaw } = await svc
+  // Paged, and every .in() below is chunked: this reads every confirmed
+  // booking ever made, which passed the API's 1,000-row cap long ago.
+  const pastBookingsRaw = await allRows(() => svc
     .from('bookings')
     .select('id, student_id, class_session_id, lesson_group_id')
     .eq('status', 'confirmed')
+    .order('id'))
 
   // Absent students need no progress: keep only bookings with an attendance row (checked in)
   let pastBookings: any[] = []
-  if (pastBookingsRaw && pastBookingsRaw.length > 0) {
-    const { data: attRows } = await svc
+  if (pastBookingsRaw.length > 0) {
+    const attRows = await inChunks(pastBookingsRaw.map((b: any) => b.id), c => svc
       .from('attendance')
       .select('booking_id')
-      .in('booking_id', pastBookingsRaw.map((b: any) => b.id))
-    const attendedSet = new Set((attRows || []).map((r: any) => r.booking_id))
+      .in('booking_id', c)
+      .order('booking_id').order('student_id'))
+    const attendedSet = new Set(attRows.map((r: any) => r.booking_id))
     pastBookings = pastBookingsRaw.filter((b: any) => attendedSet.has(b.id))
   }
 
   let missingProgressList: any[] = []
   if (pastBookings && pastBookings.length > 0) {
-    const bSessionIds = [...new Set(pastBookings.map((b: any) => b.class_session_id).filter(Boolean))]
-    const { data: pastSessions } = await svc
+    const bSessionIds = [...new Set(pastBookings.map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+    const pastSessions = await inChunks(bSessionIds, c => svc
       .from('class_sessions')
       .select('id, session_date, coach_id, start_time, end_time, course_types(id, name), coaches(first_name)')
-      .in('id', bSessionIds)
+      .in('id', c)
       .lte('session_date', todayDate)
+      .order('id'))
 
     const sessionMap: Record<string, any> = {}
-    for (const s of pastSessions || []) {
+    for (const s of pastSessions) {
       const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
       const coach = Array.isArray((s as any).coaches) ? (s as any).coaches[0] : (s as any).coaches
       sessionMap[s.id] = { ...s, ct, coach }
@@ -217,12 +422,15 @@ export async function loadReviewQueues(
       .filter((c: any) => c.student_id)
 
     if (candidates.length > 0) {
-      const candidateStudentIds = [...new Set(candidates.map((c: any) => c.student_id))]
-      const { data: existingHistory } = await svc
+      const candidateStudentIds = [...new Set(candidates.map((c: any) => c.student_id))] as string[]
+      // A swimmer has a row per lesson, so this passes 1,000 rows on its own;
+      // a missing page here would report taught-and-recorded lessons as missing.
+      const existingHistory = await inChunks(candidateStudentIds, c => svc
         .from('progress_history')
         .select('student_id, session_date, class_session_id')
-        .in('student_id', candidateStudentIds)
+        .in('student_id', c)
         .lte('session_date', todayDate)
+        .order('id'))
 
       // A lesson = lesson_group_id when set, else the single session. An hour lesson is
       // two class_sessions but ONE lesson; two separate lessons the same day are two.
@@ -232,7 +440,7 @@ export async function loadReviewQueues(
       }
       const doneLessons = new Set<string>()
       const doneDays = new Set<string>()
-      for (const p of existingHistory || []) {
+      for (const p of existingHistory) {
         if (p.class_session_id) {
           doneLessons.add(`${p.student_id}|${lessonOf[p.class_session_id] || p.class_session_id}`)
         } else {
@@ -266,26 +474,29 @@ export async function loadReviewQueues(
       })
 
       if (dedupedCandidates.length > 0) {
-        const missingIds = [...new Set(dedupedCandidates.map((c: any) => c.student_id))]
-        const { data: missingStudents } = await svc
+        const missingIds = [...new Set(dedupedCandidates.map((c: any) => c.student_id))] as string[]
+        const missingStudents = await inChunks(missingIds, c => svc
           .from('students')
           .select('id, full_name, current_level')
-          .in('id', missingIds)
+          .in('id', c)
+          .order('id'))
 
         const studentMap: Record<string, any> = {}
-        for (const s of missingStudents || []) studentMap[s.id] = s
+        for (const s of missingStudents) studentMap[s.id] = s
 
         // Prefilled percentages are what the admin edits before submitting;
-        // a count has nothing to prefill.
-        const { data: existingProgress } = withDetails
-          ? await svc
+        // a count has nothing to prefill. One row per swimmer per skill, so
+        // this one passes 1,000 rows with a few dozen swimmers.
+        const existingProgress = withDetails
+          ? await inChunks(missingIds, c => svc
               .from('student_skill_progress')
               .select('student_id, skill_id, progress_percent')
-              .in('student_id', missingIds)
-          : { data: [] }
+              .in('student_id', c)
+              .order('student_id').order('skill_id'))
+          : []
 
         const progressByStudent: Record<string, Record<string, number>> = {}
-        for (const p of existingProgress || []) {
+        for (const p of existingProgress) {
           if (!progressByStudent[p.student_id]) progressByStudent[p.student_id] = {}
           progressByStudent[p.student_id][p.skill_id] = p.progress_percent
         }
@@ -306,17 +517,20 @@ export async function loadReviewQueues(
     }
   }
 
-  return { recommendations, pendingProgressList, pastPendingProgressList, missingProgressList }
+  const refundOwedList = await refundOwedPromise
+
+  return { recommendations, pendingProgressList, pastPendingProgressList, missingProgressList, refundOwedList }
 }
 
 /** Just the totals, for the sidebar badge. Skips the display-only enrichment. */
-export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number }> {
+export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number; refundOwed: number }> {
   const q = await loadReviewQueues(svc, { withDetails: false })
   const pending = q.pendingProgressList.length + q.pastPendingProgressList.length
   return {
-    total: q.missingProgressList.length + pending + q.recommendations.length,
+    total: q.missingProgressList.length + pending + q.recommendations.length + q.refundOwedList.length,
     missing: q.missingProgressList.length,
     pending,
     recommendations: q.recommendations.length,
+    refundOwed: q.refundOwedList.length,
   }
 }

@@ -117,3 +117,33 @@ export async function refundBookingPoints(
   }
   return owed
 }
+
+/** Ledger reasons that hand a booking's points back to the family. */
+export const REFUND_LEDGER_REASONS = ['cancel_refund', 'school_cancel', 'booking_failed'] as const
+
+/**
+ * Points the ledger says have already gone back for this booking: the sum of
+ * its positive refund rows (purchased + granted). The ledger is the record of
+ * what actually moved, so a retry measures against it rather than against
+ * points_refunded, which is written after the money and can lag it (a stamp
+ * that lost its race, or a request that died between the two writes).
+ *
+ * Only rows that carry this booking_id count. A 'booking_failed' rollback
+ * written before its booking row existed carries none and is invisible here.
+ * Throws on a read error: a caller about to move money must not read "nothing
+ * refunded yet" from a query that failed.
+ */
+export async function ledgerRefundedFor(svc: Svc, bookingId: string): Promise<number> {
+  const { data, error } = await svc
+    .from('point_ledger')
+    .select('delta_purchased, delta_granted')
+    .eq('booking_id', bookingId)
+    .in('reason', REFUND_LEDGER_REASONS as unknown as string[])
+  if (error) throw new Error(`Could not read the ledger for booking ${bookingId}: ${error.message}`)
+  let sum = 0
+  for (const r of data || []) {
+    const pts = (Number(r.delta_purchased) || 0) + (Number(r.delta_granted) || 0)
+    if (pts > 0) sum += pts
+  }
+  return sum
+}

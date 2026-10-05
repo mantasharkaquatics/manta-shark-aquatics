@@ -1,22 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAuthUser, serviceClient } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 
+// Who may read a coach's booked times (2026-10-04). This route used to answer
+// anyone, logged in or not, with every booked student's id and -- given any
+// student_id -- that child's lessons with every coach that day. Now: a parent,
+// an active coach or an admin. Staff see everything as before; a parent sees
+// the coach's busy times, but student ids and the per-student busy list only
+// for their OWN children (what the booking page needs to grey out a clash).
+async function resolveCaller(svc: ReturnType<typeof serviceClient>) {
+  const user = await getAuthUser()
+  if (!user) return null
+  const [{ data: admin }, { data: coach }, { data: parent }] = await Promise.all([
+    svc.from('admins').select('id').eq('auth_user_id', user.id).maybeSingle(),
+    svc.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).maybeSingle(),
+    svc.from('parents').select('id').eq('auth_user_id', user.id).maybeSingle(),
+  ])
+  if (admin || coach) return { staff: true as const, parentId: null }
+  if (parent) return { staff: false as const, parentId: parent.id as string }
+  return null
+}
+
 export async function GET(req: NextRequest) {
+  const supabase = serviceClient()
+  const caller = await resolveCaller(supabase)
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const coach_id = searchParams.get('coach_id')
   const session_date = searchParams.get('session_date')
 
   if (!coach_id || !session_date) return NextResponse.json({ times: [], blocked: [] })
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  // A parent's own children: the only student ids a parent caller gets back.
+  let ownStudents: Set<string> | null = null
+  if (!caller.staff) {
+    const { data: kids } = await supabase.from('students').select('id').eq('parent_id', caller.parentId)
+    ownStudents = new Set((kids || []).map((k: any) => k.id))
+  }
 
-  // The student's own lessons that day with ANY coach, so the picker can grey out clashes
-  const student_id = searchParams.get('student_id')
+  // The student's own lessons that day with ANY coach, so the picker can grey out clashes.
+  // A parent asking about someone else's child gets no student list (the filter
+  // is ignored rather than refused, so the coach's own times still load).
+  const rawStudentId = searchParams.get('student_id')
+  const student_id = rawStudentId && (caller.staff || ownStudents?.has(rawStudentId)) ? rawStudentId : null
   let studentBusy: { start: string; end: string }[] = []
   if (student_id) {
     const { data: myBookings } = await supabase
@@ -87,7 +115,7 @@ export async function GET(req: NextRequest) {
     return {
       time: s?.start_time?.slice(0, 5),
       end: s?.end_time?.slice(0, 5),
-      student_id: b.student_id,
+      student_id: ownStudents && !ownStudents.has(b.student_id) ? null : b.student_id,
       course_type_id: s?.course_type_id,
       session_id: b.class_session_id
     }

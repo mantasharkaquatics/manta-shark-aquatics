@@ -272,15 +272,33 @@ export async function sweepVouchers(svc: Svc, sendReminder: (v: Voucher) => Prom
 export async function giveBackVouchers(svc: Svc, bookingIds: string[]): Promise<number> {
   if (bookingIds.length === 0) return 0
   const { data: rows } = await svc.from('bookings')
-    .select('id, voucher_id, class_session_id').in('id', bookingIds).not('voucher_id', 'is', null)
+    .select('id, voucher_id').in('id', bookingIds).not('voucher_id', 'is', null)
+  const voucherIds = [...new Set(((rows || []) as { voucher_id: string }[]).map(r => r.voucher_id))]
   let n = 0
-  for (const r of (rows || []) as { id: string; voucher_id: string; class_session_id: string }[]) {
-    const [{ data: v }, { data: cs }] = await Promise.all([
-      svc.from('make_up_vouchers').select('id, status, expires_on, used_booking_id').eq('id', r.voucher_id).maybeSingle(),
-      svc.from('class_sessions').select('session_date').eq('id', r.class_session_id).maybeSingle(),
-    ])
-    if (!v || v.status !== 'used' || v.used_booking_id !== r.id) continue
-    const floor = cs?.session_date ? voucherExpiry(cs.session_date) : v.expires_on
+  for (const vid of voucherIds) {
+    const { data: v } = await svc.from('make_up_vouchers')
+      .select('id, parent_id, status, expires_on').eq('id', vid).maybeSingle()
+    if (!v || v.status !== 'used') continue
+    /* One voucher can pay for several rows: both seats of a sibling 1-on-2,
+       both halves of an hour. It comes back only when the WHOLE lesson is
+       gone. It used to come back as soon as the row it was attached to was
+       cancelled, so refunding one child's seat returned the two-child voucher
+       while the other child still had the lesson (found 2026-10-04, owner:
+       handle it). */
+    const { data: used } = await svc.from('bookings')
+      .select('class_session_id, lesson_group_id').eq('voucher_id', vid)
+    const sids = [...new Set((used || []).map((u: any) => u.class_session_id).filter(Boolean))] as string[]
+    const gids = [...new Set((used || []).map((u: any) => u.lesson_group_id).filter(Boolean))] as string[]
+    if (sids.length === 0) continue
+    const filters = [`class_session_id.in.(${sids.join(',')})`, ...(gids.length ? [`lesson_group_id.in.(${gids.join(',')})`] : [])]
+    const { data: live } = await svc.from('bookings').select('id')
+      .eq('parent_id', v.parent_id).or(filters.join(','))
+      .not('status', 'in', '("cancelled","in_cart","pending_payment")').limit(1)
+    if (live && live.length > 0) continue
+    const { data: cs } = await svc.from('class_sessions').select('session_date').in('id', sids)
+      .order('session_date', { ascending: true }).limit(1)
+    const first = (cs || [])[0]?.session_date as string | undefined
+    const floor = first ? voucherExpiry(first) : v.expires_on
     const { data: ok } = await svc.from('make_up_vouchers')
       .update({ status: 'active', used_booking_id: null, used_at: null, expires_on: floor > v.expires_on ? floor : v.expires_on, reminded_at: null })
       .eq('id', v.id).eq('status', 'used').select('id')

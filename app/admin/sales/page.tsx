@@ -6,6 +6,23 @@ import SalesClient from './SalesClient'
 
 export const dynamic = 'force-dynamic'
 
+const PAGE = 1000
+const IN_CHUNK = 500
+
+/** Every row a query matches, PAGE at a time (same shape as allRows in
+ *  app/api/admin/finance/route.ts). The query must be ordered by something
+ *  unique. A failed page ends the read with what it has, as the single read
+ *  this replaced did on error -- logged, so it is not silent. */
+async function allRows(make: () => any): Promise<any[]> {
+  const out: any[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await make().range(from, from + PAGE - 1)
+    if (error) { console.error('admin/sales: read failed:', error.message || error); return out }
+    out.push(...(data || []))
+    if (!data || data.length < PAGE) return out
+  }
+}
+
 export default async function AdminSalesPage() {
   const cookieStore = await cookies()
   const supabaseAuth = createServerClient(
@@ -20,17 +37,26 @@ export default async function AdminSalesPage() {
   const { data: admin } = await supabase.from('admins').select('id').eq('auth_user_id', user.id).single()
   if (!admin) redirect('/dashboard')
 
-  const { data: invoices } = await supabase
+  // Every invoice, a page at a time. The API returns at most 1,000 rows per
+  // request, so a single read quietly dropped everything older than the
+  // thousandth invoice from the totals, the filters and the CSV. Ordered by
+  // issued_at and then id, so rows sharing a timestamp cannot straddle a page
+  // boundary and be read twice or not at all.
+  const invoices = await allRows(() => supabase
     .from('invoices')
     .select('id, invoice_number, amount, payment_method, items, status, issued_at, parent_id, student_id, team_membership_id')
     .order('issued_at', { ascending: false })
+    .order('id', { ascending: false }))
 
-  const parentIds = [...new Set((invoices || []).map((i: any) => i.parent_id).filter(Boolean))]
+  // Names for those invoices, a slice of ids per request: thousands of ids in
+  // one .in() is past what the API will take in a URL.
+  const parentIds = [...new Set(invoices.map((i: any) => i.parent_id).filter(Boolean))] as string[]
   const parentMap: Record<string, any> = {}
-  if (parentIds.length > 0) {
-    const { data: parents } = await supabase.from('parents').select('id, first_name, last_name, email').in('id', parentIds)
-    for (const p of parents || []) parentMap[p.id] = p
+  for (let i = 0; i < parentIds.length; i += IN_CHUNK) {
+    const parents = await allRows(() => supabase.from('parents')
+      .select('id, first_name, last_name, email').in('id', parentIds.slice(i, i + IN_CHUNK)).order('id'))
+    for (const p of parents) parentMap[p.id] = p
   }
 
-  return <SalesClient invoices={invoices || []} parentMap={parentMap} />
+  return <SalesClient invoices={invoices} parentMap={parentMap} />
 }

@@ -37,6 +37,18 @@ type MissingProgress = {
   existingProgress: Record<string, number>
 }
 
+/** A cancelled lesson whose points never reached the wallet (lib/admin/review-queues.ts). */
+type RefundOwed = {
+  id: string
+  family_name: string
+  student_name: string
+  session_date: string | null
+  start_time: string | null
+  end_time: string | null
+  points_owed: number
+  cancelled_at: string | null
+}
+
 /** Mastery chip text. Step 0 reads "Not taught" here, not the parent site's "Not taught yet". */
 function masteryLabel(t: TFunction, m: Mastery): string {
   return m === 0 ? t('admin.progress.mastery0') : t(masteryKey(m))
@@ -60,6 +72,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   pendingProgressList: initialPending,
   pastPendingProgressList: initialPastPending,
   missingProgressList: initialMissing,
+  refundOwedList: initialRefundOwed,
 }: {
   adminId: string
   levels: Level[]
@@ -68,6 +81,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   pendingProgressList: PendingProgress[]
   pastPendingProgressList: PendingProgress[]
   missingProgressList: MissingProgress[]
+  refundOwedList: RefundOwed[]
 }) {
   const t = useT()
   const locale = useLocale()
@@ -85,9 +99,48 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   const [expandedMissing, setExpandedMissing] = useState<Set<string>>(new Set())
   const [overrideLevel, setOverrideLevel] = useState<Record<string, string>>({})
   const [assessRec, setAssessRec] = useState<Record<string, AssessmentRec>>({})
+  const [refundOwedList, setRefundOwedList] = useState(initialRefundOwed)
+  const [retryingRefund, setRetryingRefund] = useState<string | null>(null)
 
   const waiting = missingProgressList.length + pendingProgressList.length
-    + pastPendingProgressList.length + recommendations.length
+    + pastPendingProgressList.length + recommendations.length + refundOwedList.length
+
+  // One booking at a time; the route re-checks everything before moving points.
+  async function retryRefund(r: RefundOwed) {
+    setRetryingRefund(r.id)
+    const res = await fetch('/api/admin/refund-retry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booking_id: r.id }),
+    }).catch(() => null)
+    setRetryingRefund(null)
+    if (!res) { setAlertMsg(t('admin.reviews.err.offline')); return }
+    const data = await res.json().catch(() => ({} as any))
+    if (res.ok && data.fixedStamp) {
+      setRefundOwedList(prev => prev.filter(x => x.id !== r.id))
+      setAlertMsg(t('admin.reviews.refund.fixedStamp'))
+      return
+    }
+    if (res.ok && Number(data.refunded) > 0) {
+      setRefundOwedList(prev => prev.filter(x => x.id !== r.id))
+      setAlertMsg(t('admin.reviews.refund.done', { n: Number(data.refunded) }))
+      return
+    }
+    // The server's words are English; the cases the desk will meet get ours.
+    // busy: a refund for this lesson is in flight or just finished -- keep the
+    // row. Any other 409 means it no longer qualifies: drop the row, a reload
+    // shows whatever is still true.
+    if (res.status === 409 && data.busy) {
+      setAlertMsg(t('admin.reviews.refund.busy'))
+      return
+    }
+    if (res.status === 409) {
+      setRefundOwedList(prev => prev.filter(x => x.id !== r.id))
+      setAlertMsg(t('admin.reviews.refund.stale'))
+      return
+    }
+    setAlertMsg(t('admin.reviews.refund.failed'))
+  }
 
   async function handleReview(rec: Recommendation, action: 'approved' | 'modified' | 'rejected') {
     setReviewingId(rec.id)
@@ -219,6 +272,45 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       </div>
 
       <NoteTranslationHealth />
+
+      {/* Refunds not completed: money first. */}
+      {refundOwedList.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+            {t('admin.reviews.refund.heading')}
+            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{refundOwedList.length}</span>
+          </h2>
+          <p className="text-gray-400 text-xs mb-4">{t('admin.reviews.refund.hint')}</p>
+          <div className="space-y-3">
+            {refundOwedList.map(r => (
+              <div key={r.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-white font-semibold">
+                    {r.student_name || '—'}
+                    <span className="text-gray-400 font-normal text-sm"> · {r.family_name || '—'}</span>
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    {r.session_date
+                      ? `${new Date(r.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' })}${r.start_time ? ` · ${formatTime12h(r.start_time)}${r.end_time ? `–${formatTime12h(r.end_time)}` : ''}` : ''}`
+                      : t('admin.reviews.refund.noLesson')}
+                    {r.cancelled_at ? ` · ${t('admin.reviews.refund.cancelledAt', { date: dateTimeLabel(r.cancelled_at, locale) })}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-red-300 font-semibold text-sm">{t('admin.reviews.refund.owed', { n: r.points_owed })}</span>
+                  <button
+                    onClick={() => retryRefund(r)}
+                    disabled={retryingRefund !== null}
+                    className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
+                  >
+                    {retryingRefund === r.id ? t('admin.reviews.refund.retrying') : t('admin.reviews.refund.retry')}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Missing progress notice */}
       {missingProgressList.length > 0 && (

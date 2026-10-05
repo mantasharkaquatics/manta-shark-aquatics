@@ -5,7 +5,8 @@ import { countReviewQueues } from '@/lib/admin/review-queues'
 export const dynamic = 'force-dynamic'
 
 // The sidebar badge. Counting the queues means reading every confirmed booking
-// and differencing it against recorded progress — about a second of work. The
+// and differencing it against recorded progress — about a second of work —
+// plus every cancelled booking that cost points (refunds still owed). The
 // sidebar renders on every admin page, so this is deliberately NOT computed
 // during the render: the nav paints immediately and asks for the number
 // afterwards, and the answer is held for a minute so a burst of page views
@@ -31,6 +32,6 @@ export async function GET() {
   } catch (e: unknown) {
     // A badge is never worth breaking the page over.
     console.error('review-count failed:', e)
-    return NextResponse.json({ total: 0, missing: 0, pending: 0, recommendations: 0 })
+    return NextResponse.json({ total: 0, missing: 0, pending: 0, recommendations: 0, refundOwed: 0 })
   }
 }

@@ -8,9 +8,10 @@ import { loadReviewQueues } from '@/lib/admin/review-queues'
 export const dynamic = 'force-dynamic'
 
 // The queues an admin works through: lessons taught with no progress recorded,
-// progress a coach submitted that nobody has published yet, and level changes a
-// coach has asked for. Split out of /admin/upgrades, which now holds only the
-// level settings themselves.
+// progress a coach submitted that nobody has published yet, level changes a
+// coach has asked for, and cancelled lessons whose points never made it back.
+// Split out of /admin/upgrades, which now holds only the level settings
+// themselves.
 export default async function AdminReviewsPage() {
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -42,5 +43,6 @@ export default async function AdminReviewsPage() {
     pendingProgressList={queues.pendingProgressList}
     pastPendingProgressList={queues.pastPendingProgressList}
     missingProgressList={queues.missingProgressList}
+    refundOwedList={queues.refundOwedList}
   />
 }

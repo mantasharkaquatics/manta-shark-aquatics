@@ -1,8 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
+
+type ImpactLesson = { start: string; end: string; course_type_id: string | null; course_name: string; is_trial: boolean; swimmers: string[] }
 
 type TimeOff = { id: string; date: string; reason: string | null; created_at: string; start_time: string | null; end_time: string | null }
 
@@ -31,6 +34,47 @@ export default function CoachTimeOffClient({
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; msg: string } | null>(null)
+  // Lessons families already booked in the requested time (owner, 2026-10-04).
+  // Kept per date/window key, so an answer for a day the coach has already
+  // changed away from is never shown or trusted. null = the check failed.
+  const [impacts, setImpacts] = useState<Record<string, ImpactLesson[] | null>>({})
+  // Two-step submit when lessons are booked: the first press arms it for this
+  // exact date/window, the second ("Submit anyway") sends. Changing the date or
+  // time leaves the armed key behind, which disarms it.
+  const [confirmKey, setConfirmKey] = useState('')
+
+  const windowValid = !!date && (allDay || (!!startTime && !!endTime && startTime < endTime))
+  const impactKey = windowValid ? `${date}|${allDay ? '' : `${startTime}-${endTime}`}` : ''
+
+  // null = the check itself failed; the request still goes through (the
+  // admin's Time Off page lists the same lessons), it just was not warned.
+  const fetchImpact = async (key: string): Promise<ImpactLesson[] | null> => {
+    const [d, win] = key.split('|')
+    const qs = new URLSearchParams({ date: d })
+    if (win) { const [s, e] = win.split('-'); qs.set('start', s); qs.set('end', e) }
+    try {
+      const res = await fetch(`/api/coach/time-off-impact?${qs}`)
+      if (!res.ok) return null
+      const json = await res.json()
+      return Array.isArray(json?.lessons) ? json.lessons : null
+    } catch { return null }
+  }
+
+  useEffect(() => {
+    if (!impactKey) return
+    let live = true
+    fetchImpact(impactKey).then(lessons => {
+      if (live) setImpacts(prev => ({ ...prev, [impactKey]: lessons }))
+    })
+    return () => { live = false }
+  }, [impactKey])
+
+  const impactLoading = !!impactKey && !(impactKey in impacts)
+  const shownLessons = (impactKey && impacts[impactKey]) || []
+  const confirmImpact = !!impactKey && confirmKey === impactKey
+  const lessonLabel = (l: ImpactLesson) => l.is_trial
+    ? t('common.assessment')
+    : (l.course_type_id ? tDb(locale, 'course_types', l.course_type_id, l.course_name) : l.course_name)
 
   const formatDate = (d: string) => {
     const dt = new Date(d + 'T12:00:00')
@@ -58,9 +102,22 @@ export default function CoachTimeOffClient({
       return toM(startTime) < toM(t.end_time) && toM(endTime) > toM(t.start_time)
     })
     if (clash) { setError(t('coach.timeOff.errClash')); return }
-    setSubmitting(true)
     setError('')
     setSuccess('')
+    if (!confirmImpact) {
+      // An empty or missing answer is asked again at the press: the list may
+      // still be loading, or a family may have booked since it loaded.
+      const key = impactKey
+      let lessons = impacts[key] ?? null
+      if (!lessons || lessons.length === 0) {
+        setSubmitting(true)
+        lessons = await fetchImpact(key)
+        setSubmitting(false)
+        setImpacts(prev => ({ ...prev, [key]: lessons }))
+      }
+      if (lessons && lessons.length > 0) { setConfirmKey(key); return }
+    }
+    setSubmitting(true)
     const { data, error: err } = await supabase
       .from('coach_time_off')
       .insert({ coach_id: coach.id, date, reason: reason || null, start_time: allDay ? null : startTime, end_time: allDay ? null : endTime })
@@ -75,6 +132,7 @@ export default function CoachTimeOffClient({
       setAllDay(true)
       setStartTime('')
       setEndTime('')
+      setConfirmKey('')
       setSuccess(t('coach.timeOff.done', { date: formatDate(date) }))
     }
     setSubmitting(false)
@@ -162,15 +220,56 @@ export default function CoachTimeOffClient({
                 className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors resize-none placeholder-gray-600"
               />
             </div>
+            {impactLoading && shownLessons.length === 0 && (
+              <p className="text-gray-500 text-sm">{t('coach.timeOff.impactChecking')}</p>
+            )}
+            {shownLessons.length > 0 && (
+              <div className="bg-amber-900/20 border border-amber-500/40 rounded-lg p-4">
+                <p className="text-amber-300 text-sm font-semibold">{t('coach.timeOff.impactTitle', { n: shownLessons.length })}</p>
+                <p className="text-amber-100/80 text-sm mt-1">{t('coach.timeOff.impactBody')}</p>
+                <ul className="mt-3 space-y-2">
+                  {shownLessons.map((l, i) => (
+                    <li key={`${i}-${l.start}`} className="text-sm">
+                      <span className="text-white font-medium">{fmt12(l.start)} – {fmt12(l.end)}</span>
+                      <span className="text-gray-300"> · {lessonLabel(l)}</span>
+                      {l.swimmers.length > 0 && <span className="text-gray-400"> · {l.swimmers.join(', ')}</span>}
+                    </li>
+                  ))}
+                </ul>
+                {confirmImpact && (
+                  <div className="mt-4 pt-3 border-t border-amber-500/30">
+                    <p className="text-gray-200 text-sm mb-3">{t('coach.timeOff.impactConfirm')}</p>
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                      <button
+                        onClick={() => setConfirmKey('')}
+                        disabled={submitting}
+                        className="text-gray-400 hover:text-white text-sm px-3 py-2 rounded-lg disabled:opacity-50 transition-colors"
+                      >
+                        {t('coach.timeOff.goBack')}
+                      </button>
+                      <button
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                        className="bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] text-sm font-semibold px-4 py-2 rounded-lg transition-all"
+                      >
+                        {submitting ? t('coach.timeOff.submitting') : t('coach.timeOff.submitAnyway')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {error && <p className="text-red-400 text-sm">{error}</p>}
             {success && <p className="text-green-400 text-sm">✓ {success}</p>}
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="w-full bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] font-semibold py-3 rounded-lg transition-all"
-            >
-              {submitting ? t('coach.timeOff.submitting') : t('coach.timeOff.submit')}
-            </button>
+            {!confirmImpact && (
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="w-full bg-[#c9a84c] hover:bg-[#b8963e] disabled:opacity-50 text-[#111d38] font-semibold py-3 rounded-lg transition-all"
+              >
+                {submitting ? t('coach.timeOff.submitting') : t('coach.timeOff.submit')}
+              </button>
+            )}
           </div>
         </div>
 
