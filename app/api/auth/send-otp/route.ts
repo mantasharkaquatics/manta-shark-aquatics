@@ -5,7 +5,7 @@ import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { readJson, badRequest } from '@/lib/http'
 import { phoneHasAccount } from '@/lib/account-exists'
 import { normalizePhone } from '@/lib/applicant-auth'
-import { takeIpSlot } from '@/lib/ip-rate-limit'
+import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
 
@@ -63,12 +63,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please wait a minute before requesting another code.' }, { status: 429 })
   }
 
-  // Counted last, so a refusal above does not use up the network's budget.
-  const slot = await takeIpSlot(supabase, req, 'send-otp', MAX_PER_IP_PER_HOUR, 60 * 60 * 1000)
-  if (slot === 'error') {
+  // The reads above answer an honest caller quickly; these reservations are
+  // what hold under a burst. Twenty requests fired at once all read "no
+  // recent codes" above, and all used to be sent (found 2026-10-06).
+  // takeSlots reserves first and counts after, so only the first through
+  // each limit go on; a failed send gives its reservations back.
+  const phoneKey = keyHash('phone', normalizedPhone)
+  const slots = await takeSlots(supabase, [
+    { scope: 'otp-phone-cooldown', key: phoneKey, max: 1, windowMs: RESEND_COOLDOWN_MS },
+    { scope: 'otp-phone-hour', key: phoneKey, max: MAX_PER_HOUR, windowMs: 60 * 60 * 1000 },
+    { scope: 'send-otp', key: ipHash(req), max: MAX_PER_IP_PER_HOUR, windowMs: 60 * 60 * 1000 },
+  ])
+  if (slots.result === 'error') {
     return NextResponse.json({ error: 'Failed to create verification code' }, { status: 500 })
   }
-  if (slot === 'limited') {
+  if (slots.result === 'limited') {
+    if (slots.failed === 'otp-phone-cooldown')
+      return NextResponse.json({ error: 'Please wait a minute before requesting another code.' }, { status: 429 })
+    if (slots.failed === 'otp-phone-hour')
+      return NextResponse.json({ error: 'Too many codes requested for this number. Please try again later.' }, { status: 429 })
     return NextResponse.json({ error: 'Too many codes requested from this network. Please try again later.', code: 'OTP_IP_HOURLY_CAP' }, { status: 429 })
   }
 
@@ -84,6 +97,7 @@ export async function POST(req: NextRequest) {
     `Your Manta Shark Aquatics verification code is: ${otpCode}. It expires in 10 minutes.${SMS_COMPLIANCE_SUFFIX}`
   )
   if (!sent.ok) {
+    for (const id of slots.ids) await releaseSlot(supabase, id)
     return NextResponse.json({ error: sent.reason }, { status: 502 })
   }
 

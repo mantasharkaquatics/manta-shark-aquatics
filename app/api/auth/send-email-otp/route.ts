@@ -6,6 +6,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { emailHasAccount } from '@/lib/account-exists'
 // all, not plain i18n: the server needs the Chinese dictionaries too.
 import { getT, toLocale } from '@/lib/i18n/all'
+import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
 
@@ -17,11 +18,14 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const CODE_TTL_MS = 10 * 60 * 1000
 const RESEND_COOLDOWN_MS = 60 * 1000
 const MAX_PER_HOUR = 5
+// Per network, as on the SMS route: the per-address limit alone let one
+// machine mail a code to every address on a list (found 2026-10-06).
+const MAX_PER_IP_PER_HOUR = 10
 
 export async function POST(req: NextRequest) {
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { email, context, lang } = body
+  const { email, lang } = body
   if (!email) return NextResponse.json({ error: 'Missing email' }, { status: 400 })
 
   const normalizedEmail = email.trim().toLowerCase()
@@ -30,9 +34,11 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  if (context === 'register') {
-    // Coaches and admins have logins too. Catching them here means the refusal
-    // lands on the email field, not on the final submit.
+  {
+    // Sign-up is the only caller, so the check always runs (it used to run
+    // only when the body said context 'register', and a script simply left
+    // that out). Coaches and admins have logins too; catching them here means
+    // the refusal lands on the email field, not on the final submit.
     const taken = await emailHasAccount(supabase, normalizedEmail)
     if (taken === null) {
       return NextResponse.json({ error: 'Failed to verify email. Please try again.' }, { status: 500 })
@@ -62,6 +68,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please wait a minute before requesting another code.' }, { status: 429 })
   }
 
+  // Reserve before sending -- see app/api/auth/send-otp: the reads above do
+  // not hold under a burst.
+  const emailKey = keyHash('email', normalizedEmail)
+  const slots = await takeSlots(supabase, [
+    { scope: 'otp-email-cooldown', key: emailKey, max: 1, windowMs: RESEND_COOLDOWN_MS },
+    { scope: 'otp-email-hour', key: emailKey, max: MAX_PER_HOUR, windowMs: 60 * 60 * 1000 },
+    { scope: 'send-email-otp', key: ipHash(req), max: MAX_PER_IP_PER_HOUR, windowMs: 60 * 60 * 1000 },
+  ])
+  if (slots.result === 'error') {
+    return NextResponse.json({ error: 'Failed to create verification code' }, { status: 500 })
+  }
+  if (slots.result === 'limited') {
+    if (slots.failed === 'otp-email-cooldown')
+      return NextResponse.json({ error: 'Please wait a minute before requesting another code.' }, { status: 429 })
+    if (slots.failed === 'otp-email-hour')
+      return NextResponse.json({ error: 'Too many codes requested for this email. Please try again later.', code: 'EMAIL_OTP_HOURLY_CAP' }, { status: 429 })
+    return NextResponse.json({ error: 'Too many codes requested from this network. Please try again later.', code: 'OTP_IP_HOURLY_CAP' }, { status: 429 })
+  }
+
   // randomInt, not Math.random: this code is a login boundary and V8's PRNG is
   // predictable from enough observed output.
   const otpCode = String(randomInt(100000, 1000000))
@@ -84,6 +109,7 @@ export async function POST(req: NextRequest) {
     })
     if (sendError) throw sendError
   } catch (e) {
+    for (const id of slots.ids) await releaseSlot(supabase, id)
     console.error('Resend send error:', e)
     return NextResponse.json({ error: 'Failed to send email. Please try again later.' }, { status: 500 })
   }

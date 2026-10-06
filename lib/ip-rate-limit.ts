@@ -24,36 +24,96 @@ export function ipHash(req: Request): string {
   return createHash('sha256').update(salt + '|rate|' + ip).digest('hex').slice(0, 32)
 }
 
+/** A peppered hash of any other key a limit is counted on (a phone number, an
+ *  email address), so those are not stored in clear either. */
+export function keyHash(kind: string, value: string): string {
+  const salt = process.env.GUEST_CHAT_SALT || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  return createHash('sha256').update(salt + '|' + kind + '|' + value).digest('hex').slice(0, 32)
+}
+
+export type SlotResult = 'ok' | 'limited' | 'error'
+export type Slot = { result: SlotResult; id: string | null }
+
+const isMissingTable = (error: unknown) => {
+  const code = (error as { code?: string } | null)?.code
+  return code === '42P01' || code === 'PGRST205'
+}
+
 /**
- * Counts this caller's hits on `scope` inside the window and, if under `max`,
- * records one more. 'error' means the count could not be read: callers fail
- * closed, since the point is to stop paid calls going out unmetered.
+ * Reserve one call on (scope, key) within the window, allowing `max`.
+ *
+ * Reserve FIRST, then count (found 2026-10-06). Counting first and recording
+ * after let twenty simultaneous requests all read "0 so far" and all pass,
+ * so a burst stepped straight over every cap. Now each request writes its
+ * row, then counts the rows up to and including its own: the first `max`
+ * get through and the rest remove their row and are refused, however many
+ * arrive at once.
+ *
+ * 'error' means the table could not be read or written: callers fail closed.
+ * A missing table (docs/migration-ip-rate-hits.sql not run) lets the call
+ * through, loudly, so sign-up never depends on the migration.
  */
-export async function takeIpSlot(
-  svc: Svc, req: Request, scope: string, max: number, windowMs: number,
-): Promise<'ok' | 'limited' | 'error'> {
-  const hash = ipHash(req)
-  const since = new Date(Date.now() - windowMs).toISOString()
+export async function takeSlot(
+  svc: Svc, scope: string, key: string, max: number, windowMs: number,
+): Promise<Slot> {
+  const { data: mine, error: insertError } = await svc.from('ip_rate_hits')
+    .insert({ scope, ip_hash: key }).select('id, created_at').single()
+  if (insertError || !mine) {
+    const missing = isMissingTable(insertError)
+    console.error('[ip-rate-limit] reserve', scope, missing ? '(ip_rate_hits table missing -- run docs/migration-ip-rate-hits.sql)' : '', insertError)
+    return { result: missing ? 'ok' : 'error', id: null }
+  }
+  const since = new Date(new Date(mine.created_at).getTime() - windowMs).toISOString()
   const { count, error } = await svc.from('ip_rate_hits')
     .select('id', { count: 'exact', head: true })
-    .eq('scope', scope).eq('ip_hash', hash).gte('created_at', since)
+    .eq('scope', scope).eq('ip_hash', key)
+    .gte('created_at', since).lte('created_at', mine.created_at)
   if (error) {
-    // The table not existing yet (docs/migration-ip-rate-hits.sql not run)
-    // must not take sign-up down: let the call through, loudly. Any other
-    // read failure fails closed, as above.
-    const missing = (error as { code?: string }).code === '42P01' || (error as { code?: string }).code === 'PGRST205'
-    console.error('[ip-rate-limit] count', scope, missing ? '(ip_rate_hits table missing -- run docs/migration-ip-rate-hits.sql)' : '', error)
-    return missing ? 'ok' : 'error'
+    console.error('[ip-rate-limit] count', scope, error)
+    await releaseSlot(svc, mine.id)
+    return { result: 'error', id: null }
   }
-  if ((count ?? 0) >= max) return 'limited'
-  const { error: insertError } = await svc.from('ip_rate_hits').insert({ scope, ip_hash: hash })
-  if (insertError) {
-    console.error('[ip-rate-limit] insert', scope, insertError)
-    return 'error'
+  if ((count ?? 0) > max) {
+    await releaseSlot(svc, mine.id)
+    return { result: 'limited', id: null }
   }
   // No cron owns this table, so roughly one call in a hundred tidies it.
   if (Math.random() < 0.01) {
     await svc.from('ip_rate_hits').delete().lt('created_at', new Date(Date.now() - PURGE_AFTER_MS).toISOString())
   }
-  return 'ok'
+  return { result: 'ok', id: mine.id }
+}
+
+/** Give a reserved call back -- the send it was for did not happen. */
+export async function releaseSlot(svc: Svc, id: string | null | undefined) {
+  if (!id) return
+  const { error } = await svc.from('ip_rate_hits').delete().eq('id', id)
+  if (error) console.error('[ip-rate-limit] release', error)
+}
+
+/**
+ * Reserve several slots together; all or nothing. On 'limited' or 'error'
+ * the slots already taken are given back, and `failed` names the scope that
+ * refused. On 'ok', `ids` are what to release if the send then fails.
+ */
+export async function takeSlots(
+  svc: Svc, wants: { scope: string; key: string; max: number; windowMs: number }[],
+): Promise<{ result: SlotResult; failed?: string; ids: string[] }> {
+  const ids: string[] = []
+  for (const w of wants) {
+    const slot = await takeSlot(svc, w.scope, w.key, w.max, w.windowMs)
+    if (slot.result !== 'ok') {
+      for (const id of ids) await releaseSlot(svc, id)
+      return { result: slot.result, failed: w.scope, ids: [] }
+    }
+    if (slot.id) ids.push(slot.id)
+  }
+  return { result: 'ok', ids }
+}
+
+/** The per-network fence (places lookups use it directly). */
+export async function takeIpSlot(
+  svc: Svc, req: Request, scope: string, max: number, windowMs: number,
+): Promise<SlotResult> {
+  return (await takeSlot(svc, scope, ipHash(req), max, windowMs)).result
 }
