@@ -67,7 +67,7 @@ export async function GET(request: Request) {
   // Step 2: confirmed, not-yet-reminded bookings for those sessions
   const { data: bookings, error: bookErr } = await supabase
     .from('bookings')
-    .select('id, class_session_id, student_id, parent_id, lesson_group_id')
+    .select('id, class_session_id, student_id, parent_id, lesson_group_id, is_trial')
     .eq('status', 'confirmed')
     .is('reminder_sent_at', null)
     .in('class_session_id', inWindow.map((s) => s.id))
@@ -87,13 +87,13 @@ export async function GET(request: Request) {
   // the second half's start, and siblings got one text each. Pull in every
   // confirmed row of the hour lessons seen here (the other half can sit outside
   // this window), plus the sessions of those halves.
-  type Row = { id: string; class_session_id: string; student_id: string | null; parent_id: string; lesson_group_id: string | null; reminder_sent_at?: string | null }
+  type Row = { id: string; class_session_id: string; student_id: string | null; parent_id: string; lesson_group_id: string | null; is_trial?: boolean | null; reminder_sent_at?: string | null }
   const groupIds = [...new Set(bookings.map((b) => b.lesson_group_id).filter(Boolean))] as string[]
   let groupRows: Row[] = []
   if (groupIds.length > 0) {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, class_session_id, student_id, parent_id, lesson_group_id, reminder_sent_at')
+      .select('id, class_session_id, student_id, parent_id, lesson_group_id, is_trial, reminder_sent_at')
       .eq('status', 'confirmed')
       .in('lesson_group_id', groupIds)
     if (error) {
@@ -230,7 +230,11 @@ export async function GET(request: Request) {
     const hour = sess.length > 1 ? ' (60 min)' : ''
     // STOP/HELP line (2026-10-05): the SMS Terms tell families to "Reply STOP
     // to any message to opt out", and the reminder was the one text without it.
-    const message = `Hi ${parent.first_name}! Reminder: ${who} ${names.length > 1 ? 'have' : 'has'} a ${courseType?.name} lesson${hour} tomorrow at ${time} with Coach ${coach?.first_name}. See you then! - Manta Shark Aquatics${SMS_COMPLIANCE_SUFFIX}`
+    // A Swim Assessment sits in an ordinary 1-on-1 slot, so the course name
+    // read "1-on-1 Private lesson" -- in the family's first text from us,
+    // about something they booked as an assessment (found 2026-10-06).
+    const what = rows.some((r) => r.is_trial) ? 'a Swim Assessment' : `a ${courseType?.name} lesson${hour}`
+    const message = `Hi ${parent.first_name}! Reminder: ${who} ${names.length > 1 ? 'have' : 'has'} ${what} tomorrow at ${time} with Coach ${coach?.first_name}. See you then! - Manta Shark Aquatics${SMS_COMPLIANCE_SUFFIX}`
 
     try {
       const result = await sendSms(parent.phone, message)

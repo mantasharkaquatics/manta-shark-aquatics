@@ -608,7 +608,11 @@ export async function POST(req: NextRequest) {
       const { data: p2 } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
       if (p2?.email) {
         await sendEmail({
-          type: 'booking_series_confirmed', to: p2.email, parentName: p2.first_name,
+          type: 'booking_series_confirmed',
+          // A fixed class only when every lesson booked is one (a commit can mix
+          // in single lessons) -- or this is a renewal.
+          seriesKind: (renewFc || booked.every(s2 => !!s2.fixed)) ? 'fixed' : 'lessons',
+          to: p2.email, parentName: p2.first_name,
           studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name,
           courseName: minutes === 60 ? `${ct.name} (60 min)` : ct.name,
           coachName: bookedCoaches.map((c: any) => `${c.first_name} ${c.last_name || ''}`.trim()).join(' / '),

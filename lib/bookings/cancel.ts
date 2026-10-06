@@ -41,6 +41,9 @@ export type CancelResult = {
   // is cancelling a 60-minute lesson half by half, so one email can cover the
   // whole hour instead of one per half.
   emailTargets?: CancelTarget[]
+  // A withdrawn 1-on-2 invitation: who was invited, for the "Invitation
+  // Withdrawn" email (sent by the caller when it is cancelling an hour).
+  withdrawal?: { from: { parent_id: string; class_session_id: string; lesson_group_id?: string | null }; partners: CancelTarget[] }
 }
 
 export type CancelOptions = {
@@ -178,6 +181,7 @@ export async function cancelLesson(
 
   const cancelled = [...(result.cancelledBookingIds || [])]
   const targets: CancelTarget[] = [...(result.emailTargets || [])]
+  const withdrawnPartners: CancelTarget[] = [...(result.withdrawal?.partners || [])]
   let pointsBack = result.pointsRefunded ?? 0
   // The other half follows the first: same refund, no second voucher or grace.
   const settled = result.outcome
@@ -196,6 +200,7 @@ export async function cancelLesson(
     if (r.ok) {
       cancelled.push(...(r.cancelledBookingIds || [sib.id]))
       targets.push(...(r.emailTargets || []))
+      withdrawnPartners.push(...(r.withdrawal?.partners || []))
       pointsBack += r.pointsRefunded ?? 0
     }
     // A 403 here is expected and harmless: rows belonging to the other family
@@ -222,6 +227,10 @@ export async function cancelLesson(
 
   // One email per family, spanning the full hour.
   if (!options.skipEmail) await notifyCancellation(svc, { bookingIds: cancelled, targets })
+  // A withdrawn hour-long invitation: one "Invitation Withdrawn" per family.
+  if (!options.skipEmail && result.withdrawal && withdrawnPartners.length > 0) {
+    await notifyInviteWithdrawn(svc, result.withdrawal.from, withdrawnPartners)
+  }
 
   return { ...result, ok: true, status: 200, cancelledBookingIds: cancelled, emailTargets: targets, pointsRefunded: pointsBack }
 }
@@ -523,6 +532,22 @@ export async function cancelBookingWithPartner(
     }
   }
 
+  // A withdrawn invitation (the inviter's row was still pending_partner) is
+  // not a cancelled lesson for anyone (found 2026-10-06): the inviter chose
+  // it and needs no email, and the invited family never had a lesson -- they
+  // get "Invitation Withdrawn", not "Lesson Cancelled". The second half of a
+  // 60-minute invitation (options.settled) sends nothing; the first half's
+  // notice covers both.
+  if (booking.status === 'pending_partner') {
+    if (!options.skipEmail && !options.settled && cancelledPartners.length > 0) {
+      await notifyInviteWithdrawn(svc, booking, cancelledPartners)
+    }
+    return {
+      ok: true, status: 200, cancelledBookingIds, pointsRefunded: refunded, outcome, voucher, emailTargets: [],
+      withdrawal: { from: { parent_id: booking.parent_id, class_session_id: booking.class_session_id, lesson_group_id: booking.lesson_group_id }, partners: cancelledPartners },
+    }
+  }
+
   // Who to tell. Handed back to the caller so a 60-minute cancellation can send
   // one message covering both halves instead of one per half.
   const emailTargets: CancelTarget[] = [
@@ -537,4 +562,56 @@ export async function cancelBookingWithPartner(
   }
 
   return { ok: true, status: 200, cancelledBookingIds, pointsRefunded: refunded, outcome, voucher, emailTargets }
+}
+
+/** "Invitation Withdrawn" to each family whose pending 1-on-2 invitation was
+ *  taken back. Best effort, like every cancellation email. */
+async function notifyInviteWithdrawn(
+  svc: SupabaseClient,
+  booking: { parent_id: string; class_session_id: string; lesson_group_id?: string | null },
+  partners: CancelTarget[],
+): Promise<void> {
+  try {
+    const { data: sess } = await svc.from('class_sessions')
+      .select('session_date, start_time, end_time, course_type_id').eq('id', booking.class_session_id).single()
+    if (!sess) return
+    let endTime = (sess as any).end_time
+    if (booking.lesson_group_id) {
+      const { data: halves } = await svc.from('bookings').select('class_session_id').eq('lesson_group_id', booking.lesson_group_id)
+      const ids = [...new Set((halves || []).map((h: any) => h.class_session_id).filter(Boolean))]
+      if (ids.length > 1) {
+        const { data: ss } = await svc.from('class_sessions').select('end_time').in('id', ids)
+        for (const x of ss || []) if ((x as any).end_time > endTime) endTime = (x as any).end_time
+      }
+    }
+    const [{ data: ct }, { data: inviter }] = await Promise.all([
+      svc.from('course_types').select('name').eq('id', (sess as any).course_type_id).single(),
+      svc.from('parents').select('first_name, last_name').eq('id', booking.parent_id).single(),
+    ])
+    const inviterName = inviter ? `${(inviter as any).first_name || ''} ${(inviter as any).last_name || ''}`.trim() : ''
+    const byParent = new Map<string, string[]>()
+    for (const p of partners) {
+      if (!p.parent_id) continue
+      byParent.set(p.parent_id, [...(byParent.get(p.parent_id) || []), p.student_id])
+    }
+    for (const [parentId, studentIds] of byParent) {
+      const [{ data: par }, { data: kids }] = await Promise.all([
+        svc.from('parents').select('first_name, email').eq('id', parentId).single(),
+        svc.from('students').select('full_name').in('id', studentIds.filter(Boolean)),
+      ])
+      if (!(par as any)?.email) continue
+      await sendEmail({
+        type: 'partner_invite_withdrawn',
+        to: (par as any).email,
+        parentName: (par as any).first_name,
+        inviterName,
+        studentName: [...new Set((kids || []).map((k: any) => k.full_name))].join(' & '),
+        courseName: (ct as any)?.name || '',
+        date: (sess as any).session_date,
+        time: `${formatTime12h((sess as any).start_time)} \u2013 ${formatTime12h(endTime)}`,
+      })
+    }
+  } catch (e) {
+    console.error('invitation-withdrawn email failed:', e)
+  }
 }

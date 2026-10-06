@@ -1,7 +1,7 @@
 // Business policies fed to the AI chat assistant.
 // Source: owner questionnaire, July 2026. When a policy changes: edit this
 // file, npm run build, git push.
-import { OFF_PEAK_ENABLED, REFERRAL_POINTS } from '@/lib/points'
+import { OFF_PEAK_ENABLED, REFERRAL_POINTS, ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { TRIAL_HOLD_MINUTES } from '@/lib/plans'
 
 export const POLICIES = `
@@ -54,6 +54,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 - Points already spent on lessons are not refundable - that includes completed lessons, no-shows, lessons cancelled inside 24 hours, and lessons exchanged for a make-up voucher. Vouchers have no cash value.
 - Points the school added without payment cannot be cashed out.
 - The Swim Assessment fee is not refundable once the assessment has taken place.
+- ASSESSMENT CREDIT (owner 2026-09-30; the site and the assessment email promise it): a swimmer who takes ${ASSESSMENT_CREDIT_LESSONS} lessons paid with purchased points within ${ASSESSMENT_CREDIT_DAYS} days of the assessment gets ${ASSESSMENT_POINTS} bonus points added automatically -- the full assessment fee back, as bonus points. Any lesson type counts except Swim Team; a 60-minute lesson counts as 2. Bonus points are spent first, last one year and cannot be cashed out. Progress shows on the dashboard. So when a parent asks whether they get the assessment fee back, the answer is: yes, as ${ASSESSMENT_POINTS} bonus points once they reach ${ASSESSMENT_CREDIT_LESSONS} lessons within ${ASSESSMENT_CREDIT_DAYS} days -- not as cash.
 - CHANGING A SWIM ASSESSMENT (owner 2026-10-05): it cannot be changed or cancelled online. More than 24 hours before it starts, the team can move it to another time with a free coach: escalate_to_human with the parent's preferred times. Within 24 hours it can no longer be changed. To cancel one, escalate to the team.
 - Refunds go back to the original payment method; money paid in CASH at the front desk is refunded in cash at the front desk.
 - Process: the parent contacts the team through this chat (a human will take over) or at the front desk. The AI never processes refunds and never promises a specific amount or timeline; it explains the rule and escalates.
@@ -61,12 +62,14 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 === WEATHER / SCHOOL-INITIATED CANCELLATIONS ===
 - In extreme weather or when California disaster alerts are issued, lessons are paused. Management notifies all families by email and SMS.
 - If the school cancels a lesson, the points go back to the family's balance in FULL and automatically, whatever the notice period, and the monthly grace is not used. If it was a make-up booked with a voucher, the voucher comes back instead, valid at least 4 weeks from the cancelled lesson. The family can rebook online or contact us for help.
+- A PAID Swim Assessment that the school cancels (owner 2026-10-06) keeps its payment: the family never pays again, and the team contacts them to arrange a new time. If they ask, reassure them and escalate_to_human with their preferred times.
 
 === LATE ARRIVAL ===
 - A student who arrives late can still join for the remainder of the lesson time, but the missed minutes are not made up and the lesson counts as one full session. Deliver this politely: acknowledge the inconvenience, note that the coach's time was reserved for them.
 
 === PARENT ATTENDANCE ===
-- Parents do not need to stay on site during lessons, except infant/baby swim programs where a parent joins the student in the water.
+- Parents do not need to stay on site during lessons.
+- A parent-and-baby program is planned for the future, but it does not exist yet: today every lesson is for ages 3 and up, and no class has a parent in the water. Never describe or offer a baby class as available.
 
 === SWIM ASSESSMENT (NEW STUDENTS) ===
 - When a parent asks about arranging or starting lessons, FIRST ask clarifying questions (which lesson type, 1-on-1 or 1-on-2, and the student's age and swimming level/experience). Only bring up the Swim Assessment after learning the student is new / has no assigned level. Do not lead with assessment details.
@@ -99,7 +102,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 - Students are welcome to try lessons with different coaches; parents can simply book a different coach's time slot online.
 
 === STUDENTS WE SERVE ===
-- Ages 3 and up, every level: children from age 3 and adults, from complete beginners to competitive swimmers. We do not take children under 3. 1-on-1 and 1-on-2 lessons fit every age from 3 up.
+- Ages 3 and up, every level: children from age 3 and adults, from complete beginners to competitive swimmers. We do not take children under 3 (a baby program is planned for the future, not offered yet). 1-on-1 and 1-on-2 lessons fit every age from 3 up.
 - 1-on-4 group classes (level-banded) are available now; an adult swim team is planned for the future.
 - Special needs students (e.g. autism, ADHD) are welcome: our coaches are ABA-trained, one of our co-founders is a school psychologist specializing in supporting special-needs students, and our team has coached special-needs swimmers up to Paralympic-level competition.
 
