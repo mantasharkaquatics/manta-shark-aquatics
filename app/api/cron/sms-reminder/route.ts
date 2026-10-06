@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 
+// The terms version that first listed lesson reminders in the SMS consent.
+const REMINDER_TERMS_FROM = '2026-10-05'
+
 export const runtime = 'nodejs'
 // Up to ~a minute of Twilio calls on a busy day (sent 5 at a time below).
 export const maxDuration = 60
@@ -134,7 +137,7 @@ export async function GET(request: Request) {
 
   const [studentsRes, parentsRes, courseTypesRes, coachesRes] = await Promise.all([
     supabase.from('students').select('id, full_name').in('id', studentIds),
-    supabase.from('parents').select('id, phone, first_name').in('id', parentIds),
+    supabase.from('parents').select('id, phone, first_name, terms_version').in('id', parentIds),
     supabase.from('course_types').select('id, name').in('id', courseTypeIds),
     supabase.from('coaches').select('id, first_name').in('id', coachIds),
   ])
@@ -163,6 +166,16 @@ export async function GET(request: Request) {
     const ids = rows.map((r) => r.id)
     const parent = parentMap.get(rows[0].parent_id)
     if (!parent?.phone) return
+    // Paused for families who signed up before 2026-10-05 (owner, 2026-10-06).
+    // The SMS terms they agreed to named only one-time passcodes; reminders
+    // were added to the terms on 10-05. Those accounts are all deleted before
+    // launch, so nothing re-asks them. Versions are YYYY-MM-DD, so the string
+    // comparison is a date comparison; a missing version counts as older.
+    const termsVersion: string | null = (parent as { terms_version?: string | null }).terms_version ?? null
+    if (!termsVersion || termsVersion < REMINDER_TERMS_FROM) {
+      results.push({ booking_ids: rows.map((r) => r.id), skipped: 'signed up before reminder consent' })
+      return
+    }
     // The lesson starts when its EARLIEST half starts. Only that run texts:
     // when the earliest half is outside this window (it was this family's
     // reminder an hour ago, or the lesson was booked inside 24.5 hours), the

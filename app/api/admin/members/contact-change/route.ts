@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHash, randomInt } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
-import { sendSms } from '@/lib/sms'
+import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 
 export const runtime = 'nodejs'
 
@@ -47,7 +47,8 @@ async function notifyChange(parent: any, field: string, oldValue: string | null,
       await sendEmail({ type: 'contact_change_notice', to: value, parentName: parent.first_name, changeField: 'email', newValue: value })
     } else {
       if (parent.email) await sendEmail({ type: 'contact_change_notice', to: parent.email, parentName: parent.first_name, changeField: 'phone', newValue: maskPhone(value) })
-      await sendSms(value, 'Manta Shark Aquatics: this is now the phone number on your account. If you did not request this, please contact us right away.')
+      // STOP/HELP line (owner, 2026-10-06), as on the sign-up code and the reminder.
+      await sendSms(value, 'Manta Shark Aquatics: this is now the phone number on your account. If you did not request this, please contact us right away.' + SMS_COMPLIANCE_SUFFIX)
     }
   } catch {}
 }
