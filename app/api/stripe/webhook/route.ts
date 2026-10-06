@@ -49,28 +49,77 @@ export async function POST(req: NextRequest) {
     }
 
     if (meta.type === 'team_subscription') {
+      const newSub = String(session.subscription || '')
+      // One live subscription per swimmer (owner, 2026-10-06). The checks in
+      // /api/stripe/checkout run when a checkout is opened; two checkouts
+      // opened side by side (two tabs, Back and Join again) could both be
+      // paid, and each became its own monthly subscription. Whatever reaches
+      // here second is cancelled and refunded, and the school is told.
       if (meta.prepaid_membership_id) {
-        // Prepaid → subscription conversion: take over the existing prepaid row
+        // Prepaid → subscription conversion: take over the existing prepaid
+        // row -- only while it has no subscription of its own yet.
         const { data: upd, error: convErr } = await supabase.from('team_memberships')
           .update({
-            stripe_subscription_id: String(session.subscription || ''),
+            stripe_subscription_id: newSub,
             status: 'active',
             expires_at: null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', meta.prepaid_membership_id)
+          .is('stripe_subscription_id', null)
           .select('id')
-        if (convErr || !upd || upd.length === 0) console.error('Prepaid conversion update failed:', convErr?.message, 'matched:', upd?.length ?? 0)
-        else console.log(`✅ Prepaid membership ${meta.prepaid_membership_id} converted to subscription ${session.subscription}`)
+        if (convErr) {
+          console.error('Prepaid conversion update failed:', convErr.message)
+          return NextResponse.json({ error: 'conversion failed' }, { status: 500 })
+        }
+        if (!upd || upd.length === 0) {
+          const { data: row } = await supabase.from('team_memberships')
+            .select('stripe_subscription_id').eq('id', meta.prepaid_membership_id).maybeSingle()
+          if (row?.stripe_subscription_id && row.stripe_subscription_id !== newSub) {
+            await cancelDuplicateTeamSubscription(session, row.stripe_subscription_id)
+          } else {
+            console.log(`Prepaid membership ${meta.prepaid_membership_id} already carries ${newSub}`)
+          }
+        } else {
+          console.log(`✅ Prepaid membership ${meta.prepaid_membership_id} converted to subscription ${newSub}`)
+        }
       } else {
+        const { data: live } = await supabase.from('team_memberships')
+          .select('stripe_subscription_id')
+          .eq('student_id', meta.student_id)
+          .not('stripe_subscription_id', 'is', null)
+          .in('status', ['active', 'past_due'])
+        const other = (live || []).find(r => r.stripe_subscription_id !== newSub)
+        if (other) {
+          await cancelDuplicateTeamSubscription(session, String(other.stripe_subscription_id))
+          return NextResponse.json({ received: true })
+        }
+        if ((live || []).some(r => r.stripe_subscription_id === newSub)) {
+          console.log(`Team membership for ${newSub} already recorded`)
+          return NextResponse.json({ received: true })
+        }
         const { error: tmErr } = await supabase.from('team_memberships').insert({
           student_id: meta.student_id,
           team_tier_id: meta.team_tier_id,
-          stripe_subscription_id: String(session.subscription || ''),
+          stripe_subscription_id: newSub,
           status: 'active',
         })
-        if (tmErr) console.error('Team membership insert (possibly duplicate retry):', tmErr.message)
-        else console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
+        if (tmErr) {
+          // 23505: a concurrent delivery got there first (the unique index in
+          // docs/migration-team-one-subscription.sql). Same subscription is a
+          // retry; a different one is a duplicate.
+          if (tmErr.code === '23505') {
+            const { data: winner } = await supabase.from('team_memberships')
+              .select('stripe_subscription_id').eq('student_id', meta.student_id)
+              .not('stripe_subscription_id', 'is', null).in('status', ['active', 'past_due']).limit(1)
+            const w = winner && winner[0]?.stripe_subscription_id
+            if (w && w !== newSub) await cancelDuplicateTeamSubscription(session, String(w))
+            return NextResponse.json({ received: true })
+          }
+          console.error('Team membership insert failed:', tmErr.message)
+          return NextResponse.json({ error: 'membership insert failed' }, { status: 500 })
+        }
+        console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
       }
       return NextResponse.json({ received: true })
     }
@@ -604,4 +653,62 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
+}
+
+/* A second Swim Team subscription for a swimmer who already has one: cancel
+   it at once, refund what it charged, and tell the school (owner,
+   2026-10-06). Best effort on every step -- whatever could not be done is
+   named in the alert, so a person finishes it. */
+async function cancelDuplicateTeamSubscription(session: Stripe.Checkout.Session, keptSubscriptionId: string) {
+  const meta = session.metadata || {}
+  const dupSub = String(session.subscription || '')
+  const lines: string[] = []
+  let cancelled = false
+  try {
+    // Casts: in the SDK and Stripe's API, but not in the types this project's
+    // type check resolves (the same gap app/api/stripe/checkout notes).
+    await (stripe.subscriptions as any).cancel(dupSub)
+    cancelled = true
+  } catch (e: any) {
+    lines.push(`Could not cancel subscription ${dupSub} (${e?.message || 'error'}). Cancel it in the Stripe dashboard.`)
+  }
+  let refunded = 0
+  let pending = false
+  const inv0 = (session as any).invoice
+  const invoiceId: string | null = typeof inv0 === 'string' ? inv0 : inv0?.id ?? null
+  if (invoiceId) {
+    try {
+      const inv = await stripe.invoices.retrieve(invoiceId, { expand: ['payments'] })
+      for (const p of (inv as any).payments?.data || []) {
+        const piRef = p?.payment?.payment_intent
+        const pi = typeof piRef === 'string' ? piRef : piRef?.id
+        if (!pi) continue
+        if (p.status === 'paid') {
+          const r = await stripe.refunds.create({ payment_intent: pi })
+          refunded += r.amount || 0
+        } else {
+          pending = true
+        }
+      }
+    } catch (e: any) {
+      lines.push(`Could not refund invoice ${invoiceId} (${e?.message || 'error'}). Refund it in the Stripe dashboard.`)
+    }
+  }
+  console.error(`\u26a0\ufe0f DUPLICATE TEAM SUBSCRIPTION student=${meta.student_id} kept=${keptSubscriptionId} duplicate=${dupSub} cancelled=${cancelled} refunded=${refunded}`)
+  try {
+    const { data: st } = await supabase.from('students').select('full_name').eq('id', meta.student_id).maybeSingle()
+    await sendEmail({
+      type: 'admin_alert',
+      to: process.env.ADMIN_ALERT_EMAIL || 'info@mantasharkaquatics.net',
+      alertTitle: 'Duplicate Swim Team subscription cancelled',
+      alertLines: [
+        `${st?.full_name || 'A swimmer'} already had a Swim Team subscription (${keptSubscriptionId}), and a second checkout was paid (${dupSub}).`,
+        cancelled ? 'The second subscription was cancelled.' : 'The second subscription could NOT be cancelled automatically.',
+        refunded > 0 ? `$${(refunded / 100).toFixed(2)} was refunded to the family.` : pending ? 'Its payment is still clearing (bank debit). Refund it in Stripe once it has cleared.' : 'No payment was found to refund.',
+        ...lines,
+      ],
+    })
+  } catch (e) {
+    console.error('duplicate-subscription alert failed:', e)
+  }
 }

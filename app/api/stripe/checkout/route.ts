@@ -92,6 +92,24 @@ export async function POST(req: NextRequest) {
       const trialEnd = prepaid && new Date(prepaid.expires_at).getTime() > Date.now() + 49 * 3600 * 1000
         ? Math.floor(new Date(prepaid.expires_at).getTime() / 1000)
         : undefined
+      // Only one way to pay at a time (owner, 2026-10-06): any team checkout
+      // still open for this swimmer -- another tab, or Back and Join again --
+      // is closed before a new one opens, so two can never both be paid. The
+      // webhook still cancels and refunds a second one if it slips through.
+      try {
+        const open = await stripe.checkout.sessions.list({
+          status: 'open',
+          created: { gte: Math.floor(Date.now() / 1000) - 24 * 60 * 60 },
+          limit: 100,
+        } as Stripe.Checkout.SessionListParams).autoPagingToArray({ limit: 1000 })
+        for (const cs of open) {
+          if (cs.status !== 'open' || cs.metadata?.type !== 'team_subscription' || cs.metadata?.student_id !== student.id) continue
+          await stripe.checkout.sessions.expire(cs.id).catch(() => {})
+        }
+      } catch (e: any) {
+        console.error('team checkout: could not close older checkouts:', e?.message)
+      }
+
       const session = await stripe.checkout.sessions.create({
         locale: 'en',
         payment_method_types: ['card', 'us_bank_account'],

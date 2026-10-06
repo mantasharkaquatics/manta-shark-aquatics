@@ -50,6 +50,7 @@ export type EmailType =
   | 'fixed_class_ended'
   | 'fixed_class_renewal'
   | 'fixed_class_moved'
+  | 'admin_alert'
   | 'welcome'
 
 export interface EmailPayload {
@@ -122,6 +123,9 @@ export interface EmailPayload {
   // button opens (the dashboard opens the right report from ?report=).
   month?: string
   studentNames?: string[]
+  /** admin_alert: a short title and plain-text lines (escaped here). */
+  alertTitle?: string
+  alertLines?: string[]
   reportId?: string
   // voucher_expiring: which lesson the voucher is for (course slug, minutes).
   minutes?: number
@@ -383,6 +387,13 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
 </table>
 </td></tr></table>
 </body></html>`
+
+  } else if (type === 'admin_alert') {
+    // To the school, not a family: something the system did on its own that a
+    // person should know about (first use 2026-10-06: a duplicate Swim Team
+    // subscription cancelled and refunded). English, as staff mail is.
+    subject = `[Manta Shark admin] ${payload.alertTitle || 'Action needed'}`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">${esc(payload.alertTitle || 'Action needed')}</h2>${(payload.alertLines || []).map(l => `<p style="color: #16294a; line-height: 1.6;">${esc(l)}</p>`).join('')}</div>`
 
   } else if (type === 'fixed_class_ended') {
     // The front desk ended a fixed class part-way. reason is what the remaining
