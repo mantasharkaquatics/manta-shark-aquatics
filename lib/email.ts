@@ -317,13 +317,55 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
 
   } else if (type === 'welcome') {
     // Sent once, when /api/auth/complete-registration creates the family
-    // (owner, 2026-10-06). In the language picked on the register page. The
-    // next step for every new family is the Swim Assessment.
+    // (owner, 2026-10-06: a proper, branded letter with the logo). In the
+    // language picked on the register page. Table layout and inline styles
+    // only -- that is what Gmail and Outlook render reliably.
     const L = toLocale(payload.lang)
     const t = getT(L)
+    const SITE = 'https://www.mantasharkaquatics.net'
     const names = (payload.studentNames || []).map(esc).join(L === 'en' ? ' & ' : '、')
+    const intro = names ? t('welcome.email.intro', { names }) : t('welcome.email.introNoNames')
+    const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', Helvetica, Arial, sans-serif"
+    const can = ['can1', 'can2', 'can3'].map(k => `<tr><td width="22" valign="top" style="padding: 5px 0; color: #f09800; font-size: 15px; line-height: 22px;">&#9679;</td><td style="padding: 5px 0; color: #16294a; font-size: 15px; line-height: 22px;">${t('welcome.email.' + k)}</td></tr>`).join('')
     subject = t('welcome.email.subject')
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('welcome.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('welcome.email.ready')}</p><p style="color: #16294a; line-height: 1.6;">${names ? t('welcome.email.next', { names }) : t('welcome.email.nextNoNames')}</p><div style="text-align:center; margin: 28px 0;"><a href="https://www.mantasharkaquatics.net/booking" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('welcome.email.button')}</a></div><p style="color: #16294a; line-height: 1.6;">${t('welcome.email.dashboard')}<a href="https://www.mantasharkaquatics.net/dashboard" style="color: #12254a; font-weight: 700;">${t('welcome.email.dashboardLink')}</a></p></div></div>`
+    html = `<!doctype html><html lang="${L}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${t('welcome.email.subject')}</title></head>
+<body style="margin: 0; padding: 0; background: #eef2f8;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #eef2f8; font-family: ${font};"><tr><td align="center" style="padding: 32px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px; background: #ffffff; border-radius: 14px; overflow: hidden;">
+  <tr><td align="center" style="padding: 28px 24px 22px;"><a href="${SITE}"><img src="${SITE}/email-logo.png" width="200" alt="Manta Shark Aquatics" style="display: block; width: 200px; max-width: 60%; height: auto; border: 0;"></a></td></tr>
+  <tr><td style="background: #12254a; padding: 34px 40px 36px;">
+    <div style="color: #f09800; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">${t('welcome.email.eyebrow')}</div>
+    <div style="color: #ffffff; font-size: 26px; line-height: 1.3; font-weight: 800;">${t('welcome.email.title')}</div>
+  </td></tr>
+  <tr><td style="padding: 34px 40px 8px;">
+    <p style="margin: 0 0 14px; color: #16294a; font-size: 16px; line-height: 1.6;">${t('assess.email.hi', { name: esc(parentName || '') })}</p>
+    <p style="margin: 0; color: #16294a; font-size: 16px; line-height: 1.7;">${intro}</p>
+  </td></tr>
+  <tr><td style="padding: 24px 40px 8px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #f4f7fc; border: 1px solid #dde5f1; border-radius: 12px;"><tr><td style="padding: 24px 26px 26px;">
+      <div style="color: #b0761a; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">${t('welcome.email.nextLabel')}</div>
+      <div style="color: #12254a; font-size: 19px; font-weight: 800; margin-bottom: 10px;">${t('welcome.email.nextTitle')}</div>
+      <p style="margin: 0 0 22px; color: #16294a; font-size: 15px; line-height: 1.7;">${t('welcome.email.next')}</p>
+      <a href="${SITE}/booking" style="display: inline-block; background: #f09800; color: #12254a; font-size: 15px; font-weight: 800; padding: 14px 30px; border-radius: 10px; text-decoration: none;">${t('welcome.email.button')}</a>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="padding: 26px 40px 6px;">
+    <div style="color: #12254a; font-size: 15px; font-weight: 700; margin-bottom: 8px;">${t('welcome.email.canTitle')}</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0">${can}</table>
+    <p style="margin: 14px 0 0;"><a href="${SITE}/dashboard" style="color: #12254a; font-size: 15px; font-weight: 700; text-decoration: underline;">${t('welcome.email.dashboardLink')} &rarr;</a></p>
+  </td></tr>
+  <tr><td style="padding: 28px 40px 34px;">
+    <p style="margin: 0 0 4px; color: #16294a; font-size: 15px; line-height: 1.6;">${t('welcome.email.signoff')}</p>
+    <p style="margin: 0; color: #12254a; font-size: 15px; font-weight: 700;">${t('welcome.email.team')}</p>
+  </td></tr>
+  <tr><td style="background: #12254a; padding: 22px 40px; color: #c9d3e6; font-size: 13px; line-height: 1.7;">
+    ${t('welcome.email.questions')}<br>
+    <a href="mailto:info@mantasharkaquatics.net" style="color: #f0b44d; text-decoration: none;">info@mantasharkaquatics.net</a> &middot; <a href="${SITE}" style="color: #f0b44d; text-decoration: none;">mantasharkaquatics.net</a><br>
+    ${t('footer.location')} &middot; ${t('footer.hours')}
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`
 
   } else if (type === 'fixed_class_ended') {
     // The front desk ended a fixed class part-way. reason is what the remaining
