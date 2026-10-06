@@ -15,6 +15,7 @@
 import { getTodayLA } from '@/lib/date'
 import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
 import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
+import { overlayFromRows } from '@/lib/skill-progress-sync'
 
 /**
  * Every row a query matches, a page at a time. The API hands back at most
@@ -571,6 +572,25 @@ export async function loadReviewQueues(
           if (!progressByStudent[p.student_id]) progressByStudent[p.student_id] = {}
           progressByStudent[p.student_id][p.skill_id] = p.progress_percent
         }
+        // The live table is approved scores only. A coach's reports still in
+        // Reviews, for lessons up to the missing one, are laid over it --
+        // per lesson, by date -- so the card starts where the swimmer
+        // actually stood, not before the coach's newer marks (found
+        // 2026-10-06; /api/coach/progress fills untouched skills the same way).
+        const historyRows = withDetails
+          ? await inChunks(missingIds, c => svc
+              .from('progress_history')
+              .select('student_id, snapshot, status, session_date, created_at')
+              .in('student_id', c)
+              .in('status', ['pending_review', 'approved'])
+              .order('student_id').order('session_date').order('created_at'))
+          : []
+        const historyByStudent: Record<string, any[]> = {}
+        for (const h of historyRows) (historyByStudent[h.student_id] ||= []).push(h)
+        const pictureAsOf = (studentId: string, date: string | null | undefined) => {
+          const rows = (historyByStudent[studentId] || []).filter((h: any) => !date || String(h.session_date) <= String(date))
+          return { ...(progressByStudent[studentId] || {}), ...overlayFromRows(rows) }
+        }
 
         missingProgressList = dedupedCandidates
           .filter((c: any) => studentMap[c.student_id])
@@ -581,7 +601,7 @@ export async function loadReviewQueues(
               id: `${c.student_id}_${c.lessonKey}`,
               student_id: c.student_id,
               session: sp ? { ...c.session, start_time: sp.start, end_time: sp.end } : c.session,
-              existingProgress: progressByStudent[c.student_id] || {},
+              existingProgress: withDetails ? pictureAsOf(c.student_id, c.session?.session_date) : {},
             }
           })
       }

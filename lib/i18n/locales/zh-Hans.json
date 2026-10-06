@@ -435,7 +435,7 @@
   "coach.login.badPin": "PIN 不正确，请再试一次。",
   "coach.login.emailLink": "改用 Email 登录",
   "coach.login.failed": "登录失败，请再试一次。",
-  "coach.login.locked": "尝试次数太多。请在 {time}后再试，或请管理员重设你的 PIN。",
+  "coach.login.locked": "这个网络的尝试次数太多。请在 {time}后再试，或点下方「改用 Email 登录」。",
   "coach.login.network": "网络连接出问题，请再试一次。",
   "coach.login.prompt": "输入你的 8 位数 PIN",
   "coach.login.time.hour": "1 小时",

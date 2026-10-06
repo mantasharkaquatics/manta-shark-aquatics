@@ -206,6 +206,13 @@ export async function POST(req: NextRequest) {
       const { data: existing } = await supabase
         .from('student_skill_progress').select('skill_id, progress_percent').eq('student_id', student_id)
       for (const row of existing || []) stored[row.skill_id] = row.progress_percent
+      // The live table holds approved scores only (since 3239cc3). Scores a
+      // coach has reported for lessons up to this one, still waiting in
+      // Reviews, are what the swimmer stood at by then: filling the untouched
+      // skills from the live table alone wrote older numbers into a NEWER
+      // record, which then rolled the coach's scores back once both were
+      // confirmed (found 2026-10-06).
+      Object.assign(stored, await pendingOverlay(supabase, student_id, today))
     }
   }
 

@@ -435,7 +435,7 @@
   "coach.login.badPin": "Incorrect PIN. Please try again.",
   "coach.login.emailLink": "Sign in with Email",
   "coach.login.failed": "Login failed. Please try again.",
-  "coach.login.locked": "Too many attempts. Try again in {time}, or ask an admin to reset your PIN.",
+  "coach.login.locked": "Too many attempts from this network. Try again in {time}, or use Sign in with Email below.",
   "coach.login.network": "Connection error. Please try again.",
   "coach.login.prompt": "Enter your 8-digit PIN",
   "coach.login.time.hour": "1 hour",

@@ -65,19 +65,30 @@ export async function POST(req: NextRequest) {
 
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { booking_id, student_id, class_session_id, checked_in } = body
+  const { booking_id, student_id, checked_in } = body
+  if (!booking_id) return NextResponse.json({ error: 'Missing booking_id' }, { status: 400 })
 
   // A 60-minute lesson is two linked bookings. Attendance follows the whole
   // group, the way cancellation and credits already do: ticking or un-ticking
   // one half would otherwise leave the other half silently absent, which also
   // drops it out of the Missing Progress list.
-  let targets: any[] = [{ booking_id, student_id, class_session_id }]
+  //
+  // THIS swimmer's halves only (found 2026-10-06). A 60-minute 1-on-2 shares
+  // one lesson_group_id across every seat -- siblings, and both families of a
+  // partner booking -- so ticking one child used to check in (or out) every
+  // child in the lesson. The booking itself is read from the database rather
+  // than trusted from the request.
   const { data: self } = await supabase.from('bookings')
-    .select('lesson_group_id').eq('id', booking_id).maybeSingle()
-  if (self?.lesson_group_id) {
+    .select('id, lesson_group_id, student_id, class_session_id').eq('id', booking_id).maybeSingle()
+  if (!self) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
+  if (student_id && self.student_id && student_id !== self.student_id)
+    return NextResponse.json({ error: 'That booking is for another swimmer. Refresh and try again.' }, { status: 409 })
+  let targets: any[] = [{ booking_id: self.id, student_id: self.student_id, class_session_id: self.class_session_id }]
+  if (self.lesson_group_id) {
     const { data: halves } = await supabase.from('bookings')
       .select('id, student_id, class_session_id')
       .eq('lesson_group_id', self.lesson_group_id)
+      .eq('student_id', self.student_id)
       .not('status', 'in', '("cancelled")')
     if (halves && halves.length > 0)
       targets = halves.map((h: any) => ({

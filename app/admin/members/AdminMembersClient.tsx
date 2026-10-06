@@ -599,7 +599,8 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
           // A 60-minute lesson is two linked bookings and the server toggles BOTH.
           // Mirror that locally, or the sibling row keeps its old state until a
           // reload and the operator thinks the cascade failed.
-          past: sb.past.map(b => (b.id === booking.id || (booking.lesson_group_id && b.lesson_group_id === booking.lesson_group_id)) ? { ...b, checked_in: checkedIn } : b),
+          // Only this swimmer's halves, as on the server.
+          past: sb.past.map(b => (b.id === booking.id || (booking.lesson_group_id && b.lesson_group_id === booking.lesson_group_id && b.student_id === booking.student_id)) ? { ...b, checked_in: checkedIn } : b),
         },
       }
     })

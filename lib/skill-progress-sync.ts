@@ -177,14 +177,25 @@ export async function syncApprovedSkills(
  * live table, it is the picture the coach last sent -- what the live table
  * itself used to show before it waited for the admin.
  */
-export async function pendingOverlay(svc: any, studentId: string): Promise<Snapshot> {
-  const { data: rows } = await svc
+export async function pendingOverlay(svc: any, studentId: string, asOfDate?: string | null): Promise<Snapshot> {
+  let q = svc
     .from('progress_history')
     .select('snapshot, status, session_date, created_at')
     .eq('student_id', studentId)
     .in('status', ['pending_review', 'approved'])
+  // asOfDate: only reports for lessons on or before that day. A record for a
+  // lesson in between must carry what the coach had already reported by then,
+  // and nothing reported for later lessons (found 2026-10-06).
+  if (asOfDate) q = q.lte('session_date', asOfDate)
+  const { data: rows } = await q
     .order('session_date', { ascending: true })
     .order('created_at', { ascending: true })
+  return overlayFromRows(rows || [])
+}
+
+/** pendingOverlay over rows already read (same order: lesson date, then
+ *  created). Used where one query serves many swimmers. */
+export function overlayFromRows(rows: any[]): Snapshot {
   const list = rows || []
   let lastApproved = -1
   list.forEach((r: any, i: number) => { if (r.status === 'approved') lastApproved = i })
