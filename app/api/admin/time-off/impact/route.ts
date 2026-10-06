@@ -20,7 +20,7 @@ async function getAffected(svc: any, block: any) {
   })
   if (!overlapped.length) return { sessions: [], bookings: [] }
   const ids = overlapped.map((s: any) => s.id)
-  const COLS = 'id, class_session_id, parent_id, student_id, status, points_charged, points_refunded, block_notice_sent_at, cancellation_reason, lesson_group_id, voucher_id'
+  const COLS = 'id, class_session_id, parent_id, student_id, status, points_charged, points_refunded, block_notice_sent_at, cancellation_reason, lesson_group_id, voucher_id, is_trial'
   const { data: bookings } = await svc
     .from('bookings')
     .select(COLS)
@@ -146,7 +146,8 @@ export async function POST(req: NextRequest) {
       const names = [...new Set(rows.map((r: any) => (stuMap.get(r.student_id) as any)?.full_name).filter(Boolean))]
       if (!s || !par?.email) continue
       // A make-up was paid with a voucher, which comes back -- not points.
-      const kind = rows.some((r: any) => r.points_charged) ? 'points' : rows.some((r: any) => r.voucher_id) ? 'voucher' : 'none'
+      // A paid Swim Assessment stays owed: the desk books a new time.
+      const kind = rows.some((r: any) => r.points_charged) ? 'points' : rows.some((r: any) => r.voucher_id) ? 'voucher' : rows.some((r: any) => r.is_trial) ? 'assessment' : 'none'
       const ok = await sendEmail({
         type: 'block_cancellation_notice',
         refundKind: kind,

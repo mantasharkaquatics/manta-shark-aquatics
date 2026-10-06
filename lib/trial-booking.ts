@@ -340,3 +340,41 @@ async function debitFailed(stripe: Stripe, session: Stripe.Checkout.Session): Pr
   const pi = await stripe.paymentIntents.retrieve(piId)
   return pi.status === 'requires_payment_method' || pi.status === 'canceled'
 }
+
+/* Before the SCHOOL cancels a held (unpaid) Swim Assessment, close its Stripe
+   checkout, as the family's own cancel does. The admin cancel routes used to
+   flip the booking and leave the checkout open, so the family could still pay
+   $85 for an assessment that no longer existed (found 2026-10-06).
+     'closed'  -- the checkout can no longer be paid; cancel the hold.
+     'paid'    -- it was paid a moment ago; it is now a confirmed, paid
+                  assessment, and the caller cancels it as one.
+     'unknown' -- Stripe could not be asked, or a bank payment is still
+                  clearing; cancel nothing and let the admin try again. */
+export async function closeTrialCheckout(
+  supabase: SupabaseClient,
+  stripe: Stripe,
+  stripeSessionId: string | null | undefined,
+): Promise<'closed' | 'paid' | 'unknown'> {
+  if (!stripeSessionId) return 'closed'
+  try {
+    await stripe.checkout.sessions.expire(stripeSessionId)
+    return 'closed'
+  } catch {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(stripeSessionId)
+      if (session.status === 'expired') return 'closed'
+      if (session.status === 'complete' && session.payment_status === 'paid') {
+        await confirmTrialBooking(supabase, session)
+        return 'paid'
+      }
+      return 'unknown'
+    } catch {
+      return 'unknown'
+    }
+  }
+}
+
+/** Cancellation reasons that mean the SCHOOL cancelled. A paid assessment
+ *  cancelled for one of these is still owed to the family: it shows on the
+ *  admin Reviews page until it is booked again (owner, 2026-10-06). */
+export const SCHOOL_CANCEL_REASONS = ['cancelled_by_school', 'coach_time_off'] as const

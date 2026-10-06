@@ -5,6 +5,10 @@ import { refundBookingPoints } from '@/lib/bookings/refund'
 import { notifyCancellation, type CancelTarget } from '@/lib/bookings/cancel'
 import { giveBackVouchers, issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
+import Stripe from 'stripe'
+import { closeTrialCheckout } from '@/lib/trial-booking'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
 // Cancels ONE swimmer's place in a lesson, from the admin calendar.
 //
@@ -37,7 +41,7 @@ export async function POST(req: NextRequest) {
   const refund = mode === 'refund'
   const svc = auth.svc
 
-  const cols = 'id, status, class_session_id, points_charged, points_refunded, points_granted, points_granted_expires_at, parent_id, student_id, lesson_group_id, is_trial, fixed_class_id, voucher_id'
+  const cols = 'id, status, class_session_id, points_charged, points_refunded, points_granted, points_granted_expires_at, parent_id, student_id, lesson_group_id, is_trial, fixed_class_id, voucher_id, stripe_session_id'
   const { data: primary } = await svc.from('bookings').select(cols).eq('id', bookingId).single()
   if (!primary) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
   if (primary.status === 'cancelled') return NextResponse.json({ error: 'This booking is already cancelled.' }, { status: 409 })
@@ -74,6 +78,17 @@ export async function POST(req: NextRequest) {
   const { data: attended } = await svc.from('attendance').select('booking_id').in('booking_id', rows.map(r => r.id))
   if ((attended || []).length > 0)
     return NextResponse.json({ error: 'This swimmer has already checked in, so the lesson counts as delivered and cannot be cancelled.' }, { status: 409 })
+
+  // An assessment awaiting payment: close the checkout first (see
+  // closeTrialCheckout). One that turns out paid is cancelled as paid.
+  for (const r of rows) {
+    if (r.status !== 'pending_payment' || !r.is_trial) continue
+    const res = await closeTrialCheckout(svc, stripe, r.stripe_session_id)
+    if (res === 'unknown')
+      return NextResponse.json({ error: 'Could not close the Swim Assessment payment page in Stripe, so nothing was cancelled. Try again in a minute.' }, { status: 502 })
+    if (res === 'paid') r.status = 'confirmed'
+  }
+  const wasPaidAssessment = rows.some(r => r.is_trial && r.status === 'confirmed')
 
   const cancelled: string[] = []
   let refundedTotal = 0
@@ -137,7 +152,9 @@ export async function POST(req: NextRequest) {
 
   const targets: CancelTarget[] = [{
     parent_id: primary.parent_id, student_id: primary.student_id,
-    kind: mode === 'voucher' ? 'voucher' : refundedTotal > 0 ? 'points' : 'none',
+    // "Refund" on a paid Swim Assessment means the school cancelled it: the
+    // payment stays owed and the desk books it again (owner, 2026-10-06).
+    kind: mode === 'voucher' ? 'voucher' : refundedTotal > 0 ? 'points' : (refund && wasPaidAssessment) ? 'assessment' : 'none',
     voucherExpires,
   }]
   await notifyCancellation(svc, { bookingIds: cancelled, targets })

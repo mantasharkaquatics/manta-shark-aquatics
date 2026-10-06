@@ -5,6 +5,10 @@ import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { giveBackVouchers } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
+import Stripe from 'stripe'
+import { closeTrialCheckout } from '@/lib/trial-booking'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -18,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const { data: bookings } = await svc
     .from('bookings')
-    .select('id, points_charged, points_refunded, parent_id, student_id, status, class_session_id, lesson_group_id')
+    .select('id, points_charged, points_refunded, parent_id, student_id, status, class_session_id, lesson_group_id, is_trial, stripe_session_id')
     .eq('class_session_id', session_id)
     .neq('status', 'cancelled')
 
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest) {
   if (groupIds.length > 0) {
     const { data: sibs } = await svc
       .from('bookings')
-      .select('id, points_charged, points_refunded, parent_id, student_id, status, class_session_id, lesson_group_id')
+      .select('id, points_charged, points_refunded, parent_id, student_id, status, class_session_id, lesson_group_id, is_trial, stripe_session_id')
       .in('lesson_group_id', groupIds)
       .neq('status', 'cancelled')
     for (const sb of sibs || []) {
@@ -63,7 +67,19 @@ export async function POST(req: NextRequest) {
   if ((attended || []).length > 0)
     return NextResponse.json({ error: 'This swimmer has already checked in, so the lesson counts as delivered and cannot be cancelled. To compensate the family, issue a token from the Members page.' }, { status: 409 })
 
-  const notified: { parent_id: string; student_id: string; kind: 'points' | 'voucher' | 'none' }[] = []
+  // An assessment still waiting for payment: close its checkout before the
+  // hold goes, so it cannot be paid for a lesson that no longer exists. One
+  // paid a moment ago is now a confirmed, paid assessment and is cancelled as
+  // one below. If Stripe cannot be asked, nothing is cancelled.
+  for (const b of allBookings) {
+    if (b.status !== 'pending_payment' || !b.is_trial) continue
+    const r = await closeTrialCheckout(svc, stripe, b.stripe_session_id)
+    if (r === 'unknown')
+      return NextResponse.json({ error: 'Could not close the Swim Assessment payment page in Stripe, so nothing was cancelled. Try again in a minute.' }, { status: 502 })
+    if (r === 'paid') b.status = 'confirmed'
+  }
+
+  const notified: { parent_id: string; student_id: string; kind: 'points' | 'voucher' | 'none' | 'assessment' }[] = []
 
   for (const b of allBookings) {
     if (b.status === 'confirmed') {
@@ -91,7 +107,9 @@ export async function POST(req: NextRequest) {
       })
       // A make-up lesson cost a voucher, not points: that comes back instead.
       const back = await giveBackVouchers(svc, [b.id])
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
+      // A paid Swim Assessment has no points to return: it stays owed, and
+      // shows on the admin Reviews page until the desk books it again.
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.is_trial ? 'assessment' : refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
     } else {
       // pending_partner etc.: no credits were deducted, cancel without refund
       const { data: c } = await svc
@@ -159,7 +177,7 @@ export async function POST(req: NextRequest) {
         // back or nothing did.
         // A make-up's voucher comes back rather than points (found 2026-10-03:
         // the email said nothing was returned).
-        const refundKind = !ks || ks.size === 0 ? 'none' as const : ks.has('points') ? 'points' as const : 'voucher' as const
+        const refundKind = !ks || ks.size === 0 ? 'none' as const : ks.has('points') ? 'points' as const : ks.has('voucher') ? 'voucher' as const : 'assessment' as const
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
         const { data: kids } = await svc.from('students').select('id, full_name').in('id', studentsByParent.get(t.parent_id) || [t.student_id])
         const kidNames = (studentsByParent.get(t.parent_id) || [t.student_id])

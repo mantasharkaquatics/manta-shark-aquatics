@@ -38,6 +38,15 @@ type MissingProgress = {
 }
 
 /** A cancelled lesson whose points never reached the wallet (lib/admin/review-queues.ts). */
+type AssessmentRebook = {
+  booking_id: string
+  student_id: string
+  student_name: string
+  family_name: string
+  session_date: string | null
+  start_time: string | null
+  cancelled_at: string | null
+}
 type RefundOwed = {
   id: string
   family_name: string
@@ -73,6 +82,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   pastPendingProgressList: initialPastPending,
   missingProgressList: initialMissing,
   refundOwedList: initialRefundOwed,
+  assessmentRebookList,
 }: {
   adminId: string
   levels: Level[]
@@ -82,6 +92,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   pastPendingProgressList: PendingProgress[]
   missingProgressList: MissingProgress[]
   refundOwedList: RefundOwed[]
+  assessmentRebookList: AssessmentRebook[]
 }) {
   const t = useT()
   const locale = useLocale()
@@ -104,6 +115,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
 
   const waiting = missingProgressList.length + pendingProgressList.length
     + pastPendingProgressList.length + recommendations.length + refundOwedList.length
+    + assessmentRebookList.length
 
   // One booking at a time; the route re-checks everything before moving points.
   async function retryRefund(r: RefundOwed) {
@@ -305,6 +317,45 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                   >
                     {retryingRefund === r.id ? t('admin.reviews.refund.retrying') : t('admin.reviews.refund.retry')}
                   </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Paid Swim Assessments the school cancelled (owner, 2026-10-06). The
+          family has paid and is not asked to pay again; the card stays until
+          the desk books a new time from Booking, where the swimmer's paid
+          assessment is booked without a payment link. */}
+      {assessmentRebookList.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-2 flex items-center gap-2">
+            {t('admin.reviews.assessRebook.heading')}
+            <span className="bg-[#c9a84c] text-[#1a2744] text-xs px-2 py-0.5 rounded-full font-bold">{assessmentRebookList.length}</span>
+          </h2>
+          <p className="text-gray-400 text-xs mb-4">{t('admin.reviews.assessRebook.hint')}</p>
+          <div className="space-y-3">
+            {assessmentRebookList.map(a => (
+              <div key={a.booking_id} className="bg-[#111d38] rounded-xl border border-[#c9a84c]/30 p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-white font-semibold">
+                    {a.student_name || '—'}
+                    <span className="text-gray-400 font-normal text-sm"> · {a.family_name || '—'}</span>
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    {a.session_date
+                      ? t('admin.reviews.assessRebook.was', { when: `${new Date(a.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' })}${a.start_time ? ` · ${formatTime12h(a.start_time)}` : ''}` })
+                      : t('admin.reviews.refund.noLesson')}
+                    {a.cancelled_at ? ` · ${t('admin.reviews.refund.cancelledAt', { date: dateTimeLabel(a.cancelled_at, locale) })}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[#c9a84c] font-semibold text-sm">{t('admin.reviews.assessRebook.paid')}</span>
+                  <a href="/admin/booking"
+                    className="px-4 py-2 rounded-lg bg-[#c9a84c]/20 border border-[#c9a84c]/40 text-[#c9a84c] font-semibold text-sm hover:bg-[#c9a84c]/30 transition-all">
+                    {t('admin.reviews.assessRebook.book')}
+                  </a>
                 </div>
               </div>
             ))}

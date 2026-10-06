@@ -73,7 +73,7 @@ export interface EmailPayload {
   // Time row would then be wrong for some of the lessons it sits above.
   times?: string[]
   // voucher: the lesson became a make-up voucher, usable until expiresOn.
-  refundKind?: 'points' | 'voucher' | 'none'
+  refundKind?: 'points' | 'voucher' | 'none' | 'assessment'
   requesterStudentName?: string
   partnerStudentName?: string
   paymentMethod?: string
@@ -130,6 +130,12 @@ export interface EmailPayload {
   weekday?: number
   linkUrl?: string
   moveItems?: { date: string; kind: string; coach: string }[]
+}
+
+// Shared by the two school-side cancellation emails. Values arrive escaped.
+function assessmentCancelledHtml(parentName: string, studentName: string, formattedDate: string, time: string) {
+  const row = (label: string, value: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">${label}</td><td style="padding: 8px 0; font-weight: 600;">${value}</td></tr>`
+  return `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Swim Assessment Cancelled</h2><p>Hi ${parentName},</p><p>We're sorry — we had to cancel the Swim Assessment below.</p><table style="width: 100%; border-collapse: collapse;">${row('Student', studentName)}${row('Date', formattedDate)}${row('Time', time)}</table><p style="color: #c9a84c; font-weight: 600;">Your payment is kept on your account, so there is nothing to pay again. We will contact you shortly to arrange a new time.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -190,6 +196,14 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     subject = `Lesson Rescheduled – ${courseName} on ${formattedDate}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">📅 Lesson Rescheduled</h2><p>Hi ${esc(parentName)},</p><p>Your lesson has been rescheduled. Here are your new details:</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">New Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">New Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr></table></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
+  } else if (type === 'booking_cancelled' && refundKind === 'assessment') {
+    // A paid Swim Assessment the school cancelled (owner, 2026-10-06): the
+    // payment stays on file and the desk arranges the new time. The generic
+    // email told the family to rebook online, which the site does not allow
+    // for a paid assessment.
+    subject = `Swim Assessment Cancelled – ${formattedDate}`
+    html = assessmentCancelledHtml(esc(parentName), esc(studentName), formattedDate, esc(time))
+
   } else if (type === 'booking_cancelled') {
     subject = `Lesson Cancelled – ${courseName} on ${formattedDate}`
     const rk = refundKind || 'credit'
@@ -212,6 +226,9 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       : 'Your points are back in your wallet.'
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">❌ Lesson Cancelled</h2><p>Hi ${esc(parentName)},</p><p>${cancelLine}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr></table><p style="color: #c9a84c; font-weight: 600;">${readyLine}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
+  } else if (type === 'block_cancellation_notice' && refundKind === 'assessment') {
+    subject = `Swim Assessment Cancelled – ${formattedDate}`
+    html = assessmentCancelledHtml(esc(parentName), esc(studentName), formattedDate, esc(time))
   } else if (type === 'block_cancellation_notice') {
     subject = `Lesson Cancelled \u2013 ${courseName} on ${formattedDate}`
     const refundLine = refundKind === 'none' ? ''

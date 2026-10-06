@@ -8,7 +8,9 @@ export type CancelTarget = {
   parent_id: string
   student_id: string
   // points: refunded. voucher: turned into a make-up voucher. none: kept.
-  kind: 'points' | 'voucher' | 'none'
+  // assessment: a paid Swim Assessment the school cancelled -- the payment is
+  // kept and the desk books a new time (owner, 2026-10-06).
+  kind: 'points' | 'voucher' | 'none' | 'assessment'
   voucherExpires?: string
   /** A leave voucher's first usable date (it covers the 14 days either side). */
   voucherFrom?: string | null

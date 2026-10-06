@@ -32,6 +32,6 @@ export async function GET() {
   } catch (e: unknown) {
     // A badge is never worth breaking the page over.
     console.error('review-count failed:', e)
-    return NextResponse.json({ total: 0, missing: 0, pending: 0, recommendations: 0, refundOwed: 0 })
+    return NextResponse.json({ total: 0, missing: 0, pending: 0, recommendations: 0, refundOwed: 0, assessmentRebook: 0 })
   }
 }

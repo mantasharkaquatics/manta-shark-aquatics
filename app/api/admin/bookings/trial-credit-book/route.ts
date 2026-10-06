@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
 
 export async function POST(req: NextRequest) {
   const ctx = await requireAdmin()
@@ -105,6 +106,20 @@ export async function POST(req: NextRequest) {
       .eq('used_credits', 0)
       .limit(1)
     const trialCreditId = trialCredits && trialCredits.length > 0 ? trialCredits[0].id : null
+    // No unused credit: the assessment may be one the school cancelled after
+    // it was paid (owner, 2026-10-06). Its credit is already marked used, by
+    // that booking; the new booking takes it over, so the invoice and the
+    // payment stay attached to the lesson that is actually given.
+    let carriedCreditId: string | null = null
+    if (!trialCreditId) {
+      const { data: prev } = await svc
+        .from('bookings').select('lesson_credit_id')
+        .eq('student_id', studentId).eq('is_trial', true).eq('status', 'cancelled')
+        .in('cancellation_reason', SCHOOL_CANCEL_REASONS as unknown as string[])
+        .not('lesson_credit_id', 'is', null)
+        .order('cancelled_at', { ascending: false }).limit(1)
+      carriedCreditId = prev && prev[0] ? prev[0].lesson_credit_id : null
+    }
 
     const { error: bookErr } = await svc
       .from('bookings')
@@ -112,7 +127,7 @@ export async function POST(req: NextRequest) {
         class_session_id: sessId,
         parent_id: student.parent_id,
         student_id: studentId,
-        lesson_credit_id: trialCreditId,
+        lesson_credit_id: trialCreditId || carriedCreditId,
         is_trial: true,
         status: 'confirmed',
       })

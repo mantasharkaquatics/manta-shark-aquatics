@@ -14,6 +14,7 @@
  */
 import { getTodayLA } from '@/lib/date'
 import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
+import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
 
 /**
  * Every row a query matches, a page at a time. The API hands back at most
@@ -197,7 +198,82 @@ async function loadRefundOwed(svc: any, withDetails: boolean): Promise<RefundOwe
     .sort((a, b) => String(a.cancelled_at || '').localeCompare(String(b.cancelled_at || '')) || a.id.localeCompare(b.id))
 }
 
+export type AssessmentRebookItem = {
+  booking_id: string
+  student_id: string
+  parent_id: string | null
+  student_name: string
+  family_name: string
+  session_date: string | null
+  start_time: string | null
+  cancelled_at: string | null
+}
+
+/**
+ * Paid Swim Assessments the school cancelled and nobody has booked again
+ * (owner, 2026-10-06). The family has paid and is never asked to pay again;
+ * this card is the record of what is owed until the desk books a new time
+ * (Booking -> tick Swim Assessment -> the paid-assessment path). Only admins
+ * see it. A swimmer drops off once any later assessment booking exists, or
+ * once they have a level.
+ */
+async function loadAssessmentsToRebook(svc: any, withDetails: boolean): Promise<AssessmentRebookItem[]> {
+  const cancelled = await allRows(() => svc.from('bookings')
+    .select('id, student_id, parent_id, class_session_id, cancelled_at, created_at')
+    .eq('is_trial', true).eq('status', 'cancelled')
+    .in('cancellation_reason', SCHOOL_CANCEL_REASONS as unknown as string[])
+    .order('id'))
+  if (cancelled.length === 0) return []
+  const studentIds = [...new Set(cancelled.map((b: any) => b.student_id).filter(Boolean))] as string[]
+  const [students, trials] = await Promise.all([
+    inChunks(studentIds, c => svc.from('students').select('id, full_name, parent_id, current_level, trial_used_at').in('id', c).order('id')),
+    inChunks(studentIds, c => svc.from('bookings').select('id, student_id, created_at').eq('is_trial', true).in('student_id', c).order('id')),
+  ])
+  const studentMap: Record<string, any> = {}
+  for (const st of students) studentMap[st.id] = st
+  // The newest assessment booking per swimmer decides: a school-cancelled one
+  // that is still the newest has not been booked again.
+  const newest: Record<string, any> = {}
+  for (const b of trials) {
+    const cur = newest[b.student_id]
+    if (!cur || String(b.created_at) > String(cur.created_at)) newest[b.student_id] = b
+  }
+  const owed = cancelled.filter((b: any) => {
+    const st = studentMap[b.student_id]
+    return st && st.current_level == null && st.trial_used_at && newest[b.student_id]?.id === b.id
+  })
+  if (owed.length === 0) return []
+
+  const parentMap: Record<string, any> = {}
+  const sessionMap: Record<string, any> = {}
+  if (withDetails) {
+    const pIds = [...new Set(owed.map((b: any) => b.parent_id).filter(Boolean))] as string[]
+    const cIds = [...new Set(owed.map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+    const [ps, cs] = await Promise.all([
+      inChunks(pIds, c => svc.from('parents').select('id, first_name, last_name').in('id', c).order('id')),
+      inChunks(cIds, c => svc.from('class_sessions').select('id, session_date, start_time').in('id', c).order('id')),
+    ])
+    for (const p of ps) parentMap[p.id] = p
+    for (const c of cs) sessionMap[c.id] = c
+  }
+  return owed.map((b: any): AssessmentRebookItem => {
+    const p = parentMap[b.parent_id]
+    const se = sessionMap[b.class_session_id]
+    return {
+      booking_id: b.id,
+      student_id: b.student_id,
+      parent_id: b.parent_id ?? null,
+      student_name: studentMap[b.student_id]?.full_name || '',
+      family_name: p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : '',
+      session_date: se?.session_date ?? null,
+      start_time: se?.start_time ?? null,
+      cancelled_at: b.cancelled_at ?? null,
+    }
+  }).sort((a: AssessmentRebookItem, b: AssessmentRebookItem) => String(a.cancelled_at || '').localeCompare(String(b.cancelled_at || '')))
+}
+
 export type ReviewQueues = {
+  assessmentRebookList: AssessmentRebookItem[]
   recommendations: any[]
   pendingProgressList: any[]
   pastPendingProgressList: any[]
@@ -210,6 +286,10 @@ export async function loadReviewQueues(
   { withDetails = true }: { withDetails?: boolean } = {}
 ): Promise<ReviewQueues> {
   // Independent of everything below, so it runs alongside it.
+  const assessmentRebookPromise = loadAssessmentsToRebook(svc, withDetails).catch((e: unknown) => {
+    console.error('review-queues: assessment-rebook queue failed:', e)
+    return [] as AssessmentRebookItem[]
+  })
   const refundOwedPromise = loadRefundOwed(svc, withDetails).catch((e: unknown) => {
     console.error('review-queues: refund-owed queue failed:', e)
     return [] as RefundOwedItem[]
@@ -509,19 +589,21 @@ export async function loadReviewQueues(
   }
 
   const refundOwedList = await refundOwedPromise
+  const assessmentRebookList = await assessmentRebookPromise
 
-  return { recommendations, pendingProgressList, pastPendingProgressList, missingProgressList, refundOwedList }
+  return { assessmentRebookList, recommendations, pendingProgressList, pastPendingProgressList, missingProgressList, refundOwedList }
 }
 
 /** Just the totals, for the sidebar badge. Skips the display-only enrichment. */
-export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number; refundOwed: number }> {
+export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number; refundOwed: number; assessmentRebook: number }> {
   const q = await loadReviewQueues(svc, { withDetails: false })
   const pending = q.pendingProgressList.length + q.pastPendingProgressList.length
   return {
-    total: q.missingProgressList.length + pending + q.recommendations.length + q.refundOwedList.length,
+    total: q.missingProgressList.length + pending + q.recommendations.length + q.refundOwedList.length + q.assessmentRebookList.length,
     missing: q.missingProgressList.length,
     pending,
     recommendations: q.recommendations.length,
     refundOwed: q.refundOwedList.length,
+    assessmentRebook: q.assessmentRebookList.length,
   }
 }
