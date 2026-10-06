@@ -75,6 +75,8 @@ export async function POST(req: NextRequest) {
         const { count: members } = await svc
           .from('team_memberships').select('id', { count: 'exact', head: true })
           .eq('team_tier_id', tier.id).in('status', ['active', 'past_due'])
+          // Lapsed prepaid rows stay 'active'; expiry frees the seat.
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         if ((members || 0) >= TEAM_SQUAD_CAP)
           return NextResponse.json({ error: `${tier.name} is currently full — please contact us to join the waitlist.` }, { status: 409 })
       }

@@ -441,6 +441,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'could not resolve session' }, { status: 503 })
     }
 
+    // A front-desk card sale (Stripe Terminal) has no Checkout Session: the
+    // POS routes write the purchase under the payment intent id instead. A
+    // chargeback on one used to reverse nothing and leave the refundable
+    // points in the wallet (found 2026-10-06).
+    let terminalSale = false
+    if (!topUp) {
+      const { data: posRow, error: posErr } = await supabase
+        .from('point_ledger').select('parent_id, amount_cents')
+        .eq('stripe_session_id', paymentIntentId).eq('reason', 'purchase').limit(1)
+      if (posErr) {
+        console.error(`${event.type} ${paymentIntentId}: could not look up a desk sale:`, posErr)
+        return NextResponse.json({ error: 'could not resolve desk sale' }, { status: 503 })
+      }
+      const row = posRow && posRow[0]
+      if (row && row.parent_id && Number(row.amount_cents) > 0) {
+        topUp = { sessionId: paymentIntentId, parentId: row.parent_id, amountCents: Number(row.amount_cents) }
+        terminalSale = true
+      }
+    }
+
     // A card decline during checkout, a Swim Assessment, a team subscription:
     // none of those put points in a wallet, so there is nothing to take back.
     if (!topUp || topUp.amountCents <= 0) return NextResponse.json({ received: true })
@@ -484,7 +504,7 @@ export async function POST(req: NextRequest) {
 
     await supabase.from('purchases')
       .update({ reversed_at: new Date().toISOString(), reversal_reason: reason })
-      .eq('stripe_session_id', topUp.sessionId)
+      .eq(terminalSale ? 'stripe_payment_intent_id' : 'stripe_session_id', topUp.sessionId)
 
     // Give back the lessons they have not swum, which pays down most of the
     // debt on its own. Anything left is for a human to chase.

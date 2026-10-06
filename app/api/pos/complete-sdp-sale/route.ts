@@ -23,6 +23,10 @@ import { checkSdpSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
 // wallet per family and no per-child balances. The swimmer is recorded on the
 // invoice, which is where the agreement is actually documented.
 
+// How recently an identical cash sale counts as the same sale (as in
+// /api/pos/complete-sale).
+const DUPLICATE_WINDOW_MS = 90_000
+
 export async function POST(req: NextRequest) {
   try {
     const { parentId, studentId, courseTypeId, description, sessions, unitPriceCents, paymentMethod, paymentIntentId } = await req.json()
@@ -71,6 +75,22 @@ export async function POST(req: NextRequest) {
           error: 'This payment has already been recorded, but its points may not have gone in. Do not take payment again — add them with the button below.',
           purchaseId: had[0].id,
           retryCredit: { purchaseId: had[0].id, bonusPoints, bonusNote },
+        }, { status: 409 })
+    } else {
+      // Cash has nothing to key on, so key on the shape of it -- this family,
+      // this amount, moments ago -- as /api/pos/complete-sale does. A lost
+      // response used to let the desk record the same programme twice, with
+      // its purchased and programme-rate points both credited again (found
+      // 2026-10-06).
+      const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString()
+      const { data: recent } = await supabase
+        .from('purchases').select('id')
+        .eq('parent_id', parentId).eq('amount_cents', amountCents)
+        .not('recorded_by', 'is', null)
+        .gte('paid_at', since).limit(1)
+      if (recent && recent.length)
+        return NextResponse.json({
+          error: 'An identical payment for this family was recorded moments ago. If that was this sale, it is already done — check their points before taking payment again.',
         }, { status: 409 })
     }
 

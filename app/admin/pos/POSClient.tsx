@@ -22,6 +22,9 @@ type Step = 'select' | 'success'
  *  points a recorded purchase is missing (/api/pos/retry-credit); 'record'
  *  sends the same complete-* request again, which the server marks as safe. */
 type Recovery = { kind: 'credit'; body: unknown } | { kind: 'record'; url: string; body: unknown }
+// Thrown when the server wants an out-of-band team sale confirmed: the dialog
+// opens instead of an error.
+class OverrideNeeded extends Error {}
 
 const TIME_SLOTS: string[] = []
 for (let h = 6; h < 22; h++) {
@@ -219,7 +222,19 @@ export default function POSClient() {
   }
   const teamOverrideRef = useRef(false)
   const [showTeamOverride, setShowTeamOverride] = useState(false)
+  // Reasons the SERVER gave for asking for an override. It decides; when it
+  // sees something this screen did not (a seat taken a minute ago), its
+  // reasons are what the dialog shows (found 2026-10-06: the desk used to get
+  // a refusal with no way to confirm it).
+  const [serverOverride, setServerOverride] = useState<string[] | null>(null)
+  const overrideList = serverOverride && serverOverride.length ? serverOverride : teamOverrideReasons
   useEffect(() => { teamOverrideRef.current = false }, [selectedStudentId, teamTierId, isTeam])
+
+  const askOverride = (reasons: string[] | undefined) => {
+    setServerOverride(reasons && reasons.length ? reasons : null)
+    setShowTeamOverride(true)
+    throw new OverrideNeeded()
+  }
 
   const handleCharge = async (overrideAcked = false) => {
     if (isTeam && teamOverrideReasons.length > 0 && !overrideAcked) {
@@ -246,6 +261,7 @@ export default function POSClient() {
       body: JSON.stringify(body),
     })
     const piData = await piRes.json().catch(() => ({}))
+    if (piData.needs_override && !teamOverrideRef.current) askOverride(piData.reasons)
     if (!piRes.ok || piData.error) throw new Error(piData.error || t('admin.pos.err.piFailed'))
     // The server priced the sale itself. If that is not the total on the
     // screen, stop before the card: the family agreed to what they were shown.
@@ -266,7 +282,12 @@ export default function POSClient() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
+      // A cash sale the server wants confirmed: nothing was taken yet, so ask.
+      if (data.needs_override && !data.retryWithOverride && !(body as { override?: boolean }).override) askOverride(data.reasons)
       if (data.retryCredit) setRecovery({ kind: 'credit', body: data.retryCredit })
+      // The card was taken and the squad needs confirming: recording again
+      // with the override never touches the card.
+      else if (data.retryWithOverride) setRecovery({ kind: 'record', url, body: { ...(body as object), override: true } })
       else if (data.retryable) setRecovery({ kind: 'record', url, body })
       throw new Error(data.error || t('admin.pos.err.failed'))
     }
@@ -290,20 +311,14 @@ export default function POSClient() {
         const paymentIntentId = payMethod === 'card'
           ? await takeCard('/api/stripe/terminal/create-payment-intent', { kind: 'team', ...sale }, teamAmountCents)
           : undefined
-        // A team sale is not offered a second recording: it extends the
-        // membership before the invoice is written, so sending it twice would
-        // extend it twice.
-        const res = await fetch('/api/pos/complete-team-sale', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...sale,
-            paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
-            ...(paymentIntentId ? { paymentIntentId } : {}),
-          }),
+        // The route refuses a payment it has already recorded, and offers a
+        // second recording only when nothing was written (or the squad needs
+        // confirming), so the recovery button cannot extend a membership twice.
+        await record('/api/pos/complete-team-sale', {
+          ...sale,
+          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...(paymentIntentId ? { paymentIntentId } : {}),
         })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
-        setStep('success')
       } else if (isSdp) {
         if (!sdpStudentId) throw new Error(t('admin.pos.err.selectStudent'))
         const sale = {
@@ -342,6 +357,7 @@ export default function POSClient() {
         })
       }
     } catch (err: any) {
+      if (err instanceof OverrideNeeded) return
       setError(err.message || t('admin.pos.err.paymentFailed'))
     } finally { setProcessing(false) }
   }
@@ -439,21 +455,21 @@ export default function POSClient() {
     <div style={{ minHeight: '100vh', backgroundColor: NAVY, padding: 24 }}>
       {/* Cash Confirm Modal */}
       {showTeamOverride && (
-        <div onClick={() => setShowTeamOverride(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+        <div onClick={() => { setShowTeamOverride(false); setServerOverride(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#111d38', border: '1px solid #b45309', borderRadius: 16, padding: 32, maxWidth: 420, width: '100%' }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#fbbf24', marginBottom: 8 }}>{t('admin.pos.override.eyebrow')}</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 16 }}>{t('admin.pos.override.title', { tier: teamTierName })}</div>
             <ul style={{ margin: '0 0 16px', padding: '0 0 0 18px', color: '#fbbf24', fontSize: 13, lineHeight: 1.7 }}>
-              {teamOverrideReasons.map(r => <li key={r}>{r}</li>)}
+              {overrideList.map(r => <li key={r}>{r}</li>)}
             </ul>
             <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 20px', lineHeight: 1.6 }}>
               {t('admin.pos.override.hint')}
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowTeamOverride(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #1e3a6e', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => { setShowTeamOverride(false); setServerOverride(null) }} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #1e3a6e', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 {t('common.cancel')}
               </button>
-              <button onClick={async () => { setShowTeamOverride(false); await handleCharge(true) }} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: '#b45309', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={async () => { setShowTeamOverride(false); setServerOverride(null); await handleCharge(true) }} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: '#b45309', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 {t('admin.pos.override.confirm')}
               </button>
             </div>

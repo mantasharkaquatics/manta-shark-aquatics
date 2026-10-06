@@ -177,6 +177,10 @@ export async function checkTeamSale(svc: Svc, input: {
   const { count: others } = await svc
     .from('team_memberships').select('id', { count: 'exact', head: true })
     .eq('team_tier_id', tierId).in('status', ['active', 'past_due']).neq('student_id', studentId)
+    // A lapsed prepaid row stays 'active' (nothing flips it), so expiry is
+    // what says the seat is free -- the same filter /api/team/tiers uses for
+    // the spots the desk is shown (found 2026-10-06).
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
 
   const reasons: string[] = []
   if (student.current_level == null) reasons.push(`${student.full_name} has no swim assessment on file`)
