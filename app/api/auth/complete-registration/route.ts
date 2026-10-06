@@ -6,6 +6,7 @@ import { claimReferral } from '@/lib/referrals'
 import { LEGAL_VERSIONS } from '@/lib/legal'
 import { getTodayLA } from '@/lib/date'
 import { isLocale } from '@/lib/i18n'
+import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
 
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
+  const lang = isLocale(body.preferred_language) ? body.preferred_language : 'en'
   const media = body.media_release_accepted === true
   const { data: parent, error: parentError } = await svc.from('parents').insert({
     auth_user_id: user.id,
@@ -197,7 +199,7 @@ export async function POST(req: NextRequest) {
     waiver_accepted_at: now, waiver_version: LEGAL_VERSIONS.waiver,
     media_release_accepted: media, media_release_at: media ? now : null,
     newsletter_subscribed: body.newsletter_subscribed === true, last_login_at: now,
-    preferred_language: isLocale(body.preferred_language) ? body.preferred_language : 'en',
+    preferred_language: lang,
     address_line1: address1, address_line2: address2,
     city, state: state.toUpperCase(), zip_code: zip,
   }).select('id').single()
@@ -224,6 +226,19 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error('[complete-registration] referral claim failed', e)
     }
+  }
+
+  // Welcome email (owner, 2026-10-06). Only here, on the first creation --
+  // the early "already done" return above never sends a second one. A failed
+  // send is logged and does not touch the account.
+  try {
+    const sent = await sendEmail({
+      type: 'welcome', to: email, parentName: firstName, lang,
+      studentNames: stuErr ? [] : students.map((s: { full_name: string }) => s.full_name),
+    })
+    if (!sent) console.error('[complete-registration] welcome email not sent', parent.id)
+  } catch (e) {
+    console.error('[complete-registration] welcome email failed', e)
   }
 
   return NextResponse.json({ ok: true, parent_id: parent.id, student_failed: !!stuErr })

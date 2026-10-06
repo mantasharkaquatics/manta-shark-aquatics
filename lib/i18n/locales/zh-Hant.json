@@ -622,6 +622,9 @@
   "date.weekdayShort.4": "四",
   "date.weekdayShort.5": "五",
   "date.weekdayShort.6": "六",
+  "email.code.expires": "驗證碼 10 分鐘內有效。",
+  "email.code.intro": "您的電子郵件驗證碼是：",
+  "email.code.subject": "您的驗證碼：{code}",
   "err.alreadyHasLevel": "這位學員已經有等級了，不需要游泳評估。",
   "err.alreadyLinked": "這兩個帳戶已經連結了。",
   "err.alreadyPaid": "已經付款完成，請重新整理頁面。",
@@ -1674,5 +1677,13 @@
   "err.cancelPartial": "這堂 60 分鐘的課有一部分無法取消。請聯絡我們，我們會幫您處理完成。",
   "err.cancelPair24": "和另一個家庭一起上的一對二，24 小時內無法線上取消。請聯絡我們。",
   "err.cancelFailedRetry": "這堂課沒有取消成功，請再試一次。",
-  "err.alreadyCancelled": "這堂課已經取消了。"
+  "err.alreadyCancelled": "這堂課已經取消了。",
+  "welcome.email.button": "預約游泳評估",
+  "welcome.email.dashboard": "之後在「我的頁面」可以預約課程、查看學習進度、管理帳戶：",
+  "welcome.email.dashboardLink": "前往我的頁面",
+  "welcome.email.next": "下一步：預約游泳評估。教練會看 {names} 實際游一次，找出適合的等級，之後每一堂課都依這個等級安排。",
+  "welcome.email.nextNoNames": "下一步：預約游泳評估。教練會看孩子實際游一次，找出適合的等級，之後每一堂課都依這個等級安排。",
+  "welcome.email.ready": "您的帳戶已經建立好了。",
+  "welcome.email.subject": "歡迎加入 Manta Shark Aquatics",
+  "welcome.email.title": "歡迎加入 Manta Shark!"
 }

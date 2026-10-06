@@ -622,6 +622,9 @@
   "date.weekdayShort.4": "Thu",
   "date.weekdayShort.5": "Fri",
   "date.weekdayShort.6": "Sat",
+  "email.code.expires": "This code expires in 10 minutes.",
+  "email.code.intro": "Your email verification code is:",
+  "email.code.subject": "Your verification code: {code}",
   "err.alreadyHasLevel": "This swimmer already has a level, so no Swim Assessment is needed.",
   "err.alreadyLinked": "These accounts are already linked.",
   "err.alreadyPaid": "Payment is already complete. Please refresh the page.",
@@ -1674,5 +1677,13 @@
   "err.cancelPartial": "Part of this 60-minute lesson could not be cancelled. Please contact us and we will finish it for you.",
   "err.cancelPair24": "A 1-on-2 shared with another family cannot be cancelled online within 24 hours. Please contact us.",
   "err.cancelFailedRetry": "The lesson could not be cancelled. Please try again.",
-  "err.alreadyCancelled": "This lesson has already been cancelled."
+  "err.alreadyCancelled": "This lesson has already been cancelled.",
+  "welcome.email.button": "Book a Swim Assessment",
+  "welcome.email.dashboard": "Your dashboard is where you book lessons, follow progress and manage your account: ",
+  "welcome.email.dashboardLink": "Go to my dashboard",
+  "welcome.email.next": "Next step: book a Swim Assessment. A coach watches {names} swim and places them at the right level, so every lesson after it fits.",
+  "welcome.email.nextNoNames": "Next step: book a Swim Assessment. A coach watches your child swim and places them at the right level, so every lesson after it fits.",
+  "welcome.email.ready": "Your account is ready.",
+  "welcome.email.subject": "Welcome to Manta Shark Aquatics",
+  "welcome.email.title": "Welcome to Manta Shark!"
 }

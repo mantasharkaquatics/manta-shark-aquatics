@@ -307,7 +307,7 @@ export default function RegisterClient() {
       const res = await fetch('/api/auth/send-email-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, context: 'register' }),
+        body: JSON.stringify({ email, context: 'register', lang: locale }),
       })
       const data = await res.json()
       if (!res.ok) {

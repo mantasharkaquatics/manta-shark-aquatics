@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { readJson, badRequest } from '@/lib/http'
 import { emailHasAccount } from '@/lib/account-exists'
+// all, not plain i18n: the server needs the Chinese dictionaries too.
+import { getT, toLocale } from '@/lib/i18n/all'
 
 export const runtime = 'nodejs'
 
@@ -19,7 +21,7 @@ const MAX_PER_HOUR = 5
 export async function POST(req: NextRequest) {
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { email, context } = body
+  const { email, context, lang } = body
   if (!email) return NextResponse.json({ error: 'Missing email' }, { status: 400 })
 
   const normalizedEmail = email.trim().toLowerCase()
@@ -67,14 +69,18 @@ export async function POST(req: NextRequest) {
   // Send BEFORE writing the row, as the phone route does: a row for a code
   // that never arrived would start the cooldown above and lock the family out
   // behind an email they will never receive.
+  // In the language the family chose on the register page (owner,
+  // 2026-10-06): it is the first email a new family gets from us. The code
+  // itself is digits, so nothing here needs escaping.
+  const t = getT(toLocale(typeof lang === 'string' ? lang : undefined))
   try {
     // Resend reports an API failure in its result rather than by throwing;
     // with the row now written after the send, that has to be checked.
     const { error: sendError } = await resend.emails.send({
       from: 'Manta Shark Aquatics <info@mantasharkaquatics.net>',
       to: normalizedEmail,
-      subject: `Your verification code: ${otpCode}`,
-      html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 22px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; text-align: center;"><p style="color: #666; margin-bottom: 16px;">Your email verification code is:</p><div style="font-size: 32px; font-weight: 700; letter-spacing: 0.3em; color: #1a2744; margin-bottom: 16px;">${otpCode}</div><p style="color: #999; font-size: 13px;">This code expires in 10 minutes.</p></div></div>`,
+      subject: t('email.code.subject', { code: otpCode }),
+      html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 22px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; text-align: center;"><p style="color: #666; margin-bottom: 16px;">${t('email.code.intro')}</p><div style="font-size: 32px; font-weight: 700; letter-spacing: 0.3em; color: #1a2744; margin-bottom: 16px;">${otpCode}</div><p style="color: #999; font-size: 13px;">${t('email.code.expires')}</p></div></div>`,
     })
     if (sendError) throw sendError
   } catch (e) {

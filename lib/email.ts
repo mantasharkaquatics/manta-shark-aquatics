@@ -50,6 +50,7 @@ export type EmailType =
   | 'fixed_class_ended'
   | 'fixed_class_renewal'
   | 'fixed_class_moved'
+  | 'welcome'
 
 export interface EmailPayload {
   type: EmailType
@@ -314,6 +315,16 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     subject = t('voucher.email.subject', { date: by })
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('voucher.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('voucher.email.body', { names, kind, date: by })}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?vouchers=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('voucher.email.button')}</a></div></div></div>`
 
+  } else if (type === 'welcome') {
+    // Sent once, when /api/auth/complete-registration creates the family
+    // (owner, 2026-10-06). In the language picked on the register page. The
+    // next step for every new family is the Swim Assessment.
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    const names = (payload.studentNames || []).map(esc).join(L === 'en' ? ' & ' : '、')
+    subject = t('welcome.email.subject')
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('welcome.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('welcome.email.ready')}</p><p style="color: #16294a; line-height: 1.6;">${names ? t('welcome.email.next', { names }) : t('welcome.email.nextNoNames')}</p><div style="text-align:center; margin: 28px 0;"><a href="https://www.mantasharkaquatics.net/booking" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('welcome.email.button')}</a></div><p style="color: #16294a; line-height: 1.6;">${t('welcome.email.dashboard')}<a href="https://www.mantasharkaquatics.net/dashboard" style="color: #12254a; font-weight: 700;">${t('welcome.email.dashboardLink')}</a></p></div></div>`
+
   } else if (type === 'fixed_class_ended') {
     // The front desk ended a fixed class part-way. reason is what the remaining
     // lessons became: refund (amount = points), voucher (amount = vouchers), keep.
@@ -390,12 +401,15 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   }
 
   try {
-    await resend.emails.send({
+    // Resend reports an API failure in its result, not by throwing. Checked
+    // since 2026-10-06, so a false here really means "not sent".
+    const { error } = await resend.emails.send({
       from: 'Manta Shark Aquatics <info@mantasharkaquatics.net>',
       to,
       subject,
       html,
     })
+    if (error) throw error
     return true
   } catch (err) {
     console.error('Email error:', err)
