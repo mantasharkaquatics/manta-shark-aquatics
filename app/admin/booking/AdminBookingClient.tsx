@@ -1955,10 +1955,13 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                             (owner, 2026-10-07). */}
                         {(() => {
                           const twoFamilies = ct.slug === '1on2' && new Set(bookings.map((x: any) => x.parent_id)).size > 1
+                          // One swimmer left in a 1-on-2 (the other family cancelled
+                          // late): only this one is cancelled, so it reads as one.
+                          const pair = ct.slug === '1on2' && bookings.length > 1
                           return (<>
-                            <p className="text-sm text-red-200 font-medium">{twoFamilies ? t('admin.booking.one.titlePairTwo') : ct.slug === '1on2' ? t('admin.booking.one.titlePair') : t('admin.booking.one.title', { name: student?.full_name ?? '' })}</p>
+                            <p className="text-sm text-red-200 font-medium">{twoFamilies ? t('admin.booking.one.titlePairTwo') : pair ? t('admin.booking.one.titlePair') : t('admin.booking.one.title', { name: student?.full_name ?? '' })}</p>
                             <p className="text-xs text-white/50 mt-1">
-                              {twoFamilies ? t('admin.booking.one.bodyPairTwo', { name: student?.full_name ?? '' }) : ct.slug === '1on2' ? t('admin.booking.one.bodyPair') : b.lesson_group_id ? t('admin.booking.one.bodyHour') : t('admin.booking.one.body')}
+                              {twoFamilies ? t('admin.booking.one.bodyPairTwo', { name: student?.full_name ?? '' }) : pair ? t('admin.booking.one.bodyPair') : b.lesson_group_id ? t('admin.booking.one.bodyHour') : t('admin.booking.one.body')}
                             </p>
                           </>)
                         })()}
