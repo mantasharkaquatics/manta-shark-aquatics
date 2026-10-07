@@ -17,7 +17,12 @@
 //                on the new one, nor with another coach (lib/fixed-move)
 //
 // The database does the counting that must not race: one grace voucher per
-// child per month, one voucher per missed lesson (two unique indexes).
+// child per month, one voucher per missed lesson (two unique indexes). The
+// grace index covered only student_id, so the second child of a sibling
+// 1-on-2 (student2_id) could get a second grace from two simultaneous cancels;
+// docs/migration-grace-both-children.sql adds a trigger that covers both
+// children and fails with the same 23505 issueVoucher reads as `duplicate`
+// (found 2026-10-07).
 //
 // When (owner, 2026-10-02): a LEAVE voucher is for a make-up within 14 days
 // either side of the missed lesson (usable_from .. expires_on), so a family

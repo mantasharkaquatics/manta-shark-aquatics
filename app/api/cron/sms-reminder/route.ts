@@ -70,6 +70,10 @@ export async function GET(request: Request) {
     .select('id, class_session_id, student_id, parent_id, lesson_group_id, is_trial')
     .eq('status', 'confirmed')
     .is('reminder_sent_at', null)
+    // A booking the family was emailed about as cancelled for coach time off
+    // (the old two-step flow emailed before cancelling) must not get a
+    // "lesson tomorrow" text (found 2026-10-07).
+    .is('block_notice_sent_at', null)
     .in('class_session_id', inWindow.map((s) => s.id))
 
   if (bookErr) {

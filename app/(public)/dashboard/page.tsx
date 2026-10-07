@@ -884,6 +884,9 @@ type WalletSummary = {
 }
 const SYSTEM_ONLY_NOTES = new Set([
   'Lesson cancelled by the school',
+  // The line's own label already says it ("cancelled by the school",
+  // "returned"); these showed as English on a Chinese page (found 2026-10-07).
+  'Coach unavailable', 'Refund retried by the desk',
   'booking insert failed', 'second swimmer could not be booked',
   'the time filled up', 'the time slot could not be created', 'the booking could not be written',
   'the partner invitation could not be written', 'a booking row could not be written',
@@ -945,6 +948,10 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
     if (n === 'the other family cancelled this 1-on-2') return t('points.note.partnerCancelled')
     if ((m = n.match(/^Bonus on a \$([\d,]+) desk purchase$/))) return t('points.note.deskBonus', { amount: '$' + m[1] })
     if ((m = n.match(/^Refund of \$([\d.,]+) could not be delivered$/))) return t('points.note.refundUndelivered', { amount: '$' + m[1] })
+    // An SDP sale's programme-rate grant. The full note spells out the desk's
+    // price against the list price, which is staff wording; the family sees
+    // whose programme it was (found 2026-10-07).
+    if ((m = n.match(/^Programme rate for (.+?): \d+ × /))) return t('points.note.programmeRate', { name: m[1] })
     return n
   }
   const lessonText = (l: NonNullable<LedgerRow['lesson']>) => {
@@ -1418,7 +1425,7 @@ export default function DashboardPage() {
     const k = errorKey(raw)
     return k ? t(k) : (raw || t(fallbackKey))
   }
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean; src?: Booking; changed?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
@@ -1461,6 +1468,9 @@ export default function DashboardPage() {
         const j = await r.json().catch(() => ({}))
         if (r.ok && j.success) {
           setHere(h => ({ ...h, [student.id]: { open: false, lessonTime: null, checkedInTime: (j.lesson_times || [])[0] || '' } }))
+          // A checked-in lesson can no longer be cancelled: reload so its
+          // Cancel button goes now, not at the next refresh (found 2026-10-07).
+          fetchAll()
         } else {
           const key = j.code === 'too_far' ? 'dash.here.tooFar' : j.code === 'weak_gps' ? 'dash.here.weak'
             : j.code === 'not_open' || j.code === 'no_lesson_today' ? 'dash.here.closed' : 'dash.here.error'
@@ -1516,7 +1526,10 @@ export default function DashboardPage() {
     try { const u = new URL(window.location.href); u.searchParams.delete('vouchers'); window.history.replaceState(null, '', u.toString()) } catch {}
   }, [])
   const voucherKind = (slug?: string | null, minutes?: number) =>
-    t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : ''))
+    // A sibling 1-on-2 hour lesson gives a 60-minute 1-on-2 voucher; it read
+    // as a plain "1-on-2" and would not apply to a 30-minute booking with no
+    // visible reason (found 2026-10-07).
+    t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : slug === '1on2' && minutes === 60 ? '.60' : ''))
   const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
   // 「我的方案」 by whose they are: one group per child, and one per sibling
   // pair holding a 1-on-2 together, in the order the children's cards are in
@@ -2087,6 +2100,9 @@ export default function DashboardPage() {
       }
     }
 
+    // Each child of a merged card carries its own check-in, so a checked-in
+    // sibling's row stops offering Cancel (found 2026-10-07).
+    for (const b of allUpcoming) for (const m of b._group || []) m.checked_in = checkedInSet.has(m.id)
     if (latest()) setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
 
     const allPastWithCheckin = allPast.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
@@ -2358,7 +2374,11 @@ export default function DashboardPage() {
     setRejectingId(null)
   }
 
-  async function cancelBooking(bookingId: string) {
+  // The dialog's kind as the server names the outcome (ExpectedOutcome in
+  // lib/bookings/cancel.ts), and back.
+  const EXPECT_OF: Record<string, string> = { refund: 'refund', leave: 'leave', grace: 'grace', makeupBack: 'restore', makeupLose: 'keep' }
+  const KIND_OF: Record<string, CancelKind> = { refund: 'refund', leave: 'leave', grace: 'grace', restore: 'makeupBack', keep: 'makeupLose' }
+  async function cancelBooking(bookingId: string, shown?: { kind?: string; src?: Booking; points?: number | null }) {
     setCancellingId(bookingId)
     // Cancel via server API (also cancels partner booking and refunds credit).
     // The result used to be ignored: a refused cancel just left the lesson on
@@ -2367,10 +2387,16 @@ export default function DashboardPage() {
       const res = await fetch('/api/bookings/cancel-with-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: bookingId })
+        // What the dialog promised. If the lesson has crossed the 24-hour line
+        // since it opened, the server refuses rather than doing something else
+        // (found 2026-10-07), and the dialog comes back with the new outcome.
+        body: JSON.stringify({ booking_id: bookingId, ...(shown?.kind && EXPECT_OF[shown.kind] ? { expected_outcome: EXPECT_OF[shown.kind] } : {}) })
       })
       const j = await res.json().catch(() => ({}))
-      if (!res.ok) {
+      if (res.status === 409 && j.error === 'OUTCOME_CHANGED' && shown?.src && KIND_OF[j.outcome_now]) {
+        const kind = KIND_OF[j.outcome_now]
+        openCancel(shown.src, kind === 'grace' || kind === 'makeupLose', kind, shown.points ?? 0, true)
+      } else if (!res.ok) {
         setNotice(errText(j.error, 'dash.cancelFailed'))
       } else if (j.outcome === 'voucher' && j.voucher_expires) {
         setDoneMsg(j.voucher_from
@@ -2419,8 +2445,11 @@ export default function DashboardPage() {
     b.fixed_class_id && !b.voucher_id
       ? (late ? t('dash.up.leaveLate') : t('dash.up.leave'))
       : (late ? t('dash.up.cancelLate') : t('dash.up.cancel'))
-  const openCancel = (b: Booking, late: boolean, kind: CancelKind, points: number) =>
+  const openCancel = (b: Booking, late: boolean, kind: CancelKind, points: number, changed?: boolean) =>
     setCancelTarget({
+      // src and changed: shown again with the new outcome when the server
+      // says the clock has moved it (cancelBooking, OUTCOME_CHANGED).
+      src: b, changed,
       id: b.id, courseName: b.course_name, courseTypeId: b.course_type_id,
       date: formatDate(b.session_date, intlOf(locale)), time: formatTime(b.start_time),
       isLate: late, points, kind,
@@ -2579,6 +2608,12 @@ export default function DashboardPage() {
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
+            {/* Shown again because the outcome changed after it was first opened. */}
+            {cancelTarget.changed && (
+              <p role="alert" style={{ fontSize: '13px', fontWeight: 600, color: '#c2621a', background: '#fdf3ea', border: '1px solid #f3cfae', borderRadius: '8px', padding: '10px 12px', lineHeight: 1.5, marginBottom: '14px' }}>
+                {t('err.cancelOutcomeChanged')}
+              </p>
+            )}
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>
               {cancelTarget.type === 'reject'
                 ? t('dash.cancelModal.bodyReject')
@@ -2602,7 +2637,7 @@ export default function DashboardPage() {
                   sent a second cancel, which answered "Already cancelled" over
                   the top of the one that had worked, and closing it at the end
                   also closed whatever modal the parent had opened meanwhile. */}
-              <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id, { kind: tg.kind, src: tg.src, points: tg.points }) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
               </button>
             </div>
@@ -3087,7 +3122,9 @@ export default function DashboardPage() {
                   // A merged 60-minute card carries the first half's row only; both halves
                   // are charged alike, so the lesson cost is twice that (found
                   // 2026-10-05: the sheet said 65 points for a 130-point hour).
-                  const funding = b.is_trial ? t('common.assessment') : b.points_charged != null ? t('points.unit', { n: b.points_charged * (b._hour ? 2 : 1) }) : '—'
+                  // A make-up is paid with a voucher; its row stores 0 points, so
+                  // it read "0 points" (found 2026-10-07).
+                  const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : b.points_charged != null ? t('points.unit', { n: b.points_charged * (b._hour ? 2 : 1) }) : '—'
                   return (
                     <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
@@ -3230,6 +3267,10 @@ export default function DashboardPage() {
                             const pairNames = pair.map(x => x.student_name).filter(Boolean).join(', ')
                             const spentName = pair.filter(x => graceUsed.has(x.student_id || '')).map(x => x.student_name).filter(Boolean).join(', ') || m.student_name
                             const cEnabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== m.id && m.status !== 'pending_partner'
+                            // Checked in: the lesson is happening, nothing to cancel
+                            // (as on the single card). A sibling 1-on-2 is one
+                            // lesson, so either child checked in counts.
+                            const ckIn = pair.some(x => x.checked_in) || !!m.checked_in
                             // A fixed-class lesson or a make-up is not moved: leave
                             // turns it into a voucher instead.
                             const noMove = !!(m.fixed_class_id || m.voucher_id)
@@ -3262,7 +3303,7 @@ export default function DashboardPage() {
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>}
-                                    {isOwnInvite(m) ? (
+                                    {ckIn ? null : isOwnInvite(m) ? (
                                       <button
                                         onClick={() => askWithdraw(m)}
                                         disabled={cancellingId === m.id}

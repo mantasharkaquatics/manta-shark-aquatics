@@ -12,10 +12,33 @@ import { checkTeamSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
 // /api/pos/complete-sale).
 const DUPLICATE_WINDOW_MS = 90_000
 
+// Another request for the same card payment is still at work (see the
+// claim below). Pressing again after it has finished gets the real answer.
+const IN_FLIGHT_MS = 90_000
+const STILL_RECORDING = {
+  error: 'This payment is still being recorded. Do not take payment again — wait a minute, then record it again with the button below.',
+  retryable: true,
+}
+
 // Nothing was written, so sending the same sale again is safe.
 const NOT_RECORDED = {
   error: 'The payment was taken but the sale was not recorded. Do not take payment again — record it again with the button below.',
   retryable: true,
+}
+
+// N calendar months later, kept inside the target month: Jan 31 + 1 month is
+// Feb 28/29, not Mar 3. setMonth rolled the extra days over, so a family sold
+// prepaid months near a month end got up to three extra days of practice, and
+// a later Stripe trial_end built from this expiry moved with it (found
+// 2026-10-07). UTC fields, like the timestamps it works on; time of day kept.
+function addMonthsClamped(from: Date, months: number): Date {
+  const y = from.getUTCFullYear()
+  const mo = from.getUTCMonth() + months
+  const lastDay = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate()
+  const out = new Date(from)
+  out.setUTCDate(1)
+  out.setUTCFullYear(y, mo, Math.min(from.getUTCDate(), lastDay))
+  return out
 }
 
 export async function POST(req: NextRequest) {
@@ -53,11 +76,19 @@ export async function POST(req: NextRequest) {
     // cash sale on its shape (this swimmer, this amount, moments ago). Without
     // this a lost response, or a second press, extended the membership again
     // -- and for a card, charged again (found 2026-10-06).
+    // A card sale's invoice is written first, as its claim (below), so a
+    // very new one may belong to a request still extending the membership --
+    // which takes it back if that fails. Until it has had time to finish, the
+    // desk is asked to wait rather than told the sale is done.
     if (paymentIntentId) {
       const { data: seen } = await supabase
-        .from('invoices').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
-      if (seen && seen.length)
-        return NextResponse.json({ error: 'This payment has already been recorded.' }, { status: 409 })
+        .from('invoices').select('id, created_at').eq('stripe_payment_intent_id', paymentIntentId)
+        .order('created_at', { ascending: true }).limit(1)
+      if (seen && seen.length) {
+        if (Date.now() - Date.parse(seen[0].created_at) < IN_FLIGHT_MS)
+          return NextResponse.json(STILL_RECORDING, { status: 409 })
+        return NextResponse.json({ error: 'This payment has already been recorded.', alreadyRecorded: true }, { status: 409 })
+      }
     }
 
     const sale = await checkTeamSale(supabase, { parentId, studentId, tierId, months, override })
@@ -108,8 +139,57 @@ export async function POST(req: NextRequest) {
 
     const now = new Date()
     const base = existing?.expires_at && new Date(existing.expires_at) > now ? new Date(existing.expires_at) : now
-    const end = new Date(base)
-    end.setMonth(end.getMonth() + m)
+    const end = addMonthsClamped(base, m)
+
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    const unitPrice = tier.monthly_price_cents / 100
+    const amount = unitPrice * m
+    const invoiceRow = (membershipId: string | null) => ({
+      parent_id: parentId,
+      student_id: studentId,
+      team_membership_id: membershipId,
+      amount,
+      payment_method: invoicePaymentLabel(paymentMethod),
+      items: [{
+        name: `${tier.name} \u00b7 Prepaid Membership (${student.full_name}) \u00b7 ${m} month${m > 1 ? 's' : ''} \u00b7 ${fmt(base)} \u2013 ${fmt(end)}`,
+        quantity: m,
+        unit_price: unitPrice,
+        period_end: end.toISOString(),
+      }],
+      status: 'paid',
+      notes: overrideNote,
+      stripe_payment_intent_id: paymentIntentId || null,
+      issued_at: now.toISOString(),
+    })
+
+    // A card sale writes its invoice FIRST, as the claim on the payment
+    // intent. The check above looks for that invoice, and it used to be
+    // written after the membership was extended -- so an invoice that failed,
+    // or a "record it again" pressed while the first request was still
+    // running, extended the membership a second time for one payment (found
+    // 2026-10-07). Now: no invoice, nothing extended (safe to send again); two
+    // requests at once, the earlier invoice wins and the other stands down.
+    let invoice: { id: string; invoice_number: string } | null = null
+    if (paymentIntentId) {
+      try {
+        invoice = await insertInvoice(supabase, invoiceRow(existing?.id ?? null), 'id, invoice_number')
+      } catch (e) {
+        console.error('[complete-team-sale] claim invoice failed', { paymentIntentId }, e)
+        return NextResponse.json(NOT_RECORDED, { status: 500 })
+      }
+      const { data: first } = await supabase.from('invoices').select('id')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1)
+      if (first && first[0] && first[0].id !== invoice!.id) {
+        await supabase.from('invoices').delete().eq('id', invoice!.id)
+        return NextResponse.json(STILL_RECORDING, { status: 409 })
+      }
+    }
+    // The membership could not be written: take the claim back, so recording
+    // the sale again starts clean.
+    const unclaim = async () => {
+      if (invoice) await supabase.from('invoices').delete().eq('id', invoice.id)
+    }
 
     let membershipId: string
     if (existing) {
@@ -120,6 +200,7 @@ export async function POST(req: NextRequest) {
         .select('id').single()
       if (updErr || !upd) {
         console.error('Prepaid membership update error:', updErr)
+        await unclaim()
         return NextResponse.json(NOT_RECORDED, { status: 500 })
       }
       membershipId = upd.id
@@ -130,38 +211,26 @@ export async function POST(req: NextRequest) {
         .select('id').single()
       if (insErr || !ins) {
         console.error('Prepaid membership insert error:', insErr)
+        await unclaim()
         return NextResponse.json(NOT_RECORDED, { status: 500 })
       }
       membershipId = ins.id
+      if (invoice) {
+        const { error: linkErr } = await supabase.from('invoices').update({ team_membership_id: membershipId }).eq('id', invoice.id)
+        if (linkErr) console.error('[complete-team-sale] invoice not linked to the new membership', { membershipId, invoiceId: invoice.id }, linkErr)
+      }
     }
 
-    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    const unitPrice = tier.monthly_price_cents / 100
-    const amount = unitPrice * m
-    // The membership is written; from here the sale has happened. An invoice
-    // failure is logged and reported, never turned into "the sale failed",
-    // which is what used to send the desk back to Charge (found 2026-10-06).
-    let invoice: { id: string; invoice_number: string } | null = null
-    try {
-      invoice = await insertInvoice(supabase, {
-        parent_id: parentId,
-        student_id: studentId,
-        team_membership_id: membershipId,
-        amount,
-        payment_method: invoicePaymentLabel(paymentMethod),
-        items: [{
-          name: `${tier.name} \u00b7 Prepaid Membership (${student.full_name}) \u00b7 ${m} month${m > 1 ? 's' : ''} \u00b7 ${fmt(base)} \u2013 ${fmt(end)}`,
-          quantity: m,
-          unit_price: unitPrice,
-          period_end: end.toISOString(),
-        }],
-        status: 'paid',
-        notes: overrideNote,
-        stripe_payment_intent_id: paymentIntentId || null,
-        issued_at: now.toISOString(),
-      }, 'id, invoice_number')
-    } catch (e) {
-      console.error('[complete-team-sale] membership recorded but the invoice failed', { membershipId, paymentIntentId }, e)
+    // A cash sale's invoice comes after: the membership is written, and from
+    // here the sale has happened. An invoice failure is logged and reported,
+    // never turned into "the sale failed", which is what used to send the
+    // desk back to Charge (found 2026-10-06).
+    if (!paymentIntentId) {
+      try {
+        invoice = await insertInvoice(supabase, invoiceRow(membershipId), 'id, invoice_number')
+      } catch (e) {
+        console.error('[complete-team-sale] membership recorded but the invoice failed', { membershipId }, e)
+      }
     }
 
     return NextResponse.json({

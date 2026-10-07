@@ -105,15 +105,35 @@ export async function planRefund(
 
   const walletRefundableCents = refundableCents(wallet.balance_purchased)
 
-  const { data: purchases } = await svc
+  const { data: purchases, error: purchasesErr } = await svc
     .from('purchases')
     .select('id, amount_cents, refunded_cents, paid_at, payment_method, stripe_payment_intent_id, stripe_session_id, fee_cents')
     .eq('parent_id', parentId)
     .eq('status', 'paid')
     .is('reversed_at', null)
     .order('paid_at', { ascending: false })
+  if (purchasesErr) throw new Error('Could not read the family\'s payments: ' + purchasesErr.message)
+
+  // Only money that bought POINTS can come back as a points refund. The $85
+  // Swim Assessment is a purchases row too (online: lib/trial-booking; at the
+  // desk: pos/complete-trial-sale), and newest-first it was often the first
+  // leg -- an online one has no payment intent, so the desk was told to hand
+  // back $85 cash for a card payment, and refunded_cents landed on the
+  // assessment while the points purchase still read unrefunded (found
+  // 2026-10-07). Both assessment paths tie their payment to an is_trial
+  // lesson_credits row through purchase_id, which is what marks it here.
+  const purchaseIds = (purchases || []).map((p: any) => p.id)
+  const assessmentPurchases = new Set<string>()
+  if (purchaseIds.length > 0) {
+    const { data: trialCredits, error: creditsErr } = await svc
+      .from('lesson_credits').select('purchase_id')
+      .eq('is_trial', true).in('purchase_id', purchaseIds)
+    if (creditsErr) throw new Error('Could not read the family\'s payments: ' + creditsErr.message)
+    for (const c of trialCredits || []) if (c.purchase_id) assessmentPurchases.add(c.purchase_id)
+  }
 
   const available = (purchases || [])
+    .filter((p: any) => !assessmentPurchases.has(p.id))
     .map((p: any) => ({ ...p, left: (p.amount_cents ?? 0) - (p.refunded_cents ?? 0) }))
     .filter((p: any) => p.left > 0)
 

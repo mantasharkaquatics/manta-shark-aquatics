@@ -3,6 +3,9 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
+import { studentsBusyAt } from '@/lib/bookings/student-clash'
+import { mailRescheduleDone, mailRescheduleNotMoved } from '@/lib/bookings/partner-reschedule-mail'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -72,11 +75,14 @@ export async function POST(req: NextRequest) {
 
   if (!newSession) return NextResponse.json({ error: 'New time slot not found' }, { status: 404 })
 
-  // Race protection: check new session capacity
-  if (newSession.enrolled_count + 2 > newSession.max_students) {
+  // Race protection: check new session capacity. A 1-on-2 invitation still
+  // waiting for its answer holds the session too (lib/bookings/invite-holds).
+  if (newSession.enrolled_count + 2 > newSession.max_students
+      || (await sessionsHeldByInvites(supabase as any, [newSession.id])).has(newSession.id)) {
     // Clear both sides' pending state, keep the original time
     await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.id)
     await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', partnerBookingId)
+    await mailRescheduleNotMoved(supabase, { bookingIds: [myBooking.id, partnerBookingId], newSessionId, outcome: 'unavailable' })
     return NextResponse.json({ error: 'The new time slot was just booked; reschedule failed and the original time is kept' }, { status: 409 })
   }
 
@@ -101,10 +107,29 @@ export async function POST(req: NextRequest) {
       .from('bookings').select('id')
       .in('class_session_id', conflictIds)
       .not('status', 'in', '("cancelled","pending_partner")')
-    if (conflictBookings && conflictBookings.length > 0) {
+    const heldNear = await sessionsHeldByInvites(supabase as any, conflictIds)
+    if ((conflictBookings && conflictBookings.length > 0) || heldNear.size > 0) {
       await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.id)
       await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', partnerBookingId)
+      await mailRescheduleNotMoved(supabase, { bookingIds: [myBooking.id, partnerBookingId], newSessionId, outcome: 'unavailable' })
       return NextResponse.json({ error: 'The coach already has another booking at the new time; reschedule failed and the original time is kept' }, { status: 409 })
+    }
+  }
+
+  // Both swimmers' own lessons at the new time, by the same overlap rule
+  // (found 2026-10-07). Only the database's insert guard stood here, which
+  // undid the move with a message that did not say which child was busy.
+  // The lesson being moved does not count against itself.
+  {
+    const busy = await studentsBusyAt(supabase, [myBooking.student_id, partnerBooking.student_id], newSession.session_date,
+      [{ s: ns, e: ne }], [myBooking.class_session_id, partnerBooking.class_session_id])
+    if (busy.length > 0) {
+      const { data: who } = await supabase.from('students').select('full_name').in('id', busy)
+      const names = (who || []).map((x: any) => x.full_name).filter(Boolean).join(' & ') || 'One of the swimmers'
+      await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.id)
+      await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', partnerBookingId)
+      await mailRescheduleNotMoved(supabase, { bookingIds: [myBooking.id, partnerBookingId], newSessionId, outcome: 'unavailable' })
+      return NextResponse.json({ error: `${names} already has a lesson at the new time; reschedule failed and the original time is kept` }, { status: 409 })
     }
   }
 
@@ -179,6 +204,7 @@ export async function POST(req: NextRequest) {
 
   if (myErr || !newMyBooking) {
     await putBack([], oldIds)
+    await mailRescheduleNotMoved(supabase, { bookingIds: oldIds, newSessionId, outcome: 'unavailable' })
     console.error('confirm-reschedule: first booking failed:', myErr?.message)
     return NextResponse.json({
       error: 'That time could not be booked, so both lessons have been left where they were. Please pick another time.',
@@ -203,6 +229,7 @@ export async function POST(req: NextRequest) {
     // and leaving it would put one swimmer alone in a slot the other family is
     // still paying for.
     await putBack([newMyBooking.id], oldIds)
+    await mailRescheduleNotMoved(supabase, { bookingIds: oldIds, newSessionId, outcome: 'unavailable' })
     console.error('confirm-reschedule: partner booking failed:', partnerErr?.message)
     return NextResponse.json({
       error: 'That time could not be booked for both swimmers, so both lessons have been left where they were. Please pick another time.',
@@ -221,6 +248,10 @@ export async function POST(req: NextRequest) {
       `confirm-reschedule: bookings ${newMyBooking.id} and ${newPartnerBooking.id} were created but ` +
       `not linked as partners:`, linkA?.message || linkB?.message)
   }
+
+  // Both families get the new time in writing (found 2026-10-07): neither
+  // was told the move had happened.
+  await mailRescheduleDone(supabase, { bookingIds: [newMyBooking.id, newPartnerBooking.id] })
 
   return NextResponse.json({
     success: true,

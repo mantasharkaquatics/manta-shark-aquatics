@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CoachTimeOffClient from './CoachTimeOffClient'
+import { serviceClient } from '@/lib/api-auth'
+import { handledTimeOffIds } from '@/lib/time-off'
 
 export default async function CoachTimeOffPage() {
   const cookieStore = await cookies()
@@ -37,5 +39,14 @@ export default async function CoachTimeOffPage() {
     .gte('date', today)
     .order('date')
 
-  return <CoachTimeOffClient coach={coach} timeOffList={timeOffList || []} today={today} />
+  // Time off whose families the admin has already told (cancelled and
+  // emailed) cannot be removed by the coach (owner, 2026-10-07). The coach's
+  // own client cannot read other families' bookings, so this asks with the
+  // service role. If the read fails, every row is treated as told: the server
+  // refuses those deletes anyway, so offering the button would only fail.
+  const rows = timeOffList || []
+  const handled = await handledTimeOffIds(serviceClient(), rows.map((r: any) => ({ ...r, coach_id: coach.id })))
+  const lockedIds = handled ? [...handled] : rows.map((r: any) => r.id)
+
+  return <CoachTimeOffClient coach={coach} timeOffList={rows} lockedIds={lockedIds} today={today} />
 }

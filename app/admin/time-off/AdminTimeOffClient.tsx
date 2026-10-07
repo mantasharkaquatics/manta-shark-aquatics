@@ -72,28 +72,27 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     loadImpact(id)
   }
 
-  const handleNotify = async (blockId: string) => {
+  // One step (owner, 2026-10-07): cancel the affected lessons, return points
+  // or vouchers, then email the families. "Notify" used to be its own button,
+  // and the gap between the two left families told "cancelled" about lessons
+  // that were still booked (found 2026-10-07).
+  const handleCancelNotify = async (blockId: string) => {
     setActing(blockId)
-    const res = await fetch('/api/admin/time-off/impact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'notify', block_id: blockId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setActionError(prev => ({ ...prev, [blockId]: res.ok ? '' : (data.error || t('admin.timeOff.err.actionFailed')) }))
-    await loadImpact(blockId)
-    setActing(null)
-  }
-
-  const handleCancelBookings = async (blockId: string) => {
-    setActing(blockId)
-    const res = await fetch('/api/admin/time-off/impact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel', block_id: blockId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setActionError(prev => ({ ...prev, [blockId]: res.ok ? '' : (data.error || t('admin.timeOff.err.actionFailed')) }))
+    let msg = ''
+    try {
+      const res = await fetch('/api/admin/time-off/impact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel_notify', block_id: blockId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      msg = !res.ok ? (data.error || t('admin.timeOff.err.actionFailed'))
+        : [data.failed > 0 ? t('admin.timeOff.err.emailFailed', { n: data.failed }) : '',
+           data.refundPending > 0 ? t('admin.timeOff.err.refundPending', { n: data.refundPending }) : ''].filter(Boolean).join(' ')
+    } catch {
+      msg = t('admin.timeOff.err.actionFailed')
+    }
+    setActionError(prev => ({ ...prev, [blockId]: msg }))
     await loadImpact(blockId)
     setActing(null)
   }
@@ -147,8 +146,11 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     // distinct lessons, and leave out lessons already delivered (the API will
     // not notify or cancel those).
     const lessons = (xs: ImpactItem[]) => new Set(xs.map(i => i.lesson_key || i.booking_id)).size
-    const confirmedNoNotice = imp?.items.filter(i => i.status === 'confirmed' && !i.notice_sent_at && !i.delivered) || []
-    const confirmedNotified = imp?.items.filter(i => i.status === 'confirmed' && i.notice_sent_at && !i.delivered) || []
+    // What the one button acts on: lessons still booked (or an assessment
+    // still waiting for payment), and cancelled lessons whose email failed.
+    const toCancel = imp?.items.filter(i => (i.status === 'confirmed' || i.status === 'pending_payment' || i.status === 'pending_partner') && !i.delivered) || []
+    const toEmail = imp?.items.filter(i => i.status === 'cancelled' && !i.notice_sent_at) || []
+    const actionable = [...toCancel, ...toEmail]
     const cancelledItems = imp?.items.filter(i => i.status === 'cancelled') || []
     const isOpen = expanded === item.id
     return (
@@ -211,10 +213,14 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                         <p className="text-white text-sm font-medium">{i.student_name} <span className="text-gray-500 font-normal">({i.parent_name})</span></p>
                         <p className="text-gray-400 text-xs">{i.course_type_id ? tDb(locale, 'course_types', i.course_type_id, i.course_name) : i.course_name} · {i.time}</p>
                       </div>
-                      {i.status === 'cancelled' ? (
+                      {i.status === 'cancelled' && !i.notice_sent_at ? (
+                        <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-1 rounded">{t('admin.timeOff.cancelledNoEmail')}</span>
+                      ) : i.status === 'cancelled' ? (
                         <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">{t('admin.timeOff.cancelledRefunded')}</span>
                       ) : i.delivered ? (
                         <span className="text-xs bg-white/5 text-gray-400 px-2 py-1 rounded">{t('admin.timeOff.delivered')}</span>
+                      ) : i.status === 'pending_payment' ? (
+                        <span className="text-xs bg-red-500/10 text-red-400 px-2 py-1 rounded">{t('admin.timeOff.holdAwaitingPayment')}</span>
                       ) : i.notice_sent_at ? (
                         <span className="text-xs bg-amber-400/10 text-amber-300 px-2 py-1 rounded">{t('admin.timeOff.notifiedAwaiting')}</span>
                       ) : (
@@ -223,23 +229,18 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                     </div>
                   ))}
                 </div>
-                {(confirmedNoNotice.length > 0 || confirmedNotified.length > 0) && (
+                {actionable.length > 0 && (
                   <div className="flex gap-3 pt-1">
-                    <button onClick={() => handleNotify(item.id)}
-                      disabled={acting === item.id || confirmedNoNotice.length === 0}
-                      className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold text-sm disabled:opacity-40 transition-all">
-                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.sendNotices', { n: lessons(confirmedNoNotice) })}
-                    </button>
-                    <button onClick={() => setConfirmAction({ kind: 'cancel', id: item.id, count: lessons(confirmedNotified) })}
-                      disabled={acting === item.id || confirmedNotified.length === 0}
+                    <button onClick={() => setConfirmAction({ kind: 'cancel', id: item.id, count: lessons(actionable) })}
+                      disabled={acting === item.id}
                       className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-40 transition-all"
                       style={{ backgroundColor: '#ef4444', color: '#fff' }}>
-                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.cancelRefundCount', { n: lessons(confirmedNotified) })}
+                      {acting === item.id ? t('admin.timeOff.working') : t('admin.timeOff.cancelRefundCount', { n: lessons(actionable) })}
                     </button>
                   </div>
                 )}
                 {actionError[item.id] && <p className="text-red-400 text-sm">{actionError[item.id]}</p>}
-                {confirmedNoNotice.length === 0 && confirmedNotified.length === 0 && cancelledItems.length > 0 && (
+                {actionable.length === 0 && cancelledItems.length > 0 && (
                   <p className="text-gray-500 text-xs">{t('admin.timeOff.allHandled')}</p>
                 )}
                 <p className="text-gray-500 text-xs">{t('admin.timeOff.cancelHint')}</p>
@@ -339,7 +340,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
                   <button onClick={() => {
                       const a = confirmAction
                       setConfirmAction(null)
-                      if (a.kind === 'cancel') handleCancelBookings(a.id)
+                      if (a.kind === 'cancel') handleCancelNotify(a.id)
                       else handleDelete(a.id)
                     }}
                     className="flex-1 py-2.5 rounded-lg font-semibold text-sm"

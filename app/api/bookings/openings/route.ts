@@ -4,6 +4,7 @@ import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { meetsLeadTime } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { renewalHolds, heldSeats, allRows, allRowsIn } from '@/lib/fixed-classes'
+import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 
 // Every coach's open private-lesson times over the booking window, in one call.
 //
@@ -132,6 +133,9 @@ export async function GET(req: NextRequest) {
     // Other families' renewal holds (lib/fixed-classes): a held slot is taken.
     renewalHolds(svc, from, to, parent.id),
   ])
+  // A 1-on-2 invitation nobody has answered yet holds its session: it reads
+  // as full here, same as on the booking routes (lib/bookings/invite-holds).
+  const inviteHeld = await inviteHeldSessions(svc, { coachIds, from, to })
 
   const zonesByCoach = new Map<string, any[]>()
   for (const r of zrows || []) {
@@ -147,7 +151,8 @@ export async function GET(req: NextRequest) {
     offBy.set(k, [...(offBy.get(k) || []), b])
   }
   const sessBy = new Map<string, any[]>()
-  for (const s of sessRows || []) {
+  const sessSeen = new Set((sessRows || []).map((s: any) => s.id))
+  for (const s of [...(sessRows || []), ...inviteHeld.filter((h: any) => !sessSeen.has(h.id))]) {
     const k = offKey(s.coach_id, s.session_date)
     sessBy.set(k, [...(sessBy.get(k) || []), s])
   }

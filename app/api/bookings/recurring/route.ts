@@ -8,6 +8,7 @@ import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, relea
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
@@ -392,8 +393,12 @@ export async function POST(req: NextRequest) {
       .in('start_time', [...new Set(okSlots.flatMap(s2 => partsOf(s2).map(p => p.start)))])
       .in('session_date', [...new Set(okSlots.map(s2 => s2.date))])
       .in('status', ['open', 'full'])
+    // A session held by an unanswered 1-on-2 invitation counts as full: its
+    // seats are not in enrolled_count yet (lib/bookings/invite-holds).
+    const inviteHeld = await sessionsHeldByInvites(svc, (existingRows || []).filter((r: any) => (r.enrolled_count || 0) <= 0).map((r: any) => r.id))
     const existingByKey = new Map<string, SessionRow>()
-    for (const r of (existingRows || []) as (SessionRow & { coach_id: string })[]) {
+    for (const r0 of (existingRows || []) as (SessionRow & { coach_id: string })[]) {
+      const r = inviteHeld.has(r0.id) ? { ...r0, enrolled_count: r0.max_students } : r0
       existingByKey.set(`${r.session_date}|${String(r.start_time).slice(0, 5)}|${r.coach_id}`, r)
     }
 

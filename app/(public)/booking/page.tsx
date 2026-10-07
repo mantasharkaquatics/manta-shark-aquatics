@@ -261,6 +261,11 @@ export default function BookingPage() {
   const slotsSeq = useRef(0)
   const [trialEligible, setTrialEligible] = useState(false)
   const [trialHasCredit, setTrialHasCredit] = useState(false)
+  // Why the assessment is or is not offered (trial-eligibility's reason). Null
+  // until the fetch returns, and no notice shows until then: the old fallback
+  // flashed "Swim Assessment completed" for every swimmer while it loaded
+  // (found 2026-10-07).
+  const [trialReason, setTrialReason] = useState<string | null>(null)
   const [lockedStudent, setLockedStudent] = useState(false)
   const lockedRef = useRef(false)
   const courseTypesRef = useRef<CourseType[]>([])
@@ -314,6 +319,7 @@ export default function BookingPage() {
     setIsTrial(false)
     setTrialEligible(false)
     setTrialHasCredit(false)
+    setTrialReason(null)
     if (!selectedStudent) return
     // An assessment is only ever offered to a swimmer with no level yet, so a
     // swimmer who has one needs no round trip (it took about two seconds).
@@ -323,6 +329,7 @@ export default function BookingPage() {
       .then(j => {
         setTrialEligible(!!j.eligible)
         setTrialHasCredit(!!j.hasCredit)
+        setTrialReason(typeof j.reason === 'string' ? j.reason : null)
         if (lockedRef.current) {
           if (j.hasCredit) {
             const ct = courseTypesRef.current.find(c => c.slug === '1on1')
@@ -686,6 +693,9 @@ export default function BookingPage() {
     const slotLen = selectedCourse.duration_minutes
     const bookedIv: { s: number; e: number }[] = []
     const studentIv: { s: number; e: number }[] = []
+    // Sessions held by a 1-on-2 invitation not answered yet: their seats are
+    // not in enrolled_count, but the server refuses them as full.
+    const heldSessions = new Set<string>((bookedTimes || []).filter((b: any) => b.held && b.session_id).map((b: any) => b.session_id))
     for (const b of bookedTimes || []) {
       if (!b.time) continue
       const s = toMinX(b.time)
@@ -747,7 +757,7 @@ export default function BookingPage() {
         return { time: t, label: formatTime(t), available: false, enrolled: existing ? existing.enrolled_count : 1, max: existing ? existing.max_students : 1, within24h }
       }
       if (existing) {
-        const isFull = existing.enrolled_count >= existing.max_students
+        const isFull = existing.enrolled_count >= existing.max_students || heldSessions.has(existing.id)
         return {
           time: t, label: formatTime(t),
           available: !isFull, within24h,
@@ -1365,7 +1375,22 @@ export default function BookingPage() {
     setStep(4)
   }
 
+  // Every path below awaited fetch with no catch: a dropped connection left
+  // the button on "Booking..." for good, with no word on whether the lesson
+  // went through (found 2026-10-07). The server may have booked and charged
+  // already, so the family is sent to check before trying again, and the
+  // wallet is re-read so the balance shows what happened.
   async function handleConfirm() {
+    try {
+      await confirmBooking()
+    } catch {
+      setNotice(t('booking.err.networkCheck'))
+      setSubmitting(false)
+      reloadWallet()
+    }
+  }
+
+  async function confirmBooking() {
     if (recurPlan.length > 0) return confirmRecurring()
     if (!selectedStudent || !selectedCourse || !selectedCoach || !selectedDate || !selectedSlot || !parentId) return
     setSubmitting(true)
@@ -1790,7 +1815,7 @@ export default function BookingPage() {
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', fontSize: '14px', color: '#1f7a57', lineHeight: 1.6 }}>
             🎟 {t(makeUp.usableFrom && makeUp.usableFrom > localDs(today) ? 'booking.makeUp.bannerWindow' : 'booking.makeUp.banner', {
               names: makeUp.studentNames.join(' & '),
-              kind: t('voucher.kind.' + makeUp.courseSlug + (makeUp.courseSlug === '1on1' ? '.' + (makeUp.minutes === 60 ? 60 : 30) : '')),
+              kind: t('voucher.kind.' + makeUp.courseSlug + (makeUp.courseSlug === '1on1' ? '.' + (makeUp.minutes === 60 ? 60 : 30) : makeUp.courseSlug === '1on2' && makeUp.minutes === 60 ? '.60' : '')),
               date: new Date(makeUp.expiresOn + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
               from: makeUp.usableFrom ? new Date(makeUp.usableFrom + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '',
             })}
@@ -1850,13 +1875,20 @@ export default function BookingPage() {
         {step === 1 && (
           <div>
             <SectionTitle title={t('booking.s2.title')} />
-            {needsAssessment && (
+            {/* One notice per reason (owner, 2026-10-07): booked and waiting,
+                cancelled by the school and owed, or done. Nothing before
+                trial-eligibility answers. */}
+            {needsAssessment && trialReason && (
               <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '14px', color: GOLD, lineHeight: 1.5 }}>
-                {trialHasCredit
+                {trialReason === 'prepaid'
                   ? t('booking.notice.prepaid')
-                  : trialEligible
+                  : trialReason === 'eligible'
                   ? t('booking.notice.first')
-                  : t('booking.notice.pending')}
+                  : trialReason === 'booked'
+                  ? t('booking.notice.booked')
+                  : trialReason === 'school_cancelled'
+                  ? t('booking.notice.schoolCancelled')
+                  : t('booking.notice.done')}
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

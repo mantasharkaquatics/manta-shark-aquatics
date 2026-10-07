@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import Stripe from 'stripe'
 import { syncTrialBooking } from '@/lib/trial-booking'
+import { mailRescheduleNotMoved } from '@/lib/bookings/partner-reschedule-mail'
 
 type ExpiryNotice = {
   to: string
@@ -38,22 +39,42 @@ export async function GET(req: NextRequest) {
   // Also clean up expired reschedule pendings
   const { data: expiredReschedule } = await supabase
     .from('bookings')
-    .select('id')
+    .select('id, partner_booking_id, pending_new_session_id')
     .in('pending_action', ['reschedule', 'reschedule_initiator'])
     .lt('pending_expires_at', now)
 
+  let reschedulesLapsed = 0
   if ((expiredReschedule || []).length > 0) {
     const rids = (expiredReschedule || []).map((b: any) => b.id)
     // Same condition as the select, re-checked in the write (found
     // 2026-10-05): a reschedule confirmed or re-requested between the two
     // queries must not have its fresh pending fields wiped.
-    await supabase.from('bookings').update({
+    const { data: lapsed } = await supabase.from('bookings').update({
       pending_action: null,
       pending_new_session_id: null,
       pending_expires_at: null,
     }).in('id', rids)
       .in('pending_action', ['reschedule', 'reschedule_initiator'])
       .lt('pending_expires_at', now)
+      .select('id')
+
+    // Both families hear that the request lapsed and the lesson stays put
+    // (found 2026-10-07): it used to be cleared in silence, and the family who
+    // asked never learned the outcome. One notice per request -- the two rows
+    // of a request point at each other -- and only for rows this run cleared.
+    const lapsedIds = new Set((lapsed || []).map((r: any) => r.id))
+    const done = new Set<string>()
+    for (const b of (expiredReschedule || []) as any[]) {
+      if (!lapsedIds.has(b.id) || done.has(b.id)) continue
+      done.add(b.id)
+      if (b.partner_booking_id) done.add(b.partner_booking_id)
+      reschedulesLapsed++
+      await mailRescheduleNotMoved(supabase, {
+        bookingIds: [b.id, b.partner_booking_id].filter(Boolean),
+        newSessionId: b.pending_new_session_id,
+        outcome: 'expired',
+      })
+    }
   }
 
   // Delete FIRST, and only rows that still match the select's condition
@@ -213,5 +234,5 @@ export async function GET(req: NextRequest) {
     console.error('cleanup-pending-bookings: trial sweep failed', err)
   }
 
-  return NextResponse.json({ deleted, checked: candidateIds.length, notified, trialsReleased, trialsConfirmed })
+  return NextResponse.json({ deleted, checked: candidateIds.length, notified, reschedulesLapsed, trialsReleased, trialsConfirmed })
 }

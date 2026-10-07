@@ -185,6 +185,7 @@ export async function POST(req: NextRequest) {
     // we have never been paid by putting through more than the first-top-up
     // cap. Neither is blocked from buying -- they are offered cards.
     let bankDebitOk = true
+    let capApplies = false
     const { data: existingWallet } = await svcForGate
       .from('point_wallets').select('balance_purchased').eq('parent_id', parent.id).maybeSingle()
     if ((existingWallet?.balance_purchased ?? 0) < 0) {
@@ -199,46 +200,82 @@ export async function POST(req: NextRequest) {
       // And the cap is on the TOTAL not yet settled, not on this one checkout:
       // five $500 debits from an empty account were five passes of a $500 cap,
       // and the points land before the money does (found 2026-10-05).
+      //
+      // And it has to hold when several checkouts are opened at once (found
+      // 2026-10-07): ten simultaneous requests each read "nothing outstanding"
+      // before any of them had created its checkout, and each got bank debit.
+      // So, for a family the cap applies to, only ONE bank-debit points
+      // checkout may be open at a time -- the same rule the Swim Team checkout
+      // follows. Older ones are closed here before this one is weighed, and
+      // after creating it we look again: if a request running alongside made
+      // a newer one, ours gives way (see keepOnlyNewestBankDebit). A checkout
+      // that has been paid but not yet credited by the webhook is counted
+      // too (bankDebitExposure).
       const exposure = await bankDebitExposure(svcForGate, parent.id)
-      bankDebitOk = exposure.settled
-        || (exposure.unsettledDollars !== null
-          && exposure.unsettledDollars + dollars <= FIRST_TOPUP_BANK_CAP_DOLLARS)
+      if (exposure.settled) {
+        bankDebitOk = true
+      } else if (exposure.unsettledDollars === null
+        || exposure.unsettledDollars + dollars > FIRST_TOPUP_BANK_CAP_DOLLARS) {
+        // Cards only. Any open bank-debit checkout is left alone: this one
+        // cannot add to what is owed, so there is no reason to close it.
+        bankDebitOk = false
+      } else {
+        const stillOpen = await closeCheckouts(exposure.openBankDebit)
+        bankDebitOk = stillOpen !== null
+          && exposure.unsettledDollars + stillOpen + dollars <= FIRST_TOPUP_BANK_CAP_DOLLARS
+        capApplies = true
+      }
     }
 
-    const session = await stripe.checkout.sessions.create({
-      locale: 'en',
-      payment_method_types: bankDebitOk ? ['card', 'us_bank_account'] : ['card'],
-      mode: 'payment',
-      customer_email: parent.email,
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `${dollars.toLocaleString('en-US')} lesson points`,
-            description: 'One point books one dollar of lessons. Points you buy never expire.',
-          },
-          unit_amount: dollars * 100,
-        },
-        quantity: 1,
-      }],
-      metadata: {
-        kind: 'points',
-        parent_id: parent.id,
-        points: String(dollars),
-      },
-      // An open bank-debit checkout counts against the cap (bankDebitExposure),
-      // so one the parent walked away from should not hold it for Stripe's
-      // default 24 hours. An hour is plenty to finish paying.
-      ...(bankDebitOk ? { expires_at: Math.floor(Date.now() / 1000) + 60 * 60 } : {}),
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
-    })
+    const session = await createPointsCheckout(parent, dollars, bankDebitOk)
+    if (bankDebitOk && capApplies && !(await keepOnlyNewestBankDebit(parent.id, session))) {
+      // A newer bank-debit checkout for this family appeared while ours was
+      // being made. Ours has been closed; the parent gets a card checkout.
+      const cardOnly = await createPointsCheckout(parent, dollars, false)
+      return NextResponse.json({ url: cardOnly.url })
+    }
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
     console.error('Stripe checkout error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
+}
+
+/** The points checkout itself; bank debit offered only when bankDebitOk. */
+function createPointsCheckout(
+  parent: { id: string; email: string },
+  dollars: number,
+  bankDebitOk: boolean,
+): Promise<Stripe.Checkout.Session> {
+  return stripe.checkout.sessions.create({
+    locale: 'en',
+    payment_method_types: bankDebitOk ? ['card', 'us_bank_account'] : ['card'],
+    mode: 'payment',
+    customer_email: parent.email,
+    line_items: [{
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: `${dollars.toLocaleString('en-US')} lesson points`,
+          description: 'One point books one dollar of lessons. Points you buy never expire.',
+        },
+        unit_amount: dollars * 100,
+      },
+      quantity: 1,
+    }],
+    metadata: {
+      kind: 'points',
+      parent_id: parent.id,
+      points: String(dollars),
+    },
+    // An open bank-debit checkout counts against the cap (bankDebitExposure),
+    // so one the parent walked away from should not hold it for Stripe's
+    // default 24 hours. An hour is plenty to finish paying.
+    ...(bankDebitOk ? { expires_at: Math.floor(Date.now() / 1000) + 60 * 60 } : {}),
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
+  })
 }
 
 /**
@@ -258,12 +295,16 @@ export async function POST(req: NextRequest) {
  * hand, so a settled debit could wait on it indefinitely.
  *
  * With nothing settled, every unreversed purchase that is not 'succeeded' is
- * money still owed to us, and so is every bank-debit points checkout this
- * family has open right now (several opened side by side would otherwise each
- * see nothing outstanding). unsettledDollars is null when that could not be
- * worked out; the caller then offers cards only.
+ * money still owed to us, and so is every completed points checkout the
+ * ledger has not recorded yet. The bank-debit points checkouts this family
+ * has open right now come back separately as openBankDebit: the caller closes
+ * them rather than adding them up, so only one is ever open (2026-10-07).
+ * unsettledDollars is null when that could not be worked out; the caller then
+ * offers cards only.
  */
-async function bankDebitExposure(svc: any, parentId: string): Promise<{ settled: boolean; unsettledDollars: number | null }> {
+type OpenCheckout = { id: string; created: number; points: number }
+
+async function bankDebitExposure(svc: any, parentId: string): Promise<{ settled: boolean; unsettledDollars: number | null; openBankDebit: OpenCheckout[] }> {
   const { data: rows, error } = await svc
     .from('point_ledger')
     .select('reason, stripe_session_id, delta_purchased, created_at')
@@ -273,14 +314,14 @@ async function bankDebitExposure(svc: any, parentId: string): Promise<{ settled:
     .limit(100)
   if (error) {
     console.error('bank-cap check: could not read the ledger:', error.message)
-    return { settled: false, unsettledDollars: null }
+    return { settled: false, unsettledDollars: null, openBankDebit: [] }
   }
   const reversed = new Set((rows || [])
     .filter((r: any) => r.reason !== 'purchase' && r.stripe_session_id)
     .map((r: any) => r.stripe_session_id))
   const bought = (rows || []).filter((r: any) =>
     r.reason === 'purchase' && !(r.stripe_session_id && reversed.has(r.stripe_session_id)))
-  if (bought.some((r: any) => !r.stripe_session_id)) return { settled: true, unsettledDollars: 0 }
+  if (bought.some((r: any) => !r.stripe_session_id)) return { settled: true, unsettledDollars: 0, openBankDebit: [] }
 
   // Newest first, stopping at the first settled one -- for a family we know,
   // that is usually the first or second. A family with no settled payment has
@@ -288,7 +329,7 @@ async function bankDebitExposure(svc: any, parentId: string): Promise<{ settled:
   let unsettled = 0
   let unknown = false
   for (const [i, r] of bought.entries()) {
-    if (i >= 10) return { settled: false, unsettledDollars: null }
+    if (i >= 10) return { settled: false, unsettledDollars: null, openBankDebit: [] }
     const key = String(r.stripe_session_id)
     try {
       let pi: Stripe.PaymentIntent | string | null = null
@@ -298,7 +339,7 @@ async function bankDebitExposure(svc: any, parentId: string): Promise<{ settled:
       } else if (key.startsWith('pi_')) {
         pi = await stripe.paymentIntents.retrieve(key)
       }
-      if (pi && typeof pi === 'object' && pi.status === 'succeeded') return { settled: true, unsettledDollars: 0 }
+      if (pi && typeof pi === 'object' && pi.status === 'succeeded') return { settled: true, unsettledDollars: 0, openBankDebit: [] }
     } catch (e: any) {
       // Unknown is not settled: the family is offered cards, not refused.
       console.error(`bank-cap check: could not read ${key}:`, e?.message)
@@ -307,27 +348,100 @@ async function bankDebitExposure(svc: any, parentId: string): Promise<{ settled:
     }
     unsettled += Math.max(0, Number(r.delta_purchased) || 0)
   }
-  if (unknown) return { settled: false, unsettledDollars: null }
+  if (unknown) return { settled: false, unsettledDollars: null, openBankDebit: [] }
 
-  // Open checkouts that offer bank debit. Points checkouts with bank debit
-  // expire after an hour (see the create call), so a day back is all of them.
+  // This family's recent points checkouts on Stripe.
+  //  - Open ones offering bank debit are returned for the caller to close
+  //    (they are not added here: only one may stay open, see the caller).
+  //  - Completed ones the ledger has never heard of are paid-but-not-yet-
+  //    credited: the webhook has not landed, or failed and is being retried.
+  //    They were neither open nor in the ledger, so a checkout opened in that
+  //    gap used to see nothing outstanding (found 2026-10-07). Unless the
+  //    money has already arrived (payment_status 'paid'), they count.
+  const recent = await recentPointsCheckouts(parentId)
+  if (!recent) return { settled: false, unsettledDollars: null, openBankDebit: [] }
+  const inLedger = new Set((rows || []).map((r: any) => r.stripe_session_id).filter(Boolean))
+  const openBankDebit: OpenCheckout[] = []
+  for (const cs of recent) {
+    const points = Math.max(0, Number(cs.metadata?.points) || 0)
+    if (cs.status === 'open') {
+      if ((cs.payment_method_types || []).includes('us_bank_account')) openBankDebit.push({ id: cs.id, created: createdAt(cs), points })
+    } else if (cs.status === 'complete' && cs.payment_status !== 'paid' && !inLedger.has(cs.id)) {
+      unsettled += points
+    }
+  }
+  return { settled: false, unsettledDollars: unsettled, openBankDebit }
+}
+
+/** Cast: `created` is on every Stripe object, but not in the Session type
+ *  this project's type check resolves (same gap as the list params). */
+const createdAt = (cs: Stripe.Checkout.Session): number => Number((cs as any).created) || 0
+
+/** This family's points checkouts from the last three days (bank-debit ones
+ *  expire after an hour; three days covers Stripe's webhook retries for a
+ *  completed one not yet credited). null when Stripe could not be read. */
+async function recentPointsCheckouts(parentId: string): Promise<Stripe.Checkout.Session[] | null> {
   try {
     // Cast: these filters are in Stripe's API and in the SDK's .d.ts, but this
     // project's type check sees only the pagination fields of the params type.
-    const recent = await stripe.checkout.sessions.list({
-      status: 'open',
-      created: { gte: Math.floor(Date.now() / 1000) - 24 * 60 * 60 },
+    const all = await stripe.checkout.sessions.list({
+      created: { gte: Math.floor(Date.now() / 1000) - 3 * 24 * 60 * 60 },
       limit: 100,
     } as Stripe.Checkout.SessionListParams).autoPagingToArray({ limit: 1000 })
-    for (const cs of recent) {
-      if (cs.status !== 'open') continue
-      if (cs.metadata?.kind !== 'points' || cs.metadata?.parent_id !== parentId) continue
-      if (!(cs.payment_method_types || []).includes('us_bank_account')) continue
-      unsettled += Math.max(0, Number(cs.metadata?.points) || 0)
-    }
+    return all.filter(cs => cs.metadata?.kind === 'points' && cs.metadata?.parent_id === parentId)
   } catch (e: any) {
-    console.error('bank-cap check: could not list open checkouts:', e?.message)
-    return { settled: false, unsettledDollars: null }
+    console.error('bank-cap check: could not list checkouts:', e?.message)
+    return null
   }
-  return { settled: false, unsettledDollars: unsettled }
+}
+
+/** Close these open checkouts. Returns the points on any that could not be
+ *  closed -- most likely paid a moment ago -- so they still count against the
+ *  cap, or null if Stripe could not be asked (the caller offers cards). */
+async function closeCheckouts(open: OpenCheckout[]): Promise<number | null> {
+  let stillOpen = 0
+  for (const cs of open) {
+    try {
+      await stripe.checkout.sessions.expire(cs.id)
+    } catch (e: any) {
+      try {
+        const now = await stripe.checkout.sessions.retrieve(cs.id)
+        if (now.status === 'expired') continue
+        if (now.status === 'complete' && now.payment_status === 'paid') continue
+      } catch {
+        return null
+      }
+      console.error(`bank-cap check: could not close ${cs.id}:`, e?.message)
+      stillOpen += cs.points
+    }
+  }
+  return stillOpen
+}
+
+/**
+ * After creating a bank-debit points checkout: is it the only one this family
+ * has open? Requests made side by side all pass the cap check before any of
+ * them has created its checkout, so each looks again afterwards. Every one of
+ * them sees the same set and applies the same rule -- the newest (by created
+ * time, then id) stays, every other is closed -- so they agree on a single
+ * survivor without a lock. Returns false when ours is not the survivor; it
+ * has then been closed. If Stripe cannot be read, ours stands: it passed the
+ * check before it was made.
+ */
+async function keepOnlyNewestBankDebit(parentId: string, mine: Stripe.Checkout.Session): Promise<boolean> {
+  const recent = await recentPointsCheckouts(parentId)
+  if (!recent) return true
+  const newer = (a: Stripe.Checkout.Session, b: Stripe.Checkout.Session) =>
+    createdAt(a) > createdAt(b) || (createdAt(a) === createdAt(b) && a.id > b.id)
+  const rivals = recent.filter(cs =>
+    cs.id !== mine.id && cs.status === 'open' && (cs.payment_method_types || []).includes('us_bank_account'))
+  if (rivals.some(cs => newer(cs, mine))) {
+    await stripe.checkout.sessions.expire(mine.id).catch((e: any) =>
+      console.error(`bank-cap check: could not close ${mine.id}:`, e?.message))
+    return false
+  }
+  for (const cs of rivals) {
+    await stripe.checkout.sessions.expire(cs.id).catch(() => {})
+  }
+  return true
 }

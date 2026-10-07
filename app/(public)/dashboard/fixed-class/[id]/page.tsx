@@ -104,7 +104,13 @@ export default function FixedClassPage() {
     setLeaving(true)
     const res = await fetch('/api/bookings/cancel-with-partner', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ booking_id: leaveFor.bookingId }),
+      // This dialog only ever offers leave (24 hours or more ahead). The list
+      // is worked out once, on load, so a page left open can still offer it
+      // after the lesson has moved inside 24 hours -- where the server would
+      // spend the month's grace instead. Saying what was shown makes the
+      // server refuse that (OUTCOME_CHANGED); load() below then drops the
+      // button (found 2026-10-07).
+      body: JSON.stringify({ booking_id: leaveFor.bookingId, expected_outcome: 'leave' }),
     }).catch(() => null)
     const j = res ? await res.json().catch(() => ({})) : {}
     if (!res || !res.ok) {
@@ -308,7 +314,7 @@ export default function FixedClassPage() {
               <div className="what">{tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
                 <small>{day(leaveFor.date)} · {formatTime12h(leaveFor.start)}</small></div>
               <p>{t('dash.cancelModal.bodyLeaveWindow', {
-                kind: t('voucher.kind.' + fc.courseSlug + (fc.courseSlug === '1on1' ? '.' + (fc.minutes === 60 ? 60 : 30) : '')),
+                kind: t('voucher.kind.' + fc.courseSlug + (fc.courseSlug === '1on1' ? '.' + (fc.minutes === 60 ? 60 : 30) : fc.courseSlug === '1on2' && fc.minutes === 60 ? '.60' : '')),
                 from: day(addDays(leaveFor.date, -14) > todayStr ? addDays(leaveFor.date, -14) : todayStr, { month: 'short', day: 'numeric' }),
                 date: day(addDays(leaveFor.date, 14), { month: 'short', day: 'numeric' }),
               })}</p>

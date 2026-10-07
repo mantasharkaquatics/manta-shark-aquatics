@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 
 function t12(t: string) {
   const [h, m] = t.split(':').map(Number)
@@ -101,11 +102,15 @@ export async function POST(req: NextRequest) {
 
   // Target conflict, interval-based rather than start-time equality: an hour
   // lesson's second half sits off-grid, so equality would miss it entirely.
-  const { data: dayRows } = await svc
+  // A session held by an unanswered 1-on-2 invitation has no enrolled seats
+  // yet but is taken all the same (lib/bookings/invite-holds).
+  const heldDay = (await inviteHeldSessions(svc, { coachIds: [coach_id], from: date, to: date }))
+  const { data: dayRows0 } = await svc
     .from('class_sessions').select('id, start_time, end_time')
     .eq('coach_id', coach_id).eq('session_date', date)
     .in('status', ['open', 'full']).gt('enrolled_count', 0)
-  const clash = (dayRows || []).some((r: any) => {
+  const dayRows = [...(dayRows0 || []), ...heldDay]
+  const clash = dayRows.some((r: any) => {
     if (moveSessionIds.includes(r.id)) return false
     const rs = toMin(r.start_time)
     const re = r.end_time ? toMin(r.end_time) : rs + course.duration_minutes
@@ -113,6 +118,21 @@ export async function POST(req: NextRequest) {
   })
   if (clash)
     return NextResponse.json({ error: 'The coach already has another lesson overlapping that time' }, { status: 400 })
+
+  // Cancelled rows on these sessions stay where they were (found 2026-10-07),
+  // as the parent-side hour reschedule already does (bookings/hour). Moving
+  // the session in place carries every row on it, and a cancelled row is
+  // about the OLD time: a fixed-class leave in a 1-on-4 that went along to the
+  // new date changed that family's term "last lesson" (termLastDates counts
+  // leave rows), their renewal dates and their voucher's source-lesson date.
+  // Read them, and the old shape of each session, before the move.
+  const { data: oldShape } = await svc
+    .from('class_sessions')
+    .select('id, course_type_id, coach_id, session_date, start_time, end_time, max_students, level_min, level_max')
+    .in('id', moveSessionIds)
+  const { data: cancelledHere } = await svc
+    .from('bookings').select('id, class_session_id')
+    .in('class_session_id', moveSessionIds).eq('status', 'cancelled')
 
   // One row update per half; bookings follow their session automatically
   for (const pl of placements) {
@@ -124,6 +144,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Move failed: ' + updErr.message }, { status: 500 })
   }
   const endTime = placements[placements.length - 1].end
+
+  // The day-before SMS goes once per booking (reminder_sent_at). A lesson moved
+  // after it went out kept the stamp, so the new time never got a reminder
+  // (found 2026-10-07). Clear it on the rows that moved; the cron then judges
+  // the new time by its usual window, and sends nothing if that has passed.
+  {
+    const { error: remErr } = await svc.from('bookings')
+      .update({ reminder_sent_at: null })
+      .in('class_session_id', moveSessionIds).neq('status', 'cancelled')
+    if (remErr) console.error('move-session: could not clear reminder_sent_at:', remErr.message)
+  }
+
+  // Put the cancelled rows back on a session of their own at the old coach,
+  // date and time (empty, as the one they were on was for them). Done after
+  // the move, so the new session does not collide with the old one. The
+  // lesson itself has already moved; a failure here is logged, not undone.
+  const shape = new Map((oldShape || []).map((c: any) => [c.id, c]))
+  for (const sid of [...new Set((cancelledHere || []).map((b: any) => b.class_session_id as string))]) {
+    const was: any = shape.get(sid)
+    if (!was) continue
+    const rowIds = (cancelledHere || []).filter((b: any) => b.class_session_id === sid).map((b: any) => b.id)
+    const { data: home, error: hErr } = await svc.from('class_sessions')
+      .insert({ course_type_id: was.course_type_id, coach_id: was.coach_id, session_date: was.session_date,
+                start_time: was.start_time, end_time: was.end_time, max_students: was.max_students,
+                level_min: was.level_min ?? null, level_max: was.level_max ?? null,
+                enrolled_count: 0, status: 'open' })
+      .select('id').single()
+    if (hErr || !home) {
+      console.error(`\u26a0\ufe0f move-session: cancelled rows ${rowIds.join(', ')} moved with session ${sid} to ${date}; ` +
+        `their old session could not be recreated -- fix by hand:`, hErr?.message)
+      continue
+    }
+    const { error: rErr } = await svc.from('bookings').update({ class_session_id: home.id })
+      .in('id', rowIds).eq('status', 'cancelled')
+    if (rErr) {
+      console.error(`\u26a0\ufe0f move-session: cancelled rows ${rowIds.join(', ')} moved with session ${sid} to ${date}; ` +
+        `they could not be put back on ${home.id} -- fix by hand:`, rErr.message)
+      await svc.from('class_sessions').delete().eq('id', home.id)
+    }
+  }
 
   // Notify every affected parent (cross-account included)
   try {

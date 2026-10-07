@@ -25,14 +25,19 @@ function toMinutes(t: string): number {
   return parts[0] * 60 + parts[1]
 }
 
-/** Today's lessons for one swimmer, earliest first, and which are already checked in. */
+/** Today's lessons for one swimmer, earliest first, and which are already checked in.
+ *  Confirmed bookings only: a basket item (in_cart), an unpaid Swim Assessment
+ *  hold (pending_payment) or an invite nobody accepted (pending_partner) is not
+ *  a lesson. They used to count, so a swimmer could be checked in for a lesson
+ *  nobody had paid for, which the cleanup job could then delete (found
+ *  2026-10-07). */
 async function todaysLessons(svc: SupabaseClient, studentId: string) {
   const todayStr = getTodayLA()
   const { data: bookings } = await svc
     .from('bookings')
     .select('id, class_session_id, status, lesson_group_id')
     .eq('student_id', studentId)
-    .neq('status', 'cancelled')
+    .eq('status', 'confirmed')
 
   const sessionIds = Array.from(new Set((bookings || []).map((b: any) => b.class_session_id).filter(Boolean)))
   const { data: sessions } = sessionIds.length
@@ -75,6 +80,75 @@ export async function checkInStatus(svc: SupabaseClient, studentId: string) {
   }
 }
 
+/** Swim Team: membership-based check-in (unlimited practices, no bookings).
+ *  null when the swimmer has no current membership. */
+async function teamCheckIn(svc: SupabaseClient, student: { id: string; full_name: string; current_level: number | null }, method: CheckInMethod, todayStr: string, nowMin: number): Promise<CheckInResult | null> {
+  const studentId = student.id
+  const { data: tm } = await svc
+    .from('team_memberships')
+    .select('team_tier_id, status, team_tiers(name)')
+    .eq('student_id', studentId)
+    .in('status', ['active', 'past_due'])
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .limit(1)
+  const membership: any = (tm || [])[0] || null
+
+  if (membership) {
+    const tierName = Array.isArray(membership.team_tiers) ? membership.team_tiers[0]?.name : membership.team_tiers?.name
+    const dow = new Date(todayStr + 'T00:00:00').getDay()
+    const { data: zoneRows } = await svc
+      .from('coach_availability_zones')
+      .select('coach_id, zone_type, kind, start_time, end_time, team_tier_id')
+      .or(`and(kind.eq.date,override_date.eq.${todayStr}),and(kind.eq.weekly,weekday.eq.${dow})`)
+
+    // Per-coach resolution: date rows replace weekly; a closed row kills the coach's day
+    const byCoach = new Map<string, any[]>()
+    for (const r of zoneRows || []) {
+      if (!byCoach.has(r.coach_id)) byCoach.set(r.coach_id, [])
+      byCoach.get(r.coach_id)!.push(r)
+    }
+    const teamRows: any[] = []
+    for (const rows of byCoach.values()) {
+      const dateRows = rows.filter((r: any) => r.kind === 'date')
+      const picked = dateRows.length > 0 ? dateRows : rows
+      if (picked.some((r: any) => r.zone_type === 'closed')) continue
+      for (const r of picked) if (r.zone_type === 'team') teamRows.push(r)
+    }
+
+    const open = teamRows.filter((r: any) => {
+      const st = toMinutes(String(r.start_time).slice(0, 5))
+      const en = toMinutes(String(r.end_time).slice(0, 5))
+      return nowMin >= st - EARLY_WINDOW_MIN && nowMin < en
+    })
+    const mine = open.find((r: any) => r.team_tier_id === membership.team_tier_id)
+
+    if (mine) {
+      const startHH = String(mine.start_time).slice(0, 5)
+      const { error: taErr } = await svc.from('team_attendance').upsert({
+        student_id: studentId,
+        team_tier_id: membership.team_tier_id,
+        practice_date: todayStr,
+        start_time: startHH,
+        check_in_method: method,
+      }, { onConflict: 'student_id,practice_date,start_time' })
+      if (taErr) return { ok: false, status: 500, code: 'db', error: taErr.message }
+      return {
+        ok: true,
+        student_id: student.id,
+        student_name: student.full_name,
+        current_level: student.current_level,
+        checked_in_count: 1,
+        lesson_times: [formatTime12h(startHH) + ' · ' + (tierName || 'Team') + ' practice'],
+      }
+    }
+    if (open.length > 0) {
+      return { ok: false, status: 403, code: 'team_wrong_session', error: 'The current practice is not for ' + (tierName || student.full_name + "'s team") + ' — check-in not allowed for this session.' }
+    }
+    return { ok: false, status: 404, code: 'team_not_open', error: 'No ' + (tierName || 'team') + ' practice is open for check-in right now' }
+  }
+  return null
+}
+
 export async function checkInStudent(svc: SupabaseClient, studentId: string, method: CheckInMethod): Promise<CheckInResult> {
   const { data: student } = await svc
     .from('students')
@@ -89,70 +163,8 @@ export async function checkInStudent(svc: SupabaseClient, studentId: string, met
   const { todays, attended } = await todaysLessons(svc, studentId)
 
   if (todays.length === 0) {
-    // Swim Team: membership-based check-in (unlimited practices, no bookings)
-    const { data: tm } = await svc
-      .from('team_memberships')
-      .select('team_tier_id, status, team_tiers(name)')
-      .eq('student_id', studentId)
-      .in('status', ['active', 'past_due'])
-      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-      .limit(1)
-    const membership: any = (tm || [])[0] || null
-
-    if (membership) {
-      const tierName = Array.isArray(membership.team_tiers) ? membership.team_tiers[0]?.name : membership.team_tiers?.name
-      const dow = new Date(todayStr + 'T00:00:00').getDay()
-      const { data: zoneRows } = await svc
-        .from('coach_availability_zones')
-        .select('coach_id, zone_type, kind, start_time, end_time, team_tier_id')
-        .or(`and(kind.eq.date,override_date.eq.${todayStr}),and(kind.eq.weekly,weekday.eq.${dow})`)
-
-      // Per-coach resolution: date rows replace weekly; a closed row kills the coach's day
-      const byCoach = new Map<string, any[]>()
-      for (const r of zoneRows || []) {
-        if (!byCoach.has(r.coach_id)) byCoach.set(r.coach_id, [])
-        byCoach.get(r.coach_id)!.push(r)
-      }
-      const teamRows: any[] = []
-      for (const rows of byCoach.values()) {
-        const dateRows = rows.filter((r: any) => r.kind === 'date')
-        const picked = dateRows.length > 0 ? dateRows : rows
-        if (picked.some((r: any) => r.zone_type === 'closed')) continue
-        for (const r of picked) if (r.zone_type === 'team') teamRows.push(r)
-      }
-
-      const open = teamRows.filter((r: any) => {
-        const st = toMinutes(String(r.start_time).slice(0, 5))
-        const en = toMinutes(String(r.end_time).slice(0, 5))
-        return nowMin >= st - EARLY_WINDOW_MIN && nowMin < en
-      })
-      const mine = open.find((r: any) => r.team_tier_id === membership.team_tier_id)
-
-      if (mine) {
-        const startHH = String(mine.start_time).slice(0, 5)
-        const { error: taErr } = await svc.from('team_attendance').upsert({
-          student_id: studentId,
-          team_tier_id: membership.team_tier_id,
-          practice_date: todayStr,
-          start_time: startHH,
-          check_in_method: method,
-        }, { onConflict: 'student_id,practice_date,start_time' })
-        if (taErr) return { ok: false, status: 500, code: 'db', error: taErr.message }
-        return {
-          ok: true,
-          student_id: student.id,
-          student_name: student.full_name,
-          current_level: student.current_level,
-          checked_in_count: 1,
-          lesson_times: [formatTime12h(startHH) + ' · ' + (tierName || 'Team') + ' practice'],
-        }
-      }
-      if (open.length > 0) {
-        return { ok: false, status: 403, code: 'team_wrong_session', error: 'The current practice is not for ' + (tierName || student.full_name + "'s team") + ' — check-in not allowed for this session.' }
-      }
-      return { ok: false, status: 404, code: 'team_not_open', error: 'No ' + (tierName || 'team') + ' practice is open for check-in right now' }
-    }
-
+    const team = await teamCheckIn(svc, student, method, todayStr, nowMin)
+    if (team) return team
     return { ok: false, status: 404, code: 'no_lesson_today', error: student.full_name + ' has no lessons today' }
   }
 
@@ -160,6 +172,12 @@ export async function checkInStudent(svc: SupabaseClient, studentId: string, met
   const anchorIdx = openIndex(todays, attended, nowMin)
 
   if (anchorIdx === -1) {
+    // A Swim Team member with a lesson later today (or one already done) used
+    // to be refused at practice time: the team check-in only ran on a day with
+    // no lessons at all, and team_attendance was never written (found
+    // 2026-10-07). With no lesson open, try the practice.
+    const team = await teamCheckIn(svc, student, method, todayStr, nowMin)
+    if (team?.ok) return team
     return {
       ok: false, status: 400, code: 'not_open',
       error: student.full_name + ' has no lesson open for check-in right now. Check-in opens 30 minutes before class and closes when the class ends.',

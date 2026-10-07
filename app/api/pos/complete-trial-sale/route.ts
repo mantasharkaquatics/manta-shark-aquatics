@@ -6,6 +6,10 @@ import { cookies } from 'next/headers'
 import { insertInvoice } from '@/lib/invoices/create'
 import { checkTrialSale, invoicePaymentLabel, TRIAL_PRICE_CENTS } from '@/lib/pos/sale-checks'
 
+// How old a claimed-but-unsold assessment must be before a card sale's
+// "record it again" takes it over (see below).
+const ORPHAN_AFTER_MS = 90_000
+
 // A Swim Assessment sold at the desk: the $85 purchase, and the assessment
 // credit the family books with from their dashboard.
 //
@@ -38,20 +42,66 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    // A card payment is recorded once. complete-sale and complete-sdp-sale key
+    // on the payment intent the same way. Checked BEFORE the sale checks: once
+    // recorded, the swimmer's assessment is used, so a "record again" after a
+    // lost answer used to be refused as "already used" instead of being told
+    // it was done (found 2026-10-07).
+    if (paymentIntentId) {
+      const { data: seen } = await supabase
+        .from('purchases').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
+      if (seen && seen.length) {
+        // Done only if its assessment credit exists too: a purchase left
+        // without one (see below) is not a finished sale, and the desk screen
+        // treats "already recorded" as finished.
+        const { data: credit } = await supabase
+          .from('lesson_credits').select('id').eq('purchase_id', seen[0].id).eq('is_trial', true).limit(1)
+        if (credit && credit.length)
+          return NextResponse.json({ error: 'This payment has already been recorded.', alreadyRecorded: true }, { status: 409 })
+        return NextResponse.json({
+          error: 'The payment was recorded but the assessment credit was not created. Do not take payment again — ask the owner to add the credit.',
+          purchaseId: seen[0].id,
+        }, { status: 409 })
+      }
+    }
+
+    // A card sale cut off between claiming the assessment and writing the
+    // purchase (a timeout) left trial_used_at set with nothing sold, so
+    // "record it again" was refused as "already used" and the desk was told
+    // to refund -- and the swimmer could never buy an assessment after that
+    // (found 2026-10-07). Such a claim is taken over: no assessment credit for
+    // this swimmer anywhere (every sale, online or at the desk, writes one)
+    // and no live assessment booking. A claim younger than ORPHAN_AFTER_MS may
+    // still be the first request at work, so the desk is asked to wait.
+    if (paymentIntentId) {
+      const { data: st } = await supabase.from('students').select('trial_used_at, parent_id, current_level').eq('id', studentId).maybeSingle()
+      // Only a swimmer this sale could be for at all: the family's, not yet
+      // assessed. Anything else is refused below without touching the record.
+      if (st?.trial_used_at && st.parent_id === parentId && st.current_level == null) {
+        const [{ data: credits }, { data: live }] = await Promise.all([
+          supabase.from('lesson_credits').select('id').eq('student_id', studentId).eq('is_trial', true).limit(1),
+          supabase.from('bookings').select('id').eq('student_id', studentId).eq('is_trial', true).neq('status', 'cancelled').limit(1),
+        ])
+        if ((credits || []).length === 0 && (live || []).length === 0) {
+          if (Date.now() - Date.parse(st.trial_used_at) < ORPHAN_AFTER_MS)
+            return NextResponse.json({ error: 'This sale may still be being recorded. Wait a minute, then record it again. Do not take payment again.', retryable: true }, { status: 409 })
+          await supabase.from('students').update({ trial_used_at: null }).eq('id', studentId).eq('trial_used_at', st.trial_used_at)
+        }
+      }
+    }
+
+    // The card has already been charged when this runs for a terminal sale,
+    // so a refusal must say so, as complete-team-sale does: a plain "already
+    // has an assessment" (another desk or the parent booked one while the
+    // reader was busy) used to look like nothing happened (found 2026-10-07).
+    const chargedRefusal = (why: string) =>
+      `The card was charged, but this sale cannot be recorded: ${why.replace(/\.?$/, '.')} Do not charge again. Refund the payment from the Stripe dashboard.`
+
     // Who, and whether this swimmer can have an assessment at all -- the same
     // checks the terminal PaymentIntent was made under (lib/pos/sale-checks),
     // including that the swimmer belongs to this family.
     const sale = await checkTrialSale(supabase, { parentId, studentId })
-    if (!sale.ok) return NextResponse.json({ error: sale.error }, { status: sale.status })
-
-    // A card payment is recorded once. complete-sale and complete-sdp-sale key
-    // on the payment intent the same way.
-    if (paymentIntentId) {
-      const { data: seen } = await supabase
-        .from('purchases').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
-      if (seen && seen.length)
-        return NextResponse.json({ error: 'This payment has already been recorded.' }, { status: 409 })
-    }
+    if (!sale.ok) return NextResponse.json({ error: paymentIntentId ? chargedRefusal(sale.error) : sale.error }, { status: sale.status })
 
     const notRecorded = 'The payment was taken but the Swim Assessment was not recorded. Do not take payment again — record it again with the button below.'
 
@@ -65,8 +115,17 @@ export async function POST(req: NextRequest) {
       console.error('POS trial claim error:', claimErr)
       return NextResponse.json({ error: notRecorded, retryable: true }, { status: 500 })
     }
-    if (!claimed || claimed.length === 0)
-      return NextResponse.json({ error: 'This student has already used their Swim Assessment' }, { status: 409 })
+    if (!claimed || claimed.length === 0) {
+      // Two "record again" presses at once: the other one may have just
+      // recorded this very payment.
+      if (paymentIntentId) {
+        const { data: done } = await supabase.from('purchases').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
+        if (done && done.length)
+          return NextResponse.json({ error: 'This payment is still being recorded. Do not take payment again — wait a minute, then record it again with the button below.', retryable: true }, { status: 409 })
+      }
+      const used = 'This student has already used their Swim Assessment.'
+      return NextResponse.json({ error: paymentIntentId ? chargedRefusal(used) : used }, { status: 409 })
+    }
     // Gives the claim back -- only if it is still this request's.
     const releaseClaim = () => supabase.from('students').update({ trial_used_at: null })
       .eq('id', studentId).eq('trial_used_at', claimedAt)
@@ -141,7 +200,7 @@ export async function POST(req: NextRequest) {
             to: parentData.email,
             parentName: parentData.first_name,
             invoiceNumber: inv.invoice_number,
-            invoiceUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/${inv.id}/pdf`,
+            invoiceUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'}/api/invoices/${inv.id}/pdf`,
             amount: '85.00',
             items: [{ name: `Swim Assessment - ${studentData?.full_name || ''}`, quantity: 1, unit_price: 85 }],
             paymentMethod: invoicePaymentLabel(paymentMethod),

@@ -27,6 +27,7 @@ import { stageProgress, stageNameKey, type StageProgress } from '@/lib/levels'
 import { masteryOf, MASTERY_LABEL } from '@/lib/mastery'
 import { TEAM_SLUG } from '@/lib/points'
 import { sendEmail } from '@/lib/email'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 
 type Svc = any
 
@@ -120,22 +121,29 @@ const toMin = (t: string | null | undefined) => { const [h, m] = String(t || '00
  */
 export async function lessonsByStudent(svc: Svc, month: string, today = getTodayLA(), nowMin = getNowMinutesLA()) {
   const last = monthEnd(month) < today ? monthEnd(month) : today
-  const { data: allSessions } = await svc.from('class_sessions')
+  // Paged and ordered (found 2026-10-07): one unpaged read stopped at 1,000
+  // sessions -- a full month of three coaches passes that, cancelled and empty
+  // sessions included -- and returned an arbitrary subset each run. The
+  // swimmers left out got no report, and generateMonth deleted their unsent
+  // reports (approved and edited ones too) as stale. A failed read now throws:
+  // a month read in part must never write or delete anything.
+  const { data: allSessions, error: sessErr } = await allRows(() => svc.from('class_sessions')
     .select('id, session_date, start_time, end_time, coach_id, course_type_id')
     .gte('session_date', month).lte('session_date', last)
+    .order('id'))
+  if (sessErr) throw new Error('monthly report: sessions read failed: ' + (sessErr.message || sessErr))
   const sessions = (allSessions || []).filter((s: any) => s.session_date < today || toMin(s.end_time) <= nowMin)
   const sessionById = new Map<string, any>(sessions.map((s: any) => [s.id, s]))
   if (sessionById.size === 0) return { byStudent: new Map<string, Booking[]>(), sessionById }
 
   const ids = [...sessionById.keys()]
-  const bookings: Booking[] = []
-  for (let i = 0; i < ids.length; i += 300) {
-    const { data } = await svc.from('bookings')
-      .select('id, student_id, parent_id, class_session_id, lesson_group_id, is_trial')
-      .in('class_session_id', ids.slice(i, i + 300))
-      .not('status', 'in', SKIP_STATUSES)
-    bookings.push(...(data || []))
-  }
+  const { data: bookingRows, error: bookErr } = await allRowsIn(ids, c => svc.from('bookings')
+    .select('id, student_id, parent_id, class_session_id, lesson_group_id, is_trial')
+    .in('class_session_id', c)
+    .not('status', 'in', SKIP_STATUSES)
+    .order('id'))
+  if (bookErr) throw new Error('monthly report: bookings read failed: ' + (bookErr.message || bookErr))
+  const bookings: Booking[] = bookingRows
 
   const typeIds = [...new Set(sessions.map((s: any) => s.course_type_id).filter(Boolean))]
   const { data: types } = typeIds.length
@@ -153,10 +161,10 @@ export async function lessonsByStudent(svc: Svc, month: string, today = getToday
   }
   const regular = bookings.filter(b => !b.is_trial && byStudent.has(b.student_id))
   const present = new Set<string>()
-  for (let i = 0; i < regular.length; i += 300) {
-    const { data } = await svc.from('attendance').select('booking_id').in('booking_id', regular.slice(i, i + 300).map(b => b.id))
-    for (const a of data || []) present.add(a.booking_id)
-  }
+  const { data: attRows, error: attErr } = await allRowsIn(regular.map(b => b.id), c => svc.from('attendance')
+    .select('booking_id').in('booking_id', c).order('booking_id').order('student_id'))
+  if (attErr) throw new Error('monthly report: attendance read failed: ' + (attErr.message || attErr))
+  for (const a of attRows) present.add(a.booking_id)
   for (const [id, list] of byStudent) {
     if (!list.some(b => !b.is_trial && present.has(b.id))) byStudent.delete(id)
   }
@@ -376,7 +384,11 @@ export async function generateMonth(svc: Svc, month: string, opts: { budgetMs?: 
   // ones well before the function's 60-second limit.
   const budget = opts.budgetMs ?? 25_000
   const { byStudent, sessionById } = await lessonsByStudent(svc, month)
-  const { data: existing } = await svc.from('monthly_reports').select('student_id, status, generated_at').eq('month', month)
+  // Without this list every report would look new and be written over --
+  // sent ones included -- so a failed read stops here (found 2026-10-07).
+  const { data: existing, error: existingErr } = await allRows(() => svc.from('monthly_reports')
+    .select('id, student_id, status, generated_at').eq('month', month).order('id'))
+  if (existingErr) throw new Error('monthly report: reports read failed: ' + (existingErr.message || existingErr))
   const status = new Map<string, string>((existing || []).map((r: any) => [r.student_id, r.status]))
   // A report written before the month's last day (Generate pressed mid-month)
   // was written from part of the month. The month-end run writes it again from
@@ -400,6 +412,7 @@ export async function generateMonth(svc: Svc, month: string, opts: { budgetMs?: 
     : [...byStudent.keys()].filter(id => !status.has(id) || (early.has(id) && getTodayLA() >= last))
 
   let written = 0
+  let skipped = 0
   const failed: string[] = []
   for (const studentId of todo) {
     if (Date.now() - started > budget) break
@@ -407,21 +420,46 @@ export async function generateMonth(svc: Svc, month: string, opts: { budgetMs?: 
       const { data, parentId, noteTexts } = await buildReportData(svc, studentId, month, byStudent.get(studentId)!, sessionById)
       const text = await writeText(data, noteTexts)
       if (!text) data.aiFailed = true
-      const { error } = await svc.from('monthly_reports').upsert({
+      const row = {
         student_id: studentId, parent_id: parentId, month, status: 'draft', data,
         summary: text?.summary || '', focus: text?.focus || '',
         summary_i18n: {}, focus_i18n: {},
         generated_at: new Date().toISOString(),
         edited_by: null, edited_at: null, approved_by: null, approved_at: null,
-      }, { onConflict: 'student_id,month' })
-      if (error) throw new Error(error.message)
+      }
+      // Conditional writes (found 2026-10-07). The model takes about ten
+      // seconds, and in that time the last approval of the month can send
+      // this very report; the old unconditional upsert then put a SENT report
+      // back to draft -- gone from the family's dashboard right after the
+      // "your report is ready" email, and emailed a second time on the next
+      // approval. A report that exists is rewritten only while it is unsent;
+      // a new one is inserted only if nobody wrote it meanwhile.
+      let landed: any[] | null
+      if (status.has(studentId)) {
+        const { data: upd, error } = await svc.from('monthly_reports').update(row)
+          .eq('student_id', studentId).eq('month', month).neq('status', 'sent').select('id')
+        if (error) throw new Error(error.message)
+        landed = upd
+      } else {
+        const { data: ins, error } = await svc.from('monthly_reports')
+          .upsert(row, { onConflict: 'student_id,month', ignoreDuplicates: true }).select('id')
+        if (error) throw new Error(error.message)
+        landed = ins
+      }
+      if (!landed || landed.length === 0) {
+        // Sent (or written by another run) while the text was being written:
+        // leave that one as it is.
+        console.warn(`monthly report ${month} ${studentId}: changed while writing; left as it is`)
+        skipped++
+        continue
+      }
       written++
     } catch (e) {
       console.error(`monthly report ${month} ${studentId}: not written`, e)
       failed.push(studentId)
     }
   }
-  const done = written + failed.length
+  const done = written + skipped + failed.length
   return { eligible: byStudent.size, written, failed: failed.length, remaining: Math.max(0, todo.length - done) }
 }
 
@@ -512,18 +550,32 @@ export async function approveReport(svc: Svc, id: string, adminId: string, summa
  * one email naming their swimmers. Safe to run as often as you like.
  */
 export async function sendReadyMonths(svc: Svc, today = getTodayLA()) {
-  const { data: waiting } = await svc.from('monthly_reports').select('month, status').in('status', ['draft', 'approved'])
+  const { data: waiting, error: waitErr } = await allRows(() => svc.from('monthly_reports')
+    .select('id, month, status, generated_at').in('status', ['draft', 'approved']).order('id'))
+  if (waitErr) throw new Error('monthly report: reports read failed: ' + (waitErr.message || waitErr))
   const months: string[] = [...new Set<string>((waiting || []).filter((r: any) => r.status === 'approved').map((r: any) => String(r.month)))]
-  const result: { month: string; sent: number; heldBy: number }[] = []
+  // heldEarly: of heldBy, the reports waiting to be rewritten (not on an
+  // admin) -- the cron carries on with those (app/api/cron/monthly-reports).
+  const result: { month: string; sent: number; heldBy: number; heldEarly: number }[] = []
   for (const month of months) {
     if (nextMonth(month) > today) continue
-    const drafts = (waiting || []).filter((r: any) => r.month === month && r.status === 'draft').length
-    if (drafts > 0) { result.push({ month, sent: 0, heldBy: drafts }); continue }
+    // A report written before the month's last day (Generate pressed
+    // mid-month, then approved) covers only part of the month; generateMonth
+    // writes it again from the whole month, a few per run. Until every one of
+    // them has been rewritten the month waits, as it does for a draft: it used
+    // to go out with the half-month reports, which were then never rewritten
+    // because they were sent (found 2026-10-07). Same test as generateMonth's.
+    const last = monthEnd(month)
+    const isEarly = (r: any) => r.status !== 'draft' && !!r.generated_at
+      && new Date(r.generated_at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) < last
+    const held = (waiting || []).filter((r: any) => r.month === month && (r.status === 'draft' || isEarly(r))).length
+    const heldEarly = (waiting || []).filter((r: any) => r.month === month && isEarly(r)).length
+    if (held > 0) { result.push({ month, sent: 0, heldBy: held, heldEarly }); continue }
     const { data: claimed } = await svc.from('monthly_reports')
       .update({ status: 'sent', sent_at: new Date().toISOString() })
       .eq('month', month).eq('status', 'approved')
       .select('id, parent_id, student_id')
-    result.push({ month, sent: (claimed || []).length, heldBy: 0 })
+    result.push({ month, sent: (claimed || []).length, heldBy: 0, heldEarly: 0 })
     if (!claimed?.length) continue
     await emailFamilies(svc, month, claimed)
   }

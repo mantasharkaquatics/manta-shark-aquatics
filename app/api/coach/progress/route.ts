@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { requireStaff, requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { isLevelNumber } from '@/lib/levels'
-import { pendingOverlay } from '@/lib/skill-progress-sync'
+import { pendingOverlay, pictureAsOf } from '@/lib/skill-progress-sync'
 
 export async function GET(req: NextRequest) {
   const staff = await requireStaff()
@@ -212,7 +212,11 @@ export async function POST(req: NextRequest) {
       // skills from the live table alone wrote older numbers into a NEWER
       // record, which then rolled the coach's scores back once both were
       // confirmed (found 2026-10-06).
-      Object.assign(stored, await pendingOverlay(supabase, student_id, today))
+      // And the approved scores as of that lesson, not the newest ones: the
+      // live table also holds later lessons' approved scores, which a late
+      // record for an earlier lesson must not carry (found 2026-10-07; same
+      // picture as the Reviews card prefills).
+      stored = await pictureAsOf(supabase, student_id, today, stored)
     }
   }
 

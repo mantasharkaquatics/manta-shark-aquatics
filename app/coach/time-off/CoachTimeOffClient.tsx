@@ -12,10 +12,12 @@ type TimeOff = { id: string; date: string; reason: string | null; created_at: st
 export default function CoachTimeOffClient({
   coach,
   timeOffList: initial,
+  lockedIds: initialLocked,
   today,
 }: {
   coach: { id: string; first_name: string; last_name: string }
   timeOffList: TimeOff[]
+  lockedIds: string[]
   today: string
 }) {
   const supabase = createClient()
@@ -34,6 +36,9 @@ export default function CoachTimeOffClient({
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; msg: string } | null>(null)
+  // Time off the admin has already cancelled lessons for and told families
+  // about: the coach can no longer remove it (owner, 2026-10-07).
+  const [lockedIds, setLockedIds] = useState<string[]>(initialLocked)
   // Lessons families already booked in the requested time (owner, 2026-10-04).
   // Kept per date/window key, so an answer for a day the coach has already
   // changed away from is never shown or trusted. null = the check failed.
@@ -141,18 +146,29 @@ export default function CoachTimeOffClient({
   // One tap used to delete with no confirmation, and the row vanished even when
   // the delete failed, so the coach believed a day off was gone that the admin
   // still saw (found 2026-10-04). Now it asks first, and the row only leaves
-  // the list once the database says it is gone. .select() matters: a delete
-  // that RLS refuses returns no error, only zero rows.
+  // the list once the server says it is gone. The delete goes through a route
+  // that refuses once families have been told (found 2026-10-07).
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     setDeleteError(null)
-    const { data, error: err } = await supabase
-      .from('coach_time_off').delete().eq('id', id).eq('coach_id', coach.id).select('id')
-    if (err || !data || data.length === 0) {
+    try {
+      const res = await fetch('/api/coach/time-off', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setTimeOffList(prev => prev.filter(t => t.id !== id))
+        setConfirmingId(null)
+      } else if (data?.code === 'locked') {
+        setLockedIds(prev => prev.includes(id) ? prev : [...prev, id])
+        setConfirmingId(null)
+      } else {
+        setDeleteError({ id, msg: t('coach.timeOff.errDelete') })
+      }
+    } catch {
       setDeleteError({ id, msg: t('coach.timeOff.errDelete') })
-    } else {
-      setTimeOffList(prev => prev.filter(t => t.id !== id))
-      setConfirmingId(null)
     }
     setDeletingId(null)
   }
@@ -289,7 +305,7 @@ export default function CoachTimeOffClient({
                       <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</p>
                       {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
                     </div>
-                    {confirmingId !== item.id && (
+                    {confirmingId !== item.id && !lockedIds.includes(item.id) && (
                       <button
                         onClick={() => { setConfirmingId(item.id); setDeleteError(null) }}
                         className="text-gray-500 hover:text-red-400 transition-colors text-sm ml-4 flex-shrink-0"
@@ -319,6 +335,7 @@ export default function CoachTimeOffClient({
                       </div>
                     </div>
                   )}
+                  {lockedIds.includes(item.id) && <p className="text-gray-400 text-xs mt-2">{t('coach.timeOff.lockedHint')}</p>}
                   {deleteError?.id === item.id && <p className="text-red-400 text-sm mt-2">{deleteError.msg}</p>}
                 </div>
               ))}

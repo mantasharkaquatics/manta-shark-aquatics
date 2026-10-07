@@ -8,6 +8,7 @@ import {
   createSession,
   hashIp,
 } from '@/lib/applicant-auth'
+import { takeSlot, releaseSlot, ipHash as rateIpHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
 
@@ -82,6 +83,25 @@ export async function POST(req: Request) {
     }
   }
 
+  // The count above is read-then-write: a burst of simultaneous sign-ups all
+  // read 0 and all got an account, each able to request codes to any number
+  // (found 2026-10-07). This reservation is counted after it is written, so
+  // only the first MAX_PER_IP_PER_HOUR of a burst get through. It is given
+  // back below when no account was created.
+  const slot = await takeSlot(supabase, 'careers-register', rateIpHash(req), MAX_PER_IP_PER_HOUR, 60 * 60 * 1000)
+  if (slot.result === 'error') {
+    return NextResponse.json(
+      { error: 'Could not create your account. Please try again.' },
+      { status: 500 }
+    )
+  }
+  if (slot.result === 'limited') {
+    return NextResponse.json(
+      { error: 'Too many accounts created from this network. Please try again later.' },
+      { status: 429 }
+    )
+  }
+
   const { data: existing } = await supabase
     .from('applicants')
     .select('id')
@@ -89,6 +109,7 @@ export async function POST(req: Request) {
     .maybeSingle()
 
   if (existing) {
+    await releaseSlot(supabase, slot.id)
     return NextResponse.json(
       { error: 'An account with this email already exists. Please sign in instead.' },
       { status: 409 }
@@ -110,6 +131,7 @@ export async function POST(req: Request) {
     .single()
 
   if (error || !created) {
+    await releaseSlot(supabase, slot.id)
     if (error?.code === '23505') {
       return NextResponse.json(
         { error: 'An account with this email already exists. Please sign in instead.' },

@@ -5,6 +5,7 @@ import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from './plans'
 // This file is server-only, so the extra dictionaries never reach the browser.
 import { getT, toLocale } from './i18n/all'
 import { stageNameKey } from './levels'
+import { formatTime12h } from './date'
 import { ASSESSMENT_POINTS as CREDIT_POINTS, ASSESSMENT_CREDIT_LESSONS as CREDIT_LESSONS } from './points'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -36,6 +37,7 @@ export type EmailType =
   | 'partner_invite_expired'
   | 'partner_invite_withdrawn'
   | 'partner_reschedule_requested'
+  | 'partner_reschedule_not_moved'
   | 'invoice'
   | 'booking_series_confirmed'
   | 'applicant_verification_code'
@@ -78,6 +80,13 @@ export interface EmailPayload {
   refundKind?: 'points' | 'voucher' | 'none' | 'assessment'
   requesterStudentName?: string
   partnerStudentName?: string
+  // partner_reschedule_requested / partner_reschedule_not_moved: date and time
+  // are the lesson's CURRENT time; newDate / newTime the one proposed. deadline
+  // is when the request lapses ("3:45 PM"); rescheduleOutcome why it did not happen.
+  newDate?: string
+  newTime?: string
+  deadline?: string
+  rescheduleOutcome?: 'declined' | 'withdrawn' | 'expired' | 'unavailable'
   paymentMethod?: string
   planName?: string
   // Loose on purpose: the point of this pass is catching MISSPELLED field
@@ -97,6 +106,9 @@ export interface EmailPayload {
   // unswum lessons were released to pay part of it down.
   pointsOwed?: number
   lessonsReleased?: number
+  /** payment_reversed: the released lessons themselves (no separate
+   *  cancellation email goes out for them). */
+  releasedLessons?: { date: string; time: string; studentNames: string[] }[]
   reversalKind?: 'payment_failed' | 'chargeback'
   // refund_issued: the part still to be handed over in person, if any.
   handBackAmount?: number
@@ -278,12 +290,42 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Invitation Withdrawn</h2><p>Hi ${esc(parentName)},</p><p>${esc(inviterName || 'The other family')} withdrew the 1-on-2 invitation below. Nothing was booked for ${esc(studentName || 'your swimmer')}, and <strong>no points were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr></table><p style="margin-top: 16px;">You're welcome to book any available time on your dashboard.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
   } else if (type === 'partner_reschedule_requested') {
-    subject = `Reschedule Request – ${courseName}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">📅 Reschedule Request</h2><p>Hi ${esc(parentName)},</p><p>Your 1-on-2 lesson partner has requested to reschedule. Please sign in to your dashboard to confirm or decline.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #1a2744; color: white; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Review Request</a></div></div></div>`
+    // Everything the other family needs to decide, and by when (found
+    // 2026-10-07). It used to say only "your partner has requested to
+    // reschedule": no new time, no coach, no children, and no word that the
+    // request lapses after 15 minutes -- by the time many families opened it
+    // there was nothing left to answer.
+    const row = (label: string, value: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">${label}</td><td style="padding: 8px 0; font-weight: 600;">${value}</td></tr>`
+    const fmt = (d?: string) => d ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T00:00:00Z' : d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : ''
+    const newWhen = `${fmt(payload.newDate)}${payload.newTime ? ', ' + esc(payload.newTime) : ''}`
+    const nowWhen = `${formattedDate}${time ? ', ' + esc(time) : ''}`
+    subject = `Reschedule Request – ${courseName} on ${fmt(payload.newDate) || formattedDate} (reply within 15 minutes)`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">📅 Reschedule Request</h2><p>Hi ${esc(parentName)},</p><p>The family of <strong>${esc(payload.requesterStudentName || 'your 1-on-2 partner')}</strong> has asked to move your shared 1-on-2 lesson to a new time.</p><table style="width: 100%; border-collapse: collapse;">${row('Your swimmer', esc(payload.partnerStudentName))}${row('Partner', esc(payload.requesterStudentName))}${row('Course', esc(courseName))}${row('Coach at new time', esc(coachName))}${row('Current time', nowWhen)}${row('Proposed new time', newWhen)}</table><p style="color: #c9a84c; font-weight: 600;">Please confirm or decline on your dashboard within 15 minutes${payload.deadline ? ` (by ${esc(payload.deadline)} Pacific time)` : ''}. If there is no answer by then, the request lapses and the lesson stays at its current time.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #1a2744; color: white; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Review Request</a></div><p style="color: #999; font-size: 12px; margin-top: 16px;">Moving the lesson does not change the points either family paid.</p></div></div>`
+
+  } else if (type === 'partner_reschedule_not_moved') {
+    // The other half of the conversation above (found 2026-10-07): a request
+    // that was declined, withdrawn, lapsed or could not be booked used to end
+    // in silence, and the family who asked never learned the outcome.
+    const row = (label: string, value: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">${label}</td><td style="padding: 8px 0; font-weight: 600;">${value}</td></tr>`
+    const fmt = (d?: string) => d ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T00:00:00Z' : d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : ''
+    const proposed = `${fmt(payload.newDate)}${payload.newTime ? ', ' + esc(payload.newTime) : ''}`
+    const why = payload.rescheduleOutcome === 'declined'
+      ? 'The request to move this 1-on-2 lesson was declined.'
+      : payload.rescheduleOutcome === 'withdrawn'
+      ? 'The request to move this 1-on-2 lesson was withdrawn by the family who made it.'
+      : payload.rescheduleOutcome === 'expired'
+      ? 'The request to move this 1-on-2 lesson was not confirmed within 15 minutes, so it has lapsed.'
+      : 'The proposed new time was no longer available, so this 1-on-2 lesson could not be moved.'
+    subject = `Lesson Not Moved – ${courseName} stays on ${formattedDate}`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Lesson Not Moved</h2><p>Hi ${esc(parentName)},</p><p>${why}${proposed ? ` (proposed: ${proposed})` : ''}</p><p><strong>Your lesson stays at its original time:</strong></p><table style="width: 100%; border-collapse: collapse;">${row('Student', esc(studentName))}${partnerName ? row('Partner', esc(partnerName)) : ''}${row('Course', esc(courseName))}${row('Coach', esc(coachName))}${row('Date', formattedDate)}${row('Time', esc(time))}</table><p style="color: #666;">No points were used or changed.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
   } else if (type === 'invoice') {
+    // The desk sales pass the receipt's own link, and it is shown (found
+    // 2026-10-07: it was passed and never rendered, and the dashboard could
+    // not reach a desk sale's receipt). The PDF route sends a signed-out
+    // reader to sign in and back.
     subject = `🧾 Invoice ${invoiceNumber} – Manta Shark Aquatics`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${esc(invoiceNumber)}</h2><p>Hi ${esc(parentName)},</p><p>Thank you for your payment! Your invoice is ready. Log in to your dashboard to view and download it anytime.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${esc(invoiceNumber)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;"><a href="https://www.mantasharkaquatics.net/dashboard" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Go to My Dashboard</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${esc(invoiceNumber)}</h2><p>Hi ${esc(parentName)},</p><p>Thank you for your payment! Your invoice is ready.${invoiceUrl ? ' Download it with the button below (sign in first if asked), or find it any time in the points history on your dashboard.' : ' Log in to your dashboard to view and download it anytime.'}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${esc(invoiceNumber)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;">${invoiceUrl ? `<a href="${esc(invoiceUrl)}" style="background: #c9a84c; color: #1a2744; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-block; margin: 0 4px 8px;">Download Receipt</a>` : ''}<a href="https://www.mantasharkaquatics.net/dashboard" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block; margin: 0 4px 8px;">Go to My Dashboard</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
   } else if (type === 'refund_issued') {
     // No apology and no upsell. They asked for their money back and they are
     // getting it; the only thing this has to do is say how much, when it lands,
@@ -345,7 +387,8 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const names = (payload.studentNames || []).map(esc).join(L === 'en' ? ' & ' : '、')
     // The sentence form ("30-minute 1-on-1"), not the screen label with its
     // "·" (found 2026-10-06).
-    const kind = t('voucher.email.kind.' + (payload.course || '1on1') + ((payload.course || '1on1') === '1on1' ? '.' + (payload.minutes === 60 ? 60 : 30) : ''))
+    const course = payload.course || '1on1'
+    const kind = t('voucher.email.kind.' + course + (course === '1on1' ? '.' + (payload.minutes === 60 ? 60 : 30) : course === '1on2' && payload.minutes === 60 ? '.60' : ''))
     subject = t('voucher.email.subject', { date: by })
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('voucher.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('voucher.email.body', { names, kind, date: by })}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?vouchers=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('voucher.email.button')}</a></div></div></div>`
 
@@ -433,7 +476,10 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const vars = { names, weekday: weekdayName, time: esc(time || ''), coach: esc(coachName || ''), date: day(date), hold: day(payload.expiresOn) }
     const shell = (title: string, inner: string, btnHref: string, btn: string) => `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${title}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p>${inner}<div style="text-align:center; margin: 28px 0 8px;"><a href="${esc(btnHref)}" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${btn}</a></div></div></div>`
     if (type === 'fixed_class_renewal') {
-      subject = t('fixed.email.renew.subject', vars)
+      // Plain text: the escaped names showed "O&#39;Brien" in the subject line
+      // (found 2026-10-07). The escaped vars stay for the HTML body.
+      const plainNames = (payload.studentNames || []).join(L === 'en' ? ' & ' : '、')
+      subject = t('fixed.email.renew.subject', { ...vars, names: plainNames })
       html = shell(t('fixed.email.renew.title'), `<p style="color: #16294a; line-height: 1.6;">${t('fixed.email.renew.body', vars)}</p>`,
         payload.linkUrl || 'https://www.mantasharkaquatics.net/dashboard', t('fixed.email.renew.button'))
     } else {
@@ -459,8 +505,18 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const cause = payload.reversalKind === 'chargeback'
       ? 'Your bank has reversed this payment at your request.'
       : "Your bank wasn't able to complete this payment, so the funds never reached us."
+    // The released lessons are listed here because this is the only notice
+    // the family gets: no booking_cancelled email goes out for them. It used
+    // to promise "a cancellation notice for each one" that never came, and
+    // name none of them (found 2026-10-07).
+    const releasedList = (payload.releasedLessons || []).map(l => {
+      const d = new Date(l.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+      const who = (l.studentNames || []).filter(Boolean).join(' & ')
+      return `<tr><td style="padding: 6px 16px 6px 0; font-weight: 600; white-space: nowrap; vertical-align: top;">${esc(d)} &middot; ${esc(formatTime12h(l.time))}</td><td style="padding: 6px 0; color: #666;">${esc(who)}</td></tr>`
+    }).join('')
     const releasedLine = released > 0
-      ? `<p>To keep this from growing, we've released ${released} lesson${released === 1 ? '' : 's'} you hadn't taken yet and put those points back. You'll see a cancellation notice for each one.</p>`
+      ? `<p>To keep this from growing, we've cancelled ${released} lesson${released === 1 ? '' : 's'} you hadn't taken yet and put those points back.${releasedList ? ' These lessons will not take place:' : ''}</p>`
+        + (releasedList ? `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">${releasedList}</table>` : '')
       : ''
     const owedLine = owed > 0
       ? `<p>That leaves <strong>${owed.toLocaleString('en-US')} points</strong> to settle for lessons already taken. Booking is paused until the balance is settled.</p>`

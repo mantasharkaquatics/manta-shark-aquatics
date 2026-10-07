@@ -22,8 +22,9 @@ export const maxDuration = 60
  * Order matters, because PostgREST gives us no transaction:
  *  1. everything is read and checked first, so a bad request writes nothing;
  *     then the pending report is claimed, so a second confirm stops here;
- *  2. the level moves (history row first, see setStudentLevel);
- *  3. the scores go live, then the note, then the recommendation is closed;
+ *  2. the scores go live, then the level moves (history row first, see
+ *     setStudentLevel) -- in that order so the swimmer starts at stage 1;
+ *  3. the note, then the recommendation is closed;
  *  4. the family's report is written (course, frequency, the 60-day credit);
  *  5. the report itself is approved LAST. Reviews lists the card for as long
  *     as the report is pending, so any failure before this point leaves the
@@ -121,15 +122,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error }, { status })
   }
 
-  // 2. The level.
-  if (!student.current_level) {
-    const moved = await setStudentLevel(svc, { studentId: rec.student_id, toLevel: level, adminId, notes: 'Assessment' })
-    if (!moved.ok) return fail(moved.error, moved.status)
-  }
-
-  // 3. The scores go live. After the level, so the stage trigger reads the
-  // level the swimmer is now in. last_updated_by is an FK to coaches: the
-  // lesson's coach goes there; who confirmed is on the history row.
+  // 2. The scores go live, THEN the level (owner's rule: whatever level the
+  // assessment picks, everyone starts it at stage 1). The scores used to be
+  // written after the level, "so the stage trigger reads the level the
+  // swimmer is now in" -- and it did: check_level_upgrade moved a swimmer the
+  // coach scored "on their own" on every stage-1 skill straight to stage 2
+  // (or 3), under the coach's name in level_upgrades, while the report, the
+  // email and the FAQ all said stage 1 (found 2026-10-07). Written while the
+  // swimmer has no level, the trigger returns at once (current_level IS
+  // NULL), and setStudentLevel then puts them at stage 1. The scores still
+  // stand in the live table and form the report; the trigger acts on them at
+  // the next approved lesson report, which is the normal way a stage moves.
+  //
+  // A retry after the level was already set (a failure further down) writes
+  // the scores with the level in place. Then the stage is read before and
+  // after, and if this write moved it, it is put back -- recorded in
+  // level_upgrades like every other stage move.
+  // last_updated_by is an FK to coaches: the lesson's coach goes there; who
+  // confirmed is on the history row.
   const now = new Date().toISOString()
   const upserts = Object.entries(snapshot).map(([skill_id, pct]) => ({
     student_id: rec.student_id,
@@ -138,9 +148,44 @@ export async function POST(req: NextRequest) {
     last_updated_by: hist.coach_id ?? null,
     last_updated_at: now,
   }))
+  let stageBefore: number | null = null
+  if (student.current_level && upserts.length > 0) {
+    const { data: s0, error: s0Err } = await svc.from('students').select('current_stage').eq('id', rec.student_id).single()
+    if (s0Err) return fail(s0Err.message, 500)
+    stageBefore = Number(s0?.current_stage) || 1
+  }
   if (upserts.length > 0) {
     const { error } = await svc.from('student_skill_progress').upsert(upserts, { onConflict: 'student_id,skill_id' })
     if (error) return fail(error.message, 500)
+  }
+  if (!student.current_level) {
+    const moved = await setStudentLevel(svc, { studentId: rec.student_id, toLevel: level, adminId, notes: 'Assessment' })
+    if (!moved.ok) return fail(moved.error, moved.status)
+  } else if (stageBefore != null) {
+    const { data: s1 } = await svc.from('students').select('current_level, current_stage').eq('id', rec.student_id).single()
+    const stageAfter = Number(s1?.current_stage) || 1
+    if (s1 && stageAfter > stageBefore) {
+      // History row first, then the student, as setStudentLevel does.
+      const { data: back, error: backErr } = await svc.from('level_upgrades').insert({
+        student_id: rec.student_id,
+        from_level: s1.current_level,
+        to_level: s1.current_level,
+        from_stage: stageAfter,
+        to_stage: stageBefore,
+        upgraded_by: adminId,
+        notes: 'Assessment: the level starts at stage 1',
+      }).select('id').single()
+      if (backErr || !back) return fail(backErr?.message || 'Could not record the stage change', 500)
+      const { data: reverted, error: stErr } = await svc.from('students').update({ current_stage: stageBefore })
+        .eq('id', rec.student_id).eq('current_stage', stageAfter).select('id')
+      if (stErr) {
+        await svc.from('level_upgrades').delete().eq('id', back.id)
+        return fail(stErr.message, 500)
+      }
+      // Moved by someone else in between: nothing was reverted here, so the
+      // history row that says it was goes too.
+      if (!reverted || reverted.length === 0) await svc.from('level_upgrades').delete().eq('id', back.id)
+    }
   }
 
   if (note) {

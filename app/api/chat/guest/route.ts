@@ -6,6 +6,7 @@ import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { getTodayLA } from '@/lib/date'
 import { readJson, badRequest } from '@/lib/http'
 import { translate, isLocale } from '@/lib/i18n/all'
+import { takeSlots, releaseSlot, ipHash as rateIpHash } from '@/lib/ip-rate-limit'
 
 // The chat for visitors who have not signed up (owner, 2026-09-28): every page
 // has the chat button, and someone who is only looking can ask about lessons
@@ -27,6 +28,14 @@ import { translate, isLocale } from '@/lib/i18n/all'
 // characters; a conversation takes PER_THREAD visitor messages; one network
 // (hashed IP, never stored raw) gets PER_IP_DAY messages and NEW_THREADS_IP_DAY
 // new conversations a day.
+//
+// The counts below read first and write after, so they hold only for requests
+// sent one after another: a burst of simultaneous POSTs all read 0, each made
+// a thread and each paid for a model call (found 2026-10-07). The same three
+// limits are therefore also reserved through lib/ip-rate-limit, which writes
+// first and counts after, before anything is written or the model is called.
+// The reservations last a day (that table keeps a day), so PER_THREAD over a
+// conversation's whole life is still the count's job.
 //
 // GET  ?key=<guest_key>             -> { messages }
 // POST { key?, text, locale? }      -> { key, messages }   (429 { limited } when fenced)
@@ -90,25 +99,44 @@ export async function POST(req: NextRequest) {
 
   if (!thread) {
     if (ipThreadIds.length >= NEW_THREADS_IP_DAY) return NextResponse.json({ limited: 'day' }, { status: 429 })
+  } else {
+    const { count } = await svc.from('chat_messages').select('id', { count: 'exact', head: true })
+      .eq('thread_id', thread.id).eq('sender_type', 'parent')
+    if ((count || 0) >= PER_THREAD) return NextResponse.json({ limited: 'thread' }, { status: 429 })
+  }
+  const allIds = [...new Set([...ipThreadIds, ...(thread ? [thread.id] : [])])]
+  if (allIds.length) {
+    const { count: dayCount } = await svc.from('chat_messages').select('id', { count: 'exact', head: true })
+      .in('thread_id', allIds).eq('sender_type', 'parent').gte('created_at', since)
+    if ((dayCount || 0) >= PER_IP_DAY) return NextResponse.json({ limited: 'day' }, { status: 429 })
+  }
+
+  // The reservations that hold under a burst (see the note at the top).
+  const net = rateIpHash(req)
+  const DAY_MS = 86400000
+  const slots = await takeSlots(svc, [
+    { scope: 'guest-chat-msg', key: net, max: PER_IP_DAY, windowMs: DAY_MS },
+    thread
+      ? { scope: 'guest-chat-per-thread', key: 'guest:' + thread.id, max: PER_THREAD, windowMs: DAY_MS }
+      : { scope: 'guest-chat-thread', key: net, max: NEW_THREADS_IP_DAY, windowMs: DAY_MS },
+  ])
+  if (slots.result === 'error') return NextResponse.json({ error: 'unavailable' }, { status: 503 })
+  if (slots.result === 'limited') {
+    return NextResponse.json({ limited: slots.failed === 'guest-chat-per-thread' ? 'thread' : 'day' }, { status: 429 })
+  }
+
+  if (!thread) {
     key = randomUUID()
     const { data: created, error } = await svc.from('chat_threads')
       .insert({ guest_key: key, guest_ip_hash: ip })
       .select('id, mode, parent_id, ai_context_from').single()
     if (error || !created) {
       console.error('[chat/guest] create thread', error)
+      for (const id of slots.ids) await releaseSlot(svc, id)
       return NextResponse.json({ error: 'unavailable' }, { status: 503 })
     }
     thread = created
-    ipThreadIds.push(created.id)
-  } else {
-    const { count } = await svc.from('chat_messages').select('id', { count: 'exact', head: true })
-      .eq('thread_id', thread.id).eq('sender_type', 'parent')
-    if ((count || 0) >= PER_THREAD) return NextResponse.json({ limited: 'thread' }, { status: 429 })
   }
-  const allIds = [...new Set([...ipThreadIds, thread!.id])]
-  const { count: dayCount } = await svc.from('chat_messages').select('id', { count: 'exact', head: true })
-    .in('thread_id', allIds).eq('sender_type', 'parent').gte('created_at', since)
-  if ((dayCount || 0) >= PER_IP_DAY) return NextResponse.json({ limited: 'day' }, { status: 429 })
 
   const threadId = thread!.id
   await svc.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body: text })

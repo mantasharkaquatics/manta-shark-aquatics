@@ -4,8 +4,9 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
-import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, minutesUntil, formatTime12h } from '@/lib/date'
 import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This lesson cannot be moved online. Please contact us and we will move it for you.' }, { status: 400 })
   const today = getTodayLA(), nowMin = getNowMinutesLA()
   const { data: oldSess } = await supabase.from('class_sessions')
-    .select('id, session_date, start_time, course_type_id').eq('id', myBooking.class_session_id).single()
+    .select('id, session_date, start_time, end_time, course_type_id').eq('id', myBooking.class_session_id).single()
   if (!oldSess) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
   if (minutesUntil(oldSess.session_date, String(oldSess.start_time).slice(0, 5), today, nowMin) < 24 * 60)
     return NextResponse.json({ error: 'Bookings within 24 hours cannot be rescheduled online. Please contact us.' }, { status: 400 })
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
   // Verify the new session exists
   const { data: newSession } = await supabase
     .from('class_sessions')
-    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, course_type_id, status, course_types(name), coaches(first_name)')
+    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, end_time, course_type_id, status, course_types(name), coaches(first_name)')
     .eq('id', new_session_id)
     .single()
 
@@ -89,7 +90,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts. Please pick a later time.' }, { status: 400 })
   if (ns.session_date > singleMaxDate(today))
     return NextResponse.json({ error: SINGLE_TOO_FAR_ERROR }, { status: 400 })
-  if ((ns.enrolled_count ?? 0) + 2 > ns.max_students)
+  if ((ns.enrolled_count ?? 0) + 2 > ns.max_students
+      || (await sessionsHeldByInvites(supabase as any, [ns.id])).has(ns.id))
     return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
 
   // Set both sides' pending_action = 'reschedule', pending_new_session_id = new_session_id
@@ -120,6 +122,11 @@ export async function POST(req: NextRequest) {
     if (partnerParent) {
       const ct = Array.isArray((newSession as any).course_types) ? (newSession as any).course_types[0] : (newSession as any).course_types
       const coach = Array.isArray((newSession as any).coaches) ? (newSession as any).coaches[0] : (newSession as any).coaches
+      // The current time, the proposed one and the deadline (found
+      // 2026-10-07): the template showed none of them, and the raw column
+      // ("10:20:00") was passed as the time. date/time are the lesson as it
+      // stands; newDate/newTime what is being asked for.
+      const range = (st: any, en: any) => formatTime12h(String(st)) + (en ? ' \u2013 ' + formatTime12h(String(en)) : '')
       await sendEmail({
           type: 'partner_reschedule_requested',
           to: partnerParent.email,
@@ -128,8 +135,11 @@ export async function POST(req: NextRequest) {
           partnerStudentName: partnerStudent?.full_name || '',
           courseName: ct?.name || '',
           coachName: coach?.first_name || '',
-          date: (newSession as any).session_date,
-          time: (newSession as any).start_time,
+          date: oldSess.session_date,
+          time: range(oldSess.start_time, (oldSess as any).end_time),
+          newDate: ns.session_date,
+          newTime: range(ns.start_time, ns.end_time),
+          deadline: new Date(expiresAt).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }),
         })
     }
   } catch {}

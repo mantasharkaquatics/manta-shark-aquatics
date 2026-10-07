@@ -15,7 +15,7 @@
 import { getTodayLA } from '@/lib/date'
 import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
 import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
-import { overlayFromRows } from '@/lib/skill-progress-sync'
+import { pictureAsOfRows } from '@/lib/skill-progress-sync'
 
 /**
  * Every row a query matches, a page at a time. The API hands back at most
@@ -587,10 +587,12 @@ export async function loadReviewQueues(
           : []
         const historyByStudent: Record<string, any[]> = {}
         for (const h of historyRows) (historyByStudent[h.student_id] ||= []).push(h)
-        const pictureAsOf = (studentId: string, date: string | null | undefined) => {
-          const rows = (historyByStudent[studentId] || []).filter((h: any) => !date || String(h.session_date) <= String(date))
-          return { ...(progressByStudent[studentId] || {}), ...overlayFromRows(rows) }
-        }
+        // The approved picture is rolled back to the missing lesson's date
+        // too, not only the pending one: the live table holds scores approved
+        // for LATER lessons (found 2026-10-07; lib/skill-progress-sync
+        // pictureAsOfRows).
+        const pictureAsOf = (studentId: string, date: string | null | undefined) =>
+          pictureAsOfRows(progressByStudent[studentId] || {}, historyByStudent[studentId] || [], date)
 
         missingProgressList = dedupedCandidates
           .filter((c: any) => studentMap[c.student_id])

@@ -7,6 +7,7 @@ import StudentNotesPanel from '@/components/StudentNotesPanel'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { allRows } from '@/lib/db-paging'
 import { TRIAL_PRICE_CENTS } from '@/lib/plans'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
@@ -391,6 +392,15 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [recurSkips, setRecurSkips] = useState<string[]>([])
   const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; points: any } | null>(null)
   const [recurLoading, setRecurLoading] = useState(false)
+  // A preview belongs to the swimmers, course and length it was made for.
+  // Changing any of them used to leave it up, and "Confirm N lessons" then
+  // booked the old preview's dates for the new choice -- points the desk had
+  // never seen quoted (found 2026-10-07). Changing them now drops it, and a
+  // preview that comes back after a change is ignored.
+  const recurKey = JSON.stringify([formStudent, formStudent2, formCourse, hourMode])
+  const recurKeyRef = useRef(recurKey)
+  recurKeyRef.current = recurKey
+  useEffect(() => { setRecurPreview(null) }, [recurKey])
   const [blocks, setBlocks] = useState<Block[]>([])
   const [blockAllDay, setBlockAllDay] = useState(false)
   const [blockStart, setBlockStart] = useState('')
@@ -513,6 +523,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   async function fetchRecurPreview(skips: string[]) {
     if (!selectedSlot || !formCourse || !formStudent) { setError(t('admin.booking.err.pickCourseStudentFirst')); return }
+    // A 1-on-2 is always two swimmers (owner, 2026-10-07); the server refuses one.
+    if (courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && !formStudent2) { setError(t('admin.booking.err.needTwo')); return }
+    const key = recurKey
     setRecurLoading(true)
     setError('')
     try {
@@ -532,7 +545,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || t('admin.booking.err.previewFailed')); setRecurPreview(null) }
+      if (key !== recurKeyRef.current) { /* the choice changed while this was loading */ }
+      else if (!res.ok) { setError(data.error || t('admin.booking.err.previewFailed')); setRecurPreview(null) }
       else setRecurPreview(data)
     } catch { setError(t('admin.booking.err.previewRetry')) }
     setRecurLoading(false)
@@ -540,6 +554,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   async function handleRecurCommit() {
     if (!selectedSlot || !recurPreview) return
+    if (courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && !formStudent2) { setError(t('admin.booking.err.needTwo')); return }
     const okDates = recurPreview.candidates.filter(c => c.status === 'ok').map(c => c.date)
     if (okDates.length === 0) { setError(t('admin.booking.err.noBookableDates')); return }
     setSaving(true)
@@ -631,24 +646,37 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       from = toDateStr(anchor)
       to = toDateStr(anchor)
     }
-    const { data } = await supabase
+    // Only the dates on screen, a page at a time. The lower bound went missing
+    // in June with a duplicate select line (37e9910): every session since the
+    // school opened was read, oldest first, and past the API's 1,000-row cap
+    // the dates being looked at were the ones cut off -- the calendar showed
+    // a full day as empty (found 2026-10-07).
+    const { data, error: readErr } = await allRows(() => supabase
       .from('class_sessions')
       .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes)')
+      .gte('session_date', from)
       .lte('session_date', to)
       .neq('status', 'cancelled')
       .order('session_date')
       .order('start_time')
+      .order('id'))
+    if (readErr) console.error('calendar sessions: read failed:', readErr.message || readErr)
     if (data) {
-      // Fetch bookings via server API (bypasses RLS); only sessions with enrolled > 0
-      const sessionsWithBookings = await Promise.all(data.map(async (s: any) => {
-        if (s.enrolled_count === 0) return s
+      // Bookings via the server API (bypasses RLS), in one request for every
+      // session that has anyone in it -- it used to be one request each.
+      const booked = data.filter((s: any) => s.enrolled_count > 0).map((s: any) => s.id)
+      let bySession: Record<string, any[]> | null = null
+      if (booked.length > 0) {
         try {
-          const res = await fetch(`/api/admin/session-bookings?session_id=${s.id}`)
-          if (!res.ok) return s
-          const bookings = await res.json()
-          return { ...s, bookings: Array.isArray(bookings) ? bookings : [] }
-        } catch { return s }
-      }))
+          const res = await fetch('/api/admin/session-bookings', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_ids: booked }),
+          })
+          if (res.ok) bySession = (await res.json())?.bySession || null
+        } catch {}
+      }
+      const sessionsWithBookings = data.map((s: any) =>
+        s.enrolled_count === 0 || !bySession ? s : { ...s, bookings: Array.isArray(bySession[s.id]) ? bySession[s.id] : [] })
       setSessions(sessionsWithBookings as Session[])
       // Compute cross-account 1on2 sessions
       const crossIds = new Set<string>()
@@ -1918,16 +1946,20 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                     </div>
                     {oneCancel === b.id && (
                       <div className="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 p-3">
-                        <p className="text-sm text-red-200 font-medium">{t('admin.booking.one.title', { name: student?.full_name ?? '' })}</p>
+                        {/* A 1-on-2 is one lesson: both seats go together, whichever
+                            family each belongs to (owner, 2026-10-07). */}
+                        <p className="text-sm text-red-200 font-medium">{ct.slug === '1on2' ? t('admin.booking.one.titlePair') : t('admin.booking.one.title', { name: student?.full_name ?? '' })}</p>
                         <p className="text-xs text-white/50 mt-1">
-                          {b.lesson_group_id ? t('admin.booking.one.bodyHour') : t('admin.booking.one.body')}
+                          {ct.slug === '1on2' ? t('admin.booking.one.bodyPair') : b.lesson_group_id ? t('admin.booking.one.bodyHour') : t('admin.booking.one.body')}
                         </p>
                         <div className="flex flex-wrap gap-2 mt-3">
                           <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'refund')}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 bg-red-500 text-white disabled:opacity-50">
                             {oneBusy === 'refund' ? t('admin.booking.workingEllipsis') : t('admin.booking.one.refund')}
                           </button>
-                          {ct.slug !== '1on2' && (
+                          {/* One 1-on-2 voucher names both children of ONE family;
+                              two families' pair is refunded or kept instead. */}
+                          {(ct.slug !== '1on2' || (bookings.length === 2 && bookings[0].parent_id === bookings[1].parent_id)) && (
                             <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'voucher')}
                               className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 border border-emerald-400/50 text-emerald-200 disabled:opacity-50">
                               {oneBusy === 'voucher' ? t('admin.booking.workingEllipsis') : t('admin.booking.one.voucher')}
@@ -1955,7 +1987,8 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
             </div>
           )}
           {oneMsg && <p className="text-xs text-white/70 mt-3">{oneMsg}</p>}
-          {liveCount < session.max_students && (
+          {/* A 1-on-2 is booked as a pair from the calendar, never one seat at a time. */}
+          {liveCount < session.max_students && ct.slug !== '1on2' && (
             <div className="mt-4 pt-4 border-t border-white/10">
               <p className="text-xs text-white/40 uppercase tracking-wider mb-2">{t('admin.booking.add.title')}</p>
               <input value={addQuery} onChange={e => { setAddQuery(e.target.value); setAddError(''); setConfirmAddId(null) }} placeholder={t('admin.booking.add.placeholder')}

@@ -8,7 +8,7 @@ import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
 import { TOPUP_PRESETS, presetLessons } from '@/lib/points'
 import { walletSummary } from '@/lib/points-wallet'
-import { getTodayLA, getNowMinutesLA, formatTime12h, formatDateLA, SLOT_STEP_MINUTES } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, formatTime12h, formatDateLA, minutesUntil, SLOT_STEP_MINUTES } from '@/lib/date'
 import { cancelLesson } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
 import { ASSESSMENT_MAX_DAYS } from '@/lib/assessment-slot'
@@ -61,12 +61,14 @@ function replyLang(text: string | null | undefined, preferred: string | null | u
 const MODEL = 'claude-sonnet-4-6'
 const CANCEL_LOCK_MINUTES = 24 * 60
 
+// Real elapsed minutes, through lib/date like cancelLesson itself (found
+// 2026-10-07). This used to count every day as 1440 wall-clock minutes, so in
+// the hour before a daylight-saving change the chat and the server disagreed
+// about the 24-hour line: on spring-forward a lesson 23h40m away was offered
+// as cancellable online and then judged late by the server (grace spent,
+// voucher instead of points); on fall-back the chat refused one it could cancel.
 function minutesUntilSession(sessionDate: string, startTime: string): number {
-  const dayDiff = Math.round(
-    (Date.parse(sessionDate + 'T00:00:00Z') - Date.parse(getTodayLA() + 'T00:00:00Z')) / 86400000
-  )
-  const [h, m] = startTime.split(':').map(Number)
-  return dayDiff * 1440 + (h * 60 + m) - getNowMinutesLA()
+  return minutesUntil(sessionDate, String(startTime).slice(0, 5), getTodayLA(), getNowMinutesLA())
 }
 
 async function getTrialSlots(svc: any, date: string, coachId: string | undefined, parentId: string) {
@@ -348,10 +350,16 @@ export async function POST(req: NextRequest) {
     // did. The session lookup is chunked for the same reason (lib/db-paging).
     const { data: bookings } = await allRows(() => svc
       .from('bookings')
-      .select('id, student_id, class_session_id, status, partner_booking_id, points_charged, is_trial')
+      // lesson_group_id and voucher_id ride along for get_reschedule_link: a
+      // 60-minute lesson needs its group id on the booking page, and a make-up
+      // cannot be moved at all (found 2026-10-07).
+      .select('id, student_id, class_session_id, status, partner_booking_id, points_charged, is_trial, lesson_group_id, voucher_id')
       .eq('parent_id', parent!.id)
-      .neq('status', 'cancelled')
-      .neq('status', 'pending_partner')
+      // Only lessons the family actually holds (found 2026-10-07). A cart item
+      // (in_cart) or a hold waiting on Stripe (pending_payment) is not a booked
+      // lesson yet: listing one as "upcoming" let the model offer to cancel a
+      // cart item, which the server refuses.
+      .not('status', 'in', '("cancelled","pending_partner","in_cart","pending_payment")')
       .order('id', { ascending: true }))
     const rows: any[] = bookings
     if (!rows.length) return []
@@ -466,8 +474,15 @@ export async function POST(req: NextRequest) {
         escalate = true
         return { error: 'Only part of this 60-minute lesson could be cancelled. The conversation has been flagged for a team member.' }
       }
-      if (result.status === 409) {
+      // By the reason, not the status alone (found 2026-10-07): cancelLesson
+      // answers 409 for other refusals too, and "already cancelled" was then
+      // passed on for a lesson that was still booked.
+      if (result.status === 409 && result.error === 'Already cancelled') {
         return { error: 'This lesson was already cancelled. No further action was taken.' }
+      }
+      if (result.status === 409) {
+        escalate = true
+        return { error: `This lesson could not be cancelled online (${result.error || 'refused'}). Nothing was changed. The conversation has been flagged for a team member.` }
       }
       if (!result.ok) {
         escalate = true
@@ -510,6 +525,19 @@ export async function POST(req: NextRequest) {
         // said "within four weeks", which the model passed on (found 2026-10-05).
         if (fb?.fixed_class_id) return { error: `This lesson is part of a fixed weekly class and cannot be rescheduled. Taking leave at least 24 hours ahead turns it into a make-up voucher for a make-up dated within ${LEAVE_WINDOW_DAYS} days before or after this lesson; it can be booked right away. (Inside 24 hours, leave uses the child's monthly grace and that voucher lasts 4 weeks.)` }
       }
+      // A make-up lesson (booked with a voucher) is not moved either; the
+      // booking route refused it only after the parent had picked a new time
+      // (found 2026-10-07). Cancelling it in time gives the voucher back.
+      if (row._booking.voucher_id) {
+        return { error: 'This is a make-up lesson booked with a make-up voucher, and make-up lessons cannot be rescheduled. If the family cancels it at least 24 hours ahead, the make-up voucher goes back to their account and they can book another time with it from their dashboard.' }
+      }
+      // A 60-minute lesson shared with another family has no online path that
+      // moves both halves and both families together; the dashboard sends it
+      // to the desk too.
+      if (row._booking.lesson_group_id && row._booking.partner_booking_id) {
+        escalate = true
+        return { error: 'This 60-minute lesson is shared with another family and cannot be moved online. The conversation has been flagged for a team member, who will arrange the new time.' }
+      }
       if (row.course_slug === 'assessment') {
         escalate = true
         return { error: "A Swim Assessment can't be moved online. The conversation has been flagged for a team member." }
@@ -520,7 +548,12 @@ export async function POST(req: NextRequest) {
       }
       const b = row._booking
       const partnerParam = b.partner_booking_id ? `&reschedule_partner_booking_id=${b.partner_booking_id}` : ''
-      const url = `${origin}/booking?reschedule_booking_id=${b.id}&reschedule_slug=${row.course_slug}&reschedule_student_id=${b.student_id}${partnerParam}`
+      // A 60-minute lesson: the booking page switches to hour mode only when it
+      // is given the group id (as the dashboard's own link does). Without it
+      // the parent was shown 30-minute times and refused after picking one
+      // (found 2026-10-07).
+      const groupParam = b.lesson_group_id ? `&reschedule_group_id=${b.lesson_group_id}` : ''
+      const url = `${origin}/booking?reschedule_booking_id=${b.id}&reschedule_slug=${row.course_slug}&reschedule_student_id=${b.student_id}${partnerParam}${groupParam}`
       return { url, note: 'The current lesson is only cancelled after the parent confirms the new time on the booking page.' }
     }
 

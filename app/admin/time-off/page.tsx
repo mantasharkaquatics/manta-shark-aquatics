@@ -56,10 +56,13 @@ export default async function AdminTimeOffPage() {
     const { data: bookings } = sessIds.length
       ? await svc
           .from('bookings')
-          .select('id, class_session_id, student_id, lesson_group_id, status, block_notice_sent_at, cancellation_reason')
+          .select('id, class_session_id, student_id, lesson_group_id, status, block_notice_sent_at, cancellation_reason, is_trial, pending_expires_at')
           .in('class_session_id', sessIds)
-          .or('status.eq.confirmed,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
+          .or('status.eq.confirmed,status.eq.pending_partner,and(status.eq.pending_payment,is_trial.eq.true),and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
       : { data: [] }
+    // An unanswered 1-on-2 invitation counts while it is still open.
+    const nowMs = Date.now()
+    const liveBookings = (bookings || []).filter((x: any) => x.status !== 'pending_partner' || (!!x.pending_expires_at && Date.parse(x.pending_expires_at) > nowMs))
     for (const b of allBlocks as any[]) {
       const overlapped = (sessions || []).filter((s: any) => {
         if (s.coach_id !== b.coach_id || s.session_date !== b.date) return false
@@ -67,14 +70,16 @@ export default async function AdminTimeOffPage() {
         return toM(s.start_time) < toM(b.end_time) && toM(s.end_time) > toM(b.start_time)
       })
       const ids = new Set(overlapped.map((s: any) => s.id))
-      const bs = (bookings || []).filter((x: any) => ids.has(x.class_session_id))
+      const bs = liveBookings.filter((x: any) => ids.has(x.class_session_id))
       // Count lessons, not booking rows: a 60-minute lesson is two rows and
       // read as "2 affected" (found 2026-10-04).
       const lessons = (xs: any[]) => new Set(xs.map((x: any) => `${x.lesson_group_id || x.class_session_id}|${x.student_id}`)).size
+      // Still needing the desk: a booked lesson, an assessment waiting for
+      // payment, or a cancelled lesson whose email failed (found 2026-10-07).
       stats[b.id] = {
-        pending: lessons(bs.filter((x: any) => x.status === 'confirmed' && !x.block_notice_sent_at)),
-        notified: lessons(bs.filter((x: any) => x.status === 'confirmed' && x.block_notice_sent_at)),
-        handled: lessons(bs.filter((x: any) => x.status === 'cancelled')),
+        pending: lessons(bs.filter((x: any) => !x.block_notice_sent_at)),
+        notified: lessons(bs.filter((x: any) => x.status !== 'cancelled' && x.block_notice_sent_at)),
+        handled: lessons(bs.filter((x: any) => x.status === 'cancelled' && x.block_notice_sent_at)),
       }
     }
   }

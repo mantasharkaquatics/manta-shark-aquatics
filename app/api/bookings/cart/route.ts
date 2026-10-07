@@ -7,6 +7,7 @@ import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 
 // Parent shopping cart. Items are real `in_cart` bookings so the DB trigger
 // counts them into enrolled_count (slot is reserved the moment it enters the
@@ -212,8 +213,11 @@ export async function POST(req: NextRequest) {
       .in('status', ['open', 'full'])
     const overlapsK = (c: any) => { const s0 = toMinK(c.start_time); const e0 = c.end_time ? toMinK(c.end_time) : s0 + 30; return kStart < e0 && kEnd > s0 }
     const conflicts = (daySess || []).filter(overlapsK)
+    // A 1-on-2 invitation still waiting for an answer holds its session even
+    // though its seats are not counted yet (lib/bookings/invite-holds).
+    const heldK = await sessionsHeldByInvites(svc, conflicts.filter((c: any) => (c.enrolled_count || 0) <= 0).map((c: any) => c.id))
     const sameCourse = conflicts.find((c: any) => c.course_type_id === course_type_id && String(c.start_time).slice(0, 5) === start_time)
-    if (conflicts.some((c: any) => c !== sameCourse && c.enrolled_count > 0))
+    if (conflicts.some((c: any) => c !== sameCourse && (c.enrolled_count > 0 || heldK.has(c.id))))
       return NextResponse.json({ error: 'The coach already has another class at this time. Please pick another time.' }, { status: 409 })
     {
       const { data: mine } = await svc.from('bookings')
@@ -227,7 +231,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'This swimmer already has a lesson at this time. Please pick another time.' }, { status: 409 })
       }
     }
-    if (sameCourse && sameCourse.enrolled_count >= sameCourse.max_students)
+    if (sameCourse && (sameCourse.enrolled_count >= sameCourse.max_students || heldK.has(sameCourse.id)))
       return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
 
     // Duplicate: same student already has an active/in-cart booking on this slot

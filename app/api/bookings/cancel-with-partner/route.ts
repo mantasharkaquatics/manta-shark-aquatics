@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { cancelLesson } from '@/lib/bookings/cancel'
+import { cancelLesson, type ExpectedOutcome } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -42,13 +42,19 @@ export async function POST(req: NextRequest) {
   // which meant the chat assistant -- calling the library directly -- cancelled
   // one half of an hour and told the family it was done. It belongs next to the
   // cancellation itself, so both callers get it.
-  const result = await cancelLesson(supabase, booking_id, parentId)
+  // What the parent's dialog said would happen. Optional (the chat assistant
+  // and older pages send none); when sent, a different outcome now is refused
+  // with OUTCOME_CHANGED rather than carried out (found 2026-10-07).
+  const EXPECTED: ExpectedOutcome[] = ['refund', 'leave', 'grace', 'restore', 'keep']
+  const expect = EXPECTED.includes(body.expected_outcome) ? body.expected_outcome as ExpectedOutcome : undefined
+  const result = await cancelLesson(supabase, booking_id, parentId, { expect: parentId ? expect : undefined })
 
   if (!result.ok) {
     return NextResponse.json({
       error: result.error,
       ...(result.cancelledBookingIds.length ? { cancelled_booking_ids: result.cancelledBookingIds } : {}),
       ...(result.remainingBookingIds ? { remaining_booking_ids: result.remainingBookingIds } : {}),
+      ...(result.outcomeNow ? { outcome_now: result.outcomeNow } : {}),
     }, { status: result.status })
   }
 

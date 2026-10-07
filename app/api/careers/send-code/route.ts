@@ -3,11 +3,23 @@ import { serviceClient } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { getApplicant, generateCode, sha256 } from '@/lib/applicant-auth'
+import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
 
 const CODE_TTL_MINUTES = 10
 const RESEND_COOLDOWN_SECONDS = 60
+// Fences on top of the per-applicant cooldown (found 2026-10-07). Signing up
+// as an applicant does not prove the phone is yours, so the cooldown alone let
+// anyone text a stranger's number once a minute, all day, from as many
+// accounts as they liked -- and a burst of parallel requests all read "nothing
+// sent yet" and all went out. Same limits as the parent sign-up code
+// (app/api/auth/send-otp), plus daily caps per number/address and per
+// applicant (more applicant accounts with the same number share the first).
+const MAX_PER_DESTINATION_PER_HOUR = 5
+const MAX_PER_DESTINATION_PER_DAY = 10
+const MAX_PER_APPLICANT_PER_DAY = 10
+const MAX_PER_IP_PER_HOUR = 10
 
 export async function POST(req: Request) {
   const applicant = await getApplicant()
@@ -56,6 +68,42 @@ export async function POST(req: Request) {
   }
 
   const destination = channel === 'email' ? applicant.email : applicant.phone
+
+  // The read above answers an honest caller with the exact wait; these
+  // reservations are what hold under a burst. takeSlots reserves first and
+  // counts after, so only the first through each limit go on, and a failed
+  // send gives its reservations back. The destination is counted, not the
+  // applicant alone, so many accounts carrying one victim's number share
+  // one budget.
+  const destKey = keyHash(channel, String(destination || ''))
+  const slots = await takeSlots(supabase, [
+    { scope: 'careers-code-cooldown', key: destKey, max: 1, windowMs: RESEND_COOLDOWN_SECONDS * 1000 },
+    { scope: 'careers-code-hour', key: destKey, max: MAX_PER_DESTINATION_PER_HOUR, windowMs: 60 * 60 * 1000 },
+    { scope: 'careers-code-day', key: destKey, max: MAX_PER_DESTINATION_PER_DAY, windowMs: 24 * 60 * 60 * 1000 },
+    { scope: 'careers-code-applicant-day', key: applicant.id, max: MAX_PER_APPLICANT_PER_DAY, windowMs: 24 * 60 * 60 * 1000 },
+    { scope: 'careers-send-code', key: ipHash(req), max: MAX_PER_IP_PER_HOUR, windowMs: 60 * 60 * 1000 },
+  ])
+  if (slots.result === 'error') {
+    return NextResponse.json({ error: 'Could not send the code. Please try again.' }, { status: 500 })
+  }
+  if (slots.result === 'limited') {
+    if (slots.failed === 'careers-code-cooldown') {
+      return NextResponse.json(
+        { error: `Please wait ${RESEND_COOLDOWN_SECONDS} seconds before requesting another code.`, retryAfter: RESEND_COOLDOWN_SECONDS },
+        { status: 429 }
+      )
+    }
+    const error =
+      slots.failed === 'careers-code-hour'
+        ? channel === 'email'
+          ? 'Too many codes requested for this email address. Please try again later.'
+          : 'Too many codes requested for this number. Please try again later.'
+        : slots.failed === 'careers-code-day' || slots.failed === 'careers-code-applicant-day'
+          ? 'Too many codes requested today. Please try again tomorrow.'
+          : 'Too many codes requested from this network. Please try again later.'
+    return NextResponse.json({ error }, { status: 429 })
+  }
+
   const code = generateCode()
 
   const sent =
@@ -75,6 +123,7 @@ export async function POST(req: Request) {
         )
 
   if (!sent.ok) {
+    for (const id of slots.ids) await releaseSlot(supabase, id)
     return NextResponse.json({ error: sent.reason }, { status: 502 })
   }
 

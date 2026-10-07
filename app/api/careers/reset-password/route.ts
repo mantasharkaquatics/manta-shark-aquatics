@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/api-auth'
 import { normalizeEmail, sha256, hashPassword, passwordProblem } from '@/lib/applicant-auth'
+import { takeSlot, ipHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
 
 const MAX_ATTEMPTS = 5
+// Code guesses one network may make in an hour, across all applicants (found
+// 2026-10-07). This route needs no sign-in, so the per-code cap below is the
+// only other fence.
+const MAX_PER_IP_PER_HOUR = 20
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -22,6 +27,14 @@ export async function POST(req: NextRequest) {
   if (problem) return NextResponse.json({ error: problem }, { status: 400 })
 
   const svc = serviceClient()
+
+  const slot = await takeSlot(svc, 'careers-reset-password', ipHash(req), MAX_PER_IP_PER_HOUR, 60 * 60 * 1000)
+  if (slot.result === 'error') {
+    return NextResponse.json({ error: 'Could not check the code. Please try again.' }, { status: 500 })
+  }
+  if (slot.result === 'limited') {
+    return NextResponse.json({ error: 'Too many attempts from this network. Please try again later.' }, { status: 429 })
+  }
 
   const { data: applicant } = await svc
     .from('applicants')
@@ -52,11 +65,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many attempts. Request a new code.' }, { status: 429 })
   }
 
+  // Spend the attempt BEFORE comparing, as a compare-and-swap on the count
+  // just read (found 2026-10-07, the same fix as the parent verify-otp).
+  // Writing read + 1 after a wrong guess let hundreds of simultaneous guesses
+  // all read 0 and all write 1, so the five-attempt cap barely counted. Now
+  // only one request per value of the counter is compared; the rest are
+  // turned away unchecked.
+  const spent = record.attempt_count || 0
+  let bump = svc
+    .from('applicant_verifications')
+    .update({ attempt_count: spent + 1 })
+    .eq('id', record.id)
+    .is('consumed_at', null)
+  bump = record.attempt_count == null ? bump.is('attempt_count', null) : bump.eq('attempt_count', spent)
+  const { data: claimed, error: bumpError } = await bump.select('id')
+  if (bumpError || !claimed || claimed.length === 0) {
+    return NextResponse.json({ error: 'Could not check the code. Please try again.' }, { status: 409 })
+  }
+
   if (record.code_hash !== sha256(code)) {
-    await svc
-      .from('applicant_verifications')
-      .update({ attempt_count: (record.attempt_count || 0) + 1 })
-      .eq('id', record.id)
     return NextResponse.json({ error: 'That code is not valid.' }, { status: 400 })
   }
 

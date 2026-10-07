@@ -63,8 +63,27 @@ export async function POST(req: NextRequest) {
       const { data: seen } = await supabase
         .from('point_ledger').select('id')
         .eq('stripe_session_id', paymentIntentId).eq('reason', 'purchase').limit(1)
-      if (seen && seen.length)
-        return NextResponse.json({ error: 'This payment has already been recorded.' }, { status: 409 })
+      if (seen && seen.length) {
+        // The desk screen treats "already recorded" as a finished sale (found
+        // 2026-10-07), so say so only when the bonus went in too; otherwise
+        // hand back the button that adds just the missing bonus.
+        if (bonusPoints > 0) {
+          const { data: pur } = await supabase
+            .from('purchases').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
+          const pid = pur && pur.length ? pur[0].id : null
+          if (pid) {
+            const { data: got } = await supabase.from('point_ledger').select('id')
+              .eq('reason', 'admin_grant').contains('pricing', { kind: 'pos_bonus', purchaseId: pid }).limit(1)
+            if (!got || got.length === 0)
+              return NextResponse.json({
+                error: 'This payment has already been recorded, but its bonus points may not have gone in. Do not take payment again — add them with the button below.',
+                purchaseId: pid,
+                retryCredit: { purchaseId: pid, bonusPoints: bonusPoints, bonusNote: bonusNote },
+              }, { status: 409 })
+          }
+        }
+        return NextResponse.json({ error: 'This payment has already been recorded.', alreadyRecorded: true }, { status: 409 })
+      }
       // A purchase row with no ledger line is a sale whose points did not go
       // in. Recording it again would make a second purchase; the retry button
       // finishes the first one instead.
@@ -174,6 +193,11 @@ export async function POST(req: NextRequest) {
         ],
         status: 'sent',
         stripe_payment_intent_id: paymentIntentId || null,
+        // The key the family's points statement finds this receipt by: the
+        // ledger row names this purchase in its pricing. Without it a desk
+        // sale's receipt could not be reached from the dashboard the email
+        // sends them to (found 2026-10-07; app/api/parent/wallet).
+        stripe_session_id: `pos:${purchase.id}`,
         notes: noteText || null,
       })
     } catch (e: any) {

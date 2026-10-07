@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/api-auth'
 import { getApplicant, sha256 } from '@/lib/applicant-auth'
+import { takeSlot, ipHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
 
 const MAX_ATTEMPTS = 5
+// Code guesses one network may make in an hour (found 2026-10-07): applicant
+// accounts are free to make, so the per-code cap alone is no limit on volume.
+const MAX_PER_IP_PER_HOUR = 30
 
 export async function POST(req: Request) {
   const applicant = await getApplicant()
@@ -27,6 +31,14 @@ export async function POST(req: Request) {
   }
 
   const supabase = serviceClient()
+
+  const slot = await takeSlot(supabase, 'careers-verify-code', ipHash(req), MAX_PER_IP_PER_HOUR, 60 * 60 * 1000)
+  if (slot.result === 'error') {
+    return NextResponse.json({ error: 'Could not verify that code. Please try again.' }, { status: 500 })
+  }
+  if (slot.result === 'limited') {
+    return NextResponse.json({ error: 'Too many attempts from this network. Please try again later.' }, { status: 429 })
+  }
 
   const { data: record } = await supabase
     .from('applicant_verifications')
@@ -59,13 +71,24 @@ export async function POST(req: Request) {
     )
   }
 
-  if (record.code_hash !== sha256(code)) {
-    const attempts = record.attempt_count + 1
-    await supabase
-      .from('applicant_verifications')
-      .update({ attempt_count: attempts })
-      .eq('id', record.id)
+  // Spend the attempt BEFORE comparing, as a compare-and-swap on the count
+  // just read (found 2026-10-07). Writing read + 1 after a wrong guess let a
+  // burst of simultaneous guesses all read the same count, so five attempts
+  // became five waves. Now only one request per value of the counter is
+  // compared; the rest are turned away unchecked.
+  const attempts = (record.attempt_count ?? 0) + 1
+  let bump = supabase
+    .from('applicant_verifications')
+    .update({ attempt_count: attempts })
+    .eq('id', record.id)
+    .is('consumed_at', null)
+  bump = record.attempt_count == null ? bump.is('attempt_count', null) : bump.eq('attempt_count', record.attempt_count)
+  const { data: claimed, error: bumpError } = await bump.select('id')
+  if (bumpError || !claimed || claimed.length === 0) {
+    return NextResponse.json({ error: 'Could not verify that code. Please try again.' }, { status: 409 })
+  }
 
+  if (record.code_hash !== sha256(code)) {
     const left = MAX_ATTEMPTS - attempts
     return NextResponse.json(
       {

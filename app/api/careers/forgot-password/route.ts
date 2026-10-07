@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { normalizeEmail, sha256, generateCode, hashIp } from '@/lib/applicant-auth'
+import { takeSlot, takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
+
+// Reserve-first fences (found 2026-10-07). The 60-second gap below is read
+// before the email is sent and written after, so a burst all passed it; and
+// every new code here is five more guesses at /api/careers/reset-password.
+const MAX_PER_EMAIL_PER_HOUR = 5
+const MAX_PER_IP_PER_HOUR = 10
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -13,6 +20,16 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
 
   const svc = serviceClient()
+
+  // Per network first, so a sweep through a list of addresses is counted
+  // whether or not they have accounts.
+  const ipSlot = await takeSlot(svc, 'careers-forgot-password', ipHash(req), MAX_PER_IP_PER_HOUR, 60 * 60 * 1000)
+  if (ipSlot.result === 'error') {
+    return NextResponse.json({ error: 'Could not send the email. Please try again.' }, { status: 500 })
+  }
+  if (ipSlot.result === 'limited') {
+    return NextResponse.json({ error: 'Too many requests from this network. Please try again later.' }, { status: 429 })
+  }
 
   const { data: applicant } = await svc
     .from('applicants')
@@ -41,6 +58,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const emailKey = keyHash('email', applicant.email)
+  const slots = await takeSlots(svc, [
+    { scope: 'careers-reset-cooldown', key: emailKey, max: 1, windowMs: 60_000 },
+    { scope: 'careers-reset-hour', key: emailKey, max: MAX_PER_EMAIL_PER_HOUR, windowMs: 60 * 60 * 1000 },
+  ])
+  if (slots.result === 'error') {
+    await releaseSlot(svc, ipSlot.id)
+    return NextResponse.json({ error: 'Could not send the email. Please try again.' }, { status: 500 })
+  }
+  if (slots.result === 'limited') {
+    return NextResponse.json({ error: 'Please wait a moment before requesting another code.' }, { status: 429 })
+  }
+
   const code = generateCode()
   const sent = await sendEmail({
     type: 'applicant_password_reset',
@@ -49,6 +79,7 @@ export async function POST(req: NextRequest) {
     applicantName: applicant.legal_first_name,
   })
   if (!sent) {
+    for (const id of [...slots.ids, ipSlot.id]) await releaseSlot(svc, id)
     return NextResponse.json({ error: 'Could not send the email. Please try again.' }, { status: 502 })
   }
 

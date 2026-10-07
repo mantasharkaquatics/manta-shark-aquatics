@@ -209,3 +209,64 @@ export function overlayFromRows(rows: any[]): Snapshot {
   }
   return out
 }
+
+/**
+ * Where a swimmer stood on `asOfDate`, for a record filed late for that
+ * lesson: the approved picture as of that day, with the coach's reports still
+ * in Reviews up to that day laid over it.
+ *
+ * The live table cannot be the base on its own (found 2026-10-07). It holds
+ * the NEWEST approved scores, including lessons after the missing one, so a
+ * record back-filled for 9/29 after 10/1 was approved carried October's
+ * scores under a September date, and the monthly report then showed them at
+ * the end of September. A skill that an approved report dated after
+ * `asOfDate` touched is therefore taken from the newest approved report on or
+ * before it, or left out (unknown then, so the caller's default applies);
+ * every other skill keeps the live value. With no date this is the live
+ * table plus pendingOverlay's rows, as before.
+ *
+ * `rows`: the swimmer's pending_review and approved progress_history rows,
+ * ordered by session_date then created_at (as pendingOverlay reads them).
+ */
+export function pictureAsOfRows(live: Snapshot, rows: any[], asOfDate?: string | null): Snapshot {
+  const list = rows || []
+  const upTo = asOfDate ? list.filter((r: any) => String(r.session_date) <= String(asOfDate)) : list
+  const base: Snapshot = { ...live }
+  if (asOfDate) {
+    const later = new Set<string>()
+    for (const r of list) {
+      if (r.status === 'approved' && String(r.session_date) > String(asOfDate)) {
+        for (const id of Object.keys((r.snapshot || {}) as Record<string, unknown>)) later.add(id)
+      }
+    }
+    if (later.size > 0) {
+      const approvedThen: Snapshot = {}
+      for (const r of upTo) {
+        if (r.status !== 'approved') continue
+        for (const [id, v] of Object.entries((r.snapshot || {}) as Record<string, unknown>)) {
+          const n = Number(v)
+          if (Number.isFinite(n) && n >= 0 && n <= 100) approvedThen[id] = n
+        }
+      }
+      for (const id of later) {
+        if (id in approvedThen) base[id] = approvedThen[id]
+        else delete base[id]
+      }
+    }
+  }
+  return { ...base, ...overlayFromRows(upTo) }
+}
+
+/** pictureAsOfRows for one swimmer, reading their reports. `live` is the
+ *  swimmer's student_skill_progress, already read by the caller. */
+export async function pictureAsOf(svc: any, studentId: string, asOfDate: string | null | undefined, live: Snapshot): Promise<Snapshot> {
+  const { data: rows, error } = await svc
+    .from('progress_history')
+    .select('snapshot, status, session_date, created_at')
+    .eq('student_id', studentId)
+    .in('status', ['pending_review', 'approved'])
+    .order('session_date', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) throw new Error(`progress history not read: ${error.message}`)
+  return pictureAsOfRows(live, rows || [], asOfDate)
+}

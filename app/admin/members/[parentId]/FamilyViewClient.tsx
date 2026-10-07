@@ -51,7 +51,7 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
   const loc = INTL[lang || 'en'] || 'en-US'
   const day = (d: string, o: Intl.DateTimeFormatOptions) => new Date(d + 'T12:00:00Z').toLocaleDateString(loc, { ...o, timeZone: 'UTC' })
   const time = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` }
-  const kind = (slug: string, minutes: number) => ft('voucher.kind.' + slug + (slug === '1on1' ? '.' + (minutes === 60 ? 60 : 30) : ''))
+  const kind = (slug: string, minutes: number) => ft('voucher.kind.' + slug + (slug === '1on1' ? '.' + (minutes === 60 ? 60 : 30) : slug === '1on2' && minutes === 60 ? '.60' : ''))
   const age = (dob: string | null) => {
     if (!dob) return ft('dash.ageUnknown')
     const b = new Date(dob + 'T12:00:00Z'), n = new Date()

@@ -39,6 +39,8 @@ const SEND_ERROR_KEYS: Record<string, string> = {
   'Could not transcribe the recording': 'coach.progress.err.transcribe',
   'Nothing was heard in that recording': 'coach.progress.err.silent',
   'This report has already been approved.': 'coach.progress.err.approved',
+  'This report was approved while you were sending it. Ask an admin to correct it.': 'coach.progress.err.approvedMeanwhile',
+  'The scores were approved while you were sending this report. Your note was saved for review; the scores were not changed.': 'coach.progress.err.scoresApprovedMeanwhile',
 }
 
 function barColor(pct: number): string {

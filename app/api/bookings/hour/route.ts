@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
@@ -11,6 +12,7 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletS
 import { sendEmail } from '@/lib/email'
 import { attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, voucherFitsDate, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
+import { studentsBusyAt } from '@/lib/bookings/student-clash'
 
 export const runtime = 'nodejs'
 
@@ -45,15 +47,18 @@ async function loadDay(svc: any, date: string, courseTypeId: string, parentId: s
   const holds = await renewalHolds(svc, date, date, parentId)
   const zones = new Map<string, any>()
   await Promise.all(ids.map(async (id: string) => { zones.set(id, await getEffectiveZones(svc, id, date)) }))
+  // A session holding a live 1-on-2 invitation is taken, though nobody is
+  // enrolled in it yet (lib/bookings/invite-holds.ts, found 2026-10-07).
+  const held = await sessionsHeldByInvites(svc, (sessions || []).filter((s: any) => (s.enrolled_count || 0) <= 0).map((s: any) => s.id))
   const busy = new Map<string, Iv[]>()
   for (const s of sessions || []) {
-    if ((s.enrolled_count || 0) <= 0) continue
+    if ((s.enrolled_count || 0) <= 0 && !held.has(s.id)) continue
     const st = toMin(s.start_time)
     const en = s.end_time ? toMin(s.end_time) : st + LESSON_MINUTES
     if (!busy.has(s.coach_id)) busy.set(s.coach_id, [])
     busy.get(s.coach_id)!.push({ s: st, e: en })
   }
-  return { coaches: coaches || [], sessions: sessions || [], blocks, zones, busy, holds, date, courseTypeId }
+  return { coaches: coaches || [], sessions: sessions || [], blocks, zones, busy, held, holds, date, courseTypeId }
 }
 
 function coachFree(day: any, coachId: string, startMin: number, endMin: number) {
@@ -199,7 +204,7 @@ export async function POST(req: NextRequest) {
     if (first) { currentDate = first.session_date; currentStart = String(first.start_time).slice(0, 5) }
     const nb = new Map<string, Iv[]>()
     for (const sx of day.sessions) {
-      if (excludeSessIds.has(sx.id) || (sx.enrolled_count || 0) <= 0) continue
+      if (excludeSessIds.has(sx.id) || ((sx.enrolled_count || 0) <= 0 && !day.held.has(sx.id))) continue
       const st = toMin(sx.start_time)
       const en = sx.end_time ? toMin(sx.end_time) : st + LESSON_MINUTES
       if (!nb.has(sx.coach_id)) nb.set(sx.coach_id, [])
@@ -281,6 +286,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts.' }, { status: 400 })
     if (studentBusy(s1, e2))
       return NextResponse.json({ error: 'This swimmer already has a lesson during that hour.' }, { status: 409 })
+    // The invited child's own lessons (found 2026-10-07). Nothing checked them,
+    // so an invitation could be sent for an hour that child already had a
+    // lesson in; accepting it then failed (or double-booked the child).
+    if (isPartnerBooking) {
+      const clash = await studentsBusyAt(svc, [partnerStudent.id], session_date, [{ s: s1, e: e2 }])
+      if (clash.length > 0)
+        return NextResponse.json({ error: `The other family's swimmer (${partnerStudent.full_name}) already has a lesson at that time. Please pick another time.` }, { status: 409 })
+    }
     if (!coachFree(day, coach1_id, s1, mid))
       return NextResponse.json({ error: 'The first half is no longer available. Please pick another time.' }, { status: 409 })
     if (!coachFree(day, coach2_id, mid, e2))
@@ -551,6 +564,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: uErr.message?.includes('coach_timeslot_conflict') ? 'The coach already has another class at this time.' : 'Could not move the lesson.' }, { status: 409 })
       }
       moved.push(h.id)
+    }
+
+    // The bookings kept their ids, so they kept reminder_sent_at too: a family
+    // that moved the hour after the day-before SMS had gone out never got one
+    // for the new time (found 2026-10-07). Clear it on this lesson's rows; the
+    // cron judges the new time by its usual window.
+    {
+      const { error: remErr } = await svc.from('bookings')
+        .update({ reminder_sent_at: null })
+        .eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
+      if (remErr) console.error('hour reschedule: could not clear reminder_sent_at:', remErr.message)
     }
 
     // The other lessons' cancelled rows go back to where they were: a fresh

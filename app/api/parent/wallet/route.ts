@@ -34,19 +34,42 @@ export async function GET(req: NextRequest) {
     // to the dashboard for it, so the statement line for the money has to be
     // able to reach it -- points are prepaid cash, and a receipt for prepaid
     // cash is not a nice-to-have.
-    const sessions = (rows || [])
-      .filter((r: any) => r.reason === 'purchase' && r.stripe_session_id)
-      .map((r: any) => r.stripe_session_id)
+    //
+    // A sale at the front desk (pos/complete-sale, complete-sdp-sale) has no
+    // checkout session: its ledger row carries the card's payment intent, or
+    // nothing for cash, and its invoice only the payment intent -- so the
+    // receipt its email pointed to the dashboard for could not be reached
+    // (found 2026-10-07). Desk sales now key the invoice as `pos:<purchase
+    // id>`, the purchase the ledger row names in its pricing; older desk card
+    // sales are found by their payment intent.
+    const posKey = (r: any) => (r.pricing?.kind === 'pos_purchase' && r.pricing?.purchaseId) ? `pos:${r.pricing.purchaseId}` : null
+    const purchaseRows = (rows || []).filter((r: any) => r.reason === 'purchase')
+    const sessions = [...new Set(purchaseRows.flatMap((r: any) => [r.stripe_session_id, posKey(r)]).filter(Boolean))] as string[]
     const invoiceBySession = new Map<string, { id: string; number: string }>()
     if (sessions.length) {
-      const { data: invs } = await ctx.svc
-        .from('invoices')
-        .select('id, invoice_number, stripe_session_id')
-        .eq('parent_id', ctx.parent.id)
-        .in('stripe_session_id', sessions)
+      const [{ data: invs }, { data: byPi }] = await Promise.all([
+        ctx.svc
+          .from('invoices')
+          .select('id, invoice_number, stripe_session_id')
+          .eq('parent_id', ctx.parent.id)
+          .in('stripe_session_id', sessions),
+        ctx.svc
+          .from('invoices')
+          .select('id, invoice_number, stripe_payment_intent_id')
+          .eq('parent_id', ctx.parent.id)
+          .in('stripe_payment_intent_id', sessions),
+      ])
+      for (const inv of byPi || []) {
+        if (inv.stripe_payment_intent_id) invoiceBySession.set(inv.stripe_payment_intent_id, { id: inv.id, number: inv.invoice_number })
+      }
       for (const inv of invs || []) {
         invoiceBySession.set(inv.stripe_session_id, { id: inv.id, number: inv.invoice_number })
       }
+    }
+    const invoiceOf = (r: any) => {
+      if (r.reason !== 'purchase') return null
+      const k = posKey(r)
+      return (k && invoiceBySession.get(k)) || (r.stripe_session_id && invoiceBySession.get(r.stripe_session_id)) || null
     }
 
     // Which lesson a line was about. "Booked" and "cancelled" lines were
@@ -129,9 +152,7 @@ export async function GET(req: NextRequest) {
       amountCents: r.amount_cents,
       bookingId: r.booking_id,
       lesson: lessonOf(r),
-      invoice: (r.reason === 'purchase' && r.stripe_session_id)
-        ? invoiceBySession.get(r.stripe_session_id) ?? null
-        : null,
+      invoice: invoiceOf(r),
     }))
     /* Ending a fixed class with a refund returns each remaining lesson on its
        own ledger row -- one per half of a 60-minute lesson -- so a 10-lesson

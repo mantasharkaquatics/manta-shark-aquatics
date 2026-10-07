@@ -9,6 +9,8 @@ import { refundBookingPoints } from '@/lib/bookings/refund'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 import { activePartnershipId } from '@/lib/partnerships'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
+import { studentsBusyAt } from '@/lib/bookings/student-clash'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -75,13 +77,16 @@ export async function POST(req: NextRequest) {
 
   // Coach conflict check (any course type, enrolled > 0). Interval overlap, not equality:
   // a 60-minute lesson's second half starts off-grid and would slip past a start-time test.
-  const { data: dayBusy } = await svc
+  // A session holding a live 1-on-2 invitation is taken too, though nobody
+  // is enrolled in it yet (lib/bookings/invite-holds.ts, found 2026-10-07).
+  const { data: daySessions } = await svc
     .from('class_sessions')
     .select('id, course_type_id, enrolled_count, max_students, start_time, end_time')
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
     .in('status', ['open', 'full'])
-    .gt('enrolled_count', 0)
+  const held = await sessionsHeldByInvites(svc, (daySessions || []).filter((c: any) => (c.enrolled_count || 0) <= 0).map((c: any) => c.id))
+  const dayBusy = (daySessions || []).filter((c: any) => (c.enrolled_count || 0) > 0 || held.has(c.id))
   const toMinC = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
   const newStartMin = toMinC(start_time)
   const newEndMin = toMinC(end_time)
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
   const sameCourseSession = conflicts.find((c: any) => c.course_type_id === course_type_id && toMinC(c.start_time) === newStartMin)
   if (conflicts.some((c: any) => c !== sameCourseSession))
     return NextResponse.json({ error: 'The coach already has another class at this time. Please pick another time.' }, { status: 409 })
-  if (sameCourseSession && sameCourseSession.enrolled_count >= sameCourseSession.max_students)
+  if (sameCourseSession && (sameCourseSession.enrolled_count >= sameCourseSession.max_students || held.has(sameCourseSession.id)))
     return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
 
   // Find or create session
@@ -107,8 +112,8 @@ export async function POST(req: NextRequest) {
       .eq('start_time', start_time)
       .eq('course_type_id', course_type_id)
       .eq('status', 'open')
-      .limit(1)
-    const found = openSessions?.[0]
+      .limit(5)
+    const found = (openSessions || []).find((x: any) => !held.has(x.id))
     if (found) {
       if (found.enrolled_count >= found.max_students)
         return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
@@ -210,8 +215,19 @@ export async function POST(req: NextRequest) {
     // /api/bookings/reschedule-partner and the confirmation that follows exist
     // for. A 60-minute lesson is two linked rows that /api/bookings/hour moves
     // in place, keeping their ids, their points and their link to each other.
+    // Shared by link, or -- a desk-made pair may carry none -- by another
+    // family's confirmed seat in the same 1-on-2 session (found 2026-10-07:
+    // one family moved alone, leaving the other in a 1-on-2 by themselves).
     if (ob.partner_booking_id)
       return NextResponse.json({ error: 'This lesson is shared with another family, so it has to be moved from your dashboard — the other family confirms the new time.' }, { status: 400 })
+    if (course.slug === '1on2') {
+      const { data: others } = await svc.from('bookings').select('id')
+        .eq('class_session_id', ob.class_session_id).neq('parent_id', parent.id).eq('status', 'confirmed').limit(1)
+      // An older desk-made pair carries no link, so the dashboard's partner
+      // move (which follows the link) cannot reach the other family either.
+      if ((others || []).length > 0)
+        return NextResponse.json({ error: 'This lesson is shared with another family. Please contact us and we will move it for both families.' }, { status: 409 })
+    }
     if (ob.lesson_group_id)
       return NextResponse.json({ error: 'This is a 60-minute lesson and both halves move together. Please reschedule it from your dashboard.' }, { status: 400 })
 
@@ -499,6 +515,15 @@ export async function POST(req: NextRequest) {
       await restoreOld()
       return NextResponse.json({ error: 'The partner student must complete a Swim Assessment before booking lessons.' }, { status: 400 })
     }
+    // The invited child's own lessons (found 2026-10-07): only the family and
+    // the level were checked, so an invitation could go out for a time that
+    // child was already booked, and accepting it could only fail.
+    const partnerClash = await studentsBusyAt(svc, [pStudent.id], session_date, [{ s: newStartMin, e: newEndMin }])
+    if (partnerClash.length > 0) {
+      await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' }).eq('id', newBooking.id)
+      await restoreOld()
+      return NextResponse.json({ error: `The other family's swimmer (${pStudent.full_name}) already has a lesson at that time. Please pick another time.` }, { status: 409 })
+    }
     const expiry = new Date(Date.now() + 15 * 60 * 1000).toISOString()
     const { data: guest, error: guestErr } = await svc.from('bookings').insert({
       class_session_id: sessionId,
@@ -571,7 +596,9 @@ export async function POST(req: NextRequest) {
             type: oldBooking ? 'booking_rescheduled' : 'booking_confirmed',
             to: parentRow.email,
             parentName: parentRow.first_name,
-            studentName: student.full_name,
+            // Both children of a sibling 1-on-2 -- the email named only the
+            // first, as if the other were not booked (found 2026-10-07).
+            studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name,
             courseName: course.name,
             coachName: (coach.first_name + ' ' + (coach.last_name || '')).trim(),
             date: session_date,

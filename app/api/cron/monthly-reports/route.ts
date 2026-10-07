@@ -13,6 +13,7 @@ export const maxDuration = 60
 //  - Days 1-7: write any report of last month that is still missing (a family
 //    with many swimmers, a model outage), so nothing waits on a person noticing.
 //  - Every run: send any month whose reports are all approved and which is over.
+//  - Any other hour: carry on rewriting the oldest finished month still held.
 // Every other hour of the month it finds nothing to do and returns at once.
 export async function GET(req: NextRequest) {
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -39,6 +40,24 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     console.error('cron monthly-reports: sending failed', e)
     out.sendError = String(e)
+  }
+
+  // A month that is over but still held -- a report written early that has
+  // not been rewritten from the whole month -- used to wait forever once days
+  // 1-7 had passed, until someone pressed Generate (found 2026-10-07). An hour
+  // with nothing else to write carries on with the oldest such month; the
+  // send step picks it up on the next run.
+  if (!out.generated && Array.isArray(out.sent)) {
+    const stuck = (out.sent as { month: string; heldEarly: number }[])
+      .filter(r => r.heldEarly > 0).map(r => r.month).sort()[0]
+    if (stuck) {
+      try {
+        out.caughtUp = { month: stuck, ...(await generateMonth(svc, stuck, { budgetMs: 40_000 })) }
+      } catch (e) {
+        console.error('cron monthly-reports: catch-up failed', e)
+        out.catchUpError = String(e)
+      }
+    }
   }
   return NextResponse.json(out)
 }

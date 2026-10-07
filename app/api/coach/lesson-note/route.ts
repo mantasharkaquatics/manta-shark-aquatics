@@ -11,6 +11,13 @@ import { NOT_REAL_BOOKING_STATUSES } from '@/app/coach/real-booking'
 
 const NOT_REAL = `(${NOT_REAL_BOOKING_STATUSES.join(',')})`
 
+
+/** The report was approved while a resend was being transcribed: nothing new
+ *  was saved over it (found 2026-10-07). CoachProgressClient maps it. */
+const APPROVED_MEANWHILE = 'This report was approved while you were sending it. Ask an admin to correct it.'
+// The note went through but the scores had been approved in between.
+const SCORES_APPROVED_MEANWHILE = 'The scores were approved while you were sending this report. Your note was saved for review; the scores were not changed.'
+
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
   const supabaseAuth = createServerClient(
@@ -334,15 +341,23 @@ export async function POST(req: NextRequest) {
   }
 
   // neq('approved'): an admin approving while this request was transcribing
-  // must still not be undone by it.
-  const { error: noteError } = existingNote
-    ? await svc.from('lesson_notes').update(noteRow).eq('id', existingNote.id).neq('status', 'approved')
-    : await svc.from('lesson_notes').insert(noteRow)
+  // must still not be undone by it. That write then changes nothing, and the
+  // route used to answer ok anyway -- the coach saw the new note as saved
+  // while the family kept the approved one (found 2026-10-07). The rows
+  // written are counted now, and the coach is told.
+  const approvedMeanwhile = async () => {
+    await svc.storage.from('lesson-audio').remove([audioPath]).catch(() => {})
+    return NextResponse.json({ error: APPROVED_MEANWHILE }, { status: 409 })
+  }
+  const { data: noteWritten, error: noteError } = existingNote
+    ? await svc.from('lesson_notes').update(noteRow).eq('id', existingNote.id).neq('status', 'approved').select('id')
+    : await svc.from('lesson_notes').insert(noteRow).select('id')
 
   if (noteError) {
     console.error('lesson-note: note save failed', noteError)
     return NextResponse.json({ error: 'Could not save the note' }, { status: 500 })
   }
+  if (!noteWritten || noteWritten.length === 0) return approvedMeanwhile()
 
   // ---- 5. The progress half, same lesson key ----
   // Queued only. student_skill_progress used to be written here, the moment
@@ -363,13 +378,20 @@ export async function POST(req: NextRequest) {
     status: 'pending_review',
   }
 
-  const { error: historyError } = existingHistory
-    ? await svc.from('progress_history').update(historyRow).eq('id', existingHistory.id).neq('status', 'approved')
-    : await svc.from('progress_history').insert(historyRow)
+  const { data: historyWritten, error: historyError } = existingHistory
+    ? await svc.from('progress_history').update(historyRow).eq('id', existingHistory.id).neq('status', 'approved').select('id')
+    : await svc.from('progress_history').insert(historyRow).select('id')
 
   if (historyError) {
     console.error('lesson-note: progress history save failed', historyError)
     return NextResponse.json({ error: 'Could not save the progress record' }, { status: 500 })
+  }
+  if (!historyWritten || historyWritten.length === 0) {
+    // The scores were approved in between, after the note was rewritten: the
+    // new note now waits in Reviews beside the approved scores. Keep the
+    // recording (the note row points at it) and tell the coach.
+    console.warn(`lesson-note: progress for ${studentId} / ${lessonKey} was approved while the coach resent it`)
+    return NextResponse.json({ error: SCORES_APPROVED_MEANWHILE }, { status: 409 })
   }
 
   return NextResponse.json({ ok: true, note })

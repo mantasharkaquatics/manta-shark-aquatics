@@ -1,7 +1,8 @@
 import { sendEmail } from '@/lib/email'
 import { centsToPoints } from '@/lib/points'
 import { creditPurchase, DuplicateLedgerEntry, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
-import { reclaimForArrears } from '@/lib/points-arrears'
+import { reclaimForArrears, type ReleasedLesson } from '@/lib/points-arrears'
+import { formatTime12h } from '@/lib/date'
 import { captureFee } from '@/lib/stripe-fees'
 import { insertInvoice } from '@/lib/invoices/create'
 import { NextRequest, NextResponse } from 'next/server'
@@ -345,7 +346,10 @@ export async function POST(req: NextRequest) {
 
   if (event.type === 'invoice.payment_failed') {
     const inv = event.data.object as any
-    const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id
+    // Same lookup as invoice.paid (found 2026-10-07): on this API version the
+    // invoice has no top-level subscription, so reading only that left subId
+    // empty and a failed Swim Team charge never showed as past_due.
+    const subId = invoiceSubscriptionId(inv)
     if (subId) await supabase.from('team_memberships')
       .update({ status: 'past_due', updated_at: new Date().toISOString() })
       .eq('stripe_subscription_id', subId).eq('status', 'active')
@@ -354,7 +358,7 @@ export async function POST(req: NextRequest) {
 
   if (event.type === 'invoice.paid') {
     const inv = event.data.object as any
-    const subId = typeof inv.subscription === 'string' ? inv.subscription : (inv.subscription?.id || inv.parent?.subscription_details?.subscription || null)
+    const subId = invoiceSubscriptionId(inv)
     if (subId) {
       await supabase.from('team_memberships')
         .update({ status: 'active', updated_at: new Date().toISOString() })
@@ -375,13 +379,26 @@ export async function POST(req: NextRequest) {
         // subscription is one of ours; if it is, fail the delivery so Stripe
         // retries once the other event has landed. Anything not ours passes
         // through, so an unrelated subscription can never retry forever.
+        //
+        // Except a subscription that is already over (found 2026-10-07): a
+        // duplicate Swim Team subscription is cancelled and refunded by
+        // cancelDuplicateTeamSubscription and deliberately never gets a row,
+        // so waiting for one meant failing its first invoice.paid for Stripe's
+        // whole ~3-day retry schedule. A cancelled subscription will not get a
+        // row later, so log it and let the event go.
         if (!tm) {
           let ours = false
+          let ended = false
           try {
             const sub = await stripe.subscriptions.retrieve(subId)
             ours = (sub.metadata as any)?.type === 'team_subscription'
+            ended = sub.status === 'canceled' || sub.status === 'incomplete_expired'
           } catch (e: any) {
             console.error(`invoice.paid ${inv.id}: could not read subscription ${subId}:`, e?.message)
+          }
+          if (ours && ended) {
+            console.error(`invoice.paid ${inv.id}: team subscription ${subId} is already cancelled and has no membership row (a cancelled duplicate) - not mirrored`)
+            return NextResponse.json({ received: true })
           }
           if (ours) {
             console.error(`invoice.paid ${inv.id}: team subscription ${subId} has no membership row yet - asking Stripe to retry`)
@@ -557,7 +574,7 @@ export async function POST(req: NextRequest) {
 
     // Give back the lessons they have not swum, which pays down most of the
     // debt on its own. Anything left is for a human to chase.
-    let reclaimed = { arrearsAfter: 0, cancelledBookingIds: [] as string[], lessonsReleased: 0, pointsReturned: 0 }
+    let reclaimed = { arrearsAfter: 0, cancelledBookingIds: [] as string[], lessonsReleased: 0, pointsReturned: 0, released: [] as ReleasedLesson[] }
     try {
       reclaimed = await reclaimForArrears(supabase, topUp.parentId, note)
     } catch (e) {
@@ -575,7 +592,7 @@ export async function POST(req: NextRequest) {
     // recorded, and a mail failure must not have Stripe redeliver the event.
     try {
       const { data: parentRow } = await supabase
-        .from('parents').select('first_name, email').eq('id', topUp.parentId).single()
+        .from('parents').select('first_name, email, preferred_language').eq('id', topUp.parentId).single()
       if (parentRow?.email) {
         await sendEmail({
           type: 'payment_reversed',
@@ -584,21 +601,51 @@ export async function POST(req: NextRequest) {
           amount: reverseCents / 100,
           pointsOwed: reclaimed.arrearsAfter,
           lessonsReleased: reclaimed.lessonsReleased,
+          releasedLessons: reclaimed.released,
           reversalKind: reason,
         })
       }
       const { data: th } = await supabase.from('chat_threads').select('id')
         .eq('parent_id', topUp.parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
       if (th) {
+        // In the family's language like the purchase confirmation above, with
+        // the cause matching the email (a chargeback is not "didn't complete
+        // at the bank") and the released lessons named -- no separate
+        // cancellation notice goes out for them (found 2026-10-07).
+        const lang = String(parentRow?.preferred_language || 'en')
         const dollars = (reverseCents / 100).toFixed(2)
-        const owedLine = reclaimed.arrearsAfter > 0
-          ? `Your balance is now ${reclaimed.arrearsAfter.toLocaleString('en-US')} points short, so booking is paused until it's settled.`
-          : 'Nothing further is owed and you can book again straight away.'
-        const body = `Your $${dollars} payment didn't complete at the bank, so those points have been removed from your wallet.` +
-          (reclaimed.lessonsReleased > 0
-            ? ` We've released ${reclaimed.lessonsReleased} lesson(s) you hadn't taken yet and returned those points.`
-            : '') +
-          `\n\n${owedLine}\n\nPaying by card on the Plans page clears this right away. If you think this is a mistake, just reply here.`
+        const owedPts = reclaimed.arrearsAfter.toLocaleString('en-US')
+        const n = reclaimed.lessonsReleased
+        const chargeback = reason === 'chargeback'
+        const dateTag = lang === 'zh-Hant' ? 'zh-TW' : lang === 'zh-Hans' ? 'zh-CN' : 'en-US'
+        const lessonLines = reclaimed.released.map(l => {
+          const d = new Date(l.date + 'T12:00:00Z').toLocaleDateString(dateTag, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+          const who = l.studentNames.join(lang === 'en' ? ' & ' : '、')
+          return `• ${d} ${formatTime12h(l.time)}${who ? ` — ${who}` : ''}`
+        }).join('\n')
+        let body: string
+        if (lang === 'zh-Hant') {
+          body = (chargeback
+            ? `您已透過銀行撤回 $${dollars} 的付款，所以這筆點數已從您的帳戶扣回。`
+            : `您 $${dollars} 的付款銀行沒有完成，所以這筆點數已從您的帳戶扣回。`)
+            + (n > 0 ? `\n\n我們已取消 ${n} 堂您還沒上的課，並退回那些點數。以下課程不會進行：\n${lessonLines}` : '')
+            + `\n\n${reclaimed.arrearsAfter > 0 ? `您的點數目前不足 ${owedPts} 點，結清之前無法預約。` : '目前已沒有欠款，可以直接預約。'}`
+            + '\n\n在「點數與價目」頁面用信用卡付款即可馬上結清。如果您認為有誤，直接在這裡回覆我們。'
+        } else if (lang === 'zh-Hans') {
+          body = (chargeback
+            ? `您已通过银行撤回 $${dollars} 的付款，所以这笔点数已从您的账户扣回。`
+            : `您 $${dollars} 的付款银行没有完成，所以这笔点数已从您的账户扣回。`)
+            + (n > 0 ? `\n\n我们已取消 ${n} 堂您还没上的课，并退回那些点数。以下课程不会进行：\n${lessonLines}` : '')
+            + `\n\n${reclaimed.arrearsAfter > 0 ? `您的点数目前不足 ${owedPts} 点，结清之前无法预约。` : '目前已没有欠款，可以直接预约。'}`
+            + '\n\n在「点数与价目」页面用信用卡付款即可马上结清。如果您认为有误，直接在这里回复我们。'
+        } else {
+          body = (chargeback
+            ? `Your bank has reversed your $${dollars} payment at your request, so those points have been removed from your wallet.`
+            : `Your $${dollars} payment didn't complete at the bank, so those points have been removed from your wallet.`)
+            + (n > 0 ? `\n\nWe've cancelled ${n} lesson${n === 1 ? '' : 's'} you hadn't taken yet and returned those points. These lessons will not take place:\n${lessonLines}` : '')
+            + `\n\n${reclaimed.arrearsAfter > 0 ? `Your balance is now ${owedPts} points short, so booking is paused until it's settled.` : 'Nothing further is owed and you can book again straight away.'}`
+            + '\n\nPaying by card on the Points & Pricing page clears this right away. If you think this is a mistake, just reply here.'
+        }
         await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
         await supabase.from('chat_threads')
           .update({ last_message_at: new Date().toISOString(), last_message_preview: body.slice(0, 120) })
@@ -653,6 +700,16 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
+}
+
+/** The subscription an invoice belongs to. On API version 2026-05-27.dahlia
+ *  the id sits under parent.subscription_details; the top-level field is read
+ *  first for older payloads. invoice.paid and invoice.payment_failed must
+ *  agree on this, so both call it (found 2026-10-07). */
+function invoiceSubscriptionId(inv: any): string | null {
+  if (typeof inv?.subscription === 'string') return inv.subscription
+  const nested = inv?.parent?.subscription_details?.subscription
+  return inv?.subscription?.id || (typeof nested === 'string' ? nested : nested?.id) || null
 }
 
 /* A second Swim Team subscription for a swimmer who already has one: cancel

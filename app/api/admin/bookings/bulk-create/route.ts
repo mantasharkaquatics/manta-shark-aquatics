@@ -6,6 +6,8 @@ import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
+import { activePartnershipId } from '@/lib/partnerships'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -59,12 +61,16 @@ async function evaluateDates(
 
   const { data: sessRows } = await svc
     .from('class_sessions')
-    .select('session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
+    .select('id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
     .eq('coach_id', coachId)
     .in('session_date', allDates)
     .in('status', ['open', 'full'])
+  // A 1-on-2 invitation still waiting for its answer holds its session; its
+  // seats are not in enrolled_count yet (lib/bookings/invite-holds).
+  const inviteHeld = await sessionsHeldByInvites(svc, (sessRows || []).filter((r: any) => (r.enrolled_count || 0) <= 0).map((r: any) => r.id))
   const sessByDate = new Map<string, any[]>()
-  for (const s of sessRows || []) {
+  for (const s0 of sessRows || []) {
+    const s = inviteHeld.has(s0.id) ? { ...s0, enrolled_count: s0.max_students } : s0
     if (!sessByDate.has(s.session_date)) sessByDate.set(s.session_date, [])
     sessByDate.get(s.session_date)!.push(s)
   }
@@ -185,9 +191,19 @@ export async function POST(req: NextRequest) {
   // lesson_group_id, and two half-hour lessons' worth of points.
   if (hour && (ct.slug !== '1on1' || student2))
     return NextResponse.json({ error: '60-minute lessons are 1-on-1 with a single swimmer.' }, { status: 400 })
+  // A 1-on-2 always has two swimmers (owner, 2026-10-07), as the parent's
+  // booking route already insists. A one-swimmer 1-on-2 was a private lesson
+  // sold at the 1-on-2 price, and when it was later cancelled inside 24 hours
+  // its make-up voucher named one child, which nothing can book.
+  if (ct.slug === '1on2' && !student2)
+    return NextResponse.json({ error: 'A 1-on-2 lesson needs two students. Pick the second swimmer as well.' }, { status: 400 })
   const spotsNeeded = student2 ? 2 : 1
   const twoFromParent1 = !!hour || (student2 ? student2.parent_id === student1.parent_id : false)
   const sameParent = student2 ? student2.parent_id === student1.parent_id : false
+  // Only a 1-on-2 is one lesson shared by two families. Two families' swimmers
+  // put into a group class together are two separate bookings: linking them
+  // made one family's cancel take the other's seat down too.
+  const linkPair = ct.slug === '1on2' && !sameParent
 
   if (action === 'preview') {
     const { start_date, count, skip_dates } = body
@@ -285,6 +301,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `${ct.name} cannot be paid for with points.` }, { status: 400 })
     }
 
+    // The two families' link, recorded on the rows when they have one (the
+    // desk may pair families who have not linked their accounts).
+    const pairPartnership = student2 && !sameParent
+      ? await activePartnershipId(svc, student1.parent_id, student2.parent_id)
+      : null
+
     const endTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes)
     const hourEndTime = minutesToTime(timeToMinutes(start_time) + ct.duration_minutes * 2)
     const createdBookingIds: string[] = []
@@ -311,6 +333,9 @@ export async function POST(req: NextRequest) {
       }
       taken.length = 0
       if (createdBookingIds.length > 0) {
+        // Linked cross-family rows point at each other; unlink before the
+        // delete so the self-reference cannot hold either row in place.
+        await svc.from('bookings').update({ partner_booking_id: null }).in('id', createdBookingIds)
         await svc.from('bookings').delete().in('id', createdBookingIds)
       }
       // Sessions we created ourselves go too, or a failed hour booking leaves an
@@ -409,7 +434,8 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
       let sessId: string
       if (existing) {
-        if (existing.enrolled_count + spotsNeeded > existing.max_students) {
+        if (existing.enrolled_count + spotsNeeded > existing.max_students
+            || (await sessionsHeldByInvites(svc, [existing.id])).has(existing.id)) {
           await rollback('a class filled up')
           return NextResponse.json({ error: `Session on ${date} became full` }, { status: 409 })
         }
@@ -438,12 +464,22 @@ export async function POST(req: NextRequest) {
             }]
           : []),
       ]
-      for (const b of toCreate) {
+      const rowIds: string[] = []
+      for (const [bi, b] of toCreate.entries()) {
+        // A cross-family 1-on-2 is linked both ways, as the parent's invite
+        // and confirm flow links it (create/route.ts, hour/route.ts): the
+        // second family's row names the first family and its row, and the
+        // first row is pointed back at it below. Without the link the lesson
+        // looked like one family's alone, so it could be late-cancelled or
+        // moved online by one side (found 2026-10-07).
+        const link = bi === 1 && linkPair && rowIds[0]
+          ? { partner_booking_id: rowIds[0], partner_parent_id: student1.parent_id, partnership_id: pairPartnership }
+          : {}
         const { data: created, error: bookErr } = await svc
           .from('bookings')
           .insert({ class_session_id: sessId, parent_id: b.parent_id, student_id: b.student_id,
                     lesson_credit_id: null, token_package_id: null,
-                    points_charged: b.points, ...grantedFor(b.parent_id, b.points), status: 'confirmed' })
+                    points_charged: b.points, ...grantedFor(b.parent_id, b.points), status: 'confirmed', ...link })
           .select('id').single()
         if (bookErr || !created) {
           await rollback('a booking row could not be written')
@@ -454,6 +490,14 @@ export async function POST(req: NextRequest) {
           )
         }
         createdBookingIds.push(created.id)
+        rowIds.push(created.id)
+      }
+      if (rowIds.length === 2 && linkPair) {
+        const { error: linkErr } = await svc.from('bookings').update({ partner_booking_id: rowIds[1] }).eq('id', rowIds[0])
+        if (linkErr) {
+          await rollback('the two families could not be linked')
+          return NextResponse.json({ error: `Failed to book ${date}: ${linkErr.message || 'unknown'}` }, { status: 500 })
+        }
       }
     }
 

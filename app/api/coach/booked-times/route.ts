@@ -117,21 +117,29 @@ export async function GET(req: NextRequest) {
   const sessionMap: Record<string, any> = {}
   for (const s of sessions) sessionMap[s.id] = s
 
-  // Step 2: find all active bookings for those sessions
-  const { data: bookings } = await supabase
+  // Step 2: find all active bookings for those sessions. A 1-on-2 invitation
+  // still open (pending_partner, inside its 15 minutes) holds its seats too:
+  // the booking routes refuse the time, so it is not shown as free. It is
+  // reported without a student -- nobody is booked there yet.
+  const nowMs = Date.now()
+  const { data: rawBookings } = await supabase
     .from('bookings')
-    .select('student_id, class_session_id')
+    .select('student_id, class_session_id, status, pending_expires_at')
     .in('class_session_id', sessionIds)
-    .not('status', 'in', '("cancelled","pending_partner")')
+    .neq('status', 'cancelled')
+  const bookings = (rawBookings || []).filter((b: any) =>
+    b.status !== 'pending_partner' || (!!b.pending_expires_at && Date.parse(b.pending_expires_at) > nowMs))
 
-  const times = (bookings || []).map(b => {
+  const times = bookings.map((b: any) => {
     const s = sessionMap[b.class_session_id]
     return {
       time: s?.start_time?.slice(0, 5),
       end: s?.end_time?.slice(0, 5),
-      student_id: ownStudents && !ownStudents.has(b.student_id) ? null : b.student_id,
+      student_id: b.status === 'pending_partner' || (ownStudents && !ownStudents.has(b.student_id)) ? null : b.student_id,
       course_type_id: s?.course_type_id,
-      session_id: b.class_session_id
+      session_id: b.class_session_id,
+      // An open invitation's seat: the session reads as full on the booking page.
+      ...(b.status === 'pending_partner' ? { held: true } : {}),
     }
   }).filter(x => x.time)
 

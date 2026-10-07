@@ -7,6 +7,7 @@ import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { readJson, badRequest } from '@/lib/http'
 import { formatTime12h } from '@/lib/date'
+import { studentsBusyAt } from '@/lib/bookings/student-clash'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -99,15 +100,31 @@ export async function POST(req: NextRequest) {
 
   // Every half has to survive both checks - confirming an hour where only the
   // first half is still free would strand the second.
+  //
+  // Coach clash by OVERLAP, as create and confirm-reschedule do (found
+  // 2026-10-07). This looked only for a session starting at the same minute,
+  // and a 60-minute lesson's second half starts off the grid: an hour booked
+  // at 9:10 (halves 9:10-9:40, 9:40-10:10) during the invitation window sat
+  // over a pending 9:45 1-on-2, and accepting it double-booked the coach.
+  const toMinP = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  const groupSessionIds = new Set(sessions.map((x: any) => x.id))
   for (const session of sessions) {
-    const { data: conflictSessions } = await supabase
+    const ns = toMinP(session.start_time)
+    const ne = session.end_time ? toMinP(session.end_time) : ns + 30
+    const { data: daySessions } = await supabase
       .from('class_sessions')
-      .select('id')
+      .select('id, start_time, end_time')
       .eq('coach_id', session.coach_id)
       .eq('session_date', session.session_date)
-      .eq('start_time', session.start_time)
-      .neq('id', session.id)
-    const conflictSessionIds = (conflictSessions || []).map((s: any) => s.id)
+      .neq('status', 'cancelled')
+    const conflictSessionIds = (daySessions || [])
+      .filter((x: any) => {
+        if (groupSessionIds.has(x.id)) return false
+        const s0 = toMinP(x.start_time)
+        const e0 = x.end_time ? toMinP(x.end_time) : s0 + 30
+        return ns < e0 && ne > s0
+      })
+      .map((x: any) => x.id)
     if (conflictSessionIds.length > 0) {
       const { data: conflictBookings } = await supabase
         .from('bookings')
@@ -124,6 +141,31 @@ export async function POST(req: NextRequest) {
     if (session.enrolled_count + seatsHere > session.max_students) {
       await cancelGroup('slot_full')
       return NextResponse.json({ error: 'This time slot is full and cannot be confirmed.' }, { status: 409 })
+    }
+  }
+
+  // Each swimmer's own lessons, before any points move (found 2026-10-07).
+  // Nothing checked them: an invited child already booked at that time made
+  // the claim below fail on the database's double-booking guard after both
+  // families had been charged and refunded, with "already processed" shown on
+  // every retry until the invitation lapsed (or, without the guard, the child
+  // was booked twice). Both families' swimmers, every half.
+  {
+    const byDate = new Map<string, { s: number; e: number }[]>()
+    for (const x of sessions as any[]) {
+      const st = toMinP(x.start_time)
+      byDate.set(x.session_date, [...(byDate.get(x.session_date) || []), { s: st, e: x.end_time ? toMinP(x.end_time) : st + 30 }])
+    }
+    const swimmerIds = [...new Set(group.map(r => r.student_id).filter(Boolean))] as string[]
+    const busyIds = new Set<string>()
+    for (const [d, ranges] of byDate) {
+      for (const id of await studentsBusyAt(supabase, swimmerIds, d, ranges)) busyIds.add(id)
+    }
+    if (busyIds.size > 0) {
+      const { data: who } = await supabase.from('students').select('full_name').in('id', [...busyIds])
+      const names = (who || []).map((x: any) => x.full_name).filter(Boolean).join(' & ') || 'A swimmer'
+      await cancelGroup('partner_double_booked')
+      return NextResponse.json({ error: `${names} already has a lesson at that time, so this invitation cannot be confirmed and has been cancelled. No points were used.` }, { status: 409 })
     }
   }
 
@@ -173,10 +215,26 @@ export async function POST(req: NextRequest) {
     taken.length = 0
   }
 
+  // Name the lesson on each family's statement line (found 2026-10-07). The
+  // bare price had no kind, date or swimmers and no booking_id, so every
+  // cross-family 1-on-2 showed as an unlabelled "booked" line. The rows exist
+  // already here, so each debit also points at that family's first-half row.
+  const firstStart = String(firstSession.start_time).slice(0, 5)
+  const labelFor = (rows: any[], quote: { price: any }) => {
+    const first = rows.find((r: any) => r.class_session_id === firstSession.id) ?? rows[0]
+    return {
+      bookingId: first?.id ?? null,
+      pricing: { ...quote.price, kind: 'single', date: firstSession.session_date, startTime: firstStart,
+                 students: [...new Set(rows.map((r: any) => r.student_id).filter(Boolean))] },
+    }
+  }
+  const myLabel = labelFor(mine, myQuote)
+  const theirLabel = labelFor(theirs, theirQuote)
+
   try {
     const paid = await applyPoints(supabase, {
       parentId: confirmingParent.id, reason: 'booking', points: -myQuote.total,
-      pricing: myQuote.price, actor: 'parent',
+      pricing: myLabel.pricing, bookingId: myLabel.bookingId, actor: 'parent',
     })
     taken.push({ parentId: confirmingParent.id, points: myQuote.total, granted: paid.grantedTaken, expires: paid.grantedExpiresAt })
   } catch (e: any) {
@@ -191,7 +249,7 @@ export async function POST(req: NextRequest) {
   try {
     const paid = await applyPoints(supabase, {
       parentId: initiatorBooking.parent_id, reason: 'booking', points: -theirQuote.total,
-      pricing: theirQuote.price, actor: 'parent',
+      pricing: theirLabel.pricing, bookingId: theirLabel.bookingId, actor: 'parent',
     })
     taken.push({ parentId: initiatorBooking.parent_id, points: theirQuote.total, granted: paid.grantedTaken, expires: paid.grantedExpiresAt })
   } catch (e: any) {
@@ -215,9 +273,26 @@ export async function POST(req: NextRequest) {
   // count comes back short somebody else moved part of it, so hand back what we
   // took rather than leaving half the lesson confirmed.
   const groupIds = group.map(r => r.id)
-  const { data: claimed } = await supabase.from('bookings')
+  const { data: claimed, error: claimErr } = await supabase.from('bookings')
     .update({ status: 'confirmed' })
     .in('id', groupIds).eq('status', 'pending_partner').select('id')
+  // A refusal by the database's own guards is not "already processed" (found
+  // 2026-10-07): that told the family to retry something that fails the same
+  // way every time. Name what refused, and end the invitation.
+  if (claimErr) {
+    await refundSpent('the lesson could not be confirmed')
+    const m = claimErr.message || ''
+    if (m.includes('STUDENT_DOUBLE_BOOKED') || m.includes('coach_timeslot_conflict')) {
+      await cancelGroup(m.includes('STUDENT_DOUBLE_BOOKED') ? 'partner_double_booked' : 'slot_taken')
+      return NextResponse.json({
+        error: m.includes('STUDENT_DOUBLE_BOOKED')
+          ? 'One of the swimmers already has a lesson at that time, so this invitation cannot be confirmed and has been cancelled. No points were used.'
+          : 'This time slot was taken by another customer and cannot be confirmed.',
+      }, { status: 409 })
+    }
+    console.error('confirm-partner: claim failed:', m)
+    return NextResponse.json({ error: 'Could not confirm this lesson. Please try again.' }, { status: 500 })
+  }
   if (!claimed || claimed.length !== groupIds.length) {
     if (claimed && claimed.length > 0) {
       await supabase.from('bookings').update({ status: 'pending_partner' }).in('id', claimed.map((r: any) => r.id))
@@ -248,28 +323,51 @@ export async function POST(req: NextRequest) {
 
   try {
     const { data: initiatorParent } = await supabase.from('parents').select('first_name, email').eq('id', initiatorBooking.parent_id).single()
-    const { data: partnerStudent } = await supabase.from('students').select('full_name').eq('id', partnerBooking.student_id).single()
+    const { data: confirmer } = await supabase.from('parents').select('first_name, email').eq('id', confirmingParent.id).single()
+    const kidIds = [...new Set(group.map(r => r.student_id).filter(Boolean))] as string[]
+    const { data: kids } = kidIds.length
+      ? await supabase.from('students').select('id, full_name').in('id', kidIds)
+      : { data: [] as any[] }
+    const kidName = new Map((kids || []).map((k: any) => [k.id, k.full_name]))
+    const namesOf = (rows: any[]) => [...new Set(rows.map(r => kidName.get(r.student_id)).filter(Boolean))].join(' & ')
     const ordered = [...sessions].sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))
     const { data: sess } = await supabase
       .from('class_sessions')
       .select('session_date, start_time, course_types(name), coaches(first_name)')
       .eq('id', ordered[0].id)
       .single()
-    if (initiatorParent && sess) {
+    if (sess) {
       const ct = Array.isArray((sess as any).course_types) ? (sess as any).course_types[0] : (sess as any).course_types
       const coach = Array.isArray((sess as any).coaches) ? (sess as any).coaches[0] : (sess as any).coaches
-      await sendEmail({
-        type: 'partner_booking_confirmed',
-        to: initiatorParent.email,
-        parentName: initiatorParent.first_name,
-        studentName: partnerStudent?.full_name || '',
+      const lesson = {
         courseName: (ct?.name || '') + (sessions.length > 1 ? ' (60 min)' : ''),
         coachName: coach?.first_name || '',
         date: (sess as any).session_date,
         // 12-hour start-end range across both halves of an hour (found
         // 2026-10-05): the raw column read "10:20:00" with no end time.
         time: formatTime12h(ordered[0].start_time) + ' \u2013 ' + formatTime12h(ordered[ordered.length - 1].end_time),
-      })
+      }
+      if (initiatorParent?.email) {
+        await sendEmail({
+          type: 'partner_booking_confirmed',
+          to: initiatorParent.email,
+          parentName: initiatorParent.first_name,
+          studentName: namesOf(mine),
+          ...lesson,
+        })
+      }
+      // The family who accepted was charged too, and every other booking path
+      // confirms to the family who paid (found 2026-10-07): they got nothing.
+      if (confirmer?.email) {
+        await sendEmail({
+          type: 'booking_confirmed',
+          to: confirmer.email,
+          parentName: confirmer.first_name,
+          studentName: namesOf(mine),
+          partnerName: namesOf(theirs),
+          ...lesson,
+        })
+      }
     }
   } catch {}
 

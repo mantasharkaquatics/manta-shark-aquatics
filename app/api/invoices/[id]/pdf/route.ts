@@ -13,7 +13,17 @@ const esc = (v: unknown) => String(v ?? '')
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await requireUser()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!auth) {
+    // The receipt email links straight here (found 2026-10-07). A family
+    // opening it signed out is sent to sign in and brought back, rather than
+    // shown a bare JSON error. /login reads ?next= through sanitizeNext.
+    if ((req.headers.get('accept') || '').includes('text/html')) {
+      const url = new URL('/login', req.url)
+      url.searchParams.set('next', `/api/invoices/${encodeURIComponent(id)}/pdf`)
+      return NextResponse.redirect(url)
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

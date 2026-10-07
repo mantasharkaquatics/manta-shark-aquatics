@@ -12,6 +12,12 @@
 //   - paid at least partly with PURCHASED points (not all granted) and not
 //     refunded in full -- which also leaves out Swim Team, a subscription that
 //     never touches points;
+//   - OR a make-up booked with a voucher (補課券), when the lesson the voucher
+//     replaced was paid that way (owner, 2026-10-07). The make-up row itself
+//     carries 0 points and the replaced lesson is cancelled, so neither used
+//     to count: one leave or grace cost the family a lesson toward the 8 even
+//     though the child swam it (found 2026-10-07). A voucher with no source
+//     lesson (issued by hand) paid for nothing and does not count;
 //   - not the assessment itself;
 //   - dated from the assessment day up to and including the deadline.
 // A 60-minute lesson is two half-hour bookings and counts as 2 (owner, same day).
@@ -80,15 +86,57 @@ export async function countCreditLessons(
   row: { student_id: string; assessed_on: string; credit_deadline: string },
   today = getTodayLA(),
 ): Promise<number> {
-  const { data: bookings } = await svc.from('bookings')
-    .select('class_session_id, points_charged, points_granted, points_refunded, is_trial')
+  const { data: bookings, error: bookingsErr } = await svc.from('bookings')
+    .select('class_session_id, points_charged, points_granted, points_refunded, is_trial, voucher_id')
     .eq('student_id', row.student_id)
     .not('points_charged', 'is', null)
     .not('status', 'in', '("cancelled","in_cart","pending_partner","pending_payment")')
+  if (bookingsErr) throw new Error(bookingsErr.message)
+  const boughtWithPurchased = (b: any) =>
+    (b.points_charged ?? 0) > (b.points_granted ?? 0)
+    && (b.points_refunded ?? 0) < (b.points_charged ?? 0)
+
+  // Make-ups: what did the replaced lesson cost? The voucher names one source
+  // row; a sibling 1-on-2 voucher covers two children, so for the second
+  // child the row read is their own seat in that same lesson when there is one.
+  const voucherIds = [...new Set((bookings || [])
+    .filter((b: any) => !b.is_trial && b.voucher_id && !boughtWithPurchased(b))
+    .map((b: any) => b.voucher_id as string))]
+  const fundedVouchers = new Set<string>()
+  if (voucherIds.length > 0) {
+    const { data: vouchers, error: vErr } = await svc.from('make_up_vouchers')
+      .select('id, source_booking_id').in('id', voucherIds)
+    if (vErr) throw new Error(vErr.message)
+    const sourceIds = [...new Set((vouchers || []).map((v: any) => v.source_booking_id).filter(Boolean))] as string[]
+    if (sourceIds.length > 0) {
+      const { data: sources, error: sErr } = await svc.from('bookings')
+        .select('id, student_id, class_session_id, points_charged, points_granted, points_refunded')
+        .in('id', sourceIds)
+      if (sErr) throw new Error(sErr.message)
+      const sourceById = new Map<string, any>((sources || []).map((x: any) => [x.id, x]))
+      const otherSeatSessions = [...new Set((sources || [])
+        .filter((x: any) => x.student_id !== row.student_id && x.class_session_id)
+        .map((x: any) => x.class_session_id))] as string[]
+      const ownSeat = new Map<string, any>()
+      if (otherSeatSessions.length > 0) {
+        const { data: seats, error: seatErr } = await svc.from('bookings')
+          .select('class_session_id, points_charged, points_granted, points_refunded')
+          .eq('student_id', row.student_id).in('class_session_id', otherSeatSessions)
+        if (seatErr) throw new Error(seatErr.message)
+        for (const x of seats || []) ownSeat.set(x.class_session_id, x)
+      }
+      for (const v of vouchers || []) {
+        const src = sourceById.get(v.source_booking_id)
+        if (!src) continue
+        const paidRow = src.student_id === row.student_id ? src : (ownSeat.get(src.class_session_id) || src)
+        if (boughtWithPurchased(paidRow)) fundedVouchers.add(v.id)
+      }
+    }
+  }
+
   const paid = (bookings || []).filter((b: any) =>
     !b.is_trial
-    && (b.points_charged ?? 0) > (b.points_granted ?? 0)
-    && (b.points_refunded ?? 0) < (b.points_charged ?? 0))
+    && (boughtWithPurchased(b) || (b.voucher_id && fundedVouchers.has(b.voucher_id))))
   if (paid.length === 0) return 0
   const { data: sessions } = await svc.from('class_sessions')
     .select('id, session_date')

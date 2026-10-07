@@ -147,7 +147,15 @@ export default function POSClient() {
   }, [selectedParent, isTrial, isTeam])
 
   useEffect(() => {
-    if (!isSdp || sdpCourseTypes.length > 0) return
+    if (!isSdp) return
+    // "New transaction" clears the course but keeps the loaded list, so the
+    // second SDP sale used to return here with no course chosen: the select
+    // showed the first course, and Charge waited on "Complete SDP details"
+    // with nothing visibly missing (found 2026-10-07).
+    if (sdpCourseTypes.length > 0) {
+      if (!sdpCourseTypeId) setSdpCourseTypeId(sdpCourseTypes[0].id)
+      return
+    }
     // Only course types priced in points -- the server refuses the rest.
     supabase.from('course_types').select('id, name').in('slug', SDP_COURSE_SLUGS).order('name')
       .then(({ data }) => {
@@ -187,6 +195,16 @@ export default function POSClient() {
   const teamLabelUi = t(teamM > 1 ? 'admin.pos.teamLabelPlural' : 'admin.pos.teamLabel', { tier: teamTierName || t('admin.pos.swimTeam'), n: teamM })
   const pointsLine = t('admin.pos.pointsN', { n: topup.toLocaleString() }) + (bonus > 0 ? t('admin.pos.bonusSuffix', { n: bonus.toLocaleString() }) : '')
   const chargeAmount = isTeam ? teamAmountCents : isSdp ? sdpAmountCents : isTrial ? TRIAL_CENTS : topup * 100
+  // The one thing being sold, in the same order chargeAmount and doCharge
+  // decide it. The cash dialogs and the success screen read this too: they
+  // used to test isTrial first and label an SDP sale "Swim Assessment" when
+  // both were on (found 2026-10-07). The mode buttons are also exclusive now.
+  const saleKind: 'team' | 'sdp' | 'trial' | 'points' = isTeam ? 'team' : isSdp ? 'sdp' : isTrial ? 'trial' : 'points'
+  const sdpStudentName = sdpStudents.find(s => s.id === sdpStudentId)?.full_name || ''
+  const saleLine = saleKind === 'team' ? teamLabelUi
+    : saleKind === 'sdp' ? t('admin.pos.sdp.eyebrow') + (sdpStudentName ? ' · ' + sdpStudentName : '')
+    : saleKind === 'trial' ? t('common.assessment') + ' · ' + (selectedStudent?.full_name || '')
+    : pointsLine
 
   // While a charged sale is waiting to be finished, the Charge button stays
   // off: pressing it would take the money a second time.
@@ -275,13 +293,33 @@ export default function POSClient() {
 
   // Records the sale. A failure after the money moved comes back with what
   // can finish it, and the button under the error offers exactly that.
+  //
+  // For a card sale the "record again" path is already set before this runs
+  // (recordSale), and only a better path from the server replaces it. A
+  // dropped connection or a non-JSON 502/504 used to throw with no recovery,
+  // which turned Charge back on and invited a second charge on a new payment
+  // (found 2026-10-07). Recording again is safe: every complete-* route
+  // refuses a payment intent it has already recorded.
   const record = async (url: string, body: unknown) => {
-    const res = await fetch(url, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    const card = !!(body as { paymentIntentId?: string }).paymentIntentId
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    } catch (e: any) {
+      throw new Error(card ? t('admin.pos.err.recordLost') : (e?.message || t('admin.pos.err.failed')))
+    }
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
+      // Already recorded: the earlier attempt landed and only its answer was
+      // lost. The sale is done.
+      if (data.alreadyRecorded) {
+        setRecovery(null)
+        setStep('success')
+        return
+      }
       // A cash sale the server wants confirmed: nothing was taken yet, so ask.
       if (data.needs_override && !data.retryWithOverride && !(body as { override?: boolean }).override) askOverride(data.reasons)
       if (data.retryCredit) setRecovery({ kind: 'credit', body: data.retryCredit })
@@ -289,10 +327,18 @@ export default function POSClient() {
       // with the override never touches the card.
       else if (data.retryWithOverride) setRecovery({ kind: 'record', url, body: { ...(body as object), override: true } })
       else if (data.retryable) setRecovery({ kind: 'record', url, body })
-      throw new Error(data.error || t('admin.pos.err.failed'))
+      throw new Error(data.error || (card ? t('admin.pos.err.recordLost') : t('admin.pos.err.failed')))
     }
     setRecovery(null)
     setStep('success')
+  }
+
+  // The moment a card payment id exists the money has moved: set the
+  // "record again" path first, so whatever happens to the request after this
+  // keeps it and Charge stays off (found 2026-10-07).
+  const recordSale = async (url: string, body: Record<string, unknown>) => {
+    if (body.paymentIntentId) setRecovery({ kind: 'record', url, body })
+    await record(url, body)
   }
 
   const doCharge = async () => {
@@ -314,7 +360,7 @@ export default function POSClient() {
         // The route refuses a payment it has already recorded, and offers a
         // second recording only when nothing was written (or the squad needs
         // confirming), so the recovery button cannot extend a membership twice.
-        await record('/api/pos/complete-team-sale', {
+        await recordSale('/api/pos/complete-team-sale', {
           ...sale,
           paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
           ...(paymentIntentId ? { paymentIntentId } : {}),
@@ -328,7 +374,7 @@ export default function POSClient() {
         const paymentIntentId = payMethod === 'card'
           ? await takeCard('/api/stripe/terminal/create-payment-intent', { kind: 'sdp', ...sale }, sdpAmountCents)
           : undefined
-        await record('/api/pos/complete-sdp-sale', {
+        await recordSale('/api/pos/complete-sdp-sale', {
           ...sale,
           paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
           ...(paymentIntentId ? { paymentIntentId } : {}),
@@ -339,7 +385,7 @@ export default function POSClient() {
         const paymentIntentId = payMethod === 'card'
           ? await takeCard('/api/stripe/terminal/create-trial-payment-intent', sale, TRIAL_CENTS)
           : undefined
-        await record('/api/pos/complete-trial-sale', {
+        await recordSale('/api/pos/complete-trial-sale', {
           ...sale,
           paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
           ...(paymentIntentId ? { paymentIntentId } : {}),
@@ -350,7 +396,7 @@ export default function POSClient() {
         const paymentIntentId = payMethod === 'card'
           ? await takeCard('/api/stripe/terminal/create-payment-intent', { kind: 'points', ...sale }, topup * 100)
           : undefined
-        await record('/api/pos/complete-sale', {
+        await recordSale('/api/pos/complete-sale', {
           ...sale,
           paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
           ...(paymentIntentId ? { paymentIntentId } : {}),
@@ -408,7 +454,7 @@ export default function POSClient() {
           <p style={{ color: '#9ca3af', fontSize: 15, marginBottom: 4 }}>{customerName}</p>
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 4 }}>{amount}</p>
           <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 28 }}>
-            {isTrial ? t('common.assessment') + ' · ' + (students.find(s => s.id === selectedStudentId)?.full_name || '') : isTeam ? teamLabelUi : pointsLine}
+            {saleLine}
           </p>
           <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>{t('admin.pos.cash.confirmHint')}</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -433,15 +479,15 @@ export default function POSClient() {
       <div style={{ minHeight: '100vh', backgroundColor: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', padding: 40 }}>
           <div style={{ width: 96, height: 96, borderRadius: '50%', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 48 }}>✓</div>
-          <h2 style={{ color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{isTrial ? t('admin.pos.success.assessment') : t('admin.pos.success.payment')}</h2>
+          <h2 style={{ color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{saleKind === 'trial' ? t('admin.pos.success.assessment') : t('admin.pos.success.payment')}</h2>
           <p style={{ color: '#9ca3af', fontSize: 18, marginBottom: 4 }}>{selectedParent?.first_name} {selectedParent?.last_name}</p>
-          {isTrial ? (
+          {saleKind === 'trial' ? (
             <>
               <p style={{ color: GOLD, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t('common.assessment')} · {selectedStudent?.full_name}</p>
               <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 8 }}>{t('admin.pos.success.assessmentHint')}</p>
             </>
           ) : (
-            <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{isTeam ? teamLabelUi : pointsLine}</p>
+            <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{saleLine}</p>
           )}
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 8 }}>${(chargeAmount / 100).toLocaleString()}</p>
           <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 32 }}>{payMethod === 'cash' ? t('admin.pos.pm.cash') : t('admin.pos.pm.card')}</p>
@@ -486,7 +532,7 @@ export default function POSClient() {
                 {selectedParent?.first_name} {selectedParent?.last_name}
               </div>
               <div style={{ fontSize: 13, color: '#9ca3af' }}>
-                {isTrial ? t('common.assessment') : isTeam ? teamLabelUi : pointsLine}
+                {saleLine}
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, color: GOLD, marginTop: 8 }}>
                 ${(chargeAmount / 100).toLocaleString()}
@@ -559,7 +605,7 @@ export default function POSClient() {
           <div style={{ maxHeight: 660, overflowY: 'auto' }}>
             <div style={{ borderBottom: '1px solid #1e3a6e', paddingBottom: 14, marginBottom: 14 }}>
               <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{t('common.assessment')}</p>
-              <button onClick={() => { setIsTrial(!isTrial); setIsTeam(false) }}
+              <button onClick={() => { setIsTrial(!isTrial); setIsTeam(false); setIsSdp(false) }}
                 style={{ width: '100%', padding: '12px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `2px solid ${isTrial ? GOLD : '#1e3a6e'}`, backgroundColor: isTrial ? GOLD : '#0d1829', transition: 'all 0.15s' }}>
                 <p style={{ color: isTrial ? NAVY : '#9ca3af', fontSize: 11, fontWeight: 600, margin: 0 }}>{t('admin.pos.assessment.sub')}</p>
                 <p style={{ color: isTrial ? NAVY : 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>$85.00</p>
@@ -681,7 +727,7 @@ export default function POSClient() {
                 {TOPUP_PRESETS.map(preset => {
                   const sel = topup === preset
                   return (
-                    <button key={preset} onClick={() => { setTopupDollars(String(preset)); setIsTrial(false); setIsTeam(false) }}
+                    <button key={preset} onClick={() => { setTopupDollars(String(preset)); setIsTrial(false); setIsTeam(false); setIsSdp(false) }}
                       style={{ padding: '10px 8px', borderRadius: 8, textAlign: 'center', cursor: 'pointer', border: `1px solid ${sel ? GOLD : '#1e3a6e'}`, backgroundColor: sel ? GOLD : '#0d1829' }}>
                       <p style={{ color: sel ? NAVY : 'white', fontSize: 15, fontWeight: 700, margin: 0 }}>${preset.toLocaleString()}</p>
                       <p style={{ color: sel ? NAVY : '#9ca3af', fontSize: 11, margin: 0 }}>{t('admin.pos.ptsN', { n: preset.toLocaleString() })}</p>

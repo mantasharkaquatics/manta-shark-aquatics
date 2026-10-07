@@ -29,10 +29,24 @@ export type CancelTarget = {
  */
 export type CancelOutcome = 'refund' | 'voucher' | 'restore' | 'keep'
 
+/**
+ * The outcome as the parent was shown it: CancelOutcome with 'voucher' split
+ * into the two kinds the dialog words differently (leave in time, or the
+ * month's grace inside 24 hours). The dashboard sends the one it showed, and
+ * the server refuses with OUTCOME_CHANGED when the clock has since moved the
+ * lesson across the 24-hour line (found 2026-10-07): a dialog opened at 24h03m
+ * promised "65 points back" and the confirm, five minutes later, spent the
+ * month's grace instead -- or spent a make-up voucher with no word at all.
+ */
+export type ExpectedOutcome = 'refund' | 'leave' | 'grace' | 'restore' | 'keep'
+export const OUTCOME_CHANGED = 'OUTCOME_CHANGED'
+
 export type CancelResult = {
   ok: boolean
   status: number
   error?: string
+  /** With OUTCOME_CHANGED: what cancelling would do now. */
+  outcomeNow?: ExpectedOutcome
   cancelledBookingIds: string[]
   pointsRefunded?: number
   outcome?: CancelOutcome
@@ -55,6 +69,9 @@ export type CancelOptions = {
   // first -- refunded if it was, and NOT given a voucher (or a second grace)
   // of its own when the first half already turned the hour into one.
   settled?: CancelOutcome
+  // What the parent was shown (ExpectedOutcome). Refused with a 409 when the
+  // outcome worked out now is different. Only the parent's own dialog sends it.
+  expect?: ExpectedOutcome
 }
 
 // Sends one booking_cancelled email per affected parent. The time range spans
@@ -149,7 +166,7 @@ export async function cancelLesson(
   svc: SupabaseClient,
   bookingId: string,
   callerParentId: string | null,
-  options: { skipEmail?: boolean } = {},
+  options: { skipEmail?: boolean; expect?: ExpectedOutcome } = {},
 ): Promise<CancelResult & { remainingBookingIds?: string[] }> {
   const { data: self } = await svc
     .from('bookings').select('lesson_group_id, parent_id').eq('id', bookingId).single()
@@ -176,6 +193,8 @@ export async function cancelLesson(
 
   const result = await cancelBookingWithPartner(svc, bookingId, callerParentId, {
     skipEmail: options.skipEmail || !!groupId,
+    // Judged on the half that decides the lesson; the other follows it.
+    expect: options.expect,
   })
   if (!result.ok || !groupId) return result
 
@@ -281,6 +300,8 @@ export async function cancelBookingWithPartner(
   // through; 'cancelled' falls through to the "Already cancelled" claim below.
   // The start-time half of this check is with the timing read further down.
   const LESSON_STARTED_ERROR = 'This lesson has already started, so it can no longer be cancelled.'
+  const CHECKED_IN_ERROR = 'This lesson has already been checked in, so it can no longer be cancelled.'
+  const ONE_ON_TWO_VOUCHER_ERROR = 'This 1-on-2 lesson cannot be turned into a make-up voucher online. Please contact us and we will take care of it.'
   if (callerParentId && !['confirmed', 'pending_partner', 'cancelled'].includes(booking.status)) {
     return { ok: false, status: 400, error: LESSON_STARTED_ERROR, cancelledBookingIds: [] }
   }
@@ -307,6 +328,44 @@ export async function cancelBookingWithPartner(
     if (untilStart !== null && untilStart <= 0) {
       return { ok: false, status: 400, error: LESSON_STARTED_ERROR, cancelledBookingIds: [] }
     }
+
+    // The other seats of this lesson. A 1-on-2 is ONE lesson for two swimmers
+    // (owner, 2026-10-07): this family's second seat, or another family's.
+    // A cross-family 1-on-2 used to be recognised by partner_booking_id alone,
+    // which the desk's bulk-create never wrote -- so a desk-made pair could be
+    // late-cancelled online on one family's grace while the other family's
+    // seat was swept away and refunded (found 2026-10-07). Another family's
+    // CONFIRMED seat in the same session is that pair, linked or not; a
+    // pending invitation row is not (nothing was agreed yet).
+    let ownSeats: { id: string; student_id: string }[] = []
+    let crossFamily = !!booking.partner_booking_id
+    if (ctSlug === '1on2') {
+      const { data: seats } = await svc.from('bookings').select('id, parent_id, student_id, status')
+        .eq('class_session_id', booking.class_session_id).neq('id', booking.id)
+        .not('status', 'in', '("cancelled","pending_payment","in_cart")')
+      ownSeats = (seats || []).filter((s: any) => s.parent_id === booking.parent_id)
+      if ((seats || []).some((s: any) => s.parent_id !== booking.parent_id && s.status === 'confirmed')) crossFamily = true
+    }
+
+    // A swimmer who has checked in is having the lesson (found 2026-10-07).
+    // The desk's cancel routes already refuse this; the parent's did not, so
+    // a child checked in at the pool could still have the lesson cancelled for
+    // a grace voucher. Every row of this lesson counts: both halves of an
+    // hour, and both seats of a sibling 1-on-2 (one lesson). Two siblings in a
+    // 1-on-4 are two lessons, so only this one's own rows there.
+    if (booking.status === 'confirmed') {
+      const lessonRowIds = [booking.id, ...ownSeats.map(s => s.id)]
+      if (booking.lesson_group_id) {
+        const { data: halves } = await svc.from('bookings').select('id')
+          .eq('lesson_group_id', booking.lesson_group_id).eq('parent_id', booking.parent_id)
+        for (const h of halves || []) if (!lessonRowIds.includes(h.id)) lessonRowIds.push(h.id)
+      }
+      const { data: attended } = await svc.from('attendance').select('booking_id').in('booking_id', lessonRowIds).limit(1)
+      if ((attended || []).length > 0) {
+        return { ok: false, status: 400, error: CHECKED_IN_ERROR, cancelledBookingIds: [] }
+      }
+    }
+
     const late = untilStart === null || untilStart < 24 * 60
     if (options.settled) {
       // The second half of an hour follows the first, whatever it was.
@@ -326,7 +385,7 @@ export async function cancelBookingWithPartner(
     } else if (late) {
       // A cross-family 1-on-2 inside 24 hours stays with the front desk: a
       // second family shares the slot, and theirs is not ours to settle.
-      if (booking.partner_booking_id) {
+      if (crossFamily) {
         return { ok: false, status: 400, error: '1-on-2 lessons starting within 24 hours cannot be cancelled online. Please contact us.', cancelledBookingIds: [] }
       }
       // A sibling 1-on-2 spends BOTH children's grace (owner, 2026-10-03):
@@ -334,12 +393,7 @@ export async function cancelBookingWithPartner(
       // stops it. The voucher carries both children, and graceUsedThisMonth
       // counts its second child too.
       const kids = [booking.student_id]
-      if (ctSlug === '1on2') {
-        const { data: seat } = await svc.from('bookings').select('student_id')
-          .eq('parent_id', booking.parent_id).eq('class_session_id', booking.class_session_id)
-          .neq('id', booking.id).not('status', 'in', '("cancelled","pending_payment","in_cart")')
-        for (const s of seat || []) if (s.student_id && !kids.includes(s.student_id)) kids.push(s.student_id)
-      }
+      for (const s of ownSeats) if (s.student_id && !kids.includes(s.student_id)) kids.push(s.student_id)
       const used = await graceUsedThisMonth(svc, kids)
       if (kids.some(k => used.has(k))) {
         // Nothing to spend, so the lesson cannot be cancelled online. The
@@ -352,6 +406,28 @@ export async function cancelBookingWithPartner(
       // In time: a fixed-class lesson becomes a make-up voucher (the points
       // were for a term, not one date); a single lesson is refunded.
       outcome = booking.fixed_class_id ? 'voucher' : 'refund'
+    }
+
+    // A 1-on-2 make-up voucher is for two swimmers of one family, and every
+    // way of using one asks for both (owner, 2026-10-07: a 1-on-2 always has
+    // two students). A 1-on-2 voucher naming one child could never be booked
+    // and quietly expired, taking the lesson with it (found 2026-10-07). When
+    // this lesson cannot give a two-child voucher -- the other seat is another
+    // family's, or a one-swimmer lesson left over from before this rule -- it
+    // is not cancelled online; the desk settles both seats together.
+    if (outcome === 'voucher' && !options.settled && ctSlug === '1on2') {
+      const twoKids = new Set([booking.student_id, ...ownSeats.map(s => s.student_id)].filter(Boolean))
+      if (crossFamily || twoKids.size < 2) {
+        return { ok: false, status: 400, error: ONE_ON_TWO_VOUCHER_ERROR, cancelledBookingIds: [] }
+      }
+    }
+
+    // The dialog promised one thing; the clock may since have made it another.
+    if (options.expect && !options.settled) {
+      const now: ExpectedOutcome = outcome === 'voucher' ? voucherReason : outcome
+      if (now !== options.expect) {
+        return { ok: false, status: 409, error: OUTCOME_CHANGED, outcomeNow: now, cancelledBookingIds: [] }
+      }
     }
   }
   const refundPoints = outcome === 'refund'
@@ -440,17 +516,21 @@ export async function cancelBookingWithPartner(
   let restoredFrom: string | null = null
   if (outcome === 'voucher' && !options.settled) {
     const sibling = sameParentBookings.find((x: any) => cancelledBookingIds.includes(x.id))
-    const r = await issueVoucher(svc, {
-      parentId: booking.parent_id,
-      studentId: booking.student_id,
-      student2Id: ctSlug === '1on2' ? sibling?.student_id ?? null : null,
-      courseSlug: ctSlug,
-      minutes: booking.lesson_group_id ? 60 : 30,
-      reason: voucherReason,
-      ...voucherWindow(voucherReason, sessionDate),
-      sourceBookingId: booking.id,
-      fixedClassId: booking.fixed_class_id ?? null,
-    })
+    // Checked above that a second child is there; if a cancellation racing
+    // this one took that seat first, no one-child 1-on-2 voucher is made.
+    const r = ctSlug === '1on2' && !sibling?.student_id
+      ? { voucher: undefined, duplicate: false }
+      : await issueVoucher(svc, {
+          parentId: booking.parent_id,
+          studentId: booking.student_id,
+          student2Id: ctSlug === '1on2' ? sibling?.student_id ?? null : null,
+          courseSlug: ctSlug,
+          minutes: booking.lesson_group_id ? 60 : 30,
+          reason: voucherReason,
+          ...voucherWindow(voucherReason, sessionDate),
+          sourceBookingId: booking.id,
+          fixedClassId: booking.fixed_class_id ?? null,
+        })
     if (!r.voucher) {
       await svc.from('bookings')
         .update({ status: booking.status, cancellation_reason: null, cancelled_by: null, cancelled_at: null })
@@ -466,69 +546,72 @@ export async function cancelBookingWithPartner(
     restoredFrom = v?.usable_from ?? null
   }
 
-  // Cross-account partner: bookings on any session with same date + time + coach.
+  // Cross-account partner: the other family's seat of this same 1-on-2.
   //
-  // 1-on-2 ONLY. This block finds "the other family" by matching date + start_time
-  // + coach_id, which is exactly right for a two-family 1-on-2 pairing but is NOT
-  // a partnership test. A banded 1-on-4 group class is up to four UNRELATED
-  // families sharing one class_session, all matching that heuristic — without this
-  // gate, one parent cancelling would cancel and refund every other family in the
-  // class and email them a cancellation notice. Owner's rule: cancelling a group
-  // class cancels that family's booking and nothing else.
+  // 1-on-2 ONLY. A banded 1-on-4 group class is up to four UNRELATED families
+  // sharing one class_session -- without this gate, one parent cancelling
+  // would cancel and refund every other family in the class and email them a
+  // cancellation notice. Owner's rule: cancelling a group class cancels that
+  // family's booking and nothing else. A 1-on-2, by contrast, is ONE lesson
+  // and is never cancelled for one side only (owner, 2026-10-07).
+  //
+  // Found by link, never by slot (found 2026-10-07). This used to take every
+  // other family's booking on ANY session with the same date, start time and
+  // coach. A pending invitation holds no seat, so another family could book
+  // that coach and time while it waited; withdrawing the invitation then
+  // cancelled and refunded THEIR lessons and sent them "Invitation Withdrawn".
+  // The other side is now: the row this one links to, rows linking back to it,
+  // and -- for a confirmed lesson -- another family's confirmed seat in this
+  // very session (a desk-made pair may carry no link at all; a 1-on-2
+  // session holds two seats, so whoever else is confirmed in it is the pair).
   if (primaryCt?.slug === '1on2') {
-    const { data: session } = await svc
-      .from('class_sessions')
-      .select('session_date, start_time, coach_id')
-      .eq('id', booking.class_session_id)
-      .single()
+    const cols = 'id, points_charged, points_refunded, class_session_id, parent_id, student_id, status'
+    const live = '("cancelled","pending_payment","in_cart")'
+    const found = new Map<string, any>()
+    const add = (rows: any[] | null) => {
+      for (const r of rows || []) if (r.parent_id !== booking.parent_id && !cancelledBookingIds.includes(r.id)) found.set(r.id, r)
+    }
+    if (booking.partner_booking_id) {
+      const { data } = await svc.from('bookings').select(cols)
+        .eq('id', booking.partner_booking_id).not('status', 'in', live)
+      add(data)
+    }
+    {
+      const { data } = await svc.from('bookings').select(cols)
+        .eq('partner_booking_id', booking.id).not('status', 'in', live)
+      add(data)
+    }
+    if (booking.status === 'confirmed') {
+      const { data } = await svc.from('bookings').select(cols)
+        .eq('class_session_id', booking.class_session_id).eq('status', 'confirmed')
+      add(data)
+    }
 
-    if (session) {
-      const { data: sameSessions } = await svc
-        .from('class_sessions')
+    for (const pb of found.values()) {
+      const { data: c } = await svc
+        .from('bookings')
+        .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
+        .eq('id', pb.id)
+        .neq('status', 'cancelled')
         .select('id')
-        .eq('session_date', session.session_date)
-        .eq('start_time', session.start_time)
-        .eq('coach_id', session.coach_id)
-
-      const sessionIds = (sameSessions || []).map((s: any) => s.id)
-
-      if (sessionIds.length > 0) {
-        const { data: partnerBookings } = await svc
-          .from('bookings')
-          .select('id, points_charged, points_refunded, class_session_id, parent_id, student_id')
-          .neq('parent_id', booking.parent_id)
-          .in('class_session_id', sessionIds)
-          .neq('status', 'cancelled')
-          .neq('status', 'pending_payment')
-          .neq('status', 'in_cart')
-
-        for (const pb of partnerBookings || []) {
-          const { data: c } = await svc
-            .from('bookings')
-            .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
-            .eq('id', pb.id)
-            .neq('status', 'cancelled')
-            .select('id')
-          if (!c || c.length === 0) continue
-          cancelledBookingIds.push(pb.id)
-          // The OTHER family cancelled and took this one down with it. They
-          // did not choose this, so their points come back in full whatever
-          // the clock says, and it costs them no grace -- this was never
-          // their cancellation.
-          const partnerBack = await refundBookingPoints(svc, {
-            booking: pb,
-            parentId: pb.parent_id,
-            reason: 'school_cancel',
-            actor: 'system',
-            note: 'the other family cancelled this 1-on-2',
-          })
-          cancelledPartners.push({
-            parent_id: pb.parent_id,
-            student_id: pb.student_id,
-            kind: partnerBack > 0 ? 'points' : 'none',
-          })
-        }
-      }
+      if (!c || c.length === 0) continue
+      cancelledBookingIds.push(pb.id)
+      // The OTHER family cancelled and took this one down with it. They
+      // did not choose this, so their points come back in full whatever
+      // the clock says, and it costs them no grace -- this was never
+      // their cancellation.
+      const partnerBack = await refundBookingPoints(svc, {
+        booking: pb,
+        parentId: pb.parent_id,
+        reason: 'school_cancel',
+        actor: 'system',
+        note: 'the other family cancelled this 1-on-2',
+      })
+      cancelledPartners.push({
+        parent_id: pb.parent_id,
+        student_id: pb.student_id,
+        kind: partnerBack > 0 ? 'points' : 'none',
+      })
     }
   }
 
@@ -556,6 +639,14 @@ export async function cancelBookingWithPartner(
       : { parent_id: booking.parent_id, student_id: booking.student_id, kind: refunded > 0 ? 'points' as const : 'none' as const },
     ...cancelledPartners,
   ]
+  // The sibling seat of a same-family 1-on-2 went too, and the email named
+  // only the first child -- as if the other's lesson were still on (found
+  // 2026-10-07). One email per family, so this only adds the name; the kind
+  // is the primary's (same refund, or the one two-child voucher).
+  for (const pb of sameParentBookings) {
+    if (!cancelledBookingIds.includes(pb.id) || !pb.student_id) continue
+    emailTargets.push({ ...emailTargets[0], student_id: pb.student_id })
+  }
 
   if (!options.skipEmail) {
     await notifyCancellation(svc, { bookingIds: cancelledBookingIds, targets: emailTargets })

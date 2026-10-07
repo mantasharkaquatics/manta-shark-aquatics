@@ -146,13 +146,21 @@ export async function POST(req: NextRequest) {
       const { data: ct } = await svc.from('course_types').select('name').eq('id', sess.course_type_id).single()
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
       const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
+      // The whole hour, from the earliest half's start to the latest one's
+      // end. The clicked session may be the SECOND half of a 60-minute lesson,
+      // and its start time read "4:10 PM - 4:40 PM" for a lesson cancelled from
+      // 3:40 (found 2026-10-07).
+      let startStr = sess.start_time
       let endStr = sess.end_time
       if (extraSessionIds.size > 0) {
         const { data: gs } = await svc
-          .from('class_sessions').select('end_time').in('id', Array.from(extraSessionIds))
-        for (const g of gs || []) if (g.end_time && g.end_time > endStr) endStr = g.end_time
+          .from('class_sessions').select('start_time, end_time').in('id', Array.from(extraSessionIds))
+        for (const g of gs || []) {
+          if (g.start_time && g.start_time < startStr) startStr = g.start_time
+          if (g.end_time && g.end_time > endStr) endStr = g.end_time
+        }
       }
-      const timeStr = formatTime12h(sess.start_time) + ' \u2013 ' + formatTime12h(endStr)
+      const timeStr = formatTime12h(startStr) + ' \u2013 ' + formatTime12h(endStr)
       const kindsByParent = new Map<string, Set<string>>()
       for (const n of notified) {
         if (!n.parent_id || n.kind === 'none') continue

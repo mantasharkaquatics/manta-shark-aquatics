@@ -18,6 +18,7 @@ import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
+import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { addDaysStr } from '@/lib/vouchers'
 
 type Svc = SupabaseClient
@@ -267,7 +268,14 @@ export async function loadWindow(svc: Svc, coachIds: string[], from: string, to:
   for (const r of zany || []) w.zoned.add(r.coach_id)
   for (const r of zrows || []) w.zones.set(r.coach_id, [...(w.zones.get(r.coach_id) || []), r])
   for (const b of (offRows || []) as CoachBlock[]) { const k = `${b.coach_id}|${b.date}`; w.off.set(k, [...(w.off.get(k) || []), b]) }
-  for (const s of sessRows || []) { const k = `${s.coach_id}|${s.session_date}`; w.sess.set(k, [...(w.sess.get(k) || []), s]) }
+  // A 1-on-2 invitation still waiting for an answer holds its session; its
+  // seats are not in enrolled_count yet, so it is laid over as full
+  // (lib/bookings/invite-holds), same as the booking routes treat it.
+  const held = new Map((await inviteHeldSessions(svc as any, { coachIds, from, to })).map((h: any) => [h.id, h]))
+  for (const s0 of sessRows || []) {
+    const s = held.get(s0.id) || s0
+    const k = `${s.coach_id}|${s.session_date}`; w.sess.set(k, [...(w.sess.get(k) || []), s])
+  }
   return w
 }
 
