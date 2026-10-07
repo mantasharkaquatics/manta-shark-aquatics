@@ -1396,15 +1396,27 @@ export default function DashboardPage() {
     } catch {}
   }
 
-  async function loadWallet() {
-    try {
-      const [res, tmRes] = await Promise.all([
-        fetch('/api/parent/wallet?history=12'),
-        fetch('/api/parent/team-memberships'),
-      ])
-      if (res.ok) setWallet(await res.json())
-      if (tmRes.ok) { const tmData = await tmRes.json(); setTeamMemberships(tmData.memberships || []) }
-    } catch {}
+  /* The wallet read takes a second or two, longer than the lesson list, so
+     after a cancel the lesson was gone while the balance still showed the old
+     figure (found 2026-10-07). The newest read wins (an older one finishing
+     late cannot put the old balance back), and a cancel waits for it before
+     it lets go of the button. */
+  const walletSeq = useRef(0)
+  const walletReq = useRef<Promise<void> | null>(null)
+  function loadWallet() {
+    const seq = ++walletSeq.current
+    walletReq.current = (async () => {
+      try {
+        const [res, tmRes] = await Promise.all([
+          fetch('/api/parent/wallet?history=12', { cache: 'no-store' }),
+          fetch('/api/parent/team-memberships', { cache: 'no-store' }),
+        ])
+        if (seq !== walletSeq.current) return
+        if (res.ok) setWallet(await res.json())
+        if (tmRes.ok) { const tmData = await tmRes.json(); setTeamMemberships(tmData.memberships || []) }
+      } catch {}
+    })()
+    return walletReq.current
   }
   /* Team practice is the same hour every week and the squad card below already
      states it. Drawing it into every cell of the month buried the thing the
@@ -2407,7 +2419,7 @@ export default function DashboardPage() {
       }
     } catch { setNotice(t('dash.pend.network')) }
     await fetchAll()
-    await loadVouchers()
+    await Promise.all([loadVouchers(), walletReq.current])
     setCancellingId(null)
   }
 
