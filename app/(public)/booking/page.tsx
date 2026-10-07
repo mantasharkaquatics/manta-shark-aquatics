@@ -3216,6 +3216,10 @@ export default function BookingPage() {
               <span style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6 }}>
                 {isTrial ? t('booking.policy.assessment')
                   : makeUp ? t('booking.policy.makeUp')
+                  // Shared with another family: that lesson has its own rule
+                  // (owner, 2026-10-07). The single-lesson text promised a grace
+                  // cancel inside 24 hours, which a shared 1-on-2 never offers.
+                  : (selectedStudent2 as any)?.isPartner ? t('booking.crossAccountRule')
                   // A lesson a voucher pays for is a make-up: its cancellation rule
                   // is the voucher's, not the points refund of a single lesson.
                   : [planSplit.lines.length > 0 ? t('booking.policy.fixed') : null,
