@@ -24,7 +24,7 @@ export const FAQ: readonly FaqCategory[] = [
   },
   {
     id: 'booking',
-    items: ['fixedWhat', 'single14', 'cancel', 'late', 'voucher', 'renew', 'moveSlot', 'pair24', 'assessCancel', 'weather'],
+    items: ['fixedWhat', 'single14', 'cancel', 'late', 'voucher', 'renew', 'moveSlot', 'pair24', 'pairOther', 'assessCancel', 'weather'],
   },
   {
     id: 'money',

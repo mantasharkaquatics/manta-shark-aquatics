@@ -7,6 +7,8 @@ import { giveBackVouchers, issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 import Stripe from 'stripe'
 import { closeTrialCheckout } from '@/lib/trial-booking'
+import { sendEmail } from '@/lib/email'
+import { formatTime12h } from '@/lib/date'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -37,6 +39,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05
 // voucher for both children of a sibling pair, as lib/bookings/cancel.ts
 // makes; two families cannot share one voucher, so that case is refused and
 // the desk refunds (or keeps) instead.
+// One exception (owner, 2026-10-07): a late cancel ("keep") of a 1-on-2 shared
+// by two families takes only the cancelling family's seat. The other family's
+// lesson goes ahead as booked, one-to-one, at no extra cost (see below).
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -71,6 +76,8 @@ export async function POST(req: NextRequest) {
   }
 
   let rows: any[] = [primary]
+  // The other family's seats of a two-family 1-on-2 that stay booked.
+  let stayingRows: any[] = []
   if (isPair) {
     // Every seat of this 1-on-2: the sessions of both halves of an hour, and
     // every row in them in the same state as this one (confirmed with
@@ -86,6 +93,16 @@ export async function POST(req: NextRequest) {
     const { data: seats } = await svc.from('bookings').select(cols)
       .in('class_session_id', [...sids]).eq('status', primary.status)
     rows = seats && seats.length ? seats : rows
+    // Two families, and one of them cancels late (owner, 2026-10-07): only
+    // that family's seat goes, and its points are kept. The other family did
+    // nothing wrong: their lesson goes ahead as booked -- the coach teaches
+    // their swimmer alone -- at no extra cost, and they are emailed to say so.
+    // Refund (the school cancelling, or notice in time) still takes the whole
+    // lesson for both families.
+    if (mode === 'keep' && primary.status === 'confirmed' && new Set(rows.map(r => r.parent_id)).size > 1) {
+      stayingRows = rows.filter(r => r.parent_id !== primary.parent_id)
+      rows = rows.filter(r => r.parent_id === primary.parent_id)
+    }
   } else if (primary.lesson_group_id) {
     const { data: halves } = await svc.from('bookings').select(cols)
       .eq('lesson_group_id', primary.lesson_group_id)
@@ -228,5 +245,44 @@ export async function POST(req: NextRequest) {
   }
   await notifyCancellation(svc, { bookingIds: cancelled, targets })
 
-  return NextResponse.json({ ok: true, cancelled: cancelled.length, pointsRefunded: refundedTotal })
+  // The family whose lesson goes ahead alone hears it from us, not at the pool.
+  let partnerNotified = false
+  if (stayingRows.length > 0) {
+    partnerNotified = await notifyPartnerAbsent(svc, stayingRows)
+  }
+
+  return NextResponse.json({ ok: true, cancelled: cancelled.length, pointsRefunded: refundedTotal,
+    ...(stayingRows.length > 0 ? { partnerContinues: true, partnerNotified } : {}) })
+}
+
+/** Tells the family left in a two-family 1-on-2 that their lesson goes ahead. */
+async function notifyPartnerAbsent(svc: any, rows: any[]): Promise<boolean> {
+  try {
+    const parentId = rows[0].parent_id
+    const sids = [...new Set(rows.map(r => r.class_session_id))]
+    const [{ data: par }, { data: kids }, { data: sess }] = await Promise.all([
+      svc.from('parents').select('first_name, email').eq('id', parentId).maybeSingle(),
+      svc.from('students').select('full_name').in('id', [...new Set(rows.map(r => r.student_id).filter(Boolean))]),
+      svc.from('class_sessions').select('session_date, start_time, end_time, course_types(name), coaches(first_name, last_name)').in('id', sids)
+        .order('start_time', { ascending: true }),
+    ])
+    const first: any = (sess || [])[0]
+    const last: any = (sess || [])[(sess || []).length - 1] || first
+    if (!par?.email || !first) return false
+    const ct: any = Array.isArray(first.course_types) ? first.course_types[0] : first.course_types
+    const co: any = Array.isArray(first.coaches) ? first.coaches[0] : first.coaches
+    return await sendEmail({
+      type: 'partner_absent_lesson_continues',
+      to: par.email,
+      parentName: par.first_name || '',
+      studentName: (kids || []).map((k: any) => k.full_name).filter(Boolean).join(' & '),
+      courseName: ct?.name || '1-on-2',
+      coachName: co ? `${co.first_name || ''} ${co.last_name || ''}`.trim() : '',
+      date: first.session_date,
+      time: `${formatTime12h(first.start_time)} \u2013 ${formatTime12h(last.end_time)}`,
+    })
+  } catch (e) {
+    console.error('admin cancel: partner-absent email failed', e)
+    return false
+  }
 }

@@ -2928,6 +2928,10 @@ export default function DashboardPage() {
                         <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#c0392b' : '#56647d' }}>
                           ⏱ {t('dash.invite.countdown', { time: countdownStr })}
                         </div>
+                        {/* What accepting means if either family cancels (owner, 2026-10-07). */}
+                        <div style={{ fontSize: '11.5px', color: '#56647d', marginTop: '6px', maxWidth: '520px', lineHeight: 1.5 }}>
+                          {t('booking.crossAccountRule')}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                         <button

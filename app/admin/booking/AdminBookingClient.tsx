@@ -1854,6 +1854,8 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
         ? t('admin.booking.one.doneRefund', { n: data.pointsRefunded || 0 })
         : mode === 'voucher'
         ? t('admin.booking.one.doneVoucher')
+        : data.partnerContinues
+        ? t('admin.booking.one.doneKeepPartner')
         : t('admin.booking.one.doneKeep'))
       await loadBookings()
       onRefresh()
@@ -1948,10 +1950,18 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
                       <div className="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 p-3">
                         {/* A 1-on-2 is one lesson: both seats go together, whichever
                             family each belongs to (owner, 2026-10-07). */}
-                        <p className="text-sm text-red-200 font-medium">{ct.slug === '1on2' ? t('admin.booking.one.titlePair') : t('admin.booking.one.title', { name: student?.full_name ?? '' })}</p>
-                        <p className="text-xs text-white/50 mt-1">
-                          {ct.slug === '1on2' ? t('admin.booking.one.bodyPair') : b.lesson_group_id ? t('admin.booking.one.bodyHour') : t('admin.booking.one.body')}
-                        </p>
+                        {/* Two families: a late cancel takes only this family's seat
+                            and the other family's lesson goes ahead one-to-one
+                            (owner, 2026-10-07). */}
+                        {(() => {
+                          const twoFamilies = ct.slug === '1on2' && new Set(bookings.map((x: any) => x.parent_id)).size > 1
+                          return (<>
+                            <p className="text-sm text-red-200 font-medium">{twoFamilies ? t('admin.booking.one.titlePairTwo') : ct.slug === '1on2' ? t('admin.booking.one.titlePair') : t('admin.booking.one.title', { name: student?.full_name ?? '' })}</p>
+                            <p className="text-xs text-white/50 mt-1">
+                              {twoFamilies ? t('admin.booking.one.bodyPairTwo', { name: student?.full_name ?? '' }) : ct.slug === '1on2' ? t('admin.booking.one.bodyPair') : b.lesson_group_id ? t('admin.booking.one.bodyHour') : t('admin.booking.one.body')}
+                            </p>
+                          </>)
+                        })()}
                         <div className="flex flex-wrap gap-2 mt-3">
                           <button disabled={!!oneBusy} onClick={() => cancelOne(b.id, 'refund')}
                             className="flex-1 min-w-[8rem] text-xs font-semibold rounded-lg px-3 py-2 bg-red-500 text-white disabled:opacity-50">

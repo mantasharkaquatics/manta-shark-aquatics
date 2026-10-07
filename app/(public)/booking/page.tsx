@@ -2030,6 +2030,8 @@ export default function BookingPage() {
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: '#f1edfb', border: '1px solid #d8cdf3', borderRadius: '8px', fontSize: '13px', color: '#6d4fc2' }}>
                     📋 {t('booking.crossAccount')}
+                    {/* The shared-lesson cancellation rule, before the family commits (owner, 2026-10-07). */}
+                    <div style={{ marginTop: '6px', color: '#56647d' }}>{t('booking.crossAccountRule')}</div>
                   </div>
                 )}
               </div>
