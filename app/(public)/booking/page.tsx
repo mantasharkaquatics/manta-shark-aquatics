@@ -1719,10 +1719,12 @@ export default function BookingPage() {
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px', color: '#6d4fc2' }}>⏳</div>
             <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: '28px', fontWeight: 900, color: '#16294a', marginBottom: '12px' }}>
-              {t('booking.success.invitationSent')}
+              {/* A move of a shared lesson is a request, not a new invitation:
+                  if it is not accepted the lesson simply stays (found 2026-10-07). */}
+              {t(isReschedule ? 'booking.success.moveSent' : 'booking.success.invitationSent')}
             </h2>
             <p style={{ fontSize: '15px', color: '#56647d', lineHeight: 1.7, marginBottom: '4px' }}>
-              {t('booking.success.invitedDesc')}
+              {t(isReschedule ? 'booking.success.moveDesc' : 'booking.success.invitedDesc')}
             </p>
             <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? [...new Set(recurPlan.map(x => x.coachName || coaches.find(c => c.id === x.coachId)?.first_name).filter(Boolean))].join(' · ') : (selectedCoach?.first_name || '') })}
@@ -1737,7 +1739,7 @@ export default function BookingPage() {
             }}>
               <span style={{ fontSize: '20px', flexShrink: 0 }}>🔔</span>
               <p style={{ fontSize: '14px', color: '#56647d', margin: 0, lineHeight: 1.5 }}>
-                {t('booking.success.window.a')}<strong style={{ color: '#16294a' }}>{t('booking.success.window.strong')}</strong>{t('booking.success.window.b')}
+                {t('booking.success.window.a')}<strong style={{ color: '#16294a' }}>{t('booking.success.window.strong')}</strong>{t(isReschedule ? 'booking.success.moveWindow.b' : 'booking.success.window.b')}
               </p>
             </div>
           </>
@@ -1808,7 +1810,9 @@ export default function BookingPage() {
 
         {isReschedule && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>📅</span> {t('booking.rescheduleBanner')}
+            {/* Moving a lesson shared with another family waits on THEIR yes,
+                not this parent's (found 2026-10-07). */}
+            <span>📅</span> {t(reschedulePartnerBookingIdRef.current ? 'booking.rescheduleBannerPair' : 'booking.rescheduleBanner')}
           </div>
         )}
         {makeUp && (
@@ -3159,6 +3163,11 @@ export default function BookingPage() {
                     <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.after')}</span>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: balanceAfter })}</span>
                   </div>
+                  {/* An invitation charges nobody until it is accepted (found
+                      2026-10-07: "balance after booking" read as taken now). */}
+                  {(selectedStudent2 as any)?.isPartner && (
+                    <div style={{ fontSize: '12.5px', color: '#56647d', marginTop: '6px', lineHeight: 1.5 }}>{t('booking.price.partnerLater')}</div>
+                  )}
                 </div>
               )})()}
               {/* The batch's own breakdown. Every lesson is priced on its own
@@ -3219,7 +3228,7 @@ export default function BookingPage() {
                   // Shared with another family: that lesson has its own rule
                   // (owner, 2026-10-07). The single-lesson text promised a grace
                   // cancel inside 24 hours, which a shared 1-on-2 never offers.
-                  : (selectedStudent2 as any)?.isPartner ? t('booking.crossAccountRule')
+                  : ((selectedStudent2 as any)?.isPartner || (isReschedule && reschedulePartnerBookingIdRef.current)) ? t('booking.crossAccountRule')
                   // A lesson a voucher pays for is a make-up: its cancellation rule
                   // is the voucher's, not the points refund of a single lesson.
                   : [planSplit.lines.length > 0 ? t('booking.policy.fixed') : null,

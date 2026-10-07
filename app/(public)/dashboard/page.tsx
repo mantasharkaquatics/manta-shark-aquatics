@@ -2638,6 +2638,11 @@ export default function DashboardPage() {
                 : cancelTarget.kind === 'makeupLose'
                 ? t('dash.cancelModal.bodyMakeupLose')
                 : t('dash.cancelModal.bodyNormalPoints', { n: cancelTarget.points ?? 0 })}
+              {/* A shared 1-on-2 cancelled in time takes the other family's seat
+                  with it (owner, 2026-10-07); the dialog said nothing of that. */}
+              {cancelTarget.type !== 'reject' && cancelTarget.kind === 'refund' && cancelTarget.src?.partner_booking_id && cancelTarget.src?.status === 'confirmed' && (
+                <> {t('dash.cancelModal.pairBoth')}</>
+              )}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -2935,7 +2940,7 @@ export default function DashboardPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                         <button
-                          onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || t('dash.sheet.lesson'), date: formatDate(cs?.session_date || '', intlOf(locale)), time: formatTime(cs?.start_time || ''), type: 'reject' })}
+                          onClick={() => setCancelTarget({ id: b.id, courseName: ct?.name || t('dash.sheet.lesson'), courseTypeId: ct?.id, date: formatDate(cs?.session_date || '', intlOf(locale)), time: formatTime(cs?.start_time || ''), type: 'reject' })}
                           disabled={rejectingId === b.id || confirmingId === b.id}
                           style={{ padding: '8px 16px', background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '8px', color: '#c0392b', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                           {rejectingId === b.id ? '...' : t('dash.invite.decline')}
@@ -3193,7 +3198,11 @@ export default function DashboardPage() {
                   if (last && last.date === b.session_date) last.items.push(b)
                   else allDays.push({ date: b.session_date, items: [b] })
                 }
-                const days = allDays.slice(0, dayWindow)
+                // A day holding a move the other family is waiting on this
+                // parent to accept is always shown: the request lapses in 15
+                // minutes, and it used to sit folded under "show 2 more days"
+                // (found 2026-10-07).
+                const days = allDays.filter((d, i) => i < dayWindow || d.items.some(b => b.pending_action === 'reschedule'))
                 return days.map(day => {
                   const du = getDaysUntil(day.date)
                   const dd = new Date(day.date + 'T00:00:00')
@@ -3591,8 +3600,11 @@ export default function DashboardPage() {
             </div>
           )}
           {lessonView === 'list' && (() => {
-            const totalDays = new Set(upcomingBookings.map(b => b.session_date)).size
-            const more = totalDays - dayWindow
+            const dates = [...new Set(upcomingBookings.map(b => b.session_date))]
+            const totalDays = dates.length
+            // Days already shown out of turn (an awaited move) are not "more".
+            const forced = dates.slice(dayWindow).filter(d => upcomingBookings.some(b => b.session_date === d && b.pending_action === 'reschedule')).length
+            const more = totalDays - dayWindow - forced
             if (more <= 0 && dayWindow <= UPCOMING_DAYS) return null
             return (
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
