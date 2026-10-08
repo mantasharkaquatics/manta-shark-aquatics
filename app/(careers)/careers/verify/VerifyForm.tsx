@@ -15,6 +15,9 @@ type Me = {
   emailVerified?: boolean
   phoneVerified?: boolean
   fullyVerified?: boolean
+  /** No legal name on file: cleared when the email's owner reclaimed the account. */
+  needsName?: boolean
+  hasPhone?: boolean
 }
 
 type Channel = 'email' | 'phone'
@@ -35,10 +38,12 @@ function Panel(props: {
   channel: Channel
   target: string
   verified: boolean
+  /** Nothing on file to send to: the panel opens on the entry field. */
+  missing?: boolean
   onVerified: () => void
   onChanged: (channel: Channel) => void
 }) {
-  const { channel, target, verified, onVerified, onChanged } = props
+  const { channel, target, verified, missing = false, onVerified, onChanged } = props
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -47,7 +52,7 @@ function Panel(props: {
   const [sentOnce, setSentOnce] = useState(false)
   // Correcting a mistyped address or number (found 2026-10-08): there was no
   // way to, so an applicant with a typo could never finish.
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(missing)
   const [newValue, setNewValue] = useState('')
 
   const label = channel === 'email' ? 'Email' : 'Phone'
@@ -144,8 +149,8 @@ function Panel(props: {
   return (
     <div style={{ margin: '0 0 24px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px' }}>
-        <label style={LABEL} htmlFor={`code-${channel}`}>{label} — {target}</label>
-        {!editing ? (
+        <label style={LABEL} htmlFor={`code-${channel}`}>{missing ? label : `${label} — ${target}`}</label>
+        {!editing && !missing ? (
           <button type="button" style={{ ...LINK_BUTTON, fontSize: '13px' }}
             onClick={() => { setEditing(true); setNewValue(''); setError(''); setNotice('') }}>
             Change
@@ -158,7 +163,9 @@ function Panel(props: {
       {editing ? (
         <div>
           <label style={LABEL} htmlFor={`new-${channel}`}>
-            {channel === 'email' ? 'Correct email address' : 'Correct mobile number'}
+            {missing
+              ? (channel === 'email' ? 'Your email address' : 'Your mobile number')
+              : (channel === 'email' ? 'Correct email address' : 'Correct mobile number')}
           </label>
           <input
             id={`new-${channel}`}
@@ -176,9 +183,11 @@ function Panel(props: {
           >
             {busy ? 'Saving…' : 'Save'}
           </button>
-          <p style={{ fontSize: '13px', textAlign: 'center', margin: '10px 0 0' }}>
-            <button type="button" style={LINK_BUTTON} onClick={() => { setEditing(false); setError('') }}>Cancel</button>
-          </p>
+          {missing ? null : (
+            <p style={{ fontSize: '13px', textAlign: 'center', margin: '10px 0 0' }}>
+              <button type="button" style={LINK_BUTTON} onClick={() => { setEditing(false); setError('') }}>Cancel</button>
+            </p>
+          )}
         </div>
       ) : null}
       {notice ? (
@@ -225,6 +234,57 @@ function Panel(props: {
   )
 }
 
+/** The legal name, asked for when the account has none (see Me.needsName). */
+function NamePanel(props: { onSaved: () => void }) {
+  const [first, setFirst] = useState('')
+  const [last, setLast] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const ok = first.trim() !== '' && last.trim() !== ''
+
+  async function save() {
+    setError('')
+    setBusy(true)
+    try {
+      const res = await fetch('/api/careers/update-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'name', firstName: first, lastName: last }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || 'Could not save your name.')
+        setBusy(false)
+        return
+      }
+      setBusy(false)
+      props.onSaved()
+    } catch {
+      setError('Could not reach the server.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ margin: '0 0 24px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      {error ? <div style={ERROR}>{error}</div> : null}
+      <div style={FIELD}>
+        <label style={LABEL} htmlFor="name-first">Legal first name</label>
+        <input id="name-first" style={INPUT} value={first} autoComplete="given-name"
+          onChange={(e) => setFirst(e.target.value)} />
+      </div>
+      <div style={FIELD}>
+        <label style={LABEL} htmlFor="name-last">Legal last name</label>
+        <input id="name-last" style={INPUT} value={last} autoComplete="family-name"
+          onChange={(e) => setLast(e.target.value)} />
+      </div>
+      <button style={busy || !ok ? BUTTON_DISABLED : BUTTON} disabled={busy || !ok} onClick={save}>
+        {busy ? 'Saving…' : 'Save name'}
+      </button>
+    </div>
+  )
+}
+
 export default function VerifyForm() {
   const router = useRouter()
   const [me, setMe] = useState<Me | null>(null)
@@ -252,12 +312,14 @@ export default function VerifyForm() {
     loadMe()
   }, [loadMe])
 
+  const nameDone = Boolean(me?.signedIn && !me.needsName)
+
   useEffect(() => {
-    if (emailDone && phoneDone) {
+    if (emailDone && phoneDone && nameDone) {
       const t = setTimeout(() => router.push('/careers/apply'), 900)
       return () => clearTimeout(t)
     }
-  }, [emailDone, phoneDone, router])
+  }, [emailDone, phoneDone, nameDone, router])
 
   if (me === null) {
     return (
@@ -283,7 +345,7 @@ export default function VerifyForm() {
     )
   }
 
-  const allDone = emailDone && phoneDone
+  const allDone = emailDone && phoneDone && nameDone
 
   return (
     <main style={PAGE}>
@@ -292,8 +354,12 @@ export default function VerifyForm() {
         <p style={SUB}>
           {allDone
             ? 'Both verified. Taking you to your application…'
-            : 'We need to confirm both your email and your phone number before you continue.'}
+            : me.needsName
+              ? 'Please enter your legal name and confirm your mobile number before you continue.'
+              : 'We need to confirm both your email and your phone number before you continue.'}
         </p>
+
+        {me.needsName ? <NamePanel onSaved={loadMe} /> : null}
 
         <Panel
           key={'email:' + changes.email}
@@ -308,6 +374,7 @@ export default function VerifyForm() {
           channel="phone"
           target={me.phoneMasked || ''}
           verified={phoneDone}
+          missing={me.hasPhone === false}
           onVerified={() => setPhoneDone(true)}
           onChanged={changed}
         />

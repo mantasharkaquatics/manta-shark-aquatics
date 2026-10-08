@@ -94,15 +94,46 @@ export async function POST(req: NextRequest) {
   // 2026-10-08 -- such accounts can request a reset since then). Only when the
   // code went to the address the account holds today.
   const provesEmail = !applicant.email_verified_at && record.destination === applicant.email
-  await svc
+  const base = {
+    password_hash: await hashPassword(password),
+    failed_login_count: 0,
+    locked_until: null,
+  }
+  // An unverified account reclaimed this way may have been opened by someone
+  // else with this address (found 2026-10-08): their name and their phone --
+  // verified with their own text -- stayed on it, so the owner's application
+  // went in under the stranger's name and number. Nothing on the account but
+  // the address is known to be the owner's, so the rest is cleared and asked
+  // for again on the verify page (/api/careers/me reports what is missing).
+  const reclaim = provesEmail
+    ? { email_verified_at: now, phone_verified_at: null, legal_first_name: '', legal_last_name: '', phone: '' }
+    : {}
+  let { error: saveError } = await svc
     .from('applicants')
-    .update({
-      password_hash: await hashPassword(password),
-      failed_login_count: 0,
-      locked_until: null,
-      ...(provesEmail ? { email_verified_at: now } : {}),
-    })
+    .update({ ...base, ...reclaim })
     .eq('id', applicant.id)
+  if (saveError && provesEmail) {
+    // Should a column refuse an empty value, the phone is still unverified
+    // and has to be texted again before the form opens.
+    console.error('careers reset: could not clear the reclaimed account', saveError)
+    ;({ error: saveError } = await svc
+      .from('applicants')
+      .update({ ...base, email_verified_at: now, phone_verified_at: null })
+      .eq('id', applicant.id))
+  }
+  if (saveError) {
+    console.error('careers reset: password update failed', saveError)
+    return NextResponse.json({ error: 'Could not save your new password. Please try again.' }, { status: 500 })
+  }
+  if (provesEmail) {
+    // Codes sent to the stranger's phone die with the number.
+    await svc
+      .from('applicant_verifications')
+      .update({ consumed_at: now })
+      .eq('applicant_id', applicant.id)
+      .eq('channel', 'phone')
+      .is('consumed_at', null)
+  }
 
   await svc
     .from('applicant_verifications')

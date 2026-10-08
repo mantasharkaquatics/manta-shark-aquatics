@@ -16,6 +16,7 @@ import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb, dateTag, getT, isLocale, matchLocaleTags, LOCALE_COOKIE, type Locale } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import { localePath } from '@/lib/i18n/paths'
+import { loadDict } from '@/lib/i18n/load'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import { REPORT_SHEET_CSS } from './report-sheet-css'
@@ -1480,6 +1481,20 @@ export default function DashboardPage() {
   const [langBooted, setLangBooted] = useState(false)
   if (!langBooted && (locale === bootLang || locale !== firstLang)) setLangBooted(true)
   const dataLang: Locale = langBooted || locale === bootLang || locale !== firstLang ? locale : bootLang
+  /* The guess holds only until its words have loaded (found 2026-10-08). By
+     then the page shows it, if it is still the language wanted; if not --
+     the bar applied the account's language first, which for a signed-in
+     parent is the one that counts (owner, 2026-09-29) -- the page stays where
+     it is and the reads follow it. Without this, a Chinese browser on an
+     English account kept reading the notes and reports in Chinese under an
+     English page for the whole visit. */
+  useEffect(() => {
+    if (langBooted) return
+    let live = true
+    const settle = () => { if (live) setLangBooted(true) }
+    loadDict(bootLang).then(settle, settle)
+    return () => { live = false }
+  }, [bootLang, langBooted])
   const localeRef = useRef(dataLang)
   localeRef.current = dataLang
   const assessSeq = useRef(0)
@@ -2186,8 +2201,16 @@ export default function DashboardPage() {
       }
     } catch {}
 
+    // A move request that has run out is no request (found 2026-10-08): the
+    // cleanup job clears it and tells both families, up to 15 minutes later,
+    // and until then the lesson showed "awaiting reply" with Accept / Decline
+    // the server refuses, in place of its own Reschedule / Cancel. The row is
+    // left for the job; the card reads as the lesson it still is.
+    const moveLapsed = (b: { pending_action?: string | null; pending_expires_at?: string | null }) => (b.pending_action === 'reschedule' || b.pending_action === 'reschedule_initiator')
+      && !!b.pending_expires_at && new Date(b.pending_expires_at).getTime() <= Date.parse(nowIso)
     const parseBookings = (data: any[]): Booking[] =>
-      (data || []).map((b: any) => {
+      (data || []).map((row: any) => {
+        const b = moveLapsed(row) ? { ...row, pending_action: null, pending_new_session_id: null, pending_expires_at: null } : row
         const cs = sessionMap[b.class_session_id]
         return {
           id: b.id,
@@ -2287,8 +2310,9 @@ export default function DashboardPage() {
       return out
     }
 
-    // An invitation or a move that has run out waits for the cleanup job,
-    // which removes it and tells both families; it is not shown meanwhile.
+    // An invitation that has run out waits for the cleanup job, which removes
+    // it and tells both families; it is not shown meanwhile. (A lapsed move
+    // request is dropped in parseBookings, keeping the lesson.)
     const lapsed = (b: Booking) => b.status === 'pending_partner' && !!b.pending_expires_at && new Date(b.pending_expires_at).getTime() <= Date.parse(nowIso)
     const allUpcoming = mergeHours(mergeBySession(parseBookings(rawBookings || []).filter(b => !isLessonPast(b) && !lapsed(b))))
     const allPast = mergeHours(parseBookings(rawBookings || []).filter(b => isLessonPast(b)))

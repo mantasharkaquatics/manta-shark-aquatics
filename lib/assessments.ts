@@ -148,19 +148,25 @@ export async function countCreditLessons(
   return paid.filter((b: any) => inWindow.has(b.class_session_id)).length
 }
 
-/** Was this swimmer's Swim Assessment payment taken back (a chargeback or a
- *  returned payment)? The assessment purchase is found through its
- *  assessment credit, which every way of paying for one writes. */
+/** Was this swimmer's Swim Assessment payment taken back -- a chargeback, a
+ *  returned payment, or refunded in full (a refund in the Stripe dashboard;
+ *  owner, 2026-10-08)? The assessment purchase is found through its
+ *  assessment credit, which every way of paying for one writes. A swimmer
+ *  whose first payment was refunded and who then paid again still paid, so
+ *  this is true only when EVERY assessment payment was taken back. */
 export async function assessmentPaymentReversed(svc: Svc, studentId: string): Promise<boolean> {
   const { data: credits, error } = await svc.from('lesson_credits')
     .select('purchase_id').eq('student_id', studentId).eq('is_trial', true)
   if (error) throw new Error(error.message)
   const ids = [...new Set((credits || []).map((c: { purchase_id: string | null }) => c.purchase_id).filter(Boolean))] as string[]
   if (ids.length === 0) return false
-  const { data: rev, error: revErr } = await svc.from('purchases')
-    .select('id').in('id', ids).not('reversed_at', 'is', null).limit(1)
+  const { data: rows, error: revErr } = await svc.from('purchases')
+    .select('id, amount_cents, refunded_cents, reversed_at').in('id', ids)
   if (revErr) throw new Error(revErr.message)
-  return !!(rev && rev.length > 0)
+  const takenBack = (p: { amount_cents: number | null; refunded_cents: number | null; reversed_at: string | null }) =>
+    !!p.reversed_at
+    || ((Number(p.amount_cents) || 0) > 0 && (Number(p.refunded_cents) || 0) >= (Number(p.amount_cents) || 0))
+  return !!(rows && rows.length > 0 && rows.every(takenBack))
 }
 
 /**
@@ -200,10 +206,11 @@ export async function settleAssessmentCredits(svc: Svc): Promise<{ awarded: numb
       continue
     }
 
-    // An assessment whose payment was charged back (or returned) earns no
-    // credit: the family would get the fee back twice (owner, 2026-10-08).
-    // The webhook closes the credit when the dispute arrives; this catches a
-    // report confirmed after that, which starts out pending again.
+    // An assessment whose payment was charged back, returned or refunded in
+    // full earns no credit: the family would get the fee back twice (owner,
+    // 2026-10-08). The webhook closes the credit when the dispute or refund
+    // arrives; this catches a report confirmed after that, which starts out
+    // pending again.
     let reversed = false
     try { reversed = await assessmentPaymentReversed(svc, r.student_id) } catch (e) {
       console.error(`assessment credit ${r.id}: could not check the assessment payment:`, e)

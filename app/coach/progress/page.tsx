@@ -164,29 +164,41 @@ export default async function CoachProgressPage() {
 }
 
 /**
- * Lesson reports an admin sent back to this coach (/api/admin/report-sendback,
- * owner 2026-10-08), from any day. Each comes back as a session in the same
- * shape the page builds for today's (with its own session_date, which the
- * client sends with the report), plus the admin's reason by card key
- * (student_lessonKey, as the client keys its cards). The reason column needs
- * docs/migration-report-sendback.sql; before it is run the lesson is listed
- * without one.
+ * Lesson reports an admin sent back (/api/admin/report-sendback, owner
+ * 2026-10-08), from any day, for the lessons that are THIS coach's now. Each
+ * comes back as a session in the same shape the page builds for today's (with
+ * its own session_date, which the client sends with the report), plus the
+ * admin's reason by card key (student_lessonKey, as the client keys its
+ * cards). The reason column needs docs/migration-report-sendback.sql; before
+ * it is run the lesson is listed without one.
+ *
+ * Found by the lesson's coach today, not the coach who filed the report
+ * (owner, 2026-10-08): a lesson moved to another coach after the send-back
+ * used to vanish from every Progress page, since the filer no longer held it
+ * and lesson-note refuses anyone else. The admin can also fill it in from
+ * the Reviews "sent back" list (e.g. when the coach has left).
  */
 async function loadSentBack(supabase: Row, coachId: string, today: string): Promise<{
   sessions: Row[]
   byEntry: Record<string, { reason: string | null; date: string }>
 }> {
   const empty = { sessions: [], byEntry: {} }
+  // Sent-back rows are few (the admin's Reviews list shows every one), so all
+  // of them are read and matched to this coach's lessons below. With the
+  // migration run, only rows sent back through that flow -- or this coach's
+  // own, as before -- so an older 'rejected' row of someone else's (if any
+  // exists, it has no sent_back_at) does not turn up here.
   let { data: rows, error } = await supabase.from('progress_history')
-    .select('student_id, class_session_id, lesson_group_id, session_date, sent_back_reason')
-    .eq('coach_id', coachId).eq('status', 'rejected').order('session_date')
+    .select('student_id, coach_id, class_session_id, lesson_group_id, session_date, sent_back_reason, sent_back_at')
+    .eq('status', 'rejected').order('session_date').limit(1000)
   if (error) {
     ({ data: rows, error } = await supabase.from('progress_history')
-      .select('student_id, class_session_id, lesson_group_id, session_date')
+      .select('student_id, coach_id, class_session_id, lesson_group_id, session_date')
       .eq('coach_id', coachId).eq('status', 'rejected').order('session_date'))
   }
   if (error || !rows || rows.length === 0) return empty
-  rows = rows.filter((r: Row) => r.class_session_id && r.student_id && String(r.session_date) <= today)
+  rows = rows.filter((r: Row) => r.class_session_id && r.student_id && String(r.session_date) <= today
+    && (r.coach_id === coachId || r.sent_back_at))
   if (rows.length === 0) return empty
 
   const sessionIds = [...new Set(rows.map((r: Row) => r.class_session_id))] as string[]
@@ -207,7 +219,7 @@ async function loadSentBack(supabase: Row, coachId: string, today: string): Prom
 
   const byEntry: Record<string, { reason: string | null; date: string }> = {}
   const out: Row[] = []
-  // Still this coach's lesson: lesson-note refuses a report on someone else's.
+  // This coach's lesson today: lesson-note refuses a report on someone else's.
   for (const s of (sessions || []).filter((x: Row) => x.coach_id === coachId)) {
     const mine = rows.filter((r: Row) => r.class_session_id === s.id)
     const list = mine

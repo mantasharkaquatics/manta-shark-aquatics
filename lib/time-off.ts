@@ -6,9 +6,15 @@
    families have been told the coach is away. A coach removing it used to leave
    the families' lessons cancelled with nothing on the Time Off page to explain
    them -- or, under the old two-step flow, booked and charged after an email
-   said they were cancelled (found 2026-10-07). So once any booking in the time
-   off's window carries a notice or a time-off cancellation, the coach can no
-   longer remove it (owner, 2026-10-07); the office can.
+   said they were cancelled (found 2026-10-07). So once a booking in the time
+   off's window carries a notice or a time-off cancellation FOR THIS time off,
+   the coach can no longer remove it (owner, 2026-10-07); the office can.
+
+   For this time off: a booking does not say which time off it was cancelled
+   for, so the times decide. A cancellation or notice from before this time
+   off was entered belongs to an earlier one on the same slot -- say an admin
+   block the office had already handled -- and used to lock (and, in Reviews,
+   hide) this one as if its families had been told (found 2026-10-08).
 
    One copy: the coach page (to hide the Remove button) and the coach delete
    route (to refuse it) both ask here. */
@@ -17,7 +23,7 @@ import { isRealBooking } from '@/app/coach/real-booking'
 import { allRows, allRowsIn } from '@/lib/db-paging'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-type Block = { id: string; coach_id: string; date: string; start_time: string | null; end_time: string | null }
+type Block = { id: string; coach_id: string; date: string; start_time: string | null; end_time: string | null; created_at?: string | null }
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -38,14 +44,28 @@ export async function handledTimeOffIds(svc: any, blocks: Block[]): Promise<Set<
   if (!sessions || sessions.length === 0) return out
   const { data: bookings, error: bErr } = await svc
     .from('bookings')
-    .select('class_session_id')
+    .select('class_session_id, status, cancellation_reason, cancelled_at, block_notice_sent_at')
     .in('class_session_id', sessions.map((s: any) => s.id))
     .or('block_notice_sent_at.not.is.null,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
   if (bErr) return null
-  const touched = new Set((bookings || []).map((b: any) => b.class_session_id))
+  // When each touched session was acted on: a time-off cancellation by when it
+  // was cancelled (a retried email can stamp its notice later), anything else
+  // by its notice. No time on record: counted, the safe way round.
+  const actedAt = new Map<string, number[]>()
+  for (const b of (bookings || []) as any[]) {
+    const raw = b.status === 'cancelled' && b.cancellation_reason === 'coach_time_off'
+      ? (b.cancelled_at || b.block_notice_sent_at)
+      : b.block_notice_sent_at
+    const ms = raw ? Date.parse(raw) : NaN
+    actedAt.set(b.class_session_id, [...(actedAt.get(b.class_session_id) || []), Number.isFinite(ms) ? ms : -Infinity])
+  }
   for (const b of blocks) {
+    const since = b.created_at ? Date.parse(b.created_at) : NaN
+    const forThis = (times: number[]) => !Number.isFinite(since) || times.some(t => t === -Infinity || t >= since)
     const hit = (sessions as any[]).some(s => {
-      if (!touched.has(s.id) || s.coach_id !== b.coach_id || s.session_date !== b.date) return false
+      const times = actedAt.get(s.id)
+      if (!times || s.coach_id !== b.coach_id || s.session_date !== b.date) return false
+      if (!forThis(times)) return false
       if (b.start_time == null || b.end_time == null) return true
       return toM(s.start_time) < toM(b.end_time) && toM(s.end_time) > toM(b.start_time)
     })
@@ -80,7 +100,7 @@ export type BookedLesson = {
 
 type SessionRow = { id: string; coach_id: string; session_date: string; start_time: string; end_time: string; course_type_id: string | null }
 type BlockRow = { id: string; coach_id: string; date: string; start_time: string | null; end_time: string | null; reason: string | null; created_at: string | null }
-type BookingRow = { class_session_id: string; student_id: string | null; parent_id: string | null; status: string; lesson_group_id: string | null; is_trial: boolean | null }
+type BookingRow = { class_session_id: string; student_id: string | null; parent_id: string | null; status: string; lesson_group_id: string | null; is_trial: boolean | null; block_notice_sent_at?: string | null }
 
 /** One coach's day of sessions and bookings, merged into lessons. */
 function lessonsOfDay(sessions: SessionRow[], bookings: BookingRow[]): BookedLesson[] {
@@ -118,6 +138,15 @@ function lessonsOfDay(sessions: SessionRow[], bookings: BookingRow[]): BookedLes
 const overlaps = (l: { start: string; end: string }, start: string | null, end: string | null) =>
   start == null || end == null || (toM(l.start) < toM(end) && toM(l.end) > toM(start))
 
+/** A lesson that has already ended is past acting on: the desk alert, its
+ *  withdrawal note and the Reviews item all leave it out (found 2026-10-08:
+ *  same-day time off listed the morning's finished lessons, with the
+ *  families' phone numbers, in the alert but not in Reviews). `today` and
+ *  `nowMin` from getTodayLA / getNowMinutesLA. */
+export function lessonEnded(l: { date: string; end: string }, today: string, nowMin: number): boolean {
+  return l.date < today || (l.date === today && toM(l.end) <= nowMin)
+}
+
 /** Booked lessons of one coach inside a window (no start/end = the whole
  *  day). null when the read failed. */
 export async function bookedLessonsInWindow(
@@ -154,11 +183,15 @@ export type TimeOffActionItem = {
 /**
  * Coach time off with booked lessons the office has not dealt with yet
  * (owner, 2026-10-08): one red item each on /admin/reviews and in the
- * sidebar badge. Handled means what it means on the Time Off page: the
- * admin's "cancel & notify" has cancelled the lessons and told the families
- * (handledTimeOffIds). A lesson that has already ended is past acting on and
- * no longer counts. Time off the office entered itself (admin_block) is left
- * out: the office already knows.
+ * sidebar badge. Judged lesson by lesson, inside this time off's own window:
+ * an item stays while a real booking there is not cancelled, not told (no
+ * notice -- the Time Off page's "pending") and not over. The admin's
+ * "cancel & notify" cancels and tells them all, so the item goes. It used to
+ * ask handledTimeOffIds, which calls a whole time off handled once ANY
+ * booking in its window was -- so lessons cancelled earlier for a different
+ * time off on the same slot hid this one's live lessons (found 2026-10-08).
+ * Time off the office entered itself (admin_block) is left out: the office
+ * already knows.
  */
 export async function timeOffNeedingAction(
   svc: SupabaseClient, today: string, nowMin: number, withDetails: boolean,
@@ -187,12 +220,11 @@ export async function timeOffNeedingAction(
   if (!sessions || sessions.length === 0) return []
   const { data: bookings, error: bErr } = await allRowsIn((sessions as SessionRow[]).map(s => s.id), chunk => svc
     .from('bookings')
-    .select('id, class_session_id, student_id, parent_id, status, lesson_group_id, is_trial')
+    .select('id, class_session_id, student_id, parent_id, status, lesson_group_id, is_trial, block_notice_sent_at')
     .in('class_session_id', chunk)
     .order('id'))
   if (bErr) { console.error('timeOffNeedingAction: bookings not read:', bErr.message); return [] }
 
-  const ended = (l: BookedLesson) => l.date < today || (l.date === today && toM(l.end) <= nowMin)
   const dayLessons = new Map<string, BookedLesson[]>()
   const lessonsFor = (coachId: string, date: string) => {
     const k = coachId + '|' + date
@@ -200,19 +232,16 @@ export async function timeOffNeedingAction(
     if (!got) {
       const ss = (sessions as SessionRow[]).filter(s => s.coach_id === coachId && s.session_date === date)
       const ids = new Set(ss.map(s => s.id))
-      got = lessonsOfDay(ss, (bookings as BookingRow[]).filter(b => ids.has(b.class_session_id)))
+      // A booking the family has been told about is the office's already.
+      got = lessonsOfDay(ss, (bookings as BookingRow[]).filter(b => ids.has(b.class_session_id) && !b.block_notice_sent_at))
       dayLessons.set(k, got)
     }
     return got
   }
 
-  const open = rows
-    .map(b => ({ b, lessons: lessonsFor(b.coach_id, b.date).filter(l => overlaps(l, b.start_time, b.end_time) && !ended(l)) }))
+  const waiting = rows
+    .map(b => ({ b, lessons: lessonsFor(b.coach_id, b.date).filter(l => overlaps(l, b.start_time, b.end_time) && !lessonEnded(l, today, nowMin)) }))
     .filter(x => x.lessons.length > 0)
-  if (open.length === 0) return []
-  const handled = await handledTimeOffIds(svc, open.map(x => x.b))
-  // Cannot tell: keep them showing rather than hide one that needs a call.
-  const waiting = open.filter(x => !handled || !handled.has(x.b.id))
   if (waiting.length === 0) return []
 
   const coachNames = new Map<string, string>()

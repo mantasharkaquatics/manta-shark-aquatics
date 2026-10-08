@@ -26,6 +26,29 @@ export default function CoachLoginPage() {
   // invites the coach to keep typing into something that cannot succeed.
   const [locked, setLocked] = useState(false)
   const inputs = useRef<(HTMLInputElement | null)[]>([])
+  /* The lock has to be able to end on this page too (found 2026-10-08). The
+     desk can unlock PIN sign-in from Admin > Coaches, and the lock also runs
+     out by itself, but nothing here ever set `locked` back: the boxes stayed
+     grey until someone reloaded the page. Now they open again when the
+     server's wait is over, and "Try again" opens them at once -- after a desk
+     unlock, say. Still locked, the next PIN just gets the same answer (a
+     locked request is not counted as a guess). */
+  const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (unlockTimer.current) clearTimeout(unlockTimer.current) }, [])
+  function unlock() {
+    if (unlockTimer.current) clearTimeout(unlockTimer.current)
+    unlockTimer.current = null
+    setLocked(false)
+    setError('')
+    setPin(['', '', '', '', '', '', '', ''])
+    // The boxes are still disabled until this render lands.
+    setTimeout(() => inputs.current[0]?.focus(), 0)
+  }
+  function lockFor(seconds: number) {
+    setLocked(true)
+    if (unlockTimer.current) clearTimeout(unlockTimer.current)
+    unlockTimer.current = setTimeout(unlock, Math.max(1, seconds || 15 * 60) * 1000)
+  }
   const router = useRouter()
 
   /* ?inactive=1: the portal found this signed-in coach marked inactive. It
@@ -80,7 +103,7 @@ export default function CoachLoginPage() {
         // left a locked-out coach retyping the right PIN to no effect.
         setError(pinError(data))
         setPin(['', '', '', '', '', '', '', ''])
-        if (data?.locked) { setLocked(true); return }
+        if (data?.locked) { lockFor(Number(data?.retry_after_seconds)); return }
         inputs.current[0]?.focus()
         return
       }
@@ -162,6 +185,17 @@ export default function CoachLoginPage() {
 
         {inactive && !error && <p className="text-amber-300 text-sm text-center mb-4">{t('coach.login.inactive')}</p>}
         {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
+        {locked && (
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              onClick={unlock}
+              className="min-h-11 px-5 rounded-lg border border-[#c9a84c]/60 text-[#c9a84c] text-sm font-semibold hover:bg-[#c9a84c]/10"
+            >
+              {t('coach.login.tryAgain')}
+            </button>
+          </div>
+        )}
         {loading && <p className="text-gray-400 text-sm text-center">{t('coach.login.verifying')}</p>}
         {/* No "Sign in with Email" here any more (owner, 2026-10-08): coach
             accounts have no password, so that page was a dead end. A coach

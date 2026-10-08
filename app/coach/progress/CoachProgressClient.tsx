@@ -22,6 +22,9 @@ type StudentProgress = {
   assessment?: boolean
   /** The level whose skills are shown during an assessment. */
   assessedLevel?: number | null
+  /** A past lesson (sent back) for a swimmer who has changed level since:
+   *  nothing to record here, the admin handles it. */
+  levelChangedSince?: boolean
 }
 
 
@@ -419,6 +422,13 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                               </div>
                             )}
                           </div>
+                        )}
+
+                        {/* A sent-back report from before a level change cannot be
+                            re-recorded with the new level's skills under the old
+                            date (found 2026-10-08): the admin handles it. */}
+                        {data.levelChangedSince && !isCompleted && (
+                          <p className="text-amber-300 text-sm leading-relaxed">{t('coach.progress.levelChangedSince')}</p>
                         )}
 
                         {/* Assigned — skill progress */}

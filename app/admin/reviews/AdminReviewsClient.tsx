@@ -43,13 +43,48 @@ type MissingProgress = {
   assessment?: boolean
 }
 
-/** A report sent back to its coach, waiting for them to file it again. */
+/** A report sent back to its coach, waiting to be filed again (lib/admin/review-queues). */
 type SentBack = {
   id: string
   student_name: string
   coach_name: string
   session_date: string | null
   reason: string | null
+  // For the admin's own filing; absent on a row this screen just sent back.
+  student_id?: string
+  class_session_id?: string | null
+  current_level?: string | null
+  assessment?: boolean
+  lesson_coach_id?: string | null
+  lesson_coach_name?: string
+  coach_can_file?: boolean
+  moved?: boolean
+  start_time?: string | null
+  end_time?: string | null
+  course_type_id?: string | null
+  course_name?: string
+  existingProgress?: Record<string, number>
+}
+
+/** A sent-back report as a missing-progress card, so the admin files it with the same form. */
+function sentBackAsMissing(b: SentBack): MissingProgress {
+  return {
+    id: 'sb_' + b.id,
+    student_id: b.student_id || '',
+    full_name: b.student_name,
+    current_level: b.current_level ?? null,
+    session: b.class_session_id ? {
+      id: b.class_session_id,
+      session_date: b.session_date || '',
+      start_time: b.start_time || '',
+      end_time: b.end_time || '',
+      coach_id: b.lesson_coach_id || '',
+      ct: { id: b.course_type_id || undefined, name: b.course_name || '' },
+      coach: { first_name: b.lesson_coach_name || '' },
+    } : null,
+    existingProgress: b.existingProgress || {},
+    assessment: b.assessment || undefined,
+  }
 }
 
 /** A cancelled lesson whose points never reached the wallet (lib/admin/review-queues.ts). */
@@ -102,6 +137,8 @@ const ERROR_KEYS: Record<string, string> = {
   reason_required: 'admin.reviews.sendBack.err.reason',
   reason_too_long: 'admin.reviews.sendBack.err.reasonTooLong',
   needs_migration: 'admin.reviews.sendBack.err.migration',
+  confirm_started: 'admin.reviews.sendBack.err.confirmStarted',
+  bad_score: 'admin.reviews.err.submitFailed',
 }
 function errorText(t: TFunction, data: unknown, fallbackKey: string): string {
   const code = String((data as { code?: unknown } | null)?.code || '')
@@ -364,7 +401,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
      confirmed here through the same confirm as a coach's assessment card, so
      the family gets the report, the email and the credit (its 60 days from
      today). */
-  async function backfillAssessment(s: MissingProgress, shown: Record<string, number>) {
+  async function backfillAssessment(s: MissingProgress, shown: Record<string, number>, sentBackId?: string) {
     const level = backfillLevel[s.id]
     const rec = backfillRec[s.id]
     if (!level) { setAlertMsg(t('admin.reviews.err.pickLevel')); return }
@@ -389,6 +426,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     if (res.ok || data.queued) {
       markHandled(s.id)
       setMissingProgressList(prev => prev.filter(x => x.id !== s.id))
+      if (sentBackId) setSentBack(prev => prev.filter(x => x.id !== sentBackId))
       // Filed but not confirmed: it is now an assessment card in the pending list.
       if (!res.ok) {
         setAlertMsg(t('admin.reviews.backfill.queued', { reason: errorText(t, data, 'admin.reviews.err.publishFailed') }))
@@ -409,16 +447,18 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     }))
   }
 
-  async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null, classSessionId: string | null, shown: Record<string, number>) {
+  async function submitMissingProgress(listId: string, studentId: string, coachId: string | null, sessionDate: string | null, classSessionId: string | null, shown: Record<string, number>, sentBackId?: string) {
     setSubmittingMissing(listId)
     // What the card shows: the marks made on it, else the swimmer's skills as
     // they stand. Sending only the marks sent nothing when the card was never
     // opened, and the record that went for review was blank.
     const prog = missingProgress[listId] || shown
-    const res = await fetch('/api/coach/progress', {
+    // A sent-back report already has its row; the admin files that one again
+    // (owner, 2026-10-08: the way out when its coach has left).
+    const res = await fetch(sentBackId ? '/api/admin/sent-back-fill' : '/api/coach/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: JSON.stringify(sentBackId ? { history_id: sentBackId, progress: prog } : {
         student_id: studentId,
         progress: prog,
         coach_id: coachId,
@@ -435,6 +475,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     if (res.ok) {
       markHandled(listId)
       setMissingProgressList(prev => prev.filter(s => s.id !== listId))
+      if (sentBackId) setSentBack(prev => prev.filter(x => x.id !== sentBackId))
       // The record now waits for review: fetch the lists again so its card
       // appears below, without a reload that would drop other cards' edits.
       router.refresh()
@@ -444,6 +485,97 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       setAlertMsg(errorText(t, data, 'admin.reviews.err.submitFailed'))
     }
     setSubmittingMissing(null)
+  }
+
+  /**
+   * The form under a missing-progress card, and under a sent-back report the
+   * admin files themselves (sentBackId; owner, 2026-10-08). An assessment
+   * (no level, paid assessment lesson) is backfilled with its level; any other
+   * lesson is scored at the swimmer's level and goes for review.
+   */
+  function fillBody(s: MissingProgress, sentBackId?: string) {
+    const prog = missingProgress[s.id] || s.existingProgress || {}
+    // A missed assessment is scored against the level the admin picks for it.
+    const backfill = !s.current_level && !!s.assessment
+    const skillLevel = backfill ? (backfillLevel[s.id] || '') : String(s.current_level ?? '')
+    const levelSkills = skills.filter(sk => {
+      const lvl = levels.find(l => l.id === sk.level_id)
+      return lvl && skillLevel && String(lvl.level_number) === skillLevel
+    })
+    // A backfill starts from nothing on file: only what is marked here.
+    const backfillShown: Record<string, number> = missingProgress[s.id] || {}
+    return (
+      <>
+      {backfill && (
+        <div onClick={e => e.stopPropagation()} className="cursor-default">
+          <p className="text-gray-400 text-xs mb-3">{t('admin.reviews.missing.assessmentHint')}</p>
+          <AssessmentPanel
+            recommendedLevel={null}
+            level={backfillLevel[s.id]}
+            onLevel={n => {
+              // A new level is a new list of skills: the marks start over.
+              if (n !== backfillLevel[s.id]) setMissingProgress(prev => { const x = { ...prev }; delete x[s.id]; return x })
+              setBackfillLevel(prev => ({ ...prev, [s.id]: n }))
+            }}
+            rec={backfillRec[s.id] || { note: '' }}
+            onRec={next => setBackfillRec(prev => ({ ...prev, [s.id]: next }))}
+          />
+        </div>
+      )}
+      {levelSkills.length > 0 && (
+        <div className="space-y-2">
+          {levelSkills.map(sk => {
+            const pct = (backfill ? backfillShown[sk.id] : prog[sk.id]) ?? 0
+            const options = MASTERY_LEVELS.map(b => MASTERY_VALUE[b])
+            return (
+              <div key={sk.id}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-gray-300 text-xs">{tDb(locale, 'skills', sk.id, sk.name)}</span>
+                  <span className="text-xs font-semibold" style={{ color: MASTERY_COLOR[masteryOf(pct)] }}>{masteryLabel(t, masteryOf(pct))}</span>
+                </div>
+                <div className="flex gap-1">
+                  {options.map(v => (
+                    <button key={v}
+                      onClick={e => { e.stopPropagation(); setMissingProgress(prev => ({
+                        ...prev,
+                        [s.id]: { ...(prev[s.id] || (backfill ? {} : s.existingProgress) || {}), [sk.id]: v }
+                      }))}}
+                      className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
+                        pct === v
+                          ? 'bg-[#c9a84c] text-[#111d38]'
+                          : 'bg-[#0d1529] border border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'
+                      }`}
+                    >{masteryLabel(t, masteryOf(v))}</button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {backfill && (
+        <button
+          onClick={e => { e.stopPropagation(); backfillAssessment(s, backfillShown, sentBackId) }}
+          disabled={submittingMissing === s.id || !backfillLevel[s.id]}
+          className="mt-4 w-full py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+        >
+          {submittingMissing === s.id ? t('admin.reviews.publishing')
+            : backfillLevel[s.id] ? t('admin.reviews.backfill.confirm', { n: backfillLevel[s.id] })
+            : t('admin.reviews.err.pickLevel')}
+        </button>
+      )}
+      {/* The missing card has this button in its header; a sent-back one here. */}
+      {sentBackId && !backfill && !!s.current_level && (
+        <button
+          onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null, s.session?.id || null, s.existingProgress || {}, sentBackId) }}
+          disabled={submittingMissing === s.id}
+          className="mt-4 w-full py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+        >
+          {submittingMissing === s.id ? t('admin.progress.saving') : t('admin.reviews.missing.fillSubmit')}
+        </button>
+      )}
+      </>
+    )
   }
 
   /** One pending report card; today's and earlier days' differ only in the header and border. */
@@ -735,17 +867,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
           </h2>
           <div className="space-y-4">
             {missingProgressList.map(s => {
-              const prog = missingProgress[s.id] || s.existingProgress || {}
-              // A missed assessment is scored against the level the admin picks for it.
               const backfill = !s.current_level && !!s.assessment
-              const skillLevel = backfill ? (backfillLevel[s.id] || '') : String(s.current_level ?? '')
-              const levelSkills = skills.filter(sk => {
-                const lvl = levels.find(l => l.id === sk.level_id)
-                return lvl && skillLevel && String(lvl.level_number) === skillLevel
-              })
               const expanded = expandedMissing.has(s.id)
-              // A backfill starts from nothing on file: only what is marked here.
-              const backfillShown: Record<string, number> = missingProgress[s.id] || {}
               return (
                 <div key={s.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-5 cursor-pointer"
                   onClick={() => setExpandedMissing(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })}
@@ -789,64 +912,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     </button>
                     )}
                   </div>
-                  {backfill && expanded && (
-                    <div onClick={e => e.stopPropagation()} className="cursor-default">
-                      <p className="text-gray-400 text-xs mb-3">{t('admin.reviews.missing.assessmentHint')}</p>
-                      <AssessmentPanel
-                        recommendedLevel={null}
-                        level={backfillLevel[s.id]}
-                        onLevel={n => {
-                          // A new level is a new list of skills: the marks start over.
-                          if (n !== backfillLevel[s.id]) setMissingProgress(prev => { const x = { ...prev }; delete x[s.id]; return x })
-                          setBackfillLevel(prev => ({ ...prev, [s.id]: n }))
-                        }}
-                        rec={backfillRec[s.id] || { note: '' }}
-                        onRec={next => setBackfillRec(prev => ({ ...prev, [s.id]: next }))}
-                      />
-                    </div>
-                  )}
-                  {levelSkills.length > 0 && expanded && (
-                    <div className="space-y-2">
-                      {levelSkills.map(sk => {
-                        const pct = (backfill ? backfillShown[sk.id] : prog[sk.id]) ?? 0
-                        const options = MASTERY_LEVELS.map(b => MASTERY_VALUE[b])
-                        return (
-                          <div key={sk.id}>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-gray-300 text-xs">{tDb(locale, 'skills', sk.id, sk.name)}</span>
-                              <span className="text-xs font-semibold" style={{ color: MASTERY_COLOR[masteryOf(pct)] }}>{masteryLabel(t, masteryOf(pct))}</span>
-                            </div>
-                            <div className="flex gap-1">
-                              {options.map(v => (
-                                <button key={v}
-                                  onClick={e => { e.stopPropagation(); setMissingProgress(prev => ({
-                                    ...prev,
-                                    [s.id]: { ...(prev[s.id] || (backfill ? {} : s.existingProgress) || {}), [sk.id]: v }
-                                  }))}}
-                                  className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
-                                    pct === v
-                                      ? 'bg-[#c9a84c] text-[#111d38]'
-                                      : 'bg-[#0d1529] border border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'
-                                  }`}
-                                >{masteryLabel(t, masteryOf(v))}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {backfill && expanded && (
-                    <button
-                      onClick={e => { e.stopPropagation(); backfillAssessment(s, backfillShown) }}
-                      disabled={submittingMissing === s.id || !backfillLevel[s.id]}
-                      className="mt-4 w-full py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
-                    >
-                      {submittingMissing === s.id ? t('admin.reviews.publishing')
-                        : backfillLevel[s.id] ? t('admin.reviews.backfill.confirm', { n: backfillLevel[s.id] })
-                        : t('admin.reviews.err.pickLevel')}
-                    </button>
-                  )}
+                  {expanded && fillBody(s)}
                 </div>
               )
             })}
@@ -969,8 +1035,10 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
           </div>
         </div>
       )}
-      {/* Reports sent back to their coach, waiting to be filed again. Not
-          counted: nothing here is the admin's to do. */}
+      {/* Reports sent back, waiting to be filed again. Not counted: the
+          lesson's coach files them from their Progress page. The admin can
+          file one here instead (owner, 2026-10-08) -- the way out when that
+          coach has left. */}
       {sentBack.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
@@ -979,18 +1047,49 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
           </h2>
           <p className="text-gray-500 text-xs mb-3">{t('admin.reviews.sentBack.hint')}</p>
           <div className="space-y-2">
-            {sentBack.map(b => (
+            {sentBack.map(b => {
+              // A row sent back on this screen has no lesson details yet; a reload brings them.
+              const fill = b.student_id && b.class_session_id ? sentBackAsMissing(b) : null
+              const open = !!fill && expandedMissing.has(fill.id)
+              return (
               <div key={b.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] px-4 py-3">
-                <p className="text-white text-sm font-semibold">
-                  {b.student_name || '—'}
-                  <span className="text-gray-400 font-normal text-xs">
-                    {b.session_date ? ` · ${new Date(b.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })}` : ''}
-                    {b.coach_name ? ` · ${t('admin.coachName', { name: b.coach_name })}` : ''}
-                  </span>
-                </p>
-                {b.reason && <p className="text-gray-400 text-xs mt-0.5">{t('admin.reviews.sentBack.reason', { reason: b.reason })}</p>}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-white text-sm font-semibold">
+                      {b.student_name || '—'}
+                      <span className="text-gray-400 font-normal text-xs">
+                        {b.session_date ? ` · ${new Date(b.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })}` : ''}
+                        {b.coach_name ? ` · ${t('admin.coachName', { name: b.coach_name })}` : ''}
+                      </span>
+                    </p>
+                    {b.reason && <p className="text-gray-400 text-xs mt-0.5">{t('admin.reviews.sentBack.reason', { reason: b.reason })}</p>}
+                    {fill && !b.coach_can_file && (
+                      <p className="text-amber-400 text-xs mt-0.5">{t('admin.reviews.sentBack.coachGone')}</p>
+                    )}
+                    {fill && b.coach_can_file && b.moved && (
+                      <p className="text-gray-400 text-xs mt-0.5">{t('admin.reviews.sentBack.movedTo', { name: b.lesson_coach_name || '' })}</p>
+                    )}
+                  </div>
+                  {fill && (
+                    <button
+                      onClick={() => setExpandedMissing(prev => { const n = new Set(prev); n.has(fill.id) ? n.delete(fill.id) : n.add(fill.id); return n })}
+                      className="px-3 py-1.5 rounded-lg border border-[#c9a84c]/40 text-[#c9a84c] font-semibold text-xs hover:bg-[#c9a84c]/10 transition-all shrink-0"
+                    >
+                      {open ? t('common.cancel') : t('admin.reviews.sentBack.fillOpen')}
+                    </button>
+                  )}
+                </div>
+                {fill && open && (
+                  <div className="mt-3">
+                    <p className="text-gray-500 text-xs mb-3">{t('admin.reviews.sentBack.fillHint')}</p>
+                    {!fill.current_level && !fill.assessment
+                      ? <p className="text-xs text-gray-500">{t('admin.reviews.missing.noLevelHint')}</p>
+                      : fillBody(fill, b.id)}
+                  </div>
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

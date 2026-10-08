@@ -5,7 +5,8 @@ import { cookies } from 'next/headers'
 import { requireStaff, requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { isLevelNumber } from '@/lib/levels'
-import { pendingOverlay, pictureAsOf } from '@/lib/skill-progress-sync'
+import { pendingOverlay, pictureAsOf, pictureAsOfRows, overlayFromRows, type Snapshot } from '@/lib/skill-progress-sync'
+import { laWallTimeToUtcMs } from '@/lib/date'
 import { NOT_REAL_BOOKING_STATUSES } from '@/app/coach/real-booking'
 
 const NOT_REAL = `(${NOT_REAL_BOOKING_STATUSES.join(',')})`
@@ -63,6 +64,21 @@ export async function GET(req: NextRequest) {
 
   if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
+  /* The lesson's own date. A report the admin sent back can be for any past
+     lesson (owner, 2026-10-08), and re-recording it must start from where the
+     swimmer stood THEN, not today: the recorder sends its whole picture as
+     that lesson's snapshot, so a 9/29 report sent back after 10/1 was
+     approved went back in with October's scores under a September date --
+     the problem pictureAsOf fixed for late records (found 2026-10-08). */
+  let lessonDate: string | null = null
+  let lessonStart: string | null = null
+  if (classSessionId) {
+    const { data: ls } = await supabase
+      .from('class_sessions').select('session_date, start_time').eq('id', classSessionId).maybeSingle()
+    lessonDate = ls?.session_date || null
+    lessonStart = ls?.start_time ? String(ls.start_time).slice(0, 5) : null
+  }
+
   // Check whether this lesson is already saved (keyed by class_session_id so same-day lessons don't lock each other)
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   let todayLocked = false
@@ -100,6 +116,29 @@ export async function GET(req: NextRequest) {
      some other level for a placed swimmer. */
   const wantLevel = req.nextUrl.searchParams.get('level')
   const assessment = !student.current_level
+  const pastLesson = !!lessonDate && lessonDate < today
+
+  /* A past lesson for a swimmer who has changed level since. Its report was
+     about the old level's skills; the recorder can only offer the current
+     level's, and filing those under the old date would put new-level scores
+     in a September report. The coach is told to leave it to the admin, and is
+     given nothing to send. The level then is the "from" of the first level
+     change after the lesson began (as lib/monthly-reports reads month-end). */
+  if (pastLesson) {
+    const { data: laterMoves } = await supabase.from('level_upgrades')
+      .select('from_level').eq('student_id', studentId)
+      .gte('upgraded_at', new Date(laWallTimeToUtcMs(lessonDate!, lessonStart || '00:00')).toISOString())
+      .order('upgraded_at', { ascending: true }).limit(1)
+    const levelThen = laterMoves && laterMoves.length > 0 ? laterMoves[0].from_level : student.current_level
+    if (String(levelThen ?? '') !== String(student.current_level ?? '')) {
+      return NextResponse.json({
+        student: { ...student, level: null }, skills: [], progress: {}, pendingSkillIds: [], todayLocked,
+        assessment: false, assessedLevel: null, levelChangedSince: true,
+        coachDefaultLanguage: me?.default_note_language || 'en',
+      })
+    }
+  }
+
   const levelNumber = student.current_level || (wantLevel && isLevelNumber(wantLevel) ? String(Number(wantLevel)) : null)
 
   let levelData = null
@@ -140,21 +179,43 @@ export async function GET(req: NextRequest) {
       .select('skill_id, progress_percent')
       .eq('student_id', studentId)
 
-  const progressMap: Record<string, number> = {}
+  const live: Snapshot = {}
   for (const row of progressRows || []) {
-    progressMap[row.skill_id] = row.progress_percent
+    live[row.skill_id] = row.progress_percent
   }
   /* The live table now waits for the admin's confirm (owner, 2026-10-05), so
      on its own it no longer holds what this coach sent last lesson. Their
      reports still in Reviews are laid over it: the recorder opens on the marks
      they last sent, and the next report carries them forward rather than
-     quietly sending the older approved values back. */
-  const pending = assessment ? {} : await pendingOverlay(supabase, studentId)
-  Object.assign(progressMap, pending)
-  // Which of those marks are still waiting in Reviews, so the Today panel can
-  // say "pending" instead of looking like the report never arrived.
+     quietly sending the older approved values back.
+     A past lesson (a sent-back report) starts from the picture as of that day
+     instead: pictureAsOf's approved scores then, with only the reports up to
+     that day laid over them. */
+  let approved: Snapshot = live
+  let pending: Snapshot = {}
+  if (!assessment && pastLesson) {
+    const { data: hist, error: histErr } = await supabase
+      .from('progress_history')
+      .select('snapshot, status, session_date, created_at')
+      .eq('student_id', studentId)
+      .in('status', ['pending_review', 'approved'])
+      .order('session_date', { ascending: true })
+      .order('created_at', { ascending: true })
+    if (histErr) return NextResponse.json({ error: 'Could not read progress history' }, { status: 500 })
+    const rows = hist || []
+    approved = pictureAsOfRows(live, rows.filter((r: { status: string }) => r.status === 'approved'), lessonDate)
+    pending = overlayFromRows(rows.filter((r: { session_date: string }) => String(r.session_date) <= String(lessonDate)))
+  } else if (!assessment) {
+    pending = await pendingOverlay(supabase, studentId)
+  }
+  const progressMap: Record<string, number> = { ...approved, ...pending }
+  // Which marks are still waiting in Reviews, so the Today panel can say
+  // "pending" instead of looking like the report never arrived. Only the ones
+  // a waiting report actually changes: a report carries the swimmer's whole
+  // level, so every scored skill used to be tagged when one had moved
+  // (found 2026-10-08).
   const skillIds = new Set((skills || []).map((k: { id: string }) => k.id))
-  const pendingSkillIds = Object.keys(pending).filter(id => skillIds.has(id))
+  const pendingSkillIds = Object.keys(pending).filter(id => skillIds.has(id) && pending[id] !== approved[id])
 
   return NextResponse.json({
     // In an assessment the student row still has no level; `level` here is the

@@ -10,6 +10,7 @@ import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { confirmTrialBooking, failTrialBooking } from '@/lib/trial-booking'
 import { alertAdmin } from '@/lib/admin-alert'
+import { assessmentPaymentReversed } from '@/lib/assessments'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -896,6 +897,43 @@ async function assessmentChargeback(paymentIntentId: string, sessionId: string |
   return NextResponse.json({ received: true })
 }
 
+/* After a Swim Assessment payment is refunded in full in the Stripe dashboard:
+   close the swimmer's open assessment credit, unless another assessment
+   payment of theirs still stands. Returns a line for the alert. Never throws:
+   settleAssessmentCredits skips the credit anyway (assessmentPaymentReversed
+   reads refunded_cents). */
+async function closeRefundedAssessmentCredit(purchaseId: string): Promise<string> {
+  try {
+    const { data: credits, error } = await supabase.from('lesson_credits')
+      .select('student_id').eq('purchase_id', purchaseId).eq('is_trial', true)
+    if (error) throw new Error(error.message)
+    const studentIds = [...new Set((credits || []).map(c => c.student_id).filter(Boolean))] as string[]
+    if (studentIds.length === 0) return 'no assessment credit is linked to this payment'
+    const out: string[] = []
+    for (const sid of studentIds) {
+      if (!(await assessmentPaymentReversed(supabase, sid))) {
+        out.push('this swimmer has another assessment payment that was not refunded, so the credit was left as it is')
+        continue
+      }
+      const { data: rep, error: repErr } = await supabase.from('student_assessments')
+        .select('credit_status, credit_awarded_at').eq('student_id', sid)
+      if (repErr) throw new Error(repErr.message)
+      const { error: closeErr } = await supabase.from('student_assessments')
+        .update({ credit_status: 'expired' }).eq('student_id', sid).eq('credit_status', 'pending')
+      if (closeErr) throw new Error(closeErr.message)
+      const r0 = (rep || [])[0]
+      out.push(r0?.credit_status === 'awarded'
+        ? `the 85-point assessment credit was ALREADY GIVEN${r0.credit_awarded_at ? ` on ${String(r0.credit_awarded_at).slice(0, 10)}` : ''} and was NOT taken back -- deduct it by hand on the family's points page if you decide to`
+        : r0 ? 'the 85-point assessment credit has been cancelled'
+        : 'no assessment report yet (the credit will not be paid when one is made)')
+    }
+    return out.join('; ')
+  } catch (e) {
+    console.error(`purchase ${purchaseId}: could not close the refunded assessment credit (settleAssessmentCredits still skips it):`, e instanceof Error ? e.message : e)
+    return 'could not be checked (it will still not be paid, since the payment is marked refunded) -- if it was already given, decide by hand whether to deduct it'
+  }
+}
+
 /* charge.refunded for a refund not made by the site (see the handler). */
 async function dashboardRefund(charge: Stripe.Charge) {
   const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id ?? null
@@ -967,6 +1005,12 @@ async function dashboardRefund(charge: Stripe.Charge) {
       lines.push(voided && voided.length > 0
         ? 'Its prepaid assessment had not been booked yet; it has been removed from the account.'
         : 'If the assessment is still booked, cancel it by hand if that was intended.')
+      // Refunded in full means the assessment was not paid for, so it earns
+      // no 85-point assessment credit (owner, 2026-10-08), as with a
+      // chargeback. The refunded_cents written above is what
+      // settleAssessmentCredits reads; an open credit is also closed here.
+      // Points already given are never taken back automatically -- say so.
+      lines.push(`Assessment credit: ${await closeRefundedAssessmentCredit(p.id)}.`)
     }
   }
   lines.push(recorded ? 'The Sales page now shows this payment as refunded.' : 'No purchase record was found, so the Sales page could not be updated.')

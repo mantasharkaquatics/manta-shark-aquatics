@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/api-auth'
-import { getApplicant, normalizeEmail, normalizePhone } from '@/lib/applicant-auth'
+import { getApplicant, hasLegalName, normalizeEmail, normalizePhone } from '@/lib/applicant-auth'
 import { takeSlots, ipHash } from '@/lib/ip-rate-limit'
 
 export const runtime = 'nodejs'
@@ -29,6 +29,33 @@ export async function POST(req: Request) {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+
+  // The legal name, only while the account has none: it is cleared when the
+  // owner of the email reclaims an account someone else opened with it
+  // (reset-password), and given again here. A name already on file is not
+  // changed from the browser.
+  if (body.channel === 'name') {
+    if (hasLegalName(applicant)) {
+      return NextResponse.json(
+        { error: 'Your name is already saved. Contact us if it needs to change.' },
+        { status: 400 }
+      )
+    }
+    const first = String(body.firstName ?? '').trim().slice(0, 100)
+    const last = String(body.lastName ?? '').trim().slice(0, 100)
+    if (!first || !last) {
+      return NextResponse.json({ error: 'Please enter your legal first and last name.' }, { status: 400 })
+    }
+    const { error } = await serviceClient()
+      .from('applicants')
+      .update({ legal_first_name: first, legal_last_name: last })
+      .eq('id', applicant.id)
+    if (error) {
+      console.error('careers update-contact name failed', error)
+      return NextResponse.json({ error: 'Could not save the change. Please try again.' }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
   }
 
   const channel = body.channel === 'email' ? 'email' : body.channel === 'phone' ? 'phone' : null

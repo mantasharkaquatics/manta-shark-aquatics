@@ -83,7 +83,7 @@ export default async function AdminSchedulePage() {
   // Step 3: fetch separately
   const [{ data: sessionsData }, { data: studentsData }, { data: parentsData }] = await Promise.all([
     allSessionIds.length > 0
-      ? supabase.from('class_sessions').select('id, session_date, start_time, course_types(id, name), coaches(first_name)').in('id', allSessionIds)
+      ? supabase.from('class_sessions').select('id, session_date, start_time, coach_id, course_types(id, name), coaches(first_name)').in('id', allSessionIds)
       : Promise.resolve({ data: [] }),
     studentIds.length > 0
       ? supabase.from('students').select('id, full_name').in('id', studentIds)
@@ -321,17 +321,31 @@ export default async function AdminSchedulePage() {
             // pushed everything else off the feed (found 2026-10-08). Lessons
             // for the same families written within two minutes of each other
             // are one booking: one item, "N lessons from <first date>".
+            // Only when every lesson in it is the same thing -- swimmers,
+            // course, coach and length -- since the line names one course and
+            // one coach (found 2026-10-08: the desk booking a brother's 1-on-4
+            // and a sister's 1-on-1 a minute apart read as two of the second).
             const nowMinNew = getNowMinutesLA()
-            const lessonsNew = Object.values(mergedNew).map(group => ({
-              group,
-              families: [...new Set(group.map(b => b.parent_id as string))].sort().join('|'),
-              at: Math.min(...group.map(b => new Date(b.created_at).getTime())),
-            })).sort((x, y) => x.families.localeCompare(y.families) || x.at - y.at)
+            const lessonsNew = Object.values(mergedNew).map(group => {
+              const cs0 = sessionMap[firstHalf(group).class_session_id]
+              const sorted = (xs: unknown[]) => [...new Set(xs.map(String))].sort().join(',')
+              return {
+                group,
+                families: [...new Set(group.map(b => b.parent_id as string))].sort().join('|'),
+                kind: [
+                  sorted(group.map(b => b.student_id)),
+                  cs0?.ct?.id ?? '',
+                  sorted(group.map(b => sessionMap[b.class_session_id]?.coach_id ?? '')),
+                  group.some(b => b.lesson_group_id) ? 'hour' : 'half',
+                ].join('|'),
+                at: Math.min(...group.map(b => new Date(b.created_at).getTime())),
+              }
+            }).sort((x, y) => x.families.localeCompare(y.families) || x.kind.localeCompare(y.kind) || x.at - y.at)
             const batches: typeof lessonsNew[] = []
             for (const l of lessonsNew) {
               const cur = batches[batches.length - 1]
               const prev = cur?.[cur.length - 1]
-              if (prev && prev.families === l.families && l.at - prev.at <= 2 * 60 * 1000) cur.push(l)
+              if (prev && prev.families === l.families && prev.kind === l.kind && l.at - prev.at <= 2 * 60 * 1000) cur.push(l)
               else batches.push([l])
             }
             const startOf = (g: typeof lessonsNew[number]['group']) => sessionMap[firstHalf(g).class_session_id]

@@ -68,6 +68,13 @@ export async function POST(req: Request) {
   }
 
   const destination = channel === 'email' ? applicant.email : applicant.phone
+  // Empty after the email's owner reclaimed the account (reset-password).
+  if (!destination) {
+    return NextResponse.json(
+      { error: channel === 'email' ? 'Please enter your email address first.' : 'Please enter your mobile number first.' },
+      { status: 400 }
+    )
+  }
 
   // The read above answers an honest caller with the exact wait; these
   // reservations are what hold under a burst. takeSlots reserves first and

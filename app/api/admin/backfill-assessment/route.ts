@@ -5,6 +5,9 @@ import { getTodayLA } from '@/lib/date'
 import { isLevelNumber } from '@/lib/levels'
 import { isRecommendedCourse, isWeeklyFrequency, RECOMMENDATION_NOTE_MAX } from '@/lib/assessments'
 import { confirmAssessment } from '@/lib/admin/confirm-assessment'
+import { NOT_REAL_BOOKING_STATUSES } from '@/app/coach/real-booking'
+
+const NOT_REAL = `(${NOT_REAL_BOOKING_STATUSES.join(',')})`
 
 // The confirm translates the recommendation line, like review-assessment.
 export const maxDuration = 60
@@ -54,27 +57,36 @@ export async function POST(req: NextRequest) {
   }
 
   // The lesson must be this swimmer's paid assessment, attended, and over.
+  // (Read as a real booking, not only 'confirmed': a report sent back to the
+  // coach is filed against whatever lesson-note accepted.)
   const [{ data: booking }, { data: session }] = await Promise.all([
     svc.from('bookings').select('id, lesson_group_id, is_trial, status')
       .eq('student_id', student_id).eq('class_session_id', class_session_id)
-      .eq('status', 'confirmed').limit(1).maybeSingle(),
+      .not('status', 'in', NOT_REAL).limit(1).maybeSingle(),
     svc.from('class_sessions').select('id, coach_id, session_date').eq('id', class_session_id).maybeSingle(),
   ])
   if (!booking || !session) return fail(404, 'That lesson was not found', 'not_found')
   if (!booking.is_trial) return fail(409, 'That lesson was not a Swim Assessment', 'not_assessment')
   if (String(session.session_date) > getTodayLA()) return fail(409, 'That assessment has not happened yet', 'not_assessment')
-  const { data: att } = await svc.from('attendance').select('booking_id').eq('booking_id', booking.id).limit(1)
-  if (!att || att.length === 0) return fail(409, 'The swimmer was not checked in to that assessment', 'not_assessment')
-  if (!session.coach_id) return fail(409, 'That lesson has no coach assigned', 'no_coach')
 
   // Nothing filed for this lesson yet: a pending report is confirmed from its
-  // own card, and one sent back is the coach's to file again.
+  // own card. One sent back to the coach may be filed here instead, from the
+  // Reviews "sent back" list (owner, 2026-10-08: the coach may have left, or
+  // the lesson moved): that row is taken over rather than a second added.
   const lessonKey = booking.lesson_group_id || class_session_id
   const { data: existing } = await svc.from('progress_history')
-    .select('id, status').eq('student_id', student_id).eq('lesson_key', lessonKey).limit(1)
-  if (existing && existing.length > 0) {
+    .select('id, status').eq('student_id', student_id).eq('lesson_key', lessonKey)
+  const sentBack = (existing || []).find((h: { status: string }) => h.status === 'rejected') || null
+  if ((existing || []).some((h: { status: string }) => h.status !== 'rejected')) {
     return fail(409, 'A report for this lesson is already filed. Refresh Reviews.', 'already_filed')
   }
+  if (!sentBack && booking.status !== 'confirmed') return fail(404, 'That lesson was not found', 'not_found')
+  // The coach's report, sent back, already says the swimmer was there.
+  if (!sentBack) {
+    const { data: att } = await svc.from('attendance').select('booking_id').eq('booking_id', booking.id).limit(1)
+    if (!att || att.length === 0) return fail(409, 'The swimmer was not checked in to that assessment', 'not_assessment')
+  }
+  if (!session.coach_id) return fail(409, 'That lesson has no coach assigned', 'no_coach')
 
   // The scores: every active skill of the chosen level, as marked (0 if not).
   const { data: lvl } = await svc.from('levels').select('id').eq('level_number', levelNumber).maybeSingle()
@@ -101,7 +113,7 @@ export async function POST(req: NextRequest) {
   await svc.from('level_recommendations').update({ status: 'rejected' })
     .eq('student_id', student_id).eq('status', 'pending').neq('id', rec.id)
 
-  const { data: hist, error: histErr } = await svc.from('progress_history').insert({
+  const filed = {
     student_id,
     coach_id: session.coach_id,
     snapshot: scores,
@@ -109,9 +121,17 @@ export async function POST(req: NextRequest) {
     class_session_id,
     lesson_group_id: booking.lesson_group_id || null,
     status: 'pending_review',
-  }).select('id').single()
+  }
+  // A sent-back row is filed again only while it is still sent back: the
+  // coach filing it at the same moment wins.
+  const { data: hist, error: histErr } = sentBack
+    ? await svc.from('progress_history')
+      .update({ ...filed, reviewed_by: null, reviewed_at: null })
+      .eq('id', sentBack.id).eq('status', 'rejected').select('id').maybeSingle()
+    : await svc.from('progress_history').insert(filed).select('id').single()
   if (histErr || !hist) {
     await svc.from('level_recommendations').delete().eq('id', rec.id)
+    if (sentBack && !histErr) return fail(409, 'A report for this lesson is already filed. Refresh Reviews.', 'already_filed')
     return fail(500, histErr?.message || 'Could not file the report', 'server')
   }
 

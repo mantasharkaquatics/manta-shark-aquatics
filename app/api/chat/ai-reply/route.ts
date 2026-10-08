@@ -370,10 +370,26 @@ export async function POST(req: NextRequest) {
     ])
     if (slots.result === 'error') console.error('[ai-reply] rate limit could not be counted; letting the message through')
     if (slots.result === 'limited') {
-      // Told once: when the assistant's last word was already this notice,
-      // further messages only flag the thread for the desk.
+      // Told once per limit window: if this notice is already in the thread
+      // within the window that refused (an hour, or a day for the daily cap),
+      // further messages only flag the thread for the desk. Looking only at
+      // the last 12 messages re-posted it after every 12 more (found
+      // 2026-10-08). If the lookup fails, fall back to that recent window.
+      const windowMs = slots.failed === 'parent-chat-day' ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000
+      const { data: told, error: toldErr } = await svc
+        .from('chat_messages')
+        .select('id')
+        .eq('thread_id', thread_id)
+        .eq('sender_type', 'ai')
+        .eq('metadata->>rate_limited', 'true')
+        .gte('created_at', new Date(Date.now() - windowMs).toISOString())
+        .limit(1)
+      if (toldErr) console.error('[ai-reply] rate-limit notice lookup failed', toldErr)
       const lastOurs = [...recent].reverse().find(m => m.sender_type !== 'parent')
-      if (lastOurs?.sender_type === 'ai' && lastOurs.metadata?.rate_limited) {
+      const alreadyTold = toldErr
+        ? lastOurs?.sender_type === 'ai' && !!lastOurs.metadata?.rate_limited
+        : (told || []).length > 0
+      if (alreadyTold) {
         await svc.from('chat_threads').update({ unread_by_admin: true }).eq('id', thread_id)
         return NextResponse.json({ ok: true, skipped: true, reason: 'rate_limited' })
       }

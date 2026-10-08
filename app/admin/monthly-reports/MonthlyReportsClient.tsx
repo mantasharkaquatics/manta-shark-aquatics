@@ -36,6 +36,12 @@ const MONTHLY_ERROR_KEYS: Record<string, string> = {
   no_email: 'admin.monthly.email.noAddress',
   email_failed: 'admin.monthly.email.failed',
   already_sent: 'admin.monthly.err.alreadySent',
+  not_sent: 'admin.monthly.err.notSent',
+  not_found: 'admin.monthly.err.notFound',
+  summary_required: 'admin.monthly.err.summaryRequired',
+  too_long: 'admin.monthly.err.tooLong',
+  translation: 'admin.monthly.err.translation',
+  rewrite_failed: 'admin.monthly.err.rewriteFailed',
 }
 
 /** Mastery chip text. Step 0 reads "Not taught" here, not the parent site's "Not taught yet". */

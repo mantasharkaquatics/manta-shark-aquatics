@@ -17,6 +17,11 @@ export const maxDuration = 60
 
 const TEXT_MAX = 2000
 
+/* Every refusal carries a `code` the admin screen translates
+   (MonthlyReportsClient MONTHLY_ERROR_KEYS); the English `error` is for logs.
+   Without one the screen could only say "try again", which an empty summary
+   or a too-long text never gets past (found 2026-10-08). */
+
 /** The month's reports for /admin/monthly-reports. */
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin()
@@ -104,8 +109,8 @@ export async function POST(req: NextRequest) {
   const { action } = body
 
   if (action === 'generate') {
-    if (!isMonth(body.month)) return NextResponse.json({ error: 'Pick a month' }, { status: 400 })
-    if (body.month > monthOf(getTodayLA())) return NextResponse.json({ error: 'That month has not started yet' }, { status: 400 })
+    if (!isMonth(body.month)) return NextResponse.json({ error: 'Pick a month', code: 'bad_month' }, { status: 400 })
+    if (body.month > monthOf(getTodayLA())) return NextResponse.json({ error: 'That month has not started yet', code: 'bad_month' }, { status: 400 })
     return NextResponse.json(await generateMonth(svc, body.month, { budgetMs: 25_000 }))
   }
 
@@ -128,13 +133,13 @@ export async function POST(req: NextRequest) {
 
   if (action === 'regenerate') {
     const r = await generateMonth(svc, row.month, { budgetMs: 25_000, studentIds: [row.student_id] })
-    if (r.written !== 1) return NextResponse.json({ error: 'The report could not be rewritten. Try again in a minute.' }, { status: 502 })
+    if (r.written !== 1) return NextResponse.json({ error: 'The report could not be rewritten. Try again in a minute.', code: 'rewrite_failed' }, { status: 502 })
     return NextResponse.json({ ok: true })
   }
 
   const summary = String(body.summary ?? '').trim()
   const focus = String(body.focus ?? '').split('\n').map((l: string) => l.trim()).filter(Boolean).join('\n')
-  if (summary.length > TEXT_MAX || focus.length > TEXT_MAX) return NextResponse.json({ error: 'That text is too long' }, { status: 400 })
+  if (summary.length > TEXT_MAX || focus.length > TEXT_MAX) return NextResponse.json({ error: 'That text is too long', code: 'too_long' }, { status: 400 })
 
   if (action === 'save' || action === 'unapprove') {
     // Any change to an approved report sends it back to draft: what goes out is
@@ -150,10 +155,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'approve') {
-    if (!summary) return NextResponse.json({ error: 'Write the summary before approving' }, { status: 400 })
+    if (!summary) return NextResponse.json({ error: 'Write the summary before approving', code: 'summary_required' }, { status: 400 })
     const result = await approveReport(svc, id, auth.admin.id, summary, focus)
-    if (result === 'sent') return NextResponse.json({ error: 'This report has already been sent to the family' }, { status: 409 })
-    if (result === 'translation') return NextResponse.json({ error: 'The translation did not come back, so nothing was approved. Try again in a minute.' }, { status: 502 })
+    if (result === 'sent') return NextResponse.json({ error: 'This report has already been sent to the family', code: 'already_sent' }, { status: 409 })
+    if (result === 'translation') return NextResponse.json({ error: 'The translation did not come back, so nothing was approved. Try again in a minute.', code: 'translation' }, { status: 502 })
     // The last approval of a finished month releases the whole month. The
     // emails start here, a few seconds' worth; the hourly cron sends the rest
     // and retries any that fail (lib/monthly-reports emailPendingReports).

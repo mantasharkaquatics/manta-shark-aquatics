@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   const { data: applicant } = await svc
     .from('applicants')
-    .select('id, email, legal_first_name')
+    .select('id, email, legal_first_name, email_verified_at')
     .eq('email', email)
     .maybeSingle()
 
@@ -86,7 +86,9 @@ export async function POST(req: NextRequest) {
     type: 'applicant_password_reset',
     to: applicant.email,
     code,
-    applicantName: applicant.legal_first_name,
+    // Not the name on an unverified account: whoever typed it may not be the
+    // person this inbox belongs to (the template falls back to "there").
+    applicantName: applicant.email_verified_at ? applicant.legal_first_name : undefined,
   })
   if (!sent) {
     for (const id of [...slots.ids, ipSlot.id]) await releaseSlot(svc, id)

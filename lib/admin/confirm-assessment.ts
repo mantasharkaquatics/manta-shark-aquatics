@@ -64,8 +64,10 @@ export function creditStartDate(assessedOn: string, filedAt: string | null | und
  *     then the pending report is claimed, so a second confirm stops here;
  *  2. the scores go live, then the level moves (history row first, see
  *     setStudentLevel) -- in that order so the swimmer starts at stage 1;
- *  3. the note, then the recommendation is closed;
- *  4. the family's report is written (course, frequency, the 60-day credit);
+ *  3. the note;
+ *  4. the family's report is written (course, frequency, the 60-day credit),
+ *     then the recommendation is closed -- while it is pending, Reviews still
+ *     shows the card as an assessment, so a retry runs this confirm again;
  *  5. the report itself is approved LAST. Reviews lists the card for as long
  *     as the report is pending, so any failure before this point leaves the
  *     card on screen to confirm again -- and a retry is safe: step 2 is skipped
@@ -93,8 +95,6 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
   ])
   if (!rec || !hist) return err(404, 'Not found', 'not_found')
   if (rec.student_id !== hist.student_id) return err(400, 'That level and that report are for different swimmers', 'mismatch')
-  // The recommendation is closed last, so while it is pending the confirm has
-  // not finished and may be run again, even if the report half already went.
   // The report is approved last, so while it is pending the confirm has not
   // finished and may run again -- even if the recommendation already closed.
   if (hist.status !== 'pending_review' || !['pending', 'approved', 'modified'].includes(rec.status)) {
@@ -234,15 +234,6 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
     await refreshNoteTranslations(svc, note.id)
   }
 
-  // 3, last part. Close the recommendation (a retry finds it closed and leaves it).
-  const { error: recErr } = rec.status !== 'pending' ? { error: null } : await svc.from('level_recommendations').update({
-    status: level === Number(rec.recommended_level) ? 'approved' : 'modified',
-    reviewed_by: adminId,
-    final_level: level,
-    reviewed_at: now,
-  }).eq('id', recommendation_id)
-  if (recErr) return fail(recErr.message, 500)
-
   // 4. The family's report. The assessment booking gives the date the 60 days
   // run from; the history row's own date stands in if it cannot be found.
   const sessionId = hist.class_session_id || hist.lesson_key
@@ -277,6 +268,21 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
     credit_deadline: creditDeadline,
   }, { onConflict: 'student_id' })
   if (reportErr) return fail(reportErr.message, 500)
+
+  // 4, last part. Close the recommendation (a retry finds it closed and leaves
+  // it). After the family's report, not before it: Reviews pairs the pending
+  // report with the swimmer's PENDING recommendation to show it as an
+  // assessment card. Closed first, a failure in the family's report (the
+  // translation above timing out) left an ordinary-looking card whose
+  // "confirm" published the note and scores with no assessment report and no
+  // credit (found 2026-10-08).
+  const { error: recErr } = rec.status !== 'pending' ? { error: null } : await svc.from('level_recommendations').update({
+    status: level === Number(rec.recommended_level) ? 'approved' : 'modified',
+    reviewed_by: adminId,
+    final_level: level,
+    reviewed_at: now,
+  }).eq('id', recommendation_id)
+  if (recErr) return fail(recErr.message, 500)
 
   // 5. The report, last: this is what takes the card out of Reviews.
   const { error: histErr } = await svc.from('progress_history').update({

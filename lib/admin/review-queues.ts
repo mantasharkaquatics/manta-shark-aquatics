@@ -282,13 +282,34 @@ export type SentBackItem = {
   session_date: string | null
   reason: string | null
   sent_back_at: string | null
+  /** What the admin needs to file it themselves (owner, 2026-10-08). */
+  class_session_id: string | null
+  current_level: string | null
+  /** The lesson was the swimmer's paid assessment and they still have no level. */
+  assessment: boolean
+  /** The lesson's coach now: the report goes under them, and they see it on
+   *  their Progress page. */
+  lesson_coach_id: string | null
+  lesson_coach_name: string
+  /** That coach is active and holds the lesson, so they can file it again. */
+  coach_can_file: boolean
+  /** The lesson is now another coach's than the one who filed the report. */
+  moved: boolean
+  start_time: string | null
+  end_time: string | null
+  course_type_id: string | null
+  course_name: string
+  /** Where the swimmer stood as of the lesson, to start the admin's form from. */
+  existingProgress: Record<string, number>
 }
 
 /**
- * Lesson reports an admin sent back to the coach (owner, 2026-10-08;
- * /api/admin/report-sendback), still waiting for the coach to file again. Not
- * counted in the badge: nothing here is the admin's to do. Shown so a report
- * that never came back is not forgotten. The reason needs
+ * Lesson reports an admin sent back (owner, 2026-10-08;
+ * /api/admin/report-sendback), still waiting to be filed again. Not counted in
+ * the badge: the lesson's coach files it again from their Progress page. Shown
+ * so a report that never came back is not forgotten -- and the admin can file
+ * it themselves from here (/api/admin/sent-back-fill, or the assessment
+ * backfill), which is the way out when the coach has left. The reason needs
  * docs/migration-report-sendback.sql; before it is run the list still shows,
  * without one.
  */
@@ -296,30 +317,69 @@ async function loadSentBack(svc: any): Promise<SentBackItem[]> {
   // With the migration run, only rows sent back through this flow (an older
   // 'rejected' row, if any exists, has no sent_back_at).
   const probe = await svc.from('progress_history').select('id, sent_back_at').limit(1)
+  const cols = 'id, student_id, coach_id, session_date, class_session_id'
   const rows: any[] = probe.error
     ? await allRowsOrLog('review-queues sent-back', () => svc.from('progress_history')
-        .select('id, student_id, coach_id, session_date').eq('status', 'rejected').order('id'))
+        .select(cols).eq('status', 'rejected').order('id'))
     : await allRowsOrLog('review-queues sent-back', () => svc.from('progress_history')
-        .select('id, student_id, coach_id, session_date, sent_back_reason, sent_back_at')
+        .select(cols + ', sent_back_reason, sent_back_at')
         .eq('status', 'rejected').not('sent_back_at', 'is', null).order('id'))
   if (rows.length === 0) return []
   const sIds = [...new Set(rows.map((r: any) => r.student_id).filter(Boolean))] as string[]
-  const cIds = [...new Set(rows.map((r: any) => r.coach_id).filter(Boolean))] as string[]
-  const [ss, cs] = await Promise.all([
-    inChunks(sIds, c => svc.from('students').select('id, full_name').in('id', c).order('id')),
-    inChunks(cIds, c => svc.from('coaches').select('id, first_name').in('id', c).order('id')),
+  const sessIds = [...new Set(rows.map((r: any) => r.class_session_id).filter(Boolean))] as string[]
+  const [ss, sessions, trials, live, history] = await Promise.all([
+    inChunks(sIds, c => svc.from('students').select('id, full_name, current_level').in('id', c).order('id')),
+    inChunks(sessIds, c => svc.from('class_sessions')
+      .select('id, coach_id, start_time, end_time, course_types(id, name)').in('id', c).order('id')),
+    inChunks(sessIds, c => svc.from('bookings').select('id, student_id, class_session_id')
+      .in('class_session_id', c).eq('is_trial', true).neq('status', 'cancelled').order('id')),
+    inChunks(sIds, c => svc.from('student_skill_progress').select('student_id, skill_id, progress_percent')
+      .in('student_id', c).order('student_id').order('skill_id')),
+    inChunks(sIds, c => svc.from('progress_history').select('student_id, snapshot, status, session_date, created_at')
+      .in('student_id', c).in('status', ['pending_review', 'approved'])
+      .order('student_id').order('session_date').order('created_at')),
   ])
+  const sessMap = new Map<string, any>(sessions.map((x: any) => [x.id, x]))
+  const cIds = [...new Set([
+    ...rows.map((r: any) => r.coach_id),
+    ...sessions.map((x: any) => x.coach_id),
+  ].filter(Boolean))] as string[]
+  const cs = await inChunks(cIds, c => svc.from('coaches').select('id, first_name, is_active').in('id', c).order('id'))
   const sMap = new Map<string, any>(ss.map((x: any) => [x.id, x]))
   const cMap = new Map<string, any>(cs.map((x: any) => [x.id, x]))
-  return rows.map((r: any): SentBackItem => ({
-    id: r.id,
-    student_id: r.student_id,
-    student_name: sMap.get(r.student_id)?.full_name || '',
-    coach_name: cMap.get(r.coach_id)?.first_name || '',
-    session_date: r.session_date ?? null,
-    reason: r.sent_back_reason ?? null,
-    sent_back_at: r.sent_back_at ?? null,
-  })).sort((a, b) => String(a.session_date || '').localeCompare(String(b.session_date || '')))
+  const trialSet = new Set<string>(trials.map((b: any) => `${b.student_id}|${b.class_session_id}`))
+  const liveBy: Record<string, Record<string, number>> = {}
+  for (const p of live) (liveBy[p.student_id] ||= {})[p.skill_id] = p.progress_percent
+  const historyBy: Record<string, any[]> = {}
+  for (const h of history) (historyBy[h.student_id] ||= []).push(h)
+  return rows.map((r: any): SentBackItem => {
+    const st = sMap.get(r.student_id)
+    const se = r.class_session_id ? sessMap.get(r.class_session_id) : null
+    const ct = se ? (Array.isArray(se.course_types) ? se.course_types[0] : se.course_types) : null
+    const lessonCoachId: string | null = se?.coach_id ?? null
+    const lessonCoach = lessonCoachId ? cMap.get(lessonCoachId) : null
+    return {
+      id: r.id,
+      student_id: r.student_id,
+      student_name: st?.full_name || '',
+      coach_name: cMap.get(r.coach_id)?.first_name || '',
+      session_date: r.session_date ?? null,
+      reason: r.sent_back_reason ?? null,
+      sent_back_at: r.sent_back_at ?? null,
+      class_session_id: r.class_session_id ?? null,
+      current_level: st?.current_level ?? null,
+      assessment: !st?.current_level && trialSet.has(`${r.student_id}|${r.class_session_id}`),
+      lesson_coach_id: lessonCoachId,
+      lesson_coach_name: lessonCoach?.first_name || '',
+      coach_can_file: !!lessonCoach && lessonCoach.is_active !== false,
+      moved: !!lessonCoachId && !!r.coach_id && lessonCoachId !== r.coach_id,
+      start_time: se?.start_time ?? null,
+      end_time: se?.end_time ?? null,
+      course_type_id: ct?.id ?? null,
+      course_name: ct?.name || '',
+      existingProgress: pictureAsOfRows(liveBy[r.student_id] || {}, historyBy[r.student_id] || [], r.session_date),
+    }
+  }).sort((a, b) => String(a.session_date || '').localeCompare(String(b.session_date || '')))
 }
 
 export type ReviewQueues = {

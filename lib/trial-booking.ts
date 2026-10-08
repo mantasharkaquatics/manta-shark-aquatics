@@ -41,10 +41,12 @@ export async function confirmTrialBooking(
 
   // Idempotency lock: only the pending_payment -> confirmed transition proceeds.
   // Webhook retries fall through harmlessly; a hold that was already released
-  // goes to paidAfterRelease below.
+  // goes to paidAfterRelease below. cancellation_reason is left alone here: it
+  // may carry the 'payment_records_failed' stamp, which must survive retries
+  // (it is cleared below once the records are written).
   const { data: locked, error: bookingErr } = await supabase
     .from('bookings')
-    .update({ status: 'confirmed', cancellation_reason: null })
+    .update({ status: 'confirmed' })
     .eq('id', booking_id)
     .eq('status', 'pending_payment')
     .select('id, parent_id, class_session_id')
@@ -70,7 +72,10 @@ export async function confirmTrialBooking(
     console.error(`Trial booking ${booking_id}: payment records failed${undoErr ? ' and the booking could not be reopened' : '; reopened for a retry'}:`, msg)
     // Tell the school once per booking, not on every retry: the first
     // failure stamps the (otherwise unused) cancellation_reason of the held
-    // booking, and only the call that stamps it sends the alert.
+    // booking, and only the call that stamps it sends the alert. The lock
+    // above does not clear the stamp; only a successful write does, so a
+    // failure that keeps coming back is reported once (found 2026-10-08: the
+    // lock used to clear it, and every retry alerted again).
     const { data: firstFailure } = undoErr ? { data: [{ id: booking_id }] } : await supabase.from('bookings')
       .update({ cancellation_reason: 'payment_records_failed' })
       .eq('id', booking_id).eq('status', 'pending_payment').is('cancellation_reason', null).select('id')
@@ -85,27 +90,15 @@ export async function confirmTrialBooking(
     }
     throw new Error('Trial booking records failed: ' + msg)
   }
+  // The records are written: a confirmed booking carries no cancellation reason.
+  const { error: unstampErr } = await supabase.from('bookings')
+    .update({ cancellation_reason: null })
+    .eq('id', booking_id).eq('cancellation_reason', 'payment_records_failed')
+  if (unstampErr) console.error(`Trial booking ${booking_id}: could not clear the payment_records_failed stamp:`, unstampErr.message)
 
   const { data: invStudent } = await supabase
     .from('students').select('full_name').eq('id', student_id).single()
-  let invoiceOk = false
-  try {
-    const invRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.CRON_SECRET || '' },
-      body: JSON.stringify({
-        parent_id: bk.parent_id,
-        lesson_credit_id: credit.id,
-        amount: amount_cents / 100,
-        payment_method: 'stripe',
-        items: [{ name: `Swim Assessment - ${invStudent?.full_name || ''}`.trim().replace(/ -$/, ''), quantity: 1, unit_price: amount_cents / 100 }],
-        stripe_payment_intent_id: session.payment_intent || null,
-      }),
-    })
-    invoiceOk = invRes.ok
-  } catch (e) {
-    console.error('Trial invoice error:', e)
-  }
+  const invoiceOk = await createTrialInvoice(session, bk.parent_id, credit.id, invStudent?.full_name)
   // The receipt is the one record a person has to make by hand when it is
   // missing, so say so rather than only logging it.
   if (!invoiceOk) {
@@ -173,6 +166,37 @@ export async function confirmTrialBooking(
 
   console.log(`✅ Trial lesson confirmed: booking ${booking_id} for student ${student_id}`)
   return 'confirmed'
+}
+
+/* The invoice (receipt) for a paid Swim Assessment, which is what puts it on
+   the Sales page. Not idempotent: each caller reaches it once per payment
+   (confirmTrialBooking through its lock, paidAfterRelease through its
+   purchase claim). Returns whether it was created; never throws. */
+async function createTrialInvoice(
+  session: Stripe.Checkout.Session,
+  parentId: string,
+  creditId: string,
+  studentName: string | null | undefined,
+): Promise<boolean> {
+  const amount = (session.amount_total ?? 0) / 100
+  try {
+    const invRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.CRON_SECRET || '' },
+      body: JSON.stringify({
+        parent_id: parentId,
+        lesson_credit_id: creditId,
+        amount,
+        payment_method: 'stripe',
+        items: [{ name: `Swim Assessment - ${studentName || ''}`.trim().replace(/ -$/, ''), quantity: 1, unit_price: amount }],
+        stripe_payment_intent_id: piOf(session),
+      }),
+    })
+    return invRes.ok
+  } catch (e) {
+    console.error('Trial invoice error:', e)
+    return false
+  }
 }
 
 /* The records of a paid Swim Assessment: the swimmer's assessment marked used,
@@ -340,13 +364,21 @@ async function paidAfterRelease(
   if (insErr?.code === '23505') return 'noop'
   if (insErr) throw new Error('Trial purchase insert failed: ' + insErr.message)
   let creditProblem = ''
+  // A payment kept as a prepaid assessment gets its receipt now, like one
+  // paid in time -- the Sales page lists invoices only, and booking the
+  // prepaid assessment later (trial-credit-book) makes none (owner,
+  // 2026-10-08). Only the caller that won the purchase claim above gets here,
+  // so a retry cannot invoice it twice.
+  let invoiceOk = true
   if (stillNeeds) {
+    let credit: { id: string } | null = null
     try {
-      await recordTrialPayment(supabase, session, parentId, studentId, { used: false })
+      credit = await recordTrialPayment(supabase, session, parentId, studentId, { used: false })
     } catch (e) {
       creditProblem = e instanceof Error ? e.message : String(e)
       console.error(`Trial session ${session.id}: prepaid assessment not created:`, creditProblem)
     }
+    if (credit) invoiceOk = await createTrialInvoice(session, parentId, credit.id, st?.full_name)
   }
 
   const [{ data: parent }, { data: coach }] = await Promise.all([
@@ -362,8 +394,9 @@ async function paidAfterRelease(
     !stillNeeds
       ? 'This swimmer does not need this assessment, so the payment is a duplicate: refund it in Stripe.'
       : creditProblem
-      ? `The payment is recorded, but the prepaid Swim Assessment could not be added to the family's account (${creditProblem}). Add it by hand before booking them a new time, or refund it in Stripe.`
+      ? `The payment is recorded, but the prepaid Swim Assessment could not be added to the family's account (${creditProblem}). Add it by hand (and create its invoice by hand, so it shows on the Sales page) before booking them a new time, or refund it in Stripe.`
       : 'The payment is kept on the family\'s account as a prepaid Swim Assessment, so they do not pay again. Book a new time for them (admin Booking, Swim Assessment), or refund it in Stripe -- a full refund also removes that prepaid assessment.',
+    ...(invoiceOk ? [] : ['Its invoice could not be created, so it is missing from the Sales page: create the invoice by hand.']),
     `Stripe checkout ${session.id}, payment ${piOf(session) || 'unknown'}.`,
   ])
   return 'noop'

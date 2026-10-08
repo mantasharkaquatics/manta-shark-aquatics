@@ -13,9 +13,12 @@ const missingColumn = (e: { code?: string } | null) => !!e && (e.code === '42703
  * Sends a pending lesson report back to its coach (owner, 2026-10-08): the
  * wrong swimmer, scores that cannot be right. The report is voided -- it never
  * reaches student_skill_progress and the family never sees it -- and the
- * lesson goes back on that coach's to-do list on /coach/progress with the
- * reason, where they record it again. Their resubmission (lesson-note) turns
- * the same rows back to pending_review, and the card returns here.
+ * lesson goes back on the to-do list on /coach/progress of the coach who holds
+ * the lesson now, with the reason, where they record it again. Their
+ * resubmission (lesson-note) turns the same rows back to pending_review, and
+ * the card returns here. An admin can also file it from the Reviews "sent
+ * back" list (/api/admin/sent-back-fill, or backfill-assessment for an
+ * assessment), e.g. when the coach has left.
  *
  * Status 'rejected' on progress_history and its lesson note: every reader
  * that shows or applies a report already filters on approved / pending, so a
@@ -40,12 +43,40 @@ export async function POST(req: NextRequest) {
   const svc = auth.svc
 
   const { data: hist } = await svc.from('progress_history')
-    .select('id, student_id, lesson_key, status, reviewed_at').eq('id', history_id).maybeSingle()
+    .select('id, student_id, lesson_key, class_session_id, status, reviewed_at').eq('id', history_id).maybeSingle()
   if (!hist) return fail(404, 'Not found', 'not_found')
   if (hist.status !== 'pending_review') return fail(409, 'This report has already been reviewed', 'already_reviewed')
   // An assessment confirm holds a 90-second lease on reviewed_at while it runs.
   if (hist.reviewed_at && Date.now() - new Date(hist.reviewed_at).getTime() < 90_000) {
     return fail(409, 'This report is being confirmed right now. Refresh in a minute.', 'busy')
+  }
+
+  /* A confirm that stopped part-way (lib/admin/confirm-assessment: the level,
+     then the note, then the family's report, then the report row) leaves the
+     card pending for a retry. Sent back from there, the family was stranded
+     (found 2026-10-08): the swimmer now has a level, so the coach's
+     resubmission is an ordinary report with no assessment report or credit;
+     an approved note refuses the resubmission outright; and the backfill
+     refuses a swimmer with a level. So once any of those steps has happened
+     the card can only be confirmed, which finishes it (owner, 2026-10-08:
+     block rather than undo). An approved note blocks an ordinary report for
+     the same reason -- the coach could not file it again. */
+  const [{ data: report }, { data: approvedNote }, { data: student }, { data: trial }] = await Promise.all([
+    svc.from('student_assessments').select('student_id')
+      .eq('student_id', hist.student_id).eq('progress_history_id', hist.id).limit(1),
+    hist.lesson_key
+      ? svc.from('lesson_notes').select('id')
+        .eq('student_id', hist.student_id).eq('lesson_key', hist.lesson_key).eq('status', 'approved').limit(1)
+      : Promise.resolve({ data: [] }),
+    svc.from('students').select('current_level').eq('id', hist.student_id).maybeSingle(),
+    hist.class_session_id
+      ? svc.from('bookings').select('id')
+        .eq('student_id', hist.student_id).eq('class_session_id', hist.class_session_id).eq('is_trial', true).limit(1)
+      : Promise.resolve({ data: [] }),
+  ])
+  const isAssessment = !!recommendation_id || !!trial?.length
+  if (report?.length || approvedNote?.length || (isAssessment && student?.current_level)) {
+    return fail(409, 'This report was partly confirmed already, so it cannot be sent back. Confirm it to finish it.', 'confirm_started')
   }
 
   const now = new Date().toISOString()

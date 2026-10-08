@@ -105,7 +105,7 @@ export type ReportData = {
   mastered: number
   /** Approved coach notes from this month's lessons. */
   notes: { id: string; date: string; coachName: string | null }[]
-  /** Lessons of this month still waiting in Reviews when the report was written. */
+  /** Lessons of this month still waiting in Reviews, or sent back to the coach, when the report was written. */
   pendingReviews: number
   /** The model could not write the text; the manager has to. */
   aiFailed?: boolean
@@ -289,9 +289,12 @@ export async function buildReportData(
     .map((n: any) => ({ id: n.id, text: String(n.note).trim(), lesson: lessonByKey.get(n.lesson_key)! }))
     .sort((a: any, b: any) => a.lesson.date.localeCompare(b.lesson.date))
 
+  // Not finished yet: waiting in Reviews, or sent back to the coach and not
+  // filed again (status 'rejected', /api/admin/report-sendback). Neither is in
+  // this report, and both will be (owner, 2026-10-08).
   const { count: pending } = await svc.from('progress_history')
     .select('id', { count: 'exact', head: true })
-    .eq('student_id', studentId).eq('status', 'pending_review')
+    .eq('student_id', studentId).in('status', ['pending_review', 'rejected'])
     .gte('session_date', month).lte('session_date', end)
 
   return {

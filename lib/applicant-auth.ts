@@ -101,8 +101,16 @@ export async function getApplicant(): Promise<Applicant | null> {
   return (applicant as Applicant) ?? null
 }
 
+/** False after the real owner of the email reclaimed the account with a
+ *  password reset: the name someone else signed up with was cleared, and the
+ *  owner gives their own on the verify page. */
+export function hasLegalName(applicant: Applicant): boolean {
+  return Boolean(applicant.legal_first_name?.trim() && applicant.legal_last_name?.trim())
+}
+
+/** Ready for the application form: both contacts verified and a name on file. */
 export function isFullyVerified(applicant: Applicant): boolean {
-  return Boolean(applicant.email_verified_at && applicant.phone_verified_at)
+  return Boolean(applicant.email_verified_at && applicant.phone_verified_at && hasLegalName(applicant))
 }
 
 export async function revokeSession(): Promise<void> {
