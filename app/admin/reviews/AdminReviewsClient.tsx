@@ -232,6 +232,10 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   const [editedSnapshots, setEditedSnapshots] = useState<Record<string, Record<string, number>>>({})
   const [editedNotes, setEditedNotes] = useState<Record<string, string>>({})
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
+  // Success has its own box: AlertModal's default heading is "Something went
+  // wrong", and "Sent back" under that heading read as a failure (found
+  // 2026-10-08 in the send-back test).
+  const [doneMsg, setDoneMsg] = useState<string | null>(null)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [missingProgress, setMissingProgress] = useState<Record<string, Record<string, number>>>({})
   const [submittingMissing, setSubmittingMissing] = useState<string | null>(null)
@@ -265,12 +269,12 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     const data = await res.json().catch(() => ({} as any))
     if (res.ok && data.fixedStamp) {
       setRefundOwedList(prev => prev.filter(x => x.id !== r.id))
-      setAlertMsg(t('admin.reviews.refund.fixedStamp'))
+      setDoneMsg(t('admin.reviews.refund.fixedStamp'))
       return
     }
     if (res.ok && Number(data.refunded) > 0) {
       setRefundOwedList(prev => prev.filter(x => x.id !== r.id))
-      setAlertMsg(t('admin.reviews.refund.done', { n: Number(data.refunded) }))
+      setDoneMsg(t('admin.reviews.refund.done', { n: Number(data.refunded) }))
       return
     }
     // The server's words are English; the cases the desk will meet get ours.
@@ -393,7 +397,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       id: p.id, student_name: p.student?.full_name || '', coach_name: p.coach?.first_name || '',
       session_date: p.session_date, reason: data.reasonSaved === false ? null : reason,
     }])
-    setAlertMsg(data.reasonSaved === false ? t('admin.reviews.sendBack.doneNoReason') : t('admin.reviews.sendBack.done'))
+    if (data.reasonSaved === false) setAlertMsg(t('admin.reviews.sendBack.doneNoReason'))
+    else setDoneMsg(t('admin.reviews.sendBack.done'))
     nudgeBadge()
   }
 
@@ -432,7 +437,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
         setAlertMsg(t('admin.reviews.backfill.queued', { reason: errorText(t, data, 'admin.reviews.err.publishFailed') }))
         router.refresh()
       } else {
-        setAlertMsg(t('admin.reviews.backfill.done'))
+        setDoneMsg(t('admin.reviews.backfill.done'))
       }
       nudgeBadge()
       return
@@ -1102,6 +1107,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       )}
 
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
+      <AlertModal title={t('admin.reviews.doneTitle')} message={doneMsg} onClose={() => setDoneMsg(null)} />
     </div>
   )
 }

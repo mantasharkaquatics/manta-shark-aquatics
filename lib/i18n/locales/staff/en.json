@@ -1057,6 +1057,7 @@
   "admin.reviews.title": "Reviews",
   "admin.reviews.waitingOne": "{n} item is waiting on you",
   "admin.reviews.waitingMany": "{n} items are waiting on you",
+  "admin.reviews.doneTitle": "Done",
   "admin.reviews.subtitle": "Progress records and level requests waiting on you",
   "admin.reviews.missing.heading": "⚠️ Missing Progress",
   "admin.reviews.missing.asOf": "(includes past sessions, as of {date})",
