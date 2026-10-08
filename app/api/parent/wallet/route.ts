@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
-import { walletSummary } from '@/lib/points-wallet'
+import { walletSummary, getWallet, arrears } from '@/lib/points-wallet'
 
 export const runtime = 'nodejs'
 
@@ -38,6 +38,12 @@ export async function GET(req: NextRequest) {
     // ?session=cs_... : has this top-up's checkout been credited yet? Asked by
     // the payment success page, which used to say "points added" before the
     // webhook had added them (found 2026-10-08).
+    // ?only=arrears : the plans page needs one number, what the family owes
+    // (found 2026-10-08: it ran the whole summary -- lessons completed, grant
+    // lots, forgiveness -- to read this one field). One wallet row.
+    if (params.get('only') === 'arrears') {
+      return NextResponse.json({ arrears: arrears(await getWallet(ctx.svc, ctx.parent.id)) })
+    }
     const sessionId = params.get('session')
     if (sessionId) {
       const summary = await walletSummary(ctx.svc, ctx.parent.id)

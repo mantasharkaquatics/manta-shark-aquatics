@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { levelNameKey } from '@/lib/levels'
@@ -52,12 +53,27 @@ export default function CoachDashboardClient({
   coach,
   todaySessions,
   today,
+  offIds = [],
+  loadFailed: sessionsFailed = false,
 }: {
   coach: { id: string; first_name: string; last_name: string; default_note_language?: 'zh-Hant' | 'en' }
   todaySessions: Session[]
   today: string
+  /** Sessions inside the coach's time off, not yet handled by the office. */
+  offIds?: string[]
+  /** The class read failed: say so instead of "no classes today". */
+  loadFailed?: boolean
 }) {
   const t = useT()
+  const router = useRouter()
+  /* Below lg the skills panel stacks under every class, several screens down:
+     tapping a swimmer changed only the row's colour and read as broken (found
+     2026-10-08). On a narrow screen the tap now scrolls to the panel. */
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const showPanel = () => {
+    if (typeof window === 'undefined' || !window.matchMedia('(max-width: 1023px)').matches) return
+    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   const locale = useLocale()
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
@@ -157,7 +173,12 @@ export default function CoachDashboardClient({
             {t('coach.today.classes')}
           </h2>
 
-          {todaySessions.length === 0 ? (
+          {sessionsFailed ? (
+            <div className="bg-red-900/20 rounded-xl p-6 text-center border border-red-500/40" role="alert">
+              <p className="text-red-200">{t('coach.loadFailed')}</p>
+              <button onClick={() => router.refresh()} className="mt-4 bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold px-4 py-2 rounded-lg transition-all">{t('coach.reload')}</button>
+            </div>
+          ) : todaySessions.length === 0 ? (
             <div className="bg-[#111d38] rounded-xl p-8 text-center border border-[#1e3a6e]">
               <p className="text-gray-400">{t('coach.today.none')}</p>
             </div>
@@ -182,6 +203,9 @@ export default function CoachDashboardClient({
                         ? tDb(locale, 'course_types', session.course_types.id, session.course_types.name)
                         : session.course_types?.name}</p>
                       <p className="text-[#c9a84c] text-sm">{formatTime(session.start_time)} – {formatTime(session.end_time)}</p>
+                      {offIds.includes(session.id) && (
+                        <span className="inline-block mt-1 text-[11px] text-amber-300 bg-amber-900/30 border border-amber-500/40 rounded-full px-2.5 py-0.5">{t('coach.offPending')}</span>
+                      )}
                     </div>
                     <span className="bg-[#1e3a6e] text-gray-300 text-xs px-3 py-1 rounded-full">
                       {t('coach.today.studentCount', { n: activeBookings(session).length })}
@@ -192,7 +216,7 @@ export default function CoachDashboardClient({
                     {activeBookings(session).map(booking => (
                       <button
                         key={booking.id}
-                        onClick={e => { e.stopPropagation(); setSelectedSession(session); setSelectedBooking(booking); if (booking.students) loadStudentSkills(booking.students, booking.session_id || session.id) }}
+                        onClick={e => { e.stopPropagation(); setSelectedSession(session); setSelectedBooking(booking); if (booking.students) { loadStudentSkills(booking.students, booking.session_id || session.id); showPanel() } }}
                         className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
                           selectedStudent?.id === booking.students?.id
                             ? 'bg-[#c9a84c]/20 border border-[#c9a84c]/50'
@@ -217,7 +241,7 @@ export default function CoachDashboardClient({
         </div>
 
         {/* Right: Lesson note, then Skill Progress */}
-        <div>
+        <div ref={panelRef} className="scroll-mt-4">
           <h2 className="text-sm font-semibold text-[#c9a84c] mb-4 uppercase tracking-wider flex items-center gap-2 flex-wrap">
             {t('coach.skillProgress')}
             <span className="text-[10px] font-medium normal-case tracking-normal text-gray-500 bg-white/5 px-2 py-0.5 rounded">{t('coach.today.readOnly')}</span>

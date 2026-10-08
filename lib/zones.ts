@@ -59,3 +59,38 @@ export async function getEffectiveZones(
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
   return { legacy: false, rows, overridden: dateRows.length > 0 }
 }
+
+/**
+ * The level band to stamp on new 1-on-4 sessions (found 2026-10-08): the band
+ * of the group zone each one sits in, as /api/bookings/create already writes.
+ * The batch path (/api/bookings/recurring, how families book group lessons)
+ * and the fixed-class move opened sessions with no band, so the dashboard's
+ * "Level x-y" tag showed on some of a child's group lessons and not others.
+ * One read for every coach. Any other course, a legacy coach, or a failed
+ * read gives nulls -- the tag is display only, and booking goes ahead.
+ */
+export async function groupBandsFor(
+  svc: SupabaseClient,
+  slug: string,
+  needs: { coach: string; date: string; start: string; end: string }[],
+): Promise<{ level_min: number | null; level_max: number | null }[]> {
+  const none = needs.map(() => ({ level_min: null, level_max: null }))
+  if (zoneTypeForSlug(slug) !== 'group' || needs.length === 0) return none
+  const { data, error } = await svc
+    .from('coach_availability_zones')
+    .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
+    .in('coach_id', [...new Set(needs.map(n => n.coach))])
+  if (error || !data) return none
+  const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  return needs.map(n => {
+    const mine = data.filter((r: any) => r.coach_id === n.coach)
+    // Same resolution as getEffectiveZones: that day's own rows, else the weekly template.
+    const dateRows = mine.filter((r: any) => r.kind === 'date' && r.override_date === n.date)
+    const dow = new Date(n.date + 'T12:00:00Z').getUTCDay()
+    const picked = dateRows.length > 0 ? dateRows : mine.filter((r: any) => r.kind === 'weekly' && r.weekday === dow)
+    const z: any = picked.find((r: any) => r.zone_type === 'group' && toMin(r.start_time) <= toMin(n.start) && toMin(n.end) <= toMin(r.end_time))
+    return z && z.group_level_min != null && z.group_level_max != null
+      ? { level_min: z.group_level_min, level_max: z.group_level_max }
+      : { level_min: null, level_max: null }
+  })
+}

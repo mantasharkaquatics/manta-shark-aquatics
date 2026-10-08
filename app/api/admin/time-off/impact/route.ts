@@ -6,6 +6,8 @@ import { refundBookingPoints } from '@/lib/bookings/refund'
 import { giveBackVouchers } from '@/lib/vouchers'
 import Stripe from 'stripe'
 import { closeTrialCheckout } from '@/lib/trial-booking'
+import { reopenReversedAssessment } from '@/lib/assessments'
+import { getEffectiveZones } from '@/lib/zones'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -63,6 +65,48 @@ async function getAffected(svc: any, block: any) {
     }
   }
   return { sessions: overlapped, bookings: all }
+}
+
+/* Swim Team practices the time off covers. A practice is a 'team' zone of the
+   coach's day (date rows replace the weekly ones, as everywhere), not a
+   session with bookings, so the lesson list above never showed it: the page
+   said "no affected lessons" over a practice nobody would be at (found
+   2026-10-08). Owner, 2026-10-08: list it, with the team's current members,
+   so the desk finds a substitute coach -- no email to the families and no
+   change to their monthly fee. Read-only, best effort: a failed read leaves
+   the list without it rather than failing the lessons. */
+async function teamPractices(svc: any, block: any) {
+  try {
+    const eff = await getEffectiveZones(svc, block.coach_id, block.date)
+    const rows = eff.rows.filter(r => r.zone_type === 'team' && (block.start_time == null || block.end_time == null
+      || (toM(r.start_time) < toM(block.end_time) && toM(r.end_time) > toM(block.start_time))))
+    if (rows.length === 0) return []
+    const tierIds = [...new Set(rows.map(r => r.team_tier_id).filter(Boolean))] as string[]
+    const [{ data: tiers }, { data: members }] = await Promise.all([
+      tierIds.length ? svc.from('team_tiers').select('id, name').in('id', tierIds) : Promise.resolve({ data: [] }),
+      tierIds.length ? svc.from('team_memberships').select('team_tier_id, student_id')
+        .in('team_tier_id', tierIds).in('status', ['active', 'past_due'])
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`) : Promise.resolve({ data: [] }),
+    ])
+    const tierName = new Map((tiers || []).map((x: any) => [x.id, x.name]))
+    // Two steps rather than an embed: names by id.
+    const sIds = [...new Set((members || []).map((m: any) => m.student_id).filter(Boolean))] as string[]
+    const { data: studs } = sIds.length ? await svc.from('students').select('id, full_name').in('id', sIds) : { data: [] }
+    const sName = new Map((studs || []).map((x: any) => [x.id, x.full_name]))
+    return rows.map(r => {
+      const mine = (members || []).filter((m: any) => m.team_tier_id === r.team_tier_id)
+      const names = [...new Set(mine.map((m: any) => sName.get(m.student_id)).filter(Boolean))] as string[]
+      return {
+        team_tier_id: r.team_tier_id,
+        team_name: tierName.get(r.team_tier_id) || '',
+        time: `${formatTime12h(r.start_time)} \u2013 ${formatTime12h(r.end_time)}`,
+        members: names.sort(),
+      }
+    })
+  } catch (e) {
+    console.error('time-off impact: team practices not read:', e instanceof Error ? e.message : e)
+    return []
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -148,7 +192,7 @@ export async function POST(req: NextRequest) {
   }).sort((a: any, b: any) => a.sort_key.localeCompare(b.sort_key))
 
   if (action === 'list') {
-    return NextResponse.json({ items })
+    return NextResponse.json({ items, team: await teamPractices(svc, block) })
   }
 
   // "Notify" and "cancel & refund" were two buttons. Between them the family
@@ -225,6 +269,15 @@ export async function POST(req: NextRequest) {
       b.points_refunded = (Number(b.points_refunded) || 0) + back
       // A make-up lesson cost a voucher, not points: that comes back instead.
       await giveBackVouchers(svc, [b.id])
+    }
+    // A cancelled Swim Assessment whose payment was refunded in full or
+    // charged back is not owed: clear "assessment used" so the family can pay
+    // again on the site, and the email below does not say the payment is kept
+    // (owner, 2026-10-08).
+    for (const b of outstanding) {
+      if (!b.is_trial || b.status !== 'cancelled') continue
+      const st: any = stuMap.get(b.student_id)
+      if (st?.trial_used_at && await reopenReversedAssessment(svc, b.student_id)) st.trial_used_at = null
     }
     // If the session has no remaining active bookings → mark cancelled (enrolled_count handled by trigger)
     for (const sid of touchedSessions) {

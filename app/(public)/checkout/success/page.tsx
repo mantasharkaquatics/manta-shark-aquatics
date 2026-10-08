@@ -8,6 +8,7 @@ import { dateTag } from '@/lib/i18n'
 import { formatTime12h } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
+import SettleArrearsButton from '@/components/SettleArrearsButton'
 
 // Palette B (2026-09): the site's dark top with a green tick, then what just
 // happened as a short checklist on white, and the one next step in amber.
@@ -45,6 +46,10 @@ function SuccessContent() {
      asks until the payment is on the books, and says "processing" until then. */
   const [phase, setPhase] = useState<Phase>(isTeam ? 'done' : 'checking')
   const [balance, setBalance] = useState<number | null>(null)
+  // Points still owed after this top-up (a payment that came back). Booking
+  // stays paused until it is settled, so the page must not say "you can
+  // start booking" (found 2026-10-08).
+  const [owed, setOwed] = useState(0)
   const [when, setWhen] = useState<{ date: string; time: string } | null>(null)
 
   useEffect(() => {
@@ -66,7 +71,7 @@ function SuccessContent() {
           const r = await fetch('/api/parent/wallet?session=' + encodeURIComponent(sessionId))
           const j = await r.json().catch(() => ({}))
           if (!live) return
-          if (j.credited) { setBalance(typeof j.balancePurchased === 'number' ? j.balancePurchased : null); setPhase('done'); return }
+          if (j.credited) { setBalance(typeof j.balancePurchased === 'number' ? j.balancePurchased : null); setOwed(Number(j.arrears) > 0 ? Number(j.arrears) : 0); setPhase('done'); return }
         }
       } catch { /* asked again below */ }
       if (!live) return
@@ -116,9 +121,9 @@ function SuccessContent() {
     items = phase === 'done' ? [t('success.received'), t('success.emailSent')] : []
   } else {
     title = phase === 'done' ? t('success.titlePoints') : t('success.received')
-    desc = phase === 'done' ? t('success.descPoints') : phase === 'slow' ? t('success.points.slow') : t('success.points.checking')
+    desc = phase === 'done' ? (owed > 0 ? t('success.descPointsOwed') : t('success.descPoints')) : phase === 'slow' ? t('success.points.slow') : t('success.points.checking')
     items = phase === 'done'
-      ? [t('success.points.1'), ...(balance != null ? [t('success.points.balance', { n: balance.toLocaleString('en-US') })] : []), t('success.points.2'), t('success.emailSent'), t('success.points.3')]
+      ? [t('success.points.1'), ...(balance != null ? [t('success.points.balance', { n: balance.toLocaleString('en-US') })] : []), ...(owed > 0 ? [] : [t('success.points.2')]), t('success.emailSent'), t('success.points.3')]
       : []
   }
   const ok = phase === 'done' || phase === 'received'
@@ -143,14 +148,24 @@ function SuccessContent() {
                 {items.map((text, i) => <li key={i}>{text}</li>)}
               </ul>
             )}
+            {owed > 0 && !isAssessment && !isTeam && phase === 'done' && (
+              <div style={{ background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '10px', padding: '12px 14px', marginTop: '18px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#c0392b', marginBottom: '10px' }}>
+                  {t('success.points.owed', { n: owed.toLocaleString('en-US') })}
+                </div>
+                <SettleArrearsButton owed={owed} className="b-btn gold" style={{ width: '100%' }} />
+              </div>
+            )}
             <div className="su-actions">
               {isAssessment ? (
                 <Link href="/dashboard" className="b-btn gold">{t('common.backToDashboard')}</Link>
               ) : (
                 <>
-                  <Link href={isTeam ? '/dashboard' : '/booking'} className="b-btn gold">
-                    {isTeam ? t('success.ctaTeam') : t('success.ctaBook')}
-                  </Link>
+                  {!(owed > 0 && !isTeam) && (
+                    <Link href={isTeam ? '/dashboard' : '/booking'} className="b-btn gold">
+                      {isTeam ? t('success.ctaTeam') : t('success.ctaBook')}
+                    </Link>
+                  )}
                   {/* Both buttons would go to the same place for a team membership. */}
                   {!isTeam && <Link href="/dashboard" className="b-btn line">{t('common.backToDashboard')}</Link>}
                 </>

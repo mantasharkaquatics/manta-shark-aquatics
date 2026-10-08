@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
-import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
+import Stripe from 'stripe'
+import { SCHOOL_CANCEL_REASONS, syncTrialBooking } from '@/lib/trial-booking'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
 export async function GET(req: NextRequest) {
   const studentId = req.nextUrl.searchParams.get('student_id')
@@ -23,19 +27,43 @@ export async function GET(req: NextRequest) {
   }
 
   // The three reads are independent, so they go out together.
-  let studentQ = svc.from('students').select('id, parent_id, trial_used_at, current_level').eq('id', studentId)
-  if (parentId) studentQ = studentQ.eq('parent_id', parentId)
-  const [{ data: student }, { data: trialRows }, { data: unusedCredit }] = await Promise.all([
-    studentQ.maybeSingle(),
-    // Every assessment booking, newest first, with its lesson time: the page
-    // has to tell "booked, not taken yet" from "taken" from "the school
-    // cancelled it" (found 2026-10-07). A swimmer has only a handful.
-    svc.from('bookings').select('id, status, cancellation_reason, created_at, class_session_id, pending_expires_at')
-      .eq('student_id', studentId).eq('is_trial', true).order('created_at', { ascending: false }).limit(20),
-    // Paid (e.g. at POS) but not yet scheduled: an unused assessment credit exists
-    svc.from('lesson_credits').select('id')
-      .eq('student_id', studentId).eq('is_trial', true).eq('used_credits', 0).limit(1),
-  ])
+  const readAll = () => {
+    let studentQ = svc.from('students').select('id, parent_id, trial_used_at, current_level').eq('id', studentId)
+    if (parentId) studentQ = studentQ.eq('parent_id', parentId)
+    return Promise.all([
+      studentQ.maybeSingle(),
+      // Every assessment booking, newest first, with its lesson time: the page
+      // has to tell "booked, not taken yet" from "taken" from "the school
+      // cancelled it" (found 2026-10-07). A swimmer has only a handful.
+      svc.from('bookings').select('id, status, cancellation_reason, created_at, class_session_id, pending_expires_at, stripe_session_id')
+        .eq('student_id', studentId).eq('is_trial', true).order('created_at', { ascending: false }).limit(20),
+      // Paid (e.g. at POS) but not yet scheduled: an unused assessment credit exists
+      svc.from('lesson_credits').select('id')
+        .eq('student_id', studentId).eq('is_trial', true).eq('used_credits', 0).limit(1),
+    ])
+  }
+  let [{ data: student }, { data: trialRows }, { data: unusedCredit }] = await readAll()
+
+  // An unpaid hold whose 15 minutes are over is settled now -- released, or
+  // confirmed if it was paid at the last moment -- rather than waiting for
+  // the cleanup cron (every 15 minutes) or the dashboard. It kept the family
+  // from booking again, and showed a "held until" time already past, for up
+  // to 15 more minutes (found 2026-10-08). syncTrialBooking closes the Stripe
+  // checkout before it lets the slot go.
+  if (student) {
+    const expired = (trialRows || []).filter((b: any) => b.status === 'pending_payment'
+      && b.pending_expires_at && Date.parse(b.pending_expires_at) <= Date.now())
+    let changed = false
+    for (const b of expired) {
+      try {
+        const r = await syncTrialBooking(svc, stripe, b)
+        if (r.state === 'released' || r.state === 'confirmed') changed = true
+      } catch (e) {
+        console.error('trial-eligibility: could not settle an expired hold', b.id, e)
+      }
+    }
+    if (changed) [{ data: student }, { data: trialRows }, { data: unusedCredit }] = await readAll()
+  }
 
   let row = student
   if (!row && parentId) {
@@ -100,13 +128,21 @@ export async function GET(req: NextRequest) {
   else if (held) reason = 'awaiting_payment'
   else if (active.some(notEnded)) reason = 'booked'
   else if (!hasActiveTrial && st.trial_used_at && newest?.status === 'cancelled'
-    && (SCHOOL_CANCEL_REASONS as readonly string[]).includes(newest.cancellation_reason)) reason = 'school_cancelled'
+    && (SCHOOL_CANCEL_REASONS as readonly string[]).includes(newest.cancellation_reason)) {
+    // A payment refunded in full or charged back is not owed: the school will
+    // not rebook it (found 2026-10-08). Clearing trial_used_at makes the
+    // swimmer eligible to pay again (owner, 2026-10-08); normally the cancel
+    // or the refund already did, this catches anything that slipped past.
+    if (await assessmentPaymentReversed(svc, studentId).catch(() => false)) {
+      reason = (await reopenReversedAssessment(svc, studentId)) ? 'eligible' : 'done'
+    } else reason = 'school_cancelled'
+  }
   else reason = 'done'
 
   return NextResponse.json({
-    eligible,
+    eligible: eligible || reason === 'eligible',
     hasCredit,
-    trialUsedAt: st.trial_used_at,
+    trialUsedAt: reason === 'eligible' ? null : st.trial_used_at,
     hasActiveTrial,
     hasLevel: st.current_level != null,
     reason,

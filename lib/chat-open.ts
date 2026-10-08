@@ -37,3 +37,9 @@ export function takePendingChatOpen(): { text: string } | null {
 // screen shows, and what rows written before the key existed carry.
 export const CHAT_HANDBACK_KEY = 'handback'
 export const CHAT_HANDBACK_EN = 'Front desk session has ended. Our AI assistant will continue to help you here.'
+
+// Fired by the chat widget when the assistant changed the family's account
+// this turn (cancelled a lesson, held an assessment). The dashboard listens and
+// reads the account again, so the lesson does not sit there with its Cancel
+// button and the old balance until a reload (found 2026-10-08).
+export const ACCOUNT_CHANGED_EVENT = 'msa:account-changed'

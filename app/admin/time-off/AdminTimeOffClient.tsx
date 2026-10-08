@@ -15,6 +15,9 @@ type ImpactItem = {
   student_name: string; parent_name: string; course_name: string; course_type_id?: string | null; date: string; time: string
 }
 
+/** A Swim Team practice inside the time off (impact route teamPractices). */
+type TeamPractice = { team_tier_id: string | null; team_name: string; time: string; members: string[] }
+
 type Stat = { pending: number; notified: number; handled: number }
 
 // The badge numbers, from a block's impact list: the same rule the page uses
@@ -55,7 +58,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   const [success, setSuccess] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [impact, setImpact] = useState<Record<string, { loading: boolean; items: ImpactItem[]; error: string }>>({})
+  const [impact, setImpact] = useState<Record<string, { loading: boolean; items: ImpactItem[]; team: TeamPractice[]; error: string }>>({})
   const [acting, setActing] = useState<string | null>(null)
   // Notify / cancel used to swallow a failed response and just reload the list,
   // so the desk never saw why nothing happened (found 2026-10-04).
@@ -70,8 +73,8 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     return `${hh}:${String(m).padStart(2, '0')} ${ap}`
   }
 
-  const loadImpact = async (blockId: string): Promise<ImpactItem[] | null> => {
-    setImpact(prev => ({ ...prev, [blockId]: { loading: true, items: [], error: '' } }))
+  const loadImpact = async (blockId: string): Promise<{ items: ImpactItem[]; team: TeamPractice[] } | null> => {
+    setImpact(prev => ({ ...prev, [blockId]: { loading: true, items: [], team: [], error: '' } }))
     const res = await fetch('/api/admin/time-off/impact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -79,13 +82,14 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     }).catch(() => null)
     const data = res ? await res.json().catch(() => ({})) : {}
     if (!res || !res.ok) {
-      setImpact(prev => ({ ...prev, [blockId]: { loading: false, items: [], error: data.error || t('admin.timeOff.err.loadFailed') } }))
+      setImpact(prev => ({ ...prev, [blockId]: { loading: false, items: [], team: [], error: data.error || t('admin.timeOff.err.loadFailed') } }))
       return null
     }
     const items: ImpactItem[] = data.items || []
-    setImpact(prev => ({ ...prev, [blockId]: { loading: false, items, error: '' } }))
+    const team: TeamPractice[] = data.team || []
+    setImpact(prev => ({ ...prev, [blockId]: { loading: false, items, team, error: '' } }))
     setImpactStats(prev => ({ ...prev, [blockId]: statFromItems(items) }))
-    return items
+    return { items, team }
   }
 
   const toggleExpand = (id: string) => {
@@ -146,12 +150,18 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
       // Say straight away whether lessons are already booked in the new
       // block, and open it so the cancel button is right there. "Block
       // created" alone left the desk thinking nothing needed doing.
-      const items = data.block?.id ? await loadImpact(data.block.id) : null
-      const booked = items ? statFromItems(items).pending : 0
-      if (items === null) setSuccess(t('admin.timeOff.blockCreatedCheck'))
+      const loaded = data.block?.id ? await loadImpact(data.block.id) : null
+      const booked = loaded ? statFromItems(loaded.items).pending : 0
+      // A Swim Team practice in the time off needs a substitute coach: say so
+      // and open the block, as for booked lessons.
+      const teamNote = loaded && loaded.team.length > 0 ? ' ' + t('admin.timeOff.teamCreatedNote', { n: loaded.team.length }) : ''
+      if (loaded === null) setSuccess(t('admin.timeOff.blockCreatedCheck'))
       else if (booked > 0) {
         setExpanded(data.block.id)
-        setSuccess(t('admin.timeOff.blockCreatedAffected', { n: booked }))
+        setSuccess(t('admin.timeOff.blockCreatedAffected', { n: booked }) + teamNote)
+      } else if (teamNote) {
+        setExpanded(data.block.id)
+        setSuccess(t('admin.timeOff.blockCreated') + teamNote)
       } else setSuccess(t('admin.timeOff.blockCreated'))
     }
     setSubmitting(false)
@@ -169,6 +179,24 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   }
 
   const inputCls = "w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors"
+
+  // Swim Team practices in the block: no bookings to cancel, so no button --
+  // a reminder to arrange a substitute, with who is on the team (owner,
+  // 2026-10-08: no email to the families, no fee change).
+  const teamBlock = (team: TeamPractice[]) => team.length === 0 ? null : (
+    <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-3 space-y-2">
+      <p className="text-amber-300 text-sm font-semibold">{t('admin.timeOff.teamHeading')}</p>
+      {team.map((p, idx) => (
+        <div key={(p.team_tier_id || '') + idx}>
+          <p className="text-white text-sm">{p.team_name || t('admin.timeOff.teamUnnamed')} <span className="text-gray-400">· {p.time}</span></p>
+          <p className="text-gray-400 text-xs">
+            {p.members.length > 0 ? t('admin.timeOff.teamMembers', { n: p.members.length, names: p.members.join(', ') }) : t('admin.timeOff.teamNoMembers')}
+          </p>
+        </div>
+      ))}
+      <p className="text-amber-200/80 text-xs">{t('admin.timeOff.teamHint')}</p>
+    </div>
+  )
 
   const renderCard = (item: Item, removable: boolean) => {
     const imp = impact[item.id]
@@ -234,9 +262,13 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
             ) : imp?.error ? (
               <p className="text-red-400 text-sm">{imp.error}</p>
             ) : !imp || imp.items.length === 0 ? (
-              <p className="text-gray-400 text-sm">{t('admin.timeOff.noneAffected')}</p>
+              <>
+                {teamBlock(imp?.team || [])}
+                <p className="text-gray-400 text-sm">{t('admin.timeOff.noneAffected')}</p>
+              </>
             ) : (
               <>
+                {teamBlock(imp.team)}
                 <div className="space-y-2">
                   {imp.items.map(i => (
                     <div key={i.booking_id} className="flex items-center justify-between bg-[#0d1529] rounded-lg px-4 py-2.5">

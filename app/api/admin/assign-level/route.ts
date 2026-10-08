@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
-import { setStudentLevel } from '@/lib/level-change'
+import { setStudentLevel, assessmentWaitingIds } from '@/lib/level-change'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -23,6 +23,20 @@ export async function POST(req: NextRequest) {
   if (!cur) return NextResponse.json({ error: 'Student not found', code: 'not_found' }, { status: 404 })
   if (cur.current_level != null && String(cur.current_level) === String(Number(level_number))) {
     return NextResponse.json({ error: 'The swimmer is already at this level', code: 'same_level' }, { status: 409 })
+  }
+  /* A swimmer with no level whose assessment report is waiting in Reviews or
+     was sent back to the coach: the level has to come from confirming that
+     report, or the family never gets the assessment report, its email and the
+     85-point credit -- a level set here turned the coach's resubmission into
+     an ordinary report and the backfill refused the swimmer (found
+     2026-10-08). Every report filed for a swimmer with no level is an
+     assessment (/api/coach/lesson-note). */
+  if (cur.current_level == null) {
+    const { ids: waiting, error: wErr } = await assessmentWaitingIds(supabase, [student_id])
+    if (wErr) return NextResponse.json({ error: wErr.message || 'Could not read the swimmer\'s reports', code: 'server' }, { status: 500 })
+    if (waiting.has(student_id)) {
+      return NextResponse.json({ error: 'This swimmer\'s assessment report is waiting in Reviews; set the level there', code: 'assessment_waiting' }, { status: 409 })
+    }
   }
 
   const moved = await setStudentLevel(supabase, { studentId: student_id, toLevel: level_number, adminId: admin_id, notes })

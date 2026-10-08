@@ -22,7 +22,7 @@ import {
   renewalHolds, studentBusy, termLastDates, toMin, weekdayOf,
   type FixedClass, type Lesson,
 } from '@/lib/fixed-classes'
-import { zoneTypeForSlug } from '@/lib/zones'
+import { zoneTypeForSlug, groupBandsFor } from '@/lib/zones'
 
 type Svc = SupabaseClient
 
@@ -246,9 +246,12 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
     }
     const need = parts.filter(p => !sessionOf.has(p.key))
     if (need.length > 0) {
-      const { data: made, error } = await svc.from('class_sessions').insert(need.map(p => ({
+      // A group session carries its zone's level band (lib/zones groupBandsFor).
+      const bands = await groupBandsFor(svc, ct.slug, need.map(p => ({ coach: p.item.coachId!, date: p.item.to!, start: p.start, end: p.end })))
+      const { data: made, error } = await svc.from('class_sessions').insert(need.map((p, i) => ({
         coach_id: p.item.coachId, course_type_id: ct.id, session_date: p.item.to, start_time: p.start, end_time: p.end,
         max_students: ct.max_students, enrolled_count: 0, status: 'open',
+        ...bands[i],
       }))).select('id, coach_id, session_date, start_time')
       if (error || !made) {
         await putBack(oldIds)

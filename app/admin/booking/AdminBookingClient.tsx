@@ -11,7 +11,7 @@ import { allRows } from '@/lib/db-paging'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
-import type { Locale } from '@/lib/i18n'
+import type { Locale, TFunction } from '@/lib/i18n'
 
 interface Coach {
   id: string
@@ -78,6 +78,30 @@ interface Props {
 const WORK_START = 6
 const WORK_END = 22
 const SLOT_MINUTES = 30
+
+/**
+ * A desk booking or move onto a slot held for a fixed-class family's renewal
+ * comes back 409 `renewal_hold` (lib/bookings/desk-checks; found 2026-10-08:
+ * the desk could fill a held week with no warning, breaking the promise in
+ * the renewal email). Owner, 2026-10-08: say whose hold and until when, and
+ * book over it only on a second confirmation; the held family is not told.
+ * Sends the request, asks if it meets a hold, and sends it again with
+ * override_holds. `declined` is true when the desk said no.
+ */
+async function postWithHoldCheck(url: string, body: Record<string, unknown>, t: TFunction, locale: Locale): Promise<{ res: Response; data: any; declined: boolean }> {
+  const send = async (b: Record<string, unknown>) => {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+    const data = await res.json().catch(() => ({}))
+    return { res, data }
+  }
+  const first = await send(body)
+  if (first.res.status !== 409 || first.data?.code !== 'renewal_hold') return { ...first, declined: false }
+  const day = (ymd: string) => new Date(ymd + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })
+  const lines = (first.data.holds || []).map((h: { date: string; family: string; until: string }) =>
+    t('admin.booking.hold.line', { date: day(h.date), family: h.family || t('admin.booking.hold.aFamily'), until: day(h.until) }))
+  if (!window.confirm(t('admin.booking.hold.confirm', { list: lines.join('\n') }))) return { ...first, declined: true }
+  return { ...(await send({ ...body, override_holds: true })), declined: false }
+}
 
 function toDateStr(d: Date): string {
   const y = d.getFullYear()
@@ -391,8 +415,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   // so the credit estimate and the actual deduction can never disagree.
   const [hourMode, setHourMode] = useState(false)
   const [recurSkips, setRecurSkips] = useState<string[]>([])
-  const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string }[]; points: any } | null>(null)
+  const [recurPreview, setRecurPreview] = useState<{ candidates: { date: string; status: string; hold?: { family: string; until: string } }[]; points: any; pointsWithHeld?: any } | null>(null)
   const [recurLoading, setRecurLoading] = useState(false)
+  // Book the weeks held for a fixed-class renewal too (asked again on confirm).
+  const [recurIncludeHeld, setRecurIncludeHeld] = useState(false)
   // A preview belongs to the swimmers, course and length it was made for.
   // Changing any of them used to leave it up, and "Confirm N lessons" then
   // booked the old preview's dates for the new choice -- points the desk had
@@ -401,7 +427,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const recurKey = JSON.stringify([formStudent, formStudent2, formCourse, hourMode])
   const recurKeyRef = useRef(recurKey)
   recurKeyRef.current = recurKey
-  useEffect(() => { setRecurPreview(null) }, [recurKey])
+  useEffect(() => { setRecurPreview(null); setRecurIncludeHeld(false) }, [recurKey])
   const [blocks, setBlocks] = useState<Block[]>([])
   const [blockAllDay, setBlockAllDay] = useState(false)
   const [blockStart, setBlockStart] = useState('')
@@ -556,14 +582,13 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   async function handleRecurCommit() {
     if (!selectedSlot || !recurPreview) return
     if (courseTypes.find(c => c.id === formCourse)?.slug === '1on2' && !formStudent2) { setError(t('admin.booking.err.needTwo')); return }
-    const okDates = recurPreview.candidates.filter(c => c.status === 'ok').map(c => c.date)
+    // Held weeks only when the desk ticked them in; the server then asks again.
+    const okDates = recurPreview.candidates.filter(c => c.status === 'ok' || (recurIncludeHeld && c.status === 'renewal_hold')).map(c => c.date)
     if (okDates.length === 0) { setError(t('admin.booking.err.noBookableDates')); return }
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/admin/bookings/bulk-create', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { res, data, declined } = await postWithHoldCheck('/api/admin/bookings/bulk-create', {
           action: 'commit',
           coach_id: selectedSlot.coachId,
           course_type_id: formCourse,
@@ -572,10 +597,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           start_time: selectedSlot.time,
           dates: okDates,
           hour: hourMode && courseTypes.find(c => c.id === formCourse)?.slug === '1on1',
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || t('admin.booking.err.createFailed')) }
+        }, t, locale)
+      if (declined) setError(t('admin.booking.hold.notBooked'))
+      else if (!res.ok) { setError(data.error || t('admin.booking.err.createFailed')) }
       else {
         setSuccess(t('admin.booking.ok.createdN', { n: okDates.length }))
         await loadSessions()
@@ -606,14 +630,12 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   async function confirmDragMove() {
     if (!dragMove) return
     setDragMoving(true); setDragMoveError('')
-    const res = await fetch('/api/admin/bookings/move-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: dragMove.session_id, coach_id: dragMove.to_coach_id, date: dragMove.to_date, time: dragMove.to_time }),
-    })
-    const data = await res.json()
+    const { res, data, declined } = await postWithHoldCheck('/api/admin/bookings/move-session',
+      { session_id: dragMove.session_id, coach_id: dragMove.to_coach_id, date: dragMove.to_date, time: dragMove.to_time }, t, locale)
+      .catch(() => ({ res: null as Response | null, data: {} as any, declined: false }))
     setDragMoving(false)
-    if (!res.ok) { setDragMoveError(data.error || t('admin.booking.err.rescheduleFailed')); return }
+    if (declined) { setDragMoveError(t('admin.booking.hold.notBooked')); return }
+    if (!res || !res.ok) { setDragMoveError(data.error || t('admin.booking.err.rescheduleFailed')); return }
     setDragMove(null)
     loadSessions()
   }
@@ -767,10 +789,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
     // Server API (bulk-create single-day path): validation, session creation, credit deduction (atomic RPC), and emails all server-side
     try {
-      const res = await fetch('/api/admin/bookings/bulk-create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { res, data, declined } = await postWithHoldCheck('/api/admin/bookings/bulk-create', {
           action: 'commit',
           coach_id: selectedSlot.coachId,
           course_type_id: formCourse,
@@ -779,11 +798,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           start_time: selectedSlot.time,
           dates: [selectedSlot.date],
           hour: hourMode && !is1on2,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || t('admin.booking.err.createBooking'))
+        }, t, locale)
+      if (declined || !res.ok) {
+        setError(declined ? t('admin.booking.hold.notBooked') : (data.error || t('admin.booking.err.createBooking')))
         setSaving(false)
         return
       }
@@ -809,19 +826,14 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     setTrialUrl('')
 
     try {
-      const res = await fetch('/api/stripe/trial-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { res, data, declined } = await postWithHoldCheck('/api/stripe/trial-checkout', {
           studentId: formStudent,
           coachId: selectedSlot.coachId,
           date: selectedSlot.date,
           time: selectedSlot.time,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || t('admin.booking.err.payLink'))
+        }, t, locale)
+      if (declined || !res.ok) {
+        setError(declined ? t('admin.booking.hold.notBooked') : (data.error || t('admin.booking.err.payLink')))
         setTrialSaving(false)
         return
       }
@@ -841,19 +853,14 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/admin/bookings/trial-credit-book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { res, data, declined } = await postWithHoldCheck('/api/admin/bookings/trial-credit-book', {
           studentId: formStudent,
           coachId: selectedSlot.coachId,
           date: selectedSlot.date,
           time: selectedSlot.time,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || t('admin.booking.err.createBooking'))
+        }, t, locale)
+      if (declined || !res.ok) {
+        setError(declined ? t('admin.booking.hold.notBooked') : (data.error || t('admin.booking.err.createBooking')))
         setSaving(false)
         return
       }
@@ -1152,6 +1159,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                                 : c.status === 'conflict' ? t('admin.booking.recur.status.conflict')
                                 : c.status === 'full' ? t('admin.booking.recur.status.full')
                                 : c.status === 'student_busy' ? t('admin.booking.recur.status.studentBusy')
+                                : c.status === 'renewal_hold' ? t('admin.booking.recur.status.renewalHold', {
+                                    family: c.hold?.family || t('admin.booking.hold.aFamily'),
+                                    until: c.hold?.until ? new Date(c.hold.until + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'numeric', day: 'numeric' }) : '' })
                                 : t('admin.booking.recur.status.skipped')
                               const okIndex = recurPreview.candidates.slice(0, idx + 1).filter(x => x.status === 'ok').length
                               return (
@@ -1173,9 +1183,15 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                               )
                             })}
                           </div>
+                          {recurPreview.candidates.some(c => c.status === 'renewal_hold') && (
+                            <label className="flex items-start gap-2 px-3 py-2 text-xs text-amber-300 border-t border-white/10 cursor-pointer">
+                              <input type="checkbox" checked={recurIncludeHeld} onChange={e => setRecurIncludeHeld(e.target.checked)} className="mt-0.5 accent-[#c9a84c]" />
+                              <span>{t('admin.booking.recur.includeHeld', { n: recurPreview.candidates.filter(c => c.status === 'renewal_hold').length })}</span>
+                            </label>
+                          )}
                           <div className="px-3 py-2 bg-white/5 text-xs text-white/50 border-t border-white/10">
                             {(() => {
-                              const cr = recurPreview.points
+                              const cr = (recurIncludeHeld && recurPreview.pointsWithHeld) || recurPreview.points
                               if (!cr) return null
                               const n1 = cr.parent1_name || t('admin.booking.recur.parentN', { n: 1 })
                               const n2 = cr.parent2_name || t('admin.booking.recur.parentN', { n: 2 })
@@ -1203,10 +1219,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               {!trialUrl && (
                 <button
                   onClick={bookMode === 'recurring' ? handleRecurCommit : (isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook)}
-                  disabled={saving || trialSaving || unassessedPicked || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.points?.sufficient || recurLoading))}
+                  disabled={saving || trialSaving || unassessedPicked || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !((recurIncludeHeld && recurPreview.pointsWithHeld) || recurPreview.points)?.sufficient || recurLoading))}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                   {bookMode === 'recurring'
-                    ? (saving ? t('admin.booking.creating') : recurPreview ? t('admin.booking.recur.confirmN', { n: recurPreview.candidates.filter(c => c.status === 'ok').length }) : t('admin.booking.recur.previewFirst'))
+                    ? (saving ? t('admin.booking.creating') : recurPreview ? t('admin.booking.recur.confirmN', { n: recurPreview.candidates.filter(c => c.status === 'ok' || (recurIncludeHeld && c.status === 'renewal_hold')).length }) : t('admin.booking.recur.previewFirst'))
                     : isTrial
                     ? (trialCreditStatus === 'available'
                         ? (saving ? t('admin.booking.creating') : t('admin.booking.trial.usePrepaid'))
@@ -1785,14 +1801,12 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
 
   async function addStudent(studentId: string) {
     setAdding(studentId); setAddError(''); setConfirmAddId(null)
-    const res = await fetch('/api/admin/bookings/bulk-create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'commit', coach_id: session.coach_id, course_type_id: session.course_type_id, start_time: session.start_time, student_id: studentId, dates: [session.session_date] }),
-    })
-    const data = await res.json().catch(() => ({}))
+    const { res, data, declined } = await postWithHoldCheck('/api/admin/bookings/bulk-create',
+      { action: 'commit', coach_id: session.coach_id, course_type_id: session.course_type_id, start_time: session.start_time, student_id: studentId, dates: [session.session_date] }, t, locale)
+      .catch(() => ({ res: null as Response | null, data: {} as any, declined: false }))
     setAdding(null)
-    if (!res.ok) { setAddError(data.error || t('admin.booking.err.addFailed')); return }
+    if (declined) { setAddError(t('admin.booking.hold.notBooked')); return }
+    if (!res || !res.ok) { setAddError(data.error || t('admin.booking.err.addFailed')); return }
     setAddQuery('')
     await loadBookings()
     onRefresh()
@@ -1801,14 +1815,12 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
   async function submitReschedule() {
     if (!showReschedule || !newCoachId || !newDate || !newTime) return
     setRescheduling(true); setRescheduleError('')
-    const res = await fetch('/api/admin/bookings/move-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: session.id, coach_id: newCoachId, date: newDate, time: newTime }),
-    })
-    const data = await res.json().catch(() => ({} as any))
+    const { res, data, declined } = await postWithHoldCheck('/api/admin/bookings/move-session',
+      { session_id: session.id, coach_id: newCoachId, date: newDate, time: newTime }, t, locale)
+      .catch(() => ({ res: null as Response | null, data: {} as any, declined: false }))
     setRescheduling(false)
-    if (!res.ok) { setRescheduleError(data.error || t('admin.booking.err.rescheduleFailed')); return }
+    if (declined) { setRescheduleError(t('admin.booking.hold.notBooked')); return }
+    if (!res || !res.ok) { setRescheduleError(data.error || t('admin.booking.err.rescheduleFailed')); return }
     onRefresh(); onClose()
   }
   const ct = getSessionCourseType(session)

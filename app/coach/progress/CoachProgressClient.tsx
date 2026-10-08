@@ -6,6 +6,7 @@ import { levelNameKey } from '@/lib/levels'
 import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
 import SkillTree from '@/app/(public)/dashboard/SkillTree'
 import { LEVEL_COLORS, LEVEL_NUMBERS, STAGES } from '@/lib/levels'
@@ -105,6 +106,24 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     const t = setInterval(check, 60000)
     return () => clearInterval(t)
   }, [])
+
+  /* The list is built on the server from check-ins, once. A swimmer checked
+     in at the desk after the page opened did not appear until the coach
+     reloaded -- "no students have checked in yet" stayed up (found
+     2026-10-08). It is read again every minute and when the page comes back
+     to the front, but never while a card is open or a report is sending, so
+     nothing moves under a coach mid-entry. */
+  const router = useRouter()
+  const busyRef = useRef(false)
+  useEffect(() => {
+    busyRef.current = expandedStudent !== null || Object.values(savingMap).some(Boolean)
+  }, [expandedStudent, savingMap])
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible' && !busyRef.current) router.refresh() }
+    const iv = setInterval(refresh, 60000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', refresh) }
+  }, [router])
 
   // One entry per (student, lesson). A lesson is lesson_group_id when set, else the session,
   // so an hour lesson's two halves collapse into a single card spanning both.
@@ -309,6 +328,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
               <p className="text-gray-500 text-sm mt-1.5">
                 {t('coach.progress.noCheckinsHint', { n: scheduledToday })}
               </p>
+              <button onClick={() => router.refresh()} className="mt-4 border border-[#1e3a6e] hover:border-[#c9a84c] text-gray-200 text-sm px-4 py-2 rounded-lg transition-colors">{t('coach.reload')}</button>
             </>
           ) : (
             <p className="text-gray-400">{t('coach.progress.noLessons')}</p>

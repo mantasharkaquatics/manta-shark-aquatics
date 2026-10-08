@@ -290,7 +290,10 @@ export default function Navbar() {
 
   async function handleSignOut() {
     setOpen(null)
-    await supabase.auth.signOut()
+    // This device only (found 2026-10-08): the default scope is 'global', so
+    // one parent signing out on the home computer signed the other parent out
+    // of the same family account on their phone too.
+    await supabase.auth.signOut({ scope: 'local' })
     setIsLoggedIn(false)
     setFirstName('')
     setFullName('')

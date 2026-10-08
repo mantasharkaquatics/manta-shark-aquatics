@@ -53,24 +53,28 @@ async function notifyChange(parent: any, field: string, oldValue: string | null,
   } catch {}
 }
 
+/* Every refusal the desk can meet carries a `code`; the members screen shows
+   its own words for it in the admin's language (found 2026-10-08: a Chinese
+   screen showed "Incorrect code." and "Another family already uses this
+   phone number."). The English `error` stays for logs. */
 async function validateNewValue(svc: any, parentId: string, field: string, raw: any) {
-  if (field !== 'email' && field !== 'phone') return { error: 'Invalid field' }
-  if (!raw || typeof raw !== 'string') return { error: 'Missing new value' }
+  if (field !== 'email' && field !== 'phone') return { error: 'Invalid field', code: 'invalid_field' }
+  if (!raw || typeof raw !== 'string') return { error: 'Missing new value', code: 'missing_value' }
   const value = field === 'email' ? raw.trim().toLowerCase() : normalizePhone(raw)
-  if (field === 'email' && !EMAIL_RE.test(value)) return { error: 'That email address does not look valid.' }
-  if (field === 'phone' && value.replace(/\D/g, '').length < 10) return { error: 'That phone number does not look valid.' }
+  if (field === 'email' && !EMAIL_RE.test(value)) return { error: 'That email address does not look valid.', code: 'bad_email' }
+  if (field === 'phone' && value.replace(/\D/g, '').length < 10) return { error: 'That phone number does not look valid.', code: 'bad_phone' }
   if (field === 'email') {
     const { data: dup } = await svc.from('parents').select('id').ilike('email', value).neq('id', parentId).limit(1)
-    if (dup && dup.length > 0) return { error: 'Another family already uses this email address.' }
+    if (dup && dup.length > 0) return { error: 'Another family already uses this email address.', code: 'email_taken' }
     // auth.users is the real uniqueness constraint — check it before spending a code
     const { data: me } = await svc.from('parents').select('auth_user_id').eq('id', parentId).single()
     const { data: list } = await svc.auth.admin.listUsers({ page: 1, perPage: 1000 })
     const taken = (list?.users || []).find((u: any) => String(u.email || '').toLowerCase() === value && u.id !== me?.auth_user_id)
-    if (taken) return { error: 'That email already belongs to another login account (family, coach or admin). Pick a different address or remove the old account first.' }
+    if (taken) return { error: 'That email already belongs to another login account (family, coach or admin). Pick a different address or remove the old account first.', code: 'email_login_taken' }
   } else {
     const last10 = value.replace(/\D/g, '').slice(-10)
     const { data: dup } = await svc.from('parents').select('id').like('phone', `%${last10}`).neq('id', parentId).limit(1)
-    if (dup && dup.length > 0) return { error: 'Another family already uses this phone number.' }
+    if (dup && dup.length > 0) return { error: 'Another family already uses this phone number.', code: 'phone_taken' }
   }
   return { value }
 }
@@ -82,7 +86,7 @@ export async function POST(req: NextRequest) {
   const adminId = (auth as any).admin?.id || null
 
   const body = await req.json().catch(() => null)
-  if (!body?.action) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+  if (!body?.action) return NextResponse.json({ error: 'Invalid request', code: 'bad_request' }, { status: 400 })
   const { action } = body
 
   // ---------- direct_update: address / names / birthday, no verification ----------
@@ -102,14 +106,14 @@ export async function POST(req: NextRequest) {
       const patch: Record<string, any> = {}
       if ('full_name' in fields) {
         const n = String(fields.full_name || '').trim()
-        if (!n) return NextResponse.json({ error: 'Student name cannot be empty.' }, { status: 400 })
+        if (!n) return NextResponse.json({ error: 'Student name cannot be empty.', code: 'name_required' }, { status: 400 })
         patch.full_name = n
       }
       if ('date_of_birth' in fields) {
         const d = fields.date_of_birth ? String(fields.date_of_birth).trim() : ''
-        if (d && !DATE_RE.test(d)) return NextResponse.json({ error: 'Birthday must be YYYY-MM-DD.' }, { status: 400 })
+        if (d && !DATE_RE.test(d)) return NextResponse.json({ error: 'Birthday must be YYYY-MM-DD.', code: 'bad_birthday' }, { status: 400 })
         if (d && d > new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }))
-          return NextResponse.json({ error: 'Birthday cannot be in the future.' }, { status: 400 })
+          return NextResponse.json({ error: 'Birthday cannot be in the future.', code: 'future_birthday' }, { status: 400 })
         patch.date_of_birth = d || null
       }
       if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
@@ -126,13 +130,13 @@ export async function POST(req: NextRequest) {
     if (!parent_id) return NextResponse.json({ error: 'Missing parent' }, { status: 400 })
     const { data: parent } = await svc.from('parents')
       .select('id, first_name, last_name, email, phone, auth_user_id').eq('id', parent_id).single()
-    if (!parent) return NextResponse.json({ error: 'Family not found' }, { status: 404 })
+    if (!parent) return NextResponse.json({ error: 'Family not found', code: 'not_found' }, { status: 404 })
 
     const v = await validateNewValue(svc, parent_id, field, new_value)
-    if (v.error) return NextResponse.json({ error: v.error }, { status: 400 })
+    if (v.error) return NextResponse.json({ error: v.error, code: v.code }, { status: 400 })
     const value = v.value!
     const current = field === 'email' ? (parent.email || '').toLowerCase() : normalizePhone(parent.phone || '')
-    if (current === value) return NextResponse.json({ error: `That is already the ${field} on file.` }, { status: 400 })
+    if (current === value) return NextResponse.json({ error: `That is already the ${field} on file.`, code: 'same_value' }, { status: 400 })
 
     const channel = field === 'email' ? parent.phone : parent.email
     if (!channel) {
@@ -152,7 +156,7 @@ export async function POST(req: NextRequest) {
       code_hash: hashCode(code),
       expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString(),
     }).select('id').single()
-    if (insErr || !reqRow) return NextResponse.json({ error: 'Could not create the verification request.' }, { status: 500 })
+    if (insErr || !reqRow) return NextResponse.json({ error: 'Could not create the verification request.', code: 'server' }, { status: 500 })
 
     let delivered = false
     if (field === 'email') {
@@ -176,22 +180,22 @@ export async function POST(req: NextRequest) {
   // ---------- confirm ----------
   if (action === 'confirm') {
     const { request_id, code } = body
-    if (!request_id || !code) return NextResponse.json({ error: 'Missing code' }, { status: 400 })
+    if (!request_id || !code) return NextResponse.json({ error: 'Missing code', code: 'missing_code' }, { status: 400 })
     const { data: reqRow } = await svc.from('contact_change_requests').select('*').eq('id', request_id).single()
-    if (!reqRow) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
-    if (reqRow.consumed_at) return NextResponse.json({ error: 'This request was already used or cancelled. Send a new code.' }, { status: 409 })
-    if (new Date(reqRow.expires_at).getTime() < Date.now()) return NextResponse.json({ error: 'That code expired. Send a new one.' }, { status: 409 })
-    if (reqRow.attempts >= MAX_ATTEMPTS) return NextResponse.json({ error: 'Too many incorrect attempts. Send a new code.' }, { status: 429 })
+    if (!reqRow) return NextResponse.json({ error: 'Request not found', code: 'request_used' }, { status: 404 })
+    if (reqRow.consumed_at) return NextResponse.json({ error: 'This request was already used or cancelled. Send a new code.', code: 'request_used' }, { status: 409 })
+    if (new Date(reqRow.expires_at).getTime() < Date.now()) return NextResponse.json({ error: 'That code expired. Send a new one.', code: 'code_expired' }, { status: 409 })
+    if (reqRow.attempts >= MAX_ATTEMPTS) return NextResponse.json({ error: 'Too many incorrect attempts. Send a new code.', code: 'too_many_attempts' }, { status: 429 })
 
     if (hashCode(code) !== reqRow.code_hash) {
       const attempts = reqRow.attempts + 1
       await svc.from('contact_change_requests').update({ attempts }).eq('id', request_id)
-      return NextResponse.json({ error: 'Incorrect code.', attempts_left: Math.max(0, MAX_ATTEMPTS - attempts) }, { status: 400 })
+      return NextResponse.json({ error: 'Incorrect code.', code: 'incorrect_code', attempts_left: Math.max(0, MAX_ATTEMPTS - attempts) }, { status: 400 })
     }
 
     const { data: parent } = await svc.from('parents')
       .select('id, first_name, last_name, email, phone, auth_user_id').eq('id', reqRow.parent_id).single()
-    if (!parent) return NextResponse.json({ error: 'Family not found' }, { status: 404 })
+    if (!parent) return NextResponse.json({ error: 'Family not found', code: 'not_found' }, { status: 404 })
     const oldValue = reqRow.field === 'email' ? parent.email : parent.phone
 
     const applied = await applyChange(svc, parent, reqRow.field, reqRow.new_value)
@@ -209,14 +213,14 @@ export async function POST(req: NextRequest) {
     const { parent_id, field, new_value, reason } = body
     if (!parent_id) return NextResponse.json({ error: 'Missing parent' }, { status: 400 })
     if (!reason || String(reason).trim().length < 10) {
-      return NextResponse.json({ error: 'Please give a reason (at least 10 characters). It is recorded for audit.' }, { status: 400 })
+      return NextResponse.json({ error: 'Please give a reason (at least 10 characters). It is recorded for audit.', code: 'reason_required' }, { status: 400 })
     }
     const { data: parent } = await svc.from('parents')
       .select('id, first_name, last_name, email, phone, auth_user_id').eq('id', parent_id).single()
-    if (!parent) return NextResponse.json({ error: 'Family not found' }, { status: 404 })
+    if (!parent) return NextResponse.json({ error: 'Family not found', code: 'not_found' }, { status: 404 })
 
     const v = await validateNewValue(svc, parent_id, field, new_value)
-    if (v.error) return NextResponse.json({ error: v.error }, { status: 400 })
+    if (v.error) return NextResponse.json({ error: v.error, code: v.code }, { status: 400 })
     const value = v.value!
     const oldValue = field === 'email' ? parent.email : parent.phone
 

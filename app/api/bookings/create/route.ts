@@ -5,6 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/
 import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
+import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
@@ -400,7 +401,7 @@ export async function POST(req: NextRequest) {
         parentId: parent.id, reason: 'booking_failed', points: chargedTotal,
         grantedPart: grantedTaken, grantedExpiresAt: grantedExpires,
         actor: 'system', note: why,
-      }).catch(e => console.error('points rollback failed:', e))
+      }).catch(e => alertRollbackFailed(svc, { parentId: parent.id, points: chargedTotal, granted: grantedTaken, why, where: 'online single-lesson booking', error: e }))
       chargedTotal = 0
     }
   }

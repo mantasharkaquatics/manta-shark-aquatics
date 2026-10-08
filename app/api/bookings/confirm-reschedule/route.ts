@@ -6,6 +6,9 @@ import { readJson, badRequest } from '@/lib/http'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 import { mailRescheduleDone, mailRescheduleNotMoved } from '@/lib/bookings/partner-reschedule-mail'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
+import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
+import { getCoachBlocks, isBlocked } from '@/lib/availability'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -74,6 +77,30 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (!newSession) return NextResponse.json({ error: 'New time slot not found' }, { status: 404 })
+
+  // The 30-minute lead time and the coach's time off, judged now rather than
+  // only when the request was sent (found 2026-10-08): a move asked for 40
+  // minutes ahead and accepted 15 minutes later landed inside 30 minutes, and
+  // time off entered meanwhile was never looked at. Owner, 2026-10-08: the
+  // request lapses and both families are told; the lesson keeps its time.
+  {
+    const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+    const [sh, sm] = String(newSession.start_time).slice(0, 5).split(':').map(Number)
+    const endT = (newSession as any).end_time || hhmm(sh * 60 + sm + 30)
+    const tooLate = minutesUntil(newSession.session_date, newSession.start_time, getTodayLA(), getNowMinutesLA()) < LEAD_TIME_MINUTES
+    const off = !tooLate && isBlocked(await getCoachBlocks(supabase as any, [newSession.coach_id], newSession.session_date),
+      newSession.coach_id, newSession.start_time, endT)
+    if (tooLate || off) {
+      await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', myBooking.id)
+      await supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null }).eq('id', partnerBookingId)
+      await mailRescheduleNotMoved(supabase, { bookingIds: [myBooking.id, partnerBookingId], newSessionId, outcome: tooLate ? 'too_late' : 'coach_unavailable' })
+      return NextResponse.json({
+        error: tooLate
+          ? 'The new time now starts in less than 30 minutes, so the lesson cannot be moved there; the original time is kept'
+          : 'The coach is no longer available at the new time; reschedule failed and the original time is kept',
+      }, { status: 409 })
+    }
+  }
 
   // Race protection: check new session capacity. A 1-on-2 invitation still
   // waiting for its answer holds the session too (lib/bookings/invite-holds).

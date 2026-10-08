@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { toLocale } from '@/lib/i18n'
+import { alertAdmin } from '@/lib/admin-alert'
 
 export const runtime = 'nodejs'
 
@@ -44,7 +45,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ reports })
 }
 
-/** 👍 / 👎 and an optional comment. Only managers read it. */
+/** 👍 / 👎 and an optional comment. Only managers read it. "I have a
+ *  question" (down) also emails the manager and puts the report on Reviews
+ *  until it is marked handled (owner, 2026-10-08): the button asks the family
+ *  to write a question, and it used to reach no one unless a manager happened
+ *  to open that month's reports. */
 export async function POST(req: NextRequest) {
   const ctx = await requireParent()
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
@@ -56,8 +61,29 @@ export async function POST(req: NextRequest) {
   const { data, error } = await ctx.svc.from('monthly_reports')
     .update({ feedback, feedback_comment: comment || null, feedback_at: new Date().toISOString() })
     .eq('id', String(body.id || '')).eq('parent_id', ctx.parent.id).eq('status', 'sent')
-    .select('id')
+    .select('id, student_id, month')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data?.length) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+
+  if (feedback === 'down') {
+    const r: any = data[0]
+    // A question sent again is open again. Before docs/migration-fix5-A.sql
+    // the column is not there; the email below still goes.
+    await ctx.svc.from('monthly_reports').update({ question_resolved_at: null, question_resolved_by: null }).eq('id', r.id)
+    const [{ data: st }, { data: p }] = await Promise.all([
+      ctx.svc.from('students').select('full_name').eq('id', r.student_id).maybeSingle(),
+      ctx.svc.from('parents').select('first_name, last_name, email, phone').eq('id', ctx.parent.id).maybeSingle(),
+    ])
+    const month = new Date(String(r.month) + 'T12:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', timeZone: 'UTC' })
+    await alertAdmin(`Monthly report question: ${st?.full_name || 'a swimmer'} (${month})`, [
+      `Family: ${`${p?.first_name || ''} ${p?.last_name || ''}`.trim() || '-'}`,
+      `Email: ${p?.email || '-'}`,
+      `Phone: ${p?.phone || '-'}`,
+      `Swimmer: ${st?.full_name || '-'}`,
+      `Report: ${month}`,
+      `Question: ${comment || '(no text - they pressed "I have a question" without writing one)'}`,
+      'Please reply to the family, then mark it handled in Admin > Reviews.',
+    ])
+  }
   return NextResponse.json({ ok: true })
 }

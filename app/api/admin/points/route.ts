@@ -20,6 +20,7 @@ export const runtime = 'nodejs'
 // point but are not refundable for cash, because no cash came in for them.
 
 const MAX_ADJUST = MAX_TOPUP_DOLLARS
+const LEDGER_PAGE = 40
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin()
@@ -27,16 +28,30 @@ export async function GET(req: NextRequest) {
   const parentId = req.nextUrl.searchParams.get('parent_id')
   if (!parentId) return NextResponse.json({ error: 'parent_id required' }, { status: 400 })
 
-  const summary = await walletSummary(auth.svc, parentId)
-  const { data: rows } = await auth.svc
+  // ?before=<created_at> pages back through the statement, LEDGER_PAGE lines
+  // at a time, as the parent's own wallet does. It used to stop at the newest
+  // 40 with no way further back, so a question about a June charge could not
+  // be answered at the desk (found 2026-10-08). A page with `before` is the
+  // ledger alone; nextBefore is null when nothing older is left.
+  const before = req.nextUrl.searchParams.get('before')
+  if (before != null && isNaN(Date.parse(before))) return NextResponse.json({ error: 'Invalid request', code: 'bad_cursor' }, { status: 400 })
+  let ledgerQ = auth.svc
     .from('point_ledger')
     .select('id, created_at, delta_purchased, delta_granted, balance_purchased_after, balance_granted_after, reason, note, amount_cents, actor')
     .eq('parent_id', parentId)
-    .order('created_at', { ascending: false })
-    .limit(40)
+  if (before) ledgerQ = ledgerQ.lt('created_at', before)
+  const [summary, { data: rawRows, error: ledgerErr }] = await Promise.all([
+    before ? Promise.resolve(null) : walletSummary(auth.svc, parentId),
+    ledgerQ.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(LEDGER_PAGE + 1),
+  ])
+  if (ledgerErr) return NextResponse.json({ error: ledgerErr.message, code: 'server' }, { status: 500 })
+  const more = (rawRows || []).length > LEDGER_PAGE
+  const rows: Row[] = (rawRows || []).slice(0, LEDGER_PAGE)
+  const nextBefore = more ? rows[rows.length - 1].created_at : null
 
   // Referrals both ways: who brought this family in, and whom they brought.
-  const [{ data: inbound }, { data: outbound }] = await Promise.all([
+  // Read with the first page only.
+  const [{ data: inbound }, { data: outbound }] = before ? [{ data: null }, { data: [] }] : await Promise.all([
     auth.svc.from('referrals').select('referrer_parent_id, status').eq('referred_parent_id', parentId).maybeSingle(),
     auth.svc.from('referrals').select('referred_parent_id, status').eq('referrer_parent_id', parentId),
   ])
@@ -55,25 +70,29 @@ export async function GET(req: NextRequest) {
     : { data: [] as Row[] }
   const adminName = new Map((admins || []).map((a: Row) => [a.id, `${a.first_name || ''} ${a.last_name || ''}`.trim()]))
 
+  const ledger = rows.map((r: any) => ({
+    id: r.id,
+    at: r.created_at,
+    points: (r.delta_purchased || 0) + (r.delta_granted || 0),
+    purchased: r.delta_purchased || 0,
+    granted: r.delta_granted || 0,
+    balanceAfter: (r.balance_purchased_after || 0) + (r.balance_granted_after || 0),
+    reason: r.reason,
+    note: r.note,
+    amountCents: r.amount_cents,
+    actor: r.actor,
+    actorName: String(r.actor || '').startsWith('admin:') ? (adminName.get(String(r.actor).slice(6)) || null) : null,
+  }))
+  if (before) return NextResponse.json({ ledger, nextBefore })
+
   return NextResponse.json({
     ...summary,
+    nextBefore,
     referral: {
       referredBy: inbound ? { name: nameOf.get(inbound.referrer_parent_id) || '—', status: inbound.status } : null,
       referred: (outbound || []).map((r: any) => ({ name: nameOf.get(r.referred_parent_id) || '—', status: r.status })),
     },
-    ledger: (rows || []).map((r: any) => ({
-      id: r.id,
-      at: r.created_at,
-      points: (r.delta_purchased || 0) + (r.delta_granted || 0),
-      purchased: r.delta_purchased || 0,
-      granted: r.delta_granted || 0,
-      balanceAfter: (r.balance_purchased_after || 0) + (r.balance_granted_after || 0),
-      reason: r.reason,
-      note: r.note,
-      amountCents: r.amount_cents,
-      actor: r.actor,
-      actorName: String(r.actor || '').startsWith('admin:') ? (adminName.get(String(r.actor).slice(6)) || null) : null,
-    })),
+    ledger,
   })
 }
 

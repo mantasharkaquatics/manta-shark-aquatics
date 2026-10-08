@@ -23,7 +23,16 @@ export default function RegisterForm() {
 
   useEffect(() => {
     loadedAt.current = Date.now()
-  }, [])
+    // Already signed in (the session lasts 30 days): a blank "Create your
+    // account" only led to "this email already exists" (found 2026-10-08).
+    // Carry on with the application instead, as signing in does.
+    fetch('/api/careers/me')
+      .then((r) => r.json())
+      .then((me) => {
+        if (me?.signedIn) router.replace(me.fullyVerified ? '/careers/apply' : '/careers/verify')
+      })
+      .catch(() => {})
+  }, [router])
 
   async function submit() {
     setError('')
@@ -64,6 +73,9 @@ export default function RegisterForm() {
 
         {error ? <div style={ERROR}>{error}</div> : null}
 
+        {/* A real form so Enter and the phone keyboard's "Go" submit it
+            (found 2026-10-08). */}
+        <form noValidate onSubmit={(e) => { e.preventDefault(); if (ready && !busy) submit() }}>
         <div style={{ display: 'flex', gap: '12px' }}>
           <div style={{ ...FIELD, flex: 1 }}>
             <label style={LABEL} htmlFor="firstName">Legal first name</label>
@@ -108,12 +120,13 @@ export default function RegisterForm() {
         </div>
 
         <button
+          type="submit"
           style={busy || !ready ? BUTTON_DISABLED : BUTTON}
           disabled={busy || !ready}
-          onClick={submit}
         >
           {busy ? 'Creating account…' : 'Create account'}
         </button>
+        </form>
 
         <p style={FOOT}>
           Already have an account? <Link href="/careers/login" style={LINK}>Sign in</Link>

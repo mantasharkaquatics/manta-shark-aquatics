@@ -5,7 +5,7 @@ import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
-import { allRowsIn } from '@/lib/db-paging'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 
 export const runtime = 'nodejs'
 
@@ -43,18 +43,28 @@ export async function GET() {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { svc } = auth
-  const { data: fcs, error } = await svc.from('fixed_classes')
-    .select('id, parent_id, student_id, student2_id, course_type_id, minutes, coach_id, weekday, start_time, status, ended_at, ended_reason, created_at')
-    .order('created_at', { ascending: false }).limit(300)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  const list = fcs || []
+  // Every active class, then the 300 most recently ended. A renewal adds its
+  // lessons to the class it renews, so a family renewing for two years keeps a
+  // two-year-old created_at; one newest-300 read (ended included) dropped
+  // exactly those long-running classes off the page, where the desk could no
+  // longer end them (found 2026-10-08).
+  const cols = 'id, parent_id, student_id, student2_id, course_type_id, minutes, coach_id, weekday, start_time, status, ended_at, ended_reason, created_at'
+  const [{ data: activeFcs, error }, { data: endedFcs, error: endedErr }] = await Promise.all([
+    allRows(() => svc.from('fixed_classes').select(cols).eq('status', 'active').order('created_at', { ascending: false }).order('id')),
+    svc.from('fixed_classes').select(cols).neq('status', 'active').order('created_at', { ascending: false }).limit(300),
+  ])
+  if (error || endedErr) return NextResponse.json({ error: (error || endedErr).message }, { status: 500 })
+  const list = [...activeFcs, ...(endedFcs || [])]
   const ids = list.map((f: any) => f.id)
+  const parentIds = [...new Set(list.map((f: any) => f.parent_id))] as string[]
+  const studentIds = [...new Set(list.flatMap((f: any) => [f.student_id, f.student2_id]).filter(Boolean))] as string[]
+  const coachIds = [...new Set(list.map((f: any) => f.coach_id).filter(Boolean))] as string[]
   const [{ data: all, error: allErr }, { rows: left, error: leftErr }, { data: ps }, { data: ss }, { data: cs }, { data: cts }] = await Promise.all([
     allRowsIn(ids, chunk => svc.from('bookings').select('id, fixed_class_id, class_session_id, status, cancellation_reason').in('fixed_class_id', chunk).order('id')),
     remainingLessons(svc, list.filter((f: any) => f.status === 'active').map((f: any) => f.id)),
-    svc.from('parents').select('id, first_name, last_name').in('id', [...new Set(list.map((f: any) => f.parent_id))]),
-    svc.from('students').select('id, full_name').in('id', [...new Set(list.flatMap((f: any) => [f.student_id, f.student2_id]).filter(Boolean))]),
-    svc.from('coaches').select('id, first_name').in('id', [...new Set(list.map((f: any) => f.coach_id))]),
+    allRowsIn(parentIds, chunk => svc.from('parents').select('id, first_name, last_name').in('id', chunk).order('id')),
+    allRowsIn(studentIds, chunk => svc.from('students').select('id, full_name').in('id', chunk).order('id')),
+    allRowsIn(coachIds, chunk => svc.from('coaches').select('id, first_name').in('id', chunk).order('id')),
     svc.from('course_types').select('id, name, slug'),
   ])
   // Lessons and points left are what the desk reads before choosing refund,

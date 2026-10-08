@@ -6,6 +6,7 @@ import {
   generateMonth, approveReport, sendReadyMonths, emailPendingReports, emailFamilyReports, lessonsByStudent,
   isMonth, monthOf, monthEnd, previousMonth, nextMonth,
 } from '@/lib/monthly-reports'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 
 /** A database row as the API returns it (untyped client). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,10 +42,14 @@ export async function GET(req: NextRequest) {
   // It used to read every report's month in one go, which stopped at 1,000
   // rows and dropped months from the menu (found 2026-10-08); the two ends
   // are two one-row reads.
+  // Paged, like everything read below (lib/db-paging): one read stopped at
+  // 1,000 rows, and a month's notes went into one .in() past the URL limit,
+  // so with a big month "Preview as family" lost translations or every note
+  // came back blank (found 2026-10-08).
   const [{ data: rows }, { data: oldest }, { data: newestRow }, eligible] = await Promise.all([
-    svc.from('monthly_reports')
+    allRows(() => svc.from('monthly_reports')
       .select('id, student_id, parent_id, month, status, data, summary, focus, summary_i18n, focus_i18n, generated_at, approved_at, sent_at, emailed_at, feedback, feedback_comment, feedback_at')
-      .eq('month', month),
+      .eq('month', month).order('id')),
     svc.from('monthly_reports').select('month').order('month', { ascending: true }).limit(1),
     svc.from('monthly_reports').select('month').order('month', { ascending: false }).limit(1),
     lessonsByStudent(svc, month).then(r => r.byStudent.size).catch(() => null),
@@ -56,15 +61,17 @@ export async function GET(req: NextRequest) {
     // Bounded, in case of a stray far-past row: ten years of months at most.
     for (let m = lastMonth; m >= first && allMonths.length < 120; m = previousMonth(m)) allMonths.push({ month: m })
   }
-  const studentIds = (rows || []).map((r: any) => r.student_id)
-  const parentIds = [...new Set((rows || []).map((r: any) => r.parent_id))]
-  const noteIds = (rows || []).flatMap((r: any) => (r.data?.notes || []).map((n: any) => n.id))
-  const [{ data: students }, { data: parents }, { data: notes }, { data: noteTrans }] = await Promise.all([
-    studentIds.length ? svc.from('students').select('id, full_name').in('id', studentIds) : { data: [] },
-    parentIds.length ? svc.from('parents').select('id, first_name, last_name, email').in('id', parentIds) : { data: [] },
-    noteIds.length ? svc.from('lesson_notes').select('id, note, language').in('id', noteIds) : { data: [] },
-    noteIds.length ? svc.from('lesson_note_translations').select('lesson_note_id, language, text').in('lesson_note_id', noteIds) : { data: [] },
+  const studentIds = [...new Set((rows || []).map((r: any) => r.student_id).filter(Boolean))] as string[]
+  const parentIds = [...new Set((rows || []).map((r: any) => r.parent_id).filter(Boolean))] as string[]
+  const noteIds = [...new Set((rows || []).flatMap((r: any) => (r.data?.notes || []).map((n: any) => n.id)).filter(Boolean))] as string[]
+  const [{ data: students }, { data: parents }, { data: notes, error: notesErr }, { data: noteTrans, error: transErr }] = await Promise.all([
+    allRowsIn(studentIds, c => svc.from('students').select('id, full_name').in('id', c).order('id')),
+    allRowsIn(parentIds, c => svc.from('parents').select('id, first_name, last_name, email').in('id', c).order('id')),
+    allRowsIn(noteIds, c => svc.from('lesson_notes').select('id, note, language').in('id', c).order('id')),
+    allRowsIn(noteIds, c => svc.from('lesson_note_translations').select('lesson_note_id, language, text')
+      .in('lesson_note_id', c).order('lesson_note_id').order('language')),
   ])
+  if (notesErr || transErr) console.error('monthly-reports: notes read failed:', (notesErr || transErr).message || notesErr || transErr)
   const studentName = new Map((students || []).map((s: any) => [s.id, s.full_name]))
   const parentName = new Map((parents || []).map((p: any) => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim()]))
   const parentHasEmail = new Map((parents || []).map((p: Row) => [p.id, !!p.email]))

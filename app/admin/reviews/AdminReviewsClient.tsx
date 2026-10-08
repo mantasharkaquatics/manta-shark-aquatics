@@ -13,9 +13,10 @@ import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, 
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
 import type { TimeOffActionItem } from '@/lib/time-off'
+import type { MonthlyQuestionItem } from '@/lib/admin/review-queues'
 
 type Level = { id: string; level_number: number; name: string }
-type Skill = { id: string; name: string; sort_order: number; level_id: string }
+type Skill = { id: string; name: string; sort_order: number; level_id: string; stage: number | null }
 type PendingProgress = {
   id: string; student_id: string; snapshot: Record<string, number>; session_date: string; created_at: string
   student: { id: string; full_name: string; current_level: string | null }
@@ -41,6 +42,8 @@ type MissingProgress = {
   existingProgress: Record<string, number>
   /** The lesson was a paid Swim Assessment (lib/admin/review-queues). */
   assessment?: boolean
+  /** The swimmer's level at that lesson; the form scores its skills. */
+  lesson_level?: string | null
 }
 
 /** A report sent back to its coach, waiting to be filed again (lib/admin/review-queues). */
@@ -64,6 +67,7 @@ type SentBack = {
   course_type_id?: string | null
   course_name?: string
   existingProgress?: Record<string, number>
+  lesson_level?: string | null
 }
 
 /** A sent-back report as a missing-progress card, so the admin files it with the same form. */
@@ -84,6 +88,7 @@ function sentBackAsMissing(b: SentBack): MissingProgress {
     } : null,
     existingProgress: b.existingProgress || {},
     assessment: b.assessment || undefined,
+    lesson_level: b.lesson_level ?? null,
   }
 }
 
@@ -187,6 +192,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   refundOwedList: initialRefundOwed,
   assessmentRebookList,
   coachTimeOffList = [],
+  monthlyQuestionList = [],
   sentBackList = [],
 }: {
   adminId: string
@@ -199,6 +205,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   refundOwedList: RefundOwed[]
   assessmentRebookList: AssessmentRebook[]
   coachTimeOffList?: TimeOffActionItem[]
+  monthlyQuestionList?: MonthlyQuestionItem[]
   sentBackList?: SentBack[]
 }) {
   const t = useT()
@@ -252,9 +259,24 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   const [backfillLevel, setBackfillLevel] = useState<Record<string, string>>({})
   const [backfillRec, setBackfillRec] = useState<Record<string, AssessmentRec>>({})
 
+  // "I have a question" on a monthly report (owner, 2026-10-08).
+  const [monthlyQuestions, setMonthlyQuestions] = useState(monthlyQuestionList)
+  const [resolvingQuestion, setResolvingQuestion] = useState<string | null>(null)
+  async function resolveQuestion(q: MonthlyQuestionItem) {
+    setResolvingQuestion(q.id)
+    const res = await fetch('/api/admin/monthly-question', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: q.id }),
+    }).catch(() => null)
+    setResolvingQuestion(null)
+    if (!res) { setAlertMsg(t('admin.reviews.err.offline')); return }
+    if (!res.ok && res.status !== 404) { setAlertMsg(t('admin.reviews.monthlyQ.failed')); return }
+    setMonthlyQuestions(prev => prev.filter(x => x.id !== q.id))
+    nudgeBadge()
+  }
+
   const waiting = missingProgressList.length + pendingProgressList.length
     + pastPendingProgressList.length + recommendations.length + refundOwedList.length
-    + assessmentRebookList.length + coachTimeOffList.length
+    + assessmentRebookList.length + coachTimeOffList.length + monthlyQuestions.length
 
   // One booking at a time; the route re-checks everything before moving points.
   async function retryRefund(r: RefundOwed) {
@@ -502,11 +524,18 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     const prog = missingProgress[s.id] || s.existingProgress || {}
     // A missed assessment is scored against the level the admin picks for it.
     const backfill = !s.current_level && !!s.assessment
-    const skillLevel = backfill ? (backfillLevel[s.id] || '') : String(s.current_level ?? '')
+    // Any other lesson is scored at the level the swimmer was in THEN: a
+    // lesson before a level change listed today's level, and the report went
+    // in with the new level's skills under the old date (found 2026-10-08).
+    const lessonLevel = String(s.lesson_level ?? s.current_level ?? '')
+    const skillLevel = backfill ? (backfillLevel[s.id] || '') : lessonLevel
+    const levelChanged = !backfill && !!s.current_level && !!lessonLevel && lessonLevel !== String(s.current_level)
+    // Stage, then order within it: sort_order restarts at 1 in every stage, so
+    // ordering by it alone interleaved the three stages (found 2026-10-08).
     const levelSkills = skills.filter(sk => {
       const lvl = levels.find(l => l.id === sk.level_id)
       return lvl && skillLevel && String(lvl.level_number) === skillLevel
-    })
+    }).sort((a, b) => (a.stage || 1) - (b.stage || 1) || a.sort_order - b.sort_order)
     // A backfill starts from nothing on file: only what is marked here.
     const backfillShown: Record<string, number> = missingProgress[s.id] || {}
     return (
@@ -527,13 +556,20 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
           />
         </div>
       )}
+      {levelChanged && (
+        <p className="text-amber-400 text-xs mb-3">{t('admin.reviews.fillAtLessonLevel', { n: lessonLevel, now: String(s.current_level) })}</p>
+      )}
       {levelSkills.length > 0 && (
         <div className="space-y-2">
-          {levelSkills.map(sk => {
+          {levelSkills.map((sk, i) => {
+            const newStage = i === 0 || (levelSkills[i - 1].stage || 1) !== (sk.stage || 1)
             const pct = (backfill ? backfillShown[sk.id] : prog[sk.id]) ?? 0
             const options = MASTERY_LEVELS.map(b => MASTERY_VALUE[b])
             return (
               <div key={sk.id}>
+                {newStage && (
+                  <p className={`text-[10px] font-bold uppercase tracking-wider text-gray-500 ${i === 0 ? '' : 'pt-2'} mb-1`}>{t('admin.levels.stageN', { n: sk.stage || 1 })}</p>
+                )}
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-gray-300 text-xs">{tDb(locale, 'skills', sk.id, sk.name)}</span>
                   <span className="text-xs font-semibold" style={{ color: MASTERY_COLOR[masteryOf(pct)] }}>{masteryLabel(t, masteryOf(pct))}</span>
@@ -856,6 +892,48 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                     {t('admin.reviews.assessRebook.book')}
                   </a>
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* A family's "I have a question" on a monthly report (owner,
+          2026-10-08). The manager was emailed when it came in; it stays here
+          until someone has replied and marks it handled. */}
+      {monthlyQuestions.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-2 flex items-center gap-2">
+            {t('admin.reviews.monthlyQ.heading')}
+            <span className="bg-[#c9a84c] text-[#1a2744] text-xs px-2 py-0.5 rounded-full font-bold">{monthlyQuestions.length}</span>
+          </h2>
+          <p className="text-gray-400 text-xs mb-4">{t('admin.reviews.monthlyQ.hint')}</p>
+          <div className="space-y-3">
+            {monthlyQuestions.map(q => (
+              <div key={q.id} className="bg-[#111d38] rounded-xl border border-[#c9a84c]/30 p-4 flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-white font-semibold">
+                    {q.student_name || '—'}
+                    <span className="text-gray-400 font-normal text-sm"> · {q.family_name || '—'}</span>
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    {t('admin.reviews.monthlyQ.report', { month: new Date(q.month + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { year: 'numeric', month: 'long', timeZone: 'UTC' }) })}
+                    {q.asked_at ? ` · ${t('admin.reviews.monthlyQ.asked', { date: dateTimeLabel(q.asked_at, locale) })}` : ''}
+                  </p>
+                  <p className="text-gray-200 text-sm mt-2 whitespace-pre-wrap break-words">
+                    {q.comment || <span className="text-gray-500 italic">{t('admin.reviews.monthlyQ.noText')}</span>}
+                  </p>
+                  {(q.email || q.phone) && (
+                    <p className="text-gray-400 text-xs mt-2 break-all">{[q.email, q.phone].filter(Boolean).join(' · ')}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => resolveQuestion(q)}
+                  disabled={resolvingQuestion !== null}
+                  className="px-4 py-2 rounded-lg bg-[#c9a84c]/20 border border-[#c9a84c]/40 text-[#c9a84c] font-semibold text-sm hover:bg-[#c9a84c]/30 transition-all disabled:opacity-50"
+                >
+                  {resolvingQuestion === q.id ? '...' : t('admin.reviews.monthlyQ.done')}
+                </button>
               </div>
             ))}
           </div>

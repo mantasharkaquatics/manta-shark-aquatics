@@ -10,7 +10,10 @@ export default function SignOutButton({ label, to = '/' }: { label?: string; to?
   const router = useRouter()
 
   async function handleSignOut() {
-    await supabase.auth.signOut()
+    // This device only (found 2026-10-08): the default 'global' scope made a
+    // sign-out on the desk iPad also sign the same account out on the
+    // owner's phone. The inactive-coach sign-out on /coach-login stays global.
+    await supabase.auth.signOut({ scope: 'local' })
     router.push(to)
   }
 

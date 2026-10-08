@@ -7,6 +7,7 @@ import { giveBackVouchers, issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 import Stripe from 'stripe'
 import { closeTrialCheckout } from '@/lib/trial-booking'
+import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 
@@ -176,6 +177,16 @@ export async function POST(req: NextRequest) {
   if (cancelled.length === 0)
     return NextResponse.json({ error: 'This booking changed while you were looking at it. Refresh and try again.' }, { status: 409 })
 
+  // A Swim Assessment whose payment was refunded in full or charged back is
+  // not owed once it is off the calendar: no "your payment is kept" email,
+  // no Reviews rebook card, and the family may pay and book again on the
+  // site (owner, 2026-10-08).
+  let assessmentReversed = false
+  if (primary.is_trial && wasPaidAssessment) {
+    assessmentReversed = await assessmentPaymentReversed(svc, primary.student_id).catch(() => false)
+    if (assessmentReversed) await reopenReversedAssessment(svc, primary.student_id)
+  }
+
   // A make-up lesson the desk cancels with "refund" gives its voucher back --
   // and the email says so, with its date (found 2026-10-07: a voucher-paid
   // make-up refunds 0 points, so the email said nothing came back at all).
@@ -237,7 +248,7 @@ export async function POST(req: NextRequest) {
       kind: mode === 'voucher' ? 'voucher'
         : (refundedBy.get(r.parent_id) || 0) > 0 ? 'points'
         : gotBack ? 'voucher'
-        : (refund && wasPaidAssessment) ? 'assessment' : 'none',
+        : (refund && wasPaidAssessment && !assessmentReversed) ? 'assessment' : 'none',
       voucherExpires: mode === 'voucher' ? voucherExpires : gotBack?.expires_on,
       voucherFrom: mode === 'voucher' ? undefined : gotBack?.usable_from ?? undefined,
       voucherBack: mode !== 'voucher' && !!gotBack,

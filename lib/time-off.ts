@@ -27,6 +27,17 @@ type Block = { id: string; coach_id: string; date: string; start_time: string | 
 
 const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
+/** Most days one request may cover (owner, 2026-10-08: consecutive days in
+ *  one go). A long leave is a few weeks; a typo in the year is not. */
+export const MAX_TIME_OFF_DAYS = 60
+
+/** YYYY-MM-DD plus n calendar days. */
+export function addDaysISO(d: string, n: number): string {
+  const x = new Date(d + 'T12:00:00Z')
+  x.setUTCDate(x.getUTCDate() + n)
+  return x.toISOString().slice(0, 10)
+}
+
 /** Ids of the given time off rows whose families have been notified or whose
  *  lessons were cancelled for it. A failed read returns null: callers treat
  *  "cannot tell" as handled, so a coach is never let through on a guess. */
@@ -152,20 +163,50 @@ export function lessonEnded(l: { date: string; end: string }, today: string, now
 export async function bookedLessonsInWindow(
   svc: SupabaseClient, coachId: string, date: string, start: string | null, end: string | null,
 ): Promise<BookedLesson[] | null> {
-  const { data: sessions, error } = await svc
+  return bookedLessonsInRange(svc, coachId, date, date, start, end)
+}
+
+/** The same over a run of days, `from` to `to` inclusive, the same window on
+ *  each (a coach may now ask for several days at once -- owner, 2026-10-08).
+ *  Sorted by date, then time. null when the read failed. */
+export async function bookedLessonsInRange(
+  svc: SupabaseClient, coachId: string, from: string, to: string, start: string | null, end: string | null,
+): Promise<BookedLesson[] | null> {
+  const { data: sessions, error } = await allRows(() => svc
     .from('class_sessions')
     .select('id, coach_id, session_date, start_time, end_time, course_type_id')
     .eq('coach_id', coachId)
-    .eq('session_date', date)
+    .gte('session_date', from)
+    .lte('session_date', to)
     .neq('status', 'cancelled')
+    .order('id'))
   if (error) return null
   if (!sessions || sessions.length === 0) return []
-  const { data: bookings, error: bErr } = await svc
+  const { data: bookings, error: bErr } = await allRowsIn((sessions as SessionRow[]).map(s => s.id), chunk => svc
     .from('bookings')
-    .select('class_session_id, student_id, parent_id, status, lesson_group_id, is_trial')
-    .in('class_session_id', sessions.map((s: SessionRow) => s.id))
+    .select('id, class_session_id, student_id, parent_id, status, lesson_group_id, is_trial')
+    .in('class_session_id', chunk)
+    .order('id'))
   if (bErr) return null
-  return lessonsOfDay(sessions, bookings || []).filter(l => overlaps(l, start, end))
+  const days = [...new Set((sessions as SessionRow[]).map(s => s.session_date))].sort()
+  return days.flatMap(d => {
+    const ss = (sessions as SessionRow[]).filter(s => s.session_date === d)
+    const ids = new Set(ss.map(s => s.id))
+    return lessonsOfDay(ss, (bookings as BookingRow[]).filter(b => ids.has(b.class_session_id))).filter(l => overlaps(l, start, end))
+  })
+}
+
+/** Which of these sessions sit inside one of the coach's blocks (time off or
+ *  an office block) that day. The coach's Today and Schedule pages mark them
+ *  "time off -- waiting for the office": until the office cancels them they
+ *  looked like any other lesson (found 2026-10-08). */
+export function sessionsInBlocks(
+  sessions: { id: string; session_date: string; start_time: string; end_time: string }[],
+  blocks: { date: string; start_time: string | null; end_time: string | null }[],
+): string[] {
+  return sessions.filter(s => blocks.some(b => b.date === s.session_date && overlaps(
+    { start: String(s.start_time).slice(0, 5), end: String(s.end_time).slice(0, 5) }, b.start_time, b.end_time,
+  ))).map(s => s.id)
 }
 
 export type TimeOffActionItem = {
@@ -194,13 +235,17 @@ export type TimeOffActionItem = {
  * already knows.
  */
 export async function timeOffNeedingAction(
-  svc: SupabaseClient, today: string, nowMin: number, withDetails: boolean,
+  svc: SupabaseClient, today: string, nowMin: number, withDetails: boolean, coachId?: string,
 ): Promise<TimeOffActionItem[]> {
-  const { data: blocks, error } = await svc
+  // coachId: one coach's own (their Time Off page shows how many lessons in
+  // each request still wait for the office -- found 2026-10-08).
+  let q = svc
     .from('coach_time_off')
     .select('id, coach_id, date, start_time, end_time, reason, created_at')
     .eq('block_type', 'time_off')
     .gte('date', today)
+  if (coachId) q = q.eq('coach_id', coachId)
+  const { data: blocks, error } = await q
     .order('date')
     .order('id')
   if (error) { console.error('timeOffNeedingAction: time off not read:', error.message); return [] }

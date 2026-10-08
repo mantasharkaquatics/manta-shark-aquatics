@@ -2,13 +2,16 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
 
 // Step one of "forgot password": the parent gives their email and we send a
 // link. The page says the same thing whether or not the address has an
 // account, so it cannot be used to find out who our customers are.
 export default function ForgotPasswordPage() {
   const t = useT()
+  // Sent along so a login with no family record yet (no saved language) still
+  // gets the email in the page's language.
+  const locale = useLocale()
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -21,7 +24,7 @@ export default function ForgotPasswordPage() {
     setError('')
     try {
       const r = await fetch('/api/auth/forgot-password', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e, lang: locale }),
       })
       if (!r.ok) { setError(t('forgot.err.send')); return }
       setSent(true)

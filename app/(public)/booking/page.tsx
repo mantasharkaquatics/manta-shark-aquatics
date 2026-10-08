@@ -15,9 +15,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
-import { tDb } from '@/lib/i18n'
+import { tDb, dateTag } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
+import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { assignVoucherKeys } from '@/lib/vouchers'
@@ -60,6 +61,8 @@ type Wallet = {
   balance: number
   lessonsCompleted: number
   forgiveness: number
+  /** Points owed after a payment came back; nothing books until settled. */
+  arrears?: number
 }
 
 const COURSE_COLORS: Record<string, string> = {
@@ -244,6 +247,13 @@ export default function BookingPage() {
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  // Set as the page leaves for the Swim Assessment payment page. A "Back"
+  // from Stripe restores this page from the back/forward cache exactly as it
+  // was: the button stuck on "Redirecting..." and nothing said a 15-minute
+  // hold now exists (found 2026-10-08). The pageshow handler below uses it to
+  // re-ask trial-eligibility (bumping trialRefresh) and show the hold.
+  const toStripeRef = useRef(false)
+  const [trialRefresh, setTrialRefresh] = useState(0)
   const [success, setSuccess] = useState(false)
   const [isPartnerBookingSuccess, setIsPartnerBookingSuccess] = useState(false)
   const [isReschedule, setIsReschedule] = useState(false)
@@ -294,7 +304,12 @@ export default function BookingPage() {
       reloadWallet()
       if (savedResumeRef.current) { savedResumeRef.current = false; dropResume() }
     }
-    const onShow = (e: PageTransitionEvent) => { if (e.persisted) { reloadWallet(); dropResume() } }
+    const onShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return
+      reloadWallet(); dropResume()
+      setSubmitting(false)
+      if (toStripeRef.current) { toStripeRef.current = false; setIsTrial(false); setStep(1); setTrialRefresh(n => n + 1) }
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('pageshow', onShow)
     return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('pageshow', onShow) }
@@ -396,7 +411,7 @@ export default function BookingPage() {
         }
       })
       .catch(() => { setTrialEligible(false); setTrialHasCredit(false); if (lockedRef.current) setStep(1) })
-  }, [selectedStudent])
+  }, [selectedStudent, trialRefresh])
 
   // The school's today, as a local-midnight date (see localDs).
   const today = new Date(getTodayLA() + 'T00:00:00')
@@ -560,6 +575,9 @@ export default function BookingPage() {
     if (isTrial) { setLessonLength(30); setSelectedHour(null) }
   }, [isTrial])
 
+  // The programme page's slot link, until it has been applied (see init).
+  const slotLinkRef = useRef<{ course: string; date: string; time: string; coursePicked: boolean } | null>(null)
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -673,8 +691,18 @@ export default function BookingPage() {
         }
       }
 
+      // A time tapped on a programme page's 7-day preview (WeekPreview, found
+      // 2026-10-08): ?course=1on1&date=YYYY-MM-DD&time=HH:MM. The swimmer is
+      // still the parent's choice; the course is then picked and the calendar
+      // opens on that day with that time chosen (the effects after the
+      // openings read). It is only a pre-fill: every check runs at confirm.
+      const lc = params.get('course'), ld = params.get('date') || '', lt = params.get('time') || ''
+      const slotLink = !vId && !params.get('student') && !!lc && ['1on1', '1on2', '1on4'].includes(lc)
+        && /^\d{4}-\d{2}-\d{2}$/.test(ld) && /^\d{2}:\d{2}$/.test(lt) && ld >= getTodayLA()
+      if (slotLink) { slotLinkRef.current = { course: lc!, date: ld, time: lt, coursePicked: false }; dropResume() }
+
       // Back from topping up: put the booking that was in progress back.
-      if (!vId && !params.get('student')) {
+      if (!vId && !params.get('student') && !slotLink) {
         const r = takeResume()
         if (r) restoreResume(r, studs || [], cts || [], coachs || [])
       }
@@ -955,8 +983,14 @@ export default function BookingPage() {
     return v.courseSlug === selectedCourse.slug
       && has.length === want.length && has.every(id => want.includes(id))
   })
-  const canAffordCourse = !selectedCourse || isTrial || isReschedule || !!makeUp || hasCourseVoucher
-    || balance >= cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)
+  // A wallet in arrears books nothing new -- not with points, not with a
+  // make-up voucher (owner, 2026-10-08) -- whatever the total says: granted
+  // points can leave it positive. The page used to find out only at the
+  // final confirm (found 2026-10-08). An assessment is paid by card, and a
+  // reschedule moves a lesson already paid for, so neither is held up.
+  const inArrears = (wallet?.arrears ?? 0) > 0
+  const canAffordCourse = !selectedCourse || isTrial || isReschedule || (!inArrears && (!!makeUp || hasCourseVoucher
+    || balance >= cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)))
 
   /* Ready to leave the course step. A 1-on-2 needs its second swimmer, and if
      that swimmer is on this account it needs enough points for both seats --
@@ -1035,6 +1069,55 @@ export default function BookingPage() {
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, slotsRefresh, rescheduleSibling])
+
+  /* The programme page's slot link (init), applied in two moves. On the course
+     step, once the parent has chosen a swimmer who has a level: pick the
+     linked course, as a tap on its card would. A swimmer still to be assessed
+     books the assessment instead, so the link is dropped. */
+  useEffect(() => {
+    const link = slotLinkRef.current
+    if (!link || link.coursePicked || step !== 1 || !selectedStudent || selectedCourse || courseTypes.length === 0) return
+    if (selectedStudent.current_level == null) { slotLinkRef.current = null; return }
+    const ct = courseTypes.find(c => c.slug === link.course)
+    if (!ct) { slotLinkRef.current = null; return }
+    link.coursePicked = true
+    requestAdvance(); setSelectedCourse(ct); setIsTrial(false)
+  }, [step, selectedStudent, selectedCourse, courseTypes])
+  /* Then on the time step, once that day's times are known: open the calendar
+     on the linked day and choose the time, as a tap on it would (the coach is
+     the one the any-coach grid would give). Gone or full by now, the day is
+     still opened so the parent sees what is left of it. */
+  useEffect(() => {
+    const link = slotLinkRef.current
+    if (!link?.coursePicked || step !== 3 || !selectedCourse) return
+    // The parent chose something else on the way: the link no longer applies.
+    if (selectedCourse.slug !== link.course || isTrial || makeUp || isReschedule) { slotLinkRef.current = null; return }
+    const ds = link.date, tm = link.time
+    const d = new Date(ds + 'T00:00:00')
+    if (privateFlow) {
+      if (!openings || lessonLength !== 30) return
+      slotLinkRef.current = null
+      setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+      const day = openings.days[ds]
+      if (!day) return
+      setSelectedDate(d)
+      const ids = (day[tm] || []).filter(id => coachFilter === 'any' || id === coachFilter)
+      if (ids.length === 0 || !bookableNow(ds, tm)) return
+      // The grid disables a time the basket cannot pay for; so does this.
+      if (batchFlow && dueOf([{ date: ds, time: tm, label: '', points: priceAt(ds, tm, 30)?.charged ?? 0, coachId: '' }], 30) > balance) return
+      const c = coaches.find(x => x.id === (openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0]))
+      if (c) choosePrivate(ds, { time: tm, label: formatTime(tm), available: true, enrolled: 0, max: selectedCourse.max_students ?? 1, within24h: isWithin24Hours(ds, tm) }, c)
+    } else if (groupFlow) {
+      if (groupWeeks.length === 0) return
+      slotLinkRef.current = null
+      const day = groupWeeks.find((x: { date: string }) => x.date === ds)
+      if (!day) return
+      if (isPhone) setOpenDay(ds)
+      const sl = (day.classes || []).find((x: { time: string; full?: boolean; already_booked?: boolean }) => String(x.time).slice(0, 5) === tm && !x.full && !x.already_booked)
+      if (sl && meetsLeadTime(ds, sl.time)) toggleSlot(ds, d, sl)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selectedCourse, privateFlow, groupFlow, openings, coachFilter, lessonLength, groupWeeks])
 
   // A filtered coach IS the selected coach, so the per-coach slot list below
   // (the one that knows about join-able sessions and 24h) is theirs.
@@ -1530,6 +1613,23 @@ export default function BookingPage() {
         }),
       })
       const j = await res.json().catch(() => ({}))
+      // Too few weeks of a fixed class left because some were taken between
+      // choosing and confirming. The reply names them: drop them from the
+      // basket, read the calendar again and say which weeks, then go back to
+      // the times. It used to say only "some weeks were taken" and keep them
+      // in the basket, so confirming again failed the same way (found
+      // 2026-10-08).
+      if (!res.ok && j.error === 'FIXED_TOO_FEW' && Array.isArray(j.skipped) && j.skipped.length > 0) {
+        const gone = new Set<string>(j.skipped.map((x: any) => `${x.date}|${String(x.start_time || '').slice(0, 5)}`))
+        setRecurSel(prev => new Map([...prev].filter(([, v]) => !gone.has(`${v.date}|${v.time.slice(0, 5)}`))))
+        setRecurPlan([]); setSelectedSlot(null)
+        setSlotsRefresh(n => n + 1)
+        const dates = [...new Set<string>(j.skipped.map((x: any) => String(x.date)))].sort()
+          .map(d => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }))
+        const need = Number(j.need) || 0, have = Number(j.have) || 0
+        setNotice(t('booking.recur.err.fixedTaken', { dates: dates.join(', '), need, n: Math.max(1, need - have) }))
+        setStep(3); setSubmitting(false); return
+      }
       if (!res.ok) { setNotice(tErr(j.error, 'booking.recur.err.commit')); setSubmitting(false); return }
       // Every time was taken between choosing and confirming: nothing was
       // booked, charged or spent. This used to land on a ✅ "0 lessons
@@ -1636,6 +1736,7 @@ export default function BookingPage() {
         setSubmitting(false)
         return
       }
+      toStripeRef.current = true
       window.location.href = j.url
       return
     }
@@ -2048,6 +2149,19 @@ export default function BookingPage() {
         {step === 1 && (
           <div>
             <SectionTitle title={t('booking.s2.title')} />
+            {/* Same words and button as the dashboard's points card. */}
+            {inArrears && !isReschedule && !isTrial && selectedStudent?.current_level != null && (
+              <div role="alert" style={{ background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#c0392b', marginBottom: '4px' }}>
+                  {t('points.card.arrearsTitle', { n: (wallet?.arrears ?? 0).toLocaleString() })}
+                </div>
+                <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.5, marginBottom: '10px' }}>
+                  {t('points.card.arrearsBody')}
+                </div>
+                <SettleArrearsButton owed={wallet?.arrears ?? 0}
+                  style={{ background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', minHeight: '44px' }} />
+              </div>
+            )}
             {/* One notice per reason (owner, 2026-10-07): booked and waiting,
                 cancelled by the school and owed, or done. Nothing before
                 trial-eligibility answers. */}
@@ -2148,7 +2262,7 @@ export default function BookingPage() {
               })}
             </div>
 
-            {selectedCourse && !canAffordCourse && (
+            {selectedCourse && !canAffordCourse && !inArrears && (
               <div style={{
                 marginTop: '16px', padding: '14px 18px',
                 background: '#fdecea', border: '1px solid #f5c2bd',

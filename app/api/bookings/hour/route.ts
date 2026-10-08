@@ -9,6 +9,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LES
 import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sendEmail } from '@/lib/email'
 import { attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, voucherFitsDate, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
@@ -308,6 +309,13 @@ export async function POST(req: NextRequest) {
       // Nothing is charged; the voucher is the payment. Taken here, before
       // any row exists, and given back by rollback() below.
       price = { charged: 0, perHalfHour: 0 } as any
+      // No charge means applyPoints -- the only arrears check on this route --
+      // never runs. A wallet in arrears books nothing, a make-up included
+      // (owner, 2026-10-08, option A; found 2026-10-08: the voucher path
+      // skipped it). Asked before the voucher is taken, so nothing to undo.
+      const wallet = await walletSummary(svc, parent.id)
+      if (wallet.arrears > 0)
+        return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: wallet.arrears }, { status: 402 })
       if (!(await claimVoucher(svc, hourVoucher.id, parent.id, today)))
         return NextResponse.json({ error: VOUCHER_GONE_ERROR }, { status: 409 })
     } else try {
@@ -339,7 +347,7 @@ export async function POST(req: NextRequest) {
           parentId: parent.id, reason: 'booking_failed', points: pointsTaken,
           grantedPart: grantedTaken, grantedExpiresAt: grantedExpires,
           actor: 'system', note: why,
-        }).catch(e => console.error('points rollback failed:', e))
+        }).catch(e => alertRollbackFailed(svc, { parentId: parent.id, points: pointsTaken, granted: grantedTaken, why, where: 'online 60-minute lesson booking', error: e }))
         pointsTaken = 0
       }
       if (createdBookings.length > 0) await svc.from('bookings').delete().in('id', createdBookings)

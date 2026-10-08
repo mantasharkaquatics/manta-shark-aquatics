@@ -16,7 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 
-export type RescheduleOutcome = 'declined' | 'withdrawn' | 'expired' | 'unavailable'
+export type RescheduleOutcome = 'declined' | 'withdrawn' | 'expired' | 'unavailable' | 'too_late' | 'coach_unavailable'
 
 type Lesson = { date: string; time: string; courseName: string; coachName: string }
 

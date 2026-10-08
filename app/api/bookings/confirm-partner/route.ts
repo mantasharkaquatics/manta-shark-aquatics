@@ -5,8 +5,12 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
+import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { readJson, badRequest } from '@/lib/http'
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
+import { getCoachBlocks, isBlocked } from '@/lib/availability'
+import { mailInviteFailed } from '@/lib/bookings/invite-failed-mail'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 
 export async function POST(req: NextRequest) {
@@ -92,10 +96,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
-  const cancelGroup = async (reason: string) => {
-    await supabase.from('bookings')
+  // Ending the invitation also tells the family who SENT it (found
+  // 2026-10-08): only the family pressing Accept saw why, and the inviter's
+  // invitation just vanished. Mailed only when this request is the one that
+  // ended it, so a withdrawal racing it does not get a second notice.
+  type FailMail = { reason: Parameters<typeof mailInviteFailed>[1]['reason']; to?: 'inviter' | 'both'; busyNames?: string }
+  const cancelGroup = async (reason: string, mail?: FailMail) => {
+    const { data: ended } = await supabase.from('bookings')
       .update({ status: 'cancelled', cancellation_reason: reason })
-      .in('id', group.map(r => r.id))
+      .in('id', group.map(r => r.id)).eq('status', 'pending_partner').select('id')
+    if (mail && (ended || []).length > 0) {
+      await mailInviteFailed(supabase as any, { group, inviterParentId: initiatorBooking.parent_id, reason: mail.reason, to: mail.to ?? 'inviter', busyNames: mail.busyNames })
+    }
   }
 
   // Every half has to survive both checks - confirming an hour where only the
@@ -107,6 +119,7 @@ export async function POST(req: NextRequest) {
   // at 9:10 (halves 9:10-9:40, 9:40-10:10) during the invitation window sat
   // over a pending 9:45 1-on-2, and accepting it double-booked the coach.
   const toMinP = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  const hhmmP = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
   const groupSessionIds = new Set(sessions.map((x: any) => x.id))
   for (const session of sessions) {
     const ns = toMinP(session.start_time)
@@ -132,14 +145,14 @@ export async function POST(req: NextRequest) {
         .in('class_session_id', conflictSessionIds)
         .not('status', 'in', '("cancelled","pending_partner")')
       if (conflictBookings && conflictBookings.length > 0) {
-        await cancelGroup('slot_taken')
+        await cancelGroup('slot_taken', { reason: 'slot_taken' })
         return NextResponse.json({ error: 'This time slot was taken by another customer and cannot be confirmed.' }, { status: 409 })
       }
     }
 
     const seatsHere = group.filter(r => r.class_session_id === session.id).length
     if (session.enrolled_count + seatsHere > session.max_students) {
-      await cancelGroup('slot_full')
+      await cancelGroup('slot_full', { reason: 'slot_full' })
       return NextResponse.json({ error: 'This time slot is full and cannot be confirmed.' }, { status: 409 })
     }
   }
@@ -164,7 +177,7 @@ export async function POST(req: NextRequest) {
     if (busyIds.size > 0) {
       const { data: who } = await supabase.from('students').select('full_name').in('id', [...busyIds])
       const names = (who || []).map((x: any) => x.full_name).filter(Boolean).join(' & ') || 'A swimmer'
-      await cancelGroup('partner_double_booked')
+      await cancelGroup('partner_double_booked', { reason: 'swimmer_busy', busyNames: names })
       return NextResponse.json({ error: `${names} already has a lesson at that time, so this invitation cannot be confirmed and has been cancelled. No points were used.` }, { status: 409 })
     }
   }
@@ -178,6 +191,24 @@ export async function POST(req: NextRequest) {
   // one, so a 60-minute lesson that starts off-peak is off-peak throughout.
   const firstSession = [...sessions].sort((a: any, b: any) =>
     (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
+
+  // The two clock-and-coach rules a booking meets when it is made, checked
+  // again at the moment it is actually made (found 2026-10-08): an invitation
+  // sent 35 minutes ahead and accepted 20 minutes later became a lesson 15
+  // minutes out, and time off the coach entered while it waited was never
+  // looked at. Owner, 2026-10-08: either one ends the invitation, and both
+  // families are told.
+  if (minutesUntil(firstSession.session_date, firstSession.start_time, getTodayLA(), getNowMinutesLA()) < LEAD_TIME_MINUTES) {
+    await cancelGroup('too_late', { reason: 'too_late', to: 'both' })
+    return NextResponse.json({ error: 'This lesson now starts in less than 30 minutes, which is too close to book it, so this invitation has been cancelled. No points were used.' }, { status: 409 })
+  }
+  for (const s of sessions as any[]) {
+    const blocks = await getCoachBlocks(supabase as any, [s.coach_id], s.session_date)
+    if (isBlocked(blocks, s.coach_id, s.start_time, s.end_time || hhmmP(toMinP(s.start_time) + 30))) {
+      await cancelGroup('coach_unavailable', { reason: 'coach_unavailable', to: 'both' })
+      return NextResponse.json({ error: 'The coach is no longer available at this time, so this invitation has been cancelled. No points were used.' }, { status: 409 })
+    }
+  }
 
   // Each family pays for its own seat, out of its own wallet, settled here
   // when the second family accepts rather than when the invitation was sent.
@@ -210,7 +241,7 @@ export async function POST(req: NextRequest) {
         parentId: t.parentId, reason: 'booking_failed', points: t.points,
         grantedPart: t.granted, grantedExpiresAt: t.expires,
         actor: 'system', note: why,
-      }).catch(e => console.error('points rollback failed:', e))
+      }).catch(e => alertRollbackFailed(supabase, { parentId: t.parentId, points: t.points, granted: t.granted, why, where: '1-on-2 invitation accepted online', error: e }))
     }
     taken.length = 0
   }
@@ -261,10 +292,17 @@ export async function POST(req: NextRequest) {
     // 402: the dashboard turns a 402 into "not enough points" with a Buy
     // Points button, which is not something this parent can fix. The same
     // holds when the inviter is short of points: also 409.
+    //
+    // Either way the invitation ends here and the inviter is told why (found
+    // 2026-10-08). It used to stay pending until the cleanup cron sent both
+    // families "was not confirmed in time" -- blaming the family who had
+    // accepted, for what was the inviter's own balance.
+    if (e instanceof WalletInArrears || e instanceof InsufficientPoints)
+      await cancelGroup('inviter_cannot_pay', { reason: 'inviter_points' })
     if (e instanceof WalletInArrears)
-      return NextResponse.json({ error: 'The other family cannot be charged right now, so this lesson cannot be confirmed. Please contact us.' }, { status: 409 })
+      return NextResponse.json({ error: 'The other family cannot be charged right now, so this lesson cannot be confirmed and the invitation has been cancelled. No points were used.' }, { status: 409 })
     if (e instanceof InsufficientPoints)
-      return NextResponse.json({ error: 'The family who invited you no longer has enough points for their half of this lesson.' }, { status: 409 })
+      return NextResponse.json({ error: 'The family who invited you no longer has enough points for their half of this lesson, so the invitation has been cancelled. No points were used.' }, { status: 409 })
     console.error('points charge failed:', e)
     return NextResponse.json({ error: 'Could not take the points for this lesson. Please try again.' }, { status: 500 })
   }
@@ -283,7 +321,8 @@ export async function POST(req: NextRequest) {
     await refundSpent('the lesson could not be confirmed')
     const m = claimErr.message || ''
     if (m.includes('STUDENT_DOUBLE_BOOKED') || m.includes('coach_timeslot_conflict')) {
-      await cancelGroup(m.includes('STUDENT_DOUBLE_BOOKED') ? 'partner_double_booked' : 'slot_taken')
+      await cancelGroup(m.includes('STUDENT_DOUBLE_BOOKED') ? 'partner_double_booked' : 'slot_taken',
+        { reason: m.includes('STUDENT_DOUBLE_BOOKED') ? 'swimmer_busy' : 'slot_taken' })
       return NextResponse.json({
         error: m.includes('STUDENT_DOUBLE_BOOKED')
           ? 'One of the swimmers already has a lesson at that time, so this invitation cannot be confirmed and has been cancelled. No points were used.'
@@ -294,8 +333,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not confirm this lesson. Please try again.' }, { status: 500 })
   }
   if (!claimed || claimed.length !== groupIds.length) {
+    // Only rows still as this request left them: a withdrawal racing this
+    // accept may have cancelled one since, and it must stay cancelled.
     if (claimed && claimed.length > 0) {
-      await supabase.from('bookings').update({ status: 'pending_partner' }).in('id', claimed.map((r: any) => r.id))
+      await supabase.from('bookings').update({ status: 'pending_partner' })
+        .in('id', claimed.map((r: any) => r.id)).eq('status', 'confirmed')
     }
     await refundSpent('the invitation was already processed')
     return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })

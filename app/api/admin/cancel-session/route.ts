@@ -7,6 +7,7 @@ import { giveBackVouchers } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 import Stripe from 'stripe'
 import { closeTrialCheckout } from '@/lib/trial-booking'
+import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -108,8 +109,13 @@ export async function POST(req: NextRequest) {
       // A make-up lesson cost a voucher, not points: that comes back instead.
       const back = await giveBackVouchers(svc, [b.id])
       // A paid Swim Assessment has no points to return: it stays owed, and
-      // shows on the admin Reviews page until the desk books it again.
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.is_trial ? 'assessment' : refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
+      // shows on the admin Reviews page until the desk books it again --
+      // unless its payment was refunded in full or charged back. Then nothing
+      // is owed: the family is not told "your payment is kept", and may pay
+      // and book again on the site (owner, 2026-10-08).
+      const reversed = b.is_trial && await assessmentPaymentReversed(svc, b.student_id).catch(() => false)
+      if (reversed) await reopenReversedAssessment(svc, b.student_id)
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.is_trial ? (reversed ? 'none' : 'assessment') : refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
     } else {
       // pending_partner, in_cart, an unpaid hold: no credits were deducted,
       // cancel without refund -- and without the "Lesson Cancelled" email.

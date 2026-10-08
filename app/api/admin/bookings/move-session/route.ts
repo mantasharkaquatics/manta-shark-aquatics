@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
-import { coachBlocksOn, overlapsAny, studentLessonsOn } from '@/lib/bookings/desk-checks'
+import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 
 function t12(t: string) {
   const [h, m] = t.split(':').map(Number)
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const { data: sess } = await svc
     .from('class_sessions')
-    .select('id, coach_id, course_type_id, session_date, start_time, status')
+    .select('id, coach_id, course_type_id, session_date, start_time, status, max_students')
     .eq('id', session_id).single()
   if (!sess) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   if (sess.coach_id === coach_id && sess.session_date === date && sess.start_time.slice(0, 5) === time.slice(0, 5))
@@ -136,6 +136,17 @@ export async function POST(req: NextRequest) {
       const { data: who } = await svc.from('students').select('full_name').in('id', [...new Set(busy.map(l => l.studentId))])
       const names = (who || []).map(w => w.full_name).join(', ') || 'A swimmer'
       return NextResponse.json({ error: `${names} already has another lesson at that time` }, { status: 409 })
+    }
+    // A slot held for a fixed-class family's renewal: moved onto only after
+    // the desk confirms (override_holds; owner, 2026-10-08). The families on
+    // this lesson never count against their own hold.
+    if (body.override_holds !== true) {
+      const hits = await renewalHoldsInWay(svc, {
+        coachId: coach_id, courseTypeId: sess.course_type_id, dates: [date], spanStart, spanEnd,
+        seatsNeeded: activeBookings.length, defaultMax: sess.max_students || 1,
+        exceptParentIds: activeBookings.map((b: any) => b.parent_id),
+      })
+      if (hits.size > 0) return NextResponse.json(renewalHoldRefusal(hits), { status: 409 })
     }
   } catch (e) {
     console.error('move-session checks:', e instanceof Error ? e.message : e)

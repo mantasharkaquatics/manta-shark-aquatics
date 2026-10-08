@@ -12,10 +12,12 @@
  * fine on every admin page, which is why the badge fetches this from the
  * client after paint and the route caches the answer.
  */
-import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, laWallTimeToUtcMs } from '@/lib/date'
+import { levelThenFromMoves } from '@/lib/level-change'
 import { timeOffNeedingAction, type TimeOffActionItem } from '@/lib/time-off'
 import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
 import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
+import { assessmentPaymentsReversed } from '@/lib/assessments'
 import { pictureAsOfRows } from '@/lib/skill-progress-sync'
 
 /**
@@ -240,10 +242,19 @@ async function loadAssessmentsToRebook(svc: any, withDetails: boolean): Promise<
     const cur = newest[b.student_id]
     if (!cur || String(b.created_at) > String(cur.created_at)) newest[b.student_id] = b
   }
-  const owed = cancelled.filter((b: any) => {
+  const candidates = cancelled.filter((b: any) => {
     const st = studentMap[b.student_id]
     return st && st.current_level == null && st.trial_used_at && newest[b.student_id]?.id === b.id
   })
+  if (candidates.length === 0) return []
+  // A payment refunded in full or charged back is not owed: the family got
+  // the money back, and rebooking from this card gave them a free assessment
+  // (found 2026-10-08). The cancel normally clears trial_used_at already
+  // (reopenReversedAssessment); this covers a refund that arrived later.
+  // Only the few swimmers left here are read.
+  const reversed = await assessmentPaymentsReversed(svc, candidates.map((b: any) => b.student_id))
+    .catch((e: unknown) => { console.error('rebook card: assessment payments not read:', e); return new Set<string>() })
+  const owed = candidates.filter((b: any) => !reversed.has(b.student_id))
   if (owed.length === 0) return []
 
   const parentMap: Record<string, any> = {}
@@ -274,6 +285,65 @@ async function loadAssessmentsToRebook(svc: any, withDetails: boolean): Promise<
   }).sort((a: AssessmentRebookItem, b: AssessmentRebookItem) => String(a.cancelled_at || '').localeCompare(String(b.cancelled_at || '')))
 }
 
+export type MonthlyQuestionItem = {
+  id: string
+  student_id: string | null
+  parent_id: string | null
+  student_name: string
+  family_name: string
+  email: string | null
+  phone: string | null
+  /** The report's month, '2026-09-01'. */
+  month: string
+  /** What the family wrote; may be empty (they pressed the button only). */
+  comment: string | null
+  asked_at: string | null
+}
+
+/**
+ * Monthly reports a family answered with "I have a question" (owner,
+ * 2026-10-08). The question used to sit in monthly_reports.feedback_comment
+ * with no alert anywhere; now the manager is emailed when it is sent
+ * (/api/parent/monthly-reports) and it waits here until marked handled
+ * (/api/admin/monthly-question). question_resolved_at comes from
+ * docs/migration-fix5-A.sql; before that is run the queue is empty (there
+ * would be no way to clear it), and the email still goes.
+ */
+async function loadMonthlyQuestions(svc: any, withDetails: boolean): Promise<MonthlyQuestionItem[]> {
+  const { data: rows, error } = await svc.from('monthly_reports')
+    .select('id, student_id, parent_id, month, feedback_comment, feedback_at')
+    .eq('feedback', 'down').is('question_resolved_at', null)
+    .order('feedback_at', { ascending: true }).limit(500)
+  if (error || !rows?.length) return []
+  const studentMap: Record<string, any> = {}
+  const parentMap: Record<string, any> = {}
+  if (withDetails) {
+    const sIds = [...new Set(rows.map((r: any) => r.student_id).filter(Boolean))] as string[]
+    const pIds = [...new Set(rows.map((r: any) => r.parent_id).filter(Boolean))] as string[]
+    const [ss, ps] = await Promise.all([
+      inChunks(sIds, c => svc.from('students').select('id, full_name').in('id', c).order('id')),
+      inChunks(pIds, c => svc.from('parents').select('id, first_name, last_name, email, phone').in('id', c).order('id')),
+    ])
+    for (const x of ss) studentMap[x.id] = x
+    for (const x of ps) parentMap[x.id] = x
+  }
+  return rows.map((r: any): MonthlyQuestionItem => {
+    const p = parentMap[r.parent_id]
+    return {
+      id: r.id,
+      student_id: r.student_id ?? null,
+      parent_id: r.parent_id ?? null,
+      student_name: studentMap[r.student_id]?.full_name || '',
+      family_name: p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : '',
+      email: p?.email ?? null,
+      phone: p?.phone ?? null,
+      month: r.month,
+      comment: r.feedback_comment ?? null,
+      asked_at: r.feedback_at ?? null,
+    }
+  })
+}
+
 export type SentBackItem = {
   id: string
   student_id: string
@@ -301,6 +371,9 @@ export type SentBackItem = {
   course_name: string
   /** Where the swimmer stood as of the lesson, to start the admin's form from. */
   existingProgress: Record<string, number>
+  /** The level the swimmer was in at the lesson (lib/level-change
+   *  levelThenFromMoves): the admin's form scores that level's skills. */
+  lesson_level: string | null
 }
 
 /**
@@ -327,7 +400,7 @@ async function loadSentBack(svc: any): Promise<SentBackItem[]> {
   if (rows.length === 0) return []
   const sIds = [...new Set(rows.map((r: any) => r.student_id).filter(Boolean))] as string[]
   const sessIds = [...new Set(rows.map((r: any) => r.class_session_id).filter(Boolean))] as string[]
-  const [ss, sessions, trials, live, history] = await Promise.all([
+  const [ss, sessions, trials, live, history, moves] = await Promise.all([
     inChunks(sIds, c => svc.from('students').select('id, full_name, current_level').in('id', c).order('id')),
     inChunks(sessIds, c => svc.from('class_sessions')
       .select('id, coach_id, start_time, end_time, course_types(id, name)').in('id', c).order('id')),
@@ -338,7 +411,11 @@ async function loadSentBack(svc: any): Promise<SentBackItem[]> {
     inChunks(sIds, c => svc.from('progress_history').select('student_id, snapshot, status, session_date, created_at')
       .in('student_id', c).in('status', ['pending_review', 'approved'])
       .order('student_id').order('session_date').order('created_at')),
+    inChunks(sIds, c => svc.from('level_upgrades').select('id, student_id, from_level, upgraded_at')
+      .in('student_id', c).order('id')),
   ])
+  const movesBy: Record<string, any[]> = {}
+  for (const m of moves) (movesBy[m.student_id] ||= []).push(m)
   const sessMap = new Map<string, any>(sessions.map((x: any) => [x.id, x]))
   const cIds = [...new Set([
     ...rows.map((r: any) => r.coach_id),
@@ -378,6 +455,9 @@ async function loadSentBack(svc: any): Promise<SentBackItem[]> {
       course_type_id: ct?.id ?? null,
       course_name: ct?.name || '',
       existingProgress: pictureAsOfRows(liveBy[r.student_id] || {}, historyBy[r.student_id] || [], r.session_date),
+      lesson_level: r.session_date
+        ? levelThenFromMoves(movesBy[r.student_id] || [], laWallTimeToUtcMs(r.session_date, String(se?.start_time || '00:00').slice(0, 5)), st?.current_level ?? null)
+        : (st?.current_level ?? null),
     }
   }).sort((a, b) => String(a.session_date || '').localeCompare(String(b.session_date || '')))
 }
@@ -392,6 +472,8 @@ export type ReviewQueues = {
   /** Coach time off covering booked lessons the office has not handled
    *  (owner, 2026-10-08; lib/time-off.ts). */
   coachTimeOffList: TimeOffActionItem[]
+  /** "I have a question" on a monthly report, not yet marked handled. */
+  monthlyQuestionList: MonthlyQuestionItem[]
   /** Informational only; not part of any count. Empty when withDetails is off. */
   sentBackList: SentBackItem[]
 }
@@ -412,6 +494,10 @@ export async function loadReviewQueues(
   const coachTimeOffPromise = timeOffNeedingAction(svc, getTodayLA(), getNowMinutesLA(), withDetails).catch((e: unknown) => {
     console.error('review-queues: coach time-off queue failed:', e)
     return [] as TimeOffActionItem[]
+  })
+  const monthlyQuestionPromise = loadMonthlyQuestions(svc, withDetails).catch((e: unknown) => {
+    console.error('review-queues: monthly-question queue failed:', e)
+    return [] as MonthlyQuestionItem[]
   })
   const sentBackPromise = withDetails
     ? loadSentBack(svc).catch((e: unknown) => {
@@ -483,7 +569,9 @@ export async function loadReviewQueues(
     const ppSessionIds = [...new Set(allPendingProgress.map((p: any) => p.class_session_id).filter(Boolean))]
     const { data: ppStudents } = await svc.from('students').select('id, full_name, current_level').in('id', ppStudentIds)
     const { data: ppCoaches } = await svc.from('coaches').select('id, first_name').in('id', ppCoachIds)
-    const { data: ppSkills } = await svc.from('skills').select('id, name, stage, sort_order, level_id').order('stage').order('sort_order')
+    // Active skills only: a retired one showed on the card as "not taught"
+    // (found 2026-10-08).
+    const { data: ppSkills } = await svc.from('skills').select('id, name, stage, sort_order, level_id').eq('is_active', true).order('stage').order('sort_order')
     const ppSMap: Record<string, any> = {}
     for (const s of ppStudents || []) ppSMap[s.id] = s
     const ppCMap: Record<string, any> = {}
@@ -714,6 +802,14 @@ export async function loadReviewQueues(
           : []
         const historyByStudent: Record<string, any[]> = {}
         for (const h of historyRows) (historyByStudent[h.student_id] ||= []).push(h)
+        // Level changes, so the form scores the level of the lesson rather
+        // than today's (found 2026-10-08; /api/coach/progress POST files it so).
+        const moveRows = withDetails
+          ? await inChunks(missingIds, c => svc.from('level_upgrades')
+              .select('id, student_id, from_level, upgraded_at').in('student_id', c).order('id'))
+          : []
+        const movesByStudent: Record<string, any[]> = {}
+        for (const m of moveRows) (movesByStudent[m.student_id] ||= []).push(m)
         // The approved picture is rolled back to the missing lesson's date
         // too, not only the pending one: the live table holds scores approved
         // for LATER lessons (found 2026-10-07; lib/skill-progress-sync
@@ -731,6 +827,9 @@ export async function loadReviewQueues(
               student_id: c.student_id,
               session: sp ? { ...c.session, start_time: sp.start, end_time: sp.end } : c.session,
               existingProgress: withDetails ? pictureAsOf(c.student_id, c.session?.session_date) : {},
+              lesson_level: withDetails && c.session?.session_date
+                ? levelThenFromMoves(movesByStudent[c.student_id] || [], laWallTimeToUtcMs(c.session.session_date, String((sp?.start || c.session.start_time) || '00:00').slice(0, 5)), studentMap[c.student_id].current_level ?? null)
+                : (studentMap[c.student_id].current_level ?? null),
               // A paid Swim Assessment: with no level yet, the card offers to
               // backfill it (/api/admin/backfill-assessment).
               assessment: (assessmentLessons.has(`${c.student_id}|${c.lessonKey}`)) || undefined,
@@ -744,21 +843,23 @@ export async function loadReviewQueues(
   const assessmentRebookList = await assessmentRebookPromise
   const coachTimeOffList = await coachTimeOffPromise
   const sentBackList = await sentBackPromise
+  const monthlyQuestionList = await monthlyQuestionPromise
 
-  return { assessmentRebookList, recommendations, pendingProgressList, pastPendingProgressList, missingProgressList, refundOwedList, coachTimeOffList, sentBackList }
+  return { assessmentRebookList, recommendations, pendingProgressList, pastPendingProgressList, missingProgressList, refundOwedList, coachTimeOffList, monthlyQuestionList, sentBackList }
 }
 
 /** Just the totals, for the sidebar badge. Skips the display-only enrichment. */
-export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number; refundOwed: number; assessmentRebook: number; coachTimeOff: number }> {
+export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number; refundOwed: number; assessmentRebook: number; coachTimeOff: number; monthlyQuestions: number }> {
   const q = await loadReviewQueues(svc, { withDetails: false })
   const pending = q.pendingProgressList.length + q.pastPendingProgressList.length
   return {
-    total: q.missingProgressList.length + pending + q.recommendations.length + q.refundOwedList.length + q.assessmentRebookList.length + q.coachTimeOffList.length,
+    total: q.missingProgressList.length + pending + q.recommendations.length + q.refundOwedList.length + q.assessmentRebookList.length + q.coachTimeOffList.length + q.monthlyQuestionList.length,
     missing: q.missingProgressList.length,
     pending,
     recommendations: q.recommendations.length,
     refundOwed: q.refundOwedList.length,
     assessmentRebook: q.assessmentRebookList.length,
     coachTimeOff: q.coachTimeOffList.length,
+    monthlyQuestions: q.monthlyQuestionList.length,
   }
 }

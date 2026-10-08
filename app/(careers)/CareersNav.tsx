@@ -11,6 +11,7 @@ export default function CareersNav() {
   const pathname = usePathname()
   const router = useRouter()
   const [name, setName] = useState<string | null>(null)
+  const [applied, setApplied] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export default function CareersNav() {
       .then((r) => r.json())
       .then((me) => {
         setName(me.signedIn ? me.firstName || 'there' : null)
+        setApplied(Boolean(me.hasApplied))
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -58,7 +60,16 @@ export default function CareersNav() {
         <nav style={{ display: 'flex', alignItems: 'center', gap: '18px', fontSize: '14px' }}>
           {!loaded ? null : name ? (
             <>
-              <span style={{ color: 'rgba(255,255,255,0.7)' }}>Hi, {name}</span>
+              <span className="careers-hi" style={{ color: 'rgba(255,255,255,0.7)' }}>Hi, {name}</span>
+              {/* The way back into the application for someone already
+                  signed in (found 2026-10-08): the nav had only Sign out, and
+                  "Apply now" opened a blank Create-account form. /careers/apply
+                  sends an unverified applicant on to /careers/verify. */}
+              {pathname === '/careers/apply' || pathname === '/careers/verify' ? null : (
+                <Link href="/careers/apply" style={{ color: GOLD, fontWeight: 700, textDecoration: 'none' }}>
+                  {applied ? 'My application' : 'Continue application'}
+                </Link>
+              )}
               <button
                 onClick={signOut}
                 style={{
@@ -97,6 +108,8 @@ export default function CareersNav() {
           )}
         </nav>
       </div>
+      {/* Room for the application link beside Sign out on a phone. */}
+      <style>{`@media (max-width: 519px) { .careers-hi { display: none; } }`}</style>
     </header>
   )
 }

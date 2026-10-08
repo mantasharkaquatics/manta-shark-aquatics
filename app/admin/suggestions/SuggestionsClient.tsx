@@ -34,6 +34,8 @@ export default function SuggestionsClient() {
     setBusy(null)
     if (!r || !r.ok) { setAlertMsg(t('admin.suggestions.err.saveFailed')); return }
     setList(l => (l || []).map(x => x.id === s.id ? { ...x, status } : x))
+    // The sidebar's number (app/admin/AdminNav.tsx).
+    try { window.dispatchEvent(new Event('admin:suggestions-changed')) } catch {}
   }
 
   if (!list) return <div className="p-8 text-gray-400 text-sm">{t('common.loading')}</div>

@@ -24,12 +24,13 @@ const fail = (status: number, error: string, code: string) => NextResponse.json(
  * would have -- the level recommendation and the pending report, under the
  * lesson's coach -- and then runs the SAME confirm as a coach's assessment
  * card (lib/admin/confirm-assessment), so the family gets the report card and
- * the email, and the 60 days of the credit run from today, the backfill date
- * (owner's rule; creditStartDate reads it off the report's filing date).
+ * the email, and the 60 days of the credit run from today, the confirm date
+ * (owner, 2026-10-08: every assessment's 60 days run from the admin's confirm;
+ * see creditStartDate).
  *
  * If the confirm fails after the report is filed, the report is left pending:
  * it is then an ordinary assessment card in Reviews and can be confirmed from
- * there, still with the credit running from the day it was filed.
+ * there, with the credit running from the day it is confirmed.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()

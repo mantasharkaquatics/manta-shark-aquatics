@@ -162,6 +162,8 @@ export default function RegisterClient() {
      family row did not save: a second press of "Create account" must not
      sign up again. */
   const [finish, setFinish] = useState<{ userId: string; email: string } | null>(null)
+  // signUp said the email already has a login (see handleSubmit).
+  const [unfinishedLogin, setUnfinishedLogin] = useState(false)
   const emailOk = emailVerified
   // ?next= is only readable in the browser; set after mount so the server
   // and client render the same href.
@@ -401,7 +403,23 @@ export default function RegisterClient() {
     setError(''); setStep(2)
   }
 
+  // A code that expired (or was used) while the form was filled in: back to
+  // step 1 with that field open again, rather than a dead end. True when it
+  // handled the answer.
+  function proofExpired(data: { code?: string; error?: string } | null): boolean {
+    if (data?.code === 'EMAIL_NOT_VERIFIED') {
+      setEmailVerified(false); setEmailOtpSent(false); setEmailOtpCode('')
+      setStep(1); setError(tErr(data.error, 'register.err.verifyEmail')); setLoading(false); return true
+    }
+    if (data?.code === 'PHONE_NOT_VERIFIED') {
+      setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode('')
+      setStep(1); setError(tErr(data.error, 'register.err.verifyPhone')); setLoading(false); return true
+    }
+    return false
+  }
+
   async function handleSubmit() {
+    setUnfinishedLogin(false)
     if (!termsAccepted || !waiverAccepted) { setError(t('register.err.acceptTerms')); return }
     if (!students[0].fullName.trim()) { setError(t('register.err.studentName')); return }
     // The birthday is required: the database will not store a swimmer without
@@ -414,10 +432,27 @@ export default function RegisterClient() {
     // exactly as before. Once it exists the page is in "finish" mode: a retry
     // goes straight to the family record and never signs up twice.
     if (!finish) {
+      // Codes first, login second (found 2026-10-08): a code that expired
+      // while step 2 was filled in used to surface only after signUp had made
+      // the login, and a family who left then had a login with no family row.
+      // Now they go back to step 1 before anything is created. A failure of
+      // this check itself does not block: complete-registration checks again.
+      try {
+        const pre = await fetch('/api/auth/check-registration-proof', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, phone }),
+        })
+        const pd = await pre.json().catch(() => null)
+        if (proofExpired(pd)) return
+      } catch {}
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
       if (authError || !authData.user) {
         // A password problem can only be fixed on step 1, where the boxes are.
         if (errorKey(authError?.message) === 'err.passwordShort') setStep(1)
+        // The address passed step 1's "already has an account" check, so this
+        // login has no family row: a registration left unfinished earlier
+        // (found 2026-10-08). Point them at "Forgot password?" -- after the
+        // reset, signing in opens this form to finish it.
+        if (errorKey(authError?.message) === 'err.userExists') { setUnfinishedLogin(true); setLoading(false); return }
         setError(tErr(authError?.message, 'register.err.signupFailed')); setLoading(false); return
       }
       setFinish({ userId: authData.user.id, email })
@@ -448,16 +483,7 @@ export default function RegisterClient() {
       data = { error: '' }
     }
     if (!data?.ok) {
-      // A code that expired (or was used) while the form was filled in: back
-      // to step 1 with that field open again, rather than a dead end.
-      if (data?.code === 'EMAIL_NOT_VERIFIED') {
-        setEmailVerified(false); setEmailOtpSent(false); setEmailOtpCode('')
-        setStep(1); setError(tErr(data.error, 'register.err.verifyEmail')); setLoading(false); return
-      }
-      if (data?.code === 'PHONE_NOT_VERIFIED') {
-        setPhoneVerified(false); setPhoneOtpSent(false); setPhoneOtpCode('')
-        setStep(1); setError(tErr(data.error, 'register.err.verifyPhone')); setLoading(false); return
-      }
+      if (proofExpired(data)) return
       // Anything else is shown through our own wording, never raw server or
       // database text.
       console.error('register: complete-registration failed', data)
@@ -755,6 +781,12 @@ export default function RegisterClient() {
               </label>
             </div>
             {error && <p className="text-red-600 text-sm">{error}</p>}
+            {unfinishedLogin && (
+              <p className="rounded-xl border border-[#f3dfb4] bg-[#fff7e6] px-4 py-3 text-sm text-[#16294a] leading-relaxed">
+                {t('register.err.unfinishedLogin')}{' '}
+                <Link href="/forgot-password" className="text-[#2050a0] underline font-semibold">{t('register.err.unfinishedLoginLink')}</Link>
+              </p>
+            )}
             <div className="flex gap-3 pt-2">
               <button onClick={() => { setStep(1); setError('') }}
                 className="flex-1 border border-[#d5e0ef] text-[#16294a] py-3 rounded-lg font-semibold hover:bg-[#f6f9fd] transition-colors text-sm">{t('register.back')}</button>

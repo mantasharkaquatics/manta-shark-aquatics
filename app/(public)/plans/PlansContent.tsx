@@ -186,10 +186,9 @@ function TeamButton({ signedIn }: { signedIn: boolean | null }) {
  * dollars and the points are shown side by side at every step -- a parent
  * should never have to work out what a number on this page is worth.
  */
-function TopUp() {
+function TopUp({ signedIn }: { signedIn: boolean | null }) {
   const t = useT()
   const locale = useLocale()
-  const router = useRouter()
   const supabase = createClient()
   /* Two questions, not one nine-way comparison: which class, then how many.
      Opens on 1-on-1, 10 lessons (owner, 2026-09-28). */
@@ -198,14 +197,21 @@ function TopUp() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsAssessment, setNeedsAssessment] = useState(false)
+  // A click that landed before useFamilyStatus answered, and found nobody
+  // signed in: show the same signed-out block as signedIn === false.
+  const [guestClicked, setGuestClicked] = useState(false)
+  const signedOut = signedIn === false || guestClicked
   // A signed-in family in arrears sees what it owes and can pay exactly that
-  // (owner, 2026-10-08). Signed out, the wallet answers 401 and nothing shows.
+  // (owner, 2026-10-08). Asked only once we know someone is signed in (found
+  // 2026-10-08: every visitor's view cost a function call that could only
+  // answer 401), and only for the one number this card shows.
   const [owed, setOwed] = useState(0)
   useEffect(() => {
-    fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null))
+    if (signedIn !== true) return
+    fetch('/api/parent/wallet?only=arrears').then(r => (r.ok ? r.json() : null))
       .then(j => { if (j && Number(j.arrears) > 0) setOwed(Number(j.arrears)) })
       .catch(() => {})
-  }, [])
+  }, [signedIn])
 
   const chosen = topUpAmount(course, lessons)
   // Always true for the grid as it stands. Kept anyway: it is the guard that
@@ -220,9 +226,11 @@ function TopUp() {
     setNeedsAssessment(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      // Back to this page after signing in, in the language it was read in
-      // (/zh-Hant/plans as well as /plans). ?next=, found 2026-10-05.
-      router.push('/login?next=' + encodeURIComponent(window.location.pathname))
+      // Not to the login page (found 2026-10-08): a new family has no account,
+      // and after signing up they still could not buy -- the checkout answers
+      // NEEDS_ASSESSMENT. The signed-out block says what to do instead.
+      setGuestClicked(true)
+      setBusy(false)
       return
     }
     try {
@@ -287,9 +295,24 @@ function TopUp() {
         <strong>{valid ? t('points.buy.pointsFor', { n: num(chosen), price: money(chosen) }) : '—'}</strong>
       </div>
 
-      <button type="button" className="b-btn gold p-buy" onClick={buy} disabled={!valid || busy}>
-        {busy ? t('points.buy.busy') : t('points.buy.cta')}
-      </button>
+      {/* Signed out, the next step is the assessment, as on the Swim Team
+          button (found 2026-10-08). Points cannot be spent until a swimmer
+          has a level, so a new family is not sent through sign-up to a
+          checkout that refuses them. A member who is simply signed out signs
+          in and comes back here, in the language the page was read in. */}
+      {signedOut ? (
+        <>
+          <p className="p-fine" style={{ marginBottom: 12 }}>{t('points.buy.newFamily')}</p>
+          <Link href={localePath('/assessment', locale)} className="b-btn gold p-buy">{t('plans.team.assessBtn')}</Link>
+          <p className="p-fine" style={{ margin: '14px 0 0', textAlign: 'center' }}>
+            <Link href={'/login?next=' + encodeURIComponent(localePath('/plans', locale) + '#buy')} className="b-link">{t('points.buy.memberSignIn')}</Link>
+          </p>
+        </>
+      ) : (
+        <button type="button" className="b-btn gold p-buy" onClick={buy} disabled={!valid || busy}>
+          {busy ? t('points.buy.busy') : t('points.buy.cta')}
+        </button>
+      )}
 
       {needsAssessment && (
         <div className="p-warn">
@@ -403,7 +426,7 @@ export default function PlansContent() {
             </div>
 
             <div className="p-grid">
-              <TopUp />
+              <TopUp signedIn={signedIn} />
 
               <div className="p-card p-price">
                 <p className="b-eyebrow">{t('points.price.eyebrow')}</p>

@@ -115,11 +115,12 @@ export default function AdminProgressHistoryClient({ records, skills, pager, loa
           snapshot: editSnapshot,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || t('admin.progress.err.saveFailed'))
+      // Our own words: the route's are English, and database text besides
+      // (found 2026-10-08). The details stay in the server log.
+      if (!res.ok) throw new Error('save failed')
       window.location.reload()
-    } catch (err: any) {
-      setEditError(err.message || t('admin.progress.err.saveFailed'))
+    } catch {
+      setEditError(t('admin.progress.err.saveFailed'))
       setSaving(false)
     }
   }

@@ -8,7 +8,9 @@ import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, relea
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
+import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
+import { groupBandsFor } from '@/lib/zones'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
@@ -364,18 +366,23 @@ export async function POST(req: NextRequest) {
       ? assignVoucherKeys(slots.filter(x => !x.fixed), autoVouchers, slotKey)
       : new Map<string, Voucher>()
 
-    if (!voucher) {
+    {
       const wallet = await walletSummary(svc, parent.id)
       // A wallet in arrears can still show a positive total when it holds
       // granted points, so this has to be asked before the balance question --
       // otherwise the parent is told to buy more points when what they need to
-      // do is settle a payment that came back.
+      // do is settle a payment that came back. Asked for a make-up voucher
+      // too: the voucher came from lessons paid with the money that went back,
+      // and nothing books until the arrears are settled (owner, 2026-10-08,
+      // option A; a voucher booking used to skip this, found 2026-10-08).
       if (wallet.arrears > 0)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: wallet.arrears }, { status: 402 })
-      const planned = coverOf(okSlots)
-      const quote = priceSlots(ct.slug, okSlots.filter(x => !planned.has(slotKey(x))), minutes, seats)
-      if (quote.total > 0 && wallet.balance < quote.total)
-        return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
+      if (!voucher) {
+        const planned = coverOf(okSlots)
+        const quote = priceSlots(ct.slug, okSlots.filter(x => !planned.has(slotKey(x))), minutes, seats)
+        if (quote.total > 0 && wallet.balance < quote.total)
+          return NextResponse.json({ error: 'NOT_ENOUGH_POINTS', needed: quote.total, available: wallet.balance }, { status: 400 })
+      }
     }
 
     const endOf = (t: string) => minToTime(toMin(t) + minutes)
@@ -420,11 +427,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (needSession.length > 0) {
+      // A group session carries its zone's level band, as create writes it (found 2026-10-08).
+      const bands = await groupBandsFor(svc, ct.slug, needSession)
       const { data: newSessions, error: sessErr } = await svc.from('class_sessions')
-        .insert(needSession.map(n => ({
+        .insert(needSession.map((n, i) => ({
           coach_id: n.coach, course_type_id: ct.id, session_date: n.date,
           start_time: n.start, end_time: n.end,
           max_students: ct.max_students, enrolled_count: 0, status: 'open',
+          ...bands[i],
         })))
         .select('id, coach_id, session_date, start_time')
       if (sessErr || !newSessions) {
@@ -559,7 +569,7 @@ export async function POST(req: NextRequest) {
       parentId: parent.id, reason: 'booking_failed', points: charge.total,
       grantedPart: paid.grantedTaken, grantedExpiresAt: paid.grantedExpiresAt,
       actor: 'system', note: why,
-    }).catch(e => console.error('points rollback failed:', e))
+    }).catch(e => alertRollbackFailed(svc, { parentId: parent.id, points: charge.total, granted: paid.grantedTaken, why, where: 'online lesson booking', error: e }))
 
     // The rows, in lesson order, and each one's share of any granted points
     // the debit used -- the earliest lessons take them first.

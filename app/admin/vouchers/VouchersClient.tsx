@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import AlertModal from '@/components/AlertModal'
 import { useT } from '@/lib/i18n/provider'
 import type { TFunction } from '@/lib/i18n'
+import { VOUCHER_ERROR_KEYS } from '@/lib/admin/voucher-errors'
 
 type V = {
   id: string; parent_id: string; course_slug: string; minutes: number; reason: string; status: string
@@ -49,7 +50,7 @@ export default function VouchersClient() {
     const r = await fetch('/api/admin/vouchers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).catch(() => null)
     setBusy(false)
     const j = r ? await r.json().catch(() => ({})) : {}
-    if (!r || !r.ok) { setAlertMsg(j.error || t('admin.vouchers.err.saveFailed')); return false }
+    if (!r || !r.ok) { setAlertMsg(t(VOUCHER_ERROR_KEYS[String((j as any).code || '')] || 'admin.vouchers.err.saveFailed')); return false }
     await load()
     return true
   }

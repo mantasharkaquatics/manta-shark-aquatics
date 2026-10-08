@@ -10,7 +10,7 @@ import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { confirmTrialBooking, failTrialBooking } from '@/lib/trial-booking'
 import { alertAdmin } from '@/lib/admin-alert'
-import { assessmentPaymentReversed } from '@/lib/assessments'
+import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -443,7 +443,8 @@ export async function POST(req: NextRequest) {
             .select('full_name, parent_id').eq('id', tm.student_id).single()
           const tierName = (Array.isArray(tm.team_tiers) ? (tm.team_tiers as any)[0]?.name : (tm.team_tiers as any)?.name) || 'Swim Team'
           const period = inv.lines?.data?.[0]?.period
-          const fmt = (sec: number) => new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          // California date for the period, matching the invoice number/PDF (found 2026-10-08).
+          const fmt = (sec: number) => new Date(sec * 1000).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric' })
           const coverage = period?.start && period?.end ? ` \u00b7 ${fmt(period.start)} \u2013 ${fmt(period.end)}` : ''
           const amount = (inv.amount_paid ?? 0) / 100
           let created: any = null
@@ -868,6 +869,9 @@ async function assessmentChargeback(paymentIntentId: string, sessionId: string |
   if (purchaseIds.length > 0 && (!marked || marked.length === 0)) return NextResponse.json({ received: true })
 
   const studentIds = [...new Set((credits || []).map(c => c.student_id).filter(Boolean))]
+  // A charged-back assessment that is no longer on the calendar is not owed:
+  // the family may pay again on the site (owner, 2026-10-08).
+  const reopened = await reopenAssessmentsFor(purchaseIds)
   let creditState = 'no assessment report yet (the credit will not be paid when one is made)'
   if (studentIds.length > 0) {
     const { data: rep } = await supabase.from('student_assessments')
@@ -892,9 +896,27 @@ async function assessmentChargeback(paymentIntentId: string, sessionId: string |
     `${family} disputed the Swim Assessment payment for ${who} with their bank ($${((Number(dispute?.amount) || 0) / 100).toFixed(2)}, dispute ${dispute?.id || 'unknown'}, payment ${paymentIntentId}).`,
     purchaseIds.length ? 'The payment is now marked as disputed: it is left out of the Sales total and earns no assessment credit.' : 'No purchase record was found for this payment, so nothing could be marked -- check it by hand.',
     `Assessment credit: ${creditState}.`,
+    reopened
+      ? 'Nothing was booked on it any more, so the family can pay for and book a new Swim Assessment on the site.'
+      : 'If the assessment is still booked, cancel it by hand if that was intended. Once cancelled it is not owed any more: the family can pay and book a new one on the site.',
     'Respond to the dispute in the Stripe dashboard.',
   ])
   return NextResponse.json({ received: true })
+}
+
+/* Clears "assessment used" for every swimmer whose assessment was paid by
+   one of these purchases, when every assessment payment of theirs is taken
+   back and none is booked (lib/assessments reopenReversedAssessment). True
+   when at least one swimmer was reopened. Never throws. */
+async function reopenAssessmentsFor(purchaseIds: string[]): Promise<boolean> {
+  if (purchaseIds.length === 0) return false
+  const { data: credits, error } = await supabase.from('lesson_credits')
+    .select('student_id').in('purchase_id', purchaseIds).eq('is_trial', true)
+  if (error) { console.error('reopen assessment: credit lookup failed:', error.message); return false }
+  let any = false
+  for (const sid of new Set((credits || []).map(c => c.student_id).filter(Boolean)))
+    if (await reopenReversedAssessment(supabase, sid as string)) any = true
+  return any
 }
 
 /* After a Swim Assessment payment is refunded in full in the Stripe dashboard:
@@ -1004,7 +1026,10 @@ async function dashboardRefund(charge: Stripe.Charge) {
         .update({ used_credits: 1 }).eq('purchase_id', p.id).eq('is_trial', true).eq('used_credits', 0).select('id')
       lines.push(voided && voided.length > 0
         ? 'Its prepaid assessment had not been booked yet; it has been removed from the account.'
-        : 'If the assessment is still booked, cancel it by hand if that was intended.')
+        : 'If the assessment is still booked, cancel it by hand if that was intended. Once cancelled it is not owed any more: the family can pay and book a new one on the site.')
+      // Nothing left on the calendar: the swimmer may be sold an assessment
+      // again (owner, 2026-10-08).
+      if (await reopenAssessmentsFor([p.id])) lines.push('The family can now pay for and book a new Swim Assessment on the site.')
       // Refunded in full means the assessment was not paid for, so it earns
       // no 85-point assessment credit (owner, 2026-10-08), as with a
       // chargeback. The refunded_cents written above is what

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCoach } from '@/lib/api-auth'
-import { bookedLessonsInWindow } from '@/lib/time-off'
+import { bookedLessonsInRange, lessonEnded, MAX_TIME_OFF_DAYS, addDaysISO } from '@/lib/time-off'
+import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 
 // Before a coach sends a time-off request, the form lists the lessons families
 // have already booked in that time so the coach knows what the request touches
@@ -8,7 +9,14 @@ import { bookedLessonsInWindow } from '@/lib/time-off'
 // notifying and cancelling. The lessons come from lib/time-off.ts, the same
 // reading the send's desk alert and the admin Reviews item use.
 //
-// GET ?date=YYYY-MM-DD[&start=HH:MM&end=HH:MM] -- no start/end means whole day.
+// GET ?date=YYYY-MM-DD[&end_date=YYYY-MM-DD][&start=HH:MM&end=HH:MM] -- no
+// start/end means whole day; end_date makes it every day from date to end_date
+// (owner, 2026-10-08: several days in one request).
+//
+// Lessons that have already ended are left out, the same rule as the send,
+// the desk alert and Reviews: at noon, a request for the rest of today listed
+// the morning's finished lessons as ones the desk would call about, and asked
+// the coach to confirm them (found 2026-10-08).
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -20,16 +28,22 @@ export async function GET(req: NextRequest) {
 
   const sp = new URL(req.url).searchParams
   const date = sp.get('date') || ''
+  const endDate = sp.get('end_date') || date
   const start = sp.get('start') || ''
   const end = sp.get('end') || ''
   if (!DATE_RE.test(date)) return NextResponse.json({ error: 'Bad date' }, { status: 400 })
+  if (!DATE_RE.test(endDate) || endDate < date || endDate > addDaysISO(date, MAX_TIME_OFF_DAYS - 1))
+    return NextResponse.json({ error: 'Bad date range' }, { status: 400 })
   const partDay = !!(start || end)
   if (partDay && (!TIME_RE.test(start) || !TIME_RE.test(end) || start >= end)) {
     return NextResponse.json({ error: 'Bad time range' }, { status: 400 })
   }
 
-  const lessons = await bookedLessonsInWindow(svc, coach.id, date, partDay ? start : null, partDay ? end : null)
-  if (!lessons) return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
+  const booked = await bookedLessonsInRange(svc, coach.id, date, endDate, partDay ? start : null, partDay ? end : null)
+  if (!booked) return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
+  const today = getTodayLA()
+  const nowMin = getNowMinutesLA()
+  const lessons = booked.filter(l => !lessonEnded(l, today, nowMin))
   if (lessons.length === 0) return NextResponse.json({ lessons: [] })
 
   const stuIds = [...new Set(lessons.flatMap(l => l.students.map(x => x.id)))]
@@ -43,6 +57,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     lessons: lessons.map(l => ({
+      date: l.date,
       start: l.start,
       end: l.end,
       course_type_id: l.course_type_id,

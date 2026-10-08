@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 /* Stamps a signed-in parent's last_activity_at (/api/heartbeat) every two
-   minutes and whenever the tab comes back. Only while someone is signed in
+   minutes while the tab is in front, and whenever it comes back. Only while someone is signed in
    (found 2026-10-08): it is mounted on every public page, and for a visitor
    each ping was a function call and a proxy run that could only answer 401.
    onAuthStateChange replays INITIAL_SESSION on subscribe, so it covers the
@@ -13,7 +13,14 @@ export default function ActivityPing() {
   useEffect(() => {
     const supabase = createClient()
     let timer: ReturnType<typeof setInterval> | null = null
-    const ping = () => { fetch('/api/heartbeat', { method: 'POST' }).catch(() => {}) }
+    // Only while the page is in front (found 2026-10-08): a desktop tab left
+    // open behind other windows kept pinging all day, so the family showed
+    // "Online" from morning to night on Members, and the "new activity" dot
+    // came back two minutes after a manager had opened the family.
+    const ping = () => {
+      if (document.visibilityState !== 'visible') return
+      fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
+    }
     const onVisible = () => { if (document.visibilityState === 'visible') ping() }
     const start = () => {
       if (timer) return

@@ -51,6 +51,9 @@ export default function LoginForm() {
 
         {error ? <div style={ERROR}>{error}</div> : null}
 
+        {/* A real form so Enter, the phone keyboard's "Go" and a password
+            manager's auto-submit all sign in (found 2026-10-08). */}
+        <form noValidate onSubmit={(e) => { e.preventDefault(); if (ready && !busy) submit() }}>
         <div style={FIELD}>
           <label style={LABEL} htmlFor="email">Email address</label>
           <input id="email" type="email" style={INPUT} value={email}
@@ -64,12 +67,13 @@ export default function LoginForm() {
         </div>
 
         <button
+          type="submit"
           style={busy || !ready ? BUTTON_DISABLED : BUTTON}
           disabled={busy || !ready}
-          onClick={submit}
         >
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+        </form>
 
         <p style={FOOT}>
           <Link href="/careers/forgot-password" style={LINK}>Forgot your password?</Link>

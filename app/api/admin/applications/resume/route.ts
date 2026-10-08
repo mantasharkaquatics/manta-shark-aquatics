@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     .maybeSingle()
 
   if (!application?.resume_path) {
-    return NextResponse.json({ error: 'No résumé on file.' }, { status: 404 })
+    return NextResponse.json({ error: 'No résumé on file.', code: 'no_resume' }, { status: 404 })
   }
 
   const { data, error } = await auth.svc.storage

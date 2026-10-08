@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 
-type ImpactLesson = { start: string; end: string; course_type_id: string | null; course_name: string; is_trial: boolean; swimmers: string[] }
+type ImpactLesson = { date?: string; start: string; end: string; course_type_id: string | null; course_name: string; is_trial: boolean; swimmers: string[] }
 
 type TimeOff = { id: string; date: string; reason: string | null; created_at: string; start_time: string | null; end_time: string | null }
 
@@ -15,15 +15,26 @@ const SUBMIT_ERROR_KEYS: Record<string, string> = {
   times: 'coach.timeOff.errTimes',
   order: 'coach.timeOff.errOrder',
   clash: 'coach.timeOff.errClash',
+  range: 'coach.timeOff.errRange',
 }
+
+// Same cap as the route (lib/time-off MAX_TIME_OFF_DAYS).
+const MAX_DAYS = 60
+const addDays = (d: string, n: number) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
 
 export default function CoachTimeOffClient({
   timeOffList: initial,
+  officeList,
+  waiting: initialWaiting,
   lockedIds: initialLocked,
   today,
 }: {
   coach: { id: string; first_name: string; last_name: string }
   timeOffList: TimeOff[]
+  /** Blocks the office entered for this coach: shown, not removable. */
+  officeList: TimeOff[]
+  /** Time off id -> booked lessons in it still waiting for the office. */
+  waiting: Record<string, number>
   lockedIds: string[]
   today: string
 }) {
@@ -31,6 +42,9 @@ export default function CoachTimeOffClient({
   const locale = useLocale()
   const [timeOffList, setTimeOffList] = useState<TimeOff[]>(initial)
   const [date, setDate] = useState('')
+  // Optional last day: several days in a row in one request (owner, 2026-10-08).
+  const [endDate, setEndDate] = useState('')
+  const [waiting, setWaiting] = useState<Record<string, number>>(initialWaiting)
   const [reason, setReason] = useState('')
   const [allDay, setAllDay] = useState(true)
   const [startTime, setStartTime] = useState('')
@@ -54,14 +68,19 @@ export default function CoachTimeOffClient({
   // time leaves the armed key behind, which disarms it.
   const [confirmKey, setConfirmKey] = useState('')
 
-  const windowValid = !!date && (allDay || (!!startTime && !!endTime && startTime < endTime))
-  const impactKey = windowValid ? `${date}|${allDay ? '' : `${startTime}-${endTime}`}` : ''
+  // The last day, when one is given and it is after the first.
+  const lastDay = endDate && endDate > date ? endDate : date
+  const rangeValid = !endDate || (endDate >= date && endDate <= addDays(date, MAX_DAYS - 1))
+  const windowValid = !!date && rangeValid && (allDay || (!!startTime && !!endTime && startTime < endTime))
+  const impactKey = windowValid ? `${date}~${lastDay}|${allDay ? '' : `${startTime}-${endTime}`}` : ''
 
   // null = the check itself failed; the request still goes through (the
   // admin's Time Off page lists the same lessons), it just was not warned.
   const fetchImpact = async (key: string): Promise<ImpactLesson[] | null> => {
-    const [d, win] = key.split('|')
+    const [span, win] = key.split('|')
+    const [d, last] = span.split('~')
     const qs = new URLSearchParams({ date: d })
+    if (last && last !== d) qs.set('end_date', last)
     if (win) { const [s, e] = win.split('-'); qs.set('start', s); qs.set('end', e) }
     try {
       const res = await fetch(`/api/coach/time-off-impact?${qs}`)
@@ -102,17 +121,20 @@ export default function CoachTimeOffClient({
   const handleSubmit = async () => {
     if (!date) { setError(t('coach.timeOff.errDate')); return }
     if (date < today) { setError(t('coach.timeOff.errPast')); return }
+    if (endDate && endDate < date) { setError(t('coach.timeOff.errRange')); return }
+    if (endDate && endDate > addDays(date, MAX_DAYS - 1)) { setError(t('coach.timeOff.errTooLong', { n: MAX_DAYS })); return }
     if (!allDay) {
       if (!startTime || !endTime) { setError(t('coach.timeOff.errTimes')); return }
       if (startTime >= endTime) { setError(t('coach.timeOff.errOrder')); return }
     }
     const toM = (t: string) => { const [h, m] = t.slice(0, 5).split(':').map(Number); return h * 60 + m }
-    const clash = timeOffList.some(t => {
-      if (t.date !== date) return false
+    // The office's blocks count too, as they do on the server (owner, 2026-10-08).
+    const clash = [...timeOffList, ...officeList].find(t => {
+      if (t.date < date || t.date > lastDay) return false
       if (allDay || t.start_time == null || t.end_time == null) return true
       return toM(startTime) < toM(t.end_time) && toM(endTime) > toM(t.start_time)
     })
-    if (clash) { setError(t('coach.timeOff.errClash')); return }
+    if (clash) { setError(t('coach.timeOff.errClashOn', { date: formatDate(clash.date) })); return }
     setError('')
     setSuccess('')
     if (!confirmImpact) {
@@ -135,23 +157,41 @@ export default function CoachTimeOffClient({
     const res = await fetch('/api/coach/time-off', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, reason: reason || null, start_time: allDay ? null : startTime, end_time: allDay ? null : endTime }),
+      body: JSON.stringify({ date, end_date: lastDay !== date ? lastDay : null, reason: reason || null, start_time: allDay ? null : startTime, end_time: allDay ? null : endTime }),
     }).catch(() => null)
     const json = res ? await res.json().catch(() => null) : null
-    const data: TimeOff | null = res?.ok ? json?.item ?? null : null
+    const data: TimeOff[] | null = res?.ok ? (Array.isArray(json?.items) ? json.items : json?.item ? [json.item] : null) : null
     if (!data) {
-      setError(t(SUBMIT_ERROR_KEYS[String(json?.code || '')] || 'coach.timeOff.errSend'))
+      setError(json?.code === 'clash' && json?.date
+        ? t('coach.timeOff.errClashOn', { date: formatDate(String(json.date)) })
+        : json?.code === 'tooLong'
+        ? t('coach.timeOff.errTooLong', { n: MAX_DAYS })
+        : t(SUBMIT_ERROR_KEYS[String(json?.code || '')] || 'coach.timeOff.errSend'))
     } else {
-      setTimeOffList(prev => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)))
+      setTimeOffList(prev => [...prev, ...data].sort((a, b) => a.date.localeCompare(b.date)))
+      // Each new day's lessons now wait for the office, as the list will say.
+      const sent = impacts[impactKey] || []
+      if (Number(json?.affected) > 0 && sent.length > 0) {
+        setWaiting(prev => {
+          const next = { ...prev }
+          for (const it of data) {
+            const n = sent.filter(l => (l.date || date) === it.date).length
+            if (n > 0) next[it.id] = n
+          }
+          return next
+        })
+      }
+      const when = lastDay !== date ? `${formatDate(date)} – ${formatDate(lastDay)}` : formatDate(date)
       setDate('')
+      setEndDate('')
       setReason('')
       setAllDay(true)
       setStartTime('')
       setEndTime('')
       setConfirmKey('')
       setSuccess(Number(json?.affected) > 0
-        ? t('coach.timeOff.doneNotified', { date: formatDate(date) })
-        : t('coach.timeOff.done', { date: formatDate(date) }))
+        ? t('coach.timeOff.doneNotified', { date: when })
+        : t('coach.timeOff.done', { date: when }))
     }
     setSubmitting(false)
   }
@@ -207,6 +247,17 @@ export default function CoachTimeOffClient({
                 className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors"
               />
             </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-2">{t('coach.timeOff.endDate')} <span className="text-gray-600">{t('coach.timeOff.endDateHint')}</span></label>
+              <input
+                type="date"
+                value={endDate}
+                min={date || today}
+                max={date ? addDays(date, MAX_DAYS - 1) : undefined}
+                onChange={e => setEndDate(e.target.value)}
+                className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors"
+              />
+            </div>
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -259,7 +310,7 @@ export default function CoachTimeOffClient({
                 <ul className="mt-3 space-y-2">
                   {shownLessons.map((l, i) => (
                     <li key={`${i}-${l.start}`} className="text-sm">
-                      <span className="text-white font-medium">{fmt12(l.start)} – {fmt12(l.end)}</span>
+                      <span className="text-white font-medium">{lastDay !== date && l.date ? formatDate(l.date) + ' · ' : ''}{fmt12(l.start)} – {fmt12(l.end)}</span>
                       <span className="text-gray-300"> · {lessonLabel(l)}</span>
                       {l.swimmers.length > 0 && <span className="text-gray-400"> · {l.swimmers.join(', ')}</span>}
                     </li>
@@ -304,13 +355,29 @@ export default function CoachTimeOffClient({
 
         <div>
           <h2 className="text-sm font-semibold text-[#c9a84c] uppercase tracking-wider mb-5">{t('coach.timeOff.upcoming')}</h2>
-          {timeOffList.length === 0 ? (
+          {timeOffList.length === 0 && officeList.length === 0 ? (
             <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center">
               <p className="text-gray-400">{t('coach.timeOff.noneUpcoming')}</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {timeOffList.map(item => (
+              {[...timeOffList.map(x => ({ ...x, office: false })), ...officeList.map(x => ({ ...x, office: true }))]
+                .sort((a, b) => a.date.localeCompare(b.date) || String(a.start_time || '').localeCompare(String(b.start_time || '')))
+                .map(item => item.office ? (
+                // Entered by the office: shown so the coach knows it is on file,
+                // never removable from here (owner, 2026-10-08).
+                <div key={item.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-white font-medium">{formatDate(item.date)}</p>
+                      <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</p>
+                      {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
+                    </div>
+                    <span className="text-[11px] text-sky-300 bg-sky-900/30 border border-sky-500/30 rounded-full px-2.5 py-0.5 flex-shrink-0">{t('coach.timeOff.office')}</span>
+                  </div>
+                  <p className="text-gray-400 text-xs mt-2">{t('coach.timeOff.officeHint')}</p>
+                </div>
+              ) : (
                 <div key={item.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -349,6 +416,10 @@ export default function CoachTimeOffClient({
                     </div>
                   )}
                   {lockedIds.includes(item.id) && <p className="text-gray-400 text-xs mt-2">{t('coach.timeOff.lockedHint')}</p>}
+                  {/* Booked lessons in it the office has not handled yet (found 2026-10-08). */}
+                  {!lockedIds.includes(item.id) && (waiting[item.id] || 0) > 0 && (
+                    <p className="text-amber-300 text-xs mt-2">{t(waiting[item.id] === 1 ? 'coach.timeOff.waitingOne' : 'coach.timeOff.waiting', { n: waiting[item.id] })}</p>
+                  )}
                   {deleteError?.id === item.id && <p className="text-red-400 text-sm mt-2">{deleteError.msg}</p>}
                 </div>
               ))}

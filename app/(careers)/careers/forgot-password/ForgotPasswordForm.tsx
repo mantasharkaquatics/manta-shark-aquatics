@@ -82,7 +82,8 @@ export default function ForgotPasswordForm() {
             </Link>
           </>
         ) : stage === 'request' ? (
-          <>
+          // Forms so Enter / "Go" submits each step (found 2026-10-08).
+          <form noValidate onSubmit={(e) => { e.preventDefault(); if (!busy) requestCode() }}>
             <p style={SUB}>
               Enter the email address you used to create your account. If we have an account for it,
               we will send you a code.
@@ -100,16 +101,15 @@ export default function ForgotPasswordForm() {
             </div>
             {error ? <p style={ERROR}>{error}</p> : null}
             <button
-              type="button"
+              type="submit"
               style={busy ? BUTTON_DISABLED : BUTTON}
               disabled={busy}
-              onClick={requestCode}
             >
               {busy ? 'Sending...' : 'Send code'}
             </button>
-          </>
+          </form>
         ) : (
-          <>
+          <form noValidate onSubmit={(e) => { e.preventDefault(); if (!busy) submitReset() }}>
             <p style={SUB}>
               If an account exists for {email}, a code is on its way. Enter it below along with your
               new password. The code expires in 10 minutes.
@@ -135,10 +135,9 @@ export default function ForgotPasswordForm() {
             </div>
             {error ? <p style={ERROR}>{error}</p> : null}
             <button
-              type="button"
+              type="submit"
               style={busy ? BUTTON_DISABLED : BUTTON}
               disabled={busy}
-              onClick={submitReset}
             >
               {busy ? 'Saving...' : 'Set new password'}
             </button>
@@ -152,7 +151,7 @@ export default function ForgotPasswordForm() {
                 Try a different email
               </button>
             </p>
-          </>
+          </form>
         )}
 
         <p style={FOOT}>

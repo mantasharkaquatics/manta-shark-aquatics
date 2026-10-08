@@ -62,6 +62,11 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   }, [])
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState(false)
+  // QR decoding uses the browser's own BarcodeDetector, which Safari (every
+  // iPad/iPhone browser), Firefox and desktop Chrome on Windows/Linux do not
+  // have. The camera used to open there and silently never scan; now the
+  // desk is told straight away to use Chrome or the name search (found 2026-10-08).
+  const [scanUnsupported, setScanUnsupported] = useState(false)
   const [scanLoading, setScanLoading] = useState(false)
 
   const [records, setRecords] = useState<AttendanceRecord[]>([])
@@ -128,8 +133,22 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     setQuery('')
   }
 
+  async function qrDetectorAvailable(): Promise<boolean> {
+    const BD = (window as any).BarcodeDetector
+    if (!BD) return false
+    try {
+      if (typeof BD.getSupportedFormats === 'function') {
+        const formats: string[] = await BD.getSupportedFormats()
+        return formats.includes('qr_code')
+      }
+      return true
+    } catch { return false }
+  }
+
   async function startCamera() {
     setCameraError(false)
+    if (!(await qrDetectorAvailable())) { setScanUnsupported(true); return }
+    setScanUnsupported(false)
     setScanning(true)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
@@ -230,6 +249,8 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                 <button onClick={startCamera} disabled={scanLoading} className="w-full py-3 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold text-sm disabled:opacity-50">
                   {t('admin.checkin.startScan')}
                 </button>
+                {scanUnsupported && <p className="text-red-400 text-xs text-center mt-2">{t('admin.checkin.scanUnsupported')}</p>}
+                {cameraError && <p className="text-red-400 text-xs text-center mt-2">{t('admin.checkin.cameraUnavailable')}</p>}
               </div>
             )}
           </div>

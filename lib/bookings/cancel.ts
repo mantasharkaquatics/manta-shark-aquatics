@@ -16,6 +16,11 @@ export type CancelTarget = {
   voucherFrom?: string | null
   /** The voucher that paid for a make-up came BACK; no new one was made. */
   voucherBack?: boolean
+  /** A cross-family 1-on-2 cancelled by the OTHER family: this family did
+   *  nothing, and their email says so (found 2026-10-08). The other family's
+   *  swimmers, and the points that came back to this one. */
+  partnerCancelledBy?: string[]
+  pointsBack?: number
 }
 
 /**
@@ -40,6 +45,8 @@ export type CancelOutcome = 'refund' | 'voucher' | 'restore' | 'keep'
  */
 export type ExpectedOutcome = 'refund' | 'leave' | 'grace' | 'restore' | 'keep'
 export const OUTCOME_CHANGED = 'OUTCOME_CHANGED'
+/** A withdrawal that lost the race to the other family's accept. */
+export const INVITE_JUST_ACCEPTED_ERROR = 'The other family has just accepted this invitation, so it is now a booked lesson. Please refresh the page.'
 
 export type CancelResult = {
   ok: boolean
@@ -107,20 +114,25 @@ export async function notifyCancellation(
     const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
     const timeStr = formatTime12h(first.start_time) + ' \u2013 ' + formatTime12h(last.end_time)
 
-    const studentIds = [...new Set(opts.targets.map((t) => t.student_id).filter(Boolean))]
+    const studentIds = [...new Set(opts.targets.flatMap((t) => [t.student_id, ...(t.partnerCancelledBy || [])]).filter(Boolean))]
     const { data: studs } = await svc.from('students').select('id, full_name').in('id', studentIds)
     const nameOf: Record<string, string> = {}
     for (const s of studs || []) { nameOf[(s as any).id] = (s as any).full_name }
 
     // One message per parent, naming every swimmer of theirs in the lesson.
-    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind']; expires?: string; from?: string | null; back?: boolean }>()
+    const byParent = new Map<string, { names: string[]; kind: CancelTarget['kind']; expires?: string; from?: string | null; back?: boolean; by?: string[]; points: number }>()
     for (const t of opts.targets) {
       if (!t.parent_id) continue
-      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind, expires: t.voucherExpires, from: t.voucherFrom, back: t.voucherBack }
+      const entry = byParent.get(t.parent_id) || { names: [], kind: t.kind, expires: t.voucherExpires, from: t.voucherFrom, back: t.voucherBack, points: 0 }
       const n = nameOf[t.student_id]
       if (n && !entry.names.includes(n)) entry.names.push(n)
       // A real refund anywhere in the group outranks 'none'.
       if (entry.kind === 'none' && t.kind !== 'none') entry.kind = t.kind
+      // The other family cancelled: name their swimmers, add up both halves of an hour.
+      if (t.partnerCancelledBy) {
+        entry.by = [...new Set([...(entry.by || []), ...t.partnerCancelledBy.map(id => nameOf[id]).filter(Boolean)])]
+        entry.points += t.pointsBack ?? 0
+      }
       byParent.set(t.parent_id, entry)
     }
 
@@ -140,6 +152,9 @@ export async function notifyCancellation(
         expiresOn: entry.expires,
         usableFrom: entry.from ?? undefined,
         voucherBack: entry.back,
+        partnerCancelled: !!entry.by,
+        partnerName: entry.by?.join(' & ') || undefined,
+        amount: entry.by && entry.points > 0 ? entry.points : undefined,
       })
     }
   } catch {}
@@ -432,21 +447,36 @@ export async function cancelBookingWithPartner(
   }
   const refundPoints = outcome === 'refund'
 
-  // Idempotent claim on the primary booking
+  // Idempotent claim on the primary booking, conditional on the status every
+  // decision above was made from (found 2026-10-08). It used to be "anything
+  // not cancelled", so an invitation withdrawn in the same instant the other
+  // family accepted it cancelled the now-confirmed lesson as a free
+  // withdrawal: both families charged, the inviter refunded nothing (the
+  // refund read points_charged from before the accept), and the invited
+  // family sent "Invitation Withdrawn" beside "Booking Confirmed".
+  if (booking.status === 'cancelled') {
+    return { ok: false, status: 409, error: 'Already cancelled', cancelledBookingIds: [] }
+  }
   const { data: claimed } = await svc
     .from('bookings')
     .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
     .eq('id', bookingId)
-    .neq('status', 'cancelled')
+    .eq('status', booking.status)
     .select('id')
   if (!claimed || claimed.length === 0) {
+    if (booking.status === 'pending_partner') {
+      const { data: now } = await svc.from('bookings').select('status').eq('id', bookingId).maybeSingle()
+      if (now?.status === 'confirmed') {
+        return { ok: false, status: 409, error: INVITE_JUST_ACCEPTED_ERROR, cancelledBookingIds: [] }
+      }
+    }
     return { ok: false, status: 409, error: 'Already cancelled', cancelledBookingIds: [] }
   }
 
   const cancelledBookingIds: string[] = [booking.id]
   // kind carries whether points actually reached that family's wallet, so a
   // refund that failed does not turn into an email saying it succeeded.
-  const cancelledPartners: { parent_id: string; student_id: string; kind: 'points' | 'none' }[] = []
+  const cancelledPartners: { parent_id: string; student_id: string; kind: 'points' | 'none'; partnerCancelledBy?: string[]; pointsBack?: number }[] = []
 
   // What actually went back, not what was due: the email below promises the
   // family their points, and it must not promise them on the strength of a
@@ -588,12 +618,14 @@ export async function cancelBookingWithPartner(
     }
 
     for (const pb of found.values()) {
-      const { data: c } = await svc
+      // A withdrawn invitation takes only the other family's still-pending
+      // row: one their accept has already confirmed is not ours to withdraw.
+      let q = svc
         .from('bookings')
         .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
         .eq('id', pb.id)
-        .neq('status', 'cancelled')
-        .select('id')
+      q = booking.status === 'pending_partner' ? q.eq('status', 'pending_partner') : q.neq('status', 'cancelled')
+      const { data: c } = await q.select('id')
       if (!c || c.length === 0) continue
       cancelledBookingIds.push(pb.id)
       // The OTHER family cancelled and took this one down with it. They
@@ -611,6 +643,12 @@ export async function cancelBookingWithPartner(
         parent_id: pb.parent_id,
         student_id: pb.student_id,
         kind: partnerBack > 0 ? 'points' : 'none',
+        // Only a parent's own cancellation is "the other family cancelled";
+        // a desk or system cancellation keeps the plain notice.
+        ...(callerParentId ? {
+          partnerCancelledBy: [booking.student_id, ...sameParentBookings.filter((s: any) => cancelledBookingIds.includes(s.id)).map((s: any) => s.student_id)].filter(Boolean),
+          pointsBack: partnerBack,
+        } : {}),
       })
     }
   }

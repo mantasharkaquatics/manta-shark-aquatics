@@ -155,18 +155,85 @@ export async function countCreditLessons(
  *  whose first payment was refunded and who then paid again still paid, so
  *  this is true only when EVERY assessment payment was taken back. */
 export async function assessmentPaymentReversed(svc: Svc, studentId: string): Promise<boolean> {
+  return (await assessmentPaymentsReversed(svc, [studentId])).has(studentId)
+}
+
+/** The same test for many swimmers in two reads (the Reviews rebook card). */
+export async function assessmentPaymentsReversed(svc: Svc, studentIds: string[]): Promise<Set<string>> {
+  const out = new Set<string>()
+  const sids = [...new Set(studentIds.filter(Boolean))]
+  if (sids.length === 0) return out
   const { data: credits, error } = await svc.from('lesson_credits')
-    .select('purchase_id').eq('student_id', studentId).eq('is_trial', true)
+    .select('student_id, purchase_id').in('student_id', sids).eq('is_trial', true)
   if (error) throw new Error(error.message)
-  const ids = [...new Set((credits || []).map((c: { purchase_id: string | null }) => c.purchase_id).filter(Boolean))] as string[]
-  if (ids.length === 0) return false
+  const byStudent = new Map<string, string[]>()
+  for (const c of (credits || []) as { student_id: string; purchase_id: string | null }[]) {
+    if (!c.purchase_id) continue
+    byStudent.set(c.student_id, [...(byStudent.get(c.student_id) || []), c.purchase_id])
+  }
+  const ids = [...new Set([...byStudent.values()].flat())]
+  if (ids.length === 0) return out
   const { data: rows, error: revErr } = await svc.from('purchases')
     .select('id, amount_cents, refunded_cents, reversed_at').in('id', ids)
   if (revErr) throw new Error(revErr.message)
   const takenBack = (p: { amount_cents: number | null; refunded_cents: number | null; reversed_at: string | null }) =>
     !!p.reversed_at
     || ((Number(p.amount_cents) || 0) > 0 && (Number(p.refunded_cents) || 0) >= (Number(p.amount_cents) || 0))
-  return !!(rows && rows.length > 0 && rows.every(takenBack))
+  const byId = new Map<string, any>(((rows || []) as any[]).map(r => [r.id, r]))
+  for (const [sid, pids] of byStudent) {
+    const found = pids.map(id => byId.get(id)).filter(Boolean)
+    if (found.length > 0 && found.every(takenBack)) out.add(sid)
+  }
+  return out
+}
+
+/**
+ * A Swim Assessment whose payment was refunded in full or charged back, and
+ * that is no longer on the calendar, is not owed any more: the family got the
+ * money back. Clear the swimmer's "assessment used" mark so the family can
+ * pay $85 and book one again on the site (owner, 2026-10-08). Before this the
+ * desk's cancel of a refunded assessment left it "paid, to rebook": the
+ * family was emailed "your payment is kept", the Reviews card asked the desk
+ * to rebook it for free, and the booking page could never sell one again
+ * (found 2026-10-08).
+ *
+ * Does nothing while an assessment booking is still live (pending, confirmed
+ * or taken) or once the swimmer has a level. An unused assessment credit from
+ * the taken-back payment is voided too, so it cannot be booked for free.
+ * Returns true when the mark was cleared. Never throws.
+ */
+export async function reopenReversedAssessment(svc: Svc, studentId: string): Promise<boolean> {
+  try {
+    const { data: st, error } = await svc.from('students')
+      .select('id, trial_used_at, current_level').eq('id', studentId).maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!st || st.current_level != null || !st.trial_used_at) return false
+    if (!(await assessmentPaymentReversed(svc, studentId))) return false
+    const { data: live, error: liveErr } = await svc.from('bookings').select('id')
+      .eq('student_id', studentId).eq('is_trial', true).neq('status', 'cancelled').limit(1)
+    if (liveErr) throw new Error(liveErr.message)
+    if (live && live.length > 0) return false
+    const { data: credits } = await svc.from('lesson_credits').select('id, purchase_id')
+      .eq('student_id', studentId).eq('is_trial', true).eq('used_credits', 0)
+    const takenBack = ((credits || []) as { id: string; purchase_id: string | null }[]).filter(c => c.purchase_id)
+    // An unused credit with no payment behind it (given by hand) is a real
+    // prepaid assessment: leave the swimmer as they are.
+    if ((credits || []).length > takenBack.length) return false
+    if (takenBack.length > 0) {
+      const { error: voidErr } = await svc.from('lesson_credits')
+        .update({ used_credits: 1 }).in('id', takenBack.map(c => c.id)).eq('used_credits', 0)
+      if (voidErr) throw new Error(voidErr.message)
+    }
+    const { data: cleared, error: clrErr } = await svc.from('students')
+      .update({ trial_used_at: null })
+      .eq('id', studentId).eq('trial_used_at', st.trial_used_at).is('current_level', null)
+      .select('id')
+    if (clrErr) throw new Error(clrErr.message)
+    return !!(cleared && cleared.length > 0)
+  } catch (e) {
+    console.error(`student ${studentId}: could not reopen the refunded assessment:`, e instanceof Error ? e.message : e)
+    return false
+  }
 }
 
 /**

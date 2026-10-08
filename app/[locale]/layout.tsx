@@ -35,8 +35,19 @@ export default async function LocaleLayout({
     // The language's text rides along with the page, so the first render is
     // already in Chinese (lib/i18n/index.ts).
     <LocaleProvider locale={locale as Locale} messages={messagesFor(locale as Locale)}>
-      {/* Same shell as (public)/layout.tsx: the brand stylesheet and reading face. */}
-      <div style={{ display: 'contents', fontFamily: FONT_BODY }}>
+      {/* Same shell as (public)/layout.tsx: the brand stylesheet and reading face.
+          lang= here because the server HTML's <html lang> is the root layout's
+          "en", and LocaleProvider only corrects it after hydration (found
+          2026-10-08): until then screen readers read the Chinese text with an
+          English voice and the browser picks CJK glyphs without knowing the
+          language. Everything on the page sits inside this element, so the
+          nearest lang is right from the first byte.
+          Not a second root layout with its own <html lang>: Next reloads the
+          whole page when a link crosses root layouts, which would be every
+          click from these pages to /booking, /login or /register (all under
+          the shared root), and the app-wide 404 would then need the
+          experimental global-not-found. */}
+      <div lang={locale} style={{ display: 'contents', fontFamily: FONT_BODY }}>
         <BrandStyles />
         <Navbar />
         <ActivityPing />

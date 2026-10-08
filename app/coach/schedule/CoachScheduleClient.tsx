@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { isRealBooking } from '../real-booking'
@@ -13,13 +14,18 @@ type Session = {
 }
 
 export default function CoachScheduleClient({
-  coach, sessions, today
+  coach, sessions, today, offIds = [], loadFailed = false,
 }: {
   coach: { id: string; first_name: string; last_name: string }
   sessions: Session[]
   today: string
+  /** Sessions inside the coach's time off, not yet handled by the office. */
+  offIds?: string[]
+  /** The class read failed: say so instead of "no upcoming classes". */
+  loadFailed?: boolean
 }) {
   const t = useT()
+  const router = useRouter()
   const locale = useLocale()
 
   const formatTime = (time: string) => {
@@ -53,7 +59,12 @@ export default function CoachScheduleClient({
         <p className="text-gray-400 mt-1">{t('coach.schedule.subtitle')}</p>
       </div>
 
-      {Object.keys(grouped).length === 0 ? (
+      {loadFailed ? (
+        <div className="bg-red-900/20 rounded-xl p-8 text-center border border-red-500/40" role="alert">
+          <p className="text-red-200">{t('coach.loadFailed')}</p>
+          <button onClick={() => router.refresh()} className="mt-4 bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold px-4 py-2 rounded-lg transition-all">{t('coach.reload')}</button>
+        </div>
+      ) : Object.keys(grouped).length === 0 ? (
         <div className="bg-[#111d38] rounded-xl p-12 text-center border border-[#1e3a6e]">
           <p className="text-gray-400">{t('coach.schedule.none')}</p>
         </div>
@@ -83,6 +94,9 @@ export default function CoachScheduleClient({
                         <p className="text-[#c9a84c] text-sm mt-0.5">
                           {formatTime(session.start_time)} – {formatTime(session.end_time)}
                         </p>
+                        {offIds.includes(session.id) && (
+                          <span className="inline-block mt-1 text-[11px] text-amber-300 bg-amber-900/30 border border-amber-500/40 rounded-full px-2.5 py-0.5">{t('coach.offPending')}</span>
+                        )}
                       </div>
                       <span className={`text-xs px-3 py-1 rounded-full ${
                         activeBookings(session).length >= session.max_students

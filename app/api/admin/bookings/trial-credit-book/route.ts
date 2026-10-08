@@ -3,6 +3,8 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
+import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
+import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 
 export async function POST(req: NextRequest) {
   const ctx = await requireAdmin()
@@ -10,7 +12,7 @@ export async function POST(req: NextRequest) {
   const svc = ctx.svc
 
   try {
-    const { studentId, coachId, date, time } = await req.json()
+    const { studentId, coachId, date, time, override_holds } = await req.json()
     if (!studentId || !coachId || !date || !time) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
@@ -38,6 +40,13 @@ export async function POST(req: NextRequest) {
       .limit(1)
     if (existingTrial && existingTrial.length > 0) {
       return NextResponse.json({ error: 'A trial lesson is already booked or awaiting payment for this student' }, { status: 400 })
+    }
+    // Its payment was refunded in full or charged back: there is no paid
+    // assessment to book, and booking one here gave it away free (found
+    // 2026-10-08). The family pays again on the site, or the desk sells one.
+    if (await assessmentPaymentReversed(svc, studentId)) {
+      await reopenReversedAssessment(svc, studentId)
+      return NextResponse.json({ error: "This swimmer's Swim Assessment payment was refunded or disputed, so there is no paid assessment to book. The family can pay and book one on the site, or sell one at the front desk." }, { status: 400 })
     }
 
     const { data: courseType } = await svc
@@ -68,6 +77,19 @@ export async function POST(req: NextRequest) {
         .in('status', ['open', 'full']).gt('enrolled_count', 0)
       if (conflicts && conflicts.length > 0)
         return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 400 })
+    }
+
+    // A slot held for a fixed-class family's renewal: the assessment takes it
+    // only after the desk confirms (override_holds; owner, 2026-10-08). As on
+    // the parent's assessment path (lib/assessment-slot), any hold touching
+    // the time is the whole slot to a 1-on-1 assessment.
+    if (override_holds !== true) {
+      const s0 = h * 60 + m
+      const hits = await renewalHoldsInWay(svc, {
+        coachId, courseTypeId: '', dates: [date], spanStart: s0, spanEnd: s0 + courseType.duration_minutes,
+        seatsNeeded: 1, defaultMax: 1, exceptParentIds: [student.parent_id],
+      })
+      if (hits.size > 0) return NextResponse.json(renewalHoldRefusal(hits), { status: 409 })
     }
 
     let sessId: string

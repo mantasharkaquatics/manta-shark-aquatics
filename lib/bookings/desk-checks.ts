@@ -14,6 +14,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { allRows } from '@/lib/db-paging'
+import { renewalHolds, heldSeats, type Hold } from '@/lib/fixed-classes'
 
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -70,4 +71,64 @@ export async function studentLessonsOn(
     out.set(s.session_date, [...(out.get(s.session_date) || []), { s: st, e: en, studentId: r.student_id, sessionId: r.class_session_id }])
   }
   return out
+}
+
+/** A fixed-class renewal hold a desk booking would land on. */
+export type HoldHit = { date: string; family: string; until: string }
+
+/**
+ * Fixed-class renewal holds (lib/fixed-classes renewalHolds) in the way of a
+ * desk booking, by date (found 2026-10-08). The renewal email promises the
+ * family the same slot until `until`; every parent path counts the hold as
+ * full, but the desk's routes did not read it, so another family could be put
+ * in a held week and the renewing family then found it taken.
+ *
+ * Owner, 2026-10-08: the desk is warned and may book over the hold only by
+ * confirming a second time (the route's `override_holds`); the renewing family
+ * is not told. A hold of one of `exceptParentIds` (the families being booked)
+ * never counts -- a family is never kept out of its own slot.
+ *
+ * `capacity(date)` is what the slot already holds and takes; null means no
+ * class there yet, so `defaultMax` seats. A private or sibling 1-on-2 hold,
+ * or one for another course or start time, is the whole slot.
+ */
+export async function renewalHoldsInWay(svc: SupabaseClient, o: {
+  coachId: string; courseTypeId: string; dates: string[]; spanStart: number; spanEnd: number
+  seatsNeeded: number; defaultMax: number
+  capacity?: (date: string) => { enrolled: number; max: number } | null
+  exceptParentIds: (string | null | undefined)[]
+}): Promise<Map<string, HoldHit>> {
+  const out = new Map<string, HoldHit>()
+  const dates = [...new Set(o.dates)].sort()
+  if (dates.length === 0) return out
+  const except = new Set(o.exceptParentIds.filter(Boolean) as string[])
+  const holds: Hold[] = (await renewalHolds(svc as any, dates[0], dates[dates.length - 1], null))
+    .filter(h => !except.has(h.parentId) && h.coachId === o.coachId)
+  if (holds.length === 0) return out
+  const hits: { date: string; hold: Hold }[] = []
+  for (const date of dates) {
+    const held = heldSeats(holds, o.coachId, date, o.spanStart, o.spanEnd, o.courseTypeId)
+    if (held <= 0) continue
+    const cap = o.capacity?.(date) ?? { enrolled: 0, max: o.defaultMax }
+    if (held !== Infinity && cap.enrolled + o.seatsNeeded + held <= cap.max) continue
+    const hold = holds.find(h => h.date === date && o.spanStart < h.endMin && o.spanEnd > h.startMin)
+    if (hold) hits.push({ date, hold })
+  }
+  if (hits.length === 0) return out
+  const pids = [...new Set(hits.map(h => h.hold.parentId))]
+  const { data: fams } = await svc.from('parents').select('id, first_name, last_name').in('id', pids)
+  const name = new Map((fams || []).map((p: any) => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim()]))
+  for (const h of hits) out.set(h.date, { date: h.date, family: name.get(h.hold.parentId) || '', until: h.hold.until })
+  return out
+}
+
+/** The refusal a desk route sends for holds in the way; the page asks the
+ *  desk and sends the request again with override_holds. */
+export function renewalHoldRefusal(hits: Map<string, HoldHit>) {
+  const list = [...hits.values()]
+  return {
+    error: `Held for a fixed-class renewal: ${list.map(h => `${h.date} (${h.family || 'a family'}, until ${h.until})`).join(', ')}. Confirm to book over the hold.`,
+    code: 'renewal_hold',
+    holds: list,
+  }
 }

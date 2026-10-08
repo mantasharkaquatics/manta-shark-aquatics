@@ -12,6 +12,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h, formatDateLA, minutesUntil,
 import { cancelLesson } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
 import { ASSESSMENT_MAX_DAYS } from '@/lib/assessment-slot'
+import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 import { TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { LEAVE_WINDOW_DAYS } from '@/lib/vouchers'
 import { allRows, allRowsIn } from '@/lib/db-paging'
@@ -111,10 +112,15 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   const effMap = new Map<string, any>()
   await Promise.all(coaches.map(async (c: any) => { effMap.set(c.id, await getEffectiveZones(svc, c.id, date)) }))
 
-  const [availRes, offRes, sessRes] = await Promise.all([
+  // holds: other families' fixed-class renewal holds (lib/fixed-classes).
+  // book_trial_pending refuses a time inside one (lib/assessment-slot), so
+  // offering it here meant the parent picked a time and was told it was gone
+  // (found 2026-10-08). This family's own holds never keep it out.
+  const [availRes, offRes, sessRes, holds] = await Promise.all([
     svc.from('coach_availability').select('coach_id, start_time, end_time').in('coach_id', ids).eq('day_of_week', dow).eq('is_active', true),
     svc.from('coach_time_off').select('coach_id, start_time, end_time, block_type').in('coach_id', ids).eq('date', date),
     svc.from('class_sessions').select('coach_id, start_time, end_time').in('coach_id', ids).eq('session_date', date).in('status', ['open', 'full']).gt('enrolled_count', 0),
+    renewalHolds(svc, date, date, parentId),
   ])
   const offBlocks: any[] = offRes.data || []
   // Interval-based: a lesson running 09:40–10:10 must hide the 09:45 slot too
@@ -172,7 +178,11 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
       while (cur + 30 <= endMin) {
         const t = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`
         const tEnd = `${String(Math.floor((cur + 30) / 60)).padStart(2, '0')}:${String((cur + 30) % 60).padStart(2, '0')}`
-        if (!(dayDiff === 0 && cur <= nowMins + 30) && !isBusy(c.id, cur, cur + 30) && !isBlocked(offBlocks, c.id, t, tEnd)) times.push({ time: t, label: formatTime12h(t) })
+        // heldSeats with no course type: an assessment is never a fixed-class
+        // course, so any overlapping hold takes the whole slot (as in
+        // assessmentSlotError).
+        if (!(dayDiff === 0 && cur <= nowMins + 30) && !isBusy(c.id, cur, cur + 30) && !isBlocked(offBlocks, c.id, t, tEnd)
+          && !(heldSeats(holds, c.id, date, cur, cur + 30, '') > 0)) times.push({ time: t, label: formatTime12h(t) })
         cur += SLOT_STEP_MINUTES
       }
     }
@@ -1064,10 +1074,13 @@ export async function POST(req: NextRequest) {
     }
 
     await postAiMessage(replyBody, escalate, replyMeta)
-    return NextResponse.json({ ok: true, escalated: escalate })
+    // changed: a lesson was cancelled or an assessment held this turn, so the
+    // page behind the chat reads the account again (ChatWidget fires
+    // ACCOUNT_CHANGED_EVENT; found 2026-10-08).
+    return NextResponse.json({ ok: true, escalated: escalate, changed: cancelSucceededThisTurn || trialBookSucceededThisTurn })
   } catch (err) {
     console.error('[ai-reply]', err)
     await postAiMessage(CANNED.fallback[lang], true)
-    return NextResponse.json({ ok: true, escalated: true, fallback: true })
+    return NextResponse.json({ ok: true, escalated: true, fallback: true, changed: cancelSucceededThisTurn || trialBookSucceededThisTurn })
   }
 }

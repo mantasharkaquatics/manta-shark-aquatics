@@ -3,6 +3,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CoachDashboardClient from './CoachDashboardClient'
 import { isRealBooking } from './real-booking'
+import { serviceClient } from '@/lib/api-auth'
+import { sessionsInBlocks } from '@/lib/time-off'
 
 // An hour lesson is two class_sessions but ONE lesson. Merge the halves that
 // share a lesson_group_id so a coach reads one card spanning the full hour,
@@ -96,5 +98,19 @@ export default async function CoachDashboardPage() {
     (s.bookings || []).length > 0
   )
 
-  return <CoachDashboardClient coach={coach} todaySessions={visibleToday} today={today} />
+  /* Lessons inside this coach's time off (or a block the office entered)
+     stay on the list until the office cancels them; they looked like any
+     other lesson, so the coach could not tell the office had not acted yet
+     (found 2026-10-08). Read with the service role: an office block may not
+     be readable through the coach's own client. */
+  const { data: blocks, error: blocksErr } = await serviceClient()
+    .from('coach_time_off').select('date, start_time, end_time')
+    .eq('coach_id', coach.id)
+    .eq('date', today)
+  if (blocksErr) console.error('coach/today: time off not read', blocksErr)
+  const offIds = sessionsInBlocks(visibleToday, blocks || [])
+
+  // loadFailed: a failed read said "no classes today" -- a coach could take
+  // that at face value and go home (found 2026-10-08).
+  return <CoachDashboardClient coach={coach} todaySessions={visibleToday} today={today} offIds={offIds} loadFailed={!!sessionsError} />
 }

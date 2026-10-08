@@ -28,6 +28,7 @@ import type { MonthlyReport } from './MonthlyReportSheet'
 const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
 const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
+import { openChat, ACCOUNT_CHANGED_EVENT } from '@/lib/chat-open'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -74,6 +75,8 @@ ${REPORT_SHEET_CSS}
 .msa-plan-tx { flex: 1; min-width: 0; overflow-wrap: anywhere }
 .msa-plan-tx b { display: block; font-size: 14px; font-weight: 900; color: #12254a; font-variant-numeric: tabular-nums }
 .msa-plan-soon { color: #b86e00; font-weight: 700 }
+/* A failed swim-team charge or a lapsed prepaid team (owner, 2026-10-08). */
+.msa-plan-bad { color: #c0392b; font-weight: 700 }
 .msa-plan-btn { flex: 0 0 auto }
 .msa-plan-btn a, .msa-plan-btn button { display: inline-block; border: 1px solid #c9d8ee; border-radius: 999px;
   padding: 7px 14px; background: #fff; color: #2050a0; font-family: inherit; font-size: 13px; font-weight: 800;
@@ -1435,6 +1438,23 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
   )
 }
 
+/* The confirm and detail dialogs below were plain divs: VoiceOver stayed on the
+   button that opened one and could read on into the page behind it (found
+   2026-10-08). Each now carries role="dialog" + aria-modal, and this moves
+   focus to its first control as it opens and back to the opener as it closes.
+   Read in a passive effect (not autoFocus) so the opener is still the active
+   element -- also when one dialog hands over to the next. */
+function useDialogFocus(open: boolean) {
+  const box = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!open) return
+    const back = document.activeElement as HTMLElement | null
+    box.current?.querySelector<HTMLElement>('button, a[href]')?.focus()
+    return () => { if (back && back !== document.body && back.isConnected) back.focus() }
+  }, [open])
+  return box
+}
+
 export default function DashboardPage() {
   const supabase = createClient()
   const locale = useLocale()
@@ -1443,6 +1463,8 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [wallet, setWallet] = useState<WalletSummary | null>(null)
   const [teamMemberships, setTeamMemberships] = useState<any[]>([])
+  // Whose swim team card is open (a student id), from 我的方案.
+  const [teamSheet, setTeamSheet] = useState<string | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [lessonView, setLessonView] = useState<'list' | 'month'>('list')
@@ -1531,18 +1553,28 @@ export default function DashboardPage() {
     const seq = ++walletSeq.current
     walletReq.current = (async () => {
       try {
-        const [res, tmRes] = await Promise.all([
-          // The balance only: the points sheet reads the statement itself,
-          // when it is opened (found 2026-10-08).
-          fetch('/api/parent/wallet', { cache: 'no-store' }),
-          fetch('/api/parent/team-memberships', { cache: 'no-store' }),
-        ])
+        // The balance only: the points sheet reads the statement itself,
+        // when it is opened (found 2026-10-08).
+        const res = await fetch('/api/parent/wallet', { cache: 'no-store' })
         if (seq !== walletSeq.current) return
         if (res.ok) setWallet(await res.json())
-        if (tmRes.ok) { const tmData = await tmRes.json(); setTeamMemberships(tmData.memberships || []) }
       } catch {}
     })()
     return walletReq.current
+  }
+  /* Swim team, read on its own and only on a full load: a lesson cancel or an
+     accepted invitation changes the balance, never the squad, and every one of
+     them was reading the team, its invoices and the practice timetable again
+     (found 2026-10-08). */
+  const teamSeq = useRef(0)
+  async function loadTeam() {
+    const seq = ++teamSeq.current
+    try {
+      const r = await fetch('/api/parent/team-memberships', { cache: 'no-store' })
+      if (seq !== teamSeq.current || !r.ok) return
+      const j = await r.json()
+      setTeamMemberships(j.memberships || [])
+    } catch {}
   }
   /* Team practice is the same hour every week and the squad card below already
      states it. Drawing it into every cell of the month buried the thing the
@@ -1670,6 +1702,13 @@ export default function DashboardPage() {
     } catch {}
   }, [])
   useEffect(() => { loadFixedClasses() }, [loadFixedClasses])
+  // The "we replied in the chat" email's button lands here with ?chat=1
+  // (app/api/cron/chat-reply-email): the chat opens on the reply.
+  useEffect(() => {
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('chat') !== '1') return
+    openChat()
+    try { const u = new URL(window.location.href); u.searchParams.delete('chat'); window.history.replaceState(null, '', u.toString()) } catch {}
+  }, [])
   // The reminder email's button lands here with ?vouchers=1.
   useEffect(() => {
     if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('vouchers') !== '1') return
@@ -1686,18 +1725,22 @@ export default function DashboardPage() {
   // pair holding a 1-on-2 together, in the order the children's cards are in
   // (a pair after the later of its two children). The key matches
   // voucherOwnerKey, so a group's 查看 opens the sheet on its own vouchers.
-  type PlanGroup = { key: string; ids: string[]; names: string[]; fixed: typeof fixedClasses; vouchers: MakeUpVoucher[] }
+  type PlanGroup = { key: string; ids: string[]; names: string[]; fixed: typeof fixedClasses; vouchers: MakeUpVoucher[]; team: any[] }
   const planGroups = (() => {
     const by = new Map<string, PlanGroup>()
     const groupOf = (a: string, b: string | null, names: string[]) => {
       const ids = [a, b].filter((x): x is string => !!x)
       const key = [...ids].sort().join('+')
       let g = by.get(key)
-      if (!g) { g = { key, ids, names, fixed: [], vouchers: [] }; by.set(key, g) }
+      if (!g) { g = { key, ids, names, fixed: [], vouchers: [], team: [] }; by.set(key, g) }
       return g
     }
     for (const f of fixedClasses) groupOf(f.studentId, f.student2Id, f.studentNames).fixed.push(f)
     for (const v of vouchers) groupOf(v.studentId, v.student2Id, v.studentNames).vouchers.push(v)
+    /* Swim team gets its own row too (owner, 2026-10-08). It lived only in
+       the points sheet, behind "Top up", so a failed monthly charge -- which
+       sends the family no email -- showed nowhere a parent would look. */
+    for (const m of teamMemberships) if (m.student_id) groupOf(m.student_id, null, [m.student_name || '']).team.push(m)
     const rank = (id: string) => { const i = students.findIndex(s => s.id === id); return i < 0 ? 999 : i }
     const last = (g: PlanGroup) => Math.max(...g.ids.map(rank))
     return [...by.values()].sort((a, b) => last(a) - last(b) || a.ids.length - b.ids.length || a.key.localeCompare(b.key))
@@ -1716,6 +1759,15 @@ export default function DashboardPage() {
    *   pair / noGrace  cannot be done online
    */
   type CancelKind = 'refund' | 'leave' | 'grace' | 'makeupBack' | 'makeupLose' | 'pair' | 'noGrace'
+  // Under way: a lesson stays under "upcoming" until it ENDS, but the server
+  // refuses a cancel once it has started (found 2026-10-08) -- the card
+  // offered the grace cancel and the dialog's confirm was then refused.
+  const lessonStarted = (b: { session_date: string; start_time: string }) => {
+    const today = getTodayLA()
+    if (b.session_date !== today) return b.session_date < today
+    const [h, m] = String(b.start_time).slice(0, 5).split(':').map(Number)
+    return h * 60 + m <= getNowMinutesLA()
+  }
   // kids: whose grace a late cancel spends -- both children of a sibling
   // 1-on-2 (owner, 2026-10-03), otherwise the lesson's own child.
   const cancelKindOf = (b: Booking, late: boolean, kids?: string[]): CancelKind => {
@@ -1755,15 +1807,26 @@ export default function DashboardPage() {
   // sheets. Without it the only ways out were the X or a click on the backdrop,
   // and that click also landed on whatever sat underneath.
   useEffect(() => {
-    if (!treeFor && !qrStudent && !infoModal && !cancelTarget && !rescheduleTarget && !rescheduleActionModal) return
+    if (!treeFor && !qrStudent && !infoModal && !cancelTarget && !rescheduleTarget && !rescheduleActionModal && !lessonDetail && !daySheet && !voucherSheet && !teamSheet) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       setTreeFor(null); setQrStudent(null); setInfoModal(null)
       setCancelTarget(null); setRescheduleTarget(null); setRescheduleActionModal(null)
+      // The calendar's lesson detail and day list, and the voucher list, had
+      // no Esc (found 2026-10-08).
+      setLessonDetail(null); setDaySheet(null); setVoucherSheet(false); setVoucherKey(null); setTeamSheet(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleTarget, rescheduleActionModal])
+  }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleTarget, rescheduleActionModal, lessonDetail, daySheet, voucherSheet, teamSheet])
+  // Focus into each of these dialogs as it opens, and back to what opened it.
+  const infoBox = useDialogFocus(!!infoModal)
+  const voucherBox = useDialogFocus(voucherSheet)
+  const cancelBox = useDialogFocus(!!cancelTarget)
+  const resActionBox = useDialogFocus(!!rescheduleActionModal)
+  const dayBox = useDialogFocus(!!daySheet)
+  const detailBox = useDialogFocus(!!lessonDetail)
+  const teamBox = useDialogFocus(!!teamSheet)
   // An hour invitation arrives as two rows (one per half). Show ONE card
   // spanning both, priced at the number of rows this family actually owes.
   // Confirming from it sends the first row's id; the server resolves the group.
@@ -1903,9 +1966,19 @@ export default function DashboardPage() {
       if (getTodayLA() !== l.day || Date.now() - l.at > 5 * 60000) refreshRef.current(true)
     }
     const onShow = (e: PageTransitionEvent) => { if (e.persisted) check() }
+    // The assistant cancelled a lesson or held an assessment from the chat
+    // over this page (found 2026-10-08): the lesson stayed listed with its
+    // Cancel button, and the balance stayed old, until a reload.
+    const onAccount = () => { refreshRef.current(false); loadVouchers(); loadFixedClasses() }
     document.addEventListener('visibilitychange', check)
     window.addEventListener('pageshow', onShow)
-    return () => { document.removeEventListener('visibilitychange', check); window.removeEventListener('pageshow', onShow) }
+    window.addEventListener(ACCOUNT_CHANGED_EVENT, onAccount)
+    return () => {
+      document.removeEventListener('visibilitychange', check)
+      window.removeEventListener('pageshow', onShow)
+      window.removeEventListener(ACCOUNT_CHANGED_EVENT, onAccount)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   useEffect(() => {
     const l = lastLoad.current
@@ -1938,14 +2011,15 @@ export default function DashboardPage() {
     for (const p of Object.values(studentProgressMap)) for (const r of p.records) if (r.note && r.lesson_key) keys.add(r.lesson_key)
     const noteByKey: Record<string, string> = {}
     if (keys.size > 0) {
-      const { data: notes, error } = await supabase.from('lesson_notes')
-        .select('id, student_id, lesson_key, language, note').in('lesson_key', [...keys]).eq('status', 'approved')
+      // In batches, like the first read (found 2026-10-08).
+      const { data: notes, error } = await allRowsIn([...keys], c => supabase.from('lesson_notes')
+        .select('id, student_id, lesson_key, language, note').in('lesson_key', c).eq('status', 'approved').order('id'))
       if (error) return
       for (const n of (notes as any[]) || []) noteByKey[`${n.student_id}|${n.lesson_key}`] = n.note || ''
       const foreignIds = ((notes as any[]) || []).filter(n => n.language !== lang).map(n => n.id)
       if (foreignIds.length > 0) {
-        const { data: trans, error: tErr } = await supabase.from('lesson_note_translations')
-          .select('lesson_note_id, text').in('lesson_note_id', foreignIds).eq('language', lang)
+        const { data: trans, error: tErr } = await allRowsIn(foreignIds, c => supabase.from('lesson_note_translations')
+          .select('lesson_note_id, text').in('lesson_note_id', c).eq('language', lang).order('lesson_note_id'))
         if (tErr) return
         const keyById: Record<string, string> = {}
         for (const n of (notes as any[]) || []) keyById[n.id] = `${n.student_id}|${n.lesson_key}`
@@ -1996,7 +2070,7 @@ export default function DashboardPage() {
     const latest = () => seq === fetchSeq.current
     const progLatest = () => withProgress && pseq === progressSeq.current
     loadWallet()
-    if (withProgress) { loadAssessments(); loadMonthlyReports() }
+    if (withProgress) { loadAssessments(); loadMonthlyReports(); loadTeam() }
     // The session this browser already holds. getUser() asked the auth server
     // again on every load, on top of the bar and the chat asking (found
     // 2026-10-08). The proxy has already checked the sign-in for /dashboard,
@@ -2040,11 +2114,16 @@ export default function DashboardPage() {
       ? studsP.then(async ({ data }): Promise<{ data: any[] | null }> => {
           const ids = (data || []).map((s: Student) => s.id)
           if (ids.length === 0) return { data: [] }
-          return await supabase.from('progress_history')
+          /* Every approved record, a page at a time: past 1,000 rows the API
+             quietly dropped the oldest, and skills last practised a level ago
+             fell back to 0% (found 2026-10-08). id keeps the pages from
+             overlapping. */
+          return await allRows(() => supabase.from('progress_history')
             .select('student_id, session_date, snapshot, lesson_key, class_session_id')
             .in('student_id', ids)
             .eq('status', 'approved')
             .order('session_date', { ascending: false })
+            .order('id', { ascending: true }))
         })
       : null
     /* The curriculum for these swimmers' levels depends on nothing the history
@@ -2383,17 +2462,20 @@ export default function DashboardPage() {
     /* These two reads share no data, and the translations only need the notes.
        Issued one after another they cost three round trips before the progress
        panel could render; issued together they cost two. */
+    /* In batches of IN_CHUNK ids: two years of lessons is more ids than one
+       URL carries, and one refused read blanked every lesson's time, course
+       and note at once (found 2026-10-08). */
     const [hSessionsRes, hNotesRes, hTrialRes] = await Promise.all([
       histSessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, start_time, course_types(id, name)').in('id', histSessionIds)
+        ? allRowsIn(histSessionIds, c => supabase.from('class_sessions').select('id, start_time, course_types(id, name)').in('id', c).order('id'))
         : Promise.resolve({ data: null }),
       histLessonKeys.length > 0
-        ? supabase.from('lesson_notes').select('id, student_id, lesson_key, language, note').in('lesson_key', histLessonKeys).eq('status', 'approved')
+        ? allRowsIn(histLessonKeys, c => supabase.from('lesson_notes').select('id, student_id, lesson_key, language, note').in('lesson_key', c).eq('status', 'approved').order('id'))
         : Promise.resolve({ data: null }),
       // Which of these lessons were a Swim Assessment. It sits in an ordinary
       // 1-on-1 slot, so the session's course alone reads "1-on-1 Private".
       histSessionIds.length > 0
-        ? supabase.from('bookings').select('student_id, class_session_id').in('class_session_id', histSessionIds).eq('is_trial', true)
+        ? allRowsIn(histSessionIds, c => supabase.from('bookings').select('student_id, class_session_id').in('class_session_id', c).eq('is_trial', true).order('id'))
         : Promise.resolve({ data: null }),
     ])
     const trialLesson = new Set(((hTrialRes.data as any[] | null) || []).map((b: any) => `${b.student_id}|${b.class_session_id}`))
@@ -2428,11 +2510,12 @@ export default function DashboardPage() {
       const wantLang = progLang || parentData.preferred_language || 'en'
       const foreignIds = (hNotes || []).filter(n => n.language !== wantLang).map(n => n.id)
       if (foreignIds.length > 0) {
-        const { data: hTrans } = await supabase
+        const { data: hTrans } = await allRowsIn(foreignIds, c => supabase
           .from('lesson_note_translations')
           .select('lesson_note_id, text')
-          .in('lesson_note_id', foreignIds)
+          .in('lesson_note_id', c)
           .eq('language', wantLang)
+          .order('lesson_note_id'))
         const keyById: Record<string, string> = {}
         for (const n of hNotes || []) keyById[n.id] = `${n.student_id}|${n.lesson_key}`
         for (const tr of hTrans || []) {
@@ -2749,12 +2832,26 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* One child's swim team card -- practice times, receipts, and Manage
+          (the Stripe portal) -- opened from its row under 我的方案. */}
+      {teamSheet && teamMemberships.some((m: any) => m.student_id === teamSheet) && (
+        <div className="msa-sheet-back" onClick={() => setTeamSheet(null)}>
+          <div ref={teamBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('team.title')}>
+            <div className="msa-sheet-head">
+              <b>{t('team.title')}</b>
+              <button className="msa-sheet-x" onClick={() => setTeamSheet(null)} aria-label={t('common.close')}>✕</button>
+            </div>
+            <TeamCard memberships={teamMemberships.filter((m: any) => m.student_id === teamSheet)} />
+          </div>
+        </div>
+      )}
+
       {/* Info Modal */}
       {infoModal && (
         <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+          <div ref={infoBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-info-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t('common.notice')}</div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
+            <div id="dash-info-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -2774,14 +2871,30 @@ export default function DashboardPage() {
       {voucherSheet && (() => {
         const shown = voucherKey ? vouchers.filter(v => voucherOwnerKey(v) === voucherKey) : vouchers
         const closeSheet = () => { setVoucherSheet(false); setVoucherKey(null) }
+        const inArrears = (wallet?.arrears || 0) > 0
         return (
         <div onClick={closeSheet} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} role="dialog" aria-label={t('voucher.sheetTitle')} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '28px', maxWidth: '420px', width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div ref={voucherBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('voucher.sheetTitle')} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '28px', maxWidth: '420px', width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{t('voucher.sheetTitle')}{voucherKey && shown[0] ? ' · ' + shown[0].studentNames.join(' & ') : ''}</div>
               <button onClick={closeSheet} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#56647d', cursor: 'pointer' }}>×</button>
             </div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, margin: '0 0 16px' }}>{t('voucher.sheetHint')}</p>
+            {/* A wallet in arrears books nothing, a make-up included (owner,
+                2026-10-08): say so here, with the button that fixes it,
+                instead of a Book link the server would refuse. */}
+            {inArrears && (
+              <div style={{ background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#c0392b', marginBottom: '4px' }}>
+                  {t('points.card.arrearsTitle', { n: (wallet?.arrears || 0).toLocaleString() })}
+                </div>
+                <div style={{ fontSize: '12px', color: '#56647d', lineHeight: 1.5, marginBottom: '10px' }}>
+                  {t('voucher.arrearsBody')}
+                </div>
+                <SettleArrearsButton owed={wallet?.arrears || 0}
+                  style={{ background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', minHeight: '40px' }} />
+              </div>
+            )}
             {shown.length === 0 && <p style={{ fontSize: '14px', color: '#56647d' }}>{t('voucher.none')}</p>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {shown.map(v => (
@@ -2798,9 +2911,15 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <Link href={`/booking?voucher=${v.id}`} style={{ flexShrink: 0, padding: '8px 12px', borderRadius: '9px', background: AMBER, color: NAVY, fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
-                    {t('voucher.book')}
-                  </Link>
+                  {inArrears ? (
+                    <span aria-disabled="true" style={{ flexShrink: 0, padding: '8px 12px', borderRadius: '9px', background: '#e3ebf6', color: '#7a879b', fontSize: '12.5px', fontWeight: 700 }}>
+                      {t('voucher.book')}
+                    </span>
+                  ) : (
+                    <Link href={`/booking?voucher=${v.id}`} style={{ flexShrink: 0, padding: '8px 12px', borderRadius: '9px', background: AMBER, color: NAVY, fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}>
+                      {t('voucher.book')}
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>
@@ -2812,9 +2931,9 @@ export default function DashboardPage() {
       {/* Cancel Confirm Modal */}
       {cancelTarget && (
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+          <div ref={cancelBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-cancel-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.eyebrowLeave' : 'dash.cancelModal.eyebrowCancel')}</div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.titleLeave' : 'dash.cancelModal.titleCancel')}</div>
+            <div id="dash-cancel-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.titleLeave' : 'dash.cancelModal.titleCancel')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{cancelTarget.date} · {cancelTarget.time}</div>
@@ -3038,7 +3157,7 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
-          {(fixedClasses.length > 0 || vouchers.length > 0) && (
+          {(fixedClasses.length > 0 || vouchers.length > 0 || teamMemberships.length > 0) && (
             <>
               <h2 className="msa-sec-h msa-plans-h">{t('dash.plans.title')}</h2>
               <div className="msa-plans">
@@ -3081,6 +3200,30 @@ export default function DashboardPage() {
                           </span>
                         </div>
                       )}
+                      {g.team.map((m: any) => {
+                        const tier = m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name
+                        const exp = m.is_prepaid && m.expires_at ? new Date(m.expires_at) : null
+                        const expDate = exp ? exp.toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) : ''
+                        const lapsed = !!m.is_prepaid && (m.status === 'expired' || (!!exp && exp.getTime() < Date.now()))
+                        const failed = !m.is_prepaid && m.status === 'past_due'
+                        const line = failed ? t('dash.plan.teamPastDue')
+                          : m.is_prepaid ? (exp ? t(lapsed ? 'team.expired' : 'team.paidThru', { date: expDate }) : t('team.prepaid'))
+                          : m.cancels_at ? t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) })
+                          : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() })
+                          : t('team.active')
+                        return (
+                          <div key={m.id} className="msa-plan-row">
+                            <span className="msa-plan-ic" aria-hidden="true">🏊</span>
+                            <span className="msa-plan-tx">
+                              <b>{t('team.title')}{tier ? ' · ' + tier : ''}</b>
+                              <span className={failed || lapsed ? 'msa-plan-bad' : undefined}>{line}</span>
+                            </span>
+                            <span className="msa-plan-btn">
+                              <button className="tap-auto" onClick={() => setTeamSheet(m.student_id)}>{t('team.manage')} ›</button>
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                   )
                 })}
@@ -3164,9 +3307,9 @@ export default function DashboardPage() {
       <NoticeModal title={t('dash.cancelDone.title')} message={doneMsg} closeLabel={t('common.close')} onClose={() => setDoneMsg(null)} />
       {rescheduleActionModal && (
         <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+          <div ref={resActionBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-resaction-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resAction.eyebrow')}</div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
+            <div id="dash-resaction-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('dash.up.cancel')}</button>
@@ -3301,10 +3444,10 @@ export default function DashboardPage() {
                   return (
                     <div className="msa-sheet-wrap" onClick={() => setDaySheet(null)}
                       style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                      <div className="msa-sheet" onClick={e => e.stopPropagation()}
+                      <div ref={dayBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-day-title"
                         style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '18px 20px 24px', width: '100%', maxWidth: '420px', maxHeight: '78vh', overflowY: 'auto' }}>
                         <div style={{ width: '38px', height: '4px', borderRadius: '2px', background: '#eef2f8', margin: '0 auto 14px' }} />
-                        <div style={{ fontFamily: FONT_DISPLAY, fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</div>
+                        <div id="dash-day-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</div>
                         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '14px' }}>
                           {t(rows.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: rows.length })}
                         </div>
@@ -3344,10 +3487,10 @@ export default function DashboardPage() {
                   const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : b.points_charged != null ? t('points.unit', { n: b.points_charged * (b._hour ? 2 : 1) }) : '—'
                   return (
                     <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+                      <div ref={detailBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                           <div>
-                            <div style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</div>
+                            <div id="dash-detail-title" style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</div>
                             {b.level_min != null && b.level_max != null && (
                               <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('dash.lesson.band', { r: bandRange(b.level_min, b.level_max) })}</div>
                             )}
@@ -3524,7 +3667,11 @@ export default function DashboardPage() {
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>}
-                                    {ckIn ? null : isOwnInvite(m) ? (
+                                    {ckIn ? null : lessonStarted(m) && !isOwnInvite(m) ? (
+                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '10px', fontWeight: 600 }}>
+                                        {t('dash.up.inProgress')}
+                                      </div>
+                                    ) : isOwnInvite(m) ? (
                                       <button
                                         onClick={() => askWithdraw(m)}
                                         disabled={cancellingId === m.id}
@@ -3756,6 +3903,11 @@ export default function DashboardPage() {
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {cancellingId === booking.id ? '...' : t('dash.up.withdraw')}
                               </button>
+                            )
+                            if (lessonStarted(booking)) return (
+                              <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '11px', fontWeight: 600 }}>
+                                {t('dash.up.inProgress')}
+                              </div>
                             )
                             const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
                             const ck = cancelKindOf(booking, late)

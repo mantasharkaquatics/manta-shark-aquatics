@@ -7,6 +7,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { isLevelNumber } from '@/lib/levels'
 import { pendingOverlay, pictureAsOf, pictureAsOfRows, overlayFromRows, type Snapshot } from '@/lib/skill-progress-sync'
 import { laWallTimeToUtcMs } from '@/lib/date'
+import { levelAtLesson } from '@/lib/level-change'
 import { NOT_REAL_BOOKING_STATUSES } from '@/app/coach/real-booking'
 
 const NOT_REAL = `(${NOT_REAL_BOOKING_STATUSES.join(',')})`
@@ -293,11 +294,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This swimmer has no level yet. Assign one on the Levels page first.', code: 'no_level' }, { status: 409 })
   }
 
+  // The level the swimmer was in at that lesson, not today's: a missed report
+  // for a lesson before a level change was filed with the new level's skills
+  // under the old date (found 2026-10-08). Same reading as the GET above.
+  let lessonStartMs = NaN
+  if (session_date) {
+    const { data: sess } = class_session_id
+      ? await supabase.from('class_sessions').select('start_time').eq('id', class_session_id).maybeSingle()
+      : { data: null }
+    lessonStartMs = laWallTimeToUtcMs(String(session_date), String(sess?.start_time || '00:00').slice(0, 5))
+  }
+  const { level: lessonLevel, error: lessonLevelErr } = await levelAtLesson(supabase, {
+    studentId: student_id, lessonStartMs, currentLevel: gateStudent.current_level,
+  })
+  if (lessonLevelErr) return NextResponse.json({ error: 'Could not read the swimmer\'s level history' }, { status: 500 })
+
   let allowed: Set<string> | null = null
   let stored: Record<string, number> = {}
   if (gateStudent?.current_level) {
     const { data: lvl } = await supabase
-      .from('levels').select('id').eq('level_number', gateStudent.current_level).maybeSingle()
+      .from('levels').select('id').eq('level_number', lessonLevel || gateStudent.current_level).maybeSingle()
     if (lvl) {
       const { data: levelSkills } = await supabase
         .from('skills').select('id, stage').eq('level_id', lvl.id).eq('is_active', true)
@@ -328,11 +344,14 @@ export async function POST(req: NextRequest) {
 
   // What the coach may change, they changed. Everything else keeps the value
   // already on file, so the snapshot stays a complete picture of the level.
+  // A skill outside the lesson's level is left out altogether: the form's
+  // starting picture holds every level's skills, and now that the lesson's
+  // level can be an earlier one, carrying the rest along would put today's
+  // level's skills (at that date's values) into an old report (2026-10-08).
   const accepted: Record<string, number> = {}
   for (const [skill_id, pct] of Object.entries(progress)) {
-    accepted[skill_id] = allowed && !allowed.has(skill_id)
-      ? (stored[skill_id] ?? 0)
-      : (pct as number)
+    if (allowed && !allowed.has(skill_id)) continue
+    accepted[skill_id] = pct as number
   }
 
   // Queued only, like a coach's report: the live table is written when an

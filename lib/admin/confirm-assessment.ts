@@ -32,22 +32,22 @@ const err = (status: number, error: string, code: string): ConfirmResult => ({ s
 
 /**
  * The day the 60-day assessment credit runs from: the later of the lesson and
- * the day the report was filed.
+ * the day an admin confirms the report (owner, 2026-10-08).
  *
- * A coach files the assessment on the day (their Progress page lists only
- * today's lessons), so for an ordinary report the two are the same day. A
- * report an admin BACKFILLS for an assessment the coach missed is filed later,
- * and the owner's rule (2026-10-08) is that the family's 60 days then run from
- * the backfill: until then they had no report and no countdown to see. Read
- * off the row itself, so a backfill whose confirm failed half-way and is then
- * confirmed again from its Reviews card keeps the same rule.
+ * Until the confirm the family has no level, no report and no countdown, so
+ * the 60 days start when they can actually begin booking. For an ordinary
+ * report confirmed the same or the next day this changes little. It used to
+ * read the report row's created_at, which a coach's re-file of a sent-back
+ * report and an admin's backfill over a sent-back row both keep (they update
+ * the old row), so a report finished weeks late lost those weeks from the
+ * family's 60 days (found 2026-10-08).
  */
-export function creditStartDate(assessedOn: string, filedAt: string | null | undefined): string {
-  if (!filedAt) return assessedOn
-  const t = new Date(filedAt)
+export function creditStartDate(assessedOn: string, confirmedAt: string | null | undefined): string {
+  if (!confirmedAt) return assessedOn
+  const t = new Date(confirmedAt)
   if (Number.isNaN(t.getTime())) return assessedOn
-  const filedOn = formatDateLA(t)
-  return filedOn > assessedOn ? filedOn : assessedOn
+  const confirmedOn = formatDateLA(t)
+  return confirmedOn > assessedOn ? confirmedOn : assessedOn
 }
 
 /**
@@ -234,8 +234,10 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
     await refreshNoteTranslations(svc, note.id)
   }
 
-  // 4. The family's report. The assessment booking gives the date the 60 days
-  // run from; the history row's own date stands in if it cannot be found.
+  // 4. The family's report. The 60 days run from today, the confirm, or from
+  // the assessment lesson if that is later (creditStartDate). The assessment
+  // booking gives the lesson date; the history row's own date stands in if
+  // it cannot be found.
   const sessionId = hist.class_session_id || hist.lesson_key
   const { data: trial } = sessionId ? await svc.from('bookings')
     .select('id').eq('student_id', rec.student_id).eq('class_session_id', sessionId).eq('is_trial', true)
@@ -244,7 +246,7 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
     ? await svc.from('class_sessions').select('session_date').eq('id', sessionId).maybeSingle()
     : { data: null }
   const assessedOn: string = sess?.session_date || hist.session_date || now.slice(0, 10)
-  const creditDeadline = addDays(creditStartDate(assessedOn, hist.created_at), CREDIT_DAYS)
+  const creditDeadline = addDays(creditStartDate(assessedOn, now), CREDIT_DAYS)
   const { data: existing } = await svc.from('student_assessments')
     .select('recommendation_note, recommendation_note_i18n, emailed_at').eq('student_id', rec.student_id).maybeSingle()
   // A retry with the same words does not pay for the translation twice.

@@ -3,6 +3,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CoachScheduleClient from './CoachScheduleClient'
 import { isRealBooking } from '../real-booking'
+import { serviceClient } from '@/lib/api-auth'
+import { sessionsInBlocks } from '@/lib/time-off'
 
 // An hour lesson is two class_sessions but ONE lesson. Merge the halves that
 // share a lesson_group_id so a coach reads one card spanning the full hour,
@@ -74,7 +76,8 @@ export default async function CoachSchedulePage() {
     .order('start_time')
 
   // A failed query and a genuinely empty week look identical to a coach standing
-  // at the poolside. Say so in the log rather than rendering a quiet blank page.
+  // at the poolside. Logged, and the page says so too (loadFailed below --
+  // found 2026-10-08: it still rendered "no upcoming classes").
   if (sessionsError) console.error('coach/schedule: session query failed', sessionsError)
 
   // Only real bookings travel on (found 2026-10-04): a cancelled, in-cart,
@@ -101,5 +104,14 @@ export default async function CoachSchedulePage() {
     (s.bookings || []).length > 0
   )
 
-  return <CoachScheduleClient coach={coach} sessions={visible} today={today} />
+  // Lessons inside the coach's time off, still waiting for the office (found
+  // 2026-10-08; see app/coach/page.tsx).
+  const { data: blocks, error: blocksErr } = await serviceClient()
+    .from('coach_time_off').select('date, start_time, end_time')
+    .eq('coach_id', coach.id)
+    .gte('date', today).lte('date', in30Days)
+  if (blocksErr) console.error('coach/schedule: time off not read', blocksErr)
+  const offIds = sessionsInBlocks(visible, blocks || [])
+
+  return <CoachScheduleClient coach={coach} sessions={visible} today={today} offIds={offIds} loadFailed={!!sessionsError} />
 }

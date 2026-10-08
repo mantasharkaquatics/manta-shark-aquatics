@@ -75,37 +75,37 @@ export async function POST(req: NextRequest) {
     const courseSlug = String(body.course_slug || '')
     const minutes = Number(body.minutes) === 60 ? 60 : 30
     if (!parentId || !studentId || !['1on1', '1on2', '1on4'].includes(courseSlug))
-      return NextResponse.json({ error: 'Choose the family, the swimmer and the kind of lesson.' }, { status: 400 })
+      return NextResponse.json({ error: 'Choose the family, the swimmer and the kind of lesson.', code: 'missing_fields' }, { status: 400 })
     if (courseSlug === '1on2' && (!student2Id || student2Id === studentId))
-      return NextResponse.json({ error: 'A 1-on-2 voucher is for two swimmers of the same family.' }, { status: 400 })
+      return NextResponse.json({ error: 'A 1-on-2 voucher is for two swimmers of the same family.', code: 'pair_needed' }, { status: 400 })
     if (courseSlug !== '1on1' && minutes !== 30)
-      return NextResponse.json({ error: 'Only a 1-on-1 voucher can be for 60 minutes.' }, { status: 400 })
+      return NextResponse.json({ error: 'Only a 1-on-1 voucher can be for 60 minutes.', code: 'sixty_private_only' }, { status: 400 })
     const { data: kids } = await svc.from('students').select('id').eq('parent_id', parentId)
       .in('id', [studentId, student2Id].filter(Boolean) as string[])
     if ((kids || []).length !== (student2Id ? 2 : 1))
-      return NextResponse.json({ error: 'That swimmer is not in this family.' }, { status: 400 })
+      return NextResponse.json({ error: 'That swimmer is not in this family.', code: 'not_in_family' }, { status: 400 })
     const today = getTodayLA()
     const expiresOn = typeof body.expires_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.expires_on) && body.expires_on >= today
       ? body.expires_on : addDaysStr(today, VOUCHER_DAYS)
     const note = String(body.note || '').trim().slice(0, 300)
-    if (!note) return NextResponse.json({ error: 'Write why this voucher is being issued.' }, { status: 400 })
+    if (!note) return NextResponse.json({ error: 'Write why this voucher is being issued.', code: 'reason_required' }, { status: 400 })
     const r = await issueVoucher(svc, {
       parentId, studentId, student2Id: courseSlug === '1on2' ? student2Id : null, courseSlug, minutes,
       reason: 'admin', expiresOn, createdBy: admin.id, note,
     })
-    if (!r.voucher) return NextResponse.json({ error: r.error || 'Could not issue the voucher.' }, { status: 500 })
+    if (!r.voucher) return NextResponse.json({ error: r.error || 'Could not issue the voucher.', code: 'server' }, { status: 500 })
     return NextResponse.json({ ok: true, voucher: r.voucher })
   }
 
   if (body.action === 'void') {
     const id = String(body.id || '')
     const reason = String(body.reason || '').trim().slice(0, 300)
-    if (!id || !reason) return NextResponse.json({ error: 'Write why this voucher is being voided.' }, { status: 400 })
+    if (!id || !reason) return NextResponse.json({ error: 'Write why this voucher is being voided.', code: 'reason_required' }, { status: 400 })
     const { data } = await svc.from('make_up_vouchers')
       .update({ status: 'void', voided_by: admin.id, voided_at: new Date().toISOString(), void_reason: reason })
       .eq('id', id).eq('status', 'active').select('id')
     if (!data || data.length === 0)
-      return NextResponse.json({ error: 'Only an unused voucher can be voided. Refresh and try again.' }, { status: 409 })
+      return NextResponse.json({ error: 'Only an unused voucher can be voided. Refresh and try again.', code: 'not_unused' }, { status: 409 })
     return NextResponse.json({ ok: true })
   }
 

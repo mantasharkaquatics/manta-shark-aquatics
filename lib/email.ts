@@ -37,6 +37,7 @@ export type EmailType =
   | 'partner_invite_expired'
   | 'partner_invite_withdrawn'
   | 'partner_invite_unlinked'
+  | 'partner_invite_failed'
   | 'partner_reschedule_requested'
   | 'partner_reschedule_not_moved'
   | 'partner_absent_lesson_continues'
@@ -57,6 +58,7 @@ export type EmailType =
   | 'fixed_class_moved'
   | 'admin_alert'
   | 'welcome'
+  | 'chat_reply'
 
 export interface EmailPayload {
   type: EmailType
@@ -88,7 +90,7 @@ export interface EmailPayload {
   newDate?: string
   newTime?: string
   deadline?: string
-  rescheduleOutcome?: 'declined' | 'withdrawn' | 'expired' | 'unavailable'
+  rescheduleOutcome?: 'declined' | 'withdrawn' | 'expired' | 'unavailable' | 'too_late' | 'coach_unavailable'
   paymentMethod?: string
   planName?: string
   // Loose on purpose: the point of this pass is catching MISSPELLED field
@@ -123,6 +125,15 @@ export interface EmailPayload {
   usableFrom?: string
   /** booking_cancelled: a make-up was cancelled in time and its voucher came back. */
   voucherBack?: boolean
+  /** booking_cancelled: the OTHER family of a shared 1-on-2 cancelled it;
+   *  partnerName is their swimmers, amount the points that came back. */
+  partnerCancelled?: boolean
+  /** partner_invite_failed: why the invitation ended, and whether this
+   *  family is the one who sent it. */
+  inviteFailReason?: 'slot_taken' | 'slot_full' | 'swimmer_busy' | 'inviter_points' | 'too_late' | 'coach_unavailable'
+  isInviter?: boolean
+  /** partner_invite_failed swimmer_busy: who already has a lesson then. */
+  busyNames?: string
   // parent_password_reset: the link to /reset-password, and the family's
   // language (en / zh-Hant / zh-Hans) -- this one email is written in all three.
   resetUrl?: string
@@ -232,14 +243,21 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const voucherBy = payload.expiresOn
       ? new Date(payload.expiresOn + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
       : ''
-    const cancelLine = rk === 'none'
+    // The other family in a shared 1-on-2 cancelled it (found 2026-10-08):
+    // the plain notice read as if the school, or the system, had cancelled.
+    const pc = payload.partnerCancelled
+    const cancelLine = pc
+      ? `The other family in this 1-on-2 lesson${partnerName ? ` (with ${esc(partnerName)})` : ''} cancelled it, so the whole lesson has been cancelled. You did not need to do anything.`
+      : rk === 'none'
       ? 'Your lesson has been cancelled.'
       : rk === 'voucher' && payload.voucherBack
       ? 'Your make-up lesson has been cancelled and the make-up voucher has been returned to your account.'
       : rk === 'voucher'
       ? 'Your lesson has been cancelled and turned into a make-up voucher.'
       : 'Your lesson has been cancelled and the points have been returned to your account.'
-    const readyLine = rk === 'none'
+    const readyLine = pc
+      ? `${rk === 'points' ? `Your ${amount ? `${Number(amount)} ` : ''}points are back in your wallet in full. ` : ''}You're welcome to book a 1-on-1 at the same time, or another time, on your dashboard.`
+      : rk === 'none'
       ? "You're welcome to rebook any available time on your dashboard."
       : rk === 'voucher'
       ? (payload.usableFrom && voucherBy
@@ -305,6 +323,30 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     subject = `Invitation Cancelled \u2013 ${courseName} on ${formattedDate}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Invitation Cancelled</h2><p>Hi ${esc(parentName)},</p><p>The 1-on-2 invitation below was cancelled because the link between your account and ${esc(partnerName || 'the other family')}'s account was removed. Nothing was booked for ${esc(studentName || 'your swimmer')}, the time has been released, and <strong>no points were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr></table><p style="margin-top: 16px;">You're welcome to book any available time on your dashboard.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
+  } else if (type === 'partner_invite_failed') {
+    // The invited family pressed Accept and the lesson could not be booked
+    // (found 2026-10-08). Only the family who pressed it saw why; the
+    // inviter's invitation vanished in silence, or -- short of points --
+    // lingered until "was not confirmed in time" blamed the other family.
+    const r = payload.inviteFailReason
+    const mine = payload.isInviter
+    const why = r === 'slot_taken'
+      ? 'the coach was booked for another lesson at that time while the invitation was waiting'
+      : r === 'slot_full'
+      ? 'the time filled up while the invitation was waiting'
+      : r === 'swimmer_busy'
+      ? `${esc(payload.busyNames || 'one of the swimmers')} already has another lesson at that time`
+      : r === 'inviter_points'
+      ? (mine ? 'your account could not be charged for your half of the lesson (not enough points, or a payment is outstanding)' : 'the family who invited you could not be charged for their half of the lesson')
+      : r === 'too_late'
+      ? 'it was accepted less than 30 minutes before the lesson, which is too close to the start to book it'
+      : 'the coach is no longer available at that time'
+    const lead = mine
+      ? `${partnerName ? `The family of ${esc(partnerName)}` : 'The other family'} accepted your 1-on-2 invitation, but the lesson could not be booked because ${why}.`
+      : `The 1-on-2 invitation from ${esc(inviterName || 'the other family')} could not be booked because ${why}.`
+    subject = `Invitation Cancelled – ${courseName} on ${formattedDate}`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Invitation Cancelled</h2><p>Hi ${esc(parentName)},</p><p>${lead} The invitation has been cancelled, nothing was booked for ${esc(studentName || 'your swimmer')}, and <strong>no points were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr></table><p style="margin-top: 16px;">${r === 'inviter_points' && mine ? 'Please top up your points, then send a new invitation from your dashboard.' : "You're welcome to book another time on your dashboard."}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+
   } else if (type === 'partner_reschedule_requested') {
     // Everything the other family needs to decide, and by when (found
     // 2026-10-07). It used to say only "your partner has requested to
@@ -331,6 +373,10 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       ? 'The request to move this 1-on-2 lesson was withdrawn by the family who made it.'
       : payload.rescheduleOutcome === 'expired'
       ? 'The request to move this 1-on-2 lesson was not confirmed within 15 minutes, so it has lapsed.'
+      : payload.rescheduleOutcome === 'too_late'
+      ? 'The request to move this 1-on-2 lesson was accepted less than 30 minutes before the proposed new time, which is too close to the lesson to move it, so it has lapsed.'
+      : payload.rescheduleOutcome === 'coach_unavailable'
+      ? 'The coach is no longer available at the proposed new time, so this 1-on-2 lesson could not be moved.'
       : 'The proposed new time was no longer available, so this 1-on-2 lesson could not be moved.'
     subject = `Lesson Not Moved – ${courseName} stays on ${formattedDate}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Lesson Not Moved</h2><p>Hi ${esc(parentName)},</p><p>${why}${proposed ? ` (proposed: ${proposed})` : ''}</p><p><strong>Your lesson stays at its original time:</strong></p><table style="width: 100%; border-collapse: collapse;">${row('Student', esc(studentName))}${partnerName ? row('Partner', esc(partnerName)) : ''}${row('Course', esc(courseName))}${row('Coach', esc(coachName))}${row('Date', formattedDate)}${row('Time', esc(time))}</table><p style="color: #666;">No points were used or changed.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
@@ -392,6 +438,16 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const url = 'https://www.mantasharkaquatics.net/dashboard' + (payload.reportId ? '?report=' + encodeURIComponent(payload.reportId) : '')
     subject = t('monthly.email.subject', { month: monthLabel })
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('monthly.email.title', { month: monthLabel })}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('monthly.email.body', { names, month: monthLabel })}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="${url}" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('monthly.email.button')}</a></div></div></div>`
+
+  } else if (type === 'chat_reply') {
+    // The desk answered in the chat and the family has not read it for 10
+    // minutes (app/api/cron/chat-reply-email; owner, 2026-10-08: email only,
+    // no SMS). In the family's language. The reply itself stays in the chat:
+    // the button opens the dashboard with the chat open (?chat=1).
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    subject = t('chat.email.subject')
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('chat.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('chat.email.body')}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?chat=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('chat.email.button')}</a></div></div></div>`
 
   } else if (type === 'voucher_expiring') {
     // A make-up voucher runs out in a week. In the family's language, once.

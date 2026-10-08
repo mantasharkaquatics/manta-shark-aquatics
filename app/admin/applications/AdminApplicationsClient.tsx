@@ -120,10 +120,11 @@ export default function AdminApplicationsClient({ applications }: { applications
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...body }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      notify(data.error || t('admin.applications.err.saveFailed'))
+    }).catch(() => null)
+    // Our own words, not the route's English (found 2026-10-08): nothing the
+    // route refuses here is something the desk can fix but by trying again.
+    if (!res || !res.ok) {
+      notify(t('admin.applications.err.saveFailed'))
       return false
     }
     return true
@@ -150,10 +151,10 @@ export default function AdminApplicationsClient({ applications }: { applications
 
   async function openResume(id: string) {
     setMessage('')
-    const res = await fetch(`/api/admin/applications/resume?id=${encodeURIComponent(id)}`)
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok || !data.url) {
-      notify(data.error || t('admin.applications.err.resumeFailed'))
+    const res = await fetch(`/api/admin/applications/resume?id=${encodeURIComponent(id)}`).catch(() => null)
+    const data = res ? await res.json().catch(() => ({})) : {}
+    if (!res || !res.ok || !data.url) {
+      notify(t(data.code === 'no_resume' ? 'admin.applications.err.noResume' : 'admin.applications.err.resumeFailed'))
       return
     }
     window.open(data.url, '_blank', 'noopener')

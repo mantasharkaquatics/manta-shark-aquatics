@@ -20,16 +20,16 @@ export async function POST(req: NextRequest) {
   const parentId = String(body.parent_id || '')
   const fullName = String(body.full_name || '').trim()
   const dob = body.date_of_birth ? String(body.date_of_birth) : null
-  if (!parentId || !fullName) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  if (!parentId || !fullName) return NextResponse.json({ error: 'Name is required', code: 'name_required' }, { status: 400 })
   // The column is NOT NULL: a swimmer without a birthday cannot be saved.
-  if (!dob) return NextResponse.json({ error: 'Birthday is required' }, { status: 400 })
-  if (fullName.length > 80) return NextResponse.json({ error: 'That name is too long' }, { status: 400 })
+  if (!dob) return NextResponse.json({ error: 'Birthday is required', code: 'birthday_required' }, { status: 400 })
+  if (fullName.length > 80) return NextResponse.json({ error: 'That name is too long', code: 'name_too_long' }, { status: 400 })
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-  if (!DATE_RE.test(dob) || dob > today) return NextResponse.json({ error: 'Birthday must be a real date, not in the future' }, { status: 400 })
+  if (!DATE_RE.test(dob) || dob > today) return NextResponse.json({ error: 'Birthday must be a real date, not in the future', code: 'bad_birthday' }, { status: 400 })
 
   const svc = auth.svc
   const { data: parent } = await svc.from('parents').select('id').eq('id', parentId).maybeSingle()
-  if (!parent) return NextResponse.json({ error: 'Family not found' }, { status: 404 })
+  if (!parent) return NextResponse.json({ error: 'Family not found', code: 'not_found' }, { status: 404 })
 
   // Placed after the family's other swimmers, active or not.
   const { data: last } = await svc

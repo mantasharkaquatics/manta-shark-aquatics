@@ -6,6 +6,7 @@ import AlertModal from '@/components/AlertModal'
 import { tDb, type Locale } from '@/lib/i18n'
 import { useT, useTFor } from '@/lib/i18n/provider'
 import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
+import { VOUCHER_ERROR_KEYS } from '@/lib/admin/voucher-errors'
 
 type View = {
   lang: Locale
@@ -66,7 +67,7 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
     setBusy(id)
     const r = await fetch('/api/admin/vouchers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'void', id, reason }) }).catch(() => null)
     setBusy(null)
-    if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; setAlertMsg(j.error || t('admin.members.fv.err.save')); return }
+    if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; setAlertMsg(t(VOUCHER_ERROR_KEYS[String(j.code || '')] || 'admin.members.fv.err.save')); return }
     await load(lang)
   }
 

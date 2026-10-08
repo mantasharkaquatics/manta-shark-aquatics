@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { allRows } from '@/lib/db-paging'
 
 // Parent-facing team memberships. Same service-role pattern as /api/parent/wallet.
 export async function GET(req: Request) {
@@ -52,6 +53,8 @@ export async function GET(req: Request) {
     }))
     return {
       id: m.id,
+      // The dashboard files each membership under its child in 我的方案.
+      student_id: m.student_id,
       team_tier_id: m.team_tier_id || null,
       student_name: nameById[m.student_id] || '',
       tier_name: Array.isArray(m.team_tiers) ? m.team_tiers[0]?.name : m.team_tiers?.name,
@@ -71,11 +74,25 @@ export async function GET(req: Request) {
   const tierIds = [...new Set((tms || []).map((m: any) => m.team_tier_id).filter(Boolean))]
   const scheduleByTier: Record<string, { weekly_slots: any[]; practice_days: any[] }> = {}
   if (tierIds.length > 0) {
-    const [{ data: zoneRows }, { data: coachRows }] = await Promise.all([
-      svc.from('coach_availability_zones')
-        .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, team_tier_id'),
+    /* The whole zones table was read on every call, past-date overrides
+       included (nothing prunes them), with no order or paging: once it passed
+       1,000 rows an arbitrary part was cut off and practice days dropped off
+       the team card (found 2026-10-08). Now the weekly template (bounded:
+       coaches x weekdays) is read in full, and date overrides only for the
+       month asked about. */
+    const month = new URL(req.url).searchParams.get('month')
+    const monthOk = !!month && /^\d{4}-\d{2}$/.test(month)
+    const monthEnd = monthOk ? `${month}-${String(new Date(Number(month!.slice(0, 4)), Number(month!.slice(5, 7)), 0).getDate()).padStart(2, '0')}` : ''
+    const ZCOLS = 'id, coach_id, zone_type, kind, weekday, override_date, start_time, end_time, team_tier_id'
+    const [{ data: weeklyRows }, { data: dateRows }, { data: coachRows }] = await Promise.all([
+      allRows(() => svc.from('coach_availability_zones').select(ZCOLS).eq('kind', 'weekly').order('id')),
+      monthOk
+        ? allRows(() => svc.from('coach_availability_zones').select(ZCOLS).eq('kind', 'date')
+            .gte('override_date', `${month}-01`).lte('override_date', monthEnd).order('id'))
+        : Promise.resolve({ data: [] as any[] }),
       svc.from('coaches').select('id, first_name').eq('is_active', true),
     ])
+    const zoneRows = [...(weeklyRows || []), ...(dateRows || [])]
     const coachName: Record<string, string> = {}
     for (const c of coachRows || []) coachName[c.id] = c.first_name
     const byCoach: Record<string, any[]> = {}
@@ -93,8 +110,7 @@ export async function GET(req: Request) {
       scheduleByTier[tid] = { weekly_slots: weekly, practice_days: [] }
     }
 
-    const month = new URL(req.url).searchParams.get('month')
-    if (month && /^\d{4}-\d{2}$/.test(month)) {
+    if (monthOk && month) {
       const [yy, mo] = month.split('-').map(Number)
       const last = new Date(yy, mo, 0).getDate()
       const { data: offRows } = await svc.from('coach_time_off')

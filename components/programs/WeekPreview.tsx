@@ -123,6 +123,15 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
   const target = kind === 'team'
     ? localePath('/plans', locale) + '#team'
     : signedIn ? '/booking' : localePath('/assessment', locale)
+  /* A signed-in family's tap on a time opens the booking page on that day
+     with that time chosen (owner, 2026-10-08; it used to be the same bare
+     /booking as the button below, and the parent had to find the slot again).
+     The booking page reads course/date/time; the swimmer is still theirs to
+     pick, and every check runs when they confirm. */
+  const course = sub === 'semi' ? '1on2' : kind === 'group' ? '1on4' : '1on1'
+  const slotHref = (date: string, time?: string) => (kind !== 'team' && signedIn && time)
+    ? '/booking?' + new URLSearchParams({ course, date, time: time.slice(0, 5) }).toString()
+    : target
 
   const dayName = (ds: string) => new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(ds + 'T12:00:00'))
   const md = (ds: string) => { const d = new Date(ds + 'T12:00:00'); return `${d.getMonth() + 1}/${d.getDate()}` }
@@ -139,7 +148,7 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
   const tierName = (id?: string) => { const x = tiers.find(y => y.id === id); return x ? tDb(locale, 'team_tiers', x.id, x.name) : '' }
 
   // Every day's entries as { key, label, tag } -- the one shape the grid draws.
-  type Entry = { key: string; label: string; tag?: { text: string; color: string } }
+  type Entry = { key: string; label: string; time?: string; tag?: { text: string; color: string } }
   const entriesFor = (d: Data['days'][number]): Entry[] => {
     if (kind === 'team') return [...(d.slots || [])]
       .sort((x, y) => x.time.localeCompare(y.time) || tiers.findIndex(q => q.id === x.tier_id) - tiers.findIndex(q => q.id === y.tier_id))
@@ -152,13 +161,13 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
         const [a, b] = (s.band || '').split('-')
         const slot = s.band ? bandSlotOf(a, b) : null
         return {
-          key: s.time + s.band, label: formatTime12h(s.time),
+          key: s.time + s.band, label: formatTime12h(s.time), time: s.time,
           tag: band === 'all' ? (s.band
             ? { text: 'L' + bandRange(a, b), color: (slot && BAND_COLORS[slot]) || BRAND.blue }
             : { text: t('programs.week.anyLevel'), color: BRAND.blue }) : undefined,
         }
       })
-    return (d.times || []).map(x => ({ key: x, label: formatTime12h(x) }))
+    return (d.times || []).map(x => ({ key: x, label: formatTime12h(x), time: x }))
   }
 
   const days = data && data !== 'error' ? data.days : []
@@ -234,7 +243,7 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
                 <div className={'wk-list' + (kind === 'private' ? '' : ' wide')}>
                   {list.length === 0 && <div className="wk-none">{t('programs.week.none')}</div>}
                   {shown.map(e => (
-                    <Link key={e.key} className="wk-slot" href={target}>
+                    <Link key={e.key} className="wk-slot" href={slotHref(d.date, e.time)}>
                       {e.label}
                       {e.tag && <small><span className="wk-dot" style={{ background: e.tag.color }} />{e.tag.text}</small>}
                     </Link>

@@ -154,9 +154,17 @@ function MemberEditPanel({ parent }: { parent: any }) {
   const post = async (body: any) => {
     const res = await fetch('/api/admin/members/contact-change', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    })
+    }).catch(() => null)
+    if (!res) return { ok: false, j: { code: 'network' } as any }
     const j = await res.json().catch(() => ({}))
     return { ok: res.ok, j }
+  }
+  // The route's words are English; each case the desk meets has ours, in the
+  // admin's language (found 2026-10-08: "Incorrect code." on a Chinese screen).
+  // An unknown code gets the action's own generic message, never the English.
+  const contactErr = (j: any, fallbackKey: string) => {
+    const key = CONTACT_ERROR_KEYS[String(j?.code || '')]
+    return key ? t(key) : t(fallbackKey)
   }
   const flash = (m: string) => { setMsg(m); setErr(null); setTimeout(() => setMsg(null), 4000) }
 
@@ -165,8 +173,8 @@ function MemberEditPanel({ parent }: { parent: any }) {
     const { ok, j } = await post({ action: 'request_code', parent_id: parent.id, field, new_value: field === 'email' ? emailVal : phoneVal })
     setBusy(false)
     if (!ok) {
-      if (j.error === 'no_channel') { setErr(j.message); setForceField(field) }
-      else setErr(j.error || t('admin.members.err.sendCode'))
+      if (j.error === 'no_channel') { setErr(t(field === 'email' ? 'admin.members.err.noChannelPhone' : 'admin.members.err.noChannelEmail')); setForceField(field) }
+      else setErr(contactErr(j, 'admin.members.err.sendCode'))
       return
     }
     setPending({ id: j.request_id, field, sent_to: j.sent_to })
@@ -179,7 +187,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'confirm', request_id: pending.id, code })
     setBusy(false)
-    if (!ok) { setErr(j.error + (j.attempts_left != null ? ' ' + t('admin.members.attemptsLeft', { n: j.attempts_left }) : '')); return }
+    if (!ok) { setErr(contactErr(j, 'admin.members.err.confirmFailed') + (j.attempts_left != null ? ' ' + t('admin.members.attemptsLeft', { n: j.attempts_left }) : '')); return }
     if (pending.field === 'email') { parent.email = j.new_value; setEmailVal(j.new_value) }
     else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
     setPending(null); setCode('')
@@ -192,7 +200,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'force_update', parent_id: parent.id, field: forceField, new_value: forceField === 'email' ? emailVal : phoneVal, reason })
     setBusy(false)
-    if (!ok) { setErr(j.error || t('admin.members.err.overrideFailed')); return }
+    if (!ok) { setErr(contactErr(j, 'admin.members.err.overrideFailed')); return }
     if (forceField === 'email') { parent.email = j.new_value; setEmailVal(j.new_value) }
     else { parent.phone = j.new_value; setPhoneVal(j.new_value) }
     setForceField(null); setReason('')
@@ -204,7 +212,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'direct_update', target: 'parent', id: parent.id, fields: { address_line1: a1, address_line2: a2, city, state: stateV, zip_code: zip } })
     setBusy(false)
-    if (!ok) { setErr(j.error || t('admin.members.err.saveFailed')); return }
+    if (!ok) { setErr(contactErr(j, 'admin.members.err.saveFailed')); return }
     parent.address_line1 = a1.trim() || null; parent.address_line2 = a2.trim() || null
     parent.city = city.trim() || null; parent.state = stateV.trim() || null; parent.zip_code = zip.trim() || null
     flash(t('admin.members.addressSaved'))
@@ -216,7 +224,7 @@ function MemberEditPanel({ parent }: { parent: any }) {
     setBusy(true); setErr(null)
     const { ok, j } = await post({ action: 'direct_update', target: 'student', id: s.id, fields: { full_name: e.name, date_of_birth: e.dob } })
     setBusy(false)
-    if (!ok) { setErr(j.error || t('admin.members.err.saveFailed')); return }
+    if (!ok) { setErr(contactErr(j, 'admin.members.err.saveFailed')); return }
     s.full_name = e.name.trim(); s.date_of_birth = e.dob || null
     flash(t('admin.members.studentSaved', { name: e.name.trim() }))
     router.refresh()
@@ -404,7 +412,8 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
     const data = res ? await res.json().catch(() => ({})) : {}
     setSaving(false)
     if (!res || !res.ok || !data.student) {
-      setError(!res ? t('admin.members.err.network') : data.error || t('admin.members.err.notAdded'))
+      const key = CONTACT_ERROR_KEYS[String(data.code || '')]
+      setError(!res ? t('admin.members.err.network') : t(key || 'admin.members.err.notAdded'))
       return
     }
     onAdded(data.student)
@@ -1016,6 +1025,8 @@ type WalletView = {
   lessonsCompleted: number
   forgiveness: number
   ledger: LedgerRow[]
+  /** Pass back as ?before= for older lines; null when there are none. */
+  nextBefore?: string | null
 }
 
 /**
@@ -1027,6 +1038,29 @@ type WalletView = {
  * they book lessons like any other point but cannot be refunded for cash,
  * because no cash came in for them.
  */
+/** Error codes from /api/admin/members/contact-change and
+ *  /api/admin/students/create, to the members screen's own words. */
+const CONTACT_ERROR_KEYS: Record<string, string> = {
+  network: 'admin.members.err.network',
+  incorrect_code: 'admin.members.err.incorrectCode',
+  code_expired: 'admin.members.err.codeExpired',
+  too_many_attempts: 'admin.members.err.tooManyAttempts',
+  request_used: 'admin.members.err.requestUsed',
+  email_taken: 'admin.members.err.emailTaken',
+  email_login_taken: 'admin.members.err.emailLoginTaken',
+  phone_taken: 'admin.members.err.phoneTaken',
+  bad_email: 'admin.members.err.badEmail',
+  bad_phone: 'admin.members.err.badPhone',
+  same_value: 'admin.members.err.sameValue',
+  reason_required: 'admin.members.err.overrideReason',
+  name_required: 'admin.members.err.nameRequired',
+  name_too_long: 'admin.members.err.nameTooLong',
+  birthday_required: 'admin.members.err.birthdayRequired',
+  bad_birthday: 'admin.members.err.badBirthday',
+  future_birthday: 'admin.members.err.badBirthday',
+  not_found: 'admin.members.err.familyNotFound',
+}
+
 const LEDGER_REASONS = new Set(['purchase', 'booking', 'booking_failed', 'cancel_refund', 'forgiveness', 'school_cancel', 'admin_grant', 'admin_deduct', 'cash_refund', 'refund_failed', 'payment_failed', 'chargeback', 'grant_expired', 'referral_bonus', 'assessment_credit'])
 const REFERRAL_STATUSES = new Set(['pending', 'awarded', 'void'])
 
@@ -1041,13 +1075,26 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [olderBusy, setOlderBusy] = useState(false)
 
   async function load() {
     setErr(null)
-    const res = await fetch('/api/admin/points?parent_id=' + parentId)
-    if (!res.ok) { setErr(t('admin.members.pts.err.load')); return }
+    const res = await fetch('/api/admin/points?parent_id=' + parentId).catch(() => null)
+    if (!res || !res.ok) { setErr(t('admin.members.pts.err.load')); return }
     setW(await res.json())
     setLoaded(true)
+  }
+
+  // Older statement lines, a page at a time (found 2026-10-08: only the
+  // newest 40 could be seen here, while the parent could page further back).
+  async function loadOlder() {
+    if (!w?.nextBefore) return
+    setOlderBusy(true); setErr(null)
+    const res = await fetch('/api/admin/points?parent_id=' + parentId + '&before=' + encodeURIComponent(w.nextBefore)).catch(() => null)
+    const d = res && res.ok ? await res.json().catch(() => null) : null
+    if (!d) setErr(t('admin.members.pts.err.load'))
+    else setW(prev => prev ? { ...prev, ledger: [...prev.ledger, ...(d.ledger || [])], nextBefore: d.nextBefore ?? null } : prev)
+    setOlderBusy(false)
   }
 
   function toggle() {
@@ -1066,7 +1113,16 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent_id: parentId, points: n, note: note.trim() }),
-    })
+    }).catch(() => null)
+    // The connection dropped: the adjustment may or may not have gone in. The
+    // button used to stay on "busy" for good; now the statement is read again
+    // so the desk can see before trying a second time (found 2026-10-08).
+    if (!res) {
+      await load()
+      setBusy(false)
+      setErr(t('admin.members.pts.err.unsure'))
+      return
+    }
     setBusy(false)
     if (!res.ok) {
       const d = await res.json().catch(() => null)
@@ -1159,6 +1215,12 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                   </span>
                 </div>
               ))}
+              {w.nextBefore && (
+                <button onClick={loadOlder} disabled={olderBusy}
+                  className="w-full text-xs px-3 py-2 rounded border border-[#1e3a6e] text-gray-400 hover:text-[#c9a84c] hover:border-[#c9a84c]/50 disabled:opacity-40">
+                  {olderBusy ? t('common.loading') : t('admin.members.pts.loadOlder')}
+                </button>
+              )}
             </>
           )}
         </div>

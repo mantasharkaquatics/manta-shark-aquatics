@@ -6,7 +6,7 @@ export default function PrivacyPolicyPage() {
     <LegalPage
       title="Privacy Policy"
       subtitle="What information we collect and how we use it."
-      meta="Last updated: October 5, 2026"
+      meta="Last updated: October 8, 2026"
     >
         <p>
           Manta Shark Aquatics (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) values your privacy. This Privacy Policy explains how we
@@ -20,6 +20,19 @@ export default function PrivacyPolicyPage() {
           <li>Student information: swimmer names, ages, and swim-level progress.</li>
           <li>Booking and attendance records for lessons you schedule with us.</li>
           <li>Payment information, processed securely by Stripe. We do not store full card numbers.</li>
+          {/* Chat, voice notes and AI reports were missing (found 2026-10-08).
+              Draft wording, to be reviewed by counsel before launch. */}
+          <li>Messages you send through the chat on our website, whether or not you are signed in, and the replies you receive.</li>
+          <li>
+            Lesson records about your swimmer: after a lesson or a Swim Assessment, a coach may record
+            a short spoken note about how your swimmer did. We keep the audio recording, a word-for-word
+            transcript of it, the written lesson note prepared from it (and its translation into the
+            language you choose), and the coach&apos;s skill scores.
+          </li>
+          <li>
+            Progress reports about your swimmer, including monthly progress reports that are drafted
+            with the help of an AI service and reviewed by our staff before they are sent to you.
+          </li>
         </ul>
         <p>
           <strong>Health-Related and Program Information.</strong>{' '}If your student participates in a
@@ -40,7 +53,8 @@ export default function PrivacyPolicyPage() {
           <li>To verify your identity during registration (email and SMS one-time passcodes).</li>
           <li>To send service communications such as booking confirmations, cancellations, reminders, and invoices.</li>
           <li>To process payments and maintain transaction records.</li>
-          <li>To respond to your questions and provide customer support.</li>
+          <li>To respond to your questions and provide customer support, including through an AI chat assistant on our website.</li>
+          <li>To prepare lesson notes and progress reports about your swimmer, and to translate them into the language you choose.</li>
         </ul>
 
         <h2>3. SMS / Text Messaging</h2>
@@ -71,10 +85,27 @@ export default function PrivacyPolicyPage() {
           <li>Resend (transactional email)</li>
           <li>Twilio (SMS delivery)</li>
           <li>Vercel and Supabase (website hosting and secure data storage)</li>
+          <li>
+            Anthropic (an AI service that powers the chat assistant on our website, turns coaches&apos;
+            transcripts into written lesson notes, translates those notes, and drafts monthly progress
+            reports)
+          </li>
+          <li>OpenAI (converts coaches&apos; spoken lesson notes from audio into text)</li>
+          <li>Google (suggests matching addresses as you type your home address when you register)</li>
         </ul>
         <p>
-          These providers process data on our behalf under their own privacy policies. We do not sell
-          your personal information, and we do not share it with third parties for their marketing purposes.
+          These providers process data on our behalf, only to provide their service to us, and under
+          their own privacy policies. We do not sell your personal information, and we do not share it
+          with third parties for their marketing purposes.
+        </p>
+        <p>
+          <strong>AI services.</strong>{' '}When we use an AI service, we send it only what the task
+          needs — for example, a coach&apos;s recording and the names of the swimmers in that lesson
+          to prepare a lesson note, or the messages in a chat conversation to answer it. Lesson notes and monthly
+          progress reports prepared with AI are reviewed by our staff before you see them; a translation
+          into the language you chose is made from the reviewed text. Replies in the
+          chat may be written by the AI assistant; our staff can read chat conversations and may reply
+          in person.
         </p>
 
         <h2>5. How We Protect Your Information</h2>
@@ -112,15 +143,34 @@ export default function PrivacyPolicyPage() {
             <strong>Chat window state.</strong> Your browser remembers whether the chat window was
             open, for the current browser tab only. It is discarded when you close the tab.
           </li>
+          {/* Found 2026-10-08: these two outlive the tab and were not disclosed. */}
+          <li>
+            <strong>Chat without an account.</strong> If you use the chat without signing in, your
+            browser keeps an identifier for that conversation (in local storage), so the conversation is
+            still there when you come back. When you sign in, the conversation moves into your account
+            and the identifier is removed; otherwise it stays until you clear this site&apos;s data in
+            your browser.
+          </li>
+          <li>
+            <strong>Referral link.</strong> If you open a friend&apos;s referral link, your browser
+            remembers the referral code (in local storage) for up to 30 days, so it can be applied if
+            you register later.
+          </li>
+          <li>
+            <strong>Booking in progress.</strong> If you leave the booking page to buy points, your
+            browser remembers the booking you were putting together, for that browser tab only and for
+            up to two hours, so you can pick up where you left off.
+          </li>
           <li>
             <strong>Payments.</strong>{' '}Card payments are completed on Stripe&apos;s own secure pages.
             Stripe sets its own cookies there for fraud prevention, under Stripe&apos;s privacy policy.
           </li>
         </ul>
+        {/* next/font serves the typefaces from this site; the old paragraph said
+            the browser contacted Google Fonts, which it does not (found 2026-10-08). */}
         <p>
-          Our pages load typefaces from Google Fonts. Google Fonts does not set cookies, but serving
-          the fonts means your browser contacts Google&apos;s servers, which receives your IP address
-          and browser type as part of that request.
+          The typefaces on our pages are served from our own website. Your browser does not contact
+          Google Fonts or any other font service to display them.
         </p>
         <p>
           You can block or delete cookies in your browser settings. Blocking the sign-in cookie will

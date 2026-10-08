@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useT } from '@/lib/i18n/provider'
+import Link from 'next/link'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag } from '@/lib/i18n'
 
 type Coach = {
   id: string
@@ -12,6 +14,19 @@ type Coach = {
   created_at: string
   zoned?: boolean
 }
+
+/** Error codes from /api/admin/coaches to our words: the route's are English
+ *  and showed as is on a Chinese screen (found 2026-10-08). */
+const COACH_ERROR_KEYS: Record<string, string> = {
+  missing_fields: 'admin.coaches.err.missingFields',
+  bad_pin: 'admin.coaches.err.badPin',
+  pin_in_use: 'admin.coaches.err.pinInUse',
+  email_taken: 'admin.coaches.err.emailTaken',
+}
+
+type DeactivateState =
+  | { coach: Coach; phase: 'ask' | 'busy' | 'failed' }
+  | { coach: Coach; phase: 'blocked'; lessons: number; fixedClasses: number; dates: string[]; moreDates: number }
 
 const inputCls = "w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#c9a84c]"
 
@@ -58,11 +73,11 @@ function SchedulePanel({ coachId }: { coachId: string }) {
     const res = await fetch('/api/admin/coach-availability', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ coach_id: coachId, days: payload }),
-    })
-    const data = await res.json()
+    }).catch(() => null)
     setSaving(false)
-    setMsg(res.ok ? t('admin.coaches.saved') : (data.error || t('admin.coaches.err.saveFailed')))
-    if (res.ok) setTimeout(() => setMsg(null), 2000)
+    // Our words, not the route's English (found 2026-10-08).
+    setMsg(res?.ok ? t('admin.coaches.saved') : t('admin.coaches.err.saveFailed'))
+    if (res?.ok) setTimeout(() => setMsg(null), 2000)
   }
 
   const upd = (i: number, patch: Partial<DayRow>) => setDays(prev => prev.map((d, idx) => idx === i ? { ...d, ...patch } : d))
@@ -107,6 +122,10 @@ function SchedulePanel({ coachId }: { coachId: string }) {
 
 export default function AdminCoachesPage() {
   const t = useT()
+  const locale = useLocale()
+  // Deactivating asks first, and is refused while the coach still has
+  // lessons to teach (owner, 2026-10-08).
+  const [deactivate, setDeactivate] = useState<DeactivateState | null>(null)
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -134,21 +153,43 @@ export default function AdminCoachesPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     })
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
     setSaving(false)
-    if (!res.ok) { setError(data.error || t('admin.coaches.err.failed')); return }
+    if (!res.ok) { setError(t(COACH_ERROR_KEYS[String(data.code || '')] || 'admin.coaches.err.failed')); return }
     setForm({ first_name: '', last_name: '', email: '', pin: '' })
     setShowAdd(false)
     load()
   }
 
   const toggleActive = async (c: Coach) => {
-    await fetch('/api/admin/coaches', {
+    if (c.is_active) { setDeactivate({ coach: c, phase: 'ask' }); return }
+    setError(null)
+    const res = await fetch('/api/admin/coaches', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: c.id, is_active: !c.is_active }),
-    })
+      body: JSON.stringify({ id: c.id, is_active: true }),
+    }).catch(() => null)
+    if (!res?.ok) setError(t('admin.coaches.err.failed'))
     load()
   }
+
+  const confirmDeactivate = async () => {
+    if (!deactivate) return
+    const coach = deactivate.coach
+    setDeactivate({ coach, phase: 'busy' })
+    const res = await fetch('/api/admin/coaches', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: coach.id, is_active: false }),
+    }).catch(() => null)
+    const data = res ? await res.json().catch(() => ({})) : {}
+    if (res?.ok) { setDeactivate(null); load(); return }
+    if (data.code === 'has_future_lessons') {
+      setDeactivate({ coach, phase: 'blocked', lessons: Number(data.lessons) || 0, fixedClasses: Number(data.fixedClasses) || 0, dates: data.dates || [], moreDates: Number(data.moreDates) || 0 })
+      return
+    }
+    setDeactivate({ coach, phase: 'failed' })
+  }
+
+  const shortDate = (ymd: string) => new Date(ymd + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { timeZone: 'UTC', month: 'short', day: 'numeric', weekday: 'short' })
 
   const savePin = async (id: string) => {
     setError(null)
@@ -156,8 +197,8 @@ export default function AdminCoachesPage() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, pin: editPin }),
     })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error || t('admin.coaches.err.failed')); return }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(t(COACH_ERROR_KEYS[String(data.code || '')] || 'admin.coaches.err.failed')); return }
     setEditPinId(null); setEditPin('')
   }
 
@@ -217,6 +258,48 @@ export default function AdminCoachesPage() {
                 <div className="flex gap-2 mt-5">
                   <button onClick={() => setUnlock(null)}
                     className="flex-1 px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm">{t('common.close')}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {deactivate && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => { if (deactivate.phase !== 'busy') setDeactivate(null) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="deactivate-title" className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h2 id="deactivate-title" className="text-white font-bold text-lg">
+              {t('admin.coaches.deactivateTitle', { name: `${deactivate.coach.first_name} ${deactivate.coach.last_name || ''}`.trim() })}
+            </h2>
+            {deactivate.phase === 'blocked' ? (
+              <>
+                <p role="status" className="text-sm mt-2 leading-relaxed text-amber-300">
+                  {t('admin.coaches.deactivateBlocked', { lessons: deactivate.lessons, fixed: deactivate.fixedClasses })}
+                </p>
+                {deactivate.dates.length > 0 && (
+                  <p className="text-xs mt-2 text-gray-400">
+                    {t('admin.coaches.deactivateDates', { dates: deactivate.dates.map(shortDate).join(', ') })}
+                    {deactivate.moreDates > 0 ? ' ' + t('admin.coaches.deactivateMoreDates', { n: deactivate.moreDates }) : ''}
+                  </p>
+                )}
+                <p className="text-xs mt-2 text-gray-400 leading-relaxed">{t('admin.coaches.deactivateHowTo')}</p>
+                <div className="flex gap-2 mt-5">
+                  <button onClick={() => setDeactivate(null)}
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm">{t('common.close')}</button>
+                  <Link href="/admin/booking" className="flex-1 px-3 py-2 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold text-center">{t('admin.coaches.openBooking')}</Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-400 text-sm mt-2 leading-relaxed">{t('admin.coaches.deactivateBody')}</p>
+                {deactivate.phase === 'failed' && <p role="status" className="text-red-400 text-sm mt-2">{t('admin.coaches.deactivateFailed')}</p>}
+                <div className="flex gap-2 mt-5">
+                  <button onClick={() => setDeactivate(null)} disabled={deactivate.phase === 'busy'}
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm disabled:opacity-50">{t('common.cancel')}</button>
+                  <button onClick={confirmDeactivate} disabled={deactivate.phase === 'busy'}
+                    className="flex-1 px-3 py-2 rounded-lg border border-red-400/60 bg-red-500/20 text-red-200 text-sm font-semibold disabled:opacity-50">
+                    {deactivate.phase === 'busy' ? t('admin.coaches.deactivateChecking') : t('admin.coaches.deactivate')}
+                  </button>
                 </div>
               </>
             )}

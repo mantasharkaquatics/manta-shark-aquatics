@@ -141,7 +141,9 @@ export async function POST(req: NextRequest) {
     const base = existing?.expires_at && new Date(existing.expires_at) > now ? new Date(existing.expires_at) : now
     const end = addMonthsClamped(base, m)
 
-    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    // California date, like the invoice number and PDF date: on a UTC server a
+    // sale after 5pm printed the next day as the period start (found 2026-10-08).
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric' })
     const unitPrice = tier.monthly_price_cents / 100
     const amount = unitPrice * m
     const invoiceRow = (membershipId: string | null) => ({

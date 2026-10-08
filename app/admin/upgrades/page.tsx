@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation'
 import AdminUpgradesClient from './AdminUpgradesClient'
 import { allRowsOrLog, allRowsIn } from '@/lib/db-paging'
 import { getTodayLA } from '@/lib/date'
+import { readLevelHistory } from '@/lib/admin/level-history'
+import { assessmentWaitingIds } from '@/lib/level-change'
 
 /** A database row as the API returns it (untyped client). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,44 +30,15 @@ export default async function AdminUpgradesPage() {
   )
 
 
-  // upgrade history
-  const { data: rawHistory } = await svc
-    .from('level_upgrades')
-    .select('id, from_level, to_level, from_stage, to_stage, upgraded_at, notes, student_id, upgraded_by')
-    .order('upgraded_at', { ascending: false })
-    .limit(30)
-
-  let upgradeHistory: any[] = []
-  if (rawHistory && rawHistory.length > 0) {
-    const sIds = [...new Set(rawHistory.map(h => h.student_id).filter(Boolean))]
-    // `upgraded_by` is POLYMORPHIC and has no foreign key, deliberately: an
-    // admin id when someone assigns a level through this page, a COACH id when
-    // the trg_level_upgrade trigger promotes a swimmer who has finished every
-    // skill. Looking only in `admins` -- which is what this did -- left every
-    // trigger-created row reading "by" with no name after it, and those are
-    // the ordinary case, not the exception.
-    const byIds = [...new Set(rawHistory.map(h => h.upgraded_by).filter(Boolean))]
-    const [{ data: hStudents }, { data: hAdmins }, { data: hCoaches }] = await Promise.all([
-      svc.from('students').select('id, full_name').in('id', sIds),
-      svc.from('admins').select('id, first_name, last_name').in('id', byIds),
-      svc.from('coaches').select('id, first_name, last_name').in('id', byIds),
-    ])
-    const hsMap: Record<string, any> = {}
-    for (const s of hStudents || []) hsMap[s.id] = s
-    const byMap: Record<string, any> = {}
-    for (const a of hAdmins || []) byMap[a.id] = { ...a, role: 'admin' }
-    // Coaches second so that in the impossible event of an id in both tables
-    // the answer is stable rather than order-of-arrival.
-    for (const c of hCoaches || []) byMap[c.id] = { ...c, role: 'coach' }
-    upgradeHistory = rawHistory.map(h => ({
-      ...h,
-      students: hsMap[h.student_id],
-      by: byMap[h.upgraded_by] ?? null,
-    }))
-  }
+  // The newest page of the change log; the client pages further back and
+  // reads one swimmer's own history through /api/admin/level-history.
+  const { rows: upgradeHistory, more: historyMore, error: historyErr } = await readLevelHistory(svc)
+  if (historyErr) console.error('levels page history: read failed:', historyErr.message || historyErr)
 
   const { data: levels } = await svc.from('levels').select('id, level_number, name').order('sort_order')
-  const { data: skills } = await svc.from('skills').select('id, name, sort_order, level_id, stage').order('stage').order('sort_order')
+  // Retired skills (is_active = false) are not taught: listing them padded the
+  // reference and its skill count (found 2026-10-08).
+  const { data: skills } = await svc.from('skills').select('id, name, sort_order, level_id, stage').eq('is_active', true).order('stage').order('sort_order')
   // Every active swimmer, a page at a time: the API stops at 1,000 rows, and
   // the search below only finds who was read (found 2026-10-08). Ordered by a
   // unique key after the name so the pages do not overlap.
@@ -91,12 +64,18 @@ export default async function AdminUpgradesPage() {
      family whose assessment is still ahead, who missed it, or whose report
      is already in, sent the admin looking for a card that was not there. */
   const unleveled = students.filter((s: Row) => !s.current_level).map((s: Row) => s.id as string)
-  const [{ data: trialRows }, { data: reports }] = await Promise.all([
+  const [{ data: trialRows }, { data: reports }, { ids: assessmentWaiting, error: waitingErr }] = await Promise.all([
     allRowsIn(unleveled, c => svc.from('bookings').select('id, student_id, class_session_id, lesson_group_id')
       .in('student_id', c).eq('is_trial', true).eq('status', 'confirmed').order('id')),
     allRowsIn(unleveled, c => svc.from('student_assessments').select('student_id')
       .in('student_id', c).order('student_id')),
+    // An assessment report waiting in Reviews or sent back to the coach: the
+    // level comes from confirming it, and /api/admin/assign-level refuses
+    // (assessment_waiting). The hint above covered only a swimmer with no
+    // report at all, so this case had no word on the page (found 2026-10-08).
+    assessmentWaitingIds(svc, unleveled),
   ])
+  if (waitingErr) console.error('levels page waiting assessments: read failed:', waitingErr.message || waitingErr)
   const reported = new Set(reports.map((r: Row) => r.student_id))
   const trials = trialRows.filter((b: Row) => b.student_id && b.class_session_id && !reported.has(b.student_id))
   const trialStudents = [...new Set(trials.map((b: Row) => b.student_id))] as string[]
@@ -120,12 +99,14 @@ export default async function AdminUpgradesPage() {
     ...s,
     parents: pMap[s.parent_id] || null,
     paidAssessment: !s.current_level && paidAssessment.has(s.id),
+    assessmentWaiting: !s.current_level && assessmentWaiting.has(s.id),
   }))
 
 
 
   return <AdminUpgradesClient
     upgradeHistory={upgradeHistory}
+    historyMore={historyMore}
     adminId={admin.id}
     levels={levels || []}
     skills={skills || []}

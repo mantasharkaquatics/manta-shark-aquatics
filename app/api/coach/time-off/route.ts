@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCoach } from '@/lib/api-auth'
-import { handledTimeOffIds, bookedLessonsInWindow, lessonEnded, type BookedLesson } from '@/lib/time-off'
+import { handledTimeOffIds, bookedLessonsInRange, lessonEnded, MAX_TIME_OFF_DAYS, addDaysISO, type BookedLesson } from '@/lib/time-off'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 import { sendSms } from '@/lib/sms'
@@ -25,6 +25,13 @@ const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map
 // Lessons that have already ended do not count: same-day time off taken at
 // lunch listed the morning's finished lessons, families' phones and all, in
 // the alert while Reviews (rightly) left them out (found 2026-10-08).
+//
+// Several days at once (owner, 2026-10-08): `end_date` makes it every day from
+// `date` to `end_date`, the same window on each. It is saved as one row per
+// day -- everything downstream (the admin Time Off page, Reviews, booking
+// availability) reads a day at a time -- but the desk gets ONE email and ONE
+// text for the whole run. A ten-day trip used to take ten requests and send
+// the desk ten of each.
 export async function POST(req: NextRequest) {
   const auth = await requireCoach()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -32,6 +39,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   const date = typeof body?.date === 'string' ? body.date : ''
+  const endDate = typeof body?.end_date === 'string' && body.end_date ? body.end_date : date
   const allDay = !body?.start_time && !body?.end_time
   const start = allDay ? null : String(body?.start_time || '').slice(0, 5)
   const end = allDay ? null : String(body?.end_time || '').slice(0, 5)
@@ -39,51 +47,61 @@ export async function POST(req: NextRequest) {
 
   if (!DATE_RE.test(date)) return NextResponse.json({ error: 'Pick a date.', code: 'date' }, { status: 400 })
   if (date < getTodayLA()) return NextResponse.json({ error: 'Cannot request time off for past dates.', code: 'past' }, { status: 400 })
+  if (!DATE_RE.test(endDate) || endDate < date) return NextResponse.json({ error: 'The last day must be on or after the first.', code: 'range' }, { status: 400 })
+  if (endDate > addDaysISO(date, MAX_TIME_OFF_DAYS - 1)) return NextResponse.json({ error: `At most ${MAX_TIME_OFF_DAYS} days in one request.`, code: 'tooLong' }, { status: 400 })
+  const dates: string[] = []
+  for (let d = date; d <= endDate; d = addDaysISO(d, 1)) dates.push(d)
   if (!allDay && (!start || !end || !TIME_RE.test(start) || !TIME_RE.test(end)))
     return NextResponse.json({ error: 'Pick start and end times.', code: 'times' }, { status: 400 })
   if (!allDay && start! >= end!) return NextResponse.json({ error: 'End time must be after start time.', code: 'order' }, { status: 400 })
 
   // Same overlap rule as the form: whole-day time off clashes with anything
-  // that day, part-day only where the windows overlap.
+  // that day, part-day only where the windows overlap. Against every block on
+  // the coach's days, the office's own included -- the admin route already
+  // checks all types, and a coach re-filing a day the desk had blocked for
+  // them sent the desk an alert about something it had entered itself
+  // (owner, 2026-10-08).
   const { data: existing, error: exErr } = await svc
-    .from('coach_time_off').select('id, start_time, end_time')
-    .eq('coach_id', coach.id).eq('date', date).eq('block_type', 'time_off')
+    .from('coach_time_off').select('id, date, start_time, end_time')
+    .eq('coach_id', coach.id).gte('date', date).lte('date', endDate)
   if (exErr) return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
-  const clash = ((existing || []) as { start_time: string | null; end_time: string | null }[]).some(t => {
+  const clashOn = ((existing || []) as { date: string; start_time: string | null; end_time: string | null }[]).find(t => {
     if (allDay || t.start_time == null || t.end_time == null) return true
     return toM(start!) < toM(t.end_time) && toM(end!) > toM(t.start_time)
   })
-  if (clash) return NextResponse.json({ error: 'This overlaps with your existing time off on this date.', code: 'clash' }, { status: 409 })
+  if (clashOn) return NextResponse.json({ error: 'This overlaps with time off already on file.', code: 'clash', date: clashOn.date }, { status: 409 })
 
-  const { data: row, error } = await svc
+  // One insert for the whole run: all of it is saved or none of it.
+  const { data: rows, error } = await svc
     .from('coach_time_off')
-    .insert({ coach_id: coach.id, date, reason, start_time: start, end_time: end, block_type: 'time_off' })
+    .insert(dates.map(d => ({ coach_id: coach.id, date: d, reason, start_time: start, end_time: end, block_type: 'time_off' })))
     .select('id, date, reason, created_at, start_time, end_time')
-    .single()
-  if (error || !row) {
+  if (error || !rows || rows.length === 0) {
     console.error('coach time-off insert failed:', error?.message)
     return NextResponse.json({ error: 'Failed to submit' }, { status: 500 })
   }
+  rows.sort((a: Row, b: Row) => a.date.localeCompare(b.date))
 
-  const lessons = await liveLessonsInWindow(svc, coach.id, date, start, end)
-  if (lessons === null) console.error('coach time-off: booked lessons not read for', row.id)
+  const lessons = await liveLessonsInWindow(svc, coach.id, date, endDate, start, end)
+  if (lessons === null) console.error('coach time-off: booked lessons not read for', rows.map((r: Row) => r.id).join(','))
   const affected = lessons?.length || 0
   if (affected > 0) {
     try {
-      await alertDesk(svc, coach, row, lessons!, 'requested')
+      await alertDesk(svc, coach, rows, lessons!, 'requested')
     } catch (e) {
       // The Reviews item still shows it; a failed alert must not undo the request.
       console.error('coach time-off: desk alert failed:', e)
     }
   }
-  return NextResponse.json({ item: row, affected })
+  return NextResponse.json({ items: rows, item: rows[0], affected })
 }
 
 type Svc = NonNullable<Awaited<ReturnType<typeof requireCoach>>>['svc']
 
-/** Booked lessons in the window that have not ended yet (null: read failed). */
-async function liveLessonsInWindow(svc: Svc, coachId: string, date: string, start: string | null, end: string | null) {
-  const lessons = await bookedLessonsInWindow(svc, coachId, date, start, end)
+/** Booked lessons in the window, on each day from `from` to `to`, that have
+ *  not ended yet (null: read failed). */
+async function liveLessonsInWindow(svc: Svc, coachId: string, from: string, to: string, start: string | null, end: string | null) {
+  const lessons = await bookedLessonsInRange(svc, coachId, from, to, start, end)
   if (!lessons) return null
   const today = getTodayLA()
   const nowMin = getNowMinutesLA()
@@ -96,7 +114,9 @@ type Named = { id: string; full_name?: string; first_name?: string; last_name?: 
    'withdrawn' (owner, 2026-10-08): the desk may already be phoning families
    on the strength of the first alert, so withdrawing it sends a short note on
    the same two channels saying the lessons go ahead. */
-async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, row: Row, lessons: BookedLesson[], kind: 'requested' | 'withdrawn') {
+async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, rows: Row[], lessons: BookedLesson[], kind: 'requested' | 'withdrawn') {
+  const row = rows[0]
+  const lastRow = rows[rows.length - 1]
   const { data: me } = await svc.from('coaches').select('first_name, last_name').eq('id', coach.id).maybeSingle()
   const coachName = me ? `${me.first_name || ''} ${me.last_name || ''}`.trim() : coach.first_name
   const stuIds = [...new Set(lessons.flatMap(l => l.students.map(s => s.id)))]
@@ -112,10 +132,13 @@ async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, ro
   const parMap = byId(pars)
   const ctMap = byId(cts)
 
-  const day = new Date(row.date + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const dayOf = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const multi = lastRow.date !== row.date
+  // One request over several days reads "Mon, Oct 12 – Wed, Oct 21".
+  const day = multi ? `${dayOf(row.date)} – ${dayOf(lastRow.date)}` : dayOf(row.date)
   const span = row.start_time && row.end_time
-    ? `${formatTime12h(row.start_time)} – ${formatTime12h(row.end_time)}`
-    : 'all day'
+    ? `${formatTime12h(row.start_time)} – ${formatTime12h(row.end_time)}${multi ? ' each day' : ''}`
+    : multi ? 'whole days' : 'all day'
   const n = lessons.length
   const plural = n === 1 ? 'lesson' : 'lessons'
 
@@ -138,7 +161,7 @@ async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, ro
         const family = p ? [`${p.first_name || ''} ${p.last_name || ''}`.trim(), p.phone, p.email].filter(Boolean).join(', ') : ''
         return `${stuMap.get(s.id)?.full_name || 'Swimmer'}${family ? ` (${family})` : ''}`
       }).join('; ')
-      return `• ${formatTime12h(l.start)} – ${formatTime12h(l.end)}${course ? ` · ${course}` : ''} · ${who}`
+      return `• ${multi ? dayOf(l.date) + ' ' : ''}${formatTime12h(l.start)} – ${formatTime12h(l.end)}${course ? ` · ${course}` : ''} · ${who}`
     }),
     `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'}/admin/time-off`,
   ]
@@ -160,9 +183,10 @@ async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, ro
       : Promise.resolve(null),
   ])
   for (const r of results) if (r.status === 'rejected') console.error(`coach time-off: desk ${kind} alert failed:`, r.reason)
-  if (results[0].status === 'fulfilled' && results[0].value === false) console.error(`coach time-off: desk ${kind} email not sent for`, row.id)
+  const ids = rows.map(r => r.id).join(',')
+  if (results[0].status === 'fulfilled' && results[0].value === false) console.error(`coach time-off: desk ${kind} email not sent for`, ids)
   const sms = results[1]
-  if (sms.status === 'fulfilled' && sms.value && !sms.value.ok) console.error(`coach time-off: desk ${kind} SMS not sent for`, row.id, sms.value.reason)
+  if (sms.status === 'fulfilled' && sms.value && !sms.value.ok) console.error(`coach time-off: desk ${kind} SMS not sent for`, ids, sms.value.reason)
 }
 
 // DELETE: a coach removes their own time off.
@@ -205,7 +229,7 @@ export async function DELETE(req: NextRequest) {
   // Read before the delete, the same way the send counted them. Lessons that
   // have ended, or that the office has already cancelled or moved, need no
   // word.
-  const lessons = await liveLessonsInWindow(svc, coach.id, block.date, block.start_time, block.end_time)
+  const lessons = await liveLessonsInWindow(svc, coach.id, block.date, block.date, block.start_time, block.end_time)
   if (lessons === null) console.error('coach time-off: booked lessons not read before withdrawing', block.id)
 
   const { data: gone, error } = await svc
@@ -214,7 +238,7 @@ export async function DELETE(req: NextRequest) {
 
   if (lessons && lessons.length > 0) {
     try {
-      await alertDesk(svc, coach, block, lessons, 'withdrawn')
+      await alertDesk(svc, coach, [block], lessons, 'withdrawn')
     } catch (e) {
       // The time off is gone either way; a failed note must not report a failed delete.
       console.error('coach time-off: desk withdrawal note failed:', e)

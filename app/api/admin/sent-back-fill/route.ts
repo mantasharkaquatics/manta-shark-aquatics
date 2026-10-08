@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { pictureAsOf } from '@/lib/skill-progress-sync'
+import { levelAtLesson } from '@/lib/level-change'
+import { laWallTimeToUtcMs } from '@/lib/date'
 
 const fail = (status: number, error: string, code: string) => NextResponse.json({ error, code }, { status })
 
@@ -12,7 +14,7 @@ const fail = (status: number, error: string, code: string) => NextResponse.json(
  * coach who filed it could, and the Reviews list had no button.
  *
  * Same as the "missing progress" fill (/api/coach/progress POST, admin only):
- * the scores of the swimmer's level, untouched skills kept as the swimmer
+ * the scores of the level the swimmer was in AT THAT LESSON, untouched skills kept as the swimmer
  * stood on that lesson's day, queued as pending_review for the usual confirm.
  * The difference is that the lesson already has its (sent-back) row, so that
  * row is filed again rather than a second one added -- one report per
@@ -54,14 +56,25 @@ export async function POST(req: NextRequest) {
   // The lesson's coach today (a lesson can move after the send-back); the
   // report's own coach if the lesson has none.
   const { data: session } = hist.class_session_id
-    ? await svc.from('class_sessions').select('coach_id').eq('id', hist.class_session_id).maybeSingle()
+    ? await svc.from('class_sessions').select('coach_id, start_time').eq('id', hist.class_session_id).maybeSingle()
     : { data: null }
   const coachId: string | null = session?.coach_id || hist.coach_id || null
   if (!coachId) return fail(400, 'This session has no assigned coach', 'no_coach')
 
-  // Any skill of the swimmer's level; the rest of the level kept as it stood
-  // on the lesson's day (see /api/coach/progress POST for why both).
-  const { data: lvl } = await svc.from('levels').select('id').eq('level_number', student.current_level).maybeSingle()
+  // The level of the lesson, not today's: a report for a lesson before the
+  // swimmer moved up was filed with the NEW level's skills under the old date
+  // -- the coach is told to leave exactly this case to the admin
+  // (levelChangedSince), and the admin then had only the wrong list
+  // (found 2026-10-08). Same reading as the coach's recorder.
+  const { level: lessonLevel, error: lvlErr } = await levelAtLesson(svc, {
+    studentId: hist.student_id,
+    lessonStartMs: hist.session_date ? laWallTimeToUtcMs(hist.session_date, String(session?.start_time || '00:00').slice(0, 5)) : NaN,
+    currentLevel: student.current_level,
+  })
+  if (lvlErr) return fail(500, lvlErr.message, 'server')
+  // Any skill of that level; the rest of the level kept as it stood on the
+  // lesson's day (see /api/coach/progress POST for why both).
+  const { data: lvl } = await svc.from('levels').select('id').eq('level_number', lessonLevel || student.current_level).maybeSingle()
   if (!lvl) return fail(400, 'That level does not exist', 'bad_level')
   const { data: levelSkills } = await svc.from('skills').select('id').eq('level_id', lvl.id).eq('is_active', true)
   const allowed = new Set<string>((levelSkills || []).map((k: { id: string }) => k.id))

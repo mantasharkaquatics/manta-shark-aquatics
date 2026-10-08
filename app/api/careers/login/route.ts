@@ -14,6 +14,9 @@ const MAX_FAILED = 8
 const LOCK_MINUTES = 15
 const GENERIC = 'Email or password is incorrect.'
 const TRY_AGAIN = 'Could not sign you in. Please try again.'
+// Said on the guess that locks the account, not only on the next one, and it
+// names the way out (found 2026-10-08): a reset works straight away.
+const LOCKED = `Too many failed attempts, so sign-in is paused for ${LOCK_MINUTES} minutes. You can reset your password now with "Forgot your password?" below.`
 // Wrong guesses one network may make in an hour, across all accounts (found
 // 2026-10-07): the per-account lockout below never slowed a script working
 // through many applicants' emails. A successful sign-in gives its slot back.
@@ -63,10 +66,7 @@ export async function POST(req: Request) {
   }
 
   if (applicant.locked_until && new Date(applicant.locked_until).getTime() > Date.now()) {
-    return NextResponse.json(
-      { error: `Too many failed attempts. Try again in ${LOCK_MINUTES} minutes.` },
-      { status: 429 }
-    )
+    return NextResponse.json({ error: LOCKED }, { status: 429 })
   }
 
   // Count the attempt BEFORE checking the password, as a compare-and-swap on
@@ -77,8 +77,14 @@ export async function POST(req: Request) {
   // request per value of the counter wins; the others are turned away before
   // the password is compared, so every compared guess is counted. A correct
   // password sets the count back to 0 below.
+  //
+  // A lock that has run out starts the count again from 0 (found
+  // 2026-10-08): the count used to stay at 8, so after the 15 minutes every
+  // single wrong guess was 9, 10, ... and locked the account again at once.
+  // The compare-and-swap below still matches the stored value.
   const before = applicant.failed_login_count ?? 0
-  const failed = before + 1
+  const lockExpired = !!applicant.locked_until && new Date(applicant.locked_until).getTime() <= Date.now()
+  const failed = (lockExpired ? 0 : before) + 1
   let bump = supabase
     .from('applicants')
     .update({
@@ -100,6 +106,7 @@ export async function POST(req: Request) {
   const valid = await verifyPassword(password, applicant.password_hash)
 
   if (!valid) {
+    if (failed >= MAX_FAILED) return NextResponse.json({ error: LOCKED }, { status: 429 })
     return NextResponse.json({ error: GENERIC }, { status: 401 })
   }
 

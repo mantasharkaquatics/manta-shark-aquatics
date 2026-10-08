@@ -4,6 +4,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { sendEmail } from '@/lib/email'
 import { emailIlikePattern, sameEmail } from '@/lib/account-exists'
 import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
+import { isLocale } from '@/lib/i18n'
 
 export const runtime = 'nodejs'
 
@@ -66,18 +67,40 @@ export async function POST(req: NextRequest) {
     const admin = (admins as Person[] | null)?.find(r => sameEmail(r.email, email))
     if (admin?.auth_user_id) person = admin
   }
-  if (!person?.auth_user_id) return NextResponse.json({ ok: true })
 
-  const { data: authUser } = await svc.auth.admin.getUserById(person.auth_user_id)
-  const lastSent = (authUser?.user as any)?.recovery_sent_at
-  if (lastSent && Date.now() - new Date(lastSent).getTime() < RESEND_GAP_MS) {
-    return NextResponse.json({ ok: true })
+  let token: string | undefined
+  if (person?.auth_user_id) {
+    const { data: authUser } = await svc.auth.admin.getUserById(person.auth_user_id)
+    const lastSent = (authUser?.user as any)?.recovery_sent_at
+    if (lastSent && Date.now() - new Date(lastSent).getTime() < RESEND_GAP_MS) {
+      return NextResponse.json({ ok: true })
+    }
+    const { data: link, error } = await svc.auth.admin.generateLink({ type: 'recovery', email })
+    token = link?.properties?.hashed_token
+    if (error) console.error('[forgot-password] generateLink failed', error)
+  } else {
+    /* A half-registered family (found 2026-10-08): signUp made the login, but
+       the family row was never written (the codes expired, or the page was
+       closed while "Creating..."). They have no parents row, so this route
+       used to send nothing -- and registering again said "already has an
+       account". A login with no parent/admin row that is not a coach gets the
+       link too; after the reset, signing in sends them to /register?finish=1
+       to add the family record. generateLink is also the lookup: it fails for
+       an address with no login, and that stays the quiet "ok". */
+    const { data: coachRows } = await svc.from('coaches').select('email').ilike('email', emailIlikePattern(email)).limit(20)
+    if ((coachRows as { email: string | null }[] | null)?.some(r => sameEmail(r.email, email))) return NextResponse.json({ ok: true })
+    const { data: link, error } = await svc.auth.admin.generateLink({ type: 'recovery', email })
+    if (error || !link?.user) {
+      if (error && error.status !== 404) console.error('[forgot-password] generateLink (no family row) failed', error)
+      return NextResponse.json({ ok: true })
+    }
+    // A coach's login under another address on the coaches row: still left out.
+    const { data: coachById } = await svc.from('coaches').select('id').eq('auth_user_id', link.user.id).limit(1)
+    if (coachById && coachById.length > 0) return NextResponse.json({ ok: true })
+    token = link.properties?.hashed_token
+    person = { auth_user_id: link.user.id, first_name: null, email, preferred_language: isLocale(body.lang) ? body.lang : 'en' }
   }
-
-  const { data: link, error } = await svc.auth.admin.generateLink({ type: 'recovery', email })
-  const token = link?.properties?.hashed_token
-  if (error || !token) {
-    console.error('[forgot-password] generateLink failed', error)
+  if (!token) {
     await giveBack()
     return NextResponse.json({ error: 'Could not send the email. Please try again.' }, { status: 502 })
   }
@@ -87,9 +110,9 @@ export async function POST(req: NextRequest) {
   const sent = await sendEmail({
     type: 'parent_password_reset',
     to: email,
-    parentName: person.first_name || '',
+    parentName: person?.first_name || '',
     resetUrl,
-    lang: person.preferred_language || 'en',
+    lang: person?.preferred_language || 'en',
   })
   if (!sent) {
     await giveBack()

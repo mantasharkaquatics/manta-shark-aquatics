@@ -7,6 +7,7 @@ import { LEGAL_VERSIONS } from '@/lib/legal'
 import { getTodayLA } from '@/lib/date'
 import { isLocale } from '@/lib/i18n'
 import { sendEmail } from '@/lib/email'
+import { findProof, normalizePhone, EMAIL_NOT_VERIFIED, PHONE_NOT_VERIFIED, type OtpTable } from '@/lib/registration-proof'
 
 export const runtime = 'nodejs'
 
@@ -39,41 +40,9 @@ export const runtime = 'nodejs'
    not consumed -- harmless in practice, because a phone or email already on a
    parents row is refused below anyway. */
 
-// How long a verified code stays good for creating the account. Codes
-// themselves live ten minutes; this covers filling in the rest of the form.
-const PROOF_WINDOW_MS = 60 * 60 * 1000
 const MAX_STUDENTS = 3
 
-// Same normalisation as app/api/auth/send-otp and verify-otp, so the phone
-// here finds the row those routes wrote.
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 10) return '+1' + digits
-  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits
-  return phone.startsWith('+') ? phone : '+' + digits
-}
-
 type Svc = NonNullable<Awaited<ReturnType<typeof requireUser>>>['svc']
-type OtpTable = 'phone_otps' | 'email_otps'
-
-// Postgres "undefined column": the migration has not been run yet.
-function isMissingColumn(err: { code?: string; message?: string } | null): boolean {
-  return !!err && (err.code === '42703' || /used_(at|by)/.test(err.message || ''))
-}
-
-async function findProof(svc: Svc, table: OtpTable, col: 'phone' | 'email', value: string):
-  Promise<{ id: string | null; tracked: boolean } | { error: unknown }> {
-  const since = new Date(Date.now() - PROOF_WINDOW_MS).toISOString()
-  const base = () => svc.from(table).select('id')
-    .eq(col, value).eq('verified', true).gte('created_at', since)
-    .order('created_at', { ascending: false }).limit(1)
-  const first = await base().is('used_at', null)
-  if (!first.error) return { id: first.data?.[0]?.id ?? null, tracked: true }
-  if (!isMissingColumn(first.error)) return { error: first.error }
-  const legacy = await base()
-  if (legacy.error) return { error: legacy.error }
-  return { id: legacy.data?.[0]?.id ?? null, tracked: false }
-}
 
 // Compare-and-swap on used_at: two requests racing for the same code cannot
 // both win it.
@@ -101,8 +70,6 @@ const isRealDate = (d: string) => {
   return !isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d
 }
 
-const EMAIL_NOT_VERIFIED = { error: 'Email verification is missing or has expired. Please verify your email again.', code: 'EMAIL_NOT_VERIFIED' }
-const PHONE_NOT_VERIFIED = { error: 'Phone verification is missing or has expired. Please verify your phone number again.', code: 'PHONE_NOT_VERIFIED' }
 const CREATE_FAILED = { error: 'Could not create the account. Please try again.' }
 
 export async function POST(req: NextRequest) {

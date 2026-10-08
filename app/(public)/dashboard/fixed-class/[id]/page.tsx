@@ -44,7 +44,9 @@ const PAGE_CSS = `
 .fc-lesson { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 7px; background: #eef4fc; color: #16294a; }
 .fc-lesson em { font-style: normal; font-weight: 700; color: #b06a00; margin-left: 4px; }
 button.fc-lesson { font-family: inherit; border: 1px solid transparent; cursor: pointer; }
-button.fc-lesson:hover { border-color: #2050a0; background: #fff; }
+/* Hover only where there is a mouse: on a phone a tapped date or slot kept
+   the hover look and read as selected (AGENTS.md; found 2026-10-08). */
+@media (hover: hover) { button.fc-lesson:hover { border-color: #2050a0; background: #fff; } }
 .fc-leave-back { position: fixed; inset: 0; background: rgba(14,29,59,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
 .fc-leave { background: #fff; border-radius: 20px; border: 1px solid #e3ebf6; padding: 28px; max-width: 380px; width: 100%; }
 .fc-leave .eb { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #c0392b; margin-bottom: 8px; }
@@ -70,7 +72,7 @@ button.fc-lesson:hover { border-color: #2050a0; background: #fff; }
 .fc-opt b { display: block; font-size: 14px; color: #12254a; }
 .fc-opt small { font-size: 12px; color: #56647d; }
 .fc-opt.part small { color: #b06a00; }
-.fc-opt:hover { border-color: #2050a0; }
+@media (hover: hover) { .fc-opt:hover { border-color: #2050a0; } }
 .fc-plan { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 .fc-plan div { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 7px 10px; border-radius: 8px; background: #f6f9fd; }
 .fc-plan .tag { font-size: 12px; font-weight: 700; color: #b06a00; }

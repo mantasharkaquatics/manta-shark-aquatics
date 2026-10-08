@@ -29,6 +29,19 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
   }, [pathname])
   // Conversations waiting for a person (an AI handoff, or a parent writing in).
   const unreadChats = useUnreadChats(pathname)
+  // Suggestion-box entries not yet handled (owner, 2026-10-08). Read on each
+  // page change, and again when the Suggestions page marks one.
+  const [newSuggestions, setNewSuggestions] = useState(0)
+  useEffect(() => {
+    let alive = true
+    const load = () => fetch('/api/admin/suggestions/count')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (alive && d && typeof d.count === 'number') setNewSuggestions(d.count) })
+      .catch(() => {})
+    load()
+    window.addEventListener('admin:suggestions-changed', load)
+    return () => { alive = false; window.removeEventListener('admin:suggestions-changed', load) }
+  }, [pathname])
 
   return (
     <>
@@ -68,6 +81,11 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
                     {item.href === '/admin/messages' && unreadChats > 0 && (
                       <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
                         {unreadChats > 99 ? '99+' : unreadChats}
+                      </span>
+                    )}
+                    {item.href === '/admin/suggestions' && newSuggestions > 0 && (
+                      <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
+                        {newSuggestions > 99 ? '99+' : newSuggestions}
                       </span>
                     )}
                   </Link>

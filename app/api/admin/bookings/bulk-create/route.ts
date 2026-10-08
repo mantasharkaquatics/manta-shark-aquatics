@@ -6,9 +6,10 @@ import { formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
+import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
-import { coachBlocksOn, overlapsAny, studentLessonsOn } from '@/lib/bookings/desk-checks'
+import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal, type HoldHit } from '@/lib/bookings/desk-checks'
 import { allRows } from '@/lib/db-paging'
 
 // Recurring bulk booking for admin.
@@ -20,7 +21,10 @@ import { allRows } from '@/lib/db-paging'
 // "now" come from lib/date.ts LA helpers. Same-day bookings are allowed as long
 // as the start time has not passed in LA.
 
-type Candidate = { date: string; status: 'ok' | 'past' | 'coach_time_off' | 'conflict' | 'full' | 'student_busy' | 'skipped' }
+// renewal_hold: free, but kept for a fixed-class family's renewal (`hold` says
+// whose, and until when). The desk may book it only by confirming again
+// (override_holds; owner, 2026-10-08).
+type Candidate = { date: string; status: 'ok' | 'past' | 'coach_time_off' | 'conflict' | 'full' | 'student_busy' | 'skipped' | 'renewal_hold'; hold?: HoldHit }
 
 // Why a date was refused at commit, for the desk's error line.
 const WHY: Record<string, string> = {
@@ -28,6 +32,7 @@ const WHY: Record<string, string> = {
   conflict: 'the coach has another class then',
   full: 'the class is full',
   student_busy: 'the swimmer already has another lesson then',
+  renewal_hold: 'it is held for a fixed-class renewal',
   skipped: 'skipped',
   past: 'past',
 }
@@ -52,7 +57,7 @@ function minutesToTime(mins: number): string {
 
 async function evaluateDates(
   svc: any,
-  opts: { coachId: string; courseTypeId: string; startTime: string; startDate: string; count: number; spotsNeeded: number; skipDates: string[]; hour?: boolean; durationMinutes?: number; studentIds: string[]; dates?: string[] }
+  opts: { coachId: string; courseTypeId: string; startTime: string; startDate: string; count: number; spotsNeeded: number; skipDates: string[]; hour?: boolean; durationMinutes?: number; studentIds: string[]; dates?: string[]; parentIds: string[]; maxStudents: number }
 ): Promise<Candidate[]> {
   const { coachId, courseTypeId, startTime, startDate, count, spotsNeeded, skipDates, hour, durationMinutes, studentIds } = opts
   const startMins = timeToMinutes(startTime)
@@ -91,6 +96,18 @@ async function evaluateDates(
     sessByDate.get(s.session_date)!.push(s)
   }
 
+  // Fixed-class renewal holds, the same test the parent paths use
+  // (lib/bookings/desk-checks renewalHoldsInWay; found 2026-10-08).
+  const holdHits = await renewalHoldsInWay(svc, {
+    coachId, courseTypeId, dates: allDates, spanStart, spanEnd,
+    seatsNeeded: spotsNeeded, defaultMax: opts.maxStudents, exceptParentIds: opts.parentIds,
+    capacity: date => {
+      if (hour) return null
+      const m = (sessByDate.get(date) || []).find((x: any) => timeToMinutes(x.start_time) === startMins && x.course_type_id === courseTypeId)
+      return m ? { enrolled: m.enrolled_count || 0, max: m.max_students } : null
+    },
+  })
+
   const skipSet = new Set(skipDates)
   const candidates: Candidate[] = []
   let okCount = 0
@@ -127,8 +144,11 @@ async function evaluateDates(
     // The swimmer's own lessons, any coach, any course.
     if (status === 'ok' && overlapsAny(lessons.get(date), spanStart, spanEnd)) status = 'student_busy'
 
+    const hold = status === 'ok' ? holdHits.get(date) : undefined
+    if (hold) status = 'renewal_hold'
+
     if (status === 'ok') okCount++
-    candidates.push({ date, status })
+    candidates.push(hold ? { date, status, hold } : { date, status })
   }
   return candidates
 }
@@ -235,6 +255,7 @@ export async function POST(req: NextRequest) {
         coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
         startDate: start_date, count, spotsNeeded, skipDates: skip_dates || [], hour: !!hour, durationMinutes: ct.duration_minutes,
         studentIds: [student1.id, student2?.id].filter(Boolean),
+        parentIds: [student1.parent_id, student2?.parent_id].filter(Boolean), maxStudents: ct.max_students,
       })
     } catch (e) {
       console.error('bulk-create preview:', e instanceof Error ? e.message : e)
@@ -260,16 +281,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `${ct.name} cannot be paid for with points.` }, { status: 400 })
     }
 
-    return NextResponse.json({
-      candidates,
-      points: {
-        parent1_name: nameOf(student1.parent_id),
-        parent1_balance: quote1.balance, parent1_needed: quote1.total,
-        parent2_name: student2 && !sameParent ? nameOf(student2.parent_id) : null,
-        parent2_balance: quote2?.balance ?? null, parent2_needed: quote2?.total ?? null,
-        sufficient: quote1.balance >= quote1.total && (!quote2 || quote2.balance >= quote2.total),
-      },
-    })
+    const points = {
+      parent1_name: nameOf(student1.parent_id),
+      parent1_balance: quote1.balance, parent1_needed: quote1.total,
+      parent2_name: student2 && !sameParent ? nameOf(student2.parent_id) : null,
+      parent2_balance: quote2?.balance ?? null, parent2_needed: quote2?.total ?? null,
+      sufficient: quote1.balance >= quote1.total && (!quote2 || quote2.balance >= quote2.total),
+    }
+    // The same figures with the renewal-held weeks in, for when the desk
+    // chooses to book over the holds.
+    const heldDates = candidates.filter(c => c.status === 'renewal_hold').map(c => c.date)
+    let pointsWithHeld = null
+    if (heldDates.length > 0) {
+      const all = [...okDates, ...heldDates]
+      const h1 = await quoteSeries(svc, student1.parent_id, ct.slug || '', all, start_time, twoFromParent1 ? 2 : 1)
+      const h2 = student2 && !sameParent ? await quoteSeries(svc, student2.parent_id, ct.slug || '', all, start_time, 1) : null
+      pointsWithHeld = {
+        ...points, parent1_needed: h1.total, parent2_needed: h2?.total ?? null,
+        sufficient: h1.balance >= h1.total && (!h2 || h2.balance >= h2.total),
+      }
+    }
+
+    return NextResponse.json({ candidates, points, pointsWithHeld })
   }
 
   if (action === 'commit') {
@@ -284,17 +317,26 @@ export async function POST(req: NextRequest) {
         coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
         startDate: dates[0], count: dates.length, spotsNeeded, skipDates: [], hour: !!hour, durationMinutes: ct.duration_minutes,
         studentIds: [student1.id, student2?.id].filter(Boolean), dates,
+        parentIds: [student1.parent_id, student2?.parent_id].filter(Boolean), maxStudents: ct.max_students,
       })
     } catch (e) {
       console.error('bulk-create commit check:', e instanceof Error ? e.message : e)
       return NextResponse.json({ error: "Could not read the coach's schedule, so nothing was booked. Please try again." }, { status: 503 })
     }
     const statusByDate = new Map(candidates.map(c => [c.date, c.status]))
+    // A renewal hold is booked over only when the desk has confirmed it
+    // (override_holds), after being shown whose and until when.
+    const overrideHolds = body.override_holds === true
     for (const d of dates) {
       const st = statusByDate.get(d)
-      if (st !== 'ok') {
+      if (st !== 'ok' && !(st === 'renewal_hold' && overrideHolds)) {
+        if (st === 'renewal_hold') continue
         return NextResponse.json({ error: `Date ${d} is no longer available: ${(st && WHY[st]) || 'out of range'}.` }, { status: 409 })
       }
+    }
+    if (!overrideHolds) {
+      const hits = new Map(candidates.filter(c => c.status === 'renewal_hold' && c.hold && dates.includes(c.date)).map(c => [c.date, c.hold!]))
+      if (hits.size > 0) return NextResponse.json(renewalHoldRefusal(hits), { status: 409 })
     }
 
     // Level-band hard block (owner rule): banded 1on4 rejects out-of-band students for everyone, admin included.
@@ -359,7 +401,7 @@ export async function POST(req: NextRequest) {
           parentId: t.parentId, reason: 'booking_failed', points: t.points,
           grantedPart: t.granted, grantedExpiresAt: t.expires,
           actor: 'system', note: why,
-        }).catch(e => console.error('points rollback failed:', e))
+        }).catch(e => alertRollbackFailed(svc, { parentId: t.parentId, points: t.points, granted: t.granted, why, where: 'desk booking (Booking page)', error: e }))
       }
       taken.length = 0
       if (createdBookingIds.length > 0) {

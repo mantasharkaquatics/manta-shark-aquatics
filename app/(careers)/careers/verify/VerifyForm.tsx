@@ -161,7 +161,7 @@ function Panel(props: {
       {error ? <div style={ERROR}>{error}</div> : null}
 
       {editing ? (
-        <div>
+        <form noValidate onSubmit={(e) => { e.preventDefault(); if (!busy && newValue.trim()) saveChange() }}>
           <label style={LABEL} htmlFor={`new-${channel}`}>
             {missing
               ? (channel === 'email' ? 'Your email address' : 'Your mobile number')
@@ -177,9 +177,9 @@ function Panel(props: {
             onChange={(e) => setNewValue(e.target.value)}
           />
           <button
+            type="submit"
             style={busy || !newValue.trim() ? BUTTON_DISABLED : BUTTON}
             disabled={busy || !newValue.trim()}
-            onClick={saveChange}
           >
             {busy ? 'Saving…' : 'Save'}
           </button>
@@ -188,7 +188,7 @@ function Panel(props: {
               <button type="button" style={LINK_BUTTON} onClick={() => { setEditing(false); setError('') }}>Cancel</button>
             </p>
           )}
-        </div>
+        </form>
       ) : null}
       {notice ? (
         <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: '0 0 10px' }}>{notice}</p>
@@ -196,6 +196,7 @@ function Panel(props: {
 
       {editing ? null : !sentOnce ? (
         <button
+          type="button"
           style={busy || cooldown > 0 ? BUTTON_DISABLED : BUTTON}
           disabled={busy || cooldown > 0}
           onClick={send}
@@ -203,7 +204,9 @@ function Panel(props: {
           {busy ? 'Sending…' : cooldown > 0 ? `Wait ${cooldown}s` : `Send code to my ${channel}`}
         </button>
       ) : (
-        <>
+        // A form so Enter / "Go" after typing the code verifies it (found
+        // 2026-10-08); Resend stays type="button".
+        <form noValidate onSubmit={(e) => { e.preventDefault(); if (!busy && code.length === 6) check() }}>
           <input
             id={`code-${channel}`}
             style={{ ...INPUT, letterSpacing: '6px', textAlign: 'center', margin: '0 0 10px' }}
@@ -215,9 +218,9 @@ function Panel(props: {
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
           />
           <button
+            type="submit"
             style={busy || code.length !== 6 ? BUTTON_DISABLED : BUTTON}
             disabled={busy || code.length !== 6}
-            onClick={check}
           >
             {busy ? 'Checking…' : `Verify ${label.toLowerCase()}`}
           </button>
@@ -228,7 +231,7 @@ function Panel(props: {
               <button type="button" style={LINK_BUTTON} onClick={send} disabled={busy}>Resend code</button>
             )}
           </p>
-        </>
+        </form>
       )}
     </div>
   )
@@ -268,6 +271,7 @@ function NamePanel(props: { onSaved: () => void }) {
   return (
     <div style={{ margin: '0 0 24px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
       {error ? <div style={ERROR}>{error}</div> : null}
+      <form noValidate onSubmit={(e) => { e.preventDefault(); if (ok && !busy) save() }}>
       <div style={FIELD}>
         <label style={LABEL} htmlFor="name-first">Legal first name</label>
         <input id="name-first" style={INPUT} value={first} autoComplete="given-name"
@@ -278,9 +282,10 @@ function NamePanel(props: { onSaved: () => void }) {
         <input id="name-last" style={INPUT} value={last} autoComplete="family-name"
           onChange={(e) => setLast(e.target.value)} />
       </div>
-      <button style={busy || !ok ? BUTTON_DISABLED : BUTTON} disabled={busy || !ok} onClick={save}>
+      <button type="submit" style={busy || !ok ? BUTTON_DISABLED : BUTTON} disabled={busy || !ok}>
         {busy ? 'Saving…' : 'Save name'}
       </button>
+      </form>
     </div>
   )
 }

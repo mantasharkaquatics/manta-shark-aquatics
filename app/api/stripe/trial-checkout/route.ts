@@ -5,13 +5,14 @@ import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { formatTime12h } from '@/lib/date'
 import { assessmentSlotError } from '@/lib/assessment-slot'
-import { releaseTrialHold } from '@/lib/trial-booking'
+import { releaseTrialHold, syncTrialBooking } from '@/lib/trial-booking'
+import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
 export async function POST(req: NextRequest) {
   try {
-    const { studentId, coachId, date, time, sendPaymentEmail } = await req.json()
+    const { studentId, coachId, date, time, sendPaymentEmail, override_holds } = await req.json()
 
     if (!studentId || !coachId || !date || !time) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -57,13 +58,28 @@ export async function POST(req: NextRequest) {
     }
 
     // Guard: no duplicate trial while one is pending payment or already confirmed
-    const { data: existingTrial } = await svc
+    const trialQ = () => svc
       .from('bookings')
-      .select('id, status')
+      .select('id, status, stripe_session_id, class_session_id, pending_expires_at')
       .eq('student_id', studentId)
       .eq('is_trial', true)
       .neq('status', 'cancelled')
       .limit(1)
+    let { data: existingTrial } = await trialQ()
+    // An unpaid hold past its 15 minutes is settled here first (released, or
+    // confirmed if it was just paid), so the family -- or the AI booking for
+    // them -- can pick a new time straight away instead of being refused
+    // until the cleanup cron runs (found 2026-10-08).
+    const stale = existingTrial?.[0]
+    if (stale && stale.status === 'pending_payment' && stale.pending_expires_at
+        && Date.parse(stale.pending_expires_at) <= Date.now()) {
+      try {
+        const r = await syncTrialBooking(svc, stripe, stale)
+        if (r.state === 'released' || r.state === 'confirmed') ({ data: existingTrial } = await trialQ())
+      } catch (e) {
+        console.error('trial-checkout: could not settle an expired hold', stale.id, e)
+      }
+    }
     if (existingTrial && existingTrial.length > 0) {
       // An unpaid hold says so: "already booked" sent a family who had never
       // paid away believing they had (found 2026-10-08).
@@ -75,6 +91,16 @@ export async function POST(req: NextRequest) {
     if (isParentFlow) {
       const why = await assessmentSlotError(svc, { coachId, date, time, studentId, minutes: 30 })
       if (why) return NextResponse.json({ error: why }, { status: 400 })
+    } else if (override_holds !== true) {
+      // Except a fixed-class family's renewal hold: the desk is asked, and
+      // goes ahead only on a second confirmation (owner, 2026-10-08).
+      const [hh, mm] = String(time).split(':').map(Number)
+      const s0 = hh * 60 + mm
+      const hits = await renewalHoldsInWay(svc, {
+        coachId, courseTypeId: '', dates: [date], spanStart: s0, spanEnd: s0 + 30,
+        seatsNeeded: 1, defaultMax: 1, exceptParentIds: [student.parent_id],
+      })
+      if (hits.size > 0) return NextResponse.json(renewalHoldRefusal(hits), { status: 409 })
     }
 
     const { data: parent } = await svc
@@ -211,9 +237,12 @@ export async function POST(req: NextRequest) {
         // the payment itself. A link the desk made is often paid on a phone
         // that is not signed in, so it lands on a page that confirms this
         // payment by its checkout id (it used to land on the home page and
-        // say nothing). Leaving the payment page goes to the dashboard, where
-        // the hold can be paid or cancelled.
-        success_url: isParentFlow
+        // say nothing). So is a link the AI assistant emails for the family
+        // (sendPaymentEmail): it is made with the parent's sign-in, but paid
+        // from the email, often on a phone that is not signed in, which then
+        // showed only the login page (found 2026-10-08). Leaving the payment
+        // page goes to the dashboard, where the hold can be paid or cancelled.
+        success_url: isParentFlow && sendPaymentEmail !== true
           ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?trial=success`
           : `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?assessment=1&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?trial=cancelled`,

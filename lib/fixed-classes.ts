@@ -168,6 +168,8 @@ export type Hold = {
   date: string; startMin: number; endMin: number
   /** Seats kept in a 1-on-4; a private or sibling 1-on-2 hold is the whole slot. */
   seats: number; whole: boolean
+  /** The last day the hold is kept (holdLive), as the renewal email says. */
+  until: string
 }
 
 /**
@@ -201,6 +203,7 @@ export async function renewalHolds(svc: Svc, from: string, to: string, exceptPar
         fixedClassId: f.id, parentId: f.parent_id, coachId: f.coach_id, courseTypeId: f.course_type_id,
         date, startMin, endMin: startMin + (f.minutes || 30),
         seats: f.student2_id ? 2 : 1, whole,
+        until: addDaysStr(last!, -HOLD_RELEASE_DAYS),
       })
     }
   }

@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import Link from 'next/link'
-import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, takePendingChatOpen } from '@/lib/chat-open'
+import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
@@ -74,9 +74,9 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [unread, setUnread] = useState(0)
-  // The realtime callback below is created once per thread, so it would see
-  // `open` as it was then -- true, since the thread only loads once the panel
-  // opens -- and never count anything (found 2026-10-05). It reads this ref.
+  // The realtime callback below is created once per thread, and the thread is
+  // now found on page load with the panel shut, so it reads `open` from this
+  // ref rather than the value it was created with (found 2026-10-05).
   const openRef = useRef(open)
   useEffect(() => { openRef.current = open }, [open])
   const [awaitingAi, setAwaitingAi] = useState(false)
@@ -107,24 +107,73 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     initThread()
   }, [open])
 
+  /* The family's thread is found as soon as the page loads, not when the
+     panel opens (found 2026-10-08). A desk reply to an AI handoff used to
+     reach nobody: nothing was read, and nothing listened, until the family
+     happened to open the chat again. Now the button shows what the school
+     (the desk or the AI) has written since the family last had the chat
+     open -- chat_threads.parent_last_read_at, docs/migration-fix5-A.sql --
+     and the channel below is live on every page. A reply left unread for 10
+     minutes is also emailed (app/api/cron/chat-reply-email). Found, never
+     created: a thread is only made when the family opens the chat. */
+  useEffect(() => {
+    if (guest) return
+    let alive = true
+    ;(async () => {
+      const th = await findThread()
+      if (!alive || !th) return
+      setThreadId(prev => prev ?? th.id)
+      // Before the migration there is no read mark to count from: no dot.
+      if (!th.readKnown) return
+      let q = supabase.from('chat_messages').select('id', { count: 'exact', head: true })
+        .eq('thread_id', th.id).in('sender_type', ['admin', 'ai'])
+      if (th.lastRead) q = q.gt('created_at', th.lastRead)
+      const { count, error } = await q
+      if (alive && !error && !openRef.current) setUnread(count || 0)
+    })()
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (!threadId) return
-    loadMessages()
     const channel = supabase
       .channel(`chat:${threadId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` }, (payload) => {
-        setMessages(prev => [...prev, payload.new])
+        setMessages(prev => prev.some(m => m.id === (payload.new as any)?.id) ? prev : [...prev, payload.new])
         if ((payload.new as any)?.sender_type !== 'parent') {
           setAwaitingAi(false)
           if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
         }
         // Only the school's replies are "unread"; the family's own message
-        // (sent from another tab or phone) is not news to them.
-        if (!openRef.current && (payload.new as any)?.sender_type !== 'parent') setUnread(u => u + 1)
+        // (sent from another tab or phone) is not news to them, and neither
+        // is the desk's "session ended" notice.
+        const from = (payload.new as any)?.sender_type
+        if (!openRef.current && (from === 'admin' || from === 'ai')) setUnread(u => u + 1)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [threadId])
+
+  // Read with the panel open; the history itself is only fetched then.
+  useEffect(() => {
+    if (open && threadId && !guest) loadMessages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, threadId])
+
+  /* What the family has seen: the newest message on screen while the panel
+     is open. Its own created_at, not this device's clock, so a phone whose
+     clock is off cannot mark a later reply read (or an earlier one unread).
+     Ignored before the migration (the column is not there yet). */
+  const markedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!open || !threadId || guest) return
+    const newest = messages.reduce<string | null>((a, m) => (!m._local && m.created_at && (!a || m.created_at > a) ? m.created_at : a), null)
+    if (!newest || (markedRef.current && newest <= markedRef.current)) return
+    markedRef.current = newest
+    supabase.from('chat_threads').update({ parent_last_read_at: newest }).eq('id', threadId).then(() => {}, () => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, threadId, messages])
 
   // Scroll the message list itself, never the page: scrollIntoView also moves
   // every scrolling ancestor, the window included.
@@ -159,11 +208,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     }
     // Normally already done by GlobalChat at sign-in; harmless if not.
     await claimGuestChat()
-    const { data } = await supabase
-      .from('chat_threads')
-      .select('id')
-      .eq('parent_id', parentId)
-      .single()
+    if (threadId) return
+    const data = await findThread()
     if (data) {
       setThreadId(data.id)
     } else {
@@ -174,6 +220,18 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
         .single()
       if (newThread) setThreadId(newThread.id)
     }
+  }
+
+  /** The family's thread (the oldest, as the payment notices pick it), and
+   *  when they last had it open. readKnown is false before
+   *  docs/migration-fix5-A.sql has added that column. */
+  async function findThread(): Promise<{ id: string; lastRead: string | null; readKnown: boolean } | null> {
+    const withRead = await supabase.from('chat_threads').select('id, parent_last_read_at')
+      .eq('parent_id', parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
+    if (!withRead.error) return withRead.data ? { id: withRead.data.id, lastRead: (withRead.data as any).parent_last_read_at ?? null, readKnown: true } : null
+    const plain = await supabase.from('chat_threads').select('id')
+      .eq('parent_id', parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
+    return plain.data ? { id: plain.data.id, lastRead: null, readKnown: false } : null
   }
 
   async function loadGuest(k: string) {
@@ -257,6 +315,9 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       })
       if (!res.ok) throw new Error('ai-reply failed')
       const d = await res.json().catch(() => ({} as any))
+      // The assistant cancelled a lesson or held an assessment: the page
+      // behind the chat (the dashboard) reads the account again.
+      if (d?.changed) { try { window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT)) } catch {} }
       if (d?.skipped) {
         // Human service mode: AI stays silent, hide typing animation, notify admin of the new message
         setAwaitingAi(false)
@@ -296,7 +357,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
           background: BLUE, border: '2px solid #fff', cursor: 'pointer', color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 6px 20px rgba(14,29,59,0.3)',
-        }} aria-label={t('chat.title')}>
+        }} aria-label={unread > 0 ? `${t('chat.title')} · ${t('chat.unread', { n: unread })}` : t('chat.title')}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.2-4.6A8 8 0 1 1 21 12z" />
           </svg>
@@ -306,7 +367,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               background: '#c0392b', color: '#fff', borderRadius: '50%',
               width: '20px', height: '20px', fontSize: '11px', fontWeight: 700,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{unread}</div>
+            }} aria-hidden="true">{unread > 9 ? '9+' : unread}</div>
           )}
         </button>
       )}

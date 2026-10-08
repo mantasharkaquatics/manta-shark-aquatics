@@ -31,7 +31,9 @@ export default async function AdminReviewsPage() {
 
   const [{ data: levels }, { data: skills }, queues] = await Promise.all([
     svc.from('levels').select('id, level_number, name').order('sort_order'),
-    svc.from('skills').select('id, name, sort_order, level_id').order('sort_order'),
+    // Active skills, by stage then order: sort_order restarts in every stage,
+    // and a retired skill is not scored any more (found 2026-10-08).
+    svc.from('skills').select('id, name, sort_order, level_id, stage').eq('is_active', true).order('stage').order('sort_order'),
     loadReviewQueues(svc),
   ])
 
@@ -46,6 +48,7 @@ export default async function AdminReviewsPage() {
     refundOwedList={queues.refundOwedList}
     assessmentRebookList={queues.assessmentRebookList}
     coachTimeOffList={queues.coachTimeOffList}
+    monthlyQuestionList={queues.monthlyQuestionList}
     sentBackList={queues.sentBackList}
   />
 }

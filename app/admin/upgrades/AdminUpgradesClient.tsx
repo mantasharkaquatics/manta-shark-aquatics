@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import AlertModal from '@/components/AlertModal'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
@@ -14,6 +14,8 @@ type Student = {
   parents: { first_name: string; last_name: string } | null
   /** No level, a paid Swim Assessment and no assessment report yet (page.tsx). */
   paidAssessment?: boolean
+  /** No level, and an assessment report waiting in Reviews or sent back (page.tsx). */
+  assessmentWaiting?: boolean
 }
 type UpgradeHistory = {
   id: string; from_level: string | null; to_level: string
@@ -31,8 +33,9 @@ type UpgradeHistory = {
  * moved to /admin/reviews, because a daily queue and a monthly setting do not
  * belong on one screen.
  */
-export default function AdminUpgradesClient({ upgradeHistory: initialHistory, adminId, levels, skills, students }: {
+export default function AdminUpgradesClient({ upgradeHistory: initialHistory, historyMore: initialMore, adminId, levels, skills, students }: {
   upgradeHistory: UpgradeHistory[]
+  historyMore: boolean
   adminId: string
   levels: Level[]
   skills: Skill[]
@@ -43,6 +46,16 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
   /** A curriculum level's name in the admin's language; '' for a retired level. */
   const levelName = (n: string | number | null | undefined) => LEVEL_NAMES[String(n)] ? t(`level.${n}.name`) : ''
   const [upgradeHistory, setUpgradeHistory] = useState(initialHistory)
+  // The school-wide log pages back 30 at a time, and a picked swimmer shows
+  // their own history: the newest 30 for everyone was all there was, so a
+  // change from last month could not be found (found 2026-10-08).
+  const [historyMore, setHistoryMore] = useState(initialMore)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyErr, setHistoryErr] = useState(false)
+  const [studentHistory, setStudentHistory] = useState<UpgradeHistory[] | null>(null)
+  const [studentHistoryMore, setStudentHistoryMore] = useState(false)
+  const [studentHistoryLoading, setStudentHistoryLoading] = useState(false)
+  const [studentHistoryErr, setStudentHistoryErr] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<string>('')
@@ -73,8 +86,48 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     return map
   }, [skills])
 
+  async function fetchHistory(studentId: string | null, before: string | null): Promise<{ rows: UpgradeHistory[]; more: boolean } | null> {
+    const q = new URLSearchParams()
+    if (studentId) q.set('student_id', studentId)
+    if (before) q.set('before', before)
+    const res = await fetch('/api/admin/level-history?' + q.toString()).catch(() => null)
+    if (!res || !res.ok) return null
+    return res.json().catch(() => null)
+  }
+
+  async function loadMoreHistory() {
+    const last = upgradeHistory[upgradeHistory.length - 1]
+    if (!last) return
+    setHistoryLoading(true); setHistoryErr(false)
+    const r = await fetchHistory(null, last.upgraded_at)
+    if (r) { setUpgradeHistory(prev => [...prev, ...r.rows]); setHistoryMore(r.more) } else setHistoryErr(true)
+    setHistoryLoading(false)
+  }
+
+  // The swimmer whose history was asked for last: an answer for an earlier
+  // pick that arrives late is dropped.
+  const historyFor = useRef<string | null>(null)
+  async function loadStudentHistory(studentId: string, before: string | null) {
+    historyFor.current = studentId
+    setStudentHistoryLoading(true); setStudentHistoryErr(false)
+    const r = await fetchHistory(studentId, before)
+    if (historyFor.current !== studentId) return
+    if (r) {
+      setStudentHistory(prev => before && prev ? [...prev, ...r.rows] : r.rows)
+      setStudentHistoryMore(r.more)
+    } else setStudentHistoryErr(true)
+    setStudentHistoryLoading(false)
+  }
+
+  // Picking a swimmer reads their own history.
+  function pickStudent(s: Student) {
+    setSelectedStudent(s)
+    setStudentHistory(null); setStudentHistoryMore(false); setStudentHistoryErr(false)
+    loadStudentHistory(s.id, null)
+  }
+
   const sameAsCurrent = !!selectedStudent && !!selectedLevel && String(selectedStudent.current_level ?? '') === selectedLevel
-  const canAssign = !!selectedLevel && !sameAsCurrent
+  const canAssign = !!selectedLevel && !sameAsCurrent && !selectedStudent?.assessmentWaiting
 
   async function handleAssign() {
     if (!selectedStudent || !canAssign) return
@@ -96,6 +149,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       // The server's words are English; the cases the desk meets get ours.
       setAssignError(t(j.code === 'same_level' ? 'admin.levels.err.sameLevel'
         : j.code === 'not_found' ? 'admin.levels.err.notFound'
+        : j.code === 'assessment_waiting' ? 'admin.levels.assessmentWaitingHint'
         : 'admin.levels.err.assignFailed'))
     }
     if (res?.ok) {
@@ -109,6 +163,46 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     }
     setSaving(false)
   }
+
+  // One change-log row; used by the school-wide log and a swimmer's own.
+  const historyRow = (h: any) => (
+    <div key={h.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4 flex items-center justify-between">
+      <div>
+        <p className="text-white text-sm font-medium">{h.students?.full_name}</p>
+        {/* A stage promotion keeps the same level, so rendering it as
+            "L7 → L7" read like a bug. Show the stage move instead.
+            Retired levels (8, 9) have no name left, so fall back to
+            the bare number rather than printing empty brackets. */}
+        <p className="text-gray-400 text-xs mt-0.5">
+          {String(h.from_level) === String(h.to_level) && h.from_stage && h.to_stage ? (
+            <>
+              L{h.to_level} · {t('admin.levels.stageN', { n: h.from_stage })} → <span className="text-[#c9a84c]">{t('admin.levels.stageN', { n: h.to_stage })}</span>
+            </>
+          ) : (
+            <>
+              {h.from_level ? `L${h.from_level} → ` : `${t('admin.levels.unassigned')} → `}
+              <span className="text-[#c9a84c]">
+                L{h.to_level}{LEVEL_NAMES[h.to_level] ? ` (${levelName(h.to_level)})` : ''}
+              </span>
+              {h.to_stage ? ` · ${t('admin.levels.stageN', { n: h.to_stage })}` : ''}
+            </>
+          )}
+          {h.notes && ` · ${h.notes === 'Assessment' ? t('admin.levels.noteAssessment') : h.notes}`}
+        </p>
+      </div>
+      <div className="text-right">
+        <p className="text-gray-500 text-xs">{new Date(h.upgraded_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+        {/* No name resolved means the row predates this or the
+             person has been deleted -- print nothing rather than a
+             dangling "by". */}
+        {h.by && (
+          <p className="text-gray-600 text-xs">
+            {t('admin.levels.by', { name: h.by.role === 'coach' ? t('admin.coachName', { name: `${h.by.first_name} ${h.by.last_name || ''}` }) : `${h.by.first_name} ${h.by.last_name || ''}` })}
+          </p>
+        )}
+      </div>
+    </div>
+  )
 
   return (
     <div>
@@ -133,7 +227,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               <div className="mt-2 space-y-1">
                 {filteredStudents.map(s => (
                   <button key={s.id}
-                    onClick={() => { setSelectedStudent(s); setSelectedLevel(''); setAssignError(null); setSearch(''); setShowSearch(false) }}
+                    onClick={() => { pickStudent(s); setSelectedLevel(''); setAssignError(null); setSearch(''); setShowSearch(false) }}
                     className="w-full flex items-center justify-between bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-left hover:border-[#c9a84c]/50 transition-all"
                   >
                     <div>
@@ -177,6 +271,14 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 <Link href="/admin/reviews" className="underline font-semibold">{t('admin.levels.goToReviews')}</Link>
               </div>
             )}
+            {/* The assessment report is already in Reviews (or back with the
+                coach): its level is set by confirming it there. */}
+            {selectedStudent.assessmentWaiting && (
+              <div className="rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/10 px-4 py-3 text-xs text-[#c9a84c]">
+                {t('admin.levels.assessmentWaitingHint')}{' '}
+                <Link href="/admin/reviews" className="underline font-semibold">{t('admin.levels.goToReviews')}</Link>
+              </div>
+            )}
             <div>
               <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">{t('admin.levels.assignLevel')}</p>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
@@ -213,6 +315,24 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
                 : t('admin.levels.pickLevel')}
             </button>
             {assignError && <p className="text-red-400 text-xs">{assignError}</p>}
+            <div className="pt-2">
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">{t('admin.levels.studentHistory')}</p>
+              {studentHistoryErr ? (
+                <p className="text-red-400 text-xs">{t('admin.levels.historyLoadFailed')}</p>
+              ) : studentHistory === null ? (
+                <p className="text-gray-500 text-xs">{t('admin.levels.historyLoading')}</p>
+              ) : studentHistory.length === 0 ? (
+                <p className="text-gray-500 text-xs">{t('admin.levels.studentHistoryEmpty')}</p>
+              ) : (
+                <div className="space-y-2">{studentHistory.map(historyRow)}</div>
+              )}
+              {studentHistoryMore && !studentHistoryErr && (
+                <button onClick={() => selectedStudent && loadStudentHistory(selectedStudent.id, studentHistory?.[studentHistory.length - 1]?.upgraded_at ?? null)} disabled={studentHistoryLoading}
+                  className="mt-2 w-full py-2 rounded-lg border border-[#1e3a6e] text-gray-300 text-xs hover:bg-[#1e3a6e]/40 transition-all disabled:opacity-50">
+                  {studentHistoryLoading ? t('admin.levels.historyLoading') : t('admin.levels.historyLoadMore')}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -281,45 +401,15 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
           </div>
         ) : (
           <div className="space-y-2">
-            {upgradeHistory.map((h: any) => (
-              <div key={h.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-white text-sm font-medium">{h.students?.full_name}</p>
-                  {/* A stage promotion keeps the same level, so rendering it as
-                      "L7 → L7" read like a bug. Show the stage move instead.
-                      Retired levels (8, 9) have no name left, so fall back to
-                      the bare number rather than printing empty brackets. */}
-                  <p className="text-gray-400 text-xs mt-0.5">
-                    {String(h.from_level) === String(h.to_level) && h.from_stage && h.to_stage ? (
-                      <>
-                        L{h.to_level} · {t('admin.levels.stageN', { n: h.from_stage })} → <span className="text-[#c9a84c]">{t('admin.levels.stageN', { n: h.to_stage })}</span>
-                      </>
-                    ) : (
-                      <>
-                        {h.from_level ? `L${h.from_level} → ` : `${t('admin.levels.unassigned')} → `}
-                        <span className="text-[#c9a84c]">
-                          L{h.to_level}{LEVEL_NAMES[h.to_level] ? ` (${levelName(h.to_level)})` : ''}
-                        </span>
-                        {h.to_stage ? ` · ${t('admin.levels.stageN', { n: h.to_stage })}` : ''}
-                      </>
-                    )}
-                    {h.notes && ` · ${h.notes === 'Assessment' ? t('admin.levels.noteAssessment') : h.notes}`}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-gray-500 text-xs">{new Date(h.upgraded_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                  {/* No name resolved means the row predates this or the
-                       person has been deleted -- print nothing rather than a
-                       dangling "by". */}
-                  {h.by && (
-                    <p className="text-gray-600 text-xs">
-                      {t('admin.levels.by', { name: h.by.role === 'coach' ? t('admin.coachName', { name: `${h.by.first_name} ${h.by.last_name || ''}` }) : `${h.by.first_name} ${h.by.last_name || ''}` })}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+            {upgradeHistory.map(historyRow)}
           </div>
+        )}
+        {historyErr && <p className="text-red-400 text-xs mt-2">{t('admin.levels.historyLoadFailed')}</p>}
+        {historyMore && (
+          <button onClick={loadMoreHistory} disabled={historyLoading}
+            className="mt-3 w-full py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40 transition-all disabled:opacity-50">
+            {historyLoading ? t('admin.levels.historyLoading') : t('admin.levels.historyLoadMore')}
+          </button>
         )}
       </div>
 

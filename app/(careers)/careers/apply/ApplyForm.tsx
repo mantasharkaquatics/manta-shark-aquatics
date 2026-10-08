@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { getTodayLA } from '@/lib/date'
 import {
   PAGE, CARD, H1, SUB, LABEL, INPUT, FIELD,
   BUTTON, BUTTON_DISABLED, ERROR, LINK, FOOT, GOLD,
@@ -19,6 +20,11 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
+
+// Same limit as app/api/careers/apply (4 MB, under Vercel's 4.5 MB request cap).
+const MAX_RESUME_BYTES = 4 * 1024 * 1024
+const RESUME_EXT = /\.(pdf|docx?)$/i
+const TOO_BIG = 'That file is too large. Please upload a PDF or Word file under 4 MB.'
 
 const AREA = { ...INPUT, minHeight: '90px', resize: 'vertical' as const, fontFamily: 'inherit' }
 const HINT = { fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: '6px 0 0' }
@@ -61,12 +67,34 @@ export default function ApplyForm() {
   const [referralSource, setReferralSource] = useState('')
   const [message, setMessage] = useState('')
   const [resume, setResume] = useState<File | null>(null)
+  const [resumeError, setResumeError] = useState('')
 
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const thisYear = new Date().getFullYear()
-  const years = [thisYear, thisYear + 1]
+  /* Start date menus (found 2026-10-08): the day list was always 1-31 and
+     every month of this year was offered, so 2027-02-30 or a month already
+     past could be sent. Now the days follow the chosen month and year (as
+     the family DobSelect does) and nothing before today is offered, in the
+     school's own time zone. */
+  const [ty, tm, td] = getTodayLA().split('-').map(Number)
+  const years = [ty, ty + 1]
+  const monthOptions = MONTHS.map((m, i) => ({ m, n: i + 1 }))
+    .filter(({ n }) => !(Number(startYear) === ty && n < tm))
+  const lastDay = (y: string, m: string) => {
+    if (!m) return 31
+    // No year yet: allow Feb 29; choosing the year clamps it.
+    return new Date(y ? Number(y) : 2028, Number(m), 0).getDate()
+  }
+  const firstDay = (y: string, m: string) => (Number(y) === ty && Number(m) === tm ? td : 1)
+  const dayOptions: number[] = []
+  for (let d = firstDay(startYear, startMonth); d <= lastDay(startYear, startMonth); d++) dayOptions.push(d)
+
+  function setStart(y: string, m: string, d: string) {
+    if (Number(y) === ty && m && Number(m) < tm) m = ''
+    if (d && m && (Number(d) > lastDay(y, m) || Number(d) < firstDay(y, m))) d = ''
+    setStartYear(y); setStartMonth(m); setStartDay(d)
+  }
 
   useEffect(() => {
     fetch('/api/careers/me')
@@ -83,6 +111,23 @@ export default function ApplyForm() {
       .catch(() => setReady(true))
   }, [router])
 
+  function pickResume(file: File | null) {
+    setResumeError('')
+    // Checked when the file is chosen, not after the whole form has uploaded
+    // (found 2026-10-08).
+    if (file && file.size > MAX_RESUME_BYTES) {
+      setResume(null); setResumeError(TOO_BIG)
+      if (fileInput.current) fileInput.current.value = ''
+      return
+    }
+    if (file && !RESUME_EXT.test(file.name)) {
+      setResume(null); setResumeError('Please choose a PDF or Word file (.pdf, .doc or .docx).')
+      if (fileInput.current) fileInput.current.value = ''
+      return
+    }
+    setResume(file)
+  }
+
   function earliestStart(): string {
     if (!startMonth || !startDay || !startYear) return ''
     return `${startYear}-${startMonth.padStart(2, '0')}-${startDay.padStart(2, '0')}`
@@ -93,6 +138,9 @@ export default function ApplyForm() {
     // Checked here as well as on the server so the applicant is told before a
     // round trip, and told next to the field rather than at the top.
     if (!resume) { setError('Please attach your résumé.'); return }
+    // A half-filled date used to be dropped without a word.
+    const parts = [startMonth, startDay, startYear].filter(Boolean).length
+    if (parts > 0 && parts < 3) { setError('Please complete the start date, or leave all three boxes empty.'); return }
     setBusy(true)
     try {
       const fd = new FormData()
@@ -110,9 +158,10 @@ export default function ApplyForm() {
       fd.set('resume', resume)
 
       const res = await fetch('/api/careers/apply', { method: 'POST', body: fd })
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => null)
       if (!res.ok) {
-        setError(data.error || 'Could not submit your application.')
+        // Vercel answers an oversized upload itself, with a 413 and no JSON.
+        setError(res.status === 413 ? TOO_BIG : data?.error || 'Could not submit your application.')
         setBusy(false)
         return
       }
@@ -247,22 +296,22 @@ export default function ApplyForm() {
         <div style={FIELD}>
           <label style={LABEL}>Earliest start date</label>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <select style={{ ...INPUT, flex: 2 }} value={startMonth}
-              onChange={(e) => setStartMonth(e.target.value)}>
+            <select style={{ ...INPUT, flex: 2 }} value={startMonth} aria-label="Start month"
+              onChange={(e) => setStart(startYear, e.target.value, startDay)}>
               <option value="" style={OPT}>Month</option>
-              {MONTHS.map((m, i) => (
-                <option key={m} value={String(i + 1)} style={OPT}>{m}</option>
+              {monthOptions.map(({ m, n }) => (
+                <option key={m} value={String(n)} style={OPT}>{m}</option>
               ))}
             </select>
-            <select style={{ ...INPUT, flex: 1 }} value={startDay}
-              onChange={(e) => setStartDay(e.target.value)}>
+            <select style={{ ...INPUT, flex: 1 }} value={startDay} aria-label="Start day"
+              onChange={(e) => setStart(startYear, startMonth, e.target.value)}>
               <option value="" style={OPT}>Day</option>
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+              {dayOptions.map((d) => (
                 <option key={d} value={String(d)} style={OPT}>{d}</option>
               ))}
             </select>
-            <select style={{ ...INPUT, flex: 1 }} value={startYear}
-              onChange={(e) => setStartYear(e.target.value)}>
+            <select style={{ ...INPUT, flex: 1 }} value={startYear} aria-label="Start year"
+              onChange={(e) => setStart(e.target.value, startMonth, startDay)}>
               <option value="" style={OPT}>Year</option>
               {years.map((y) => (
                 <option key={y} value={String(y)} style={OPT}>{y}</option>
@@ -287,8 +336,9 @@ export default function ApplyForm() {
           </div>
           <input ref={fileInput} type="file" style={{ display: 'none' }} tabIndex={-1} aria-hidden="true"
             accept=".pdf,.doc,.docx"
-            onChange={(e) => setResume(e.target.files?.[0] || null)} />
-          <p style={HINT}>Required. PDF or Word, up to 5 MB.</p>
+            onChange={(e) => pickResume(e.target.files?.[0] || null)} />
+          {resumeError ? <p role="alert" style={{ ...HINT, color: '#ffb4b4' }}>{resumeError}</p> : null}
+          <p style={HINT}>Required. PDF or Word, up to 4 MB.</p>
         </div>
 
         <div style={FIELD}>
