@@ -638,24 +638,24 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     (searchDigits.length >= 3 && String(p.phone || '').replace(/\D/g, '').includes(searchDigits))
   )
 
-  const byActivity = (a: Parent, b: Parent) => {
-    const aUnread = isUnread(a)
-    const bUnread = isUnread(b)
-    if (aUnread && !bUnread) return -1
-    if (!aUnread && bUnread) return 1
-    if (aUnread && bUnread) {
-      return new Date(b.last_activity_at || 0).getTime() - new Date(a.last_activity_at || 0).getTime()
-    }
-    return a.first_name.localeCompare(b.first_name)
-  }
-  // Unread families go first -- but only as the page opened. Opening one marks
-  // it read, and re-sorting on that moved the family the admin had just clicked
-  // out from under the pointer. The order is fixed for the visit; a family
-  // that becomes unread meanwhile keeps its place and shows its dot.
+  // Newest first by whichever happened last: an admin opening the family
+  // (activity_reviewed_at, stamped on every open) or the family signing in
+  // (last_login_at, written at the moment of login only, not on every page
+  // view). Owner, 2026-10-08. Unread families get no separate priority; their
+  // red dot is the reminder. Families with neither sort by first name.
+  const touchedAt = (p: Parent) => Math.max(
+    p.activity_reviewed_at ? new Date(p.activity_reviewed_at).getTime() : 0,
+    p.last_login_at ? new Date(p.last_login_at).getTime() : 0,
+  )
+  const byRecent = (a: Parent, b: Parent) =>
+    touchedAt(b) - touchedAt(a) || a.first_name.localeCompare(b.first_name)
+  // The order is taken once, as the page opens, and held for the visit: the
+  // family the admin just clicked moves to the top on the next visit, not out
+  // from under the pointer now.
   const orderRef = useRef<Map<string, number> | null>(null)
-  if (!orderRef.current) orderRef.current = new Map([...parents].sort(byActivity).map((p, i) => [p.id, i]))
+  if (!orderRef.current) orderRef.current = new Map([...parents].sort(byRecent).map((p, i) => [p.id, i]))
   const rank = (p: Parent) => orderRef.current!.get(p.id) ?? Number.MAX_SAFE_INTEGER
-  const sortedFiltered = [...filtered].sort((a, b) => rank(a) - rank(b) || byActivity(a, b))
+  const sortedFiltered = [...filtered].sort((a, b) => rank(a) - rank(b) || byRecent(a, b))
 
   async function loadAllStudentsForParent(students: Student[]) {
     for (const s of students) {
@@ -710,7 +710,9 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                   setExpanded(next)
                   if (next) {
                     loadAllStudentsForParent(parent.students)
-                    if (isUnread(parent)) markReviewed(parent.id)
+                    // Every open is stamped: it is what puts this family at
+                    // the top of the list next time (and clears the red dot).
+                    markReviewed(parent.id)
                   }
                 }}
                 className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left hover:bg-[#1e3a6e]/30 transition-all"
