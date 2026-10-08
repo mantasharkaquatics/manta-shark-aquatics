@@ -21,6 +21,7 @@
 
 import { POLISH_MODEL, SUPPORTED_NOTE_LANGUAGES, LANGUAGE_NAMES } from '@/lib/ai/models'
 import { loadGlossary } from '@/lib/ai/translate-note'
+import { FINAL_TAG_INSTRUCTION, finalText, looksLikeMeta } from '@/lib/ai/final-text'
 import { getTodayLA, getNowMinutesLA, laWallTimeToUtcMs } from '@/lib/date'
 import { getT, tDb, type Locale } from '@/lib/i18n/all'
 import { stageProgress, stageNameKey, type StageProgress } from '@/lib/levels'
@@ -385,7 +386,10 @@ export async function writeText(data: ReportData, notes: { date: string; text: s
       const out = JSON.parse(body)
       const summary = String(out.summary || '').trim()
       const focus = (Array.isArray(out.focus) ? out.focus : [out.focus]).map((f: any) => String(f || '').trim()).filter(Boolean).slice(0, 2)
-      if (summary) return { summary, focus: focus.join('\n') }
+      // The JSON keeps the model to two fields, but a field can still carry
+      // its own commentary (lib/ai/final-text.ts); that answer is retried.
+      if (summary && !looksLikeMeta(summary) && !focus.some(looksLikeMeta)) return { summary, focus: focus.join('\n') }
+      if (summary) console.error('monthly report: text refused, it reads like model commentary')
     } catch (e) {
       console.error('monthly report: could not write the text', e)
     }
@@ -515,7 +519,7 @@ async function translateReportText(text: string, lang: Locale, names: { en: stri
     glossary.length ? `Keep these swim terms in English exactly as written: ${glossary.join(', ')}.` : '',
     'Keep the line breaks. Say only what the text says. Add nothing, drop nothing.',
     `Write it the way a parent in that language would naturally say it, not word for word${lang === 'en' ? '' : `: "Start learning X" is ${lang === 'zh-Hans' ? '开始学X' : '開始學X'}`}.`,
-    'Return the translation alone, with no preamble.',
+    FINAL_TAG_INSTRUCTION,
   ].filter(Boolean).join('\n')
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -526,8 +530,9 @@ async function translateReportText(text: string, lang: Locale, names: { en: stri
       })
       if (!res.ok) { console.error('monthly report: translation error', res.status, (await res.text()).slice(0, 300)); continue }
       const json = await res.json()
-      const out = (json?.content || []).map((c: any) => c.text || '').join('').trim()
+      const out = finalText((json?.content || []).map((c: any) => c.text || '').join(''))
       if (out) return out
+      console.error('monthly report: translation refused, no clean <final> text')
     } catch (e) {
       console.error('monthly report: translation failed', e)
     }

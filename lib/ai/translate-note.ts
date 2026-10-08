@@ -1,4 +1,5 @@
 import { POLISH_MODEL, SUPPORTED_NOTE_LANGUAGES, LANGUAGE_NAMES, detectNoteLanguage } from './models'
+import { FINAL_TAG_INSTRUCTION, finalText } from './final-text'
 import { levelSkills, skillPairsFor, type SkillRef } from './skill-names'
 
 // Rewrites a note's stored translations from its CURRENT approved text. Called
@@ -91,7 +92,7 @@ export async function translateOnce(source: string, target: string, glossary: st
             ? `These are skills of the swim curriculum and have fixed names. Translate each exactly as shown; this list wins over the English-terms list above:\n${skillNames}\n`
             : '')
           + `Say only what the note says. Add nothing, drop nothing.\n`
-          + `Return the translated note alone, with no preamble.`,
+          + FINAL_TAG_INSTRUCTION,
         messages: [{ role: 'user', content: source }],
       }),
     })
@@ -100,8 +101,9 @@ export async function translateOnce(source: string, target: string, glossary: st
       return null
     }
     const json = await res.json()
-    const text = (json?.content || []).map((c: any) => c.text || '').join('').trim()
-    return text || null
+    const text = finalText((json?.content || []).map((c: any) => c.text || '').join(''))
+    if (!text) console.error('note translation refused: no clean <final> text')
+    return text
   } catch (err) {
     console.error('note translation request failed', err)
     return null

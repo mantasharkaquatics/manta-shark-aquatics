@@ -18,6 +18,8 @@ const APPROVED_MEANWHILE = 'This report was approved while you were sending it. 
 // The note went through but the scores had been approved in between.
 const SCORES_APPROVED_MEANWHILE = 'The scores were approved while you were sending this report. Your note was saved for review; the scores were not changed.'
 
+import { FINAL_TAG_INSTRUCTION, finalText } from '@/lib/ai/final-text'
+
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
   const supabaseAuth = createServerClient(
@@ -277,7 +279,7 @@ export async function POST(req: NextRequest) {
           + `When the coach refers to one of these curriculum skills, however they phrase it or in whichever language, write the skill's official name exactly as listed first on its line. Skill names win over the English-terms list above:\n`
           + `${skillLinesFor(language, (levelSkills || []).filter((k: any) => k.is_active !== false))}\n`
           + `Say only what the coach said. Do not invent skills, praise or next steps that were not mentioned.\n`
-          + `Return the note text alone, with no preamble.`,
+          + FINAL_TAG_INSTRUCTION,
         messages: [{
           role: 'user',
           content: `Swimmer: ${student.full_name}\nCoach: ${coach.first_name}\n\nWhat the coach said:\n${transcript}`,
@@ -286,8 +288,11 @@ export async function POST(req: NextRequest) {
     })
     const anthJson = await anthRes.json()
     if (!anthRes.ok) throw new Error(anthJson?.error?.message || 'polish failed')
-    const text = (anthJson.content || []).map((c: any) => c.text || '').join('').trim()
+    // Only the finished note (lib/ai/final-text.ts): an answer that still
+    // carries the model's own commentary keeps the raw transcript instead.
+    const text = finalText((anthJson.content || []).map((c: any) => c.text || '').join(''))
     if (text) note = text
+    else console.error('lesson-note: polish answer refused (no clean <final> text), keeping raw transcript')
   } catch (err: any) {
     // Falling back to the raw transcript beats losing the coach's work.
     console.error('lesson-note: polish failed, keeping raw transcript', err)
